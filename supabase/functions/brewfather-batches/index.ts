@@ -88,7 +88,10 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify(allBatches), {
+    // Filter out archived batches
+    const activeBatches = allBatches.filter(batch => batch.status !== 'Archived');
+
+    return new Response(JSON.stringify(activeBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
