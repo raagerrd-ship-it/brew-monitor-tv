@@ -49,23 +49,46 @@ serve(async (req) => {
       });
     }
     
-    // Otherwise, fetch all batches
-    const response = await fetch(
-      'https://api.brewfather.app/v2/batches',
-      {
+    // Otherwise, fetch all batches with pagination
+    const allBatches: any[] = [];
+    let startAfter = null;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const url = new URL('https://api.brewfather.app/v2/batches');
+      url.searchParams.set('limit', '50'); // Max limit
+      if (startAfter) {
+        url.searchParams.set('start_after', startAfter);
+      }
+      
+      const response = await fetch(url.toString(), {
         headers: {
           'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
         },
-      }
-    );
+      });
 
-    if (!response.ok) {
-      throw new Error(`Brewfather API error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Brewfather API error: ${response.status}`);
+      }
+
+      const batches = await response.json();
+      
+      if (!batches || batches.length === 0) {
+        hasMore = false;
+      } else {
+        allBatches.push(...batches);
+        
+        // If we got less than 50, we're done
+        if (batches.length < 50) {
+          hasMore = false;
+        } else {
+          // Get the _id of the last batch for pagination
+          startAfter = batches[batches.length - 1]._id;
+        }
+      }
     }
 
-    const batches = await response.json();
-
-    return new Response(JSON.stringify(batches), {
+    return new Response(JSON.stringify(allBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
