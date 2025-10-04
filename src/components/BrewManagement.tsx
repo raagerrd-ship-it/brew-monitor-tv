@@ -10,6 +10,7 @@ interface BrewfatherBatch {
   _id: string;
   name: string;
   batchNo: number;
+  brewDate?: string;
   recipe?: {
     name: string;
     style?: {
@@ -47,7 +48,18 @@ export function BrewManagement() {
       );
 
       if (batchesError) throw batchesError;
-      setBatches(batchesData || []);
+      
+      // Sort batches by brewDate (newest first) or batchNo (highest first)
+      const sortedBatches = (batchesData || []).sort((a: BrewfatherBatch, b: BrewfatherBatch) => {
+        // Try to sort by brewDate first
+        if (a.brewDate && b.brewDate) {
+          return new Date(b.brewDate).getTime() - new Date(a.brewDate).getTime();
+        }
+        // Fallback to batchNo (higher number = newer)
+        return (b.batchNo || 0) - (a.batchNo || 0);
+      });
+      
+      setBatches(sortedBatches);
 
       // Fetch selected brews from database
       const { data: selectedData, error: selectedError } = await supabase
