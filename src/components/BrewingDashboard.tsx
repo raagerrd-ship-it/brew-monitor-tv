@@ -25,7 +25,7 @@ const BREW_DATA: BrewData[] = [
     name: "Czech Pilsner",
     style: "Czech Premium Pale Lager",
     batchNumber: "#92",
-    status: "Conditioning",
+    status: "Konditionering",
     currentSG: 1.010,
     currentTemp: 12,
     attenuation: 80,
@@ -55,7 +55,7 @@ const BREW_DATA: BrewData[] = [
     name: "Holy Helles!",
     style: "Munich Helles",
     batchNumber: "#93",
-    status: "Completed",
+    status: "Klar",
     currentSG: 1.007,
     currentTemp: 7.7,
     attenuation: 82,
@@ -121,7 +121,7 @@ export function BrewingDashboard() {
                   </h2>
                   <span
                     className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      brew.status === "Conditioning"
+                      brew.status === "Konditionering"
                         ? "bg-primary/20 text-primary"
                         : "bg-ferment-green/20 text-ferment-green"
                     }`}
