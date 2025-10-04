@@ -1,7 +1,12 @@
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { BrewStats } from "./BrewStats";
 import { BrewChart } from "./BrewChart";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { Settings, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface BrewData {
   id: string;
@@ -19,78 +24,191 @@ interface BrewData {
   sgData: Array<{ date: string; value: number; temp: number }>;
 }
 
-const BREW_DATA: BrewData[] = [
-  {
-    id: "1",
-    name: "Czech Pilsner",
-    style: "Czech Premium Pale Lager",
-    batchNumber: "#92",
-    status: "Konditionering",
-    currentSG: 1.010,
-    currentTemp: 12,
-    attenuation: 80,
-    abv: 5.4,
-    originalGravity: 1.050,
-    finalGravity: 1.010,
-    lastUpdate: "22 Sep 2025 13:33",
-    sgData: [
-      { date: "31 Aug", value: 1.050, temp: 18 },
-      { date: "1 Sep", value: 1.048, temp: 17 },
-      { date: "2 Sep", value: 1.044, temp: 16 },
-      { date: "3 Sep", value: 1.038, temp: 15 },
-      { date: "4 Sep", value: 1.032, temp: 14 },
-      { date: "5 Sep", value: 1.026, temp: 14 },
-      { date: "6 Sep", value: 1.022, temp: 13 },
-      { date: "7 Sep", value: 1.018, temp: 13 },
-      { date: "8 Sep", value: 1.016, temp: 13 },
-      { date: "10 Sep", value: 1.014, temp: 12 },
-      { date: "12 Sep", value: 1.012, temp: 12 },
-      { date: "15 Sep", value: 1.011, temp: 12 },
-      { date: "18 Sep", value: 1.010, temp: 12 },
-      { date: "22 Sep", value: 1.010, temp: 12 },
-    ],
-  },
-  {
-    id: "2",
-    name: "Holy Helles!",
-    style: "Munich Helles",
-    batchNumber: "#93",
-    status: "Klar",
-    currentSG: 1.007,
-    currentTemp: 7.7,
-    attenuation: 82,
-    abv: 4.5,
-    originalGravity: 1.044,
-    finalGravity: 1.007,
-    lastUpdate: "15 Sep 2025 15:16",
-    sgData: [
-      { date: "8 Sep", value: 1.044, temp: 16 },
-      { date: "9 Sep", value: 1.036, temp: 14 },
-      { date: "10 Sep", value: 1.026, temp: 12 },
-      { date: "11 Sep", value: 1.018, temp: 10 },
-      { date: "12 Sep", value: 1.012, temp: 9 },
-      { date: "13 Sep", value: 1.009, temp: 8 },
-      { date: "14 Sep", value: 1.008, temp: 8 },
-      { date: "15 Sep", value: 1.007, temp: 7.7 },
-    ],
-  },
-];
-
 export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [brews, setBrews] = useState<BrewData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
 
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    loadBrews();
+  }, []);
+
+  const loadBrews = async () => {
+    try {
+      setLoading(true);
+
+      // Get selected brews from database
+      const { data: selectedBrews, error: selectedError } = await supabase
+        .from('selected_brews')
+        .select('*')
+        .eq('is_visible', true)
+        .order('display_order')
+        .limit(3);
+
+      if (selectedError) throw selectedError;
+
+      if (!selectedBrews || selectedBrews.length === 0) {
+        setBrews([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch batch data from Brewfather
+      const batchIds = selectedBrews.map(brew => brew.batch_id);
+      const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
+        'brewfather-batches',
+        { body: { batchIds } }
+      );
+
+      if (batchesError) throw batchesError;
+
+      // Fetch readings for each batch
+      const brewsWithData = await Promise.all(
+        batchesData.map(async (batch: any) => {
+          try {
+            const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
+              'brewfather-readings',
+              { body: { batchId: batch._id } }
+            );
+
+            if (readingsError) {
+              console.error('Error fetching readings for batch:', batch._id, readingsError);
+            }
+
+            // Transform Brewfather data to our format
+            const readings = readingsData || [];
+            const sgData = readings
+              .filter((r: any) => r.sg && r.temp)
+              .map((r: any) => ({
+                date: new Date(r.time).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }),
+                value: r.sg,
+                temp: r.temp,
+              }));
+
+            const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
+            const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050;
+            const currentTemp = latestReading?.temp || 20;
+
+            const og = batch.measuredOg || batch.estimatedOg || 1.050;
+            const fg = batch.measuredFg || batch.estimatedFg || 1.010;
+            const attenuation = ((og - currentSG) / (og - fg)) * 100;
+            const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0;
+
+            return {
+              id: batch._id,
+              name: batch.recipe?.name || batch.name,
+              style: batch.recipe?.style?.name || 'Okänd stil',
+              batchNumber: `#${batch.batchNo}`,
+              status: batch.status === 'Conditioning' ? 'Konditionering' : 
+                      batch.status === 'Completed' ? 'Klar' : batch.status,
+              currentSG: currentSG,
+              currentTemp: currentTemp,
+              attenuation: Math.round(attenuation),
+              abv: parseFloat(abv.toFixed(1)),
+              originalGravity: og,
+              finalGravity: fg,
+              lastUpdate: latestReading ? 
+                new Date(latestReading.time).toLocaleString('sv-SE', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : 'Ingen data',
+              sgData: sgData.length > 0 ? sgData : [
+                { date: 'Start', value: og, temp: 20 },
+                { date: 'Nu', value: currentSG, temp: currentTemp },
+              ],
+            };
+          } catch (error) {
+            console.error('Error processing batch:', batch._id, error);
+            return null;
+          }
+        })
+      );
+
+      const validBrews = brewsWithData.filter(brew => brew !== null) as BrewData[];
+      setBrews(validBrews);
+
+    } catch (error) {
+      console.error('Error loading brews:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte ladda bryggdata från Brewfather",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full bg-background flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (brews.length === 0) {
+    return (
+      <div className="min-h-screen w-full bg-background p-6">
+        <div className="mb-8 text-center py-4">
+          <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
+            Bryggövervakare
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            {currentTime.toLocaleDateString("sv-SE", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}{" "}
+            {currentTime.toLocaleTimeString("sv-SE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+
+        <Card className="max-w-2xl mx-auto p-8 text-center">
+          <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
+          <p className="text-muted-foreground mb-6">
+            Gå till inställningar för att välja vilka öl du vill visa på dashboarden
+          </p>
+          <Button onClick={() => navigate('/settings')}>
+            <Settings className="mr-2 h-4 w-4" />
+            Öppna Inställningar
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full bg-background p-6">
       {/* Header */}
-      <div className="mb-8 text-center py-4">
+      <div className="mb-8 text-center py-4 relative">
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute right-0 top-0"
+          onClick={() => navigate('/settings')}
+        >
+          <Settings className="mr-2 h-4 w-4" />
+          Inställningar
+        </Button>
+        
         <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
           Bryggövervakare
         </h1>
@@ -108,9 +226,9 @@ export function BrewingDashboard() {
         </p>
       </div>
 
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-2 gap-6">
-        {BREW_DATA.map((brew) => (
+      {/* Dynamic Layout based on number of brews */}
+      <div className={`grid ${brews.length === 1 ? 'grid-cols-1 max-w-4xl mx-auto' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-6`}>
+        {brews.map((brew) => (
           <div key={brew.id} className="space-y-6">
             {/* Brew Header Card */}
             <Card className="bg-gradient-card border-border p-6 shadow-deep">

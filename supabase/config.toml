@@ -1,1 +1,14 @@
 project_id = "plwchuzidrjgyuepwdcl"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[functions.brewfather-batches]
+verify_jwt = false
+
+[functions.brewfather-readings]
+verify_jwt = false
