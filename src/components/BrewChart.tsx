@@ -59,26 +59,6 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
               wrapperStyle={{ color: "hsl(var(--foreground))" }}
               formatter={() => "Specifik Gravitet"}
             />
-            <ReferenceLine
-              y={og}
-              stroke="hsl(var(--primary))"
-              strokeDasharray="5 5"
-              label={{
-                value: `OG: ${og.toFixed(3)}`,
-                fill: "hsl(var(--primary))",
-                fontSize: 12,
-              }}
-            />
-            <ReferenceLine
-              y={fg}
-              stroke="hsl(var(--ferment-green))"
-              strokeDasharray="5 5"
-              label={{
-                value: `FG: ${fg.toFixed(3)}`,
-                fill: "hsl(var(--ferment-green))",
-                fontSize: 12,
-              }}
-            />
             <Area
               type="monotone"
               dataKey="value"
