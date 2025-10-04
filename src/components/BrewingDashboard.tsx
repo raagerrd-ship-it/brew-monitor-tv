@@ -90,8 +90,8 @@ export function BrewingDashboard() {
   return (
     <div className="min-h-screen w-full bg-background p-6">
       {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent">
+      <div className="mb-8 text-center py-4">
+        <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
           Bryggövervakare
         </h1>
         <p className="text-xl text-muted-foreground">
