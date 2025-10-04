@@ -6,6 +6,7 @@ interface BrewStatsProps {
     currentTemp: number;
     attenuation: number;
     abv: number;
+    originalGravity: number;
     lastUpdate: string;
   };
 }
@@ -24,6 +25,9 @@ export function BrewStats({ brew }: BrewStatsProps) {
               <p className="text-sm text-muted-foreground">Specifik Gravitet</p>
               <p className="text-3xl font-bold text-primary">
                 {brew.currentSG.toFixed(3)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Start: {brew.originalGravity.toFixed(3)}
               </p>
             </div>
           </div>
