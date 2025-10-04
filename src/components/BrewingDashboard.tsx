@@ -163,11 +163,8 @@ export function BrewingDashboard() {
   if (brews.length === 0) {
     return (
       <div className="min-h-screen w-full bg-background p-6">
-        <div className="mb-8 text-center py-4">
-          <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
-            Bryggövervakare
-          </h1>
-          <p className="text-xl text-muted-foreground">
+        <div className="mb-8 relative">
+          <p className="absolute right-0 top-0 text-sm text-muted-foreground">
             {currentTime.toLocaleDateString("sv-SE", {
               weekday: "long",
               year: "numeric",
@@ -179,6 +176,12 @@ export function BrewingDashboard() {
               minute: "2-digit",
             })}
           </p>
+          
+          <div className="text-center py-4">
+            <h1 className="text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
+              Bryggövervakare
+            </h1>
+          </div>
         </div>
 
         <Card className="max-w-2xl mx-auto p-8 text-center">
@@ -198,32 +201,35 @@ export function BrewingDashboard() {
   return (
     <div className="min-h-screen w-full bg-background p-6">
       {/* Header */}
-      <div className="mb-8 text-center py-4 relative">
-        <Button
-          variant="outline"
-          size="sm"
-          className="absolute right-0 top-0"
-          onClick={() => navigate('/settings')}
-        >
-          <Settings className="mr-2 h-4 w-4" />
-          Inställningar
-        </Button>
+      <div className="mb-8 relative">
+        <div className="absolute right-0 top-0 flex items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            {currentTime.toLocaleDateString("sv-SE", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}{" "}
+            {currentTime.toLocaleTimeString("sv-SE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/settings')}
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Inställningar
+          </Button>
+        </div>
         
-        <h1 className="mb-2 text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
-          Bryggövervakare
-        </h1>
-        <p className="text-xl text-muted-foreground">
-          {currentTime.toLocaleDateString("sv-SE", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}{" "}
-          {currentTime.toLocaleTimeString("sv-SE", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
+        <div className="text-center py-4">
+          <h1 className="text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
+            Bryggövervakare
+          </h1>
+        </div>
       </div>
 
       {/* Dynamic Layout based on number of brews */}
