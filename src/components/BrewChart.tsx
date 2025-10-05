@@ -20,10 +20,10 @@ interface BrewChartProps {
 
 export function BrewChart({ data, og, fg }: BrewChartProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 h-full flex flex-col">
       {/* SG Chart */}
-      <div>
-        <ResponsiveContainer width="100%" height={240}>
+      <div className="flex-1">
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
               <linearGradient id="sgGradient" x1="0" y1="0" x2="0" y2="1">
@@ -35,13 +35,13 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
             <XAxis
               dataKey="date"
               stroke="hsl(var(--muted-foreground))"
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "10px" }}
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
             <YAxis
               domain={[fg - 0.005, og + 0.005]}
               stroke="hsl(var(--muted-foreground))"
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "10px" }}
               tick={{ fill: "hsl(var(--muted-foreground))" }}
               tickFormatter={(value) => value.toFixed(3)}
             />
@@ -56,14 +56,14 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
               formatter={(value: number) => [value.toFixed(3), "SG"]}
             />
             <Legend
-              wrapperStyle={{ color: "hsl(var(--foreground))" }}
-              formatter={() => "Specifik Gravitet"}
+              wrapperStyle={{ color: "hsl(var(--foreground))", fontSize: "11px" }}
+              formatter={() => "SG"}
             />
             <Area
               type="monotone"
               dataKey="value"
               stroke="hsl(var(--beer-amber))"
-              strokeWidth={3}
+              strokeWidth={2}
               fill="url(#sgGradient)"
             />
           </AreaChart>
@@ -71,8 +71,8 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
       </div>
 
       {/* Temperature Chart */}
-      <div>
-        <ResponsiveContainer width="100%" height={180}>
+      <div className="flex-1">
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <defs>
               <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
@@ -84,12 +84,12 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
             <XAxis
               dataKey="date"
               stroke="hsl(var(--muted-foreground))"
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "10px" }}
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
             <YAxis
               stroke="hsl(var(--muted-foreground))"
-              style={{ fontSize: "12px" }}
+              style={{ fontSize: "10px" }}
               tick={{ fill: "hsl(var(--muted-foreground))" }}
               tickFormatter={(value) => `${value}°C`}
             />
@@ -104,16 +104,16 @@ export function BrewChart({ data, og, fg }: BrewChartProps) {
               formatter={(value: number) => [`${value}°C`, "Temp"]}
             />
             <Legend
-              wrapperStyle={{ color: "hsl(var(--foreground))" }}
-              formatter={() => "Temperatur"}
+              wrapperStyle={{ color: "hsl(var(--foreground))", fontSize: "11px" }}
+              formatter={() => "Temp"}
             />
             <Line
               type="monotone"
               dataKey="temp"
               stroke="hsl(var(--temp-blue))"
-              strokeWidth={3}
-              dot={{ fill: "hsl(var(--temp-blue))", r: 4 }}
-              activeDot={{ r: 6, fill: "hsl(var(--temp-blue))" }}
+              strokeWidth={2}
+              dot={{ fill: "hsl(var(--temp-blue))", r: 3 }}
+              activeDot={{ r: 5, fill: "hsl(var(--temp-blue))" }}
             />
           </LineChart>
         </ResponsiveContainer>

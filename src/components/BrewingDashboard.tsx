@@ -162,9 +162,9 @@ export function BrewingDashboard() {
 
   if (brews.length === 0) {
     return (
-      <div className="min-h-screen w-full bg-background p-6">
-        <div className="mb-8 relative">
-          <p className="absolute right-0 top-0 text-sm text-muted-foreground">
+      <div className="h-screen w-full bg-background flex flex-col overflow-hidden p-4">
+        <div className="mb-4 relative">
+          <p className="absolute right-0 top-0 text-xs text-muted-foreground">
             {currentTime.toLocaleDateString("sv-SE", {
               weekday: "long",
               year: "numeric",
@@ -177,8 +177,8 @@ export function BrewingDashboard() {
             })}
           </p>
           
-          <div className="text-center py-4">
-            <h1 className="text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
+          <div className="text-center py-2">
+            <h1 className="text-4xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-1">
               Bryggövervakare
             </h1>
           </div>
@@ -199,11 +199,11 @@ export function BrewingDashboard() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background p-6">
+    <div className="h-screen w-full bg-background flex flex-col overflow-hidden p-3">
       {/* Header */}
-      <div className="mb-8 relative">
-        <div className="absolute right-0 top-0 flex items-center gap-4">
-          <p className="text-sm text-muted-foreground">
+      <div className="mb-3 relative flex-shrink-0">
+        <div className="absolute right-0 top-0 flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
             {currentTime.toLocaleDateString("sv-SE", {
               weekday: "long",
               year: "numeric",
@@ -216,35 +216,35 @@ export function BrewingDashboard() {
             })}
           </p>
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={() => navigate('/settings')}
+            className="opacity-30 hover:opacity-100 transition-opacity"
           >
-            <Settings className="mr-2 h-4 w-4" />
-            Inställningar
+            <Settings className="h-4 w-4" />
           </Button>
         </div>
         
-        <div className="text-center py-4">
-          <h1 className="text-5xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-2">
+        <div className="text-center py-1">
+          <h1 className="text-4xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-1">
             Bryggövervakare
           </h1>
         </div>
       </div>
 
       {/* Dynamic Layout based on number of brews */}
-      <div className={`grid ${brews.length === 1 ? 'grid-cols-1 max-w-4xl mx-auto' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-6`}>
+      <div className={`grid ${brews.length === 1 ? 'grid-cols-1 max-w-5xl mx-auto' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-3 flex-1 overflow-hidden`}>
         {brews.map((brew) => (
-          <div key={brew.id} className="space-y-6">
+          <div key={brew.id} className="flex flex-col gap-3 overflow-hidden">
             {/* Brew Header Card */}
-            <Card className="bg-gradient-card border-border p-6 shadow-deep">
-              <div className="mb-4">
+            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-shrink-0">
+              <div className="mb-3">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-3xl font-bold text-foreground">
+                  <h2 className="text-2xl font-bold text-foreground">
                     {brew.name}
                   </h2>
                   <span
-                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       brew.status === "Konditionering"
                         ? "bg-primary/20 text-primary"
                         : "bg-ferment-green/20 text-ferment-green"
@@ -253,7 +253,7 @@ export function BrewingDashboard() {
                     {brew.status}
                   </span>
                 </div>
-                <p className="mt-2 text-lg text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {brew.style} • Sats {brew.batchNumber}
                 </p>
               </div>
@@ -263,8 +263,8 @@ export function BrewingDashboard() {
             </Card>
 
             {/* Charts */}
-            <Card className="bg-gradient-card border-border p-6 shadow-deep">
-              <h3 className="mb-4 text-xl font-semibold text-foreground">
+            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-1 overflow-hidden">
+              <h3 className="mb-2 text-lg font-semibold text-foreground">
                 Jäsningsförlopp
               </h3>
               <BrewChart data={brew.sgData} og={brew.originalGravity} fg={brew.finalGravity} />
