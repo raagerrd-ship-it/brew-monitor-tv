@@ -254,7 +254,7 @@ export function BrewingDashboard() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {brew.style} • Sats {brew.batchNumber}
+                  {brew.style} • Sats {brew.batchNumber} • Uppdaterad: {brew.lastUpdate}
                 </p>
               </div>
 

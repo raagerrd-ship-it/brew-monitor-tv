@@ -75,11 +75,6 @@ export function BrewStats({ brew }: BrewStatsProps) {
           </div>
         </div>
       </div>
-
-      {/* Last Update */}
-      <div className="text-center text-[10px] text-muted-foreground">
-        {brew.lastUpdate}
-      </div>
     </div>
   );
 }
