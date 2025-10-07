@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface BrewData {
   id: string;
+  batch_id: string;
   name: string;
   style: string;
   batchNumber: string;
@@ -44,117 +45,78 @@ export function BrewingDashboard() {
   }, []);
 
   useEffect(() => {
-    // Check for new data every 15 minutes
-    const dataRefreshTimer = setInterval(() => {
-      loadBrews();
-    }, 15 * 60 * 1000); // 15 minutes in milliseconds
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('brew-readings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'brew_readings'
+        },
+        (payload) => {
+          console.log('Realtime update:', payload)
+          loadBrews()
+        }
+      )
+      .subscribe()
 
-    return () => clearInterval(dataRefreshTimer);
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, []);
 
   const loadBrews = async () => {
     try {
       setLoading(true);
 
-      // Get selected brews from database
-      const { data: selectedBrews, error: selectedError } = await supabase
-        .from('selected_brews')
+      // Get brew readings from database
+      const { data: brewReadings, error: readingsError } = await supabase
+        .from('brew_readings')
         .select('*')
-        .eq('is_visible', true)
-        .order('display_order')
-        .limit(3);
+        .order('created_at')
 
-      if (selectedError) throw selectedError;
+      if (readingsError) throw readingsError;
 
-      if (!selectedBrews || selectedBrews.length === 0) {
+      if (!brewReadings || brewReadings.length === 0) {
         setBrews([]);
         setLoading(false);
         return;
       }
 
-      // Fetch batch data from Brewfather
-      const batchIds = selectedBrews.map(brew => brew.batch_id);
-      const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
-        'brewfather-batches',
-        { body: { batchIds } }
-      );
+      // Transform database data to component format
+      const brewsData = brewReadings.map((reading: any) => ({
+        id: reading.id,
+        batch_id: reading.batch_id,
+        name: reading.name,
+        style: reading.style,
+        batchNumber: reading.batch_number,
+        status: reading.status,
+        currentSG: reading.current_sg,
+        currentTemp: reading.current_temp,
+        attenuation: reading.attenuation,
+        abv: reading.abv,
+        originalGravity: reading.original_gravity,
+        finalGravity: reading.final_gravity,
+        lastUpdate: reading.last_update ? 
+          new Date(reading.last_update).toLocaleString('sv-SE', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : 'Ingen data',
+        sgData: reading.sg_data || []
+      }));
 
-      if (batchesError) throw batchesError;
-
-      // Fetch readings for each batch
-      const brewsWithData = await Promise.all(
-        batchesData.map(async (batch: any) => {
-          try {
-            const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
-              'brewfather-readings',
-              { body: { batchId: batch._id } }
-            );
-
-            if (readingsError) {
-              console.error('Error fetching readings for batch:', batch._id, readingsError);
-            }
-
-            // Transform Brewfather data to our format
-            const readings = readingsData || [];
-            const sgData = readings
-              .filter((r: any) => r.sg && r.temp)
-              .map((r: any) => ({
-                date: new Date(r.time).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }),
-                value: r.sg,
-                temp: r.temp,
-              }));
-
-            const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
-            const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050;
-            const currentTemp = latestReading?.temp || 20;
-
-            const og = batch.measuredOg || batch.estimatedOg || 1.050;
-            const fg = batch.measuredFg || batch.estimatedFg || 1.010;
-            const attenuation = ((og - currentSG) / (og - fg)) * 100;
-            const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0;
-
-            return {
-              id: batch._id,
-              name: batch.recipe?.name || batch.name,
-              style: batch.recipe?.style?.name || 'Okänd stil',
-              batchNumber: `#${batch.batchNo}`,
-              status: batch.status === 'Conditioning' ? 'Konditionering' : 
-                      batch.status === 'Completed' ? 'Klar' : 
-                      batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
-              currentSG: currentSG,
-              currentTemp: currentTemp,
-              attenuation: Math.round(attenuation),
-              abv: parseFloat(abv.toFixed(1)),
-              originalGravity: og,
-              finalGravity: fg,
-              lastUpdate: latestReading ? 
-                new Date(latestReading.time).toLocaleString('sv-SE', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }) : 'Ingen data',
-              sgData: sgData.length > 0 ? sgData : [
-                { date: 'Start', value: og, temp: 20 },
-                { date: 'Nu', value: currentSG, temp: currentTemp },
-              ],
-            };
-          } catch (error) {
-            console.error('Error processing batch:', batch._id, error);
-            return null;
-          }
-        })
-      );
-
-      const validBrews = brewsWithData.filter(brew => brew !== null) as BrewData[];
-      setBrews(validBrews);
+      setBrews(brewsData);
 
     } catch (error) {
       console.error('Error loading brews:', error);
       toast({
         title: "Fel",
-        description: "Kunde inte ladda bryggdata från Brewfather",
+        description: "Kunde inte ladda bryggdata",
         variant: "destructive",
       });
     } finally {

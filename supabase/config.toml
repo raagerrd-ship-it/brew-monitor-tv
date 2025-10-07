@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.brewfather-readings]
 verify_jwt = false
+
+[functions.sync-brew-data]
+verify_jwt = false

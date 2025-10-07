@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      brew_readings: {
+        Row: {
+          abv: number
+          attenuation: number
+          batch_id: string
+          batch_number: string
+          created_at: string
+          current_sg: number
+          current_temp: number
+          final_gravity: number
+          id: string
+          last_update: string | null
+          name: string
+          original_gravity: number
+          sg_data: Json
+          status: string
+          style: string
+          updated_at: string
+        }
+        Insert: {
+          abv: number
+          attenuation: number
+          batch_id: string
+          batch_number: string
+          created_at?: string
+          current_sg: number
+          current_temp: number
+          final_gravity: number
+          id?: string
+          last_update?: string | null
+          name: string
+          original_gravity: number
+          sg_data?: Json
+          status: string
+          style: string
+          updated_at?: string
+        }
+        Update: {
+          abv?: number
+          attenuation?: number
+          batch_id?: string
+          batch_number?: string
+          created_at?: string
+          current_sg?: number
+          current_temp?: number
+          final_gravity?: number
+          id?: string
+          last_update?: string | null
+          name?: string
+          original_gravity?: number
+          sg_data?: Json
+          status?: string
+          style?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       selected_brews: {
         Row: {
           batch_id: string
