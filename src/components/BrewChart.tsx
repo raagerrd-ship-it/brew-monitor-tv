@@ -20,6 +20,15 @@ interface BrewChartProps {
 }
 
 export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) {
+  // Check if data is empty or has no values
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <p className="text-muted-foreground text-lg">N/A</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`h-full flex ${singleView ? 'flex-row gap-4' : 'flex-col space-y-3'}`}>
       {/* SG Chart */}
