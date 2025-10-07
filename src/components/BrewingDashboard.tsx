@@ -35,7 +35,7 @@ export function BrewingDashboard() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000);
+    }, 1000); // Update every second
 
     return () => clearInterval(timer);
   }, []);
