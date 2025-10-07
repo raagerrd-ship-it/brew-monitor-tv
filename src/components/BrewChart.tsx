@@ -16,11 +16,12 @@ interface BrewChartProps {
   data: Array<{ date: string; value: number; temp: number }>;
   og: number;
   fg: number;
+  singleView?: boolean;
 }
 
-export function BrewChart({ data, og, fg }: BrewChartProps) {
+export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) {
   return (
-    <div className="space-y-3 h-full flex flex-col">
+    <div className={`h-full flex ${singleView ? 'flex-row gap-4' : 'flex-col space-y-3'}`}>
       {/* SG Chart */}
       <div className="flex-1">
         <ResponsiveContainer width="100%" height="100%">

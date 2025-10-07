@@ -235,7 +235,7 @@ export function BrewingDashboard() {
       {/* Dynamic Layout based on number of brews */}
       <div className={`grid ${brews.length === 1 ? 'grid-cols-1' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} ${brews.length === 1 ? 'gap-6 px-8' : 'gap-3'} flex-1 overflow-hidden`}>
         {brews.map((brew) => (
-          <div key={brew.id} className="flex flex-col gap-3 overflow-hidden">
+          <div key={brew.id} className={`flex ${brews.length === 1 ? 'flex-col' : 'flex-col'} gap-3 overflow-hidden`}>
             {/* Brew Header Card */}
             <Card className="bg-gradient-card border-border p-3 shadow-deep flex-shrink-0">
               <div className="mb-3">
@@ -267,7 +267,7 @@ export function BrewingDashboard() {
               <h3 className="mb-2 text-lg font-semibold text-foreground">
                 Jäsningsförlopp
               </h3>
-              <BrewChart data={brew.sgData} og={brew.originalGravity} fg={brew.finalGravity} />
+              <BrewChart data={brew.sgData} og={brew.originalGravity} fg={brew.finalGravity} singleView={brews.length === 1} />
             </Card>
           </div>
         ))}
