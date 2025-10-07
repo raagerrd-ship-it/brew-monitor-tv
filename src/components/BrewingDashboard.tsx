@@ -110,7 +110,8 @@ export function BrewingDashboard() {
               style: batch.recipe?.style?.name || 'Okänd stil',
               batchNumber: `#${batch.batchNo}`,
               status: batch.status === 'Conditioning' ? 'Konditionering' : 
-                      batch.status === 'Completed' ? 'Klar' : batch.status,
+                      batch.status === 'Completed' ? 'Klar' : 
+                      batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
               currentSG: currentSG,
               currentTemp: currentTemp,
               attenuation: Math.round(attenuation),
