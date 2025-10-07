@@ -31,6 +31,7 @@ export function BrewManagement() {
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,6 +158,33 @@ export function BrewManagement() {
     }
   };
 
+  const syncBrewData = async () => {
+    try {
+      setSyncing(true);
+      
+      const { error } = await supabase.functions.invoke('sync-brew-data', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Synkronisering klar!",
+        description: "Bryggdata har uppdaterats",
+      });
+
+    } catch (error) {
+      console.error('Error syncing brew data:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte synkronisera bryggdata",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -202,23 +230,44 @@ export function BrewManagement() {
         ))}
       </div>
 
-      <div className="flex justify-between items-center pt-4 border-t">
-        <p className="text-sm text-muted-foreground">
-          {selectedBrews.length} av 3 öl valda
+      <div className="flex flex-col gap-4 pt-4 border-t">
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-muted-foreground">
+            {selectedBrews.length} av 3 öl valda
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={syncBrewData}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Synkroniserar...
+                </>
+              ) : (
+                'Synkronisera Data'
+              )}
+            </Button>
+            <Button
+              onClick={saveSelection}
+              disabled={saving || selectedBrews.length === 0}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sparar...
+                </>
+              ) : (
+                'Spara Val'
+              )}
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Data uppdateras automatiskt var 5:e minut. Använd "Synkronisera Data" för att hämta den senaste informationen omedelbart.
         </p>
-        <Button
-          onClick={saveSelection}
-          disabled={saving || selectedBrews.length === 0}
-        >
-          {saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sparar...
-            </>
-          ) : (
-            'Spara Val'
-          )}
-        </Button>
       </div>
     </div>
   );
