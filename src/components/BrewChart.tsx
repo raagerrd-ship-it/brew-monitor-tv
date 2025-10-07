@@ -1,5 +1,4 @@
 import {
-  Area,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -31,12 +30,6 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data}>
-          <defs>
-            <linearGradient id="sgGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--beer-amber))" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="hsl(var(--beer-amber))" stopOpacity={0.1} />
-            </linearGradient>
-          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           <XAxis
             dataKey="date"
@@ -84,13 +77,14 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               return value;
             }}
           />
-          <Area
+          <Line
             yAxisId="sg"
             type="monotone"
             dataKey="value"
             stroke="hsl(var(--beer-amber))"
             strokeWidth={2}
-            fill="url(#sgGradient)"
+            dot={{ fill: "hsl(var(--beer-amber))", r: 3 }}
+            activeDot={{ r: 5, fill: "hsl(var(--beer-amber))" }}
             name="value"
           />
           <Line
