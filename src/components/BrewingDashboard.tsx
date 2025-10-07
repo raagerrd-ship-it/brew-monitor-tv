@@ -233,7 +233,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Dynamic Layout based on number of brews */}
-      <div className={`grid ${brews.length === 1 ? 'grid-cols-1 max-w-5xl mx-auto' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-3 flex-1 overflow-hidden`}>
+      <div className={`grid ${brews.length === 1 ? 'grid-cols-1' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} ${brews.length === 1 ? 'gap-6 px-8' : 'gap-3'} flex-1 overflow-hidden`}>
         {brews.map((brew) => (
           <div key={brew.id} className="flex flex-col gap-3 overflow-hidden">
             {/* Brew Header Card */}
