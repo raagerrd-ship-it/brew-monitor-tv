@@ -43,26 +43,27 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${selectedBrews.length} selected brews`)
 
-    // Fetch batch data from Brewfather
+    // Fetch batch data from Brewfather using the brewfather-batches function
     const batchIds = selectedBrews.map(brew => brew.batch_id)
-    const authHeader = 'Basic ' + btoa(`${brewfatherUserId}:${brewfatherApiKey}`)
-
-    const batchesResponse = await fetch(
-      `https://api.brewfather.app/v2/batches?include=recipe`,
-      {
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-        },
-      }
+    console.log('Fetching batches with IDs:', batchIds)
+    
+    const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
+      'brewfather-batches',
+      { body: { batchIds } }
     )
 
-    if (!batchesResponse.ok) {
-      throw new Error(`Brewfather API error: ${batchesResponse.status}`)
+    if (batchesError) {
+      console.error('Error fetching batches:', batchesError)
+      throw batchesError
     }
 
-    const allBatches = await batchesResponse.json()
-    const batchesData = allBatches.filter((b: any) => batchIds.includes(b._id))
+    if (!batchesData || batchesData.length === 0) {
+      console.log('No batches found from Brewfather')
+      return new Response(
+        JSON.stringify({ message: 'No batches found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
@@ -71,22 +72,18 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing batch ${batch._id}...`)
 
-        // Fetch readings for this batch
-        const readingsResponse = await fetch(
-          `https://api.brewfather.app/v2/batches/${batch._id}/readings`,
-          {
-            headers: {
-              'Authorization': authHeader,
-              'Content-Type': 'application/json',
-            },
-          }
+        // Fetch readings for this batch using the brewfather-readings function
+        const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
+          'brewfather-readings',
+          { body: { batchId: batch._id } }
         )
 
-        let readings = []
-        if (readingsResponse.ok) {
-          readings = await readingsResponse.json()
-          console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
+        if (readingsError) {
+          console.error('Error fetching readings for batch:', batch._id, readingsError)
         }
+
+        const readings = readingsData || []
+        console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
 
         // Transform data
         const sgData = readings
