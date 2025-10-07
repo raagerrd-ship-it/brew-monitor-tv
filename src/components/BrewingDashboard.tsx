@@ -43,6 +43,15 @@ export function BrewingDashboard() {
     loadBrews();
   }, []);
 
+  useEffect(() => {
+    // Check for new data every 15 minutes
+    const dataRefreshTimer = setInterval(() => {
+      loadBrews();
+    }, 15 * 60 * 1000); // 15 minutes in milliseconds
+
+    return () => clearInterval(dataRefreshTimer);
+  }, []);
+
   const loadBrews = async () => {
     try {
       setLoading(true);
