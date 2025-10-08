@@ -28,27 +28,34 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     );
   }
 
-  // Find all midnight timestamps for reference lines
-  const midnightMarkers = data
-    .filter((d) => {
-      const date = new Date(d.date);
-      return date.getHours() === 0 && date.getMinutes() === 0;
-    })
-    .map((d) => d.date);
+  // Find day changes for reference lines
+  const dayChangeMarkers: string[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const prevDate = new Date(data[i - 1].date);
+    const currDate = new Date(data[i].date);
+    
+    // Check if day changed
+    if (prevDate.getDate() !== currDate.getDate() || 
+        prevDate.getMonth() !== currDate.getMonth()) {
+      dayChangeMarkers.push(data[i].date);
+    }
+  }
+  
+  console.log('Day change markers:', dayChangeMarkers);
 
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-          {/* Midnight markers */}
-          {midnightMarkers.map((timestamp, idx) => (
+          {/* Day change markers */}
+          {dayChangeMarkers.map((timestamp, idx) => (
             <ReferenceLine
               key={idx}
               x={timestamp}
-              stroke="hsl(var(--foreground))"
+              stroke="hsl(var(--primary))"
               strokeDasharray="3 3"
-              strokeOpacity={0.3}
+              strokeOpacity={0.4}
               strokeWidth={2}
             />
           ))}
