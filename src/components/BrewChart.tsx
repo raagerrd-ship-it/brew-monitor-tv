@@ -46,9 +46,10 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             <ReferenceLine
               key={idx}
               x={timestamp}
-              stroke="hsl(var(--muted-foreground))"
-              strokeDasharray="5 5"
-              strokeOpacity={0.5}
+              stroke="hsl(var(--foreground))"
+              strokeDasharray="3 3"
+              strokeOpacity={0.3}
+              strokeWidth={2}
             />
           ))}
           <XAxis
