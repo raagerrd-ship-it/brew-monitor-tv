@@ -53,6 +53,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             <ReferenceLine
               key={idx}
               x={timestamp}
+              yAxisId="sg"
               stroke="hsl(var(--primary))"
               strokeDasharray="3 3"
               strokeOpacity={0.4}
