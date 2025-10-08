@@ -1,4 +1,5 @@
 import { Droplets, Thermometer, TrendingDown, Wine } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface BrewStatsProps {
   brew: {
@@ -48,17 +49,18 @@ export function BrewStats({ brew }: BrewStatsProps) {
         </div>
 
         <div className="rounded-lg bg-muted p-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1.5">
             <div className="rounded-full bg-ferment-green/20 p-1.5">
               <TrendingDown className="h-4 w-4 text-ferment-green" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-xs text-muted-foreground">Utjäsning</p>
               <p className="text-xl font-bold text-ferment-green">
                 {brew.attenuation}%
               </p>
             </div>
           </div>
+          <Progress value={brew.attenuation} className="h-2 [&>div]:bg-ferment-green" />
         </div>
 
         <div className="rounded-lg bg-muted p-2">
