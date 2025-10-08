@@ -277,61 +277,63 @@ export function BrewingDashboard() {
           </div>
 
           {/* Right Side - Stats (35% width) */}
-          <div className="flex-[35] flex flex-col gap-2 min-h-0 max-h-full overflow-hidden">
-            {/* Compact Stats Cards */}
-            <Card className="bg-gradient-card border-border shadow-deep p-3 border-2 border-primary/20 flex-shrink-0">
-              <div className="text-center">
-                <div className="inline-flex rounded-full bg-primary/20 p-1.5 mb-1">
-                  <Droplets className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+          <div className="flex-[35] flex flex-col gap-3 min-h-0 max-h-full overflow-hidden">
+            {/* SG Card - Larger */}
+            <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-primary/20 flex-[2]">
+              <div className="text-center h-full flex flex-col justify-center">
+                <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
+                  <Droplets className="h-7 w-7 md:h-8 md:w-8 text-primary" />
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">SG</p>
-                <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary leading-none mb-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">SG</p>
+                <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary leading-none mb-2">
                   {brews[currentBrewIndex].currentSG.toFixed(3)}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Start: {brews[currentBrewIndex].originalGravity.toFixed(3)}
                 </p>
               </div>
             </Card>
 
-            <Card className="bg-gradient-card border-border shadow-deep p-3 border-2 border-ferment-green/20 flex-shrink-0">
-              <div className="text-center">
-                <div className="inline-flex rounded-full bg-ferment-green/20 p-1.5 mb-1">
-                  <TrendingDown className="h-5 w-5 md:h-6 md:w-6 text-ferment-green" />
+            {/* Utjäsning Card - Larger */}
+            <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-ferment-green/20 flex-[2]">
+              <div className="text-center h-full flex flex-col justify-center">
+                <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
+                  <TrendingDown className="h-7 w-7 md:h-8 md:w-8 text-ferment-green" />
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Utjäsning</p>
-                <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-ferment-green leading-none mb-1.5">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
+                <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-ferment-green leading-none mb-3">
                   {brews[currentBrewIndex].attenuation}%
                 </p>
                 <Progress 
                   value={brews[currentBrewIndex].attenuation} 
-                  className={`h-2 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
+                  className={`h-3 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
                     brews[currentBrewIndex].attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
                   }`} 
                 />
               </div>
             </Card>
 
-            <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 overflow-hidden">
-              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20 min-h-0">
+            {/* Temp & ABV - Smaller */}
+            <div className="grid grid-cols-2 gap-2 flex-[1] min-h-0">
+              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20">
                 <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-temp-blue/20 p-1.5 mb-1 mx-auto animate-pulse">
-                    <Thermometer className="h-4 w-4 md:h-5 md:w-5 text-temp-blue" />
+                  <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 mx-auto animate-pulse">
+                    <Thermometer className="h-3 w-3 md:h-4 md:w-4 text-temp-blue" />
                   </div>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Temp</p>
-                  <p className="text-2xl md:text-3xl font-bold text-temp-blue leading-none">
+                  <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">Temp</p>
+                  <p className="text-xl md:text-2xl font-bold text-temp-blue leading-none">
                     {brews[currentBrewIndex].currentTemp}°
                   </p>
                 </div>
               </Card>
 
-              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20 min-h-0">
+              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20">
                 <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-secondary/20 p-1.5 mb-1 mx-auto">
-                    <Wine className="h-4 w-4 md:h-5 md:w-5 text-secondary" />
+                  <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1 mx-auto">
+                    <Wine className="h-3 w-3 md:h-4 md:w-4 text-secondary" />
                   </div>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">ABV</p>
-                  <p className="text-2xl md:text-3xl font-bold text-secondary leading-none">
+                  <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">ABV</p>
+                  <p className="text-xl md:text-2xl font-bold text-secondary leading-none">
                     {brews[currentBrewIndex].abv}%
                   </p>
                 </div>
