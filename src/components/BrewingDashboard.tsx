@@ -29,8 +29,28 @@ export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentBrewIndex, setCurrentBrewIndex] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-rotate between brews every 15 seconds
+  useEffect(() => {
+    if (brews.length <= 1) return;
+    
+    const rotateTimer = setInterval(() => {
+      setCurrentBrewIndex((prev) => (prev + 1) % brews.length);
+    }, 15000); // 15 seconds per brew
+
+    return () => clearInterval(rotateTimer);
+  }, [brews.length]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -171,11 +191,11 @@ export function BrewingDashboard() {
   }
 
   return (
-    <div className="h-screen w-full bg-background flex flex-col overflow-hidden p-3">
-      {/* Header */}
-      <div className="mb-3 relative flex-shrink-0">
+    <div className="h-screen w-full bg-background flex flex-col overflow-hidden p-6">
+      {/* Minimal Header */}
+      <div className="mb-6 relative flex-shrink-0">
         <div className="absolute right-0 top-0 flex items-center gap-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {currentTime.toLocaleDateString("sv-SE", {
               weekday: "long",
               year: "numeric",
@@ -191,59 +211,86 @@ export function BrewingDashboard() {
             variant="ghost"
             size="icon"
             onClick={() => navigate('/settings')}
-            className="opacity-30 hover:opacity-100 transition-opacity"
+            className="opacity-10 hover:opacity-30 transition-opacity"
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="h-3 w-3" />
           </Button>
         </div>
         
-        <div className="text-center py-1">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent leading-tight pb-1 animate-gradient bg-[length:200%_auto]">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent leading-tight pb-1 animate-gradient bg-[length:200%_auto]">
             Bryggövervakare
           </h1>
         </div>
+        
+        {/* Brew counter dots */}
+        {brews.length > 1 && (
+          <div className="flex justify-center gap-2 mt-4">
+            {brews.map((_, index) => (
+              <div
+                key={index}
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  index === currentBrewIndex 
+                    ? 'w-8 bg-primary' 
+                    : 'w-2 bg-muted-foreground/30'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Dynamic Layout based on number of brews */}
-      <div className={`grid ${brews.length === 1 ? 'grid-cols-1' : brews.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} ${brews.length === 1 ? 'gap-6 px-8' : 'gap-3'} flex-1 overflow-hidden`}>
-        {brews.map((brew) => (
-          <div key={brew.id} className={`flex ${brews.length === 1 ? 'flex-col' : 'flex-col'} gap-3 overflow-hidden`}>
-            {/* Brew Header Card */}
-            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-shrink-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.01]">
-              <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-foreground">
-                    {brew.name}
-                  </h2>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      brew.status === "Konditionering"
-                        ? "bg-primary/20 text-primary"
-                        : "bg-ferment-green/20 text-ferment-green animate-pulse"
-                    }`}
-                  >
-                    {brew.status}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {brew.style} • Sats {brew.batchNumber} • Uppdaterad: {brew.lastUpdate}
+      {/* Single Brew Display with Transition */}
+      {brews.length > 0 && (
+        <div 
+          key={currentBrewIndex}
+          className="flex-1 flex flex-col gap-6 animate-fade-in"
+        >
+          {/* Brew Header */}
+          <Card className="bg-gradient-card border-border p-6 shadow-deep flex-shrink-0">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-5xl font-bold text-foreground mb-2">
+                  {brews[currentBrewIndex].name}
+                </h2>
+                <p className="text-xl text-muted-foreground">
+                  {brews[currentBrewIndex].style} • Sats {brews[currentBrewIndex].batchNumber}
                 </p>
               </div>
+              <div className="flex flex-col items-end gap-3">
+                <span
+                  className={`rounded-full px-6 py-3 text-xl font-semibold ${
+                    brews[currentBrewIndex].status === "Konditionering"
+                      ? "bg-primary/20 text-primary"
+                      : "bg-ferment-green/20 text-ferment-green animate-pulse"
+                  }`}
+                >
+                  {brews[currentBrewIndex].status}
+                </span>
+                <p className="text-sm text-muted-foreground">
+                  Uppdaterad: {brews[currentBrewIndex].lastUpdate}
+                </p>
+              </div>
+            </div>
 
-              {/* Current Stats */}
-              <BrewStats brew={brew} />
-            </Card>
+            {/* Large Stats Grid */}
+            <BrewStats brew={brews[currentBrewIndex]} />
+          </Card>
 
-            {/* Charts */}
-            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-1 overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.01]">
-              <h3 className="mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Jäsningsförlopp
-              </h3>
-              <BrewChart data={brew.sgData} og={brew.originalGravity} fg={brew.finalGravity} singleView={brews.length === 1} />
-            </Card>
-          </div>
-        ))}
-      </div>
+          {/* Large Chart */}
+          <Card className="bg-gradient-card border-border p-6 shadow-deep flex-1 overflow-hidden">
+            <h3 className="mb-4 text-2xl font-medium text-muted-foreground uppercase tracking-wide">
+              Jäsningsförlopp
+            </h3>
+            <BrewChart 
+              data={brews[currentBrewIndex].sgData} 
+              og={brews[currentBrewIndex].originalGravity} 
+              fg={brews[currentBrewIndex].finalGravity} 
+              singleView={true} 
+            />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
