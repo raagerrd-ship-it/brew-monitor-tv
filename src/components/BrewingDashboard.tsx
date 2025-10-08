@@ -209,7 +209,7 @@ export function BrewingDashboard() {
         {brews.map((brew) => (
           <div key={brew.id} className={`flex ${brews.length === 1 ? 'flex-col' : 'flex-col'} gap-3 overflow-hidden`}>
             {/* Brew Header Card */}
-            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-shrink-0">
+            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-shrink-0 transition-all duration-300 hover:shadow-xl hover:scale-[1.01]">
               <div className="mb-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-foreground">
@@ -219,7 +219,7 @@ export function BrewingDashboard() {
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       brew.status === "Konditionering"
                         ? "bg-primary/20 text-primary"
-                        : "bg-ferment-green/20 text-ferment-green"
+                        : "bg-ferment-green/20 text-ferment-green animate-pulse"
                     }`}
                   >
                     {brew.status}
@@ -235,8 +235,8 @@ export function BrewingDashboard() {
             </Card>
 
             {/* Charts */}
-            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-1 overflow-hidden">
-              <h3 className="mb-2 text-lg font-semibold text-foreground">
+            <Card className="bg-gradient-card border-border p-3 shadow-deep flex-1 overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.01]">
+              <h3 className="mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wide">
                 Jäsningsförlopp
               </h3>
               <BrewChart data={brew.sgData} og={brew.originalGravity} fg={brew.finalGravity} singleView={brews.length === 1} />
