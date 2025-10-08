@@ -35,8 +35,12 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           <XAxis
             dataKey="date"
             stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "10px" }}
+            style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(value) => {
+              const date = new Date(value);
+              return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+            }}
           />
           {/* Left Y-axis for SG */}
           <YAxis
