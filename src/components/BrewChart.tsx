@@ -37,6 +37,21 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(value) => {
+              if (!value) return '';
+              try {
+                const date = new Date(value);
+                if (isNaN(date.getTime())) return String(value);
+                const day = date.getDate();
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+                const month = monthNames[date.getMonth()];
+                const hours = date.getHours().toString().padStart(2, '0');
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                return `${day} ${month} ${hours}:${minutes}`;
+              } catch (e) {
+                return String(value);
+              }
+            }}
           />
           {/* Left Y-axis for SG */}
           <YAxis
