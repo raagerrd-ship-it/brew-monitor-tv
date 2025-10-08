@@ -277,9 +277,9 @@ export function BrewingDashboard() {
           </div>
 
           {/* Right Side - Stats (35% width) */}
-          <div className="flex-[35] flex flex-col gap-3 min-h-0 max-h-full overflow-hidden">
+          <div className="flex-[35] flex flex-col gap-2 min-h-0 max-h-full">
             {/* SG Card - Larger */}
-            <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-primary/20 flex-[2]">
+            <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3] min-h-0">
               <div className="text-center h-full flex flex-col justify-center">
                 <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
                   <Droplets className="h-7 w-7 md:h-8 md:w-8 text-primary" />
@@ -295,7 +295,7 @@ export function BrewingDashboard() {
             </Card>
 
             {/* Utjäsning Card - Larger */}
-            <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-ferment-green/20 flex-[2]">
+            <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20 flex-[3] min-h-0">
               <div className="text-center h-full flex flex-col justify-center">
                 <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
                   <TrendingDown className="h-7 w-7 md:h-8 md:w-8 text-ferment-green" />
@@ -314,7 +314,7 @@ export function BrewingDashboard() {
             </Card>
 
             {/* Temp & ABV - Smaller */}
-            <div className="grid grid-cols-2 gap-2 flex-[1] min-h-0">
+            <div className="grid grid-cols-2 gap-2 flex-[2] min-h-0">
               <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20">
                 <div className="text-center h-full flex flex-col justify-center">
                   <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 mx-auto animate-pulse">
