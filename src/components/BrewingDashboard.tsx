@@ -71,10 +71,28 @@ export function BrewingDashboard() {
     try {
       setLoading(true);
 
-      // Get brew readings from database
+      // First get selected and visible brews
+      const { data: selectedBrews, error: selectedError } = await supabase
+        .from('selected_brews')
+        .select('batch_id')
+        .eq('is_visible', true)
+        .order('display_order');
+
+      if (selectedError) throw selectedError;
+
+      if (!selectedBrews || selectedBrews.length === 0) {
+        setBrews([]);
+        setLoading(false);
+        return;
+      }
+
+      const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
+
+      // Get brew readings only for selected brews
       const { data: brewReadings, error: readingsError } = await supabase
         .from('brew_readings')
         .select('*')
+        .in('batch_id', selectedBatchIds)
         .order('created_at')
 
       if (readingsError) throw readingsError;
