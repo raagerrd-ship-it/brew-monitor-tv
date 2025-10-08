@@ -28,17 +28,35 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     );
   }
 
-  // Find day changes for reference lines
+  // Find readings closest to midnight for each day
   const dayChangeMarkers: string[] = [];
-  for (let i = 1; i < data.length; i++) {
-    const prevDate = new Date(data[i - 1].date);
-    const currDate = new Date(data[i].date);
+  const dayGroups = new Map<string, { date: string; distanceToMidnight: number }[]>();
+  
+  // Group readings by day
+  data.forEach((d) => {
+    const date = new Date(d.date);
+    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
     
-    // Check if day changed
-    if (prevDate.getDate() !== currDate.getDate() || 
-        prevDate.getMonth() !== currDate.getMonth()) {
-      dayChangeMarkers.push(data[i].date);
+    if (!dayGroups.has(dayKey)) {
+      dayGroups.set(dayKey, []);
     }
+    
+    // Calculate distance to midnight (00:00) of this day
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    const distanceToMidnight = Math.abs(date.getTime() - midnight.getTime());
+    
+    dayGroups.get(dayKey)!.push({ date: d.date, distanceToMidnight });
+  });
+  
+  // For each day (except the first), find the reading closest to midnight
+  const sortedDays = Array.from(dayGroups.keys()).sort();
+  for (let i = 1; i < sortedDays.length; i++) {
+    const readings = dayGroups.get(sortedDays[i])!;
+    const closest = readings.reduce((prev, curr) => 
+      curr.distanceToMidnight < prev.distanceToMidnight ? curr : prev
+    );
+    dayChangeMarkers.push(closest.date);
   }
   
   console.log('Day change markers:', dayChangeMarkers);
