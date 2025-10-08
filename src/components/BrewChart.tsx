@@ -1,4 +1,5 @@
 import {
+  Area,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -87,14 +88,15 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             activeDot={{ r: 5, fill: "hsl(var(--beer-amber))" }}
             name="value"
           />
-          <Line
+          <Area
             yAxisId="temp"
             type="monotone"
             dataKey="temp"
-            stroke="hsl(var(--temp-blue))"
-            strokeWidth={2}
-            dot={{ fill: "hsl(var(--temp-blue))", r: 3 }}
-            activeDot={{ r: 5, fill: "hsl(var(--temp-blue))" }}
+            stroke="hsl(var(--temp-blue) / 0.4)"
+            strokeWidth={1}
+            fill="hsl(var(--temp-blue) / 0.1)"
+            dot={false}
+            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.6)" }}
             name="temp"
           />
         </ComposedChart>
