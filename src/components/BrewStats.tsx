@@ -60,7 +60,7 @@ export function BrewStats({ brew }: BrewStatsProps) {
               </p>
             </div>
           </div>
-          <Progress value={brew.attenuation} className="h-2 [&>div]:bg-ferment-green" />
+          <Progress value={brew.attenuation} className="h-2 bg-muted/50 [&>div]:bg-ferment-green" />
         </div>
 
         <div className="rounded-lg bg-muted p-2">
