@@ -34,7 +34,7 @@ export function BrewStats({ brew }: BrewStatsProps) {
           </div>
         </div>
 
-        <div className="rounded-lg bg-muted p-2">
+        <div className="rounded-lg bg-muted p-2 flex items-center">
           <div className="flex items-center gap-2">
             <div className="rounded-full bg-temp-blue/20 p-1.5">
               <Thermometer className="h-4 w-4 text-temp-blue" />
@@ -63,7 +63,7 @@ export function BrewStats({ brew }: BrewStatsProps) {
           <Progress value={brew.attenuation} className="h-2 bg-background [&>div]:bg-ferment-green" />
         </div>
 
-        <div className="rounded-lg bg-muted p-2">
+        <div className="rounded-lg bg-muted p-2 flex items-center">
           <div className="flex items-center gap-2">
             <div className="rounded-full bg-secondary/20 p-1.5">
               <Wine className="h-4 w-4 text-secondary" />
