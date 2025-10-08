@@ -63,8 +63,11 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               border: "1px solid hsl(var(--border))",
               borderRadius: "8px",
               color: "hsl(var(--foreground))",
+              lineHeight: "1.2",
+              padding: "8px 10px",
             }}
-            labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+            labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: "2px" }}
+            itemStyle={{ lineHeight: "1.3", padding: "2px 0" }}
             labelFormatter={(label) => {
               if (!label) return '';
               try {
