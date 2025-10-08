@@ -7,7 +7,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  Legend,
   ReferenceLine,
 } from "recharts";
 
@@ -147,14 +146,6 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               if (name === "value") return [value.toFixed(3), "SG"];
               if (name === "temp") return [`${value}°C`, "Temp"];
               return [value, name];
-            }}
-          />
-          <Legend
-            wrapperStyle={{ color: "hsl(var(--foreground))", fontSize: "11px" }}
-            formatter={(value) => {
-              if (value === "value") return "SG";
-              if (value === "temp") return "Temperatur";
-              return value;
             }}
           />
           <Line

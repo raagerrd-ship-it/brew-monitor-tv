@@ -238,24 +238,24 @@ export function BrewingDashboard() {
       {brews.length > 0 && (
         <div 
           key={currentBrewIndex}
-          className="flex-1 flex overflow-hidden animate-fade-in p-8 gap-8"
+          className="flex-1 flex overflow-hidden animate-fade-in p-6 gap-6"
         >
           {/* Left Side - Chart (60% width) */}
           <div className="flex-[3] flex flex-col">
             <Card className="bg-gradient-card border-border shadow-deep flex-1 flex flex-col overflow-hidden">
-              <div className="p-6 pb-4 border-b border-border/50">
+              <div className="p-5 pb-3 border-b border-border/50">
                 <div className="flex items-end justify-between">
                   <div>
-                    <h2 className="text-6xl font-bold text-foreground mb-2">
+                    <h2 className="text-5xl font-bold text-foreground mb-1">
                       {brews[currentBrewIndex].name}
                     </h2>
-                    <p className="text-2xl text-muted-foreground">
+                    <p className="text-xl text-muted-foreground">
                       {brews[currentBrewIndex].style}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span
-                      className={`rounded-full px-6 py-3 text-2xl font-semibold ${
+                      className={`rounded-full px-5 py-2 text-xl font-semibold ${
                         brews[currentBrewIndex].status === "Konditionering"
                           ? "bg-primary/20 text-primary"
                           : "bg-ferment-green/20 text-ferment-green animate-pulse"
@@ -263,15 +263,15 @@ export function BrewingDashboard() {
                     >
                       {brews[currentBrewIndex].status}
                     </span>
-                    <p className="text-xl text-muted-foreground">
+                    <p className="text-lg text-muted-foreground">
                       Sats {brews[currentBrewIndex].batchNumber}
                     </p>
                   </div>
                 </div>
               </div>
               
-              <div className="flex-1 p-6 flex flex-col min-h-0">
-                <h3 className="text-xl font-medium text-muted-foreground uppercase tracking-wide mb-4">
+              <div className="flex-1 p-5 flex flex-col min-h-0">
+                <h3 className="text-lg font-medium text-muted-foreground uppercase tracking-wide mb-3">
                   Jäsningsförlopp
                 </h3>
                 <div className="flex-1 min-h-0">
@@ -287,61 +287,61 @@ export function BrewingDashboard() {
           </div>
 
           {/* Right Side - Stats (40% width) */}
-          <div className="flex-[2] flex flex-col gap-6">
+          <div className="flex-[2] flex flex-col gap-4">
             {/* Large Stats Cards - Stacked vertically */}
-            <Card className="bg-gradient-card border-border shadow-deep p-8 border-2 border-primary/20">
+            <Card className="bg-gradient-card border-border shadow-deep p-6 border-2 border-primary/20">
               <div className="text-center">
-                <div className="inline-flex rounded-full bg-primary/20 p-4 mb-4">
-                  <Droplets className="h-12 w-12 text-primary" />
+                <div className="inline-flex rounded-full bg-primary/20 p-3 mb-3">
+                  <Droplets className="h-10 w-10 text-primary" />
                 </div>
-                <p className="text-lg text-muted-foreground uppercase tracking-wider mb-2">Specifik Gravitet</p>
-                <p className="text-7xl font-bold text-primary mb-3">
+                <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Specifik Gravitet</p>
+                <p className="text-6xl font-bold text-primary mb-2">
                   {brews[currentBrewIndex].currentSG.toFixed(3)}
                 </p>
-                <p className="text-xl text-muted-foreground">
+                <p className="text-lg text-muted-foreground">
                   Start: {brews[currentBrewIndex].originalGravity.toFixed(3)}
                 </p>
               </div>
             </Card>
 
-            <Card className="bg-gradient-card border-border shadow-deep p-8 border-2 border-ferment-green/20">
+            <Card className="bg-gradient-card border-border shadow-deep p-6 border-2 border-ferment-green/20">
               <div className="text-center">
-                <div className="inline-flex rounded-full bg-ferment-green/20 p-4 mb-4">
-                  <TrendingDown className="h-12 w-12 text-ferment-green" />
+                <div className="inline-flex rounded-full bg-ferment-green/20 p-3 mb-3">
+                  <TrendingDown className="h-10 w-10 text-ferment-green" />
                 </div>
-                <p className="text-lg text-muted-foreground uppercase tracking-wider mb-2">Utjäsning</p>
-                <p className="text-7xl font-bold text-ferment-green mb-4">
+                <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
+                <p className="text-6xl font-bold text-ferment-green mb-3">
                   {brews[currentBrewIndex].attenuation}%
                 </p>
                 <Progress 
                   value={brews[currentBrewIndex].attenuation} 
-                  className={`h-4 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
+                  className={`h-3 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
                     brews[currentBrewIndex].attenuation > 75 ? '[&>div]:shadow-[0_0_20px_hsl(var(--ferment-green))]' : ''
                   }`} 
                 />
               </div>
             </Card>
 
-            <div className="grid grid-cols-2 gap-6 flex-1">
-              <Card className="bg-gradient-card border-border shadow-deep p-6 border-2 border-temp-blue/20">
+            <div className="grid grid-cols-2 gap-4 flex-1">
+              <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-temp-blue/20">
                 <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-temp-blue/20 p-3 mb-3 mx-auto animate-pulse">
-                    <Thermometer className="h-10 w-10 text-temp-blue" />
+                  <div className="inline-flex rounded-full bg-temp-blue/20 p-2.5 mb-2 mx-auto animate-pulse">
+                    <Thermometer className="h-8 w-8 text-temp-blue" />
                   </div>
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-2">Temp</p>
-                  <p className="text-5xl font-bold text-temp-blue">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Temp</p>
+                  <p className="text-4xl font-bold text-temp-blue">
                     {brews[currentBrewIndex].currentTemp}°
                   </p>
                 </div>
               </Card>
 
-              <Card className="bg-gradient-card border-border shadow-deep p-6 border-2 border-secondary/20">
+              <Card className="bg-gradient-card border-border shadow-deep p-5 border-2 border-secondary/20">
                 <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-secondary/20 p-3 mb-3 mx-auto">
-                    <Wine className="h-10 w-10 text-secondary" />
+                  <div className="inline-flex rounded-full bg-secondary/20 p-2.5 mb-2 mx-auto">
+                    <Wine className="h-8 w-8 text-secondary" />
                   </div>
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-2">Alkohol</p>
-                  <p className="text-5xl font-bold text-secondary">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Alkohol</p>
+                  <p className="text-4xl font-bold text-secondary">
                     {brews[currentBrewIndex].abv}%
                   </p>
                 </div>
