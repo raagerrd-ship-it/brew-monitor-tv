@@ -51,6 +51,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           <YAxis
             yAxisId="temp"
             orientation="right"
+            domain={['dataMin - 0.5', 'dataMax + 0.5']}
             stroke="hsl(var(--temp-blue))"
             style={{ fontSize: "10px" }}
             tick={{ fill: "hsl(var(--temp-blue))" }}
