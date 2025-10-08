@@ -80,11 +80,11 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           />
           <Line
             yAxisId="sg"
-            type="monotone"
+            type="natural"
             dataKey="value"
             stroke="hsl(var(--beer-amber))"
-            strokeWidth={2}
-            dot={{ fill: "hsl(var(--beer-amber))", r: 3 }}
+            strokeWidth={2.5}
+            dot={false}
             activeDot={{ r: 5, fill: "hsl(var(--beer-amber))" }}
             name="value"
           />
