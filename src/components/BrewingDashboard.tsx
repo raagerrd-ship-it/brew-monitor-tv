@@ -29,28 +29,8 @@ export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentBrewIndex, setCurrentBrewIndex] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000); // Update every second
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Auto-rotate between brews every 15 seconds
-  useEffect(() => {
-    if (brews.length <= 1) return;
-    
-    const rotateTimer = setInterval(() => {
-      setCurrentBrewIndex((prev) => (prev + 1) % brews.length);
-    }, 15000); // 15 seconds per brew
-
-    return () => clearInterval(rotateTimer);
-  }, [brews.length]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -199,22 +179,6 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-3">
-          {/* Brew indicator dots */}
-          {brews.length > 1 && (
-            <div className="flex gap-1.5">
-              {brews.map((_, index) => (
-                <div
-                  key={index}
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    index === currentBrewIndex 
-                      ? 'w-6 bg-primary shadow-lg shadow-primary/50' 
-                      : 'w-2 bg-muted-foreground/30'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-          
           <p className="text-xs text-muted-foreground tabular-nums">
             {currentTime.toLocaleTimeString("sv-SE", {
               hour: "2-digit",
@@ -234,114 +198,118 @@ export function BrewingDashboard() {
         </div>
       </div>
 
-      {/* Main Display Area */}
-      {brews.length > 0 && (
-        <div 
-          key={currentBrewIndex}
-          className="flex-1 flex overflow-hidden animate-fade-in p-3 gap-3 min-h-0"
-        >
-          {/* Left Side - Chart (65% width) */}
-          <div className="flex-[65] flex flex-col min-h-0 max-h-full">
-            <Card className="bg-gradient-card border-border shadow-deep flex-1 flex flex-col overflow-hidden min-h-0">
-              <div className="p-3 pb-2 border-b border-border/50 flex-shrink-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight truncate">
-                      {brews[currentBrewIndex].name}
-                    </h2>
-                    <p className="text-xs md:text-sm text-muted-foreground truncate">
-                      {brews[currentBrewIndex].style} • Sats {brews[currentBrewIndex].batchNumber}
+      {/* Main Display Area - All Brews */}
+      <div className="flex-1 overflow-auto p-3">
+        <div className="grid gap-3 grid-cols-1">
+          {brews.map((brew) => (
+            <div 
+              key={brew.id}
+              className="flex gap-3 min-h-[400px]"
+            >
+              {/* Left Side - Chart (65% width) */}
+              <div className="flex-[65] flex flex-col">
+                <Card className="bg-gradient-card border-border shadow-deep flex-1 flex flex-col overflow-hidden">
+                  <div className="p-3 pb-2 border-b border-border/50 flex-shrink-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground leading-tight truncate">
+                          {brew.name}
+                        </h2>
+                        <p className="text-xs md:text-sm text-muted-foreground truncate">
+                          {brew.style} • Sats {brew.batchNumber}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs md:text-sm font-semibold whitespace-nowrap flex-shrink-0 ${
+                          brew.status === "Konditionering"
+                            ? "bg-primary/20 text-primary"
+                            : "bg-ferment-green/20 text-ferment-green animate-pulse"
+                        }`}
+                      >
+                        {brew.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 p-3 min-h-0 overflow-hidden">
+                    <BrewChart 
+                      data={brew.sgData} 
+                      og={brew.originalGravity} 
+                      fg={brew.finalGravity} 
+                      singleView={true} 
+                    />
+                  </div>
+                </Card>
+              </div>
+
+              {/* Right Side - Stats (35% width) */}
+              <div className="flex-[35] flex flex-col gap-2">
+                {/* SG Card - Larger */}
+                <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3]">
+                  <div className="text-center h-full flex flex-col justify-center">
+                    <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
+                      <Droplets className="h-7 w-7 md:h-8 md:w-8 text-primary" />
+                    </div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">SG</p>
+                    <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary leading-none mb-2">
+                      {brew.currentSG.toFixed(3)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Start: {brew.originalGravity.toFixed(3)}
                     </p>
                   </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs md:text-sm font-semibold whitespace-nowrap flex-shrink-0 ${
-                      brews[currentBrewIndex].status === "Konditionering"
-                        ? "bg-primary/20 text-primary"
-                        : "bg-ferment-green/20 text-ferment-green animate-pulse"
-                    }`}
-                  >
-                    {brews[currentBrewIndex].status}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="flex-1 p-3 min-h-0 overflow-hidden">
-                <BrewChart 
-                  data={brews[currentBrewIndex].sgData} 
-                  og={brews[currentBrewIndex].originalGravity} 
-                  fg={brews[currentBrewIndex].finalGravity} 
-                  singleView={true} 
-                />
-              </div>
-            </Card>
-          </div>
+                </Card>
 
-          {/* Right Side - Stats (35% width) */}
-          <div className="flex-[35] flex flex-col gap-2 min-h-0 max-h-full">
-            {/* SG Card - Larger */}
-            <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3] min-h-0">
-              <div className="text-center h-full flex flex-col justify-center">
-                <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
-                  <Droplets className="h-7 w-7 md:h-8 md:w-8 text-primary" />
-                </div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">SG</p>
-                <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary leading-none mb-2">
-                  {brews[currentBrewIndex].currentSG.toFixed(3)}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Start: {brews[currentBrewIndex].originalGravity.toFixed(3)}
-                </p>
-              </div>
-            </Card>
-
-            {/* Utjäsning Card - Larger */}
-            <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20 flex-[3] min-h-0">
-              <div className="text-center h-full flex flex-col justify-center">
-                <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
-                  <TrendingDown className="h-7 w-7 md:h-8 md:w-8 text-ferment-green" />
-                </div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
-                <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-ferment-green leading-none mb-3">
-                  {brews[currentBrewIndex].attenuation}%
-                </p>
-                <Progress 
-                  value={brews[currentBrewIndex].attenuation} 
-                  className={`h-3 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
-                    brews[currentBrewIndex].attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
-                  }`} 
-                />
-              </div>
-            </Card>
-
-            {/* Temp & ABV - Smaller */}
-            <div className="grid grid-cols-2 gap-2 flex-[2] min-h-0">
-              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20">
-                <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 mx-auto animate-pulse">
-                    <Thermometer className="h-3 w-3 md:h-4 md:w-4 text-temp-blue" />
+                {/* Utjäsning Card - Larger */}
+                <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20 flex-[3]">
+                  <div className="text-center h-full flex flex-col justify-center">
+                    <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
+                      <TrendingDown className="h-7 w-7 md:h-8 md:w-8 text-ferment-green" />
+                    </div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
+                    <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-ferment-green leading-none mb-3">
+                      {brew.attenuation}%
+                    </p>
+                    <Progress 
+                      value={brew.attenuation} 
+                      className={`h-3 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
+                        brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
+                      }`} 
+                    />
                   </div>
-                  <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">Temp</p>
-                  <p className="text-xl md:text-2xl font-bold text-temp-blue leading-none">
-                    {brews[currentBrewIndex].currentTemp}°
-                  </p>
-                </div>
-              </Card>
+                </Card>
 
-              <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20">
-                <div className="text-center h-full flex flex-col justify-center">
-                  <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1 mx-auto">
-                    <Wine className="h-3 w-3 md:h-4 md:w-4 text-secondary" />
-                  </div>
-                  <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">ABV</p>
-                  <p className="text-xl md:text-2xl font-bold text-secondary leading-none">
-                    {brews[currentBrewIndex].abv}%
-                  </p>
+                {/* Temp & ABV - Smaller */}
+                <div className="grid grid-cols-2 gap-2 flex-[2]">
+                  <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20">
+                    <div className="text-center h-full flex flex-col justify-center">
+                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 mx-auto animate-pulse">
+                        <Thermometer className="h-3 w-3 md:h-4 md:w-4 text-temp-blue" />
+                      </div>
+                      <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">Temp</p>
+                      <p className="text-xl md:text-2xl font-bold text-temp-blue leading-none">
+                        {brew.currentTemp}°
+                      </p>
+                    </div>
+                  </Card>
+
+                  <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20">
+                    <div className="text-center h-full flex flex-col justify-center">
+                      <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1 mx-auto">
+                        <Wine className="h-3 w-3 md:h-4 md:w-4 text-secondary" />
+                      </div>
+                      <p className="text-[8px] text-muted-foreground uppercase tracking-wider mb-0.5">ABV</p>
+                      <p className="text-xl md:text-2xl font-bold text-secondary leading-none">
+                        {brew.abv}%
+                      </p>
+                    </div>
+                  </Card>
                 </div>
-              </Card>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
