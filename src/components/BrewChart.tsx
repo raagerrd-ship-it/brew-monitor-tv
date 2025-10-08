@@ -38,7 +38,9 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(value) => {
+              if (!value) return '';
               const date = new Date(value);
+              if (isNaN(date.getTime())) return '';
               return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
             }}
           />
