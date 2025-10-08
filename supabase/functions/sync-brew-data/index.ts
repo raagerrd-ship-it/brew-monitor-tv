@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         const sgData = readings
           .filter((r: any) => r.sg && r.temp)
           .map((r: any) => ({
-            date: new Date(r.time).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }),
+            date: new Date(r.time).toISOString(),
             value: r.sg,
             temp: r.temp,
           }))
