@@ -65,6 +65,12 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               color: "hsl(var(--foreground))",
             }}
             labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+            labelFormatter={(label) => {
+              if (!label) return '';
+              const date = new Date(label);
+              if (isNaN(date.getTime())) return label;
+              return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+            }}
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
               if (name === "temp") return [`${value}°C`, "Temp"];
