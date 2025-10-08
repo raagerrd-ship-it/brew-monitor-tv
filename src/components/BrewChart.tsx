@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
   Legend,
+  ReferenceLine,
 } from "recharts";
 
 interface BrewChartProps {
@@ -27,11 +28,29 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     );
   }
 
+  // Find all midnight timestamps for reference lines
+  const midnightMarkers = data
+    .filter((d) => {
+      const date = new Date(d.date);
+      return date.getHours() === 0 && date.getMinutes() === 0;
+    })
+    .map((d) => d.date);
+
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+          {/* Midnight markers */}
+          {midnightMarkers.map((timestamp, idx) => (
+            <ReferenceLine
+              key={idx}
+              x={timestamp}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="5 5"
+              strokeOpacity={0.5}
+            />
+          ))}
           <XAxis
             dataKey="date"
             stroke="hsl(var(--muted-foreground))"
