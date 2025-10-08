@@ -234,7 +234,7 @@ export function BrewingDashboard() {
                           {brew.name}
                         </h2>
                         <p className="text-xs md:text-sm text-muted-foreground truncate">
-                          {brew.style} • Sats {brew.batchNumber}
+                          {brew.style} • Sats {brew.batchNumber} • Senast uppdaterad: {brew.lastUpdate}
                         </p>
                       </div>
                       <span
@@ -262,11 +262,6 @@ export function BrewingDashboard() {
 
               {/* Right Side - Stats (35% width) */}
               <div className="flex-[35] flex flex-col gap-2">
-                {/* Last Update Info */}
-                <div className="text-xs text-muted-foreground text-center py-1">
-                  Senast uppdaterad: {brew.lastUpdate}
-                </div>
-                
                 {/* SG Card - Larger */}
                 <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3]">
                   <div className="text-center h-full flex flex-col justify-center">
