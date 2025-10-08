@@ -87,12 +87,19 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               try {
                 const date = new Date(value);
                 if (isNaN(date.getTime())) return String(value);
-                const day = date.getDate();
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
-                const month = monthNames[date.getMonth()];
-                const hours = date.getHours().toString().padStart(2, '0');
-                const minutes = date.getMinutes().toString().padStart(2, '0');
-                return `${day} ${month} ${hours}:${minutes}`;
+                const hours = date.getHours();
+                const minutes = date.getMinutes();
+                
+                // Only show labels at 00:00 and 12:00
+                if ((hours === 0 || hours === 12) && minutes === 0) {
+                  const day = date.getDate();
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+                  const month = monthNames[date.getMonth()];
+                  const hoursStr = hours.toString().padStart(2, '0');
+                  const minutesStr = minutes.toString().padStart(2, '0');
+                  return `${day} ${month} ${hoursStr}:${minutesStr}`;
+                }
+                return '';
               } catch (e) {
                 return String(value);
               }
