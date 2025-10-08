@@ -198,7 +198,7 @@ export function BrewingDashboard() {
         </div>
         
         <div className="text-center py-1">
-          <h1 className="text-4xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-1">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent leading-tight pb-1 animate-gradient bg-[length:200%_auto]">
             Bryggövervakare
           </h1>
         </div>

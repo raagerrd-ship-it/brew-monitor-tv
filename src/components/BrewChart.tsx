@@ -166,6 +166,9 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             dot={false}
             activeDot={{ r: 5, fill: "hsl(var(--beer-amber))" }}
             name="value"
+            style={{
+              filter: "drop-shadow(0 0 6px hsl(var(--beer-amber) / 0.6))"
+            }}
           />
           <Area
             yAxisId="temp"
