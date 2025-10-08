@@ -67,9 +67,17 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             labelStyle={{ color: "hsl(var(--muted-foreground))" }}
             labelFormatter={(label) => {
               if (!label) return '';
-              const date = new Date(label);
-              if (isNaN(date.getTime())) return label;
-              return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+              try {
+                const date = new Date(label);
+                if (isNaN(date.getTime())) return String(label);
+                const day = date.getDate();
+                const month = date.getMonth() + 1;
+                const hours = date.getHours().toString().padStart(2, '0');
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                return `${day}/${month} ${hours}:${minutes}`;
+              } catch (e) {
+                return String(label);
+              }
             }}
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
