@@ -37,10 +37,11 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   });
   
   // For each midnight (except the first day), find the closest reading
+  // Only show every other day to reduce clutter
   const sortedMidnights = Array.from(midnightTimestamps).sort();
   const dayChangeMarkers: string[] = [];
   
-  for (let i = 1; i < sortedMidnights.length; i++) {
+  for (let i = 2; i < sortedMidnights.length; i += 2) { // Start at 2 and skip every other
     const midnightTime = sortedMidnights[i];
     
     // Find the reading closest to this midnight
@@ -57,8 +58,6 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     
     dayChangeMarkers.push(closestReading.date);
   }
-  
-  console.log('Day change markers:', dayChangeMarkers);
 
   return (
     <div className="h-full">
@@ -82,26 +81,29 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(value) => {
+            interval="preserveStartEnd"
+            tickFormatter={(value, index) => {
               if (!value) return '';
               try {
                 const date = new Date(value);
                 if (isNaN(date.getTime())) return String(value);
                 const hours = date.getHours();
-                const minutes = date.getMinutes();
                 
-                // Only show labels at 00:00 and 12:00
-                if ((hours === 0 || hours === 12) && minutes === 0) {
+                // Show labels around midnight (22:00-02:00) and noon (10:00-14:00)
+                const showMidnight = hours >= 22 || hours <= 2;
+                const showNoon = hours >= 10 && hours <= 14;
+                
+                if (showMidnight || showNoon) {
                   const day = date.getDate();
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
                   const month = monthNames[date.getMonth()];
-                  const hoursStr = hours.toString().padStart(2, '0');
-                  const minutesStr = minutes.toString().padStart(2, '0');
+                  const hoursStr = date.getHours().toString().padStart(2, '0');
+                  const minutesStr = date.getMinutes().toString().padStart(2, '0');
                   return `${day} ${month} ${hoursStr}:${minutesStr}`;
                 }
                 return '';
               } catch (e) {
-                return String(value);
+                return '';
               }
             }}
           />
