@@ -28,35 +28,35 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     );
   }
 
-  // Find readings closest to midnight for each day
-  const dayChangeMarkers: string[] = [];
-  const dayGroups = new Map<string, { date: string; distanceToMidnight: number }[]>();
-  
-  // Group readings by day
+  // Find all unique midnight timestamps (day boundaries)
+  const midnightTimestamps = new Set<number>();
   data.forEach((d) => {
     const date = new Date(d.date);
-    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    
-    if (!dayGroups.has(dayKey)) {
-      dayGroups.set(dayKey, []);
-    }
-    
-    // Calculate distance to midnight (00:00) of this day
     const midnight = new Date(date);
     midnight.setHours(0, 0, 0, 0);
-    const distanceToMidnight = Math.abs(date.getTime() - midnight.getTime());
-    
-    dayGroups.get(dayKey)!.push({ date: d.date, distanceToMidnight });
+    midnightTimestamps.add(midnight.getTime());
   });
   
-  // For each day (except the first), find the reading closest to midnight
-  const sortedDays = Array.from(dayGroups.keys()).sort();
-  for (let i = 1; i < sortedDays.length; i++) {
-    const readings = dayGroups.get(sortedDays[i])!;
-    const closest = readings.reduce((prev, curr) => 
-      curr.distanceToMidnight < prev.distanceToMidnight ? curr : prev
-    );
-    dayChangeMarkers.push(closest.date);
+  // For each midnight (except the first day), find the closest reading
+  const sortedMidnights = Array.from(midnightTimestamps).sort();
+  const dayChangeMarkers: string[] = [];
+  
+  for (let i = 1; i < sortedMidnights.length; i++) {
+    const midnightTime = sortedMidnights[i];
+    
+    // Find the reading closest to this midnight
+    let closestReading = data[0];
+    let minDistance = Math.abs(new Date(data[0].date).getTime() - midnightTime);
+    
+    data.forEach((d) => {
+      const distance = Math.abs(new Date(d.date).getTime() - midnightTime);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestReading = d;
+      }
+    });
+    
+    dayChangeMarkers.push(closestReading.date);
   }
   
   console.log('Day change markers:', dayChangeMarkers);
