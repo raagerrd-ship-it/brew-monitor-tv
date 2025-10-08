@@ -122,11 +122,9 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
+            ticks={Array.from(labelPoints)}
             tickFormatter={(value) => {
               if (!value) return '';
-              
-              // Only show label if this point is in our labelPoints set
-              if (!labelPoints.has(value)) return '';
               
               try {
                 const date = new Date(value);
