@@ -68,13 +68,17 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             labelFormatter={(label) => {
               if (!label) return '';
               try {
+                console.log('Tooltip label:', label);
                 const date = new Date(label);
+                console.log('Parsed date:', date, 'Hours:', date.getHours(), 'Minutes:', date.getMinutes());
                 if (isNaN(date.getTime())) return String(label);
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const hours = date.getHours().toString().padStart(2, '0');
                 const minutes = date.getMinutes().toString().padStart(2, '0');
-                return `${day}/${month} ${hours}:${minutes}`;
+                const formatted = `${day}/${month} ${hours}:${minutes}`;
+                console.log('Formatted:', formatted);
+                return formatted;
               } catch (e) {
                 return String(label);
               }
