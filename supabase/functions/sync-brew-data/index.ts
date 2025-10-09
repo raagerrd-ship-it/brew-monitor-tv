@@ -45,18 +45,36 @@ Deno.serve(async (req) => {
 
     // Auto-manage selected_brews based on fermentation status
     console.log('Managing selected_brews based on fermentation status...')
+    
+    // Get all fermenting batches sorted by brewDate (most recent first)
+    const fermentingBatches = batchesData
+      .filter((batch: any) => batch.status === 'Fermenting')
+      .sort((a: any, b: any) => {
+        const dateA = new Date(a.brewDate || 0).getTime()
+        const dateB = new Date(b.brewDate || 0).getTime()
+        return dateB - dateA // Most recent first
+      })
+
+    console.log(`Found ${fermentingBatches.length} fermenting batches`)
+
+    // Keep only the 3 most recent fermenting batches
+    const top3Fermenting = fermentingBatches.slice(0, 3)
+    const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
+
+    // Process all batches
     for (const batch of batchesData) {
       const isFermenting = batch.status === 'Fermenting'
+      const isInTop3 = top3FermentingIds.includes(batch._id)
       
       // Check if brew exists in selected_brews
       const { data: existingBrew } = await supabase
         .from('selected_brews')
         .select('*')
         .eq('batch_id', batch._id)
-        .single()
+        .maybeSingle()
 
-      if (isFermenting) {
-        // Auto-activate fermenting brews
+      if (isFermenting && isInTop3) {
+        // Auto-activate top 3 fermenting brews
         if (existingBrew) {
           // Update to visible if not already
           if (!existingBrew.is_visible) {
@@ -73,7 +91,7 @@ Deno.serve(async (req) => {
             .select('display_order')
             .order('display_order', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
           
           const nextOrder = (maxOrder?.display_order || 0) + 1
           
@@ -87,13 +105,18 @@ Deno.serve(async (req) => {
           console.log(`Auto-added fermenting brew: ${batch._id}`)
         }
       } else {
-        // Auto-deactivate non-fermenting brews
+        // Auto-deactivate non-fermenting brews or fermenting brews outside top 3
         if (existingBrew && existingBrew.is_visible) {
           await supabase
             .from('selected_brews')
             .update({ is_visible: false })
             .eq('batch_id', batch._id)
-          console.log(`Auto-deactivated non-fermenting brew: ${batch._id}`)
+          
+          if (isFermenting && !isInTop3) {
+            console.log(`Auto-deactivated fermenting brew (not in top 3): ${batch._id}`)
+          } else {
+            console.log(`Auto-deactivated non-fermenting brew: ${batch._id}`)
+          }
         }
       }
     }
