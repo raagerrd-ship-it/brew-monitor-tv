@@ -20,36 +20,12 @@ Deno.serve(async (req) => {
 
     console.log('Starting brew data sync...')
 
-    // Get selected brews
-    const { data: selectedBrews, error: selectedError } = await supabase
-      .from('selected_brews')
-      .select('*')
-      .eq('is_visible', true)
-      .order('display_order')
-      .limit(3)
-
-    if (selectedError) {
-      console.error('Error fetching selected brews:', selectedError)
-      throw selectedError
-    }
-
-    if (!selectedBrews || selectedBrews.length === 0) {
-      console.log('No selected brews found')
-      return new Response(
-        JSON.stringify({ message: 'No selected brews' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log(`Found ${selectedBrews.length} selected brews`)
-
-    // Fetch batch data from Brewfather using the brewfather-batches function
-    const batchIds = selectedBrews.map(brew => brew.batch_id)
-    console.log('Fetching batches with IDs:', batchIds)
+    // Fetch ALL batches from Brewfather to check status
+    console.log('Fetching all batches from Brewfather...')
     
     const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
       'brewfather-batches',
-      { body: { batchIds } }
+      { body: {} }
     )
 
     if (batchesError) {
@@ -67,8 +43,89 @@ Deno.serve(async (req) => {
 
     console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
-    // Process each batch
+    // Auto-manage selected_brews based on fermentation status
+    console.log('Managing selected_brews based on fermentation status...')
     for (const batch of batchesData) {
+      const isFermenting = batch.status === 'Fermenting'
+      
+      // Check if brew exists in selected_brews
+      const { data: existingBrew } = await supabase
+        .from('selected_brews')
+        .select('*')
+        .eq('batch_id', batch._id)
+        .single()
+
+      if (isFermenting) {
+        // Auto-activate fermenting brews
+        if (existingBrew) {
+          // Update to visible if not already
+          if (!existingBrew.is_visible) {
+            await supabase
+              .from('selected_brews')
+              .update({ is_visible: true })
+              .eq('batch_id', batch._id)
+            console.log(`Auto-activated fermenting brew: ${batch._id}`)
+          }
+        } else {
+          // Add new fermenting brew
+          const { data: maxOrder } = await supabase
+            .from('selected_brews')
+            .select('display_order')
+            .order('display_order', { ascending: false })
+            .limit(1)
+            .single()
+          
+          const nextOrder = (maxOrder?.display_order || 0) + 1
+          
+          await supabase
+            .from('selected_brews')
+            .insert({
+              batch_id: batch._id,
+              display_order: nextOrder,
+              is_visible: true
+            })
+          console.log(`Auto-added fermenting brew: ${batch._id}`)
+        }
+      } else {
+        // Auto-deactivate non-fermenting brews
+        if (existingBrew && existingBrew.is_visible) {
+          await supabase
+            .from('selected_brews')
+            .update({ is_visible: false })
+            .eq('batch_id', batch._id)
+          console.log(`Auto-deactivated non-fermenting brew: ${batch._id}`)
+        }
+      }
+    }
+
+    // Get currently visible brews for syncing data
+    const { data: selectedBrews, error: selectedError } = await supabase
+      .from('selected_brews')
+      .select('*')
+      .eq('is_visible', true)
+      .order('display_order')
+
+    if (selectedError) {
+      console.error('Error fetching selected brews:', selectedError)
+      throw selectedError
+    }
+
+    if (!selectedBrews || selectedBrews.length === 0) {
+      console.log('No visible brews after auto-management')
+      return new Response(
+        JSON.stringify({ message: 'No visible brews' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Found ${selectedBrews.length} visible brews to sync`)
+
+    // Filter batches to only those that are selected and visible
+    const selectedBatchIds = selectedBrews.map(b => b.batch_id)
+    const batchesToSync = batchesData.filter((b: any) => selectedBatchIds.includes(b._id))
+
+    // Process each batch
+    for (const batch of batchesToSync) {
       try {
         console.log(`Processing batch ${batch._id}...`)
 
@@ -142,7 +199,7 @@ Deno.serve(async (req) => {
     console.log('Brew data sync completed')
 
     return new Response(
-      JSON.stringify({ message: 'Sync completed', count: batchesData.length }),
+      JSON.stringify({ message: 'Sync completed', count: batchesToSync.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
