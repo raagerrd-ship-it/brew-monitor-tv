@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.sync-brew-data]
 verify_jwt = false
+
+[functions.full-sync-brew-data]
+verify_jwt = false

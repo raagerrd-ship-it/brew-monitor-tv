@@ -13,16 +13,12 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const brewfatherUserId = Deno.env.get('BREWFATHER_USER_ID')!
-    const brewfatherApiKey = Deno.env.get('BREWFATHER_API_KEY')!
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('Starting brew data sync...')
+    console.log('Starting FULL brew data sync...')
 
-    // Fetch ALL batches from Brewfather to check status
-    console.log('Fetching all batches from Brewfather...')
-    
+    // Fetch ALL batches from Brewfather
     const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
       'brewfather-batches',
       { body: {} }
@@ -46,27 +42,23 @@ Deno.serve(async (req) => {
     // Auto-manage selected_brews based on fermentation status
     console.log('Managing selected_brews based on fermentation status...')
     
-    // Get all fermenting batches sorted by brewDate (most recent first)
     const fermentingBatches = batchesData
       .filter((batch: any) => batch.status === 'Fermenting')
       .sort((a: any, b: any) => {
         const dateA = new Date(a.brewDate || 0).getTime()
         const dateB = new Date(b.brewDate || 0).getTime()
-        return dateB - dateA // Most recent first
+        return dateB - dateA
       })
 
     console.log(`Found ${fermentingBatches.length} fermenting batches`)
 
-    // Keep only the 3 most recent fermenting batches
     const top3Fermenting = fermentingBatches.slice(0, 3)
     const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
 
-    // Process all batches
     for (const batch of batchesData) {
       const isFermenting = batch.status === 'Fermenting'
       const isInTop3 = top3FermentingIds.includes(batch._id)
       
-      // Check if brew exists in selected_brews
       const { data: existingBrew } = await supabase
         .from('selected_brews')
         .select('*')
@@ -74,9 +66,7 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (isFermenting && isInTop3) {
-        // Auto-activate top 3 fermenting brews
         if (existingBrew) {
-          // Update to visible if not already
           if (!existingBrew.is_visible) {
             await supabase
               .from('selected_brews')
@@ -85,7 +75,6 @@ Deno.serve(async (req) => {
             console.log(`Auto-activated fermenting brew: ${batch._id}`)
           }
         } else {
-          // Add new fermenting brew
           const { data: maxOrder } = await supabase
             .from('selected_brews')
             .select('display_order')
@@ -105,7 +94,6 @@ Deno.serve(async (req) => {
           console.log(`Auto-added fermenting brew: ${batch._id}`)
         }
       } else {
-        // Auto-deactivate non-fermenting brews or fermenting brews outside top 3
         if (existingBrew && existingBrew.is_visible) {
           await supabase
             .from('selected_brews')
@@ -121,7 +109,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get currently visible brews for syncing data
+    // Get currently visible brews for full syncing
     const { data: selectedBrews, error: selectedError } = await supabase
       .from('selected_brews')
       .select('*')
@@ -143,18 +131,28 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${selectedBrews.length} visible brews to sync`)
 
-    // Filter batches to only those that are selected and visible
+    // Fetch full batch details for selected batches
     const selectedBatchIds = selectedBrews.map(b => b.batch_id)
-    const batchesToSync = batchesData.filter((b: any) => selectedBatchIds.includes(b._id))
+    console.log(`Fetching FULL batch details for ${selectedBatchIds.length} batches...`)
     
-    console.log(`Syncing ${batchesToSync.length} batches (quick sync - readings only)`)
+    const { data: fullBatchesData, error: fullBatchesError } = await supabase.functions.invoke(
+      'brewfather-batches',
+      { body: { batchIds: selectedBatchIds } }
+    )
 
-    // Process each batch
+    if (fullBatchesError) {
+      console.error('Error fetching full batch details:', fullBatchesError)
+      throw fullBatchesError
+    }
+
+    const batchesToSync = fullBatchesData || []
+    console.log(`Got ${batchesToSync.length} full batch details`)
+
+    // Process each batch with FULL data including OG
     for (const batch of batchesToSync) {
       try {
-        console.log(`Quick sync for batch ${batch._id}...`)
+        console.log(`Processing batch ${batch._id} with FULL details...`)
 
-        // Fetch readings for this batch
         const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
           'brewfather-readings',
           { body: { batchId: batch._id } }
@@ -167,14 +165,6 @@ Deno.serve(async (req) => {
         const readings = readingsData || []
         console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
 
-        // Get existing brew data to preserve OG and other batch details
-        const { data: existingBrew } = await supabase
-          .from('brew_readings')
-          .select('original_gravity, final_gravity')
-          .eq('batch_id', batch._id)
-          .maybeSingle()
-
-        // Transform data
         const sgData = readings
           .filter((r: any) => r.sg && r.temp)
           .map((r: any) => ({
@@ -184,16 +174,19 @@ Deno.serve(async (req) => {
           }))
 
         const latestReading = readings.length > 0 ? readings[readings.length - 1] : null
-        const currentSG = latestReading?.sg || 1.050
+        const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
         const currentTemp = latestReading?.temp || 20
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
 
-        // Use existing OG/FG if available, otherwise fallback
-        const og = existingBrew?.original_gravity || 1.050
-        const fg = existingBrew?.final_gravity || 1.010
+        // Use batch measuredOg first (this is what user fills in manually in Brewfather)
+        const firstReading = readings.length > 0 ? readings[0] : null
+        const og = batch.measuredOg || batch.estimatedOg || firstReading?.sg || 1.050
+        const fg = batch.measuredFg || batch.estimatedFg || 1.010
+        
+        console.log(`Batch ${batch.name || batch.recipe?.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
         
         const attenuation = ((og - currentSG) / (og - fg)) * 100
-        const abv = ((og - currentSG) * 131.25) || 0
+        const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
 
         const brewData = {
           batch_id: batch._id,
@@ -217,7 +210,6 @@ Deno.serve(async (req) => {
           ],
         }
 
-        // Upsert to database
         const { error: upsertError } = await supabase
           .from('brew_readings')
           .upsert(brewData, { onConflict: 'batch_id' })
@@ -225,21 +217,21 @@ Deno.serve(async (req) => {
         if (upsertError) {
           console.error(`Error upserting batch ${batch._id}:`, upsertError)
         } else {
-          console.log(`Successfully quick synced batch ${batch._id}`)
+          console.log(`Successfully synced batch ${batch._id} with FULL data`)
         }
       } catch (error) {
         console.error(`Error processing batch ${batch._id}:`, error)
       }
     }
 
-    console.log('Brew data sync completed')
+    console.log('FULL brew data sync completed')
 
     return new Response(
-      JSON.stringify({ message: 'Sync completed', count: batchesToSync.length }),
+      JSON.stringify({ message: 'Full sync completed', count: batchesToSync.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error in sync-brew-data:', error)
+    console.error('Error in full-sync-brew-data:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
       JSON.stringify({ error: errorMessage }),

@@ -30,6 +30,7 @@ export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncInterval, setSyncInterval] = useState<number>(60000); // Default 1 minute
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,11 +44,30 @@ export function BrewingDashboard() {
 
   useEffect(() => {
     loadBrews();
+    loadSyncSettings();
   }, []);
 
+  const loadSyncSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sync_settings')
+        .select('sync_interval')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setSyncInterval(data.sync_interval * 1000); // Convert seconds to milliseconds
+      }
+    } catch (error) {
+      console.error('Error loading sync settings:', error);
+    }
+  };
+
   useEffect(() => {
-    // Set up realtime subscription
-    const channel = supabase
+    // Set up realtime subscription for brew readings
+    const brewChannel = supabase
       .channel('brew-readings-changes')
       .on(
         'postgres_changes',
@@ -63,10 +83,49 @@ export function BrewingDashboard() {
       )
       .subscribe()
 
+    // Set up realtime subscription for sync settings
+    const settingsChannel = supabase
+      .channel('sync-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sync_settings'
+        },
+        (payload) => {
+          console.log('Sync settings updated:', payload)
+          if (payload.new && typeof payload.new.sync_interval === 'number') {
+            setSyncInterval(payload.new.sync_interval * 1000)
+          }
+        }
+      )
+      .subscribe()
+
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(brewChannel)
+      supabase.removeChannel(settingsChannel)
     }
   }, []);
+
+  // Periodic sync based on settings
+  useEffect(() => {
+    const syncData = async () => {
+      try {
+        await supabase.functions.invoke('sync-brew-data', { body: {} });
+      } catch (error) {
+        console.error('Error during periodic sync:', error);
+      }
+    };
+
+    // Initial sync
+    syncData();
+
+    // Set up interval for periodic syncs
+    const interval = setInterval(syncData, syncInterval);
+
+    return () => clearInterval(interval);
+  }, [syncInterval]);
 
   const loadBrews = async () => {
     try {
