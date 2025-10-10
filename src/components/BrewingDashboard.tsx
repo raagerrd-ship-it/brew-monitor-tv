@@ -296,6 +296,7 @@ export function BrewingDashboard() {
             </p>
             <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               {currentTime.toLocaleDateString("sv-SE", {
+                weekday: "short",
                 day: "numeric",
                 month: "short",
               })}
