@@ -410,7 +410,7 @@ export function BrewingDashboard() {
                     style={{ containerType: 'size' }}
                   >
                     <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
-                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(90deg)' }}>
                         {/* Battery outline */}
                         <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="2" fill="none"/>
                         <path d="M22 9v6" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round"/>
