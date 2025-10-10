@@ -5,7 +5,7 @@ import { BrewChart } from "./BrewChart";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine } from "lucide-react";
+import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface BrewData {
@@ -22,6 +22,7 @@ interface BrewData {
   originalGravity: number;
   finalGravity: number;
   lastUpdate: string;
+  battery: number | null;
   sgData: Array<{ date: string; value: number; temp: number }>;
 }
 
@@ -125,6 +126,7 @@ export function BrewingDashboard() {
             hour: '2-digit',
             minute: '2-digit'
           }) : 'Ingen data',
+        battery: reading.battery,
         sgData: reading.sg_data || []
       }));
 
@@ -278,24 +280,46 @@ export function BrewingDashboard() {
                   </div>
                 </Card>
 
-                {/* Utjäsning Card - Larger */}
-                <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20 flex-[3]">
-                  <div className="text-center h-full flex flex-col justify-center">
-                    <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
-                      <TrendingDown className="h-7 w-7 md:h-8 md:w-8 text-ferment-green" />
+                {/* Utjäsning & Battery - Grid */}
+                <div className="grid grid-cols-2 gap-2 flex-[3]">
+                  <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20">
+                    <div className="text-center h-full flex flex-col justify-center">
+                      <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
+                        <TrendingDown className="h-6 w-6 md:h-7 md:w-7 text-ferment-green" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
+                      <p className="text-3xl md:text-4xl font-bold text-ferment-green leading-none mb-2">
+                        {brew.attenuation}%
+                      </p>
+                      <Progress 
+                        value={brew.attenuation} 
+                        className={`h-2 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
+                          brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
+                        }`} 
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Utjäsning</p>
-                    <p className="text-4xl md:text-5xl lg:text-6xl font-bold text-ferment-green leading-none mb-3">
-                      {brew.attenuation}%
-                    </p>
-                    <Progress 
-                      value={brew.attenuation} 
-                      className={`h-3 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
-                        brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
-                      }`} 
-                    />
-                  </div>
-                </Card>
+                  </Card>
+
+                  <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20">
+                    <div className="text-center h-full flex flex-col justify-center">
+                      <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
+                        <Battery className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Batteri</p>
+                      <p className="text-3xl md:text-4xl font-bold text-primary leading-none mb-2">
+                        {brew.battery ? `${brew.battery.toFixed(1)}V` : 'N/A'}
+                      </p>
+                      {brew.battery && (
+                        <Progress 
+                          value={((brew.battery - 3.0) / (4.2 - 3.0)) * 100} 
+                          className={`h-2 bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 ${
+                            brew.battery < 3.3 ? '[&>div]:bg-destructive' : ''
+                          }`} 
+                        />
+                      )}
+                    </div>
+                  </Card>
+                </div>
 
                 {/* Temp & ABV - Smaller */}
                 <div className="grid grid-cols-2 gap-2 flex-[2]">

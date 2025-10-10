@@ -177,6 +177,7 @@ Deno.serve(async (req) => {
         const latestReading = readings.length > 0 ? readings[readings.length - 1] : null
         const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
         const currentTemp = latestReading?.temp || 20
+        const battery = latestReading?.battery || null
 
         const og = batch.measuredOg || batch.estimatedOg || 1.050
         const fg = batch.measuredFg || batch.estimatedFg || 1.010
@@ -198,6 +199,7 @@ Deno.serve(async (req) => {
           original_gravity: og,
           final_gravity: fg,
           last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
+          battery: battery,
           sg_data: sgData.length > 0 ? sgData : [
             { date: 'Start', value: og, temp: 20 },
             { date: 'Nu', value: currentSG, temp: currentTemp },
