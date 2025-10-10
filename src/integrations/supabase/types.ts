@@ -103,6 +103,9 @@ export type Database = {
       }
       sync_settings: {
         Row: {
+          auto_activate_fermenting: boolean | null
+          auto_hide_completed: boolean | null
+          auto_hide_conditioning: boolean | null
           created_at: string
           id: string
           last_sync_at: string | null
@@ -110,6 +113,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_activate_fermenting?: boolean | null
+          auto_hide_completed?: boolean | null
+          auto_hide_conditioning?: boolean | null
           created_at?: string
           id?: string
           last_sync_at?: string | null
@@ -117,6 +123,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_activate_fermenting?: boolean | null
+          auto_hide_completed?: boolean | null
+          auto_hide_conditioning?: boolean | null
           created_at?: string
           id?: string
           last_sync_at?: string | null

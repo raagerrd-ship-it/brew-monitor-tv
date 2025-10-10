@@ -2,6 +2,7 @@ import { BrewManagement } from "@/components/BrewManagement";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -14,6 +15,9 @@ export default function Settings() {
   const [syncInterval, setSyncInterval] = useState<string>("60");
   const [syncing, setSyncing] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [autoHideCompleted, setAutoHideCompleted] = useState(true);
+  const [autoHideConditioning, setAutoHideConditioning] = useState(true);
+  const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
 
   useEffect(() => {
     loadSettings();
@@ -32,6 +36,9 @@ export default function Settings() {
       if (data) {
         setSettingsId(data.id);
         setSyncInterval(data.sync_interval.toString());
+        setAutoHideCompleted(data.auto_hide_completed ?? true);
+        setAutoHideConditioning(data.auto_hide_conditioning ?? true);
+        setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -57,6 +64,43 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error updating settings:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAutoSettingChange = async (field: string, value: boolean) => {
+    try {
+      if (settingsId) {
+        const { error } = await supabase
+          .from('sync_settings')
+          .update({ [field]: value })
+          .eq('id', settingsId);
+
+        if (error) throw error;
+
+        switch (field) {
+          case 'auto_hide_completed':
+            setAutoHideCompleted(value);
+            break;
+          case 'auto_hide_conditioning':
+            setAutoHideConditioning(value);
+            break;
+          case 'auto_activate_fermenting':
+            setAutoActivateFermenting(value);
+            break;
+        }
+
+        toast({
+          title: "Inställningar sparade",
+          description: "Automatiseringsinställningarna har uppdaterats",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating auto settings:', error);
       toast({
         title: "Fel",
         description: "Kunde inte spara inställningar",
@@ -126,6 +170,52 @@ export default function Settings() {
               <p className="text-xs text-muted-foreground mt-2">
                 Snabb synkronisering uppdaterar bara avläsningar
               </p>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-medium">Automatisk hantering vid synkronisering</h3>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-hide-completed"
+                  checked={autoHideCompleted}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_completed', !!checked)}
+                />
+                <label
+                  htmlFor="auto-hide-completed"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Ta bort öl som är klara
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-hide-conditioning"
+                  checked={autoHideConditioning}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_conditioning', !!checked)}
+                />
+                <label
+                  htmlFor="auto-hide-conditioning"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Ta bort öl som konditioneras
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-activate-fermenting"
+                  checked={autoActivateFermenting}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
+                />
+                <label
+                  htmlFor="auto-activate-fermenting"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Aktivera automatiskt nya öl (med status jäsning)
+                </label>
+              </div>
             </div>
 
             <div>
