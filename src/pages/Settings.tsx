@@ -205,10 +205,18 @@ export default function Settings() {
         </div>
         
         <Card className="p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">Synkroniseringsinställningar</h2>
+          <h2 className="text-xl font-bold mb-6">Synkroniseringsinställningar</h2>
           
-          <div className="space-y-4">
-            <div>
+          <div className="space-y-8">
+            <div className="space-y-4 pb-6 border-b">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Snabb synkronisering</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Uppdaterar löpande data för synliga öl (SG, temperatur, batterinivå)
+                </p>
+              </div>
+              
+              <div>
               <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
               <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
                 <SelectTrigger className="w-full bg-card">
@@ -235,15 +243,21 @@ export default function Settings() {
                 variant="outline"
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${quickSyncing ? 'animate-spin' : ''}`} />
-                {quickSyncing ? 'Synkroniserar...' : 'Snabb synkronisering'}
+                {quickSyncing ? 'Synkroniserar...' : 'Kör snabb synkronisering nu'}
               </Button>
             </div>
+            </div>
 
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="text-sm font-medium">Full synkronisering</h3>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Full synkronisering</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Hämtar komplett data och hanterar automatisk synlighet av öl
+                </p>
+              </div>
               
               <div>
-                <label className="text-sm font-medium mb-2 block">Frekvens</label>
+              <label className="text-sm font-medium mb-2 block">Frekvens</label>
                 <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue placeholder="Välj frekvens" />
@@ -314,7 +328,7 @@ export default function Settings() {
                   className="w-full"
                 >
                   <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
+                  {syncing ? 'Synkroniserar...' : 'Kör full synkronisering nu'}
                 </Button>
               </div>
             </div>
