@@ -35,9 +35,11 @@ export function BrewingDashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000); // Update every second
+    // Update time every minute instead of every second for better performance
+    const updateTime = () => setCurrentTime(new Date());
+    updateTime(); // Initial update
+    
+    const timer = setInterval(updateTime, 60000); // Update every minute
 
     return () => clearInterval(timer);
   }, []);

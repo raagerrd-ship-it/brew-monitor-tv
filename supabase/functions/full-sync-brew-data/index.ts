@@ -176,89 +176,94 @@ Deno.serve(async (req) => {
     const batchesToSync = fullBatchesData || []
     console.log(`Got ${batchesToSync.length} full batch details`)
 
-    // Process each batch with FULL data including OG
-    for (const batch of batchesToSync) {
-      try {
-        console.log(`Processing batch ${batch._id} with FULL details...`)
+    // Fetch all readings in parallel for faster sync
+    const readingsPromises = batchesToSync.map((batch: any) =>
+      supabase.functions.invoke('brewfather-readings', { 
+        body: { batchId: batch._id } 
+      }).then(result => ({
+        batch: batch,
+        readings: result.data || [],
+        error: result.error
+      }))
+    )
 
-        const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
-          'brewfather-readings',
-          { body: { batchId: batch._id } }
-        )
+    const readingsResults = await Promise.all(readingsPromises)
+    console.log(`Fetched readings for ${readingsResults.length} batches in parallel`)
 
-        if (readingsError) {
-          console.error('Error fetching readings for batch:', batch._id, readingsError)
-        }
-
-        const readings = readingsData || []
-        console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
-
-        const sgData = readings
-          .filter((r: any) => r.sg && r.temp)
-          .map((r: any) => ({
-            date: new Date(r.time).toISOString(),
-            value: r.sg,
-            temp: r.temp,
-          }))
-
-        // Get the latest reading that has SG data
-        const readingsWithSG = readings.filter((r: any) => r.sg)
-        const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
-        const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
-        const currentTemp = latestReading?.temp || 20
-        const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
-
-        // Use batch measuredOg first (this is what user fills in manually in Brewfather)
-        const firstReading = readings.length > 0 ? readings[0] : null
-        const og = batch.measuredOg || batch.estimatedOg || firstReading?.sg || 1.050
-        const fg = batch.measuredFg || batch.estimatedFg || 1.010
-        
-        console.log(`Batch ${batch.name || batch.recipe?.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
-        
-        // Calculate apparent attenuation: (OG - Current SG) / (OG - 1.000) * 100
-        const attenuation = ((og - currentSG) / (og - 1.000)) * 100
-        const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
-
-        const brewData = {
-          batch_id: batch._id,
-          name: batch.recipe?.name || batch.name,
-          style: batch.recipe?.style?.name || 'Okänd stil',
-          batch_number: `#${batch.batchNo}`,
-          status: batch.status === 'Conditioning' ? 'Konditionering' : 
-                  batch.status === 'Completed' ? 'Klar' : 
-                  batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
-          current_sg: currentSG,
-          current_temp: currentTemp,
-          attenuation: Math.round(attenuation),
-          abv: parseFloat(abv.toFixed(1)),
-          original_gravity: og,
-          final_gravity: fg,
-          last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
-          battery: battery,
-          sg_data: sgData.length > 0 ? sgData : [
-            { date: 'Start', value: og, temp: 20 },
-            { date: 'Nu', value: currentSG, temp: currentTemp },
-          ],
-        }
-
-        const { error: upsertError } = await supabase
-          .from('brew_readings')
-          .upsert(brewData, { onConflict: 'batch_id' })
-
-        if (upsertError) {
-          console.error(`Error upserting batch ${batch._id}:`, upsertError)
-        } else {
-          console.log(`Successfully synced batch ${batch._id} with FULL data`)
-        }
-      } catch (error) {
-        console.error(`Error processing batch ${batch._id}:`, error)
+    // Process all batches and prepare data
+    const brewUpdates = readingsResults.map(result => {
+      if (result.error) {
+        console.error(`Error fetching readings for ${result.batch._id}:`, result.error)
+        return null
       }
+
+      const batch = result.batch
+      const readings = result.readings
+
+      const sgData = readings
+        .filter((r: any) => r.sg && r.temp)
+        .map((r: any) => ({
+          date: new Date(r.time).toISOString(),
+          value: r.sg,
+          temp: r.temp,
+        }))
+
+      const readingsWithSG = readings.filter((r: any) => r.sg)
+      const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
+      const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
+      const currentTemp = latestReading?.temp || 20
+      const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
+
+      const firstReading = readings.length > 0 ? readings[0] : null
+      const og = batch.measuredOg || batch.estimatedOg || firstReading?.sg || 1.050
+      const fg = batch.measuredFg || batch.estimatedFg || 1.010
+      
+      console.log(`Batch ${batch.name || batch.recipe?.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
+      
+      const attenuation = ((og - currentSG) / (og - 1.000)) * 100
+      const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
+
+      return {
+        batch_id: batch._id,
+        name: batch.recipe?.name || batch.name,
+        style: batch.recipe?.style?.name || 'Okänd stil',
+        batch_number: `#${batch.batchNo}`,
+        status: batch.status === 'Conditioning' ? 'Konditionering' : 
+                batch.status === 'Completed' ? 'Klar' : 
+                batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
+        current_sg: currentSG,
+        current_temp: currentTemp,
+        attenuation: Math.round(attenuation),
+        abv: parseFloat(abv.toFixed(1)),
+        original_gravity: og,
+        final_gravity: fg,
+        last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
+        battery: battery,
+        sg_data: sgData.length > 0 ? sgData : [
+          { date: 'Start', value: og, temp: 20 },
+          { date: 'Nu', value: currentSG, temp: currentTemp },
+        ],
+      }
+    }).filter(Boolean)
+
+    // Batch upsert all updates at once
+    if (brewUpdates.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('brew_readings')
+        .upsert(brewUpdates, { onConflict: 'batch_id' })
+
+      if (upsertError) {
+        console.error('Error batch upserting brews:', upsertError)
+        throw upsertError
+      }
+
+      console.log(`Successfully full synced ${brewUpdates.length} brews in parallel`)
     }
 
     console.log('FULL brew data sync completed')
 
     return new Response(
-      JSON.stringify({ message: 'Full sync completed', count: batchesToSync.length }),
+      JSON.stringify({ message: 'Full sync completed', count: brewUpdates.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
