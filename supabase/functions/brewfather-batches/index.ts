@@ -56,8 +56,10 @@ serve(async (req) => {
     url.searchParams.set('limit', (limit || 10).toString());
     url.searchParams.set('order_by', 'batchNo');
     url.searchParams.set('order_by_direction', 'desc');
+    url.searchParams.set('complete', 'false'); // Only fetch basic fields for faster response
+    url.searchParams.set('include', 'recipe.style'); // Add style info which we display
     
-    console.log('Fetching', limit || 10, 'batches sorted by batchNo descending');
+    console.log('Fetching', limit || 10, 'batches sorted by batchNo descending (optimized fields)');
     
     const response = await fetch(url.toString(), {
       headers: {
