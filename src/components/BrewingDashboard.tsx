@@ -299,11 +299,16 @@ export function BrewingDashboard() {
       {/* Main Display Area - All Brews */}
       <div className="flex-1 p-2 overflow-hidden">
         <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
-          {brews.map((brew) => (
-            <Card 
-              key={brew.id}
-              className="bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full"
-            >
+          {brews.map((brew) => {
+            const hasUpdates = updatedFields[brew.batch_id] && Object.keys(updatedFields[brew.batch_id]).length > 0;
+            
+            return (
+              <Card 
+                key={brew.id}
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
+                  hasUpdates ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
+                }`}
+              >
               {/* Header - 10% */}
               <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0">
                 <div className="flex items-center justify-between gap-2 h-full">
@@ -460,7 +465,8 @@ export function BrewingDashboard() {
                 </div>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
