@@ -60,6 +60,25 @@ export function BrewingDashboard() {
   }, []);
 
   useEffect(() => {
+    // Set up realtime subscription for sync_settings to detect syncs
+    const syncChannel = supabase
+      .channel('sync-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sync_settings'
+        },
+        (payload) => {
+          console.log('Sync detected:', payload)
+          // Trigger settings button glow when sync occurs
+          setSettingsGlow(true);
+          setTimeout(() => setSettingsGlow(false), 1000);
+        }
+      )
+      .subscribe()
+
     // Set up realtime subscription for brew readings
     const brewChannel = supabase
       .channel('brew-readings-changes')
@@ -136,10 +155,6 @@ export function BrewingDashboard() {
                 [updatedReading.batch_id]: changedFields
               }));
               
-              // Trigger settings button glow when sync occurs
-              setSettingsGlow(true);
-              setTimeout(() => setSettingsGlow(false), 1000);
-              
               // Remove glow after 2 minutes
               setTimeout(() => {
                 setUpdatedFields(prev => {
@@ -159,6 +174,7 @@ export function BrewingDashboard() {
 
     return () => {
       supabase.removeChannel(brewChannel)
+      supabase.removeChannel(syncChannel)
     }
   }, []);
 

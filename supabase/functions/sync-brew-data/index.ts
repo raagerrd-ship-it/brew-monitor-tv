@@ -20,6 +20,20 @@ Deno.serve(async (req) => {
 
     console.log('Starting brew data sync...')
 
+    // Update last_sync_time to trigger UI notification
+    const { data: settingsData } = await supabase
+      .from('sync_settings')
+      .select('id')
+      .limit(1)
+      .single()
+    
+    if (settingsData) {
+      await supabase
+        .from('sync_settings')
+        .update({ last_sync_time: new Date().toISOString() })
+        .eq('id', settingsData.id)
+    }
+
     // Get currently visible brews for syncing data
     const { data: selectedBrews, error: selectedError } = await supabase
       .from('selected_brews')
