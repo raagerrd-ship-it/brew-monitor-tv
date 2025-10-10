@@ -258,14 +258,6 @@ export function BrewingDashboard() {
     return "grid-cols-3"; // 5+ brews still use 3 columns with scrolling
   };
 
-  // Dynamic scaling based on number of brews
-  const getScaleClass = () => {
-    const count = brews.length;
-    if (count === 1) return "scale-[1.4]"; // Zoom in for single brew
-    if (count === 2) return "scale-[1.1]"; // Slight zoom for 2 brews
-    return "scale-100"; // Normal size for 3+ brews
-  };
-
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
@@ -295,15 +287,15 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area - All Brews */}
-      <div className="flex-1 overflow-auto p-2 flex items-center justify-center">
-        <div className={`grid gap-2 ${getGridLayout()} ${getScaleClass()} transition-transform duration-300 w-full h-full`}>
+      <div className="flex-1 p-2 overflow-hidden">
+        <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
           {brews.map((brew) => (
             <div 
               key={brew.id}
-              className="flex flex-col gap-2"
+              className="flex flex-col gap-2 min-h-0"
             >
               {/* Top - Chart */}
-              <Card className="bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-[280px]">
+              <Card className="bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden flex-[2] min-h-0">
                 <div className="p-2 pb-1 border-b border-border/50 flex-shrink-0">
                   <div className="flex items-center justify-between gap-1">
                     <div className="min-w-0 flex-1">
@@ -337,7 +329,7 @@ export function BrewingDashboard() {
               </Card>
 
               {/* Bottom - Stats */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 flex-1 min-h-0">
                 {/* SG Card */}
                 <Card className={`bg-gradient-card border-border shadow-deep p-3 border-2 border-primary/20 transition-all duration-1000 ${
                   updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_30px_hsl(var(--primary)/0.6)] border-primary/60' : ''
