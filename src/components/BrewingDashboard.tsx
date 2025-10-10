@@ -32,6 +32,7 @@ export function BrewingDashboard() {
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
+  const [settingsGlow, setSettingsGlow] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -134,6 +135,10 @@ export function BrewingDashboard() {
                 ...prev,
                 [updatedReading.batch_id]: changedFields
               }));
+              
+              // Trigger settings button glow when sync occurs
+              setSettingsGlow(true);
+              setTimeout(() => setSettingsGlow(false), 1000);
               
               // Remove glow after 2 minutes
               setTimeout(() => {
@@ -318,7 +323,9 @@ export function BrewingDashboard() {
             variant="ghost"
             size="sm"
             onClick={() => navigate('/settings')}
-            className="opacity-40 hover:opacity-100 transition-opacity"
+            className={`opacity-40 hover:opacity-100 transition-all duration-1000 ${
+              settingsGlow ? 'ring-4 ring-primary/70 shadow-[0_0_30px_hsl(var(--primary)/0.8)] scale-110 opacity-100' : ''
+            }`}
           >
             <Settings className="h-4 w-4" />
           </Button>
