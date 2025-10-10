@@ -410,16 +410,24 @@ export function BrewingDashboard() {
                     style={{ containerType: 'size' }}
                   >
                     <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
-                      <Battery className="w-full h-full text-primary" />
-                      {brew.battery !== null && (
-                        <div 
-                          className="absolute bottom-[15%] left-[8%] right-[8%] bg-primary transition-all duration-500 rounded-sm"
-                          style={{ 
-                            height: `${(brew.battery / 100) * 60}%`,
-                            opacity: 0.6
-                          }}
-                        />
-                      )}
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                        {/* Battery outline */}
+                        <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="2" fill="none"/>
+                        <path d="M22 9v6" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round"/>
+                        {/* Battery fill */}
+                        {brew.battery !== null && (
+                          <rect 
+                            x="4" 
+                            y="8" 
+                            width={`${(brew.battery / 100) * 14}`} 
+                            height="8" 
+                            rx="1" 
+                            fill="hsl(var(--primary))"
+                            className="transition-all duration-500"
+                            opacity="0.8"
+                          />
+                        )}
+                      </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Batteri</p>
                     <p className="font-bold text-primary leading-none text-2xl z-10">
