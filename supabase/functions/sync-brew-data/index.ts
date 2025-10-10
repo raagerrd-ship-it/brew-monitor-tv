@@ -20,48 +20,11 @@ Deno.serve(async (req) => {
 
     console.log('Starting brew data sync...')
 
-    // Get sync settings to determine auto-management behavior
-    const { data: syncSettings } = await supabase
-      .from('sync_settings')
-      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting')
-      .limit(1)
-      .maybeSingle()
-
-    const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
-    const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
-    const autoActivateFermenting = syncSettings?.auto_activate_fermenting ?? true
-
-    console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting })
-
-    // Fetch batches from Brewfather (optimized - only basic fields needed for status checks)
-    console.log('Fetching batches from Brewfather (optimized fields)...')
-    
-    const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
-      'brewfather-batches',
-      { body: { limit: 50 } } // Fetch more for management, but only basic fields
-    )
-
-    if (batchesError) {
-      console.error('Error fetching batches:', batchesError)
-      throw batchesError
-    }
-
-    if (!batchesData || batchesData.length === 0) {
-      console.log('No batches found from Brewfather')
-      return new Response(
-        JSON.stringify({ message: 'No batches found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log(`Fetched ${batchesData.length} batches from Brewfather`)
-
-    // Get currently visible brews for syncing data (no auto-management in quick sync)
+    // Get currently visible brews for syncing data
     const { data: selectedBrews, error: selectedError } = await supabase
       .from('selected_brews')
-      .select('*')
+      .select('batch_id')
       .eq('is_visible', true)
-      .order('display_order')
 
     if (selectedError) {
       console.error('Error fetching selected brews:', selectedError)
@@ -76,104 +39,107 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Found ${selectedBrews.length} visible brews to sync`)
+    console.log(`Quick syncing ${selectedBrews.length} visible brews (readings only)`)
 
-    // Filter batches to only those that are selected and visible
-    const selectedBatchIds = selectedBrews.map(b => b.batch_id)
-    const batchesToSync = batchesData.filter((b: any) => selectedBatchIds.includes(b._id))
-    
-    console.log(`Syncing ${batchesToSync.length} batches (quick sync - readings only)`)
+    // Fetch all readings in parallel for maximum speed
+    const readingsPromises = selectedBrews.map(brew =>
+      supabase.functions.invoke('brewfather-readings', { 
+        body: { batchId: brew.batch_id } 
+      }).then(result => ({
+        batchId: brew.batch_id,
+        data: result.data,
+        error: result.error
+      }))
+    )
 
-    // Process each batch
-    for (const batch of batchesToSync) {
-      try {
-        console.log(`Quick sync for batch ${batch._id}...`)
+    const readingsResults = await Promise.all(readingsPromises)
+    console.log(`Fetched readings for ${readingsResults.length} batches in parallel`)
 
-        // Fetch readings for this batch
-        const { data: readingsData, error: readingsError } = await supabase.functions.invoke(
-          'brewfather-readings',
-          { body: { batchId: batch._id } }
-        )
+    // Fetch existing brew data in parallel to preserve OG, FG, style, etc.
+    const existingBrewsPromises = selectedBrews.map(brew =>
+      supabase
+        .from('brew_readings')
+        .select('batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data')
+        .eq('batch_id', brew.batch_id)
+        .maybeSingle()
+        .then(result => ({
+          batchId: brew.batch_id,
+          data: result.data
+        }))
+    )
 
-        if (readingsError) {
-          console.error('Error fetching readings for batch:', batch._id, readingsError)
-        }
+    const existingBrews = await Promise.all(existingBrewsPromises)
+    const existingBrewsMap = new Map(existingBrews.map(b => [b.batchId, b.data]))
 
-        const readings = readingsData || []
-        console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
-
-        // Get existing brew data to preserve OG, style and other batch details
-        const { data: existingBrew } = await supabase
-          .from('brew_readings')
-          .select('original_gravity, final_gravity, style, name, last_update')
-          .eq('batch_id', batch._id)
-          .maybeSingle()
-
-        // Transform data
-        const sgData = readings
-          .filter((r: any) => r.sg && r.temp)
-          .map((r: any) => ({
-            date: new Date(r.time).toISOString(),
-            value: r.sg,
-            temp: r.temp,
-          }))
-
-        // Get the latest reading that has SG data
-        const readingsWithSG = readings.filter((r: any) => r.sg)
-        const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
-        const currentSG = latestReading?.sg || 1.050
-        const currentTemp = latestReading?.temp || 20
-        const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
-
-        // Use existing OG/FG if available, otherwise fallback
-        const og = existingBrew?.original_gravity || 1.050
-        const fg = existingBrew?.final_gravity || 1.010
-        
-        // Calculate apparent attenuation: (OG - Current SG) / (OG - 1.000) * 100
-        const attenuation = ((og - currentSG) / (og - 1.000)) * 100
-        const abv = ((og - currentSG) * 131.25) || 0
-
-        const brewData = {
-          batch_id: batch._id,
-          name: existingBrew?.name || batch.recipe?.name || batch.name,
-          style: existingBrew?.style || batch.recipe?.style?.name || 'Okänd stil',
-          batch_number: `#${batch.batchNo}`,
-          status: batch.status === 'Conditioning' ? 'Konditionering' : 
-                  batch.status === 'Completed' ? 'Klar' : 
-                  batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
-          current_sg: currentSG,
-          current_temp: currentTemp,
-          attenuation: Math.round(attenuation),
-          abv: parseFloat(abv.toFixed(1)),
-          original_gravity: og,
-          final_gravity: fg,
-          last_update: latestReading ? new Date(latestReading.time).toISOString() : existingBrew?.last_update || null,
-          battery: battery,
-          sg_data: sgData.length > 0 ? sgData : [
-            { date: 'Start', value: og, temp: 20 },
-            { date: 'Nu', value: currentSG, temp: currentTemp },
-          ],
-        }
-
-        // Upsert to database
-        const { error: upsertError } = await supabase
-          .from('brew_readings')
-          .upsert(brewData, { onConflict: 'batch_id' })
-
-        if (upsertError) {
-          console.error(`Error upserting batch ${batch._id}:`, upsertError)
-        } else {
-          console.log(`Successfully quick synced batch ${batch._id}`)
-        }
-      } catch (error) {
-        console.error(`Error processing batch ${batch._id}:`, error)
+    // Process all readings and prepare updates
+    const brewUpdates = readingsResults.map(result => {
+      if (result.error) {
+        console.error(`Error fetching readings for ${result.batchId}:`, result.error)
+        return null
       }
+
+      const readings = result.data || []
+      const existingBrew = existingBrewsMap.get(result.batchId)
+
+      // Transform data
+      const sgData = readings
+        .filter((r: any) => r.sg && r.temp)
+        .map((r: any) => ({
+          date: new Date(r.time).toISOString(),
+          value: r.sg,
+          temp: r.temp,
+        }))
+
+      // Get the latest reading
+      const readingsWithSG = readings.filter((r: any) => r.sg)
+      const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
+      const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050
+      const currentTemp = latestReading?.temp || 20
+      const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
+
+      const og = existingBrew?.original_gravity || 1.050
+      const fg = existingBrew?.final_gravity || 1.010
+      
+      const attenuation = ((og - currentSG) / (og - 1.000)) * 100
+      const abv = ((og - currentSG) * 131.25) || 0
+
+      return {
+        batch_id: result.batchId,
+        current_sg: currentSG,
+        current_temp: currentTemp,
+        attenuation: Math.round(attenuation),
+        abv: parseFloat(abv.toFixed(1)),
+        last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
+        battery: battery,
+        sg_data: sgData.length > 0 ? sgData : existingBrew?.sg_data || [],
+        // Preserve existing fields
+        ...(existingBrew && {
+          name: existingBrew.name,
+          style: existingBrew.style,
+          status: existingBrew.status,
+          batch_number: existingBrew.batch_number,
+          original_gravity: existingBrew.original_gravity,
+          final_gravity: existingBrew.final_gravity
+        })
+      }
+    }).filter(Boolean)
+
+    // Batch upsert all updates at once
+    if (brewUpdates.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('brew_readings')
+        .upsert(brewUpdates, { onConflict: 'batch_id' })
+
+      if (upsertError) {
+        console.error('Error batch upserting brews:', upsertError)
+        throw upsertError
+      }
+
+      console.log(`Successfully quick synced ${brewUpdates.length} brews in parallel`)
     }
 
-    console.log('Brew data sync completed')
-
     return new Response(
-      JSON.stringify({ message: 'Sync completed', count: batchesToSync.length }),
+      JSON.stringify({ message: 'Sync completed', count: brewUpdates.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
