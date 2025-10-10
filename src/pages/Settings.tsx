@@ -223,7 +223,7 @@ export default function Settings() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
-                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå från befintliga öl
+                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå. Aktiverar nya jäsande öl.
               </p>
             </div>
 
@@ -256,7 +256,7 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar från Brewfather
+                  Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar. Döljer klara/konditionerande öl.
                 </p>
               </div>
 
