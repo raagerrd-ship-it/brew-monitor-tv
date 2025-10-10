@@ -287,140 +287,130 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area - All Brews */}
-      <div className="flex-1 p-1 overflow-hidden">
-        <div className={`grid gap-1 ${getGridLayout()} h-full w-full`}>
+      <div className="flex-1 p-2 overflow-hidden">
+        <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
           {brews.map((brew) => (
-            <div 
+            <Card 
               key={brew.id}
-              className="flex flex-col gap-0.5 min-h-0 h-full"
+              className="bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full"
             >
-              {/* Top - Chart */}
-              <Card className="bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden flex-[5] min-h-0">
-                <div className="p-1 pb-0.5 border-b border-border/50 flex-shrink-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-base font-bold text-foreground leading-tight truncate">
-                        {brew.name}
-                      </h2>
-                      <p className="text-[8px] text-muted-foreground truncate">
-                        {brew.style} • #{brew.batchNumber}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[8px] font-semibold whitespace-nowrap flex-shrink-0 ${
-                        brew.status === "Konditionering"
-                          ? "bg-primary/20 text-primary"
-                          : "bg-ferment-green/20 text-ferment-green animate-pulse"
-                      }`}
-                    >
-                      {brew.status}
-                    </span>
+              {/* Header */}
+              <div className="p-2 pb-1 border-b border-border/50 flex-shrink-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-bold text-foreground leading-tight truncate">
+                      {brew.name}
+                    </h2>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {brew.style} • #{brew.batchNumber}
+                    </p>
                   </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${
+                      brew.status === "Konditionering"
+                        ? "bg-primary/20 text-primary"
+                        : "bg-ferment-green/20 text-ferment-green animate-pulse"
+                    }`}
+                  >
+                    {brew.status}
+                  </span>
                 </div>
-                
-                <div className="flex-1 p-1 min-h-0 overflow-hidden">
-                  <BrewChart 
-                    data={brew.sgData} 
-                    og={brew.originalGravity} 
-                    fg={brew.finalGravity} 
-                    singleView={true} 
-                  />
-                </div>
-              </Card>
+              </div>
+              
+              {/* Chart Area */}
+              <div className="flex-1 p-2 min-h-0 overflow-hidden">
+                <BrewChart 
+                  data={brew.sgData} 
+                  og={brew.originalGravity} 
+                  fg={brew.finalGravity} 
+                  singleView={true} 
+                />
+              </div>
 
-              {/* Bottom - Stats - 3 cards in a row */}
-              <div className="flex-1 grid grid-cols-3 gap-0.5 min-h-0 max-h-[120px]">
-                {/* SG Card */}
-                <Card className={`bg-gradient-card border-border shadow-deep p-1 border border-primary/20 transition-all duration-1000 ${
-                  updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
-                }`}>
-                  <div className="text-center h-full flex flex-col justify-center">
-                    <div className="inline-flex rounded-full bg-primary/20 p-0.5 mb-0.5 mx-auto">
-                      <Droplets className="h-3 w-3 text-primary" />
+              {/* Stats Row */}
+              <div className="p-2 pt-0 flex-shrink-0">
+                <div className="grid grid-cols-5 gap-2">
+                  {/* SG */}
+                  <div className={`bg-background/50 rounded-lg p-2 text-center border border-primary/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                  }`}>
+                    <div className="inline-flex rounded-full bg-primary/20 p-1 mb-1">
+                      <Droplets className="h-4 w-4 text-primary" />
                     </div>
-                    <p className="text-[7px] text-muted-foreground uppercase tracking-wider">SG</p>
-                    <p className="text-lg font-bold text-primary leading-none mb-0.5">
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">SG</p>
+                    <p className="text-lg font-bold text-primary leading-none">
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <p className="text-[6px] text-muted-foreground">
-                      Start: {brew.originalGravity.toFixed(3)}
+                  </div>
+
+                  {/* ABV */}
+                  <div className={`bg-background/50 rounded-lg p-2 text-center border border-secondary/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
+                  }`}>
+                    <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1">
+                      <Wine className="h-4 w-4 text-secondary" />
+                    </div>
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">ABV</p>
+                    <p className="text-lg font-bold text-secondary leading-none">
+                      {brew.abv}%
                     </p>
                   </div>
-                </Card>
 
-                {/* Combined ABV & Utjäsning (ABV först, progressbar längst ner) */}
-                <Card className="bg-gradient-card border-border shadow-deep p-1 border border-ferment-green/20">
-                  <div className="text-center h-full flex flex-col justify-around">
-                    <div className={`transition-all duration-1000 ${
-                      updatedFields[brew.batch_id]?.abv ? 'drop-shadow-[0_0_8px_hsl(var(--secondary)/0.8)]' : ''
-                    }`}>
-                      <div className="inline-flex rounded-full bg-secondary/20 p-0.5 mb-0.5 mx-auto">
-                        <Wine className="h-3 w-3 text-secondary" />
-                      </div>
-                      <p className="text-[7px] text-muted-foreground uppercase tracking-wider">ABV</p>
-                      <p className="text-base font-bold text-secondary leading-none">
-                        {brew.abv}%
-                      </p>
+                  {/* Utjäsning */}
+                  <div className={`bg-background/50 rounded-lg p-2 text-center border border-ferment-green/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
+                  }`}>
+                    <div className="inline-flex rounded-full bg-ferment-green/20 p-1 mb-1">
+                      <TrendingDown className="h-4 w-4 text-ferment-green" />
                     </div>
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Utjäsning</p>
+                    <p className="text-lg font-bold text-ferment-green leading-none mb-1">
+                      {brew.attenuation}%
+                    </p>
+                    <Progress 
+                      value={brew.attenuation} 
+                      className={`h-1 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
+                        brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
+                      }`} 
+                    />
+                  </div>
 
-                    <div className={`transition-all duration-1000 ${
-                      updatedFields[brew.batch_id]?.attenuation ? 'drop-shadow-[0_0_8px_hsl(var(--ferment-green)/0.8)]' : ''
-                    }`}>
-                      <div className="inline-flex rounded-full bg-ferment-green/20 p-0.5 mb-0.5 mx-auto">
-                        <TrendingDown className="h-3 w-3 text-ferment-green" />
-                      </div>
-                      <p className="text-[7px] text-muted-foreground uppercase tracking-wider">Utjäsning</p>
-                      <p className="text-base font-bold text-ferment-green leading-none mb-0.5">
-                        {brew.attenuation}%
-                      </p>
+                  {/* Temp */}
+                  <div className={`bg-background/50 rounded-lg p-2 text-center border border-temp-blue/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
+                  }`}>
+                    <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 animate-pulse">
+                      <Thermometer className="h-4 w-4 text-temp-blue" />
+                    </div>
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Temp</p>
+                    <p className="text-lg font-bold text-temp-blue leading-none">
+                      {brew.currentTemp}°
+                    </p>
+                  </div>
+
+                  {/* Batteri */}
+                  <div className={`bg-background/50 rounded-lg p-2 text-center border border-primary/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                  }`}>
+                    <div className="inline-flex rounded-full bg-primary/20 p-1 mb-1">
+                      <Battery className="h-4 w-4 text-primary" />
+                    </div>
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Batteri</p>
+                    <p className="text-lg font-bold text-primary leading-none mb-1">
+                      {brew.battery !== null ? `${brew.battery}%` : 'N/A'}
+                    </p>
+                    {brew.battery !== null && (
                       <Progress 
-                        value={brew.attenuation} 
-                        className={`h-0.5 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 mx-1 ${
-                          brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
+                        value={brew.battery} 
+                        className={`h-1 bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 ${
+                          brew.battery < 25 ? '[&>div]:bg-destructive' : ''
                         }`} 
                       />
-                    </div>
+                    )}
                   </div>
-                </Card>
-
-                {/* Combined Temp & Batteri */}
-                <Card className="bg-gradient-card border-border shadow-deep p-1 border border-temp-blue/20">
-                  <div className="text-center h-full flex flex-col justify-around">
-                    <div className={`transition-all duration-1000 ${
-                      updatedFields[brew.batch_id]?.temp ? 'drop-shadow-[0_0_8px_hsl(var(--temp-blue)/0.8)]' : ''
-                    }`}>
-                      <div className="inline-flex rounded-full bg-temp-blue/20 p-0.5 mb-0.5 mx-auto animate-pulse">
-                        <Thermometer className="h-3 w-3 text-temp-blue" />
-                      </div>
-                      <p className="text-[7px] text-muted-foreground uppercase tracking-wider">Temp</p>
-                      <p className="text-base font-bold text-temp-blue leading-none">
-                        {brew.currentTemp}°
-                      </p>
-                    </div>
-
-                    <div className={`transition-all duration-1000 ${
-                      updatedFields[brew.batch_id]?.battery ? 'drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]' : ''
-                    }`}>
-                      <div className="inline-flex rounded-full bg-primary/20 p-0.5 mb-0.5 mx-auto">
-                        <Battery className="h-3 w-3 text-primary" />
-                      </div>
-                      <p className="text-[7px] text-muted-foreground uppercase tracking-wider">Batteri</p>
-                      <p className="text-base font-bold text-primary leading-none mb-0.5">
-                        {brew.battery !== null ? `${brew.battery}%` : 'N/A'}
-                      </p>
-                      {brew.battery !== null && (
-                        <Progress 
-                          value={brew.battery} 
-                          className={`h-0.5 bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 mx-1 ${
-                            brew.battery < 25 ? '[&>div]:bg-destructive' : ''
-                          }`} 
-                        />
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
