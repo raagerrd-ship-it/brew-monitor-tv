@@ -51,17 +51,17 @@ serve(async (req) => {
       });
     }
     
-    // Otherwise, fetch batches with optional limit
+    // Otherwise, fetch batches until we have enough active ones
     const allBatches: any[] = [];
+    const activeBatches: any[] = [];
     let startAfter = null;
     let hasMore = true;
     const requestedLimit = limit || 10;
-    // Fetch more than requested to account for archived batches that will be filtered
-    const maxBatchesToFetch = requestedLimit * 3; // Fetch 3x to ensure we have enough after filtering
+    const maxBatchesToFetch = 100; // Safety limit to prevent infinite loops
     
-    console.log('Fetching up to', maxBatchesToFetch, 'batches to get', requestedLimit, 'active ones');
+    console.log('Fetching batches until we have', requestedLimit, 'active ones (max', maxBatchesToFetch, 'total)');
     
-    while (hasMore && allBatches.length < maxBatchesToFetch) {
+    while (hasMore && activeBatches.length < requestedLimit && allBatches.length < maxBatchesToFetch) {
       const url = new URL('https://api.brewfather.app/v2/batches');
       const fetchLimit = Math.min(50, maxBatchesToFetch - allBatches.length);
       url.searchParams.set('limit', fetchLimit.toString());
@@ -86,23 +86,26 @@ serve(async (req) => {
       } else {
         allBatches.push(...batches);
         
-        // If we got less than requested or reached our limit, we're done
+        // Filter and add active batches
+        const newActiveBatches = batches.filter((batch: any) => batch.status !== 'Archived');
+        activeBatches.push(...newActiveBatches);
+        
+        // If we got less than requested or reached our safety limit, we're done
         if (batches.length < fetchLimit || allBatches.length >= maxBatchesToFetch) {
           hasMore = false;
-        } else {
-          // Get the _id of the last batch for pagination
+        } else if (activeBatches.length < requestedLimit) {
+          // Continue fetching if we don't have enough active batches yet
           startAfter = batches[batches.length - 1]._id;
+        } else {
+          hasMore = false;
         }
       }
     }
-
-    // Filter out archived batches
-    const activeBatches = allBatches.filter(batch => batch.status !== 'Archived');
     
     // Limit to requested number of active batches
     const limitedActiveBatches = activeBatches.slice(0, requestedLimit);
     
-    console.log('Returning', limitedActiveBatches.length, 'active batches out of', allBatches.length, 'total batches (', activeBatches.length, 'active before limiting)');
+    console.log('Returning', limitedActiveBatches.length, 'active batches out of', allBatches.length, 'total batches fetched');
 
     return new Response(JSON.stringify(limitedActiveBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
