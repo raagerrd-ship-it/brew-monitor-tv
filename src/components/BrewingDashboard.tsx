@@ -380,7 +380,7 @@ export function BrewingDashboard() {
                     style={{ containerType: 'size' }}
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
-                      <Wine className="w-full h-full text-secondary" />
+                      <Wine className="w-full h-full text-secondary" strokeWidth={1} />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">ABV</p>
                     <p className="font-bold text-secondary leading-none text-3xl z-10 pl-2">
@@ -398,7 +398,7 @@ export function BrewingDashboard() {
                     <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Thermometer outline */}
-                        <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="2" fill="none"/>
+                        <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="1" fill="none"/>
                         {/* Thermometer fill - calculate based on 0-30 degrees */}
                         <defs>
                           <clipPath id={`thermo-clip-${brew.batch_id}`}>
@@ -431,7 +431,7 @@ export function BrewingDashboard() {
                     style={{ containerType: 'size' }}
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20" style={{ width: '65%', height: '65%', transform: 'translateY(-50%) rotate(45deg)' }}>
-                      <TrendingDown className="w-full h-full text-ferment-green" />
+                      <TrendingDown className="w-full h-full text-ferment-green" strokeWidth={1} />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Utjäsning</p>
                     <p className="font-bold text-ferment-green leading-none text-2xl z-10 pl-2">
@@ -449,8 +449,8 @@ export function BrewingDashboard() {
                     <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
                         {/* Battery outline */}
-                        <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="2" fill="none"/>
-                        <path d="M22 9v6" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round"/>
+                        <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="1" fill="none"/>
+                        <path d="M22 9v6" stroke="hsl(var(--primary))" strokeWidth="1" strokeLinecap="round"/>
                         {/* Battery fill */}
                         {brew.battery !== null && (
                           <rect 
