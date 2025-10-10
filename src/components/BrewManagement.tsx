@@ -31,7 +31,6 @@ export function BrewManagement() {
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -138,13 +137,27 @@ export function BrewManagement() {
         if (insertError) throw insertError;
       }
 
-      toast({
-        title: "Sparat!",
-        description: "Dina val har sparats",
+      // Trigger full sync of selected brews
+      const { error: syncError } = await supabase.functions.invoke('full-sync-brew-data', {
+        body: {}
       });
 
+      if (syncError) {
+        console.error('Error during full sync:', syncError);
+        toast({
+          title: "Varning",
+          description: "Val sparade men synkroniseringen misslyckades",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sparat!",
+          description: "Dina val har sparats och synkroniserats",
+        });
+      }
+
       // Reload the page to show updated brews
-      setTimeout(() => window.location.reload(), 1000);
+      setTimeout(() => window.location.reload(), 1500);
 
     } catch (error) {
       console.error('Error saving selection:', error);
@@ -158,32 +171,6 @@ export function BrewManagement() {
     }
   };
 
-  const syncBrewData = async () => {
-    try {
-      setSyncing(true);
-      
-      const { error } = await supabase.functions.invoke('sync-brew-data', {
-        body: {}
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Synkronisering klar!",
-        description: "Bryggdata har uppdaterats",
-      });
-
-    } catch (error) {
-      console.error('Error syncing brew data:', error);
-      toast({
-        title: "Fel",
-        description: "Kunde inte synkronisera bryggdata",
-        variant: "destructive",
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -235,38 +222,22 @@ export function BrewManagement() {
           <p className="text-sm text-muted-foreground">
             {selectedBrews.length} av 3 öl valda
           </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={syncBrewData}
-              disabled={syncing}
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Synkroniserar...
-                </>
-              ) : (
-                'Synkronisera Data'
-              )}
-            </Button>
-            <Button
-              onClick={saveSelection}
-              disabled={saving || selectedBrews.length === 0}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sparar...
-                </>
-              ) : (
-                'Spara Val'
-              )}
-            </Button>
-          </div>
+          <Button
+            onClick={saveSelection}
+            disabled={saving || selectedBrews.length === 0}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sparar och synkroniserar...
+              </>
+            ) : (
+              'Spara Val'
+            )}
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Data uppdateras automatiskt var 5:e minut. Använd "Synkronisera Data" för att hämta den senaste informationen omedelbart.
+          När du sparar ditt val görs en full synkronisering av de valda ölen
         </p>
       </div>
     </div>
