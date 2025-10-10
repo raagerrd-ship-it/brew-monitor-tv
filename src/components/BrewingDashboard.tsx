@@ -337,8 +337,8 @@ export function BrewingDashboard() {
                     <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2">
                       <Droplets className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">SG</p>
-                    <p className="text-4xl font-bold text-primary leading-none">
+                    <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">SG</p>
+                    <p className="text-5xl font-bold text-primary leading-none">
                       {brew.currentSG.toFixed(3)}
                     </p>
                   </div>
@@ -350,8 +350,8 @@ export function BrewingDashboard() {
                     <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1">
                       <Wine className="h-3 w-3 text-secondary" />
                     </div>
-                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">ABV</p>
-                    <p className="text-base font-bold text-secondary leading-none">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">ABV</p>
+                    <p className="text-xl font-bold text-secondary leading-none">
                       {brew.abv}%
                     </p>
                   </div>
@@ -363,8 +363,8 @@ export function BrewingDashboard() {
                     <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 animate-pulse">
                       <Thermometer className="h-3 w-3 text-temp-blue" />
                     </div>
-                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Temp</p>
-                    <p className="text-base font-bold text-temp-blue leading-none">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Temp</p>
+                    <p className="text-xl font-bold text-temp-blue leading-none">
                       {brew.currentTemp}°
                     </p>
                   </div>
@@ -376,8 +376,8 @@ export function BrewingDashboard() {
                     <div className="inline-flex rounded-full bg-ferment-green/20 p-1 mb-1">
                       <TrendingDown className="h-3 w-3 text-ferment-green" />
                     </div>
-                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Utjäsning</p>
-                    <p className="text-base font-bold text-ferment-green leading-none mb-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Utjäsning</p>
+                    <p className="text-xl font-bold text-ferment-green leading-none mb-1">
                       {brew.attenuation}%
                     </p>
                     <Progress 
@@ -395,9 +395,9 @@ export function BrewingDashboard() {
                     <div className="inline-flex rounded-full bg-primary/20 p-1 mb-1">
                       <Battery className="h-3 w-3 text-primary" />
                     </div>
-                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Batteri</p>
-                    <p className="text-base font-bold text-primary leading-none mb-1">
-                      {brew.battery !== null ? `${brew.battery}%` : 'N/A'}
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Batteri</p>
+                    <p className="text-xl font-bold text-primary leading-none mb-1">
+                      {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                     </p>
                     {brew.battery !== null && (
                       <Progress 
