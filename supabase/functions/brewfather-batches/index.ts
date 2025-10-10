@@ -19,7 +19,7 @@ serve(async (req) => {
       throw new Error('Brewfather credentials not configured');
     }
 
-    const { batchIds } = await req.json();
+    const { batchIds, limit } = await req.json();
     
     // If specific batch IDs are requested, fetch those
     if (batchIds && Array.isArray(batchIds) && batchIds.length > 0) {
@@ -49,14 +49,16 @@ serve(async (req) => {
       });
     }
     
-    // Otherwise, fetch all batches with pagination
+    // Otherwise, fetch batches with optional limit
     const allBatches: any[] = [];
     let startAfter = null;
     let hasMore = true;
+    const maxBatches = limit || 20; // Default to 20 recent batches for faster loading
     
-    while (hasMore) {
+    while (hasMore && allBatches.length < maxBatches) {
       const url = new URL('https://api.brewfather.app/v2/batches');
-      url.searchParams.set('limit', '50'); // Max limit
+      const fetchLimit = Math.min(50, maxBatches - allBatches.length);
+      url.searchParams.set('limit', fetchLimit.toString());
       if (startAfter) {
         url.searchParams.set('start_after', startAfter);
       }
@@ -78,8 +80,8 @@ serve(async (req) => {
       } else {
         allBatches.push(...batches);
         
-        // If we got less than 50, we're done
-        if (batches.length < 50) {
+        // If we got less than requested or reached our limit, we're done
+        if (batches.length < fetchLimit || allBatches.length >= maxBatches) {
           hasMore = false;
         } else {
           // Get the _id of the last batch for pagination

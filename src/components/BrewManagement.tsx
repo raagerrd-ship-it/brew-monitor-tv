@@ -45,7 +45,7 @@ export function BrewManagement() {
 
       // Fetch batches and selected brews in parallel for faster loading
       const [batchesResponse, selectedResponse] = await Promise.all([
-        supabase.functions.invoke('brewfather-batches', { body: {} }),
+        supabase.functions.invoke('brewfather-batches', { body: { limit: 20 } }),
         supabase.from('selected_brews')
           .select('*')
           .eq('is_visible', true)
