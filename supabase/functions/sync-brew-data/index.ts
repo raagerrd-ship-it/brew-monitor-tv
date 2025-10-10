@@ -31,12 +31,12 @@ Deno.serve(async (req) => {
 
     console.log('Auto-management settings:', { autoActivateFermenting })
 
-    // Fetch ALL batches from Brewfather to check status
-    console.log('Fetching all batches from Brewfather...')
+    // Fetch ALL batches from Brewfather to check status (optimized - only basic fields)
+    console.log('Fetching all batches from Brewfather (optimized fields)...')
     
     const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
       'brewfather-batches',
-      { body: {} }
+      { body: { limit: 50, complete: false } } // Fetch more for auto-activation, but only basic fields
     )
 
     if (batchesError) {

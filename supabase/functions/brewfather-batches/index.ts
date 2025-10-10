@@ -19,9 +19,9 @@ serve(async (req) => {
       throw new Error('Brewfather credentials not configured');
     }
 
-    const { batchIds, limit } = await req.json();
+    const { batchIds, limit, complete } = await req.json();
     
-    console.log('Received request with batchIds:', batchIds, 'and limit:', limit);
+    console.log('Received request with batchIds:', batchIds, 'limit:', limit, 'complete:', complete);
     
     // If specific batch IDs are requested, fetch those
     if (batchIds && Array.isArray(batchIds) && batchIds.length > 0) {
@@ -52,14 +52,15 @@ serve(async (req) => {
     }
     
     // Otherwise, fetch batches sorted by batch number (newest first)
+    const requestedLimit = limit || 10;
     const url = new URL('https://api.brewfather.app/v2/batches');
-    url.searchParams.set('limit', (limit || 10).toString());
+    url.searchParams.set('limit', requestedLimit.toString());
     url.searchParams.set('order_by', 'batchNo');
     url.searchParams.set('order_by_direction', 'desc');
     url.searchParams.set('complete', 'false'); // Only fetch basic fields for faster response
     url.searchParams.set('include', 'recipe.style'); // Add style info which we display
     
-    console.log('Fetching', limit || 10, 'batches sorted by batchNo descending (optimized fields)');
+    console.log('Fetching', requestedLimit, 'batches sorted by batchNo descending (optimized fields)');
     
     const response = await fetch(url.toString(), {
       headers: {
