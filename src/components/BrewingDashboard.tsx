@@ -331,62 +331,74 @@ export function BrewingDashboard() {
               <div className="h-[37%] p-2 pt-0 pb-2 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
-                  <div className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
-                    updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
-                  }`}>
-                    <div className="flex-[0.4] flex items-center justify-center w-full">
-                      <div className="inline-flex rounded-full bg-primary/20 p-2 h-[80%] aspect-square">
+                  <div 
+                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
+                      updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                    }`}
+                    style={{ containerType: 'size' }}
+                  >
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 0.5rem)' }}>
+                      <div className="inline-flex rounded-full bg-primary/20 p-2 aspect-square" style={{ height: 'calc(100% - 0.5rem)' }}>
                         <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.8rem,2.5vh,2rem)]">SG</p>
-                    <p className="flex-[0.4] font-bold text-primary leading-none flex items-center justify-center text-[clamp(2.5rem,6vh,7rem)]">
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.5rem)', fontSize: 'calc((20cqh - 0.5rem) * 0.4)' }}>SG</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.5rem)', fontSize: 'calc((40cqh - 0.5rem) * 0.7)' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                   </div>
 
                   {/* ABV */}
-                  <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-secondary/20 transition-all duration-1000 ${
-                    updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
-                  }`}>
-                    <div className="flex-[0.4] flex items-center justify-center w-full">
-                      <div className="inline-flex rounded-full bg-secondary/20 p-1 h-[70%] aspect-square">
+                  <div 
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-secondary/20 transition-all duration-1000 ${
+                      updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
+                    }`}
+                    style={{ containerType: 'size' }}
+                  >
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 0.375rem)' }}>
+                      <div className="inline-flex rounded-full bg-secondary/20 p-1 aspect-square" style={{ height: 'calc(100% - 0.5rem)' }}>
                         <Wine className="h-full w-full text-secondary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.6rem,1.5vh,1.3rem)]">ABV</p>
-                    <p className="flex-[0.4] font-bold text-secondary leading-none flex items-center justify-center text-[clamp(1.5rem,3.2vh,3.5rem)]">
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.4)' }}>ABV</p>
+                    <p className="font-bold text-secondary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.65)' }}>
                       {brew.abv}%
                     </p>
                   </div>
 
                   {/* Temp */}
-                  <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-temp-blue/20 transition-all duration-1000 ${
-                    updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
-                  }`}>
-                    <div className="flex-[0.4] flex items-center justify-center w-full">
-                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 animate-pulse h-[70%] aspect-square">
+                  <div 
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-temp-blue/20 transition-all duration-1000 ${
+                      updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
+                    }`}
+                    style={{ containerType: 'size' }}
+                  >
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 0.375rem)' }}>
+                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 animate-pulse aspect-square" style={{ height: 'calc(100% - 0.5rem)' }}>
                         <Thermometer className="h-full w-full text-temp-blue" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.6rem,1.5vh,1.3rem)]">Temp</p>
-                    <p className="flex-[0.4] font-bold text-temp-blue leading-none flex items-center justify-center text-[clamp(1.5rem,3.2vh,3.5rem)]">
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.4)' }}>Temp</p>
+                    <p className="font-bold text-temp-blue leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.65)' }}>
                       {brew.currentTemp}°
                     </p>
                   </div>
 
                   {/* Utjäsning */}
-                  <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-ferment-green/20 transition-all duration-1000 ${
-                    updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
-                  }`}>
-                    <div className="flex-[0.35] flex items-center justify-center w-full">
-                      <div className="inline-flex rounded-full bg-ferment-green/20 p-1 h-[65%] aspect-square">
+                  <div 
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-ferment-green/20 transition-all duration-1000 ${
+                      updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
+                    }`}
+                    style={{ containerType: 'size' }}
+                  >
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 0.375rem)' }}>
+                      <div className="inline-flex rounded-full bg-ferment-green/20 p-1 aspect-square" style={{ height: 'calc(100% - 0.5rem)' }}>
                         <TrendingDown className="h-full w-full text-ferment-green" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.55rem,1.3vh,1.2rem)]">Utjäsning</p>
-                    <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-ferment-green leading-none text-[clamp(1.3rem,2.8vh,3rem)]">
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.45)' }}>Utjäsning</p>
+                    <div className="flex flex-col items-center justify-center w-full gap-1" style={{ height: 'calc(50cqh - 0.375rem)' }}>
+                      <p className="font-bold text-ferment-green leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.5)' }}>
                         {brew.attenuation}%
                       </p>
                       <Progress 
@@ -399,17 +411,20 @@ export function BrewingDashboard() {
                   </div>
 
                   {/* Batteri */}
-                  <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
-                    updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
-                  }`}>
-                    <div className="flex-[0.35] flex items-center justify-center w-full">
-                      <div className="inline-flex rounded-full bg-primary/20 p-1 h-[65%] aspect-square">
+                  <div 
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
+                      updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                    }`}
+                    style={{ containerType: 'size' }}
+                  >
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 0.375rem)' }}>
+                      <div className="inline-flex rounded-full bg-primary/20 p-1 aspect-square" style={{ height: 'calc(100% - 0.5rem)' }}>
                         <Battery className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.55rem,1.3vh,1.2rem)]">Batteri</p>
-                    <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-primary leading-none text-[clamp(1.3rem,2.8vh,3rem)]">
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.45)' }}>Batteri</p>
+                    <div className="flex flex-col items-center justify-center w-full gap-1" style={{ height: 'calc(50cqh - 0.375rem)' }}>
+                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.5)' }}>
                         {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                       </p>
                       {brew.battery !== null && (
