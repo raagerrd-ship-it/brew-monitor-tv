@@ -342,7 +342,7 @@ export function BrewingDashboard() {
               <Card 
                 key={brew.id}
                 className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
-                  hasCardGlow ? 'ring-4 ring-primary/70 shadow-[0_0_50px_hsl(var(--primary)/0.6),0_0_100px_hsl(var(--primary)/0.3)] scale-[1.02]' : ''
+                  hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
               {/* Header - 14% */}
