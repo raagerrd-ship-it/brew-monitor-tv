@@ -187,10 +187,10 @@ Deno.serve(async (req) => {
         const readings = readingsData || []
         console.log(`Fetched ${readings.length} readings for batch ${batch._id}`)
 
-        // Get existing brew data to preserve OG and other batch details
+        // Get existing brew data to preserve OG, style and other batch details
         const { data: existingBrew } = await supabase
           .from('brew_readings')
-          .select('original_gravity, final_gravity')
+          .select('original_gravity, final_gravity, style, name')
           .eq('batch_id', batch._id)
           .maybeSingle()
 
@@ -217,8 +217,8 @@ Deno.serve(async (req) => {
 
         const brewData = {
           batch_id: batch._id,
-          name: batch.recipe?.name || batch.name,
-          style: batch.recipe?.style?.name || 'Okänd stil',
+          name: existingBrew?.name || batch.recipe?.name || batch.name,
+          style: existingBrew?.style || batch.recipe?.style?.name || 'Okänd stil',
           batch_number: `#${batch.batchNo}`,
           status: batch.status === 'Conditioning' ? 'Konditionering' : 
                   batch.status === 'Completed' ? 'Klar' : 
