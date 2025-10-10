@@ -390,9 +390,10 @@ export function BrewingDashboard() {
                     <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <p className="text-muted-foreground text-xs mt-1">
-                      OG: {brew.originalGravity.toFixed(3)}
-                    </p>
+                    <div className="text-muted-foreground text-xs mt-1 space-y-0.5">
+                      <p>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p>FG: {brew.finalGravity.toFixed(3)}</p>
+                    </div>
                   </div>
 
                   {/* ABV */}
