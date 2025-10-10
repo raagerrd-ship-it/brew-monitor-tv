@@ -251,6 +251,13 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Hämtar komplett data och hanterar automatisk synlighet av öl
                 </p>
+                <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                  <p>• Receptinformation (namn, stil, batchnummer)</p>
+                  <p>• OG (Original Gravity) och FG (Final Gravity)</p>
+                  <p>• Status (jäsning, konditionering, klar)</p>
+                  <p>• Alla historiska avläsningar (SG, temperatur, batteri)</p>
+                  <p>• Automatisk synlighetshantering baserat på status</p>
+                </div>
               </div>
               
               <div>
