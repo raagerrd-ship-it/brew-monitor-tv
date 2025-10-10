@@ -107,6 +107,7 @@ export type Database = {
           auto_hide_completed: boolean | null
           auto_hide_conditioning: boolean | null
           created_at: string
+          full_sync_interval: number | null
           id: string
           last_sync_at: string | null
           sync_interval: number
@@ -117,6 +118,7 @@ export type Database = {
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
           created_at?: string
+          full_sync_interval?: number | null
           id?: string
           last_sync_at?: string | null
           sync_interval?: number
@@ -127,6 +129,7 @@ export type Database = {
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
           created_at?: string
+          full_sync_interval?: number | null
           id?: string
           last_sync_at?: string | null
           sync_interval?: number

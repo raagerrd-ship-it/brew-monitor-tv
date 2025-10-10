@@ -18,6 +18,7 @@ export default function Settings() {
   const [autoHideCompleted, setAutoHideCompleted] = useState(true);
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
+  const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
 
   useEffect(() => {
     loadSettings();
@@ -39,6 +40,7 @@ export default function Settings() {
         setAutoHideCompleted(data.auto_hide_completed ?? true);
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
+        setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -64,6 +66,33 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error updating settings:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFullSyncIntervalChange = async (value: string) => {
+    setFullSyncInterval(value);
+    
+    try {
+      if (settingsId) {
+        const { error } = await supabase
+          .from('sync_settings')
+          .update({ full_sync_interval: parseInt(value) })
+          .eq('id', settingsId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Inställningar sparade",
+          description: "Full synkroniseringsfrekvens har uppdaterats",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating full sync interval:', error);
       toast({
         title: "Fel",
         description: "Kunde inte spara inställningar",
@@ -169,6 +198,24 @@ export default function Settings() {
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
                 Snabb synkronisering uppdaterar bara avläsningar
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Full synkroniseringsfrekvens</label>
+              <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
+                <SelectTrigger className="w-full bg-card">
+                  <SelectValue placeholder="Välj frekvens" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border z-50">
+                  <SelectItem value="3600">Varje timme</SelectItem>
+                  <SelectItem value="21600">Var 6:e timme</SelectItem>
+                  <SelectItem value="43200">Var 12:e timme</SelectItem>
+                  <SelectItem value="86400">Varje dag</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-2">
+                Full synkronisering hämtar alla detaljer inklusive OG från Brewfather
               </p>
             </div>
 
