@@ -212,8 +212,14 @@ export default function Settings() {
               <div>
                 <h3 className="text-lg font-semibold mb-1">Snabb synkronisering</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Uppdaterar löpande data för synliga öl (SG, temperatur, batterinivå)
+                  Uppdaterar löpande data för synliga öl
                 </p>
+                <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                  <p>• Aktuellt SG (Specific Gravity)</p>
+                  <p>• Aktuell temperatur</p>
+                  <p>• Batterinivå</p>
+                  <p>• Senaste avläsningstidpunkt</p>
+                </div>
               </div>
               
               <div>
