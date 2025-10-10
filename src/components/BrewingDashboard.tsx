@@ -327,8 +327,8 @@ export function BrewingDashboard() {
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
-              {/* Header - 10% */}
-              <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0">
+              {/* Header - 12% */}
+              <div className="h-[12%] p-2 pb-1 border-b border-border/50 flex-shrink-0">
                 <div className="flex items-center justify-between gap-2 h-full">
                   <div className="min-w-0 flex-1">
                     <h2 className="text-xl font-bold text-foreground leading-tight truncate">
@@ -350,8 +350,8 @@ export function BrewingDashboard() {
                 </div>
               </div>
               
-              {/* Chart Area - 53% */}
-              <div className="h-[53%] p-2 flex-shrink-0">
+              {/* Chart Area - 49% */}
+              <div className="h-[49%] p-2 pb-1 flex-shrink-0">
                 <BrewChart 
                   data={brew.sgData} 
                   og={brew.originalGravity} 
@@ -360,8 +360,8 @@ export function BrewingDashboard() {
                 />
               </div>
 
-              {/* Stats Grid - 37% */}
-              <div className="h-[37%] p-2 pt-0 pb-2 flex-shrink-0">
+              {/* Stats Grid - 39% */}
+              <div className="h-[39%] p-2 pt-1 pb-2 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
