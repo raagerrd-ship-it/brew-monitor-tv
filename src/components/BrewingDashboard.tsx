@@ -339,8 +339,8 @@ export function BrewingDashboard() {
                         <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.6rem,1.5vh,1.2rem)]">SG</p>
-                    <p className="flex-[0.4] font-bold text-primary leading-none flex items-center justify-center text-[clamp(1.5rem,3.5vh,4rem)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.7rem,2vh,1.5rem)]">SG</p>
+                    <p className="flex-[0.4] font-bold text-primary leading-none flex items-center justify-center text-[clamp(2rem,5vh,6rem)]">
                       {brew.currentSG.toFixed(3)}
                     </p>
                   </div>
@@ -354,8 +354,8 @@ export function BrewingDashboard() {
                         <Wine className="h-full w-full text-secondary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.4rem,0.8vh,0.7rem)]">ABV</p>
-                    <p className="flex-[0.4] font-bold text-secondary leading-none flex items-center justify-center text-[clamp(0.9rem,1.8vh,1.8rem)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.5rem,1.2vh,1rem)]">ABV</p>
+                    <p className="flex-[0.4] font-bold text-secondary leading-none flex items-center justify-center text-[clamp(1.2rem,2.5vh,2.5rem)]">
                       {brew.abv}%
                     </p>
                   </div>
@@ -369,8 +369,8 @@ export function BrewingDashboard() {
                         <Thermometer className="h-full w-full text-temp-blue" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.4rem,0.8vh,0.7rem)]">Temp</p>
-                    <p className="flex-[0.4] font-bold text-temp-blue leading-none flex items-center justify-center text-[clamp(0.9rem,1.8vh,1.8rem)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.5rem,1.2vh,1rem)]">Temp</p>
+                    <p className="flex-[0.4] font-bold text-temp-blue leading-none flex items-center justify-center text-[clamp(1.2rem,2.5vh,2.5rem)]">
                       {brew.currentTemp}°
                     </p>
                   </div>
@@ -384,9 +384,9 @@ export function BrewingDashboard() {
                         <TrendingDown className="h-full w-full text-ferment-green" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.35rem,0.7vh,0.6rem)]">Utjäsning</p>
+                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.45rem,1vh,0.9rem)]">Utjäsning</p>
                     <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-ferment-green leading-none text-[clamp(0.8rem,1.6vh,1.6rem)]">
+                      <p className="font-bold text-ferment-green leading-none text-[clamp(1rem,2.2vh,2.2rem)]">
                         {brew.attenuation}%
                       </p>
                       <Progress 
@@ -407,9 +407,9 @@ export function BrewingDashboard() {
                         <Battery className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.35rem,0.7vh,0.6rem)]">Batteri</p>
+                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.45rem,1vh,0.9rem)]">Batteri</p>
                     <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-primary leading-none text-[clamp(0.8rem,1.6vh,1.6rem)]">
+                      <p className="font-bold text-primary leading-none text-[clamp(1rem,2.2vh,2.2rem)]">
                         {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                       </p>
                       {brew.battery !== null && (
