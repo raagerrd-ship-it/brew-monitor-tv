@@ -184,7 +184,7 @@ export function BrewManagement() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Hantera Öl</h2>
         <p className="text-muted-foreground">
-          Välj upp till 3 öl att visa på dashboarden (visar de 10 senaste ölen)
+          Välj upp till 3 öl att visa på dashboarden (visar upp till 10 senaste ölen)
         </p>
       </div>
 
