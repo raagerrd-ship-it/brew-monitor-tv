@@ -371,8 +371,27 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
-                      <Thermometer className="w-full h-full text-temp-blue" />
+                    <div className="absolute top-2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                        {/* Thermometer outline */}
+                        <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="2" fill="none"/>
+                        {/* Thermometer fill - calculate based on 0-30 degrees */}
+                        <defs>
+                          <clipPath id={`thermo-clip-${brew.batch_id}`}>
+                            <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" />
+                          </clipPath>
+                        </defs>
+                        <rect 
+                          x="8" 
+                          y={`${24 - (Math.min(Math.max(brew.currentTemp, 0), 30) / 30) * 20}`}
+                          width="8" 
+                          height="20" 
+                          fill="hsl(var(--temp-blue))"
+                          clipPath={`url(#thermo-clip-${brew.batch_id})`}
+                          className="transition-all duration-500"
+                          opacity="0.8"
+                        />
+                      </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Temp</p>
                     <p className="font-bold text-temp-blue leading-none text-3xl z-10">
