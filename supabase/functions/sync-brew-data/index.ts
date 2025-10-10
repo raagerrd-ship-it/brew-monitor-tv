@@ -181,6 +181,10 @@ Deno.serve(async (req) => {
 
         const og = batch.measuredOg || batch.estimatedOg || 1.050
         const fg = batch.measuredFg || batch.estimatedFg || 1.010
+        
+        // Log OG values for debugging
+        console.log(`Batch ${batch.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
+        
         const attenuation = ((og - currentSG) / (og - fg)) * 100
         const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
 
