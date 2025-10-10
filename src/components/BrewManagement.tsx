@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -43,16 +43,20 @@ export function BrewManagement() {
     try {
       setLoading(true);
 
-      // Fetch all batches from Brewfather
-      const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
-        'brewfather-batches',
-        { body: {} }
-      );
+      // Fetch batches and selected brews in parallel for faster loading
+      const [batchesResponse, selectedResponse] = await Promise.all([
+        supabase.functions.invoke('brewfather-batches', { body: {} }),
+        supabase.from('selected_brews')
+          .select('*')
+          .eq('is_visible', true)
+          .order('display_order')
+      ]);
 
-      if (batchesError) throw batchesError;
+      if (batchesResponse.error) throw batchesResponse.error;
+      if (selectedResponse.error) throw selectedResponse.error;
       
       // Sort batches by brewDate (newest first) or batchNo (highest first)
-      const sortedBatches = (batchesData || []).sort((a: BrewfatherBatch, b: BrewfatherBatch) => {
+      const sortedBatches = (batchesResponse.data || []).sort((a: BrewfatherBatch, b: BrewfatherBatch) => {
         // Try to sort by brewDate first
         if (a.brewDate && b.brewDate) {
           return new Date(b.brewDate).getTime() - new Date(a.brewDate).getTime();
@@ -62,16 +66,7 @@ export function BrewManagement() {
       });
       
       setBatches(sortedBatches);
-
-      // Fetch selected brews from database
-      const { data: selectedData, error: selectedError } = await supabase
-        .from('selected_brews')
-        .select('*')
-        .eq('is_visible', true)
-        .order('display_order');
-
-      if (selectedError) throw selectedError;
-      setSelectedBrews(selectedData || []);
+      setSelectedBrews(selectedResponse.data || []);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -85,11 +80,17 @@ export function BrewManagement() {
     }
   };
 
-  const isSelected = (batchId: string) => {
-    return selectedBrews.some(brew => brew.batch_id === batchId);
-  };
+  // Memoize selected batch IDs for faster lookups
+  const selectedBatchIds = useMemo(() => 
+    new Set(selectedBrews.map(brew => brew.batch_id)),
+    [selectedBrews]
+  );
 
-  const toggleBrew = (batchId: string) => {
+  const isSelected = useCallback((batchId: string) => {
+    return selectedBatchIds.has(batchId);
+  }, [selectedBatchIds]);
+
+  const toggleBrew = useCallback((batchId: string) => {
     if (isSelected(batchId)) {
       setSelectedBrews(selectedBrews.filter(brew => brew.batch_id !== batchId));
     } else {
@@ -110,7 +111,7 @@ export function BrewManagement() {
         },
       ]);
     }
-  };
+  }, [selectedBrews, toast]);
 
   const saveSelection = async () => {
     try {
