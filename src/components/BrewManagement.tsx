@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
@@ -27,6 +28,7 @@ interface SelectedBrew {
 }
 
 export function BrewManagement() {
+  const navigate = useNavigate();
   const [batches, setBatches] = useState<BrewfatherBatch[]>([]);
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,8 +158,8 @@ export function BrewManagement() {
         });
       }
 
-      // Reload the page to show updated brews
-      setTimeout(() => window.location.reload(), 1500);
+      // Navigate back to dashboard
+      setTimeout(() => navigate("/"), 1000);
 
     } catch (error) {
       console.error('Error saving selection:', error);
