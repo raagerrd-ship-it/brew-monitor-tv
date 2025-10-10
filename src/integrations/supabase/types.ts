@@ -105,18 +105,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_sync_at: string | null
           sync_interval: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          last_sync_at?: string | null
           sync_interval?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          last_sync_at?: string | null
           sync_interval?: number
           updated_at?: string
         }
@@ -127,7 +130,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      trigger_brew_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
