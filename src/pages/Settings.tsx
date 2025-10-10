@@ -219,6 +219,20 @@ export default function Settings() {
               </p>
             </div>
 
+            <div>
+              <Button 
+                onClick={handleFullSync} 
+                disabled={syncing}
+                className="w-full"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Kör en manuell full synkronisering nu
+              </p>
+            </div>
+
             <div className="space-y-4 border-t pt-4">
               <h3 className="text-sm font-medium">Automatisk hantering vid synkronisering</h3>
               
@@ -263,20 +277,6 @@ export default function Settings() {
                   Aktivera automatiskt nya öl (med status jäsning)
                 </label>
               </div>
-            </div>
-
-            <div>
-              <Button 
-                onClick={handleFullSync} 
-                disabled={syncing}
-                className="w-full"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Full synkronisering hämtar alla detaljer inklusive OG från Brewfather
-              </p>
             </div>
           </div>
         </Card>
