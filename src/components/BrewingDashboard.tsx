@@ -355,7 +355,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-8 opacity-20" style={{ width: '70%', height: '70%' }}>
                       <Wine className="w-full h-full text-secondary" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">ABV</p>
@@ -406,7 +406,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '65%', height: '65%', transform: 'translateY(-50%) rotate(45deg)' }}>
                       <TrendingDown className="w-full h-full text-ferment-green" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Utjäsning</p>
