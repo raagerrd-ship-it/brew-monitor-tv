@@ -234,10 +234,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Hantera Öl</h2>
-          <BrewManagement />
-        </Card>
+        <BrewManagement />
       </div>
     </div>
   );
