@@ -294,7 +294,7 @@ export default function Settings() {
                   htmlFor="auto-activate-fermenting"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Aktivera automatiskt nya öl (med status jäsning)
+                  Visa automatiskt nya öl
                 </label>
               </div>
               
@@ -309,7 +309,7 @@ export default function Settings() {
                   htmlFor="auto-hide-completed"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Ta bort öl som är klara
+                  Dölj öl som är klara
                 </label>
               </div>
 
@@ -323,7 +323,7 @@ export default function Settings() {
                   htmlFor="auto-hide-conditioning"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Ta bort öl som konditioneras
+                  Dölj öl som konditioneras
                 </label>
               </div>
             </div>
