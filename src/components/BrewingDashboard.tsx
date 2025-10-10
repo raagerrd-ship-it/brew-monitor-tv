@@ -371,7 +371,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-2 -right-8 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Thermometer outline */}
                         <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="2" fill="none"/>
