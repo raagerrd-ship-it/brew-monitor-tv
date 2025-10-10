@@ -213,7 +213,8 @@ Deno.serve(async (req) => {
         
         console.log(`Batch ${batch.name || batch.recipe?.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
         
-        const attenuation = ((og - currentSG) / (og - fg)) * 100
+        // Calculate apparent attenuation: (OG - Current SG) / (OG - 1.000) * 100
+        const attenuation = ((og - currentSG) / (og - 1.000)) * 100
         const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
 
         const brewData = {

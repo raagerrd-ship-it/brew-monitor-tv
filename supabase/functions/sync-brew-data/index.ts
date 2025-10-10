@@ -212,7 +212,8 @@ Deno.serve(async (req) => {
         const og = existingBrew?.original_gravity || 1.050
         const fg = existingBrew?.final_gravity || 1.010
         
-        const attenuation = ((og - currentSG) / (og - fg)) * 100
+        // Calculate apparent attenuation: (OG - Current SG) / (OG - 1.000) * 100
+        const attenuation = ((og - currentSG) / (og - 1.000)) * 100
         const abv = ((og - currentSG) * 131.25) || 0
 
         const brewData = {
