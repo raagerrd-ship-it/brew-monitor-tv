@@ -318,7 +318,7 @@ export function BrewingDashboard() {
               </div>
               
               {/* Chart Area */}
-              <div className="h-48 p-2 pt-3">
+              <div className="flex-1 p-2 pt-3 min-h-0">
                 <BrewChart 
                   data={brew.sgData} 
                   og={brew.originalGravity} 
@@ -328,7 +328,7 @@ export function BrewingDashboard() {
               </div>
 
               {/* Stats Grid */}
-              <div className="flex-1 p-2 pt-1 pb-3 flex-shrink-0">
+              <div className="p-2 pt-1 pb-3 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
                   <div className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center border border-primary/20 transition-all duration-1000 ${
