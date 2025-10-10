@@ -223,12 +223,12 @@ export default function Settings() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
-                Snabb synkronisering uppdaterar bara avläsningar
+                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå från befintliga öl
               </p>
             </div>
 
             <div>
-              <Button 
+              <Button
                 onClick={handleQuickSync} 
                 disabled={quickSyncing}
                 className="w-full"
@@ -256,7 +256,7 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Full synkronisering hämtar alla detaljer inklusive OG från Brewfather
+                  Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar från Brewfather
                 </p>
               </div>
 
