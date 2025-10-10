@@ -230,9 +230,6 @@ export default function Settings() {
                   <SelectItem value="3600">Varje timme</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå för synliga öl.
-              </p>
             </div>
 
             <div>
@@ -269,9 +266,6 @@ export default function Settings() {
                     <SelectItem value="86400">Varje dag</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar. Hanterar automatisk synlighet.
-              </p>
             </div>
 
             <div className="space-y-3">
