@@ -47,28 +47,22 @@ export function BrewManagement() {
       const [batchesResponse, selectedResponse] = await Promise.all([
         supabase.functions.invoke('brewfather-batches', { body: { limit: 10 } }),
         supabase.from('selected_brews')
-          .select('*')
+          .select('batch_id')
           .eq('is_visible', true)
-          .order('display_order')
       ]);
 
       if (batchesResponse.error) throw batchesResponse.error;
       if (selectedResponse.error) throw selectedResponse.error;
       
-      console.log('Received batches from API:', batchesResponse.data?.length, 'batches');
+      // API returns batches already sorted by batchNo descending
+      setBatches(batchesResponse.data || []);
       
-      // Sort batches by brewDate (newest first) or batchNo (highest first)
-      const sortedBatches = (batchesResponse.data || []).sort((a: BrewfatherBatch, b: BrewfatherBatch) => {
-        // Try to sort by brewDate first
-        if (a.brewDate && b.brewDate) {
-          return new Date(b.brewDate).getTime() - new Date(a.brewDate).getTime();
-        }
-        // Fallback to batchNo (higher number = newer)
-        return (b.batchNo || 0) - (a.batchNo || 0);
-      });
-      
-      setBatches(sortedBatches);
-      setSelectedBrews(selectedResponse.data || []);
+      // Convert selected brews to internal format
+      setSelectedBrews((selectedResponse.data || []).map((b, index) => ({
+        batch_id: b.batch_id,
+        display_order: index + 1,
+        is_visible: true
+      })));
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -94,7 +88,7 @@ export function BrewManagement() {
 
   const toggleBrew = useCallback((batchId: string) => {
     if (isSelected(batchId)) {
-      setSelectedBrews(selectedBrews.filter(brew => brew.batch_id !== batchId));
+      setSelectedBrews(prev => prev.filter(brew => brew.batch_id !== batchId));
     } else {
       if (selectedBrews.length >= 3) {
         toast({
@@ -104,16 +98,16 @@ export function BrewManagement() {
         });
         return;
       }
-      setSelectedBrews([
-        ...selectedBrews,
+      setSelectedBrews(prev => [
+        ...prev,
         {
           batch_id: batchId,
-          display_order: selectedBrews.length + 1,
+          display_order: prev.length + 1,
           is_visible: true,
         },
       ]);
     }
-  }, [selectedBrews, toast]);
+  }, [selectedBrews.length, isSelected, toast]);
 
   const saveSelection = async () => {
     try {
