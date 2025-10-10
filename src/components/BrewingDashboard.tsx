@@ -87,6 +87,10 @@ export function BrewingDashboard() {
             if (updatedReading.battery !== oldReading.battery && updatedReading.battery !== undefined) {
               changedFields.battery = true;
             }
+            // Only trigger card glow if last_update changed
+            if (updatedReading.last_update !== oldReading.last_update && updatedReading.last_update !== undefined) {
+              changedFields.cardGlow = true;
+            }
             
             setBrews(prevBrews => 
               prevBrews.map(brew => 
@@ -305,13 +309,13 @@ export function BrewingDashboard() {
       <div className="flex-1 p-2 overflow-hidden">
         <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
           {brews.map((brew) => {
-            const hasUpdates = updatedFields[brew.batch_id] && Object.keys(updatedFields[brew.batch_id]).length > 0;
+            const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
             
             return (
               <Card 
                 key={brew.id}
                 className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
-                  hasUpdates ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
+                  hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
               {/* Header - 10% */}
