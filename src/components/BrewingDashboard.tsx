@@ -65,10 +65,15 @@ export function BrewingDashboard() {
             const updatedReading = payload.new as any;
             const oldReading = payload.old as any;
             
-            // Track which fields actually changed to a different value
+            // Track which fields actually changed to a different VISIBLE value
             const changedFields: Record<string, boolean> = {};
-            if (updatedReading.current_sg !== oldReading.current_sg && updatedReading.current_sg !== undefined) {
-              changedFields.sg = true;
+            // For SG, only trigger glow if the change is visible in 3 decimals
+            if (updatedReading.current_sg !== undefined && oldReading.current_sg !== undefined) {
+              const newSGRounded = Number(updatedReading.current_sg.toFixed(3));
+              const oldSGRounded = Number(oldReading.current_sg.toFixed(3));
+              if (newSGRounded !== oldSGRounded) {
+                changedFields.sg = true;
+              }
             }
             if (updatedReading.current_temp !== oldReading.current_temp && updatedReading.current_temp !== undefined) {
               changedFields.temp = true;
