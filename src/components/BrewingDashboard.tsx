@@ -381,14 +381,17 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 1rem)' }}>
+                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 1rem)' }}>
                       <div className="inline-flex rounded-full bg-primary/20 p-2 aspect-square h-full">
                         <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(20cqh * 0.9), calc(100cqw * 0.18))' }}>SG</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ fontSize: 'min(calc(40cqh * 0.95), calc(100cqw * 0.3))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>SG</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
+                    </p>
+                    <p className="text-muted-foreground text-xs mt-1">
+                      OG: {brew.originalGravity.toFixed(3)}
                     </p>
                   </div>
 
