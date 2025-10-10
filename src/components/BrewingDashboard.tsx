@@ -355,7 +355,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-2 opacity-20" style={{ width: '55%', height: '55%' }}>
+                    <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
                       <Wine className="w-full h-full text-secondary" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">ABV</p>
@@ -371,7 +371,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-2 opacity-20 animate-pulse" style={{ width: '55%', height: '55%' }}>
+                    <div className="absolute -top-2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
                       <Thermometer className="w-full h-full text-temp-blue" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Temp</p>
@@ -387,7 +387,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-2 opacity-20" style={{ width: '50%', height: '50%' }}>
+                    <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <TrendingDown className="w-full h-full text-ferment-green" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Utjäsning</p>
@@ -409,7 +409,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-2 opacity-20" style={{ width: '50%', height: '50%' }}>
+                    <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <Battery className="w-full h-full text-primary" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Batteri</p>
