@@ -123,14 +123,14 @@ export function BrewingDashboard() {
                 [updatedReading.batch_id]: changedFields
               }));
               
-              // Remove glow after 10 seconds
+              // Remove glow after 2 minutes
               setTimeout(() => {
                 setUpdatedFields(prev => {
                   const newFields = { ...prev };
                   delete newFields[updatedReading.batch_id];
                   return newFields;
                 });
-              }, 10000);
+              }, 120000);
             }
           } else {
             // For INSERT/DELETE, reload all data
