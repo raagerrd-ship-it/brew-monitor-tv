@@ -145,7 +145,21 @@ Deno.serve(async (req) => {
 
     // Filter batches to only those that are selected and visible
     const selectedBatchIds = selectedBrews.map(b => b.batch_id)
-    const batchesToSync = batchesData.filter((b: any) => selectedBatchIds.includes(b._id))
+    
+    // Fetch full batch details for selected batches
+    console.log(`Fetching full batch details for ${selectedBatchIds.length} batches...`)
+    const { data: fullBatchesData, error: fullBatchesError } = await supabase.functions.invoke(
+      'brewfather-batches',
+      { body: { batchIds: selectedBatchIds } }
+    )
+
+    if (fullBatchesError) {
+      console.error('Error fetching full batch details:', fullBatchesError)
+      throw fullBatchesError
+    }
+
+    const batchesToSync = fullBatchesData || []
+    console.log(`Got ${batchesToSync.length} full batch details`)
 
     // Process each batch
     for (const batch of batchesToSync) {
@@ -179,13 +193,13 @@ Deno.serve(async (req) => {
         const currentTemp = latestReading?.temp || 20
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
 
-        // Use the first SG reading as OG if available, otherwise use batch data
+        // Use batch measuredOg first, then estimatedOg, then first reading, then default
         const firstReading = readings.length > 0 ? readings[0] : null
-        const og = firstReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
+        const og = batch.measuredOg || batch.estimatedOg || firstReading?.sg || 1.050
         const fg = batch.measuredFg || batch.estimatedFg || 1.010
         
         // Log OG values for debugging
-        console.log(`Batch ${batch.name}: firstReading.sg=${firstReading?.sg}, measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
+        console.log(`Batch ${batch.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, firstReading.sg=${firstReading?.sg}, using og=${og}`)
         
         const attenuation = ((og - currentSG) / (og - fg)) * 100
         const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
