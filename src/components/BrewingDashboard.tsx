@@ -65,13 +65,23 @@ export function BrewingDashboard() {
             const updatedReading = payload.new as any;
             const oldReading = payload.old as any;
             
-            // Track which fields changed
+            // Track which fields actually changed to a different value
             const changedFields: Record<string, boolean> = {};
-            if (updatedReading.current_sg !== oldReading.current_sg) changedFields.sg = true;
-            if (updatedReading.current_temp !== oldReading.current_temp) changedFields.temp = true;
-            if (updatedReading.attenuation !== oldReading.attenuation) changedFields.attenuation = true;
-            if (updatedReading.abv !== oldReading.abv) changedFields.abv = true;
-            if (updatedReading.battery !== oldReading.battery) changedFields.battery = true;
+            if (updatedReading.current_sg !== oldReading.current_sg && updatedReading.current_sg !== undefined) {
+              changedFields.sg = true;
+            }
+            if (updatedReading.current_temp !== oldReading.current_temp && updatedReading.current_temp !== undefined) {
+              changedFields.temp = true;
+            }
+            if (updatedReading.attenuation !== oldReading.attenuation && updatedReading.attenuation !== undefined) {
+              changedFields.attenuation = true;
+            }
+            if (updatedReading.abv !== oldReading.abv && updatedReading.abv !== undefined) {
+              changedFields.abv = true;
+            }
+            if (updatedReading.battery !== oldReading.battery && updatedReading.battery !== undefined) {
+              changedFields.battery = true;
+            }
             
             setBrews(prevBrews => 
               prevBrews.map(brew => 
@@ -97,7 +107,7 @@ export function BrewingDashboard() {
               )
             );
             
-            // Set glow effect for changed fields
+            // Only set glow effect if at least one tracked field actually changed
             if (Object.keys(changedFields).length > 0) {
               setUpdatedFields(prev => ({
                 ...prev,
