@@ -266,24 +266,10 @@ export default function Settings() {
                   Aktivera automatiskt nya öl (med status jäsning)
                 </label>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="auto-activate-fermenting"
-                  checked={autoActivateFermenting}
-                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
-                />
-                <label
-                  htmlFor="auto-activate-fermenting"
-                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Aktivera automatiskt nya öl (med status jäsning)
-                </label>
-              </div>
             </div>
 
               <div>
-                <Button 
+                <Button
                   onClick={handleFullSync} 
                   disabled={syncing}
                   className="w-full"
