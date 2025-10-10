@@ -286,13 +286,21 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-3">
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {currentTime.toLocaleTimeString("sv-SE", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-          </p>
+          <div className="flex flex-col items-end">
+            <p className="text-lg font-semibold tabular-nums tracking-tight">
+              {currentTime.toLocaleTimeString("sv-SE", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </p>
+            <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+              {currentTime.toLocaleDateString("sv-SE", {
+                day: "numeric",
+                month: "short",
+              })}
+            </p>
+          </div>
           
           <Button
             variant="ghost"
