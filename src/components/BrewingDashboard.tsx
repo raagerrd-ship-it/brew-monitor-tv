@@ -30,6 +30,7 @@ export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -60,8 +61,18 @@ export function BrewingDashboard() {
           console.log('Realtime update:', payload)
           
           // Update only the specific brew that changed
-          if (payload.eventType === 'UPDATE' && payload.new) {
+          if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
             const updatedReading = payload.new as any;
+            const oldReading = payload.old as any;
+            
+            // Track which fields changed
+            const changedFields: Record<string, boolean> = {};
+            if (updatedReading.current_sg !== oldReading.current_sg) changedFields.sg = true;
+            if (updatedReading.current_temp !== oldReading.current_temp) changedFields.temp = true;
+            if (updatedReading.attenuation !== oldReading.attenuation) changedFields.attenuation = true;
+            if (updatedReading.abv !== oldReading.abv) changedFields.abv = true;
+            if (updatedReading.battery !== oldReading.battery) changedFields.battery = true;
+            
             setBrews(prevBrews => 
               prevBrews.map(brew => 
                 brew.batch_id === updatedReading.batch_id
@@ -85,6 +96,23 @@ export function BrewingDashboard() {
                   : brew
               )
             );
+            
+            // Set glow effect for changed fields
+            if (Object.keys(changedFields).length > 0) {
+              setUpdatedFields(prev => ({
+                ...prev,
+                [updatedReading.batch_id]: changedFields
+              }));
+              
+              // Remove glow after 10 seconds
+              setTimeout(() => {
+                setUpdatedFields(prev => {
+                  const newFields = { ...prev };
+                  delete newFields[updatedReading.batch_id];
+                  return newFields;
+                });
+              }, 10000);
+            }
           } else {
             // For INSERT/DELETE, reload all data
             loadBrews();
@@ -295,7 +323,9 @@ export function BrewingDashboard() {
               {/* Right Side - Stats (35% width) */}
               <div className="flex-[35] flex flex-col gap-2">
                 {/* SG Card - Larger */}
-                <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3]">
+                <Card className={`bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 flex-[3] transition-all duration-1000 ${
+                  updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_30px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                }`}>
                   <div className="text-center h-full flex flex-col justify-center">
                     <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
                       <Droplets className="h-7 w-7 md:h-8 md:w-8 text-primary" />
@@ -312,7 +342,9 @@ export function BrewingDashboard() {
 
                 {/* Utjäsning & Battery - Grid */}
                 <div className="grid grid-cols-2 gap-2 flex-[3]">
-                  <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20">
+                  <Card className={`bg-gradient-card border-border shadow-deep p-4 border-2 border-ferment-green/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_30px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
+                  }`}>
                     <div className="text-center h-full flex flex-col justify-center">
                       <div className="inline-flex rounded-full bg-ferment-green/20 p-2 mb-2 mx-auto">
                         <TrendingDown className="h-6 w-6 md:h-7 md:w-7 text-ferment-green" />
@@ -330,7 +362,9 @@ export function BrewingDashboard() {
                     </div>
                   </Card>
 
-                  <Card className="bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20">
+                  <Card className={`bg-gradient-card border-border shadow-deep p-4 border-2 border-primary/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_30px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                  }`}>
                     <div className="text-center h-full flex flex-col justify-center">
                       <div className="inline-flex rounded-full bg-primary/20 p-2 mb-2 mx-auto">
                         <Battery className="h-6 w-6 md:h-7 md:w-7 text-primary" />
@@ -353,7 +387,9 @@ export function BrewingDashboard() {
 
                 {/* Temp & ABV - Smaller */}
                 <div className="grid grid-cols-2 gap-2 flex-[2]">
-                  <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20">
+                  <Card className={`bg-gradient-card border-border shadow-deep p-2 border-2 border-temp-blue/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_30px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
+                  }`}>
                     <div className="text-center h-full flex flex-col justify-center">
                       <div className="inline-flex rounded-full bg-temp-blue/20 p-1 mb-1 mx-auto animate-pulse">
                         <Thermometer className="h-3 w-3 md:h-4 md:w-4 text-temp-blue" />
@@ -365,7 +401,9 @@ export function BrewingDashboard() {
                     </div>
                   </Card>
 
-                  <Card className="bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20">
+                  <Card className={`bg-gradient-card border-border shadow-deep p-2 border-2 border-secondary/20 transition-all duration-1000 ${
+                    updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_30px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
+                  }`}>
                     <div className="text-center h-full flex flex-col justify-center">
                       <div className="inline-flex rounded-full bg-secondary/20 p-1 mb-1 mx-auto">
                         <Wine className="h-3 w-3 md:h-4 md:w-4 text-secondary" />
