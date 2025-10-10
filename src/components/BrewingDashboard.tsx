@@ -413,12 +413,6 @@ export function BrewingDashboard() {
                     <p className="font-bold text-ferment-green leading-none text-2xl z-10">
                       {brew.attenuation}%
                     </p>
-                    <Progress 
-                      value={brew.attenuation} 
-                      className={`h-1 w-full bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 z-10 ${
-                        brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
-                      }`} 
-                    />
                   </div>
 
                   {/* Batteri */}
@@ -452,14 +446,6 @@ export function BrewingDashboard() {
                     <p className="font-bold text-primary leading-none text-2xl z-10">
                       {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                     </p>
-                    {brew.battery !== null && (
-                      <Progress 
-                        value={brew.battery} 
-                        className={`h-1 w-full bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 z-10 ${
-                          brew.battery < 25 ? '[&>div]:bg-destructive' : ''
-                        }`} 
-                      />
-                    )}
                   </div>
                 </div>
               </div>
