@@ -307,13 +307,13 @@ export function BrewingDashboard() {
                       </div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Batteri</p>
                       <p className="text-3xl md:text-4xl font-bold text-primary leading-none mb-2">
-                        {brew.battery ? `${brew.battery.toFixed(1)}V` : 'N/A'}
+                        {brew.battery !== null ? `${brew.battery}%` : 'N/A'}
                       </p>
-                      {brew.battery && (
+                      {brew.battery !== null && (
                         <Progress 
-                          value={((brew.battery - 3.0) / (4.2 - 3.0)) * 100} 
+                          value={brew.battery} 
                           className={`h-2 bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 ${
-                            brew.battery < 3.3 ? '[&>div]:bg-destructive' : ''
+                            brew.battery < 25 ? '[&>div]:bg-destructive' : ''
                           }`} 
                         />
                       )}
