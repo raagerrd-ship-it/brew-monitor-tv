@@ -20,6 +20,7 @@ export type Database = {
           attenuation: number
           batch_id: string
           batch_number: string
+          battery: number | null
           created_at: string
           current_sg: number
           current_temp: number
@@ -38,6 +39,7 @@ export type Database = {
           attenuation: number
           batch_id: string
           batch_number: string
+          battery?: number | null
           created_at?: string
           current_sg: number
           current_temp: number
@@ -56,6 +58,7 @@ export type Database = {
           attenuation?: number
           batch_id?: string
           batch_number?: string
+          battery?: number | null
           created_at?: string
           current_sg?: number
           current_temp?: number
