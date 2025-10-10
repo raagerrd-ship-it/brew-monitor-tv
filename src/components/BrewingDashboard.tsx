@@ -296,11 +296,11 @@ export function BrewingDashboard() {
           
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={() => navigate('/settings')}
-            className="opacity-5 hover:opacity-20 transition-opacity h-5 w-5"
+            className="opacity-40 hover:opacity-100 transition-opacity"
           >
-            <Settings className="h-2.5 w-2.5" />
+            <Settings className="h-4 w-4" />
           </Button>
         </div>
       </div>
