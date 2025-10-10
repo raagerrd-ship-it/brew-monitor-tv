@@ -294,7 +294,7 @@ export default function Settings() {
                   htmlFor="auto-activate-fermenting"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Visa automatiskt nya öl
+                  Visa nya öl med status Jäsning
                 </label>
               </div>
               
