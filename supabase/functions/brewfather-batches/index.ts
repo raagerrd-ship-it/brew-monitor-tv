@@ -53,7 +53,7 @@ serve(async (req) => {
     const allBatches: any[] = [];
     let startAfter = null;
     let hasMore = true;
-    const maxBatches = limit || 20; // Default to 20 recent batches for faster loading
+    const maxBatches = limit || 10; // Default to 10 recent batches for faster loading
     
     while (hasMore && allBatches.length < maxBatches) {
       const url = new URL('https://api.brewfather.app/v2/batches');

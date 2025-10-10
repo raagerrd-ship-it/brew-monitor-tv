@@ -45,7 +45,7 @@ export function BrewManagement() {
 
       // Fetch batches and selected brews in parallel for faster loading
       const [batchesResponse, selectedResponse] = await Promise.all([
-        supabase.functions.invoke('brewfather-batches', { body: { limit: 20 } }),
+        supabase.functions.invoke('brewfather-batches', { body: { limit: 10 } }),
         supabase.from('selected_brews')
           .select('*')
           .eq('is_visible', true)
@@ -188,7 +188,7 @@ export function BrewManagement() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Hantera Öl</h2>
         <p className="text-muted-foreground">
-          Välj upp till 3 öl att visa på dashboarden
+          Välj upp till 3 öl att visa på dashboarden (visar de 10 senaste ölen)
         </p>
       </div>
 
