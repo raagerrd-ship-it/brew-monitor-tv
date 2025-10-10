@@ -317,7 +317,10 @@ export function BrewingDashboard() {
                       {brew.name}
                     </h2>
                     <p className="text-[10px] text-muted-foreground truncate">
-                      {brew.style} • #{brew.batchNumber}
+                      {brew.style} • {brew.batchNumber}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground/60 truncate">
+                      Uppdaterad: {brew.lastUpdate}
                     </p>
                   </div>
                   <span
@@ -342,8 +345,8 @@ export function BrewingDashboard() {
                 />
               </div>
 
-              {/* Stats Grid - 34% */}
-              <div className="h-[34%] p-2 pt-0 pb-2 flex-shrink-0">
+              {/* Stats Grid - 37% */}
+              <div className="h-[37%] p-2 pt-0 pb-2 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
@@ -463,13 +466,6 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* Last Update Footer - 3% */}
-              <div className="h-[3%] px-2 pb-1 flex-shrink-0 flex items-center justify-center border-t border-border/30">
-                <p className="text-[10px] text-muted-foreground/60">
-                  Senast uppdaterad: {brew.lastUpdate}
-                </p>
               </div>
             </Card>
             );
