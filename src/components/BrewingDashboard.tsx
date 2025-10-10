@@ -146,6 +146,7 @@ export function BrewingDashboard() {
       }
 
       const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
+      console.log('Selected batch IDs:', selectedBatchIds);
 
       // Get brew readings only for selected brews
       const { data: brewReadings, error: readingsError } = await supabase
@@ -161,6 +162,8 @@ export function BrewingDashboard() {
         setLoading(false);
         return;
       }
+
+      console.log('Brew readings from DB:', brewReadings);
 
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => ({
@@ -188,6 +191,7 @@ export function BrewingDashboard() {
         sgData: reading.sg_data || []
       }));
 
+      console.log('Transformed brews data:', brewsData);
       setBrews(brewsData);
 
     } catch (error) {
