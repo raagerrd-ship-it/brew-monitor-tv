@@ -355,7 +355,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
                       <Wine className="w-full h-full text-secondary" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">ABV</p>
@@ -371,7 +371,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-2 -right-8 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-8 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Thermometer outline */}
                         <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="2" fill="none"/>
@@ -406,7 +406,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <TrendingDown className="w-full h-full text-ferment-green" />
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Utjäsning</p>
@@ -428,7 +428,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
                         {/* Battery outline */}
                         <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="2" fill="none"/>
