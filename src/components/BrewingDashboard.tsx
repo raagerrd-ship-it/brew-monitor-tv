@@ -411,6 +411,15 @@ export function BrewingDashboard() {
                   >
                     <div className="absolute -top-2 -right-6 opacity-20" style={{ width: '65%', height: '65%' }}>
                       <Battery className="w-full h-full text-primary" />
+                      {brew.battery !== null && (
+                        <div 
+                          className="absolute bottom-[15%] left-[8%] right-[8%] bg-primary transition-all duration-500 rounded-sm"
+                          style={{ 
+                            height: `${(brew.battery / 100) * 60}%`,
+                            opacity: 0.6
+                          }}
+                        />
+                      )}
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Batteri</p>
                     <p className="font-bold text-primary leading-none text-2xl z-10">
