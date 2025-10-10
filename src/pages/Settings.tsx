@@ -219,6 +219,20 @@ export default function Settings() {
               </p>
             </div>
 
+            <div>
+              <Button 
+                onClick={handleFullSync} 
+                disabled={syncing}
+                className="w-full"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Kör en manuell full synkronisering nu
+              </p>
+            </div>
+
             <div className="space-y-4 border-t pt-4">
               <h3 className="text-sm font-medium">Automatisk hantering vid full synkronisering</h3>
               
@@ -261,38 +275,6 @@ export default function Settings() {
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Aktivera automatiskt nya öl (med status jäsning)
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium">Automatisk hantering vid synkronisering</h3>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="auto-hide-completed"
-                  checked={autoHideCompleted}
-                  onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_completed', !!checked)}
-                />
-                <label
-                  htmlFor="auto-hide-completed"
-                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Ta bort öl som är klara
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="auto-hide-conditioning"
-                  checked={autoHideConditioning}
-                  onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_conditioning', !!checked)}
-                />
-                <label
-                  htmlFor="auto-hide-conditioning"
-                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Ta bort öl som konditioneras
                 </label>
               </div>
             </div>
