@@ -51,63 +51,32 @@ serve(async (req) => {
       });
     }
     
-    // Otherwise, fetch batches until we have enough active ones
-    const allBatches: any[] = [];
-    const activeBatches: any[] = [];
-    let startAfter = null;
-    let hasMore = true;
-    const requestedLimit = limit || 10;
-    const maxBatchesToFetch = 100; // Safety limit to prevent infinite loops
+    // Otherwise, fetch batches sorted by batch number (newest first)
+    const url = new URL('https://api.brewfather.app/v2/batches');
+    url.searchParams.set('limit', (limit || 10).toString());
+    url.searchParams.set('order_by', 'batchNo');
+    url.searchParams.set('order_by_direction', 'desc');
     
-    console.log('Fetching batches until we have', requestedLimit, 'active ones (max', maxBatchesToFetch, 'total)');
+    console.log('Fetching', limit || 10, 'batches sorted by batchNo descending');
     
-    while (hasMore && activeBatches.length < requestedLimit && allBatches.length < maxBatchesToFetch) {
-      const url = new URL('https://api.brewfather.app/v2/batches');
-      const fetchLimit = Math.min(50, maxBatchesToFetch - allBatches.length);
-      url.searchParams.set('limit', fetchLimit.toString());
-      if (startAfter) {
-        url.searchParams.set('start_after', startAfter);
-      }
-      
-      const response = await fetch(url.toString(), {
-        headers: {
-          'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
-        },
-      });
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error(`Brewfather API error: ${response.status}`);
-      }
-
-      const batches = await response.json();
-      
-      if (!batches || batches.length === 0) {
-        hasMore = false;
-      } else {
-        allBatches.push(...batches);
-        
-        // Filter and add active batches
-        const newActiveBatches = batches.filter((batch: any) => batch.status !== 'Archived');
-        activeBatches.push(...newActiveBatches);
-        
-        // If we got less than requested or reached our safety limit, we're done
-        if (batches.length < fetchLimit || allBatches.length >= maxBatchesToFetch) {
-          hasMore = false;
-        } else if (activeBatches.length < requestedLimit) {
-          // Continue fetching if we don't have enough active batches yet
-          startAfter = batches[batches.length - 1]._id;
-        } else {
-          hasMore = false;
-        }
-      }
+    if (!response.ok) {
+      throw new Error(`Brewfather API error: ${response.status}`);
     }
-    
-    // Limit to requested number of active batches
-    const limitedActiveBatches = activeBatches.slice(0, requestedLimit);
-    
-    console.log('Returning', limitedActiveBatches.length, 'active batches out of', allBatches.length, 'total batches fetched');
 
-    return new Response(JSON.stringify(limitedActiveBatches), {
+    const batches = await response.json();
+    
+    // Filter out archived batches
+    const activeBatches = batches.filter((batch: any) => batch.status !== 'Archived');
+    
+    console.log('Returning', activeBatches.length, 'active batches out of', batches.length, 'total batches');
+
+    return new Response(JSON.stringify(activeBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
