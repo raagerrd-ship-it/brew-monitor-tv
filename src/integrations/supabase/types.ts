@@ -109,6 +109,7 @@ export type Database = {
           created_at: string
           full_sync_interval: number | null
           id: string
+          last_full_sync_at: string | null
           last_sync_at: string | null
           sync_interval: number
           updated_at: string
@@ -120,6 +121,7 @@ export type Database = {
           created_at?: string
           full_sync_interval?: number | null
           id?: string
+          last_full_sync_at?: string | null
           last_sync_at?: string | null
           sync_interval?: number
           updated_at?: string
@@ -131,6 +133,7 @@ export type Database = {
           created_at?: string
           full_sync_interval?: number | null
           id?: string
+          last_full_sync_at?: string | null
           last_sync_at?: string | null
           sync_interval?: number
           updated_at?: string
@@ -143,6 +146,10 @@ export type Database = {
     }
     Functions: {
       trigger_brew_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      trigger_full_brew_sync: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
