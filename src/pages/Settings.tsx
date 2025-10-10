@@ -201,40 +201,29 @@ export default function Settings() {
               </p>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Full synkroniseringsfrekvens</label>
-              <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
-                <SelectTrigger className="w-full bg-card">
-                  <SelectValue placeholder="Välj frekvens" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border z-50">
-                  <SelectItem value="3600">Varje timme</SelectItem>
-                  <SelectItem value="21600">Var 6:e timme</SelectItem>
-                  <SelectItem value="43200">Var 12:e timme</SelectItem>
-                  <SelectItem value="86400">Varje dag</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Full synkronisering hämtar alla detaljer inklusive OG från Brewfather
-              </p>
-            </div>
-
-            <div>
-              <Button 
-                onClick={handleFullSync} 
-                disabled={syncing}
-                className="w-full"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Kör en manuell full synkronisering nu
-              </p>
-            </div>
-
             <div className="space-y-4 border-t pt-4">
-              <h3 className="text-sm font-medium">Automatisk hantering vid full synkronisering</h3>
+              <h3 className="text-sm font-medium">Full synkronisering</h3>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">Frekvens</label>
+                <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
+                  <SelectTrigger className="w-full bg-card">
+                    <SelectValue placeholder="Välj frekvens" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border z-50">
+                    <SelectItem value="3600">Varje timme</SelectItem>
+                    <SelectItem value="21600">Var 6:e timme</SelectItem>
+                    <SelectItem value="43200">Var 12:e timme</SelectItem>
+                    <SelectItem value="86400">Varje dag</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Full synkronisering hämtar alla detaljer inklusive OG från Brewfather
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">Automatisk hantering</h4>
               
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -276,6 +265,35 @@ export default function Settings() {
                 >
                   Aktivera automatiskt nya öl (med status jäsning)
                 </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-activate-fermenting"
+                  checked={autoActivateFermenting}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
+                />
+                <label
+                  htmlFor="auto-activate-fermenting"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Aktivera automatiskt nya öl (med status jäsning)
+                </label>
+              </div>
+            </div>
+
+              <div>
+                <Button 
+                  onClick={handleFullSync} 
+                  disabled={syncing}
+                  className="w-full"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Kör en manuell full synkronisering nu
+                </p>
               </div>
             </div>
           </div>
