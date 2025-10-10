@@ -223,26 +223,8 @@ export default function Settings() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
-                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå. Aktiverar nya jäsande öl.
+                Snabb synkronisering: Uppdaterar SG, temperatur och batterinivå för synliga öl.
               </p>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium">Automatisk hantering</h4>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="auto-activate-fermenting"
-                  checked={autoActivateFermenting}
-                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
-                />
-                <label
-                  htmlFor="auto-activate-fermenting"
-                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Aktivera automatiskt nya öl (med status jäsning)
-                </label>
-              </div>
             </div>
 
             <div>
@@ -271,15 +253,30 @@ export default function Settings() {
                     <SelectItem value="21600">Var 6:e timme</SelectItem>
                     <SelectItem value="43200">Var 12:e timme</SelectItem>
                     <SelectItem value="86400">Varje dag</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar. Döljer klara/konditionerande öl.
-                </p>
-              </div>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-2">
+                Full synkronisering: Hämtar OG, FG, recept, status och alla avläsningar. Hanterar automatisk synlighet.
+              </p>
+            </div>
 
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium">Automatisk hantering</h4>
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Automatisk hantering</h4>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-activate-fermenting"
+                  checked={autoActivateFermenting}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
+                />
+                <label
+                  htmlFor="auto-activate-fermenting"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Aktivera automatiskt nya öl (med status jäsning)
+                </label>
+              </div>
+              
               
               <div className="flex items-center space-x-2">
                 <Checkbox 

@@ -23,20 +23,22 @@ Deno.serve(async (req) => {
     // Get sync settings to determine auto-management behavior
     const { data: syncSettings } = await supabase
       .from('sync_settings')
-      .select('auto_activate_fermenting')
+      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting')
       .limit(1)
       .maybeSingle()
 
+    const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
+    const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
     const autoActivateFermenting = syncSettings?.auto_activate_fermenting ?? true
 
-    console.log('Auto-management settings:', { autoActivateFermenting })
+    console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting })
 
-    // Fetch ALL batches from Brewfather to check status (optimized - only basic fields)
-    console.log('Fetching all batches from Brewfather (optimized fields)...')
+    // Fetch batches from Brewfather (optimized - only basic fields needed for status checks)
+    console.log('Fetching batches from Brewfather (optimized fields)...')
     
     const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
       'brewfather-batches',
-      { body: { limit: 50, complete: false } } // Fetch more for auto-activation, but only basic fields
+      { body: { limit: 50 } } // Fetch more for management, but only basic fields
     )
 
     if (batchesError) {
@@ -54,66 +56,7 @@ Deno.serve(async (req) => {
 
     console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
-    // Auto-manage selected_brews based on fermentation status and settings
-    console.log('Managing selected_brews based on fermentation status...')
-    
-    const fermentingBatches = batchesData
-      .filter((batch: any) => batch.status === 'Fermenting')
-      .sort((a: any, b: any) => {
-        const dateA = new Date(a.brewDate || 0).getTime()
-        const dateB = new Date(b.brewDate || 0).getTime()
-        return dateB - dateA
-      })
-
-    console.log(`Found ${fermentingBatches.length} fermenting batches`)
-
-    const top3Fermenting = fermentingBatches.slice(0, 3)
-    const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
-
-    for (const batch of batchesData) {
-      const isFermenting = batch.status === 'Fermenting'
-      const isInTop3 = top3FermentingIds.includes(batch._id)
-      
-      const { data: existingBrew } = await supabase
-        .from('selected_brews')
-        .select('*')
-        .eq('batch_id', batch._id)
-        .maybeSingle()
-
-      // Only auto-activate fermenting brews (top 3), don't hide completed/conditioning
-      // Those will only be hidden during full sync
-      if (isFermenting && isInTop3 && autoActivateFermenting) {
-        if (existingBrew) {
-          if (!existingBrew.is_visible) {
-            await supabase
-              .from('selected_brews')
-              .update({ is_visible: true })
-              .eq('batch_id', batch._id)
-            console.log(`Auto-activated brew: ${batch._id} (status: ${batch.status})`)
-          }
-        } else {
-          const { data: maxOrder } = await supabase
-            .from('selected_brews')
-            .select('display_order')
-            .order('display_order', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          
-          const nextOrder = (maxOrder?.display_order || 0) + 1
-          
-          await supabase
-            .from('selected_brews')
-            .insert({
-              batch_id: batch._id,
-              display_order: nextOrder,
-              is_visible: true
-            })
-          console.log(`Auto-added fermenting brew: ${batch._id}`)
-        }
-      }
-    }
-
-    // Get currently visible brews for syncing data
+    // Get currently visible brews for syncing data (no auto-management in quick sync)
     const { data: selectedBrews, error: selectedError } = await supabase
       .from('selected_brews')
       .select('*')
@@ -126,7 +69,7 @@ Deno.serve(async (req) => {
     }
 
     if (!selectedBrews || selectedBrews.length === 0) {
-      console.log('No visible brews after auto-management')
+      console.log('No visible brews to sync')
       return new Response(
         JSON.stringify({ message: 'No visible brews' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
