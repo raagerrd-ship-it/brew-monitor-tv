@@ -21,6 +21,8 @@ serve(async (req) => {
 
     const { batchIds, limit } = await req.json();
     
+    console.log('Received request with batchIds:', batchIds, 'and limit:', limit);
+    
     // If specific batch IDs are requested, fetch those
     if (batchIds && Array.isArray(batchIds) && batchIds.length > 0) {
       const batchPromises = batchIds.map(async (batchId: string) => {
@@ -54,6 +56,8 @@ serve(async (req) => {
     let startAfter = null;
     let hasMore = true;
     const maxBatches = limit || 10; // Default to 10 recent batches for faster loading
+    
+    console.log('Fetching batches with maxBatches:', maxBatches);
     
     while (hasMore && allBatches.length < maxBatches) {
       const url = new URL('https://api.brewfather.app/v2/batches');
@@ -92,6 +96,8 @@ serve(async (req) => {
 
     // Filter out archived batches
     const activeBatches = allBatches.filter(batch => batch.status !== 'Archived');
+    
+    console.log('Returning', activeBatches.length, 'active batches out of', allBatches.length, 'total batches');
 
     return new Response(JSON.stringify(activeBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -55,6 +55,8 @@ export function BrewManagement() {
       if (batchesResponse.error) throw batchesResponse.error;
       if (selectedResponse.error) throw selectedResponse.error;
       
+      console.log('Received batches from API:', batchesResponse.data?.length, 'batches');
+      
       // Sort batches by brewDate (newest first) or batchNo (highest first)
       const sortedBatches = (batchesResponse.data || []).sort((a: BrewfatherBatch, b: BrewfatherBatch) => {
         // Try to sort by brewDate first
