@@ -201,7 +201,9 @@ Deno.serve(async (req) => {
             temp: r.temp,
           }))
 
-        const latestReading = readings.length > 0 ? readings[readings.length - 1] : null
+        // Get the latest reading that has SG data
+        const readingsWithSG = readings.filter((r: any) => r.sg)
+        const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
         const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
         const currentTemp = latestReading?.temp || 20
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
