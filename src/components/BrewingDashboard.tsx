@@ -350,7 +350,7 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -358,15 +358,15 @@ export function BrewingDashboard() {
                     <div className="absolute top-1/2 -translate-y-1/2 -right-8 opacity-20" style={{ width: '70%', height: '70%' }}>
                       <Wine className="w-full h-full text-secondary" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">ABV</p>
-                    <p className="font-bold text-secondary leading-none text-3xl z-10">
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">ABV</p>
+                    <p className="font-bold text-secondary leading-none text-3xl z-10 pl-2">
                       {brew.abv}%
                     </p>
                   </div>
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-temp-blue/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-temp-blue/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -393,15 +393,15 @@ export function BrewingDashboard() {
                         />
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Temp</p>
-                    <p className="font-bold text-temp-blue leading-none text-3xl z-10">
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Temp</p>
+                    <p className="font-bold text-temp-blue leading-none text-3xl z-10 pl-2">
                       {brew.currentTemp}°
                     </p>
                   </div>
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -409,15 +409,15 @@ export function BrewingDashboard() {
                     <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '65%', height: '65%', transform: 'translateY(-50%) rotate(45deg)' }}>
                       <TrendingDown className="w-full h-full text-ferment-green" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Utjäsning</p>
-                    <p className="font-bold text-ferment-green leading-none text-2xl z-10">
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Utjäsning</p>
+                    <p className="font-bold text-ferment-green leading-none text-2xl z-10 pl-2">
                       {brew.attenuation}%
                     </p>
                   </div>
 
                   {/* Batteri */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -442,8 +442,8 @@ export function BrewingDashboard() {
                         )}
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Batteri</p>
-                    <p className="font-bold text-primary leading-none text-2xl z-10">
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Batteri</p>
+                    <p className="font-bold text-primary leading-none text-2xl z-10 pl-2">
                       {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                     </p>
                   </div>
