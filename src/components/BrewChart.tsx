@@ -58,7 +58,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     dayChangeMarkers.push(closestReading.date);
   }
   
-  // Find points to show labels for (closest to 00:00 and 12:00 each day)
+  // Find points to show labels for (closest to 00:00 each day - once per day)
   const labelPoints = new Set<string>();
   const dayGroups = new Map<string, typeof data>();
   
@@ -76,28 +76,17 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     let closestToMidnight = dayData[0];
     let minMidnightDist = Math.abs(new Date(dayData[0].date).getHours() * 60 + new Date(dayData[0].date).getMinutes());
     
-    // Find closest to noon (12:00)
-    let closestToNoon = dayData[0];
-    let minNoonDist = Math.abs((new Date(dayData[0].date).getHours() - 12) * 60 + new Date(dayData[0].date).getMinutes());
-    
     dayData.forEach((d) => {
       const date = new Date(d.date);
       const midnightDist = Math.abs(date.getHours() * 60 + date.getMinutes());
-      const noonDist = Math.abs((date.getHours() - 12) * 60 + date.getMinutes());
       
       if (midnightDist < minMidnightDist) {
         minMidnightDist = midnightDist;
         closestToMidnight = d;
       }
-      
-      if (noonDist < minNoonDist) {
-        minNoonDist = noonDist;
-        closestToNoon = d;
-      }
     });
     
     labelPoints.add(closestToMidnight.date);
-    labelPoints.add(closestToNoon.date);
   });
 
   return (
@@ -132,9 +121,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
                 const day = date.getDate();
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
                 const month = monthNames[date.getMonth()];
-                const hours = date.getHours().toString().padStart(2, '0');
-                const minutes = date.getMinutes().toString().padStart(2, '0');
-                return `${day} ${month} ${hours}:${minutes}`;
+                return `${day} ${month}`;
               } catch (e) {
                 return '';
               }
