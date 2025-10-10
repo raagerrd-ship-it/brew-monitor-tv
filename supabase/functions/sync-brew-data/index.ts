@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         // Get existing brew data to preserve OG, style and other batch details
         const { data: existingBrew } = await supabase
           .from('brew_readings')
-          .select('original_gravity, final_gravity, style, name')
+          .select('original_gravity, final_gravity, style, name, last_update')
           .eq('batch_id', batch._id)
           .maybeSingle()
 
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
           abv: parseFloat(abv.toFixed(1)),
           original_gravity: og,
           final_gravity: fg,
-          last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
+          last_update: latestReading ? new Date(latestReading.time).toISOString() : existingBrew?.last_update || null,
           battery: battery,
           sg_data: sgData.length > 0 ? sgData : [
             { date: 'Start', value: og, temp: 20 },
