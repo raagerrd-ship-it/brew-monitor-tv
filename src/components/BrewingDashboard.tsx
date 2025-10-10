@@ -340,7 +340,7 @@ export function BrewingDashboard() {
             size="sm"
             onClick={() => navigate('/settings')}
             className={`opacity-40 hover:opacity-100 transition-all duration-300 ${
-              settingsGlow ? 'ring-2 ring-primary/50 shadow-[0_0_15px_hsl(var(--primary)/0.5)] opacity-100' : ''
+              settingsGlow ? 'ring-3 ring-primary/60 shadow-[0_0_18px_hsl(var(--primary)/0.6)] opacity-100' : ''
             }`}
           >
             <Settings className="h-4 w-4" />
