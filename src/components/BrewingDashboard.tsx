@@ -350,92 +350,80 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-secondary/20 transition-all duration-1000 ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 0.75rem)' }}>
-                      <div className="inline-flex rounded-full bg-secondary/20 p-1 aspect-square h-full">
-                        <Wine className="h-full w-full text-secondary" />
-                      </div>
+                    <div className="absolute top-2 right-2 opacity-20" style={{ width: '40%', height: '40%' }}>
+                      <Wine className="w-full h-full text-secondary" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'calc(20cqh * 0.9)' }}>ABV</p>
-                    <p className="font-bold text-secondary leading-none flex items-center justify-center" style={{ fontSize: 'calc(40cqh * 0.95)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">ABV</p>
+                    <p className="font-bold text-secondary leading-none text-3xl z-10">
                       {brew.abv}%
                     </p>
                   </div>
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-temp-blue/20 transition-all duration-1000 ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-temp-blue/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(40cqh - 0.75rem)' }}>
-                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 animate-pulse aspect-square h-full">
-                        <Thermometer className="h-full w-full text-temp-blue" />
-                      </div>
+                    <div className="absolute top-2 right-2 opacity-20 animate-pulse" style={{ width: '40%', height: '40%' }}>
+                      <Thermometer className="w-full h-full text-temp-blue" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'calc(20cqh * 0.9)' }}>Temp</p>
-                    <p className="font-bold text-temp-blue leading-none flex items-center justify-center" style={{ fontSize: 'calc(40cqh * 0.95)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Temp</p>
+                    <p className="font-bold text-temp-blue leading-none text-3xl z-10">
                       {brew.currentTemp}°
                     </p>
                   </div>
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-ferment-green/20 transition-all duration-1000 ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 0.75rem)' }}>
-                      <div className="inline-flex rounded-full bg-ferment-green/20 p-1 aspect-square h-full">
-                        <TrendingDown className="h-full w-full text-ferment-green" />
-                      </div>
+                    <div className="absolute top-2 right-2 opacity-20" style={{ width: '35%', height: '35%' }}>
+                      <TrendingDown className="w-full h-full text-ferment-green" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'calc(15cqh * 0.9)' }}>Utjäsning</p>
-                    <div className="flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-ferment-green leading-none" style={{ fontSize: 'calc(50cqh * 0.75)' }}>
-                        {brew.attenuation}%
-                      </p>
-                      <Progress 
-                        value={brew.attenuation} 
-                        className={`h-1 w-full bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
-                          brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
-                        }`} 
-                      />
-                    </div>
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Utjäsning</p>
+                    <p className="font-bold text-ferment-green leading-none text-2xl z-10">
+                      {brew.attenuation}%
+                    </p>
+                    <Progress 
+                      value={brew.attenuation} 
+                      className={`h-1 w-full bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 z-10 ${
+                        brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
+                      }`} 
+                    />
                   </div>
 
                   {/* Batteri */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 0.75rem)' }}>
-                      <div className="inline-flex rounded-full bg-primary/20 p-1 aspect-square h-full">
-                        <Battery className="h-full w-full text-primary" />
-                      </div>
+                    <div className="absolute top-2 right-2 opacity-20" style={{ width: '35%', height: '35%' }}>
+                      <Battery className="w-full h-full text-primary" />
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(15cqh * 0.9), calc(100cqw * 0.2))' }}>Batteri</p>
-                    <div className="flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'min(calc(50cqh * 0.75), calc(100cqw * 0.5))' }}>
-                        {brew.battery !== null ? `${brew.battery}%` : "N/A"}
-                      </p>
-                      {brew.battery !== null && (
-                        <Progress 
-                          value={brew.battery} 
-                          className={`h-1 w-full bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 ${
-                            brew.battery < 25 ? '[&>div]:bg-destructive' : ''
-                          }`} 
-                        />
-                      )}
-                    </div>
+                    <p className="text-muted-foreground uppercase tracking-wider text-xs z-10">Batteri</p>
+                    <p className="font-bold text-primary leading-none text-2xl z-10">
+                      {brew.battery !== null ? `${brew.battery}%` : "N/A"}
+                    </p>
+                    {brew.battery !== null && (
+                      <Progress 
+                        value={brew.battery} 
+                        className={`h-1 w-full bg-background [&>div]:bg-primary [&>div]:rounded-full transition-all duration-500 z-10 ${
+                          brew.battery < 25 ? '[&>div]:bg-destructive' : ''
+                        }`} 
+                      />
+                    )}
                   </div>
                 </div>
               </div>
