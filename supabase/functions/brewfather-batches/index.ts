@@ -55,13 +55,15 @@ serve(async (req) => {
     const allBatches: any[] = [];
     let startAfter = null;
     let hasMore = true;
-    const maxBatches = limit || 10; // Default to 10 recent batches for faster loading
+    const requestedLimit = limit || 10;
+    // Fetch more than requested to account for archived batches that will be filtered
+    const maxBatchesToFetch = requestedLimit * 3; // Fetch 3x to ensure we have enough after filtering
     
-    console.log('Fetching batches with maxBatches:', maxBatches);
+    console.log('Fetching up to', maxBatchesToFetch, 'batches to get', requestedLimit, 'active ones');
     
-    while (hasMore && allBatches.length < maxBatches) {
+    while (hasMore && allBatches.length < maxBatchesToFetch) {
       const url = new URL('https://api.brewfather.app/v2/batches');
-      const fetchLimit = Math.min(50, maxBatches - allBatches.length);
+      const fetchLimit = Math.min(50, maxBatchesToFetch - allBatches.length);
       url.searchParams.set('limit', fetchLimit.toString());
       if (startAfter) {
         url.searchParams.set('start_after', startAfter);
@@ -85,7 +87,7 @@ serve(async (req) => {
         allBatches.push(...batches);
         
         // If we got less than requested or reached our limit, we're done
-        if (batches.length < fetchLimit || allBatches.length >= maxBatches) {
+        if (batches.length < fetchLimit || allBatches.length >= maxBatchesToFetch) {
           hasMore = false;
         } else {
           // Get the _id of the last batch for pagination
@@ -97,9 +99,12 @@ serve(async (req) => {
     // Filter out archived batches
     const activeBatches = allBatches.filter(batch => batch.status !== 'Archived');
     
-    console.log('Returning', activeBatches.length, 'active batches out of', allBatches.length, 'total batches');
+    // Limit to requested number of active batches
+    const limitedActiveBatches = activeBatches.slice(0, requestedLimit);
+    
+    console.log('Returning', limitedActiveBatches.length, 'active batches out of', allBatches.length, 'total batches (', activeBatches.length, 'active before limiting)');
 
-    return new Response(JSON.stringify(activeBatches), {
+    return new Response(JSON.stringify(limitedActiveBatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
