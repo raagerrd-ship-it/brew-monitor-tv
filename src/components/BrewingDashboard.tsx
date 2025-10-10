@@ -342,8 +342,8 @@ export function BrewingDashboard() {
                         <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.5rem)', fontSize: 'calc((20cqh - 0.5rem) * 0.4)' }}>SG</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.5rem)', fontSize: 'calc((40cqh - 0.5rem) * 0.7)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.5rem)', fontSize: 'calc((20cqh - 0.5rem) * 0.7)' }}>SG</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.5rem)', fontSize: 'calc((40cqh - 0.5rem) * 0.85)' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                   </div>
@@ -360,8 +360,8 @@ export function BrewingDashboard() {
                         <Wine className="h-full w-full text-secondary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.4)' }}>ABV</p>
-                    <p className="font-bold text-secondary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.65)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.7)' }}>ABV</p>
+                    <p className="font-bold text-secondary leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.85)' }}>
                       {brew.abv}%
                     </p>
                   </div>
@@ -378,8 +378,8 @@ export function BrewingDashboard() {
                         <Thermometer className="h-full w-full text-temp-blue" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.4)' }}>Temp</p>
-                    <p className="font-bold text-temp-blue leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.65)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(20cqh - 0.375rem)', fontSize: 'calc((20cqh - 0.375rem) * 0.7)' }}>Temp</p>
+                    <p className="font-bold text-temp-blue leading-none flex items-center justify-center" style={{ height: 'calc(40cqh - 0.375rem)', fontSize: 'calc((40cqh - 0.375rem) * 0.85)' }}>
                       {brew.currentTemp}°
                     </p>
                   </div>
@@ -396,9 +396,9 @@ export function BrewingDashboard() {
                         <TrendingDown className="h-full w-full text-ferment-green" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.45)' }}>Utjäsning</p>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.75)' }}>Utjäsning</p>
                     <div className="flex flex-col items-center justify-center w-full gap-1" style={{ height: 'calc(50cqh - 0.375rem)' }}>
-                      <p className="font-bold text-ferment-green leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.5)' }}>
+                      <p className="font-bold text-ferment-green leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.6)' }}>
                         {brew.attenuation}%
                       </p>
                       <Progress 
@@ -422,9 +422,9 @@ export function BrewingDashboard() {
                         <Battery className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.45)' }}>Batteri</p>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ height: 'calc(15cqh - 0.25rem)', fontSize: 'calc((15cqh - 0.25rem) * 0.75)' }}>Batteri</p>
                     <div className="flex flex-col items-center justify-center w-full gap-1" style={{ height: 'calc(50cqh - 0.375rem)' }}>
-                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.5)' }}>
+                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'calc((50cqh - 0.375rem) * 0.6)' }}>
                         {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                       </p>
                       {brew.battery !== null && (
