@@ -92,7 +92,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 5, right: 5, left: -5, bottom: 5 }}>
+        <ComposedChart data={data} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
           {dayChangeMarkers.map((timestamp, idx) => (
