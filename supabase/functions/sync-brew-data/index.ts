@@ -177,9 +177,7 @@ Deno.serve(async (req) => {
         const latestReading = readings.length > 0 ? readings[readings.length - 1] : null
         const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
         const currentTemp = latestReading?.temp || 20
-        // Convert battery voltage to percentage (3.0V = 0%, 4.2V = 100%)
-        const batteryVoltage = latestReading?.battery
-        const battery = batteryVoltage ? Math.round(((batteryVoltage - 3.0) / (4.2 - 3.0)) * 100) : null
+        const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
 
         const og = batch.measuredOg || batch.estimatedOg || 1.050
         const fg = batch.measuredFg || batch.estimatedFg || 1.010
