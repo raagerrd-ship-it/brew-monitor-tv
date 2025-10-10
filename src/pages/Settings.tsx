@@ -227,6 +227,24 @@ export default function Settings() {
               </p>
             </div>
 
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Automatisk hantering</h4>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-activate-fermenting"
+                  checked={autoActivateFermenting}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
+                />
+                <label
+                  htmlFor="auto-activate-fermenting"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Aktivera automatiskt nya öl (med status jäsning)
+                </label>
+              </div>
+            </div>
+
             <div>
               <Button
                 onClick={handleQuickSync} 
@@ -288,20 +306,6 @@ export default function Settings() {
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Ta bort öl som konditioneras
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="auto-activate-fermenting"
-                  checked={autoActivateFermenting}
-                  onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
-                />
-                <label
-                  htmlFor="auto-activate-fermenting"
-                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Aktivera automatiskt nya öl (med status jäsning)
                 </label>
               </div>
             </div>
