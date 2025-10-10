@@ -14,6 +14,7 @@ export default function Settings() {
   const { toast } = useToast();
   const [syncInterval, setSyncInterval] = useState<string>("60");
   const [syncing, setSyncing] = useState(false);
+  const [quickSyncing, setQuickSyncing] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [autoHideCompleted, setAutoHideCompleted] = useState(true);
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
@@ -138,6 +139,31 @@ export default function Settings() {
     }
   };
 
+  const handleQuickSync = async () => {
+    setQuickSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('sync-brew-data', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Synkronisering klar",
+        description: "Snabb synkronisering har genomförts",
+      });
+    } catch (error) {
+      console.error('Error during quick sync:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte genomföra synkronisering",
+        variant: "destructive",
+      });
+    } finally {
+      setQuickSyncing(false);
+    }
+  };
+
   const handleFullSync = async () => {
     setSyncing(true);
     try {
@@ -198,6 +224,21 @@ export default function Settings() {
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
                 Snabb synkronisering uppdaterar bara avläsningar
+              </p>
+            </div>
+
+            <div>
+              <Button 
+                onClick={handleQuickSync} 
+                disabled={quickSyncing}
+                className="w-full"
+                variant="outline"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${quickSyncing ? 'animate-spin' : ''}`} />
+                {quickSyncing ? 'Synkroniserar...' : 'Snabb synkronisering'}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Kör en manuell snabb synkronisering nu
               </p>
             </div>
 
