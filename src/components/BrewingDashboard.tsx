@@ -303,8 +303,7 @@ export function BrewingDashboard() {
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
                 minute: "2-digit",
-              })}
-              <span className="text-primary">:{seconds.toString().padStart(2, '0')}</span>
+              })}:{seconds.toString().padStart(2, '0')}
             </p>
             <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               {currentTime.toLocaleDateString("sv-SE", {
