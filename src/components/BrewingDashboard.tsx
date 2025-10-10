@@ -58,7 +58,37 @@ export function BrewingDashboard() {
         },
         (payload) => {
           console.log('Realtime update:', payload)
-          loadBrews()
+          
+          // Update only the specific brew that changed
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            const updatedReading = payload.new as any;
+            setBrews(prevBrews => 
+              prevBrews.map(brew => 
+                brew.batch_id === updatedReading.batch_id
+                  ? {
+                      ...brew,
+                      currentSG: updatedReading.current_sg,
+                      currentTemp: updatedReading.current_temp,
+                      attenuation: updatedReading.attenuation,
+                      abv: updatedReading.abv,
+                      battery: updatedReading.battery,
+                      lastUpdate: updatedReading.last_update ? 
+                        new Date(updatedReading.last_update).toLocaleString('sv-SE', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'Ingen data',
+                      sgData: updatedReading.sg_data || []
+                    }
+                  : brew
+              )
+            );
+          } else {
+            // For INSERT/DELETE, reload all data
+            loadBrews();
+          }
         }
       )
       .subscribe()
