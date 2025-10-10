@@ -422,9 +422,9 @@ export function BrewingDashboard() {
                         <Battery className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'calc(15cqh * 0.9)' }}>Batteri</p>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(15cqh * 0.9), calc(100cqw * 0.2))' }}>Batteri</p>
                     <div className="flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'calc(50cqh * 0.75)' }}>
+                      <p className="font-bold text-primary leading-none" style={{ fontSize: 'min(calc(50cqh * 0.75), calc(100cqw * 0.5))' }}>
                         {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                       </p>
                       {brew.battery !== null && (
