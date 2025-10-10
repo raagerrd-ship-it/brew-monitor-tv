@@ -107,17 +107,33 @@ export function BrewingDashboard() {
                 changedFields.sg = true;
               }
             }
-            if (updatedReading.current_temp !== oldReading.current_temp && updatedReading.current_temp !== undefined) {
-              changedFields.temp = true;
+            // For temp, only trigger if visible change (rounded to integer)
+            if (updatedReading.current_temp !== undefined && oldReading.current_temp !== undefined) {
+              const newTempRounded = Math.round(updatedReading.current_temp);
+              const oldTempRounded = Math.round(oldReading.current_temp);
+              if (newTempRounded !== oldTempRounded) {
+                changedFields.temp = true;
+              }
             }
-            if (updatedReading.attenuation !== oldReading.attenuation && updatedReading.attenuation !== undefined) {
-              changedFields.attenuation = true;
+            // For attenuation, only trigger if visible change (integer)
+            if (updatedReading.attenuation !== undefined && oldReading.attenuation !== undefined) {
+              if (Math.round(updatedReading.attenuation) !== Math.round(oldReading.attenuation)) {
+                changedFields.attenuation = true;
+              }
             }
-            if (updatedReading.abv !== oldReading.abv && updatedReading.abv !== undefined) {
-              changedFields.abv = true;
+            // For ABV, only trigger if visible change (1 decimal)
+            if (updatedReading.abv !== undefined && oldReading.abv !== undefined) {
+              const newABVRounded = Number(updatedReading.abv.toFixed(1));
+              const oldABVRounded = Number(oldReading.abv.toFixed(1));
+              if (newABVRounded !== oldABVRounded) {
+                changedFields.abv = true;
+              }
             }
-            if (updatedReading.battery !== oldReading.battery && updatedReading.battery !== undefined) {
-              changedFields.battery = true;
+            // For battery, only trigger if visible change (rounded to integer)
+            if (updatedReading.battery !== undefined && oldReading.battery !== undefined) {
+              if (Math.round(updatedReading.battery) !== Math.round(oldReading.battery)) {
+                changedFields.battery = true;
+              }
             }
             // Only trigger card glow if last_update changed
             if (updatedReading.last_update !== oldReading.last_update && updatedReading.last_update !== undefined) {
