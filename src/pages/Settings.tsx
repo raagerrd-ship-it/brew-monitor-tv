@@ -237,9 +237,6 @@ export default function Settings() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${quickSyncing ? 'animate-spin' : ''}`} />
                 {quickSyncing ? 'Synkroniserar...' : 'Snabb synkronisering'}
               </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Kör en manuell snabb synkronisering nu
-              </p>
             </div>
 
             <div className="space-y-4 border-t pt-4">
@@ -310,7 +307,7 @@ export default function Settings() {
             </div>
 
               <div>
-                <Button
+                <Button 
                   onClick={handleFullSync} 
                   disabled={syncing}
                   className="w-full"
@@ -318,9 +315,6 @@ export default function Settings() {
                   <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Synkroniserar...' : 'Full synkronisering'}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Kör en manuell full synkronisering nu
-                </p>
               </div>
             </div>
           </div>
