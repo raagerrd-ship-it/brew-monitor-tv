@@ -334,13 +334,13 @@ export function BrewingDashboard() {
                   <div className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
                     updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                   }`}>
-                    <div className="flex-[0.4] flex items-center justify-center">
-                      <div className="inline-flex rounded-full bg-primary/20 p-2">
-                        <Droplets className="h-full w-full text-primary" style={{ height: '100%', width: 'auto', maxHeight: '100%' }} />
+                    <div className="flex-[0.4] flex items-center justify-center w-full">
+                      <div className="inline-flex rounded-full bg-primary/20 p-2 h-[80%] aspect-square">
+                        <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center text-[length:calc(100%*0.6)]">SG</p>
-                    <p className="flex-[0.4] font-bold text-primary leading-none flex items-center text-[length:calc(100%*0.8)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.6rem,1.5vh,1.2rem)]">SG</p>
+                    <p className="flex-[0.4] font-bold text-primary leading-none flex items-center justify-center text-[clamp(1.5rem,3.5vh,4rem)]">
                       {brew.currentSG.toFixed(3)}
                     </p>
                   </div>
@@ -349,13 +349,13 @@ export function BrewingDashboard() {
                   <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-secondary/20 transition-all duration-1000 ${
                     updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                   }`}>
-                    <div className="flex-[0.4] flex items-center justify-center">
-                      <div className="inline-flex rounded-full bg-secondary/20 p-1">
-                        <Wine className="h-full w-full text-secondary" style={{ height: '100%', width: 'auto' }} />
+                    <div className="flex-[0.4] flex items-center justify-center w-full">
+                      <div className="inline-flex rounded-full bg-secondary/20 p-1 h-[70%] aspect-square">
+                        <Wine className="h-full w-full text-secondary" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center text-[length:calc(100%*0.5)]">ABV</p>
-                    <p className="flex-[0.4] font-bold text-secondary leading-none flex items-center text-[length:calc(100%*0.7)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.4rem,0.8vh,0.7rem)]">ABV</p>
+                    <p className="flex-[0.4] font-bold text-secondary leading-none flex items-center justify-center text-[clamp(0.9rem,1.8vh,1.8rem)]">
                       {brew.abv}%
                     </p>
                   </div>
@@ -364,13 +364,13 @@ export function BrewingDashboard() {
                   <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-temp-blue/20 transition-all duration-1000 ${
                     updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
                   }`}>
-                    <div className="flex-[0.4] flex items-center justify-center">
-                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 animate-pulse">
-                        <Thermometer className="h-full w-full text-temp-blue" style={{ height: '100%', width: 'auto' }} />
+                    <div className="flex-[0.4] flex items-center justify-center w-full">
+                      <div className="inline-flex rounded-full bg-temp-blue/20 p-1 animate-pulse h-[70%] aspect-square">
+                        <Thermometer className="h-full w-full text-temp-blue" />
                       </div>
                     </div>
-                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center text-[length:calc(100%*0.5)]">Temp</p>
-                    <p className="flex-[0.4] font-bold text-temp-blue leading-none flex items-center text-[length:calc(100%*0.7)]">
+                    <p className="flex-[0.2] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.4rem,0.8vh,0.7rem)]">Temp</p>
+                    <p className="flex-[0.4] font-bold text-temp-blue leading-none flex items-center justify-center text-[clamp(0.9rem,1.8vh,1.8rem)]">
                       {brew.currentTemp}°
                     </p>
                   </div>
@@ -379,14 +379,14 @@ export function BrewingDashboard() {
                   <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-ferment-green/20 transition-all duration-1000 ${
                     updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                   }`}>
-                    <div className="flex-[0.35] flex items-center justify-center">
-                      <div className="inline-flex rounded-full bg-ferment-green/20 p-1">
-                        <TrendingDown className="h-full w-full text-ferment-green" style={{ height: '100%', width: 'auto' }} />
+                    <div className="flex-[0.35] flex items-center justify-center w-full">
+                      <div className="inline-flex rounded-full bg-ferment-green/20 p-1 h-[65%] aspect-square">
+                        <TrendingDown className="h-full w-full text-ferment-green" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center text-[length:calc(100%*0.5)]">Utjäsning</p>
+                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.35rem,0.7vh,0.6rem)]">Utjäsning</p>
                     <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-ferment-green leading-none text-[length:calc(100%*0.5)]">
+                      <p className="font-bold text-ferment-green leading-none text-[clamp(0.8rem,1.6vh,1.6rem)]">
                         {brew.attenuation}%
                       </p>
                       <Progress 
@@ -402,14 +402,14 @@ export function BrewingDashboard() {
                   <div className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-between border border-primary/20 transition-all duration-1000 ${
                     updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                   }`}>
-                    <div className="flex-[0.35] flex items-center justify-center">
-                      <div className="inline-flex rounded-full bg-primary/20 p-1">
-                        <Battery className="h-full w-full text-primary" style={{ height: '100%', width: 'auto' }} />
+                    <div className="flex-[0.35] flex items-center justify-center w-full">
+                      <div className="inline-flex rounded-full bg-primary/20 p-1 h-[65%] aspect-square">
+                        <Battery className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center text-[length:calc(100%*0.5)]">Batteri</p>
+                    <p className="flex-[0.15] text-muted-foreground uppercase tracking-wider flex items-center justify-center text-[clamp(0.35rem,0.7vh,0.6rem)]">Batteri</p>
                     <div className="flex-[0.5] flex flex-col items-center justify-center w-full gap-1">
-                      <p className="font-bold text-primary leading-none text-[length:calc(100%*0.5)]">
+                      <p className="font-bold text-primary leading-none text-[clamp(0.8rem,1.6vh,1.6rem)]">
                         {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                       </p>
                       {brew.battery !== null && (
