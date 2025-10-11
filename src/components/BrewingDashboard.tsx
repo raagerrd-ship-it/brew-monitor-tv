@@ -127,8 +127,14 @@ export function BrewingDashboard() {
             }
             
             // Only trigger card glow if last_update actually changed in the database
+            console.log('Checking last_update:', {
+              old: oldReading.last_update,
+              new: updatedReading.last_update,
+              changed: updatedReading.last_update !== oldReading.last_update
+            });
             if (updatedReading.last_update !== oldReading.last_update && updatedReading.last_update !== undefined) {
               changedFields.cardGlow = true;
+              console.log('Card glow activated for batch:', updatedReading.batch_id);
             }
             
             setBrews(prevBrews => 
