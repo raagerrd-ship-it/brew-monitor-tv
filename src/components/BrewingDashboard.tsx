@@ -455,11 +455,31 @@ export function BrewingDashboard() {
                     style={{ containerType: 'size' }}
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
-                      <Wine className="w-full h-full text-secondary" strokeWidth={1} />
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                        {/* Wine glass outline */}
+                        <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill="none"/>
+                        <path d="M12 18v4M9 22h6" stroke="hsl(var(--secondary))" strokeWidth="1" strokeLinecap="round"/>
+                        {/* Wine fill */}
+                        <defs>
+                          <clipPath id={`wine-clip-${brew.batch_id}`}>
+                            <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" />
+                          </clipPath>
+                        </defs>
+                        <rect 
+                          x="7" 
+                          y={`${18 - (Math.min(Math.max(brew.abv, 0), 10) / 10) * 16}`}
+                          width="10" 
+                          height="16" 
+                          fill="hsl(var(--secondary))"
+                          clipPath={`url(#wine-clip-${brew.batch_id})`}
+                          className="transition-all duration-500"
+                          opacity="0.8"
+                        />
+                      </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">ABV</p>
                     <p className="font-bold text-secondary leading-none text-3xl z-10 pl-2">
-                      {brew.abv}%
+                      {brew.abv.toFixed(1)}%
                     </p>
                   </div>
 
