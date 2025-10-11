@@ -28,7 +28,6 @@ interface BrewData {
 
 export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [seconds, setSeconds] = useState(new Date().getSeconds());
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
@@ -37,20 +36,11 @@ export function BrewingDashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Update time every minute for date/time
+    // Update time every second to keep everything in sync
     const updateTime = () => setCurrentTime(new Date());
     updateTime(); // Initial update
     
-    const timer = setInterval(updateTime, 60000); // Update every minute
-
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    // Update seconds separately for better performance
-    const timer = setInterval(() => {
-      setSeconds(new Date().getSeconds());
-    }, 1000);
+    const timer = setInterval(updateTime, 1000); // Update every second
 
     return () => clearInterval(timer);
   }, []);
@@ -341,7 +331,7 @@ export function BrewingDashboard() {
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
                 minute: "2-digit",
-              })}:{seconds.toString().padStart(2, '0')}
+              })}:{currentTime.getSeconds().toString().padStart(2, '0')}
             </p>
             <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               {currentTime.toLocaleDateString("sv-SE", {
