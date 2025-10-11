@@ -437,7 +437,7 @@ export function BrewingDashboard() {
                         <Droplets className="h-full w-full text-primary" />
                       </div>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>SG</p>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>Gravity</p>
                     <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
