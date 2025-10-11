@@ -22,6 +22,7 @@ interface BrewData {
   originalGravity: number;
   finalGravity: number;
   lastUpdate: string;
+  lastUpdateRaw: string | null; // Store raw timestamp for comparison
   battery: number | null;
   sgData: Array<{ date: string; value: number; temp: number }>;
 }
@@ -126,13 +127,18 @@ export function BrewingDashboard() {
               }
             }
             
-            // Only trigger card glow if last_update actually changed in the database
+            // Compare new last_update with what's currently shown on screen
+            const currentBrew = brews.find(b => b.batch_id === updatedReading.batch_id);
+            const screenLastUpdate = currentBrew?.lastUpdateRaw;
+            const newLastUpdate = updatedReading.last_update;
+            
             console.log('Checking last_update:', {
-              old: oldReading.last_update,
-              new: updatedReading.last_update,
-              changed: updatedReading.last_update !== oldReading.last_update
+              screen: screenLastUpdate,
+              new: newLastUpdate,
+              changed: newLastUpdate !== screenLastUpdate
             });
-            if (updatedReading.last_update !== oldReading.last_update && updatedReading.last_update !== undefined) {
+            
+            if (newLastUpdate !== screenLastUpdate && newLastUpdate !== undefined) {
               changedFields.cardGlow = true;
               console.log('Card glow activated for batch:', updatedReading.batch_id);
             }
@@ -155,6 +161,7 @@ export function BrewingDashboard() {
                           hour: '2-digit',
                           minute: '2-digit'
                         }) : 'Ingen data',
+                      lastUpdateRaw: updatedReading.last_update,
                       sgData: updatedReading.sg_data || []
                     }
                   : brew
@@ -249,6 +256,7 @@ export function BrewingDashboard() {
             hour: '2-digit',
             minute: '2-digit'
           }) : 'Ingen data',
+        lastUpdateRaw: reading.last_update,
         battery: reading.battery,
         sgData: reading.sg_data || []
       }));
