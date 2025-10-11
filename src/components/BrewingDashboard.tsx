@@ -135,8 +135,9 @@ export function BrewingDashboard() {
                 changedFields.battery = true;
               }
             }
-            // Only trigger card glow if last_update changed
-            if (updatedReading.last_update !== oldReading.last_update && updatedReading.last_update !== undefined) {
+            
+            // Trigger card glow if any visible field changed
+            if (Object.keys(changedFields).length > 0) {
               changedFields.cardGlow = true;
             }
             
