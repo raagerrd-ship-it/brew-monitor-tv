@@ -88,47 +88,54 @@ export function BrewingDashboard() {
             const updatedReading = payload.new as any;
             const oldReading = payload.old as any;
             
-            // Track which fields actually changed to a different VISIBLE value
+            // Get current values shown on screen for comparison
+            const currentBrew = brews.find(b => b.batch_id === updatedReading.batch_id);
+            
+            // Track which fields actually changed to a different VISIBLE value compared to screen
             const changedFields: Record<string, boolean> = {};
-            // For SG, only trigger glow if the change is visible in 3 decimals
-            if (updatedReading.current_sg !== undefined && oldReading.current_sg !== undefined) {
+            
+            // For SG, only trigger glow if the change is visible in 3 decimals compared to screen
+            if (updatedReading.current_sg !== undefined && currentBrew) {
               const newSGRounded = Number(updatedReading.current_sg.toFixed(3));
-              const oldSGRounded = Number(oldReading.current_sg.toFixed(3));
-              if (newSGRounded !== oldSGRounded) {
+              const screenSGRounded = Number(currentBrew.currentSG.toFixed(3));
+              if (newSGRounded !== screenSGRounded) {
                 changedFields.sg = true;
               }
             }
-            // For temp, only trigger if visible change (rounded to integer)
-            if (updatedReading.current_temp !== undefined && oldReading.current_temp !== undefined) {
+            
+            // For temp, only trigger if visible change (rounded to integer) compared to screen
+            if (updatedReading.current_temp !== undefined && currentBrew) {
               const newTempRounded = Math.round(updatedReading.current_temp);
-              const oldTempRounded = Math.round(oldReading.current_temp);
-              if (newTempRounded !== oldTempRounded) {
+              const screenTempRounded = Math.round(currentBrew.currentTemp);
+              if (newTempRounded !== screenTempRounded) {
                 changedFields.temp = true;
               }
             }
-            // For attenuation, only trigger if visible change (integer)
-            if (updatedReading.attenuation !== undefined && oldReading.attenuation !== undefined) {
-              if (Math.round(updatedReading.attenuation) !== Math.round(oldReading.attenuation)) {
+            
+            // For attenuation, only trigger if visible change (integer) compared to screen
+            if (updatedReading.attenuation !== undefined && currentBrew) {
+              if (Math.round(updatedReading.attenuation) !== Math.round(currentBrew.attenuation)) {
                 changedFields.attenuation = true;
               }
             }
-            // For ABV, only trigger if visible change (1 decimal)
-            if (updatedReading.abv !== undefined && oldReading.abv !== undefined) {
+            
+            // For ABV, only trigger if visible change (1 decimal) compared to screen
+            if (updatedReading.abv !== undefined && currentBrew) {
               const newABVRounded = Number(updatedReading.abv.toFixed(1));
-              const oldABVRounded = Number(oldReading.abv.toFixed(1));
-              if (newABVRounded !== oldABVRounded) {
+              const screenABVRounded = Number(currentBrew.abv.toFixed(1));
+              if (newABVRounded !== screenABVRounded) {
                 changedFields.abv = true;
               }
             }
-            // For battery, only trigger if visible change (rounded to integer)
-            if (updatedReading.battery !== undefined && oldReading.battery !== undefined) {
-              if (Math.round(updatedReading.battery) !== Math.round(oldReading.battery)) {
+            
+            // For battery, only trigger if visible change (rounded to integer) compared to screen
+            if (updatedReading.battery !== undefined && currentBrew?.battery !== null && currentBrew?.battery !== undefined) {
+              if (Math.round(updatedReading.battery) !== Math.round(currentBrew.battery)) {
                 changedFields.battery = true;
               }
             }
             
             // Compare new last_update with what's currently shown on screen
-            const currentBrew = brews.find(b => b.batch_id === updatedReading.batch_id);
             const screenLastUpdate = currentBrew?.lastUpdateRaw;
             const newLastUpdate = updatedReading.last_update;
             
