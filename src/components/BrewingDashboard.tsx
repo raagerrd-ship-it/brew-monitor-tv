@@ -525,8 +525,35 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20" style={{ width: '65%', height: '65%', transform: 'translateY(-50%) rotate(45deg)' }}>
-                      <TrendingDown className="w-full h-full text-ferment-green" strokeWidth={1} />
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20" style={{ width: '65%', height: '65%' }}>
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                        {/* Flask/Beaker outline */}
+                        <path d="M9 3h6M12 3v5M9 8h6l2 11c0 1.1-.9 2-2 2H9c-1.1 0-2-.9-2-2l2-11z" stroke="hsl(var(--ferment-green))" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                        {/* Fermentation fill */}
+                        <defs>
+                          <clipPath id={`ferment-clip-${brew.batch_id}`}>
+                            <path d="M9 8h6l2 11c0 1.1-.9 2-2 2H9c-1.1 0-2-.9-2-2l2-11z" />
+                          </clipPath>
+                        </defs>
+                        <rect 
+                          x="7" 
+                          y={`${21 - (Math.min(Math.max(brew.attenuation, 0), 100) / 100) * 13}`}
+                          width="10" 
+                          height="13" 
+                          fill="hsl(var(--ferment-green))"
+                          clipPath={`url(#ferment-clip-${brew.batch_id})`}
+                          className="transition-all duration-500"
+                          opacity="0.8"
+                        />
+                        {/* Bubbles */}
+                        {brew.attenuation > 10 && (
+                          <>
+                            <circle cx="10" cy="16" r="0.8" fill="hsl(var(--ferment-green))" opacity="0.6" className="animate-pulse" />
+                            <circle cx="14" cy="14" r="0.6" fill="hsl(var(--ferment-green))" opacity="0.5" className="animate-pulse" style={{ animationDelay: '0.3s' }} />
+                            <circle cx="11" cy="13" r="0.5" fill="hsl(var(--ferment-green))" opacity="0.4" className="animate-pulse" style={{ animationDelay: '0.6s' }} />
+                          </>
+                        )}
+                      </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Utjäsning</p>
                     <p className="font-bold text-ferment-green leading-none text-2xl z-10 pl-2">
