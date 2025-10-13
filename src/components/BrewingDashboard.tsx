@@ -475,21 +475,38 @@ export function BrewingDashboard() {
                 <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
-                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 ${
+                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="flex items-center justify-center w-full" style={{ height: 'calc(35cqh - 1rem)' }}>
-                      <div className="inline-flex rounded-full bg-primary/20 p-2 aspect-square h-full">
-                        <Droplets className="h-full w-full text-primary" />
-                      </div>
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
+                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                        {/* Droplet outline */}
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="hsl(var(--primary))" strokeWidth="1" fill="none"/>
+                        {/* Droplet fill - based on current progress from OG to FG */}
+                        <defs>
+                          <clipPath id={`droplet-clip-${brew.batch_id}`}>
+                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                          </clipPath>
+                        </defs>
+                        <rect 
+                          x="4" 
+                          y={`${20 - ((brew.originalGravity - brew.currentSG) / (brew.originalGravity - brew.finalGravity)) * 16}`}
+                          width="16" 
+                          height="16" 
+                          fill="hsl(var(--primary))"
+                          clipPath={`url(#droplet-clip-${brew.batch_id})`}
+                          className="transition-all duration-500"
+                          opacity="0.8"
+                        />
+                      </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>Gravity</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <div className="text-muted-foreground text-xs mt-1 space-y-0.5">
+                    <div className="text-muted-foreground text-xs mt-1 space-y-0.5 z-10">
                       <p>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p>FG: {brew.finalGravity.toFixed(3)}</p>
                       {brew.fermentationRate !== null && brew.fermentationRate !== 0 && (
