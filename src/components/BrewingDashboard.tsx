@@ -33,7 +33,6 @@ export function BrewingDashboard() {
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
-  const [settingsGlow, setSettingsGlow] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -60,25 +59,6 @@ export function BrewingDashboard() {
   }, []);
 
   useEffect(() => {
-    // Set up realtime subscription for sync_settings to detect syncs
-    const syncChannel = supabase
-      .channel('sync-settings-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'sync_settings'
-        },
-        (payload) => {
-          console.log('Sync detected:', payload)
-          // Trigger settings button glow when sync occurs
-          setSettingsGlow(true);
-          setTimeout(() => setSettingsGlow(false), 1000);
-        }
-      )
-      .subscribe()
-
     // Set up realtime subscription for brew readings
     const brewChannel = supabase
       .channel('brew-readings-changes')
@@ -215,7 +195,6 @@ export function BrewingDashboard() {
 
     return () => {
       supabase.removeChannel(brewChannel)
-      supabase.removeChannel(syncChannel)
     }
   }, []);
 
@@ -377,18 +356,16 @@ export function BrewingDashboard() {
             </p>
           </div>
           
-          <div className="relative">
+          <div className="relative flex items-center justify-center w-10 h-10">
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => navigate('/settings')}
-              className={`opacity-40 hover:opacity-100 transition-all duration-300 ${
-                settingsGlow ? 'ring-3 ring-primary/60 shadow-[0_0_18px_hsl(var(--primary)/0.6)] opacity-100' : ''
-              }`}
+              className="opacity-40 hover:opacity-100 transition-opacity duration-300 w-10 h-10"
             >
               <Settings className="h-4 w-4" />
             </Button>
-            <SyncCountdown className="w-12 h-12" />
+            <SyncCountdown className="w-10 h-10" />
           </div>
         </div>
       </div>
