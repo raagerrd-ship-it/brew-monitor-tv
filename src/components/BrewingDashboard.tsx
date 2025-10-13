@@ -26,6 +26,7 @@ interface BrewData {
   lastUpdateRaw: string | null; // Store raw timestamp for comparison
   battery: number | null;
   sgData: Array<{ date: string; value: number; temp: number }>;
+  fermentationRate: number | null; // SG change per 24h based on last 2 hours
 }
 
 export function BrewingDashboard() {
@@ -145,28 +146,31 @@ export function BrewingDashboard() {
             }
             
             setBrews(prevBrews => 
-              prevBrews.map(brew => 
-                brew.batch_id === updatedReading.batch_id
-                  ? {
-                      ...brew,
-                      currentSG: updatedReading.current_sg,
-                      currentTemp: updatedReading.current_temp,
-                      attenuation: updatedReading.attenuation,
-                      abv: updatedReading.abv,
-                      battery: updatedReading.battery,
-                      lastUpdate: updatedReading.last_update ? 
-                        new Date(updatedReading.last_update).toLocaleString('sv-SE', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }) : 'Ingen data',
-                      lastUpdateRaw: updatedReading.last_update,
-                      sgData: updatedReading.sg_data || []
-                    }
-                  : brew
-              )
+              prevBrews.map(brew => {
+                if (brew.batch_id === updatedReading.batch_id) {
+                  const newSgData = updatedReading.sg_data || [];
+                  return {
+                    ...brew,
+                    currentSG: updatedReading.current_sg,
+                    currentTemp: updatedReading.current_temp,
+                    attenuation: updatedReading.attenuation,
+                    abv: updatedReading.abv,
+                    battery: updatedReading.battery,
+                    lastUpdate: updatedReading.last_update ? 
+                      new Date(updatedReading.last_update).toLocaleString('sv-SE', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'Ingen data',
+                    lastUpdateRaw: updatedReading.last_update,
+                    sgData: newSgData,
+                    fermentationRate: calculateFermentationRate(newSgData)
+                  };
+                }
+                return brew;
+              })
             );
             
             // Only set glow effect if at least one tracked field actually changed
@@ -197,6 +201,52 @@ export function BrewingDashboard() {
       supabase.removeChannel(brewChannel)
     }
   }, []);
+
+  // Calculate fermentation rate (SG change per 24h based on last 2 hours)
+  const calculateFermentationRate = (sgData: Array<{ date: string; value: number; temp: number }>): number | null => {
+    if (!sgData || sgData.length < 2) return null;
+    
+    const now = new Date();
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    
+    // Filter readings from last 2 hours
+    const recentReadings = sgData.filter(d => new Date(d.date) >= twoHoursAgo).sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    if (recentReadings.length < 2) {
+      // If less than 2 hours of data, use all available data
+      const sortedData = [...sgData].sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
+      if (sortedData.length < 2) return null;
+      
+      const firstReading = sortedData[0];
+      const lastReading = sortedData[sortedData.length - 1];
+      
+      const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
+      const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+      
+      if (timeDiffHours === 0) return null;
+      
+      const sgDiff = firstReading.value - lastReading.value; // Positive = fermentation happening
+      const ratePerHour = sgDiff / timeDiffHours;
+      return ratePerHour * 24; // Convert to per 24h
+    }
+    
+    const firstReading = recentReadings[0];
+    const lastReading = recentReadings[recentReadings.length - 1];
+    
+    const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
+    const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+    
+    if (timeDiffHours === 0) return null;
+    
+    const sgDiff = firstReading.value - lastReading.value; // Positive = fermentation happening
+    const ratePerHour = sgDiff / timeDiffHours;
+    return ratePerHour * 24; // Convert to per 24h
+  };
 
   const loadBrews = async () => {
     try {
@@ -235,31 +285,35 @@ export function BrewingDashboard() {
       }
 
       // Transform database data to component format
-      const brewsData = brewReadings.map((reading: any) => ({
-        id: reading.id,
-        batch_id: reading.batch_id,
-        name: reading.name,
-        style: reading.style,
-        batchNumber: reading.batch_number,
-        status: reading.status,
-        currentSG: reading.current_sg,
-        currentTemp: reading.current_temp,
-        attenuation: reading.attenuation,
-        abv: reading.abv,
-        originalGravity: reading.original_gravity,
-        finalGravity: reading.final_gravity,
-        lastUpdate: reading.last_update ? 
-          new Date(reading.last_update).toLocaleString('sv-SE', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : 'Ingen data',
-        lastUpdateRaw: reading.last_update,
-        battery: reading.battery,
-        sgData: reading.sg_data || []
-      }));
+      const brewsData = brewReadings.map((reading: any) => {
+        const sgData = reading.sg_data || [];
+        return {
+          id: reading.id,
+          batch_id: reading.batch_id,
+          name: reading.name,
+          style: reading.style,
+          batchNumber: reading.batch_number,
+          status: reading.status,
+          currentSG: reading.current_sg,
+          currentTemp: reading.current_temp,
+          attenuation: reading.attenuation,
+          abv: reading.abv,
+          originalGravity: reading.original_gravity,
+          finalGravity: reading.final_gravity,
+          lastUpdate: reading.last_update ? 
+            new Date(reading.last_update).toLocaleString('sv-SE', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : 'Ingen data',
+          lastUpdateRaw: reading.last_update,
+          battery: reading.battery,
+          sgData: sgData,
+          fermentationRate: calculateFermentationRate(sgData)
+        };
+      });
 
       setBrews(brewsData);
 
@@ -438,6 +492,11 @@ export function BrewingDashboard() {
                     <div className="text-muted-foreground text-xs mt-1 space-y-0.5">
                       <p>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p>FG: {brew.finalGravity.toFixed(3)}</p>
+                      {brew.fermentationRate !== null && brew.fermentationRate !== 0 && (
+                        <p className="text-ferment-green/90 font-medium">
+                          {brew.fermentationRate > 0 ? '+' : ''}{brew.fermentationRate.toFixed(3)}/dygn
+                        </p>
+                      )}
                     </div>
                   </div>
 
