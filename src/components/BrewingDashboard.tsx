@@ -493,8 +493,8 @@ export function BrewingDashboard() {
                       <p>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p>FG: {brew.finalGravity.toFixed(3)}</p>
                       {brew.fermentationRate !== null && brew.fermentationRate !== 0 && (
-                        <p className="text-ferment-green/90 font-medium">
-                          {brew.fermentationRate > 0 ? '+' : ''}{brew.fermentationRate.toFixed(3)}/dygn
+                        <p className="text-foreground font-medium">
+                          {brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn
                         </p>
                       )}
                     </div>
