@@ -40,6 +40,9 @@ export function BrewingDashboard() {
   // Ref to hold the latest brews state for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
   
+  // Ref to track brews that have already shown the coldcrash notification
+  const coldcrashNotifiedRef = useRef<Set<string>>(new Set());
+  
   // Update ref whenever brews changes
   useEffect(() => {
     brewsRef.current = brews;
@@ -149,6 +152,22 @@ export function BrewingDashboard() {
               prevBrews.map(brew => {
                 if (brew.batch_id === updatedReading.batch_id) {
                   const newSgData = updatedReading.sg_data || [];
+                  const newFermentationRate = calculateFermentationRate(newSgData);
+                  
+                  // Check if fermentation has stopped (rate is 0.000)
+                  if (
+                    newFermentationRate !== null && 
+                    Math.abs(newFermentationRate) < 0.0005 && // Essentially 0.000 when rounded to 3 decimals
+                    !coldcrashNotifiedRef.current.has(brew.batch_id)
+                  ) {
+                    coldcrashNotifiedRef.current.add(brew.batch_id);
+                    toast({
+                      title: `${updatedReading.name} är klar! 🍺`,
+                      description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
+                      duration: 10000,
+                    });
+                  }
+                  
                   return {
                     ...brew,
                     currentSG: updatedReading.current_sg,
@@ -166,7 +185,7 @@ export function BrewingDashboard() {
                       }) : 'Ingen data',
                     lastUpdateRaw: updatedReading.last_update,
                     sgData: newSgData,
-                    fermentationRate: calculateFermentationRate(newSgData)
+                    fermentationRate: newFermentationRate
                   };
                 }
                 return brew;
@@ -287,6 +306,22 @@ export function BrewingDashboard() {
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => {
         const sgData = reading.sg_data || [];
+        const fermentationRate = calculateFermentationRate(sgData);
+        
+        // Check if fermentation has stopped on initial load
+        if (
+          fermentationRate !== null && 
+          Math.abs(fermentationRate) < 0.0005 && // Essentially 0.000 when rounded to 3 decimals
+          !coldcrashNotifiedRef.current.has(reading.batch_id)
+        ) {
+          coldcrashNotifiedRef.current.add(reading.batch_id);
+          toast({
+            title: `${reading.name} är klar! 🍺`,
+            description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
+            duration: 10000,
+          });
+        }
+        
         return {
           id: reading.id,
           batch_id: reading.batch_id,
@@ -311,7 +346,7 @@ export function BrewingDashboard() {
           lastUpdateRaw: reading.last_update,
           battery: reading.battery,
           sgData: sgData,
-          fermentationRate: calculateFermentationRate(sgData)
+          fermentationRate: fermentationRate
         };
       });
 
