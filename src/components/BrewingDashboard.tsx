@@ -480,43 +480,6 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20" style={{ width: '70%', height: '70%' }}>
-                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                        {/* Droplet outline */}
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="hsl(var(--primary))" strokeWidth="1" fill="none"/>
-                        {/* Droplet fill - scaled from OG (empty) to FG (full) */}
-                        <defs>
-                          <clipPath id={`droplet-clip-${brew.batch_id}`}>
-                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                          </clipPath>
-                        </defs>
-                        {(() => {
-                          // Calculate fill level: 0 at OG (empty), 1 at FG (full)
-                          const range = brew.originalGravity - brew.finalGravity;
-                          const progress = (brew.originalGravity - brew.currentSG) / range;
-                          const fillLevel = Math.max(0, Math.min(1, progress));
-                          
-                          // Map to droplet coordinates (y: 4-20, height: 16)
-                          const dropletHeight = 16;
-                          const dropletTop = 4;
-                          const dropletBottom = 20;
-                          const fillY = dropletBottom - (fillLevel * dropletHeight);
-                          
-                          return (
-                            <rect 
-                              x="4" 
-                              y={fillY}
-                              width="16" 
-                              height={dropletHeight} 
-                              fill="hsl(var(--primary))"
-                              clipPath={`url(#droplet-clip-${brew.batch_id})`}
-                              className="transition-all duration-500"
-                              opacity="0.8"
-                            />
-                          );
-                        })()}
-                      </svg>
-                    </div>
                     <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>Gravity</p>
                     <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
