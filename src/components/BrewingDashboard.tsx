@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
+import { SyncCountdown } from "./SyncCountdown";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -376,16 +377,19 @@ export function BrewingDashboard() {
             </p>
           </div>
           
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/settings')}
-            className={`opacity-40 hover:opacity-100 transition-all duration-300 ${
-              settingsGlow ? 'ring-3 ring-primary/60 shadow-[0_0_18px_hsl(var(--primary)/0.6)] opacity-100' : ''
-            }`}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/settings')}
+              className={`opacity-40 hover:opacity-100 transition-all duration-300 ${
+                settingsGlow ? 'ring-3 ring-primary/60 shadow-[0_0_18px_hsl(var(--primary)/0.6)] opacity-100' : ''
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <SyncCountdown className="w-12 h-12" />
+          </div>
         </div>
       </div>
 
