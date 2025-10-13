@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery } from "lucide-react";
@@ -35,6 +35,14 @@ export function BrewingDashboard() {
   const [settingsGlow, setSettingsGlow] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Ref to hold the latest brews state for realtime comparison
+  const brewsRef = useRef<BrewData[]>([]);
+  
+  // Update ref whenever brews changes
+  useEffect(() => {
+    brewsRef.current = brews;
+  }, [brews]);
 
   useEffect(() => {
     // Update time every second to keep everything in sync
@@ -84,66 +92,73 @@ export function BrewingDashboard() {
           console.log('Realtime update:', payload)
           
           // Update only the specific brew that changed
-          if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
+          if (payload.eventType === 'UPDATE' && payload.new) {
             const updatedReading = payload.new as any;
-            const oldReading = payload.old as any;
             
-            // Track which fields actually changed to a different VISIBLE value compared to database
+            // Find the current brew from screen state using ref
+            const currentBrew = brewsRef.current.find(b => b.batch_id === updatedReading.batch_id);
+            
+            if (!currentBrew) {
+              // If brew not found, just reload
+              loadBrews();
+              return;
+            }
+            
+            // Track which fields actually changed to a different VISIBLE value compared to what's on screen
             const changedFields: Record<string, boolean> = {};
             
             // For SG, only trigger glow if the change is visible in 3 decimals
-            if (updatedReading.current_sg !== undefined && oldReading.current_sg !== undefined) {
+            if (updatedReading.current_sg !== undefined) {
               const newSGRounded = Number(updatedReading.current_sg.toFixed(3));
-              const oldSGRounded = Number(oldReading.current_sg.toFixed(3));
-              if (newSGRounded !== oldSGRounded) {
+              const screenSGRounded = Number(currentBrew.currentSG.toFixed(3));
+              if (newSGRounded !== screenSGRounded) {
                 changedFields.sg = true;
               }
             }
             
             // For temp, only trigger if visible change (rounded to integer)
-            if (updatedReading.current_temp !== undefined && oldReading.current_temp !== undefined) {
+            if (updatedReading.current_temp !== undefined) {
               const newTempRounded = Math.round(updatedReading.current_temp);
-              const oldTempRounded = Math.round(oldReading.current_temp);
-              if (newTempRounded !== oldTempRounded) {
+              const screenTempRounded = Math.round(currentBrew.currentTemp);
+              if (newTempRounded !== screenTempRounded) {
                 changedFields.temp = true;
               }
             }
             
             // For attenuation, only trigger if visible change (integer)
-            if (updatedReading.attenuation !== undefined && oldReading.attenuation !== undefined) {
-              if (Math.round(updatedReading.attenuation) !== Math.round(oldReading.attenuation)) {
+            if (updatedReading.attenuation !== undefined) {
+              if (Math.round(updatedReading.attenuation) !== Math.round(currentBrew.attenuation)) {
                 changedFields.attenuation = true;
               }
             }
             
             // For ABV, only trigger if visible change (1 decimal)
-            if (updatedReading.abv !== undefined && oldReading.abv !== undefined) {
+            if (updatedReading.abv !== undefined) {
               const newABVRounded = Number(updatedReading.abv.toFixed(1));
-              const oldABVRounded = Number(oldReading.abv.toFixed(1));
-              if (newABVRounded !== oldABVRounded) {
+              const screenABVRounded = Number(currentBrew.abv.toFixed(1));
+              if (newABVRounded !== screenABVRounded) {
                 changedFields.abv = true;
               }
             }
             
             // For battery, only trigger if visible change (rounded to integer)
-            if (updatedReading.battery !== undefined && oldReading.battery !== undefined && 
-                updatedReading.battery !== null && oldReading.battery !== null) {
-              if (Math.round(updatedReading.battery) !== Math.round(oldReading.battery)) {
+            if (updatedReading.battery !== undefined && updatedReading.battery !== null && currentBrew.battery !== null) {
+              if (Math.round(updatedReading.battery) !== Math.round(currentBrew.battery)) {
                 changedFields.battery = true;
               }
             }
             
-            // Compare last_update from database payload
-            const oldLastUpdate = oldReading.last_update;
+            // Compare last_update timestamp from database with what's on screen
             const newLastUpdate = updatedReading.last_update;
+            const screenLastUpdate = currentBrew.lastUpdateRaw;
             
             console.log('Checking last_update:', {
-              old: oldLastUpdate,
+              screen: screenLastUpdate,
               new: newLastUpdate,
-              changed: newLastUpdate !== oldLastUpdate
+              changed: newLastUpdate !== screenLastUpdate
             });
             
-            if (newLastUpdate !== oldLastUpdate && newLastUpdate !== undefined && oldLastUpdate !== undefined) {
+            if (newLastUpdate !== screenLastUpdate && newLastUpdate !== undefined && screenLastUpdate !== undefined) {
               changedFields.cardGlow = true;
               console.log('Card glow activated for batch:', updatedReading.batch_id);
             }
