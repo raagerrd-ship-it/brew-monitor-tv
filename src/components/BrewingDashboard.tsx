@@ -492,7 +492,7 @@ export function BrewingDashboard() {
                         </defs>
                         <rect 
                           x="4" 
-                          y={`${20 - ((brew.originalGravity - brew.currentSG) / (brew.originalGravity - brew.finalGravity)) * 16}`}
+                          y={`${Math.max(4, Math.min(20, 20 - ((brew.originalGravity - brew.currentSG) / Math.max(0.001, brew.originalGravity - brew.finalGravity)) * 16))}`}
                           width="16" 
                           height="16" 
                           fill="hsl(var(--primary))"
@@ -509,11 +509,13 @@ export function BrewingDashboard() {
                     <div className="text-muted-foreground text-xs mt-1 space-y-0.5 z-10">
                       <p>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p>FG: {brew.finalGravity.toFixed(3)}</p>
-                      {brew.fermentationRate !== null && brew.fermentationRate !== 0 && (
-                        <p className="font-medium">
-                          {brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn
-                        </p>
-                      )}
+                      <p className="font-medium">
+                        {brew.fermentationRate !== null && brew.fermentationRate !== 0 ? (
+                          <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
+                        ) : (
+                          <>Beräknar...</>
+                        )}
+                      </p>
                     </div>
                   </div>
 
