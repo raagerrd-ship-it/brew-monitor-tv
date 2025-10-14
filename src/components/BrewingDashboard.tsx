@@ -7,7 +7,7 @@ import { RaptPills } from "./RaptPills";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery } from "lucide-react";
+import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -40,7 +40,8 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [emblaRef] = useEmblaCarousel({ loop: false, align: "center" });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "center" });
+  const [selectedIndex, setSelectedIndex] = useState(0);
   
   // Ref to hold the latest brews state for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
@@ -66,6 +67,21 @@ export function BrewingDashboard() {
   useEffect(() => {
     loadBrews();
   }, []);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap());
+    };
+
+    emblaApi.on("select", onSelect);
+    onSelect();
+
+    return () => {
+      emblaApi.off("select", onSelect);
+    };
+  }, [emblaApi]);
 
   useEffect(() => {
     // Set up realtime subscription for brew readings
@@ -499,18 +515,60 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area - All Brews */}
-      <div className="flex-1 p-2 overflow-hidden">
+      <div className="flex-1 p-2 overflow-hidden relative">
         {isMobile ? (
           // Mobile: Swipeable carousel
-          <div className="h-full w-full overflow-hidden" ref={emblaRef}>
-            <div className="flex h-full">
-              {brews.map((brew) => (
-                <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-2">
-                  {renderBrewCard(brew, updatedFields, getTempColor)}
-                </div>
-              ))}
+          <>
+            <div className="h-full w-full overflow-hidden" ref={emblaRef}>
+              <div className="flex h-full">
+                {brews.map((brew) => (
+                  <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-2">
+                    {renderBrewCard(brew, updatedFields, getTempColor)}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+            
+            {/* Pagination dots */}
+            {brews.length > 1 && (
+              <>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                  {brews.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => emblaApi?.scrollTo(index)}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        index === selectedIndex 
+                          ? 'w-8 bg-primary' 
+                          : 'w-2 bg-muted-foreground/30'
+                      }`}
+                      aria-label={`Gå till öl ${index + 1}`}
+                    />
+                  ))}
+                </div>
+                
+                {/* Swipe indicators */}
+                {selectedIndex > 0 && (
+                  <button
+                    onClick={() => emblaApi?.scrollPrev()}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 z-10 animate-pulse"
+                    aria-label="Föregående öl"
+                  >
+                    <ChevronLeft className="h-6 w-6 text-primary" />
+                  </button>
+                )}
+                {selectedIndex < brews.length - 1 && (
+                  <button
+                    onClick={() => emblaApi?.scrollNext()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 z-10 animate-pulse"
+                    aria-label="Nästa öl"
+                  >
+                    <ChevronRight className="h-6 w-6 text-primary" />
+                  </button>
+                )}
+              </>
+            )}
+          </>
         ) : (
           // Desktop: Grid layout
           <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
