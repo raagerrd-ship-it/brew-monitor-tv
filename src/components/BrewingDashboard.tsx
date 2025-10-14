@@ -460,7 +460,7 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center min-w-[280px] justify-center">
+          <div className="flex items-center min-w-[280px] justify-center ml-12">
             <RaptPills />
           </div>
           
