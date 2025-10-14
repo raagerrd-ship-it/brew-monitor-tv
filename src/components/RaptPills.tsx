@@ -105,13 +105,13 @@ export const RaptPills = () => {
         return (
           <div 
             key={pill.id}
-            className={`flex items-center gap-1.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}
+            className={`flex items-center gap-1.5 transition-opacity ${isInactive ? 'opacity-50' : ''}`}
             title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
           >
             <div className="relative">
               <Pill 
                 size={20} 
-                color={isInactive ? '#6b7280' : pill.color}
+                color={pill.color}
                 strokeWidth={2.5}
                 className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
               />
