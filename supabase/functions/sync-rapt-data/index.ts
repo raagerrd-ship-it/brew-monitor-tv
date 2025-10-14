@@ -92,12 +92,15 @@ serve(async (req) => {
 
     // Prepare Pills data for upsert
     const pillsData = pills.map((pill: any) => {
+      const batteryLevel = Math.round(pill.battery || 0);
+      console.log(`Pill ${pill.name}: battery=${pill.battery}, rounded=${batteryLevel}`);
+      
       return {
         pill_id: pill.id,
         name: pill.name || 'Unknown Pill',
         color: extractColor(pill.name || ''),
-        battery_level: pill.batteryLevel || 0,
-        last_update: pill.lastActivity ? new Date(pill.lastActivity).toISOString() : new Date().toISOString(),
+        battery_level: batteryLevel,
+        last_update: pill.lastActivityTime ? new Date(pill.lastActivityTime).toISOString() : new Date().toISOString(),
       };
     });
 
