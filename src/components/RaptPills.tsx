@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Pill } from 'lucide-react';
-import { Card } from './ui/card';
 
 interface PillData {
   id: string;
@@ -66,39 +65,28 @@ export const RaptPills = () => {
     return 'text-red-500';
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center gap-4 py-4">
-        <div className="animate-pulse">Laddar Pills...</div>
-      </div>
-    );
-  }
-
-  if (pills.length === 0) {
+  if (loading || pills.length === 0) {
     return null;
   }
 
   return (
-    <div className="flex justify-center items-center gap-4 mb-6">
+    <div className="flex items-center gap-3">
       {pills.map((pill) => (
-        <Card 
+        <div 
           key={pill.id}
-          className="flex items-center gap-3 px-4 py-3 bg-card/50 backdrop-blur-sm border border-border/50 hover:border-primary/50 transition-colors"
+          className="flex items-center gap-1.5"
+          title={`${pill.name}: ${pill.battery_level}%`}
         >
-          <div className="flex items-center gap-2">
-            <Pill 
-              size={24} 
-              style={{ color: pill.color }}
-              className="drop-shadow-lg"
-            />
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">{pill.name}</span>
-              <span className={`text-sm font-bold ${getBatteryColor(pill.battery_level)}`}>
-                {pill.battery_level}%
-              </span>
-            </div>
-          </div>
-        </Card>
+          <Pill 
+            size={20} 
+            fill={pill.color}
+            color={pill.color}
+            className="drop-shadow-md"
+          />
+          <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
+            {pill.battery_level}%
+          </span>
+        </div>
       ))}
     </div>
   );

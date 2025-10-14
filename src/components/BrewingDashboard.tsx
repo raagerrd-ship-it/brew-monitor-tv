@@ -429,7 +429,9 @@ export function BrewingDashboard() {
           Bryggövervakare
         </h1>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <RaptPills />
+          
           <div className="flex flex-col items-end">
             <p className="text-lg font-semibold tabular-nums tracking-tight">
               {currentTime.toLocaleTimeString("sv-SE", {
@@ -459,9 +461,6 @@ export function BrewingDashboard() {
           </div>
         </div>
       </div>
-
-      {/* RAPT Pills - Battery Status */}
-      <RaptPills />
 
       {/* Main Display Area - All Brews */}
       <div className="flex-1 p-2 overflow-hidden">
