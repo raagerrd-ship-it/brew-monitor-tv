@@ -459,8 +459,8 @@ export function BrewingDashboard() {
           Bryggövervakare
         </h1>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center min-w-[280px] justify-end mr-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center min-w-[280px] justify-end">
             <RaptPills />
           </div>
           
