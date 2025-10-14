@@ -462,7 +462,7 @@ export function BrewingDashboard() {
         <div className="flex items-center gap-4">
           <RaptPills />
           
-          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-end min-w-[120px]">
             <p className="text-lg font-semibold tabular-nums tracking-tight">
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
