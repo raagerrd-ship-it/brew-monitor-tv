@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     const existingBrewsPromises = selectedBrews.map(brew =>
       supabase
         .from('brew_readings')
-        .select('batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data')
+        .select('batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery')
         .eq('batch_id', brew.batch_id)
         .maybeSingle()
         .then(result => ({
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       const attenuation = ((og - currentSG) / (og - 1.000)) * 100
       const abv = ((og - currentSG) * 131.25) || 0
 
-      return {
+      const newData = {
         batch_id: result.batchId,
         current_sg: currentSG,
         current_temp: currentTemp,
@@ -136,6 +136,25 @@ Deno.serve(async (req) => {
           final_gravity: existingBrew.final_gravity
         })
       }
+
+      // Check if data has actually changed
+      if (existingBrew) {
+        const hasChanged = 
+          existingBrew.current_sg !== newData.current_sg ||
+          existingBrew.current_temp !== newData.current_temp ||
+          existingBrew.attenuation !== newData.attenuation ||
+          existingBrew.abv !== newData.abv ||
+          existingBrew.battery !== newData.battery ||
+          existingBrew.last_update !== newData.last_update ||
+          JSON.stringify(existingBrew.sg_data) !== JSON.stringify(newData.sg_data)
+
+        if (!hasChanged) {
+          console.log(`No changes for ${result.batchId}, skipping update`)
+          return null
+        }
+      }
+
+      return newData
     }).filter(Boolean)
 
     // Batch upsert all updates at once
