@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
+import { RaptPills } from "./RaptPills";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -458,6 +459,9 @@ export function BrewingDashboard() {
           </div>
         </div>
       </div>
+
+      {/* RAPT Pills - Battery Status */}
+      <RaptPills />
 
       {/* Main Display Area - All Brews */}
       <div className="flex-1 p-2 overflow-hidden">

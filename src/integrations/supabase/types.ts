@@ -74,6 +74,39 @@ export type Database = {
         }
         Relationships: []
       }
+      rapt_pills: {
+        Row: {
+          battery_level: number
+          color: string
+          created_at: string
+          id: string
+          last_update: string | null
+          name: string
+          pill_id: string
+          updated_at: string
+        }
+        Insert: {
+          battery_level: number
+          color: string
+          created_at?: string
+          id?: string
+          last_update?: string | null
+          name: string
+          pill_id: string
+          updated_at?: string
+        }
+        Update: {
+          battery_level?: number
+          color?: string
+          created_at?: string
+          id?: string
+          last_update?: string | null
+          name?: string
+          pill_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       selected_brews: {
         Row: {
           batch_id: string

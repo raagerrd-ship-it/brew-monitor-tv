@@ -18,3 +18,12 @@ verify_jwt = false
 
 [functions.full-sync-brew-data]
 verify_jwt = false
+
+[functions.rapt-auth]
+verify_jwt = false
+
+[functions.rapt-pills]
+verify_jwt = false
+
+[functions.sync-rapt-data]
+verify_jwt = false

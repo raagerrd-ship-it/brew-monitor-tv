@@ -20,6 +20,7 @@ export default function Settings() {
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
+  const [raptSyncing, setRaptSyncing] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -189,6 +190,31 @@ export default function Settings() {
     }
   };
 
+  const handleRaptSync = async () => {
+    setRaptSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('sync-rapt-data', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "RAPT synkronisering klar",
+        description: "Pills batterinivåer har uppdaterats",
+      });
+    } catch (error) {
+      console.error('Error during RAPT sync:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte synkronisera RAPT data",
+        variant: "destructive",
+      });
+    } finally {
+      setRaptSyncing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto max-w-4xl">
@@ -338,6 +364,34 @@ export default function Settings() {
                   {syncing ? 'Synkroniserar...' : 'Kör full synkronisering nu'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 mb-6">
+          <h2 className="text-xl font-bold mb-6">RAPT Pills</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Synkroniserar batterinivåer från dina RAPT Pills
+              </p>
+              <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                <p>• Automatisk synkning var 15:e minut</p>
+                <p>• Visar Pills med färg och batterinivå</p>
+              </div>
+            </div>
+
+            <div>
+              <Button
+                onClick={handleRaptSync} 
+                disabled={raptSyncing}
+                className="w-full"
+                variant="outline"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
+                {raptSyncing ? 'Synkroniserar...' : 'Kör RAPT synkronisering nu'}
+              </Button>
             </div>
           </div>
         </Card>
