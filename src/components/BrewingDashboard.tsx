@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import useEmblaCarousel from "embla-carousel-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface BrewData {
   id: string;
@@ -37,6 +39,8 @@ export function BrewingDashboard() {
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const [emblaRef] = useEmblaCarousel({ loop: false, align: "center" });
   
   // Ref to hold the latest brews state for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
@@ -496,8 +500,32 @@ export function BrewingDashboard() {
 
       {/* Main Display Area - All Brews */}
       <div className="flex-1 p-2 overflow-hidden">
-        <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
-          {brews.map((brew) => {
+        {isMobile ? (
+          // Mobile: Swipeable carousel
+          <div className="h-full w-full overflow-hidden" ref={emblaRef}>
+            <div className="flex h-full">
+              {brews.map((brew) => (
+                <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-2">
+                  {renderBrewCard(brew, updatedFields, getTempColor)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          // Desktop: Grid layout
+          <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
+            {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  function renderBrewCard(
+    brew: BrewData, 
+    updatedFields: Record<string, Record<string, boolean>>,
+    getTempColor: (temp: number) => { hsl: string; rgb: string }
+  ) {
             const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
             
             return (
@@ -723,10 +751,6 @@ export function BrewingDashboard() {
                 </div>
               </div>
             </Card>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+    );
+  }
 }
