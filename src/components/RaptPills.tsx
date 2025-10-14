@@ -92,22 +92,17 @@ export const RaptPills = () => {
       {pills.map((pill) => (
         <div 
           key={pill.id}
-          className="flex flex-col items-center gap-0.5"
-          title={`${pill.name}\nBatteri: ${pill.battery_level}%\nSenast uppdaterad: ${pill.last_update ? new Date(pill.last_update).toLocaleString('sv-SE') : 'Okänt'}`}
+          className="flex items-center gap-1.5"
+          title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}`}
         >
-          <div className="flex items-center gap-1.5">
-            <Pill 
-              size={20} 
-              fill={pill.color}
-              color={pill.color}
-              className="drop-shadow-md"
-            />
-            <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
-              {pill.battery_level}%
-            </span>
-          </div>
-          <span className="text-[10px] text-muted-foreground/70">
-            {formatLastUpdate(pill.last_update)}
+          <Pill 
+            size={20} 
+            color={pill.color}
+            strokeWidth={2.5}
+            className="drop-shadow-md"
+          />
+          <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
+            {pill.battery_level}%
           </span>
         </div>
       ))}
