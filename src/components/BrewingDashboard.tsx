@@ -421,6 +421,36 @@ export function BrewingDashboard() {
     return "grid-cols-3"; // 5+ brews still use 3 columns with scrolling
   };
 
+  // Calculate temperature color - interpolate from blue (0°C) to red (30°C)
+  const getTempColor = (temp: number): { hsl: string; rgb: string } => {
+    // Clamp temperature between 0 and 30
+    const clampedTemp = Math.min(Math.max(temp, 0), 30);
+    // Calculate hue: 200 (blue) at 0°C, 0 (red) at 30°C
+    const hue = 200 - (clampedTemp / 30) * 200;
+    // Full saturation and 50% lightness for vibrant colors
+    return {
+      hsl: `${hue} 80% 55%`,
+      rgb: hslToRgb(hue, 0.8, 0.55)
+    };
+  };
+
+  // Convert HSL to RGB for inline styles
+  const hslToRgb = (h: number, s: number, l: number): string => {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    return `rgb(${Math.round((r + m) * 255)}, ${Math.round((g + m) * 255)}, ${Math.round((b + m) * 255)})`;
+  };
+
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
@@ -573,15 +603,27 @@ export function BrewingDashboard() {
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-temp-blue/20 transition-all duration-1000 relative overflow-hidden ${
-                      updatedFields[brew.batch_id]?.temp ? 'shadow-[0_0_20px_hsl(var(--temp-blue)/0.6)] border-temp-blue/60' : ''
-                    }`}
-                    style={{ containerType: 'size' }}
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 transition-all duration-1000 relative overflow-hidden`}
+                    style={{ 
+                      containerType: 'size',
+                      borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.2)`,
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      ...(updatedFields[brew.batch_id]?.temp && {
+                        boxShadow: `0 0 20px hsl(${getTempColor(brew.currentTemp).hsl} / 0.6)`,
+                        borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.6)`
+                      })
+                    }}
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 -right-6 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Thermometer outline */}
-                        <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" stroke="hsl(var(--temp-blue))" strokeWidth="1" fill="none"/>
+                        <path 
+                          d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" 
+                          stroke={getTempColor(brew.currentTemp).rgb}
+                          strokeWidth="1" 
+                          fill="none"
+                        />
                         {/* Thermometer fill - calculate based on 0-30 degrees */}
                         <defs>
                           <clipPath id={`thermo-clip-${brew.batch_id}`}>
@@ -593,7 +635,7 @@ export function BrewingDashboard() {
                           y={`${24 - (Math.min(Math.max(brew.currentTemp, 0), 30) / 30) * 20}`}
                           width="8" 
                           height="20" 
-                          fill="hsl(var(--temp-blue))"
+                          fill={getTempColor(brew.currentTemp).rgb}
                           clipPath={`url(#thermo-clip-${brew.batch_id})`}
                           className="transition-all duration-500"
                           opacity="0.8"
@@ -601,7 +643,10 @@ export function BrewingDashboard() {
                       </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Temp</p>
-                    <p className="font-bold text-temp-blue leading-none text-3xl z-10 pl-2">
+                    <p 
+                      className="font-bold leading-none text-3xl z-10 pl-2"
+                      style={{ color: getTempColor(brew.currentTemp).rgb }}
+                    >
                       {brew.currentTemp}°
                     </p>
                   </div>
