@@ -21,6 +21,7 @@ export default function Settings() {
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
   const [raptSyncing, setRaptSyncing] = useState(false);
+  const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -43,6 +44,7 @@ export default function Settings() {
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
+        setLastRaptSync(data.last_rapt_sync_at);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -203,6 +205,9 @@ export default function Settings() {
         title: "RAPT synkronisering klar",
         description: "Pills batterinivåer har uppdaterats",
       });
+      
+      // Reload settings to get updated timestamp
+      await loadSettings();
     } catch (error) {
       console.error('Error during RAPT sync:', error);
       toast({
@@ -380,6 +385,21 @@ export default function Settings() {
                 <p>• Automatisk synkning var 15:e minut</p>
                 <p>• Visar Pills med färg och batterinivå</p>
               </div>
+              
+              {lastRaptSync && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Senaste synkning:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(lastRaptSync).toLocaleString("sv-SE", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div>

@@ -19,6 +19,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Update last sync timestamp
+    await supabase
+      .from('sync_settings')
+      .update({ last_rapt_sync_at: new Date().toISOString() })
+      .limit(1);
+
     // Get RAPT auth token
     console.log('Getting RAPT auth token...');
     const authResponse = await supabase.functions.invoke('rapt-auth');
