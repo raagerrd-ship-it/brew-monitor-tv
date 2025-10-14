@@ -1,4 +1,5 @@
 import { BrewManagement } from "@/components/BrewManagement";
+import { RaptPillsList } from "@/components/RaptPillsList";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -408,6 +409,8 @@ export default function Settings() {
                 Ingen synkning har gjorts än
               </p>
             )}
+
+            <RaptPillsList />
 
             <div>
               <Button
