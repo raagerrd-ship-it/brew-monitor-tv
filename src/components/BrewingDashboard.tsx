@@ -459,11 +459,11 @@ export function BrewingDashboard() {
           Bryggövervakare
         </h1>
         
-        <div className="absolute left-1/2 -translate-x-1/2">
-          <RaptPills />
-        </div>
-        
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center min-w-[280px] justify-center">
+            <RaptPills />
+          </div>
+          
           <div className="flex flex-col items-end min-w-[120px]">
             <p className="text-lg font-semibold tabular-nums tracking-tight">
               {currentTime.toLocaleTimeString("sv-SE", {
