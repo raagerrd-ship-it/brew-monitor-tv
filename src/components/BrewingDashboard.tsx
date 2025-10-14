@@ -519,7 +519,7 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${
+                    className={`rounded-full px-4 py-2 text-sm font-bold whitespace-nowrap flex-shrink-0 ${
                       brew.status === "Konditionering"
                         ? "bg-primary/20 text-primary"
                         : "bg-ferment-green/20 text-ferment-green animate-pulse"
