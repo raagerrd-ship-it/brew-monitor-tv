@@ -58,20 +58,28 @@ serve(async (req) => {
     const pills = pillsResponse.data;
     console.log(`Received ${pills.length} Pills`, JSON.stringify(pills, null, 2));
 
-    // Map color names to hex colors
+    // Map color names to hex colors (both English and Swedish)
     const colorMap: Record<string, string> = {
       'black': '#1f2937',
+      'svart': '#1f2937',
       'blue': '#3b82f6',
+      'blå': '#3b82f6',
       'green': '#22c55e',
+      'grön': '#22c55e',
       'orange': '#f97316',
       'pink': '#ec4899',
+      'rosa': '#ec4899',
       'purple': '#a855f7',
+      'lila': '#a855f7',
       'red': '#ef4444',
+      'röd': '#ef4444',
       'yellow': '#eab308',
+      'gul': '#eab308',
       'white': '#f3f4f6',
+      'vit': '#f3f4f6',
     };
 
-    // Extract color from pill name (e.g. "Blue Pill", "Red Pill")
+    // Extract color from pill name (e.g. "Blue Pill", "Grön Pill", "Pill Blå")
     const extractColor = (name: string): string => {
       const nameLower = name.toLowerCase();
       for (const [colorName, hexValue] of Object.entries(colorMap)) {
