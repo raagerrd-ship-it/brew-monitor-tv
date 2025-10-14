@@ -88,25 +88,43 @@ export const RaptPills = () => {
     return `${diffDays}d sedan`;
   };
 
+  const isStale = (timestamp: string | null): boolean => {
+    if (!timestamp) return true;
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return diffHours > 24;
+  };
+
   return (
     <div className="flex items-center gap-3">
-      {pills.map((pill) => (
-        <div 
-          key={pill.id}
-          className="flex items-center gap-1.5"
-          title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}`}
-        >
-          <Pill 
-            size={20} 
-            color={pill.color}
-            strokeWidth={2.5}
-            className="drop-shadow-md"
-          />
-          <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
-            {pill.battery_level}%
-          </span>
-        </div>
-      ))}
+      {pills.map((pill) => {
+        const isInactive = isStale(pill.last_update);
+        
+        return (
+          <div 
+            key={pill.id}
+            className={`flex items-center gap-1.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}
+            title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+          >
+            <div className="relative">
+              <Pill 
+                size={20} 
+                color={isInactive ? '#6b7280' : pill.color}
+                strokeWidth={2.5}
+                className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
+              />
+              {isInactive && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full border border-background" />
+              )}
+            </div>
+            <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
+              {pill.battery_level}%
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };
