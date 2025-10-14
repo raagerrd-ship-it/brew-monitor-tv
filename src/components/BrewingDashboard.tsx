@@ -515,24 +515,14 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area - All Brews */}
-      <div className="flex-1 p-2 overflow-hidden relative">
+      <div className="flex-1 overflow-hidden relative flex flex-col">
         {isMobile ? (
           // Mobile: Swipeable carousel
           <>
-            <div className="h-full w-full overflow-hidden" ref={emblaRef}>
-              <div className="flex h-full">
-                {brews.map((brew) => (
-                  <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-2">
-                    {renderBrewCard(brew, updatedFields, getTempColor)}
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Pagination dots */}
+            {/* Pagination dots and swipe indicators */}
             {brews.length > 1 && (
-              <>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+              <div className="relative py-3 flex-shrink-0">
+                <div className="flex justify-center gap-2">
                   {brews.map((_, index) => (
                     <button
                       key={index}
@@ -551,7 +541,7 @@ export function BrewingDashboard() {
                 {selectedIndex > 0 && (
                   <button
                     onClick={() => emblaApi?.scrollPrev()}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 z-10 animate-pulse"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 animate-pulse"
                     aria-label="Föregående öl"
                   >
                     <ChevronLeft className="h-6 w-6 text-primary" />
@@ -560,18 +550,28 @@ export function BrewingDashboard() {
                 {selectedIndex < brews.length - 1 && (
                   <button
                     onClick={() => emblaApi?.scrollNext()}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 z-10 animate-pulse"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 animate-pulse"
                     aria-label="Nästa öl"
                   >
                     <ChevronRight className="h-6 w-6 text-primary" />
                   </button>
                 )}
-              </>
+              </div>
             )}
+            
+            <div className="flex-1 overflow-hidden px-2" ref={emblaRef}>
+              <div className="flex h-full">
+                {brews.map((brew) => (
+                  <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-2">
+                    {renderBrewCard(brew, updatedFields, getTempColor)}
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
         ) : (
           // Desktop: Grid layout
-          <div className={`grid gap-2 ${getGridLayout()} h-full w-full`}>
+          <div className={`grid gap-2 ${getGridLayout()} h-full w-full p-2`}>
             {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
           </div>
         )}
