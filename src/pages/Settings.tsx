@@ -37,6 +37,8 @@ export default function Settings() {
 
       if (error) throw error;
 
+      console.log('Settings loaded:', data);
+
       if (data) {
         setSettingsId(data.id);
         setSyncInterval(data.sync_interval.toString());
@@ -45,6 +47,7 @@ export default function Settings() {
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
         setLastRaptSync(data.last_rapt_sync_at);
+        console.log('Last RAPT sync:', data.last_rapt_sync_at);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -385,22 +388,26 @@ export default function Settings() {
                 <p>• Automatisk synkning var 15:e minut</p>
                 <p>• Visar Pills med färg och batterinivå</p>
               </div>
-              
-              {lastRaptSync && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Senaste synkning:{" "}
-                  <span className="font-medium text-foreground">
-                    {new Date(lastRaptSync).toLocaleString("sv-SE", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </p>
-              )}
             </div>
+              
+            {lastRaptSync ? (
+              <p className="text-sm text-muted-foreground">
+                Senaste synkning:{" "}
+                <span className="font-medium text-foreground">
+                  {new Date(lastRaptSync).toLocaleString("sv-SE", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Ingen synkning har gjorts än
+              </p>
+            )}
 
             <div>
               <Button
