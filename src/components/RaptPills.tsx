@@ -28,7 +28,8 @@ export const RaptPills = () => {
           schema: 'public',
           table: 'rapt_pills'
         },
-        () => {
+        (payload) => {
+          console.log('RAPT Pills realtime update:', payload);
           loadPills();
         }
       )
