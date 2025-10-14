@@ -40,27 +40,38 @@ serve(async (req) => {
     }
 
     const pills = pillsResponse.data;
-    console.log(`Received ${pills.length} Pills`);
+    console.log(`Received ${pills.length} Pills`, JSON.stringify(pills, null, 2));
 
     // Map color names to hex colors
     const colorMap: Record<string, string> = {
-      'black': '#000000',
+      'black': '#1f2937',
       'blue': '#3b82f6',
-      'green': '#10b981',
+      'green': '#22c55e',
       'orange': '#f97316',
       'pink': '#ec4899',
       'purple': '#a855f7',
       'red': '#ef4444',
       'yellow': '#eab308',
+      'white': '#f3f4f6',
+    };
+
+    // Extract color from pill name (e.g. "Blue Pill", "Red Pill")
+    const extractColor = (name: string): string => {
+      const nameLower = name.toLowerCase();
+      for (const [colorName, hexValue] of Object.entries(colorMap)) {
+        if (nameLower.includes(colorName)) {
+          return hexValue;
+        }
+      }
+      return '#1f2937'; // default to dark gray if no color found
     };
 
     // Prepare Pills data for upsert
     const pillsData = pills.map((pill: any) => {
-      const colorName = pill.colour?.toLowerCase() || 'black';
       return {
         pill_id: pill.id,
-        name: pill.name || `Pill ${pill.colour}`,
-        color: colorMap[colorName] || '#000000',
+        name: pill.name || 'Unknown Pill',
+        color: extractColor(pill.name || ''),
         battery_level: pill.batteryLevel || 0,
         last_update: pill.lastActivity ? new Date(pill.lastActivity).toISOString() : new Date().toISOString(),
       };
