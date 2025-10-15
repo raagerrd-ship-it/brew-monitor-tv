@@ -130,7 +130,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           {/* Left Y-axis for SG */}
           <YAxis
             yAxisId="sg"
-            domain={['dataMin - 0.001', 'dataMax + 0.001']}
+            domain={[fg - 0.001, og + 0.001]}
             stroke="hsl(var(--beer-amber))"
             style={{ fontSize: "10px" }}
             tick={{ fill: "hsl(var(--beer-amber))" }}
