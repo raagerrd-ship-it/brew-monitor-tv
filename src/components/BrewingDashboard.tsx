@@ -474,24 +474,24 @@ export function BrewingDashboard() {
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
-      <div className={`flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 ${isMobile ? 'px-2 py-1' : 'px-4 py-2'}`}>
-        <h1 className={`font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent animate-gradient bg-[length:200%_auto] ${isMobile ? 'text-base' : 'text-xl md:text-2xl'}`}>
+      <div className={`flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 ${isMobile ? 'px-1.5 py-0.5 gap-1' : 'px-4 py-2'}`}>
+        <h1 className={`font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent animate-gradient bg-[length:200%_auto] ${isMobile ? 'text-sm' : 'text-xl md:text-2xl'}`}>
           Bryggövervakare
         </h1>
         
-        <div className={`flex items-center ${isMobile ? 'gap-0.5' : 'gap-1'}`}>
+        <div className={`flex items-center ${isMobile ? 'gap-0' : 'gap-1'}`}>
           <div className="flex items-center justify-end">
             <RaptPills />
           </div>
           
-          <div className={`flex flex-col items-end ${isMobile ? 'min-w-[90px]' : 'min-w-[120px]'}`}>
-            <p className={`font-semibold tabular-nums tracking-tight ${isMobile ? 'text-sm' : 'text-lg'}`}>
+          <div className={`flex flex-col items-end ${isMobile ? 'min-w-[75px] ml-0.5' : 'min-w-[120px]'}`}>
+            <p className={`font-semibold tabular-nums tracking-tight ${isMobile ? 'text-xs' : 'text-lg'}`}>
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
                 minute: "2-digit",
               })}:{currentTime.getSeconds().toString().padStart(2, '0')}
             </p>
-            <p className={`text-muted-foreground/70 uppercase tracking-wider ${isMobile ? 'text-[9px]' : 'text-[10px]'}`}>
+            <p className={`text-muted-foreground/70 uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>
               {currentTime.toLocaleDateString("sv-SE", {
                 weekday: "short",
                 day: "numeric",
@@ -500,16 +500,16 @@ export function BrewingDashboard() {
             </p>
           </div>
           
-          <div className={`relative flex items-center justify-center ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}>
+          <div className={`relative flex items-center justify-center ${isMobile ? 'w-7 h-7 ml-0.5' : 'w-10 h-10'}`}>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate('/settings')}
-              className={`opacity-40 hover:opacity-100 hover:bg-transparent transition-all duration-300 group ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}
+              className={`opacity-40 hover:opacity-100 hover:bg-transparent transition-all duration-300 group ${isMobile ? 'w-7 h-7' : 'w-10 h-10'}`}
             >
-              <Settings className={`transition-all duration-300 group-hover:[fill:hsl(var(--primary))] ${isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
+              <Settings className={`transition-all duration-300 group-hover:[fill:hsl(var(--primary))] ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
             </Button>
-            <SyncCountdown className={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
+            <SyncCountdown className={isMobile ? 'w-7 h-7' : 'w-10 h-10'} />
           </div>
         </div>
       </div>

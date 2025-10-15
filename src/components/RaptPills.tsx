@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Pill } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PillData {
   id: string;
@@ -14,6 +15,7 @@ interface PillData {
 export const RaptPills = () => {
   const [pills, setPills] = useState<PillData[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     loadPills();
@@ -97,29 +99,34 @@ export const RaptPills = () => {
     return diffHours > 24;
   };
 
+  const pillSize = isMobile ? 14 : 20;
+  const textSize = isMobile ? 'text-xs' : 'text-sm';
+  const gap = isMobile ? 'gap-1.5' : 'gap-3';
+  const itemGap = isMobile ? 'gap-0.5' : 'gap-1.5';
+
   return (
-    <div className="flex items-center gap-3">
+    <div className={`flex items-center ${gap}`}>
       {pills.map((pill) => {
         const isInactive = isStale(pill.last_update);
         
         return (
           <div 
             key={pill.id}
-            className={`flex items-center gap-1.5 transition-opacity ${isInactive ? 'opacity-50' : ''}`}
+            className={`flex items-center ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
             title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
           >
             <div className="relative">
               <Pill 
-                size={20} 
+                size={pillSize} 
                 color={pill.color}
                 strokeWidth={2.5}
                 className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
               />
               {isInactive && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full border border-background" />
+                <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
               )}
             </div>
-            <span className={`text-sm font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
+            <span className={`${textSize} font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
               {pill.battery_level}%
             </span>
           </div>
