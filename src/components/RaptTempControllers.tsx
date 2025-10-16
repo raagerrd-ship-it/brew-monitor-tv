@@ -83,11 +83,11 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
     : { fontSize: '1.25rem' };
 
   return (
-    <div className={cn("flex gap-3", className)} style={containerStyle}>
+    <div className={cn("flex items-center gap-3", className)} style={containerStyle}>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
-          className="flex items-center gap-2 rounded-lg bg-background/50 backdrop-blur-sm px-3 py-2"
+          className="flex items-center gap-2"
         >
           <div className="flex items-center justify-center">
             <AirVent 
@@ -95,22 +95,12 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
               className="text-primary"
             />
           </div>
-          <div className="flex flex-col leading-none">
-            <span 
-              className="font-bold tabular-nums text-foreground"
-              style={textStyle}
-            >
-              {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
-            </span>
-            {controller.target_temp !== null && (
-              <span 
-                className="text-muted-foreground/70 text-xs"
-                style={{ fontSize: dynamicSize ? 'min(calc(36cqh * 0.5), calc(100cqw * 0.017))' : '0.7rem' }}
-              >
-                ↗ {controller.target_temp.toFixed(1)}°C
-              </span>
-            )}
-          </div>
+          <span 
+            className="font-bold tabular-nums text-foreground"
+            style={textStyle}
+          >
+            {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
+          </span>
         </div>
       ))}
     </div>
