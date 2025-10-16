@@ -464,6 +464,7 @@ export default function Settings() {
                     <SelectValue placeholder="Välj frekvens" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border z-50">
+                    <SelectItem value="0">Aldrig</SelectItem>
                     <SelectItem value="60">Varje minut</SelectItem>
                     <SelectItem value="300">Var 5:e minut</SelectItem>
                     <SelectItem value="600">Var 10:e minut</SelectItem>
