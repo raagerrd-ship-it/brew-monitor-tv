@@ -99,10 +99,10 @@ export const RaptPills = () => {
     return diffHours > 24;
   };
 
-  const pillSize = isMobile ? 14 : 20;
-  const textSize = isMobile ? 'text-xs' : 'text-sm';
-  const gap = isMobile ? 'gap-1.5' : 'gap-3';
-  const itemGap = isMobile ? 'gap-0.5' : 'gap-1.5';
+  const pillSize = isMobile ? 18 : 28;
+  const textSize = isMobile ? 'text-sm' : 'text-lg';
+  const gap = isMobile ? 'gap-2' : 'gap-4';
+  const itemGap = isMobile ? 'gap-1' : 'gap-2';
 
   return (
     <div className={`flex items-center ${gap}`}>
