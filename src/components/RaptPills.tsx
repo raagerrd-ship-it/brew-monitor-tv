@@ -138,7 +138,7 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
             style={iconStyle}
           />
           {isInactive && (
-            <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
+            <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-warning rounded-full border border-background`} />
           )}
           <span 
             className="font-bold tabular-nums" 

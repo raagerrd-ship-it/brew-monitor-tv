@@ -645,7 +645,7 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 h-full bg-yellow-500/20">
+          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 h-full">
             {/* Temp Controllers */}
             {controllers.length > 0 && controllers.map((controller) => (
               <div 
