@@ -103,7 +103,7 @@ export const RaptPills = ({ iconSize }: RaptPillsProps) => {
     return diffHours > 24;
   };
 
-  const pillSize = iconSize || (isMobile ? 18 : 28);
+  const pillSize = iconSize || 32;
   const gap = isMobile ? 'gap-2' : 'gap-4';
   const itemGap = isMobile ? 'gap-1' : 'gap-2';
 
