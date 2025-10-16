@@ -571,7 +571,7 @@ export function BrewingDashboard() {
           </>
         ) : (
           // Desktop: Grid layout
-          <div className={`grid gap-4 ${getGridLayout()} h-full w-full p-4`}>
+          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4`}>
             {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
           </div>
         )}
