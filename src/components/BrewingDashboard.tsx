@@ -481,10 +481,8 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4 bg-yellow-500/20">
-          <div className="flex items-center justify-end gap-3 bg-blue-500/20">
-            <RaptTempControllers dynamicSize={true} className="bg-red-500/20" />
-            <RaptPills dynamicSize={true} className="bg-green-500/20" />
-          </div>
+          <RaptTempControllers dynamicSize={true} className="bg-red-500/20" />
+          <RaptPills dynamicSize={true} className="bg-green-500/20" />
           
           <div className="flex flex-col items-end min-w-[12%] gap-0 bg-purple-500/20">
             <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(42cqh * 0.8), calc(100cqw * 0.026))' }}>
