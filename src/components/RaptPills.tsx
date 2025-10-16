@@ -124,35 +124,33 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
       {pills.map((pill) => {
         const isInactive = isStale(pill.last_update);
         
-        return (
-          <div 
-            key={pill.id}
-            className={`flex items-center h-full ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
-            title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+      return (
+        <div 
+          key={pill.id}
+          className={`relative flex items-center h-full ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
+          title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+        >
+          <Pill
+            size={dynamicSize ? undefined : pillSize}
+            color={pill.color}
+            strokeWidth={2.5}
+            className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
+            style={iconStyle}
+          />
+          {isInactive && (
+            <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
+          )}
+          <span 
+            className="font-bold tabular-nums" 
+            style={textStyle || { 
+              fontSize: `${pillSize * 0.7}px`, 
+              color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+            }}
           >
-            <div className="relative h-full flex items-center">
-              <Pill
-                size={dynamicSize ? undefined : pillSize}
-                color={pill.color}
-                strokeWidth={2.5}
-                className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
-                style={iconStyle}
-              />
-              {isInactive && (
-                <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
-              )}
-            </div>
-            <span 
-              className="font-bold tabular-nums" 
-              style={textStyle || { 
-                fontSize: `${pillSize * 0.7}px`, 
-                color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
-              }}
-            >
-              {pill.battery_level}%
-            </span>
-          </div>
-        );
+            {pill.battery_level}%
+          </span>
+        </div>
+      );
       })}
     </div>
   );
