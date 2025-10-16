@@ -290,10 +290,44 @@ export function BrewingDashboard() {
       )
       .subscribe();
 
+    // Set up realtime for selected RAPT Pills
+    const selectedPillsChannel = supabase
+      .channel('selected_rapt_pills_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'selected_rapt_pills'
+        },
+        () => {
+          loadPills();
+        }
+      )
+      .subscribe();
+
+    // Set up realtime for selected RAPT Temp Controllers
+    const selectedControllersChannel = supabase
+      .channel('selected_rapt_temp_controllers_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'selected_rapt_temp_controllers'
+        },
+        () => {
+          loadControllers();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(brewChannel);
       supabase.removeChannel(pillsChannel);
       supabase.removeChannel(controllersChannel);
+      supabase.removeChannel(selectedPillsChannel);
+      supabase.removeChannel(selectedControllersChannel);
     }
   }, []);
 

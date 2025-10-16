@@ -24,7 +24,9 @@ export default function Settings() {
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
   const [raptSyncing, setRaptSyncing] = useState(false);
+  const [raptQuickSyncing, setRaptQuickSyncing] = useState(false);
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
+  const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
 
   useEffect(() => {
@@ -51,8 +53,10 @@ export default function Settings() {
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
         setLastRaptSync(data.last_rapt_sync_at);
+        setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
         console.log('Last RAPT sync:', data.last_rapt_sync_at);
+        console.log('Last RAPT quick sync:', data.last_rapt_quick_sync_at);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -227,7 +231,35 @@ export default function Settings() {
     }
   };
 
-  const handleRaptSync = async () => {
+  const handleRaptQuickSync = async () => {
+    setRaptQuickSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('sync-rapt-data-quick', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Snabb RAPT synkning klar",
+        description: "Data för valda enheter har uppdaterats",
+      });
+      
+      // Reload settings to get updated timestamp
+      await loadSettings();
+    } catch (error) {
+      console.error('Error during quick RAPT sync:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte synkronisera RAPT data",
+        variant: "destructive",
+      });
+    } finally {
+      setRaptQuickSyncing(false);
+    }
+  };
+
+  const handleRaptFullSync = async () => {
     setRaptSyncing(true);
     try {
       const { error } = await supabase.functions.invoke('sync-rapt-data', {
@@ -237,14 +269,14 @@ export default function Settings() {
       if (error) throw error;
 
       toast({
-        title: "RAPT synkronisering klar",
-        description: "Pills batterinivåer har uppdaterats",
+        title: "Full RAPT synkning klar",
+        description: "Alla enheter har uppdaterats",
       });
       
       // Reload settings to get updated timestamp
       await loadSettings();
     } catch (error) {
-      console.error('Error during RAPT sync:', error);
+      console.error('Error during full RAPT sync:', error);
       toast({
         title: "Fel",
         description: "Kunde inte synkronisera RAPT data",
@@ -412,62 +444,110 @@ export default function Settings() {
           <h2 className="text-xl font-bold mb-6">RAPT Inställningar</h2>
           
           <div className="space-y-6">
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Hantera dina RAPT Pills och Temperature Controllers
-              </p>
-              <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
-                <p>• Synkroniserar batterinivåer och temperaturer</p>
-                <p>• Välj vilka enheter som ska visas på dashboarden</p>
+            <div className="space-y-4 pb-6 border-b">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Snabb datasynkning</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Uppdaterar endast data för valda enheter
+                </p>
+                <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                  <p>• Batterinivåer för valda Pills</p>
+                  <p>• Temperaturer för valda Temperature Controllers</p>
+                  <p>• Snabbt och effektivt för frekvent synkning</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
+                <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
+                  <SelectTrigger className="w-full bg-card">
+                    <SelectValue placeholder="Välj frekvens" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border z-50">
+                    <SelectItem value="60">Varje minut</SelectItem>
+                    <SelectItem value="300">Var 5:e minut</SelectItem>
+                    <SelectItem value="600">Var 10:e minut</SelectItem>
+                    <SelectItem value="900">Var 15:e minut</SelectItem>
+                    <SelectItem value="1800">Var 30:e minut</SelectItem>
+                    <SelectItem value="3600">Varje timme</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {lastRaptQuickSync ? (
+                <p className="text-sm text-muted-foreground">
+                  Senaste snabbsynkning:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(lastRaptQuickSync).toLocaleString("sv-SE", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Ingen snabbsynkning har gjorts än
+                </p>
+              )}
+
+              <div>
+                <Button
+                  onClick={handleRaptQuickSync} 
+                  disabled={raptQuickSyncing}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
+                  {raptQuickSyncing ? 'Synkroniserar...' : 'Kör snabbsynkning nu'}
+                </Button>
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
-              <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
-                <SelectTrigger className="w-full bg-card">
-                  <SelectValue placeholder="Välj frekvens" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border z-50">
-                  <SelectItem value="60">Varje minut</SelectItem>
-                  <SelectItem value="300">Var 5:e minut</SelectItem>
-                  <SelectItem value="600">Var 10:e minut</SelectItem>
-                  <SelectItem value="900">Var 15:e minut</SelectItem>
-                  <SelectItem value="1800">Var 30:e minut</SelectItem>
-                  <SelectItem value="3600">Varje timme</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Full enhetssynkning</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Hämtar alla enheter från RAPT
+                </p>
+                <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                  <p>• Upptäcker nya Pills och Temperature Controllers</p>
+                  <p>• Uppdaterar alla enhetsdata</p>
+                  <p>• Körs manuellt när du lägger till ny utrustning</p>
+                </div>
+              </div>
               
-            {lastRaptSync ? (
-              <p className="text-sm text-muted-foreground">
-                Senaste synkning:{" "}
-                <span className="font-medium text-foreground">
-                  {new Date(lastRaptSync).toLocaleString("sv-SE", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Ingen synkning har gjorts än
-              </p>
-            )}
+              {lastRaptSync ? (
+                <p className="text-sm text-muted-foreground">
+                  Senaste fullsynkning:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(lastRaptSync).toLocaleString("sv-SE", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Ingen fullsynkning har gjorts än
+                </p>
+              )}
 
-            <div>
-              <Button
-                onClick={handleRaptSync} 
-                disabled={raptSyncing}
-                className="w-full"
-                variant="outline"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
-                {raptSyncing ? 'Synkroniserar...' : 'Kör RAPT synkronisering nu'}
-              </Button>
+              <div>
+                <Button
+                  onClick={handleRaptFullSync} 
+                  disabled={raptSyncing}
+                  className="w-full"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
+                  {raptSyncing ? 'Synkroniserar...' : 'Kör fullsynkning nu'}
+                </Button>
+              </div>
             </div>
 
             <div className="border-t pt-6">

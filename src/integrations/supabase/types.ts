@@ -224,6 +224,7 @@ export type Database = {
           full_sync_interval: number | null
           id: string
           last_full_sync_at: string | null
+          last_rapt_quick_sync_at: string | null
           last_rapt_sync_at: string | null
           last_sync_at: string | null
           last_sync_time: string | null
@@ -239,6 +240,7 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
+          last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
+          last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
