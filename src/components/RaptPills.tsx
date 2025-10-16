@@ -12,7 +12,11 @@ interface PillData {
   last_update: string | null;
 }
 
-export const RaptPills = () => {
+interface RaptPillsProps {
+  iconSize?: number;
+}
+
+export const RaptPills = ({ iconSize }: RaptPillsProps) => {
   const [pills, setPills] = useState<PillData[]>([]);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
@@ -99,8 +103,7 @@ export const RaptPills = () => {
     return diffHours > 24;
   };
 
-  const pillSize = isMobile ? 18 : 28;
-  const textSize = isMobile ? 'text-sm' : 'text-lg';
+  const pillSize = iconSize || (isMobile ? 18 : 28);
   const gap = isMobile ? 'gap-2' : 'gap-4';
   const itemGap = isMobile ? 'gap-1' : 'gap-2';
 
@@ -126,7 +129,7 @@ export const RaptPills = () => {
                 <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
               )}
             </div>
-            <span className={`${textSize} font-bold tabular-nums ${getBatteryColor(pill.battery_level)}`}>
+            <span className="font-bold tabular-nums" style={{ fontSize: `${pillSize * 0.7}px`, color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' }}>
               {pill.battery_level}%
             </span>
           </div>
