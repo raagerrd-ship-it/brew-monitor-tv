@@ -819,7 +819,7 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <span
-                    className="rounded-full px-2 py-0.5 font-bold whitespace-nowrap flex-shrink-0"
+                    className="rounded-full px-2.5 py-1 font-bold whitespace-nowrap flex-shrink-0"
                     style={{ 
                       fontSize: 'min(calc(30cqh * 1.0), calc(100cqw * 0.16))',
                       backgroundColor: brew.status === "Konditionering" ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
