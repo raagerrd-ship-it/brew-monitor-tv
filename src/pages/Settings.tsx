@@ -437,14 +437,8 @@ export default function Settings() {
                 </Button>
               </div>
             </div>
-          </div>
-        </Card>
-
-        <Card className="p-6 mb-6">
-          <h2 className="text-xl font-bold mb-6">RAPT Inställningar</h2>
-          
-          <div className="space-y-6">
-            <div className="space-y-4 pb-6 border-b">
+            
+            <div className="space-y-4 pt-6 border-t">
               <h3 className="text-lg font-semibold mb-4">Brewfather API-uppgifter</h3>
               <p className="text-sm text-muted-foreground mb-4">
                 Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
@@ -476,6 +470,13 @@ export default function Settings() {
                 </Button>
               </div>
             </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 mb-6">
+          <h2 className="text-xl font-bold mb-6">RAPT Inställningar</h2>
+          
+          <div className="space-y-6">
             <div className="space-y-4 pb-6 border-b">
               <h3 className="text-lg font-semibold mb-4">RAPT API-uppgifter</h3>
               <p className="text-sm text-muted-foreground mb-4">
