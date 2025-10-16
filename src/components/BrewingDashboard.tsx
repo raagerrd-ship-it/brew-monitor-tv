@@ -480,7 +480,7 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end" style={{ fontSize: 'min(calc(45cqh * 0.8), calc(100cqw * 0.028))' }}>
             <RaptPills />
           </div>
           
@@ -500,14 +500,14 @@ export function BrewingDashboard() {
             </p>
           </div>
           
-          <div className="relative flex items-center justify-center" style={{ width: 'min(calc(100cqh * 0.85), calc(100cqw * 0.045))', height: 'min(calc(100cqh * 0.85), calc(100cqw * 0.045))' }}>
+          <div className="relative flex items-center justify-center" style={{ width: 'min(calc(80cqh * 0.85), calc(100cqw * 0.038))', height: 'min(calc(80cqh * 0.85), calc(100cqw * 0.038))' }}>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate('/settings')}
               className="opacity-40 hover:opacity-100 hover:bg-transparent transition-all duration-300 group w-full h-full"
             >
-              <Settings className="transition-all duration-300 group-hover:[fill:hsl(var(--primary))]" style={{ width: '60%', height: '60%' }} />
+              <Settings className="transition-all duration-300 group-hover:[fill:hsl(var(--primary))]" style={{ width: '50%', height: '50%' }} />
             </Button>
             <SyncCountdown className="w-full h-full" />
           </div>
