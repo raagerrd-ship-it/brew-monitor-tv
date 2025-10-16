@@ -698,7 +698,7 @@ export function BrewingDashboard() {
             ))}
           </div>
           
-          <div className="flex flex-col items-end min-w-[12%] gap-0">
+          <div className="flex flex-col items-center min-w-[12%] gap-0">
             <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(42cqh * 0.8), calc(100cqw * 0.026))' }}>
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
