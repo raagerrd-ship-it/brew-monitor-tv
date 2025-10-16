@@ -645,24 +645,24 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 h-full">
+          <div data-name="RaptMain" className={`flex items-stretch justify-end h-full ${isMobile ? 'gap-1.5' : 'gap-3'}`}>
             {/* Temp Controllers */}
             {controllers.length > 0 && controllers.map((controller) => (
               <div 
                 key={controller.id}
-                className="flex items-center gap-2 h-full"
+                className={`flex items-center h-full ${isMobile ? 'gap-1' : 'gap-2'}`}
               >
                 <AirVent 
                   style={{
-                    width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                    height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                    width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                    height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
                   }}
                   className="text-primary"
                 />
                 <span 
                   className="font-bold tabular-nums text-foreground"
                   style={{
-                    fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+                    fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
                   }}
                 >
                   {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
@@ -679,14 +679,14 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={pill.id}
-                className={`relative flex items-center gap-2 h-full transition-opacity ${isPillStale ? 'opacity-50' : ''}`}
+                className={`relative flex items-center h-full transition-opacity ${isMobile ? 'gap-1' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
                 title={`${pill.name}\nBatteri: ${pill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
               >
                 <div className="relative">
                   <Pill
                     style={{
-                      width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                      height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
+                      width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                      height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
                     }}
                     color={pill.color}
                     strokeWidth={2.5}
@@ -694,7 +694,7 @@ export function BrewingDashboard() {
                   />
                   {isPillStale && (
                     <div 
-                      className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background animate-pulse"
+                      className={`absolute -top-0.5 -right-0.5 rounded-full border-2 border-background animate-pulse ${isMobile ? 'w-2 h-2' : 'w-3 h-3'}`}
                       style={{
                         backgroundColor: 'rgb(249 115 22)',
                         boxShadow: '0 0 8px rgb(249 115 22)'
@@ -705,7 +705,7 @@ export function BrewingDashboard() {
                 <span 
                   className="font-bold tabular-nums" 
                   style={{ 
-                    fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+                    fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
                     color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
                   }}
                 >
