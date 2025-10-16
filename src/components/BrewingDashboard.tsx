@@ -242,20 +242,20 @@ export function BrewingDashboard() {
     }
   }, []);
 
-  // Calculate fermentation rate (SG change per 24h based on last 12 hours)
+  // Calculate fermentation rate (SG change per 24h based on last 24 hours)
   const calculateFermentationRate = (sgData: Array<{ date: string; value: number; temp: number }>): number | null => {
     if (!sgData || sgData.length < 2) return null;
     
     const now = new Date();
-    const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     
-    // Filter readings from last 12 hours
-    const recentReadings = sgData.filter(d => new Date(d.date) >= twelveHoursAgo).sort((a, b) => 
+    // Filter readings from last 24 hours
+    const recentReadings = sgData.filter(d => new Date(d.date) >= twentyFourHoursAgo).sort((a, b) => 
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
     if (recentReadings.length < 2) {
-      // If less than 12 hours of data, use all available data
+      // If less than 24 hours of data, use all available data
       const sortedData = [...sgData].sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
