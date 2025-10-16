@@ -58,6 +58,20 @@ serve(async (req) => {
     const pills = pillsResponse.data;
     console.log(`Received ${pills.length} Pills`, JSON.stringify(pills, null, 2));
 
+    // Get Temperature Controllers data
+    console.log('Fetching Temperature Controllers data...');
+    const controllersResponse = await supabase.functions.invoke('rapt-temp-controllers', {
+      body: { access_token }
+    });
+
+    if (controllersResponse.error) {
+      console.error('Failed to get Temperature Controllers data:', controllersResponse.error.message);
+      // Continue with pills sync even if controllers fail
+    }
+
+    const controllers = controllersResponse.data || [];
+    console.log(`Received ${controllers.length} Temperature Controllers`);
+
     // Map color names to hex colors (both English and Swedish)
     const colorMap: Record<string, string> = {
       'black': '#1f2937',
@@ -117,10 +131,35 @@ serve(async (req) => {
       console.log(`Successfully synced ${pillsData.length} Pills`);
     }
 
+    // Prepare Temperature Controllers data for upsert
+    const controllersData = controllers.map((controller: any) => {
+      return {
+        controller_id: controller.id,
+        name: controller.name || 'Unknown Controller',
+        current_temp: controller.temperature || null,
+        target_temp: controller.targetTemperature || null,
+        last_update: controller.lastActivityTime ? new Date(controller.lastActivityTime).toISOString() : new Date().toISOString(),
+      };
+    });
+
+    // Upsert Temperature Controllers data
+    if (controllersData.length > 0) {
+      const { error: controllersUpsertError } = await supabase
+        .from('rapt_temp_controllers')
+        .upsert(controllersData, { onConflict: 'controller_id' });
+
+      if (controllersUpsertError) {
+        console.error(`Failed to upsert Temperature Controllers data: ${controllersUpsertError.message}`);
+      } else {
+        console.log(`Successfully synced ${controllersData.length} Temperature Controllers`);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        pillsCount: pillsData.length 
+        pillsCount: pillsData.length,
+        controllersCount: controllersData.length
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

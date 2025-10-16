@@ -25,5 +25,8 @@ verify_jwt = false
 [functions.rapt-pills]
 verify_jwt = false
 
+[functions.rapt-temp-controllers]
+verify_jwt = false
+
 [functions.sync-rapt-data]
 verify_jwt = false

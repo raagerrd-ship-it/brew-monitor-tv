@@ -107,6 +107,39 @@ export type Database = {
         }
         Relationships: []
       }
+      rapt_temp_controllers: {
+        Row: {
+          controller_id: string
+          created_at: string
+          current_temp: number | null
+          id: string
+          last_update: string | null
+          name: string
+          target_temp: number | null
+          updated_at: string
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          current_temp?: number | null
+          id?: string
+          last_update?: string | null
+          name: string
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          current_temp?: number | null
+          id?: string
+          last_update?: string | null
+          name?: string
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       selected_brews: {
         Row: {
           batch_id: string

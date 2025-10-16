@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
 import { RaptPills } from "./RaptPills";
+import { RaptTempControllers } from "./RaptTempControllers";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -480,7 +481,8 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-3">
+            <RaptTempControllers dynamicSize={true} />
             <RaptPills dynamicSize={true} />
           </div>
           
