@@ -481,7 +481,7 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-stretch justify-end gap-3 bg-yellow-500/20">
+          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 bg-yellow-500/20">
             <RaptTempControllers dynamicSize={true} className="bg-green-500/20" />
             <RaptPills dynamicSize={true} className="bg-blue-500/20" />
           </div>
