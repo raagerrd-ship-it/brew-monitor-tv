@@ -662,7 +662,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-0 opacity-20" style={{ width: '50%', height: '50%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Wine glass outline */}
                         <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill="none"/>
@@ -705,7 +705,7 @@ export function BrewingDashboard() {
                       })
                     }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-4 opacity-20 animate-pulse" style={{ width: '70%', height: '70%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-0 opacity-20 animate-pulse" style={{ width: '50%', height: '50%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Thermometer outline */}
                         <path 
@@ -751,7 +751,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-2 opacity-20" style={{ width: '65%', height: '65%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-1 opacity-20" style={{ width: '50%', height: '50%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Rising bubbles - colored based on attenuation level */}
                         {/* Bottom bubbles (80-100%) - always active if attenuation > 80 */}
@@ -786,7 +786,7 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-2 opacity-20" style={{ width: '65%', height: '65%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 right-1 opacity-20" style={{ width: '50%', height: '50%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
                         {/* Battery outline */}
                         <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="1" fill="none"/>
