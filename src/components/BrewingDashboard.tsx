@@ -481,7 +481,7 @@ export function BrewingDashboard() {
         
         <div className="flex items-center gap-4">
           <div className="flex items-center justify-end">
-            <RaptPills iconSize={32} />
+            <RaptPills dynamicSize={true} />
           </div>
           
           <div className="flex flex-col items-end min-w-[12%]">

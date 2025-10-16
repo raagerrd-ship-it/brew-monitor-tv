@@ -13,10 +13,10 @@ interface PillData {
 }
 
 interface RaptPillsProps {
-  iconSize?: number;
+  dynamicSize?: boolean;
 }
 
-export const RaptPills = ({ iconSize }: RaptPillsProps) => {
+export const RaptPills = ({ dynamicSize = false }: RaptPillsProps) => {
   const [pills, setPills] = useState<PillData[]>([]);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
@@ -103,9 +103,19 @@ export const RaptPills = ({ iconSize }: RaptPillsProps) => {
     return diffHours > 24;
   };
 
-  const pillSize = iconSize || 32;
+  const pillSize = isMobile ? 18 : 28;
   const gap = isMobile ? 'gap-2' : 'gap-4';
   const itemGap = isMobile ? 'gap-1' : 'gap-2';
+
+  // Dynamic sizing for container queries
+  const iconStyle = dynamicSize ? {
+    width: 'min(calc(50cqh * 0.5), calc(100cqw * 0.022))',
+    height: 'min(calc(50cqh * 0.5), calc(100cqw * 0.022))'
+  } : undefined;
+
+  const textStyle = dynamicSize ? {
+    fontSize: 'min(calc(35cqh * 0.5), calc(100cqw * 0.015))'
+  } : undefined;
 
   return (
     <div className={`flex items-center ${gap}`}>
@@ -120,16 +130,23 @@ export const RaptPills = ({ iconSize }: RaptPillsProps) => {
           >
             <div className="relative">
               <Pill 
-                size={pillSize} 
+                size={dynamicSize ? undefined : pillSize}
                 color={pill.color}
                 strokeWidth={2.5}
                 className={`drop-shadow-md ${isInactive ? 'animate-pulse' : ''}`}
+                style={iconStyle}
               />
               {isInactive && (
                 <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-yellow-500 rounded-full border border-background`} />
               )}
             </div>
-            <span className="font-bold tabular-nums" style={{ fontSize: `${pillSize * 0.7}px`, color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' }}>
+            <span 
+              className="font-bold tabular-nums" 
+              style={textStyle || { 
+                fontSize: `${pillSize * 0.7}px`, 
+                color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+              }}
+            >
               {pill.battery_level}%
             </span>
           </div>
