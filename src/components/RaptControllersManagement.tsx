@@ -4,6 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { AirVent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
 
 interface ControllerData {
   id: string;
@@ -11,6 +13,7 @@ interface ControllerData {
   name: string;
   current_temp: number | null;
   target_temp: number | null;
+  last_update: string | null;
 }
 
 export function RaptControllersManagement() {
@@ -124,17 +127,27 @@ export function RaptControllersManagement() {
               <AirVent size={24} className="text-primary" />
               <div>
                 <p className="font-medium">{controller.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {controller.current_temp !== null || controller.target_temp !== null ? (
-                    <>
-                      {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
-                      {controller.current_temp !== null && controller.target_temp !== null && ' | '}
-                      {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
-                    </>
-                  ) : (
-                    'Ingen data'
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    {controller.current_temp !== null || controller.target_temp !== null ? (
+                      <>
+                        {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
+                        {controller.current_temp !== null && controller.target_temp !== null && ' | '}
+                        {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
+                      </>
+                    ) : (
+                      'Ingen data'
+                    )}
+                  </p>
+                  {controller.last_update && (
+                    <p className="text-xs text-muted-foreground">
+                      Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 
+                        addSuffix: true, 
+                        locale: sv 
+                      })}
+                    </p>
                   )}
-                </p>
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-2">
