@@ -491,7 +491,7 @@ export function BrewingDashboard() {
                 minute: "2-digit",
               })}:{currentTime.getSeconds().toString().padStart(2, '0')}
             </p>
-            <p className="text-muted-foreground/70 uppercase tracking-wider" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.013))' }}>
+            <p className="text-muted-foreground/70 uppercase tracking-wider font-semibold" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.013))' }}>
               {currentTime.toLocaleDateString("sv-SE", {
                 weekday: "short",
                 day: "numeric",
