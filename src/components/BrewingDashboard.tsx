@@ -484,14 +484,14 @@ export function BrewingDashboard() {
             <RaptPills dynamicSize={true} />
           </div>
           
-          <div className="flex flex-col items-end min-w-[12%]">
+          <div className="flex flex-col items-end min-w-[12%] gap-0">
             <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(35cqh * 0.8), calc(100cqw * 0.022))' }}>
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
                 minute: "2-digit",
               })}:{currentTime.getSeconds().toString().padStart(2, '0')}
             </p>
-            <p className="text-muted-foreground/70 uppercase tracking-wider" style={{ fontSize: 'min(calc(20cqh * 0.7), calc(100cqw * 0.011))' }}>
+            <p className="text-muted-foreground/70 uppercase tracking-wider" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.013))' }}>
               {currentTime.toLocaleDateString("sv-SE", {
                 weekday: "short",
                 day: "numeric",
