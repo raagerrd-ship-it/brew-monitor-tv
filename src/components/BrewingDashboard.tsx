@@ -594,22 +594,24 @@ export function BrewingDashboard() {
                 }`}
               >
               {/* Header - 14% */}
-              <div className="h-[14%] p-2 pb-1 border-b border-border/50 flex-shrink-0">
+              <div className="h-[14%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-xl font-bold text-foreground leading-tight truncate">
+                    <h2 className="font-bold text-foreground leading-tight truncate" style={{ fontSize: 'min(calc(50cqh * 0.85), calc(100cqw * 0.18))' }}>
                       {brew.name}
                     </h2>
-                    <p className="text-[10px] text-muted-foreground truncate">
+                    <p className="text-muted-foreground truncate" style={{ fontSize: 'min(calc(18cqh * 0.7), calc(100cqw * 0.08))' }}>
                       {brew.style} • {brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-4 py-2 text-sm font-bold whitespace-nowrap flex-shrink-0 ${
-                      brew.status === "Konditionering"
-                        ? "bg-primary/20 text-primary"
-                        : "bg-ferment-green/20 text-ferment-green animate-pulse"
-                    }`}
+                    className="rounded-full px-4 py-2 font-bold whitespace-nowrap flex-shrink-0"
+                    style={{ 
+                      fontSize: 'min(calc(30cqh * 0.7), calc(100cqw * 0.12))',
+                      backgroundColor: brew.status === "Konditionering" ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
+                      color: brew.status === "Konditionering" ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                      animation: brew.status === "Konditionering" ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                    }}
                   >
                     {brew.status}
                   </span>
