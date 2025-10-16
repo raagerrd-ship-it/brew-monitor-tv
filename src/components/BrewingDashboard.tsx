@@ -640,10 +640,10 @@ export function BrewingDashboard() {
                     <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <div className="text-muted-foreground text-xs mt-1 space-y-0.5 z-10">
-                      <p>OG: {brew.originalGravity.toFixed(3)}</p>
-                      <p>FG: {brew.finalGravity.toFixed(3)}</p>
-                      <p className="font-medium">
+                    <div className="text-muted-foreground mt-1 space-y-0.5 z-10 text-center">
+                      <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>FG: {brew.finalGravity.toFixed(3)}</p>
+                      <p className="font-medium" style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>
                         {brew.fermentationRate !== null ? (
                           <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
                         ) : (
