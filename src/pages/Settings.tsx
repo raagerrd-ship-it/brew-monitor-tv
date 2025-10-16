@@ -307,6 +307,39 @@ export default function Settings() {
           
           <div className="space-y-8">
             <div className="space-y-4 pb-6 border-b">
+              <h3 className="text-lg font-semibold mb-4">Brewfather API-uppgifter</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera Brewfather-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera User ID
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera Brewfather-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera API-nyckel
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-4 pb-6 border-b">
               <div>
                 <h3 className="text-lg font-semibold mb-1">Snabb synkronisering</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -434,39 +467,6 @@ export default function Settings() {
                 >
                   <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Synkroniserar...' : 'Kör full synkronisering nu'}
-                </Button>
-              </div>
-            </div>
-            
-            <div className="space-y-4 pt-6 border-t">
-              <h3 className="text-lg font-semibold mb-4">Brewfather API-uppgifter</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera Brewfather-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera User ID
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera Brewfather-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera API-nyckel
                 </Button>
               </div>
             </div>
