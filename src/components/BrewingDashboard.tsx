@@ -442,9 +442,29 @@ export function BrewingDashboard() {
 
   const loadPills = async () => {
     try {
+      // Get selected pills
+      const { data: selectedData, error: selectedError } = await supabase
+        .from('selected_rapt_pills')
+        .select('pill_id')
+        .eq('is_visible', true);
+
+      if (selectedError) {
+        console.error('Error loading selected pills:', selectedError);
+        return;
+      }
+
+      const selectedPillIds = selectedData?.map(s => s.pill_id) || [];
+
+      if (selectedPillIds.length === 0) {
+        setPills([]);
+        return;
+      }
+
+      // Get only selected pills
       const { data, error } = await supabase
         .from('rapt_pills')
         .select('*')
+        .in('pill_id', selectedPillIds)
         .order('name', { ascending: true });
 
       if (error) {
@@ -460,9 +480,29 @@ export function BrewingDashboard() {
 
   const loadControllers = async () => {
     try {
+      // Get selected controllers
+      const { data: selectedData, error: selectedError } = await supabase
+        .from('selected_rapt_temp_controllers')
+        .select('controller_id')
+        .eq('is_visible', true);
+
+      if (selectedError) {
+        console.error('Error loading selected controllers:', selectedError);
+        return;
+      }
+
+      const selectedControllerIds = selectedData?.map(s => s.controller_id) || [];
+
+      if (selectedControllerIds.length === 0) {
+        setControllers([]);
+        return;
+      }
+
+      // Get only selected controllers
       const { data, error } = await supabase
         .from('rapt_temp_controllers')
         .select('*')
+        .in('controller_id', selectedControllerIds)
         .order('name');
 
       if (error) {

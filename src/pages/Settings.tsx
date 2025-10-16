@@ -1,5 +1,7 @@
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsList } from "@/components/RaptPillsList";
+import { RaptPillsManagement } from "@/components/RaptPillsManagement";
+import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +25,7 @@ export default function Settings() {
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
   const [raptSyncing, setRaptSyncing] = useState(false);
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
+  const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
 
   useEffect(() => {
     loadSettings();
@@ -48,6 +51,7 @@ export default function Settings() {
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
         setLastRaptSync(data.last_rapt_sync_at);
+        setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
         console.log('Last RAPT sync:', data.last_rapt_sync_at);
       }
     } catch (error) {
@@ -193,6 +197,33 @@ export default function Settings() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleRaptSyncIntervalChange = async (value: string) => {
+    setRaptSyncInterval(value);
+    
+    try {
+      if (settingsId) {
+        const { error } = await supabase
+          .from('sync_settings')
+          .update({ rapt_sync_interval: parseInt(value) })
+          .eq('id', settingsId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Inställningar sparade",
+          description: "RAPT synkroniseringsfrekvens har uppdaterats",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating RAPT sync interval:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
     }
   };
 
@@ -378,17 +409,34 @@ export default function Settings() {
         </Card>
 
         <Card className="p-6 mb-6">
-          <h2 className="text-xl font-bold mb-6">RAPT Pills</h2>
+          <h2 className="text-xl font-bold mb-6">RAPT Inställningar</h2>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <p className="text-sm text-muted-foreground mb-4">
-                Synkroniserar batterinivåer från dina RAPT Pills
+                Hantera dina RAPT Pills och Temperature Controllers
               </p>
               <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
-                <p>• Automatisk synkning var 15:e minut</p>
-                <p>• Visar Pills med färg och batterinivå</p>
+                <p>• Synkroniserar batterinivåer och temperaturer</p>
+                <p>• Välj vilka enheter som ska visas på dashboarden</p>
               </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
+              <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
+                <SelectTrigger className="w-full bg-card">
+                  <SelectValue placeholder="Välj frekvens" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border z-50">
+                  <SelectItem value="60">Varje minut</SelectItem>
+                  <SelectItem value="300">Var 5:e minut</SelectItem>
+                  <SelectItem value="600">Var 10:e minut</SelectItem>
+                  <SelectItem value="900">Var 15:e minut</SelectItem>
+                  <SelectItem value="1800">Var 30:e minut</SelectItem>
+                  <SelectItem value="3600">Varje timme</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
               
             {lastRaptSync ? (
@@ -410,8 +458,6 @@ export default function Settings() {
               </p>
             )}
 
-            <RaptPillsList />
-
             <div>
               <Button
                 onClick={handleRaptSync} 
@@ -422,6 +468,22 @@ export default function Settings() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
                 {raptSyncing ? 'Synkroniserar...' : 'Kör RAPT synkronisering nu'}
               </Button>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">RAPT Pills</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Välj vilka Pills som ska visas på dashboarden
+              </p>
+              <RaptPillsManagement />
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">Temperature Controllers</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Välj vilka Temperature Controllers som ska visas på dashboarden
+              </p>
+              <RaptControllersManagement />
             </div>
           </div>
         </Card>

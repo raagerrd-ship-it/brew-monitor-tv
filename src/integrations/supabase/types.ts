@@ -167,6 +167,54 @@ export type Database = {
         }
         Relationships: []
       }
+      selected_rapt_pills: {
+        Row: {
+          created_at: string
+          id: string
+          is_visible: boolean
+          pill_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          pill_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          pill_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      selected_rapt_temp_controllers: {
+        Row: {
+          controller_id: string
+          created_at: string
+          id: string
+          is_visible: boolean
+          updated_at: string
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          updated_at?: string
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sync_settings: {
         Row: {
           auto_activate_fermenting: boolean | null
@@ -179,6 +227,7 @@ export type Database = {
           last_rapt_sync_at: string | null
           last_sync_at: string | null
           last_sync_time: string | null
+          rapt_sync_interval: number
           sync_interval: number
           updated_at: string
         }
@@ -193,6 +242,7 @@ export type Database = {
           last_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
+          rapt_sync_interval?: number
           sync_interval?: number
           updated_at?: string
         }
@@ -207,6 +257,7 @@ export type Database = {
           last_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
+          rapt_sync_interval?: number
           sync_interval?: number
           updated_at?: string
         }
