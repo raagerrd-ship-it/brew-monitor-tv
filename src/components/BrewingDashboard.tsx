@@ -600,9 +600,9 @@ export function BrewingDashboard() {
             {pills.length > 0 && pills.map((pill) => (
               <div 
                 key={pill.id}
-                className="relative flex items-stretch gap-2 h-full"
+                className="relative flex items-stretch gap-2 h-full bg-blue-500/20"
               >
-                <div className="flex items-center">
+                <div className="flex items-center bg-red-500/20">
                   <Pill
                     style={{
                       width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
@@ -614,7 +614,7 @@ export function BrewingDashboard() {
                   />
                 </div>
                 <span 
-                  className="font-bold tabular-nums flex items-center" 
+                  className="font-bold tabular-nums flex items-center bg-green-500/20" 
                   style={{ 
                     fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
                     color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
