@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Pill } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 interface PillData {
   id: string;
@@ -14,9 +15,10 @@ interface PillData {
 
 interface RaptPillsProps {
   dynamicSize?: boolean;
+  className?: string;
 }
 
-export const RaptPills = ({ dynamicSize = false }: RaptPillsProps) => {
+export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) => {
   const [pills, setPills] = useState<PillData[]>([]);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
@@ -118,7 +120,7 @@ export const RaptPills = ({ dynamicSize = false }: RaptPillsProps) => {
   } : undefined;
 
   return (
-    <div className={`flex items-center ${gap}`}>
+    <div className={cn("flex items-center", gap, className)}>
       {pills.map((pill) => {
         const isInactive = isStale(pill.last_update);
         
