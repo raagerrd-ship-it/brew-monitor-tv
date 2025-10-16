@@ -614,7 +614,7 @@ export function BrewingDashboard() {
                 <span 
                   className="font-bold tabular-nums" 
                   style={{ 
-                    fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
+                    fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
                     color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
                   }}
                 >
