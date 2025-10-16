@@ -684,7 +684,7 @@ export function BrewingDashboard() {
                       </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">ABV</p>
-                    <p className="font-bold text-secondary leading-none text-3xl z-10 pl-2">
+                    <p className="font-bold text-secondary leading-none text-5xl z-10 pl-2">
                       {brew.abv.toFixed(1)}%
                     </p>
                   </div>
@@ -732,7 +732,7 @@ export function BrewingDashboard() {
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Temp</p>
                     <p 
-                      className="font-bold leading-none text-3xl z-10 pl-2"
+                      className="font-bold leading-none text-5xl z-10 pl-2"
                       style={{ color: getTempColor(brew.currentTemp).rgb }}
                     >
                       {brew.currentTemp}°
@@ -769,7 +769,7 @@ export function BrewingDashboard() {
                       </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Utjäsning</p>
-                    <p className="font-bold text-ferment-green leading-none text-2xl z-10 pl-2">
+                    <p className="font-bold text-ferment-green leading-none text-5xl z-10 pl-2">
                       {brew.attenuation}%
                     </p>
                   </div>
@@ -802,7 +802,7 @@ export function BrewingDashboard() {
                       </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider text-xs z-10 pl-2">Batteri</p>
-                    <p className="font-bold text-primary leading-none text-2xl z-10 pl-2">
+                    <p className="font-bold text-primary leading-none text-5xl z-10 pl-2">
                       {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                     </p>
                   </div>
