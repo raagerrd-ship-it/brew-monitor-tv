@@ -680,6 +680,7 @@ export function BrewingDashboard() {
               <div 
                 key={pill.id}
                 className={`relative flex items-center gap-2 h-full transition-opacity ${isPillStale ? 'opacity-50' : ''}`}
+                title={`${pill.name}\nBatteri: ${pill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
               >
                 <div className="relative">
                   <Pill
