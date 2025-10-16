@@ -681,24 +681,27 @@ export function BrewingDashboard() {
                 key={pill.id}
                 className={`relative flex items-center gap-2 h-full transition-opacity ${isPillStale ? 'opacity-50' : ''}`}
               >
-                <Pill
-                  style={{
-                    width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                    height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
-                  }}
-                  color={pill.color}
-                  strokeWidth={2.5}
-                  className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
-                />
-                {isPillStale && (
-                  <div 
-                    className="absolute -top-1 -left-1 bg-warning rounded-full border border-background"
+                <div className="relative">
+                  <Pill
                     style={{
-                      width: 'min(calc(15cqh * 0.5), calc(100cqw * 0.008))',
-                      height: 'min(calc(15cqh * 0.5), calc(100cqw * 0.008))'
+                      width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                      height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
                     }}
+                    color={pill.color}
+                    strokeWidth={2.5}
+                    className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
                   />
-                )}
+                  {isPillStale && (
+                    <div 
+                      className="absolute -top-1 -right-1 rounded-full border-2 border-background z-10"
+                      style={{
+                        width: 'min(calc(25cqh * 0.5), calc(100cqw * 0.014))',
+                        height: 'min(calc(25cqh * 0.5), calc(100cqw * 0.014))',
+                        backgroundColor: '#f97316'
+                      }}
+                    />
+                  )}
+                </div>
                 <span 
                   className="font-bold tabular-nums" 
                   style={{ 
