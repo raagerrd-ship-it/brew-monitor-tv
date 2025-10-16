@@ -865,7 +865,7 @@ export function BrewingDashboard() {
                 <div className="grid grid-cols-3 gap-4 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
-                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-1 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-0.5 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
