@@ -65,7 +65,6 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
   const containerStyle = dynamicSize 
     ? { 
         containerType: 'inline-size' as const,
-        width: 'auto',
       }
     : {};
 
