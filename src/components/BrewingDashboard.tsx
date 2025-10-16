@@ -865,7 +865,7 @@ export function BrewingDashboard() {
                 <div className="grid grid-cols-3 gap-4 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
-                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -889,7 +889,7 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -910,7 +910,7 @@ export function BrewingDashboard() {
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
                     style={{ 
                       containerType: 'size',
                       borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.2)`,
@@ -963,7 +963,7 @@ export function BrewingDashboard() {
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -998,7 +998,7 @@ export function BrewingDashboard() {
 
                   {/* Batteri */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
