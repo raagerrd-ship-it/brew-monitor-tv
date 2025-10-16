@@ -862,7 +862,7 @@ export function BrewingDashboard() {
 
               {/* Stats Grid - 32% */}
               <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
-                <div className="grid grid-cols-3 gap-4 h-full">
+                <div className="grid grid-cols-3 gap-2 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
                     className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
