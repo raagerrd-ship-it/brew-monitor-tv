@@ -3,12 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
-import { RaptPills } from "./RaptPills";
-import { RaptTempControllers } from "./RaptTempControllers";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery, ChevronLeft, ChevronRight, Pill, AirVent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -33,9 +31,29 @@ interface BrewData {
   fermentationRate: number | null; // SG change per 24h based on last 2 hours
 }
 
+interface PillData {
+  id: string;
+  pill_id: string;
+  name: string;
+  color: string;
+  battery_level: number;
+  last_update: string | null;
+}
+
+interface TempController {
+  id: string;
+  controller_id: string;
+  name: string;
+  current_temp: number | null;
+  target_temp: number | null;
+  last_update: string | null;
+}
+
 export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [brews, setBrews] = useState<BrewData[]>([]);
+  const [pills, setPills] = useState<PillData[]>([]);
+  const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const navigate = useNavigate();
@@ -67,6 +85,8 @@ export function BrewingDashboard() {
 
   useEffect(() => {
     loadBrews();
+    loadPills();
+    loadControllers();
   }, []);
 
   useEffect(() => {
@@ -238,8 +258,42 @@ export function BrewingDashboard() {
       )
       .subscribe()
 
+    // Set up realtime for RAPT Pills
+    const pillsChannel = supabase
+      .channel('rapt_pills_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rapt_pills'
+        },
+        () => {
+          loadPills();
+        }
+      )
+      .subscribe();
+
+    // Set up realtime for RAPT Temp Controllers
+    const controllersChannel = supabase
+      .channel('temp-controllers-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rapt_temp_controllers'
+        },
+        () => {
+          loadControllers();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(brewChannel)
+      supabase.removeChannel(brewChannel);
+      supabase.removeChannel(pillsChannel);
+      supabase.removeChannel(controllersChannel);
     }
   }, []);
 
@@ -386,6 +440,42 @@ export function BrewingDashboard() {
     }
   };
 
+  const loadPills = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rapt_pills')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error loading Pills:', error);
+        return;
+      }
+
+      setPills(data || []);
+    } catch (error) {
+      console.error('Error loading Pills:', error);
+    }
+  };
+
+  const loadControllers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rapt_temp_controllers')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error loading temperature controllers:', error);
+        return;
+      }
+
+      setControllers(data || []);
+    } catch (error) {
+      console.error('Error loading temperature controllers:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-background flex items-center justify-center">
@@ -481,9 +571,57 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 bg-yellow-500/20">
-            <RaptTempControllers dynamicSize={true} className="bg-green-500/20" />
-            <RaptPills dynamicSize={true} className="bg-blue-500/20" />
+          <div data-name="RaptMain" className="flex items-stretch justify-end gap-3 h-full">
+            {/* Temp Controllers */}
+            {controllers.length > 0 && controllers.map((controller) => (
+              <div 
+                key={controller.id}
+                className="flex items-center gap-2 h-full"
+              >
+                <AirVent 
+                  style={{
+                    width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                    height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                  }}
+                  className="text-primary"
+                />
+                <span 
+                  className="font-bold tabular-nums text-foreground"
+                  style={{
+                    fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+                  }}
+                >
+                  {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
+                </span>
+              </div>
+            ))}
+            
+            {/* Pills */}
+            {pills.length > 0 && pills.map((pill) => (
+              <div 
+                key={pill.id}
+                className="relative flex items-center gap-2 h-full"
+              >
+                <Pill
+                  style={{
+                    width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
+                    height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))'
+                  }}
+                  color={pill.color}
+                  strokeWidth={2.5}
+                  className="drop-shadow-md"
+                />
+                <span 
+                  className="font-bold tabular-nums" 
+                  style={{ 
+                    fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
+                    color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+                  }}
+                >
+                  {pill.battery_level}%
+                </span>
+              </div>
+            ))}
           </div>
           
           <div className="flex flex-col items-end min-w-[12%] gap-0 bg-purple-500/20">
