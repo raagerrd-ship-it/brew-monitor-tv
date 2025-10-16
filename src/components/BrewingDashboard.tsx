@@ -474,8 +474,8 @@ export function BrewingDashboard() {
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
-      <div className={`flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 ${isMobile ? 'px-2 py-1 gap-1.5' : 'px-6 py-3'}`}>
-        <h1 className={`font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent animate-gradient bg-[length:200%_auto] ${isMobile ? 'text-base' : 'text-2xl md:text-3xl'}`}>
+      <div className={`flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 ${isMobile ? 'px-2 py-1.5 gap-1.5' : 'px-6 py-3.5'}`}>
+        <h1 className={`font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent animate-gradient bg-[length:200%_auto] leading-tight ${isMobile ? 'text-base' : 'text-2xl md:text-3xl'}`}>
           Bryggövervakare
         </h1>
         
