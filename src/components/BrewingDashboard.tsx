@@ -814,7 +814,7 @@ export function BrewingDashboard() {
                     <h2 className="font-bold text-foreground leading-tight truncate" style={{ fontSize: 'min(calc(50cqh * 0.85), calc(100cqw * 0.18))' }}>
                       {brew.name}
                     </h2>
-                    <p className="text-muted-foreground truncate" style={{ fontSize: 'min(calc(25cqh * 0.8), calc(100cqw * 0.11))' }}>
+                    <p className="text-muted-foreground truncate" style={{ fontSize: 'min(calc(25cqh * 1.0), calc(100cqw * 0.14))' }}>
                       {brew.style} • {brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
