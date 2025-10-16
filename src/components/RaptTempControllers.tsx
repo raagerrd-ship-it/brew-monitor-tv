@@ -76,11 +76,11 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
     : { fontSize: '1.25rem' };
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-stretch gap-3 h-full", className)}>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 h-full"
         >
           <AirVent 
             style={iconStyle}

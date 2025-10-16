@@ -120,14 +120,14 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
   } : undefined;
 
   return (
-    <div className={cn("flex items-center h-full", gap, className)}>
+    <div className={cn("flex items-stretch h-full", gap, className)}>
       {pills.map((pill) => {
         const isInactive = isStale(pill.last_update);
         
         return (
           <div 
             key={pill.id}
-            className={`flex items-center ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
+            className={`flex items-center h-full ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
             title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
           >
             <div className="relative">
