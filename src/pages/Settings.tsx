@@ -445,16 +445,50 @@ export default function Settings() {
           
           <div className="space-y-6">
             <div className="space-y-4 pb-6 border-b">
-              <h3 className="text-lg font-semibold mb-4">RAPT API-uppgifter</h3>
+              <h3 className="text-lg font-semibold mb-4">Brewfather API-uppgifter</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Uppdatera dina RAPT Portal-inloggningsuppgifter
+                Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
               </p>
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  onClick={async () => {
-                    const { updateSecret } = await import("@/integrations/supabase/client");
-                    // This will be handled by the system
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera Brewfather-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera User ID
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera Brewfather-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera API-nyckel
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4 pb-6 border-b">
+              <h3 className="text-lg font-semibold mb-4">RAPT API-uppgifter</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Be AI-assistenten uppdatera dina RAPT Portal-inloggningsuppgifter i chatten
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera RAPT-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
+                    });
                   }}
                   className="flex-1"
                 >
@@ -462,9 +496,11 @@ export default function Settings() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={async () => {
-                    const { updateSecret } = await import("@/integrations/supabase/client");
-                    // This will be handled by the system
+                  onClick={() => {
+                    toast({
+                      title: "Uppdatera RAPT-uppgifter",
+                      description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
+                    });
                   }}
                   className="flex-1"
                 >
