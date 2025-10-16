@@ -65,29 +65,29 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
   const containerStyle = dynamicSize 
     ? { 
         containerType: 'inline-size' as const,
-        width: 'min(calc(300cqh * 0.5), calc(100cqw * 0.12))',
+        width: 'min(calc(500cqh * 0.5), calc(100cqw * 0.18))',
       }
     : {};
 
   const iconStyle = dynamicSize
     ? {
-        width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
-        height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
+        width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+        height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
       }
-    : { width: '1.75rem', height: '1.75rem' };
+    : { width: '2rem', height: '2rem' };
 
   const textStyle = dynamicSize
     ? {
-        fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
+        fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
       }
-    : { fontSize: '1.125rem' };
+    : { fontSize: '1.25rem' };
 
   return (
     <div className={cn("flex gap-3", className)} style={containerStyle}>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
-          className="flex items-center gap-2 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50 px-3 py-2"
+          className="flex items-center gap-2 rounded-lg bg-background/50 backdrop-blur-sm px-3 py-2"
         >
           <div className="flex items-center justify-center">
             <AirVent 
@@ -105,7 +105,7 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
             {controller.target_temp !== null && (
               <span 
                 className="text-muted-foreground/70 text-xs"
-                style={{ fontSize: dynamicSize ? 'min(calc(30cqh * 0.5), calc(100cqw * 0.014))' : '0.65rem' }}
+                style={{ fontSize: dynamicSize ? 'min(calc(36cqh * 0.5), calc(100cqw * 0.017))' : '0.7rem' }}
               >
                 ↗ {controller.target_temp.toFixed(1)}°C
               </span>
