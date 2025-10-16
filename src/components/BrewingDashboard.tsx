@@ -604,8 +604,8 @@ export function BrewingDashboard() {
               >
                 <Pill
                   style={{
-                    width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
-                    height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))'
+                    width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                    height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
                   }}
                   color={pill.color}
                   strokeWidth={2.5}
