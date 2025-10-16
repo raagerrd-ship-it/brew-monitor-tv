@@ -130,8 +130,8 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
             className={`flex items-center h-full ${itemGap} transition-opacity ${isInactive ? 'opacity-50' : ''}`}
             title={`${pill.name}\nBatteri: ${pill.battery_level}%\nUppdaterad: ${formatLastUpdate(pill.last_update)}${isInactive ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
           >
-            <div className="relative">
-              <Pill 
+            <div className="relative h-full flex items-center">
+              <Pill
                 size={dynamicSize ? undefined : pillSize}
                 color={pill.color}
                 strokeWidth={2.5}
