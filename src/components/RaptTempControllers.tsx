@@ -55,14 +55,13 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
       return;
     }
 
+    console.log('Loaded temperature controllers:', data);
     setControllers(data || []);
   };
 
-  if (controllers.length === 0) {
-    return null;
-  }
+  console.log('RaptTempControllers rendering, count:', controllers.length);
 
-  const containerStyle = dynamicSize 
+  const containerStyle = dynamicSize
     ? { 
         containerType: 'inline-size' as const,
       }
