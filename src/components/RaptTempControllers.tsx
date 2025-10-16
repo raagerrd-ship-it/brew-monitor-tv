@@ -65,22 +65,22 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
   const containerStyle = dynamicSize 
     ? { 
         containerType: 'inline-size' as const,
-        width: 'min(calc(500cqh * 0.5), calc(100cqw * 0.18))',
+        width: 'auto',
       }
     : {};
 
   const iconStyle = dynamicSize
     ? {
-        width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-        height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+        width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
+        height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
       }
-    : { width: '2rem', height: '2rem' };
+    : { width: '1.75rem', height: '1.75rem' };
 
   const textStyle = dynamicSize
     ? {
-        fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+        fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
       }
-    : { fontSize: '1.25rem' };
+    : { fontSize: '1.125rem' };
 
   return (
     <div className={cn("flex gap-3", className)} style={containerStyle}>
@@ -104,8 +104,8 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
             </span>
             {controller.target_temp !== null && (
               <span 
-                className="text-muted-foreground/70 text-xs"
-                style={{ fontSize: dynamicSize ? 'min(calc(36cqh * 0.5), calc(100cqw * 0.017))' : '0.7rem' }}
+                className="text-muted-foreground/70"
+                style={{ fontSize: dynamicSize ? 'min(calc(30cqh * 0.5), calc(100cqw * 0.014))' : '0.65rem' }}
               >
                 ↗ {controller.target_temp.toFixed(1)}°C
               </span>
