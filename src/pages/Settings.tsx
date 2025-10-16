@@ -303,7 +303,7 @@ export default function Settings() {
         </div>
         
         <Card className="p-6 mb-6">
-          <h2 className="text-xl font-bold mb-6">Synkroniseringsinställningar</h2>
+          <h2 className="text-xl font-bold mb-6">Brewfather inställningar</h2>
           
           <div className="space-y-8">
             <div className="space-y-4 pb-6 border-b">
