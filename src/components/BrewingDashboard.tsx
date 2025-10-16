@@ -593,8 +593,8 @@ export function BrewingDashboard() {
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
-              {/* Header - 12% */}
-              <div className="h-[12%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
+              {/* Header - 10% */}
+              <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
                   <div className="min-w-0 flex-1">
                     <h2 className="font-bold text-foreground leading-tight truncate" style={{ fontSize: 'min(calc(50cqh * 0.85), calc(100cqw * 0.18))' }}>
