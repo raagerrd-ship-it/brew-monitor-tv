@@ -149,7 +149,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           <Tooltip
             contentStyle={{
               backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
+              border: "none",
               borderRadius: "8px",
               color: "hsl(var(--foreground))",
               lineHeight: "1",
