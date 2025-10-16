@@ -62,13 +62,6 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
     return null;
   }
 
-  const containerStyle = dynamicSize 
-    ? { 
-        containerType: 'inline-size' as const,
-        width: 'min(calc(500cqh * 0.5), calc(100cqw * 0.18))',
-      }
-    : {};
-
   const iconStyle = dynamicSize
     ? {
         width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
@@ -83,11 +76,11 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
     : { fontSize: '1.25rem' };
 
   return (
-    <div className={cn("flex items-center gap-3", className)} style={containerStyle}>
+    <>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
-          className="flex items-center gap-2"
+          className={cn("flex items-center gap-2", className)}
         >
           <div className="flex items-center justify-center">
             <AirVent 
@@ -103,6 +96,6 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
           </span>
         </div>
       ))}
-    </div>
+    </>
   );
 }
