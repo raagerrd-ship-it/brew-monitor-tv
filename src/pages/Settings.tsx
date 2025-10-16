@@ -445,6 +445,34 @@ export default function Settings() {
           
           <div className="space-y-6">
             <div className="space-y-4 pb-6 border-b">
+              <h3 className="text-lg font-semibold mb-4">RAPT API-uppgifter</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Uppdatera dina RAPT Portal-inloggningsuppgifter
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const { updateSecret } = await import("@/integrations/supabase/client");
+                    // This will be handled by the system
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera användarnamn
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const { updateSecret } = await import("@/integrations/supabase/client");
+                    // This will be handled by the system
+                  }}
+                  className="flex-1"
+                >
+                  Uppdatera API-nyckel
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4 pb-6 border-b">
               <div>
                 <h3 className="text-lg font-semibold mb-1">Snabb datasynkning</h3>
                 <p className="text-sm text-muted-foreground mb-4">
