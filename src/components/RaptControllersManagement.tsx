@@ -125,11 +125,15 @@ export function RaptControllersManagement() {
               <div>
                 <p className="font-medium">{controller.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {controller.current_temp !== null
-                    ? `${controller.current_temp.toFixed(1)}°C`
-                    : 'Ingen data'}
-                  {controller.target_temp !== null &&
-                    ` → ${controller.target_temp.toFixed(1)}°C`}
+                  {controller.current_temp !== null || controller.target_temp !== null ? (
+                    <>
+                      {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
+                      {controller.current_temp !== null && controller.target_temp !== null && ' | '}
+                      {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
+                    </>
+                  ) : (
+                    'Ingen data'
+                  )}
                 </p>
               </div>
             </div>
