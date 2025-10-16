@@ -109,12 +109,12 @@ export const RaptPills = ({ dynamicSize = false }: RaptPillsProps) => {
 
   // Dynamic sizing for container queries
   const iconStyle = dynamicSize ? {
-    width: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
-    height: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))'
+    width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
+    height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))'
   } : undefined;
 
   const textStyle = dynamicSize ? {
-    fontSize: 'min(calc(42cqh * 0.5), calc(100cqw * 0.019))'
+    fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))'
   } : undefined;
 
   return (
