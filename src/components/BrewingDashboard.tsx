@@ -671,10 +671,15 @@ export function BrewingDashboard() {
             ))}
             
             {/* Pills */}
-            {pills.length > 0 && pills.map((pill) => (
+            {pills.length > 0 && pills.map((pill) => {
+              const isPillStale = pill.last_update ? 
+                ((new Date().getTime() - new Date(pill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
+                : true;
+              
+              return (
               <div 
                 key={pill.id}
-                className="relative flex items-center gap-2 h-full"
+                className={`relative flex items-center gap-2 h-full transition-opacity ${isPillStale ? 'opacity-50' : ''}`}
               >
                 <Pill
                   style={{
@@ -683,8 +688,17 @@ export function BrewingDashboard() {
                   }}
                   color={pill.color}
                   strokeWidth={2.5}
-                  className="drop-shadow-md"
+                  className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
                 />
+                {isPillStale && (
+                  <div 
+                    className="absolute -top-1 -left-1 bg-warning rounded-full border border-background"
+                    style={{
+                      width: 'min(calc(15cqh * 0.5), calc(100cqw * 0.008))',
+                      height: 'min(calc(15cqh * 0.5), calc(100cqw * 0.008))'
+                    }}
+                  />
+                )}
                 <span 
                   className="font-bold tabular-nums" 
                   style={{ 
@@ -695,7 +709,8 @@ export function BrewingDashboard() {
                   {pill.battery_level}%
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
           
           <div className="flex flex-col items-center min-w-[12%] gap-0">
