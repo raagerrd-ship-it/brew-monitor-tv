@@ -862,10 +862,10 @@ export function BrewingDashboard() {
 
               {/* Stats Grid - 32% */}
               <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
-                <div className="grid grid-cols-3 gap-2 h-full">
+                <div className="grid grid-cols-3 gap-4 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
-                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-2 flex flex-col items-center justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`col-span-1 row-span-2 bg-background/50 rounded-lg p-1.5 flex flex-col items-center justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -874,7 +874,7 @@ export function BrewingDashboard() {
                     <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <div className="text-muted-foreground mt-1 space-y-0.5 z-10 text-center">
+                    <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center">
                       <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>FG: {brew.finalGravity.toFixed(3)}</p>
                       <p className="font-medium" style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>
@@ -889,7 +889,7 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -898,23 +898,8 @@ export function BrewingDashboard() {
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         {/* Wine glass outline */}
                         <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill="none"/>
-                        <path d="M12 18v4M9 22h6" stroke="hsl(var(--secondary))" strokeWidth="1" strokeLinecap="round"/>
-                        {/* Wine fill */}
-                        <defs>
-                          <clipPath id={`wine-clip-${brew.batch_id}`}>
-                            <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" />
-                          </clipPath>
-                        </defs>
-                        <rect 
-                          x="7" 
-                          y={`${18 - (Math.min(Math.max(brew.abv, 0), 10) / 10) * 16}`}
-                          width="10" 
-                          height="16" 
-                          fill="hsl(var(--secondary))"
-                          clipPath={`url(#wine-clip-${brew.batch_id})`}
-                          className="transition-all duration-500"
-                          opacity="0.8"
-                        />
+                        <line x1="12" y1="18" x2="12" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
+                        <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
                       </svg>
                     </div>
                     <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.18))' }}>ABV</p>
@@ -925,7 +910,7 @@ export function BrewingDashboard() {
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
                     style={{ 
                       containerType: 'size',
                       borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.2)`,
@@ -978,7 +963,7 @@ export function BrewingDashboard() {
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -1013,7 +998,7 @@ export function BrewingDashboard() {
 
                   {/* Batteri */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-1.5 flex flex-col items-start justify-center gap-0 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
