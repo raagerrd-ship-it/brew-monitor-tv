@@ -480,7 +480,7 @@ export function BrewingDashboard() {
         </h1>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-end" style={{ fontSize: 'min(calc(45cqh * 0.8), calc(100cqw * 0.028))' }}>
+          <div className="flex items-center justify-end">
             <RaptPills />
           </div>
           
