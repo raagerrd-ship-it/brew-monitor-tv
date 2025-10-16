@@ -55,30 +55,32 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
       return;
     }
 
-    console.log('Loaded temperature controllers:', data);
     setControllers(data || []);
   };
 
-  console.log('RaptTempControllers rendering, count:', controllers.length);
+  if (controllers.length === 0) {
+    return null;
+  }
 
-  const containerStyle = dynamicSize
+  const containerStyle = dynamicSize 
     ? { 
         containerType: 'inline-size' as const,
+        width: 'min(calc(500cqh * 0.5), calc(100cqw * 0.18))',
       }
     : {};
 
   const iconStyle = dynamicSize
     ? {
-        width: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
-        height: 'min(calc(70cqh * 0.5), calc(100cqw * 0.034))',
+        width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+        height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
       }
-    : { width: '1.75rem', height: '1.75rem' };
+    : { width: '2rem', height: '2rem' };
 
   const textStyle = dynamicSize
     ? {
-        fontSize: 'min(calc(50cqh * 0.5), calc(100cqw * 0.023))',
+        fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
       }
-    : { fontSize: '1.125rem' };
+    : { fontSize: '1.25rem' };
 
   return (
     <div className={cn("flex gap-3", className)} style={containerStyle}>
@@ -100,6 +102,14 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
             >
               {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
             </span>
+            {controller.target_temp !== null && (
+              <span 
+                className="text-muted-foreground/70 text-xs"
+                style={{ fontSize: dynamicSize ? 'min(calc(36cqh * 0.5), calc(100cqw * 0.017))' : '0.7rem' }}
+              >
+                ↗ {controller.target_temp.toFixed(1)}°C
+              </span>
+            )}
           </div>
         </div>
       ))}
