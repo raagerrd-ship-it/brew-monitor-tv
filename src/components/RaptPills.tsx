@@ -120,7 +120,7 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
   } : undefined;
 
   return (
-    <div className={cn("flex items-center", gap, className)}>
+    <div className={cn("flex items-center h-full", gap, className)}>
       {pills.map((pill) => {
         const isInactive = isStale(pill.last_update);
         
