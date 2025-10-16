@@ -76,7 +76,7 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
     : { fontSize: '1.25rem' };
 
   return (
-    <div className={cn("flex items-center gap-3 h-full", className)}>
+    <div className={cn("flex items-center gap-3", className)}>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
