@@ -659,7 +659,7 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0.5 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -687,15 +687,15 @@ export function BrewingDashboard() {
                         />
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(22cqh * 0.7), calc(100cqw * 0.15))' }}>ABV</p>
-                    <p className="font-bold text-secondary leading-none z-10 pl-2" style={{ fontSize: 'min(calc(65cqh * 0.85), calc(100cqw * 0.45))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.16))' }}>ABV</p>
+                    <p className="font-bold text-secondary leading-none z-10 pl-2" style={{ fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.48))' }}>
                       {brew.abv.toFixed(1)}%
                     </p>
                   </div>
 
                   {/* Temp */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 transition-all duration-1000 relative overflow-hidden`}
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0.5 transition-all duration-1000 relative overflow-hidden`}
                     style={{ 
                       containerType: 'size',
                       borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.2)`,
@@ -734,12 +734,12 @@ export function BrewingDashboard() {
                         />
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(22cqh * 0.7), calc(100cqw * 0.15))' }}>Temp</p>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.16))' }}>Temp</p>
                     <p 
                       className="font-bold leading-none z-10 pl-2"
                       style={{ 
                         color: getTempColor(brew.currentTemp).rgb,
-                        fontSize: 'min(calc(65cqh * 0.85), calc(100cqw * 0.45))'
+                        fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.48))'
                       }}
                     >
                       {brew.currentTemp}°
@@ -748,7 +748,7 @@ export function BrewingDashboard() {
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0.5 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -775,15 +775,15 @@ export function BrewingDashboard() {
                         <circle cx="9" cy="6" r="1.2" stroke={brew.attenuation >= 5 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 5 ? "0.3" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.7s' }} />
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(22cqh * 0.7), calc(100cqw * 0.15))' }}>Utjäsning</p>
-                    <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(calc(65cqh * 0.85), calc(100cqw * 0.45))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.16))' }}>Utjäsning</p>
+                    <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.48))' }}>
                       {brew.attenuation}%
                     </p>
                   </div>
 
                   {/* Batteri */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-1 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
+                    className={`bg-background/50 rounded-lg p-3 flex flex-col items-start justify-center gap-0.5 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
                       updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
                     }`}
                     style={{ containerType: 'size' }}
@@ -808,8 +808,8 @@ export function BrewingDashboard() {
                         )}
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(22cqh * 0.7), calc(100cqw * 0.15))' }}>Batteri</p>
-                    <p className="font-bold text-primary leading-none z-10 pl-2" style={{ fontSize: 'min(calc(65cqh * 0.85), calc(100cqw * 0.45))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(24cqh * 0.7), calc(100cqw * 0.16))' }}>Batteri</p>
+                    <p className="font-bold text-primary leading-none z-10 pl-2" style={{ fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.48))' }}>
                       {brew.battery !== null ? `${brew.battery}%` : "N/A"}
                     </p>
                   </div>
