@@ -101,14 +101,6 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
             >
               {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
             </span>
-            {controller.target_temp !== null && (
-              <span 
-                className="text-muted-foreground/70"
-                style={{ fontSize: dynamicSize ? 'min(calc(30cqh * 0.5), calc(100cqw * 0.014))' : '0.65rem' }}
-              >
-                ↗ {controller.target_temp.toFixed(1)}°C
-              </span>
-            )}
           </div>
         </div>
       ))}
