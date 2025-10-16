@@ -28,10 +28,27 @@ export default function Settings() {
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
   const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
+  const [apiSettings, setApiSettings] = useState<{
+    brewfather: { userId: string; apiKey: string; configured: boolean };
+    rapt: { username: string; apiSecret: string; configured: boolean };
+  } | null>(null);
 
   useEffect(() => {
     loadSettings();
+    loadApiSettings();
   }, []);
+
+  const loadApiSettings = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-api-settings');
+      
+      if (error) throw error;
+      
+      setApiSettings(data);
+    } catch (error) {
+      console.error('Error loading API settings:', error);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -311,6 +328,20 @@ export default function Settings() {
               <p className="text-sm text-muted-foreground mb-4">
                 Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
               </p>
+              
+              {apiSettings?.brewfather && (
+                <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">User ID:</span>
+                    <span className="text-sm font-mono">{apiSettings.brewfather.userId}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">API-nyckel:</span>
+                    <span className="text-sm font-mono">{apiSettings.brewfather.apiKey}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -482,6 +513,20 @@ export default function Settings() {
               <p className="text-sm text-muted-foreground mb-4">
                 Be AI-assistenten uppdatera dina RAPT Portal-inloggningsuppgifter i chatten
               </p>
+              
+              {apiSettings?.rapt && (
+                <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Användarnamn:</span>
+                    <span className="text-sm font-mono">{apiSettings.rapt.username}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">API-nyckel:</span>
+                    <span className="text-sm font-mono">{apiSettings.rapt.apiSecret}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex gap-3">
                 <Button
                   variant="outline"
