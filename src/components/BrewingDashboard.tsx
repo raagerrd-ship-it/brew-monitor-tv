@@ -870,14 +870,14 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10" style={{ fontSize: 'min(calc(18cqh * 0.9), calc(100cqw * 0.16))' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 0.95), calc(100cqw * 0.28))' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10" style={{ fontSize: 'min(calc(18cqh * 1.0), calc(100cqw * 0.18))' }}>Gravity</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10" style={{ fontSize: 'min(calc(35cqh * 1.05), calc(100cqw * 0.32))' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                     <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center">
-                      <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>OG: {brew.originalGravity.toFixed(3)}</p>
-                      <p style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>FG: {brew.finalGravity.toFixed(3)}</p>
-                      <p className="font-medium" style={{ fontSize: 'min(calc(10cqh * 0.85), calc(100cqw * 0.11))' }}>
+                      <p style={{ fontSize: 'min(calc(10cqh * 0.95), calc(100cqw * 0.12))' }}>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p style={{ fontSize: 'min(calc(10cqh * 0.95), calc(100cqw * 0.12))' }}>FG: {brew.finalGravity.toFixed(3)}</p>
+                      <p className="font-medium" style={{ fontSize: 'min(calc(10cqh * 0.95), calc(100cqw * 0.12))' }}>
                         {brew.fermentationRate !== null ? (
                           <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
                         ) : (
