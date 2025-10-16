@@ -693,11 +693,10 @@ export function BrewingDashboard() {
                   />
                   {isPillStale && (
                     <div 
-                      className="absolute -top-1 -right-1 rounded-full border-2 border-background z-10"
+                      className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background animate-pulse"
                       style={{
-                        width: 'min(calc(25cqh * 0.5), calc(100cqw * 0.014))',
-                        height: 'min(calc(25cqh * 0.5), calc(100cqw * 0.014))',
-                        backgroundColor: '#f97316'
+                        backgroundColor: 'rgb(249 115 22)',
+                        boxShadow: '0 0 8px rgb(249 115 22)'
                       }}
                     />
                   )}
