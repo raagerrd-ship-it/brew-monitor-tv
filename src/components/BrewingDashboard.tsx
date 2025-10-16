@@ -618,8 +618,8 @@ export function BrewingDashboard() {
                 </div>
               </div>
               
-              {/* Chart Area - 47% */}
-              <div className="h-[47%] p-2 pb-1 flex-shrink-0">
+              {/* Chart Area - 58% */}
+              <div className="h-[58%] p-2 pb-1 flex-shrink-0">
                 <BrewChart 
                   data={brew.sgData} 
                   og={brew.originalGravity} 
