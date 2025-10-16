@@ -4,6 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Pill } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
 
 interface PillData {
   id: string;
@@ -11,6 +13,7 @@ interface PillData {
   name: string;
   color: string;
   battery_level: number;
+  last_update: string | null;
 }
 
 interface SelectedPill {
@@ -129,9 +132,19 @@ export function RaptPillsManagement() {
               <Pill color={pill.color} size={24} strokeWidth={2.5} />
               <div>
                 <p className="font-medium">{pill.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Batteri: {pill.battery_level}%
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Batteri: {pill.battery_level}%
+                  </p>
+                  {pill.last_update && (
+                    <p className="text-xs text-muted-foreground">
+                      Senast synlig: {formatDistanceToNow(new Date(pill.last_update), { 
+                        addSuffix: true, 
+                        locale: sv 
+                      })}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-2">
