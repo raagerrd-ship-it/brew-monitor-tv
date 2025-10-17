@@ -59,15 +59,15 @@ serve(async (req) => {
       case 'setTargetTemperature':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature';
         body = {
-          id: controllerId,
-          targetTemperature: value
+          temperatureControllerId: controllerId,
+          target: value
         };
         break;
       
       case 'setPIDEnabled':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPIDEnabled';
         body = {
-          id: controllerId,
+          temperatureControllerId: controllerId,
           enabled: value
         };
         break;
@@ -75,7 +75,7 @@ serve(async (req) => {
       case 'setPID':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPID';
         body = {
-          id: controllerId,
+          temperatureControllerId: controllerId,
           proportionalGain: value.proportionalGain,
           integralTime: value.integralTime,
           derivativeTime: value.derivativeTime
