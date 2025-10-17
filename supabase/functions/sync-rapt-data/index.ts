@@ -71,6 +71,9 @@ serve(async (req) => {
 
     const controllers = controllersResponse.data || [];
     console.log(`Received ${controllers.length} Temperature Controllers`);
+    if (controllers.length > 0) {
+      console.log('First controller full data:', JSON.stringify(controllers[0], null, 2));
+    }
 
     // Map color names to hex colors (both English and Swedish)
     const colorMap: Record<string, string> = {
