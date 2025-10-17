@@ -27,7 +27,7 @@ interface RaptControllerDialogProps {
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [targetTemp, setTargetTemp] = useState(controller.target_temp?.toFixed(1) || '12.0');
+  const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp).toString() : '12');
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
@@ -173,19 +173,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
                 <Input
                   id="target-temp"
                   type="number"
-                  step="0.1"
+                  min="-5"
+                  max="25"
+                  step="1"
                   value={targetTemp}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || value === '-') {
-                      setTargetTemp(value);
-                    } else {
-                      const numValue = parseFloat(value);
-                      if (!isNaN(numValue)) {
-                        setTargetTemp(numValue.toFixed(1));
-                      }
-                    }
-                  }}
+                  onChange={(e) => setTargetTemp(e.target.value)}
                   className="text-lg"
                   disabled={loading}
                 />
@@ -199,7 +191,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Ställ in önskad måltemperatur för temperaturstyrt jäsning
+              Ställ in önskad måltemperatur (-5°C till +25°C) för temperaturstyrt jäsning
             </p>
           </div>
 
