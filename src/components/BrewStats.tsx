@@ -67,14 +67,16 @@ export function BrewStats({ brew }: BrewStatsProps) {
 
         <div className="rounded-2xl bg-muted/50 backdrop-blur-sm p-2 border border-beer-gold/10 overflow-hidden">
           <div className="text-center flex flex-col justify-center h-full min-w-0">
-            <div className="inline-flex rounded-full bg-beer-gold/20 p-2 mb-0.5 mx-auto relative overflow-hidden">
-              <Wine className="h-5 w-5 text-muted-foreground/40 relative z-10" />
+            <div className="inline-flex rounded-full bg-muted p-2 mb-0.5 mx-auto relative" style={{ position: 'relative' }}>
               <div 
-                className="absolute bottom-0 left-0 right-0 bg-beer-gold transition-all duration-500"
+                className="absolute bottom-0 left-0 right-0 transition-all duration-500 rounded-full"
                 style={{ 
-                  height: `${Math.min((brew.abv / 10) * 100, 100)}%`
+                  height: `${Math.min((brew.abv / 10) * 100, 100)}%`,
+                  backgroundColor: '#f59e0b',
+                  zIndex: 1
                 }}
               />
+              <Wine className="h-5 w-5 text-foreground relative" style={{ zIndex: 2 }} />
             </div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5 font-semibold">ABV</p>
             <p className="text-4xl font-bold text-beer-gold leading-none">
