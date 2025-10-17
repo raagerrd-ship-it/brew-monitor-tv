@@ -639,36 +639,40 @@ export function BrewingDashboard() {
     };
   };
 
-  // Extract color from controller name (like "Red", "Blue", "Green", etc.)
+  // Extract color from controller name (like "Red", "Röd", "Blue", "Blå", etc.)
   const getControllerColor = (name: string): string => {
-    const colorMap: Record<string, string> = {
-      'red': '#ef4444',
-      'blue': '#3b82f6',
-      'green': '#22c55e',
-      'yellow': '#eab308',
-      'purple': '#a855f7',
-      'pink': '#ec4899',
-      'orange': '#f97316',
-      'cyan': '#06b6d4',
-      'lime': '#84cc16',
-      'amber': '#f59e0b',
-      'teal': '#14b8a6',
-      'indigo': '#6366f1',
-      'violet': '#8b5cf6',
-      'fuchsia': '#d946ef',
-      'rose': '#f43f5e',
-      'sky': '#0ea5e9',
-      'emerald': '#10b981',
-      'slate': '#64748b',
-      'gray': '#6b7280',
-      'zinc': '#71717a',
-      'neutral': '#737373',
-      'stone': '#78716c',
-    };
-
     const lowerName = name.toLowerCase();
-    for (const [color, hex] of Object.entries(colorMap)) {
-      if (lowerName.includes(color)) {
+    
+    // Map of color keywords (English and Swedish) to hex values
+    const colorMatches: Array<[string[], string]> = [
+      [['red', 'röd'], '#ef4444'],
+      [['blue', 'blå'], '#3b82f6'],
+      [['green', 'grön'], '#22c55e'],
+      [['yellow', 'gul'], '#eab308'],
+      [['purple', 'lila'], '#a855f7'],
+      [['pink', 'rosa'], '#ec4899'],
+      [['orange'], '#f97316'],
+      [['cyan'], '#06b6d4'],
+      [['lime'], '#84cc16'],
+      [['amber', 'bärnsten'], '#f59e0b'],
+      [['teal', 'turkos'], '#14b8a6'],
+      [['indigo'], '#6366f1'],
+      [['violet', 'violett'], '#8b5cf6'],
+      [['fuchsia'], '#d946ef'],
+      [['rose'], '#f43f5e'],
+      [['sky', 'himmel'], '#0ea5e9'],
+      [['emerald', 'smaragd'], '#10b981'],
+      [['slate', 'skiffer'], '#64748b'],
+      [['gray', 'grey', 'grå'], '#6b7280'],
+      [['zinc', 'zink'], '#71717a'],
+      [['neutral', 'neutral'], '#737373'],
+      [['stone', 'sten'], '#78716c'],
+      [['white', 'vit'], '#f1f5f9'],
+      [['black', 'svart'], '#1e293b'],
+    ];
+
+    for (const [keywords, hex] of colorMatches) {
+      if (keywords.some(keyword => lowerName.includes(keyword))) {
         return hex;
       }
     }
