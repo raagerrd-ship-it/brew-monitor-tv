@@ -112,9 +112,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
+        <div className="space-y-2 py-2">
           {/* Current Temperature */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Nuvarande temperatur</span>
@@ -125,7 +125,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </div>
 
           {/* Target Temperature Display */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Måltemperatur</span>
@@ -136,7 +136,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </div>
 
           {/* Last Update */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Senaste data</span>
@@ -149,7 +149,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </div>
 
           {/* Last Sync */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <RefreshCw className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Senaste synkronisering</span>
