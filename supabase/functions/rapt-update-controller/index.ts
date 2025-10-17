@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -100,6 +101,32 @@ serve(async (req) => {
 
     const result = await response.json();
     console.log('RAPT API response:', result);
+
+    // Update database with new value immediately
+    if (action === 'setTargetTemperature' && result === true) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const { error: dbError } = await supabase
+          .from('rapt_temp_controllers')
+          .update({ 
+            target_temp: value,
+            updated_at: new Date().toISOString()
+          })
+          .eq('controller_id', controllerId);
+
+        if (dbError) {
+          console.error('Error updating database:', dbError);
+        } else {
+          console.log(`Updated database: controller ${controllerId} target_temp = ${value}`);
+        }
+      } catch (dbUpdateError) {
+        console.error('Database update error:', dbUpdateError);
+        // Don't fail the request if DB update fails, API update was successful
+      }
+    }
 
     return new Response(JSON.stringify({ success: true, result }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -72,6 +72,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         throw new Error(data.error);
       }
 
+      // Close dialog to trigger data refresh
+      onOpenChange(false);
+      
       toast({
         title: "Måltemperatur uppdaterad",
         description: `${controller.name} måltemperatur är nu ${targetTemp}°C`,
