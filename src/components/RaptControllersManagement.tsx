@@ -214,6 +214,9 @@ export function RaptControllersManagement() {
 
   return (
     <div className="space-y-3">
+      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+        💡 <strong>Tips:</strong> Endast controllers som är markerade som "Visa" synkas automatiskt var 5:e minut. Dold controllers visas här men uppdateras inte.
+      </div>
       {controllers.map((controller) => (
         <Card key={controller.id} className="p-4">
           <div className="space-y-3">
