@@ -209,7 +209,18 @@ export function BrewingDashboard() {
                     toast({
                       title: `${updatedReading.name} är klar! 🍺`,
                       description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
-                      duration: 10000,
+                      duration: Infinity,
+                      action: (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // Toast closes automatically when action is clicked
+                          }}
+                        >
+                          Kvittera
+                        </Button>
+                      ),
                     });
                   }
                   
@@ -431,7 +442,18 @@ export function BrewingDashboard() {
           toast({
             title: `${reading.name} är klar! 🍺`,
             description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
-            duration: 10000,
+            duration: Infinity,
+            action: (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  // Toast closes automatically when action is clicked
+                }}
+              >
+                Kvittera
+              </Button>
+            ),
           });
         }
         
