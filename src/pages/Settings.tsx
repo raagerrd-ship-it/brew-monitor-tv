@@ -1,5 +1,4 @@
 import { BrewManagement } from "@/components/BrewManagement";
-import { RaptPillsList } from "@/components/RaptPillsList";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { Button } from "@/components/ui/button";
