@@ -28,6 +28,7 @@ export function RaptControllersManagement() {
   const [editingControllerId, setEditingControllerId] = useState<string | null>(null);
   const [tempTargetTemp, setTempTargetTemp] = useState<string>("");
   const [updating, setUpdating] = useState(false);
+  const [syncInterval, setSyncInterval] = useState<number>(300);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,6 +73,19 @@ export function RaptControllersManagement() {
         .select('*');
 
       if (selectedError) throw selectedError;
+
+      // Load sync settings to get the interval
+      const { data: syncData, error: syncError } = await supabase
+        .from('sync_settings')
+        .select('rapt_sync_interval')
+        .limit(1)
+        .maybeSingle();
+
+      if (syncError) {
+        console.error('Error loading sync settings:', syncError);
+      } else if (syncData) {
+        setSyncInterval(syncData.rapt_sync_interval);
+      }
 
       setControllers(controllersData || []);
 
@@ -212,10 +226,18 @@ export function RaptControllersManagement() {
     );
   }
 
+  const getSyncIntervalText = () => {
+    const minutes = Math.floor(syncInterval / 60);
+    if (minutes === 1) return "varje minut";
+    if (minutes < 60) return `var ${minutes}:e minut`;
+    const hours = Math.floor(minutes / 60);
+    return `var ${hours}:e timme`;
+  };
+
   return (
     <div className="space-y-3">
       <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-        💡 <strong>Tips:</strong> Endast controllers som är markerade som "Visa" synkas automatiskt var 5:e minut. Dold controllers visas här men uppdateras inte.
+        💡 <strong>Tips:</strong> Endast controllers som är markerade som "Visa" synkas automatiskt {getSyncIntervalText()}. Dolda controllers visas här men uppdateras inte.
       </div>
       {controllers.map((controller) => (
         <Card key={controller.id} className="p-4">
