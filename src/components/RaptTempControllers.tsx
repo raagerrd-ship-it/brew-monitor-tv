@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AirVent } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TempController {
   id: string;
@@ -19,6 +20,7 @@ interface RaptTempControllersProps {
 
 export function RaptTempControllers({ dynamicSize = false, className }: RaptTempControllersProps) {
   const [controllers, setControllers] = useState<TempController[]>([]);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     loadControllers();
@@ -64,23 +66,23 @@ export function RaptTempControllers({ dynamicSize = false, className }: RaptTemp
 
   const iconStyle = dynamicSize
     ? {
-        width: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-        height: 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+        width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+        height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
       }
     : { width: '2rem', height: '2rem' };
 
   const textStyle = dynamicSize
     ? {
-        fontSize: 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+        fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
       }
     : { fontSize: '1.25rem' };
 
   return (
-    <div data-name="RaptTempControllers" className={cn("flex items-stretch gap-3 h-full", className)}>
+    <div data-name="RaptTempControllers" className={cn("flex items-stretch h-full", isMobile ? "gap-1.5" : "gap-3", className)}>
       {controllers.map((controller) => (
         <div 
           key={controller.id}
-          className="flex items-center gap-2 h-full"
+          className={cn("flex items-center h-full", isMobile ? "gap-1" : "gap-2")}
         >
           <AirVent 
             style={iconStyle}
