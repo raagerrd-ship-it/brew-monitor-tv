@@ -720,8 +720,8 @@ export function BrewingDashboard() {
           Bryggövervakare
         </h1>
         
-        <div className="flex items-center gap-4">
-          <div data-name="RaptMain" className={`flex items-stretch justify-end h-full ${isMobile ? 'gap-1.5' : 'gap-3'}`}>
+        <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
+          <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-3 justify-end'}`}>
             {/* Temp Controllers */}
             {controllers.length > 0 && controllers.map((controller) => {
               const controllerColor = getControllerColor(controller.name);
