@@ -496,11 +496,12 @@ export function BrewingDashboard() {
 
   const loadPills = async () => {
     try {
-      // Get selected pills
+      // Get selected pills with display_order
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_rapt_pills')
         .select('pill_id')
-        .eq('is_visible', true);
+        .eq('is_visible', true)
+        .order('display_order');
 
       if (selectedError) {
         console.error('Error loading selected pills:', selectedError);
@@ -518,15 +519,21 @@ export function BrewingDashboard() {
       const { data, error } = await supabase
         .from('rapt_pills')
         .select('*')
-        .in('pill_id', selectedPillIds)
-        .order('name', { ascending: true });
+        .in('pill_id', selectedPillIds);
 
       if (error) {
         console.error('Error loading Pills:', error);
         return;
       }
 
-      setPills(data || []);
+      // Sort pills based on display_order from selectedData
+      const sortedPills = (data || []).sort((a, b) => {
+        const aIndex = selectedPillIds.indexOf(a.pill_id);
+        const bIndex = selectedPillIds.indexOf(b.pill_id);
+        return aIndex - bIndex;
+      });
+
+      setPills(sortedPills);
     } catch (error) {
       console.error('Error loading Pills:', error);
     }
@@ -534,11 +541,12 @@ export function BrewingDashboard() {
 
   const loadControllers = async () => {
     try {
-      // Get selected controllers
+      // Get selected controllers with display_order
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_rapt_temp_controllers')
         .select('controller_id')
-        .eq('is_visible', true);
+        .eq('is_visible', true)
+        .order('display_order');
 
       if (selectedError) {
         console.error('Error loading selected controllers:', selectedError);
@@ -556,15 +564,21 @@ export function BrewingDashboard() {
       const { data, error } = await supabase
         .from('rapt_temp_controllers')
         .select('*')
-        .in('controller_id', selectedControllerIds)
-        .order('name');
+        .in('controller_id', selectedControllerIds);
 
       if (error) {
         console.error('Error loading temperature controllers:', error);
         return;
       }
 
-      setControllers(data || []);
+      // Sort controllers based on display_order from selectedData
+      const sortedControllers = (data || []).sort((a, b) => {
+        const aIndex = selectedControllerIds.indexOf(a.controller_id);
+        const bIndex = selectedControllerIds.indexOf(b.controller_id);
+        return aIndex - bIndex;
+      });
+
+      setControllers(sortedControllers);
     } catch (error) {
       console.error('Error loading temperature controllers:', error);
     }

@@ -182,6 +182,7 @@ export type Database = {
       selected_rapt_pills: {
         Row: {
           created_at: string
+          display_order: number
           id: string
           is_visible: boolean
           pill_id: string
@@ -189,6 +190,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_order?: number
           id?: string
           is_visible?: boolean
           pill_id: string
@@ -196,6 +198,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_order?: number
           id?: string
           is_visible?: boolean
           pill_id?: string
@@ -207,6 +210,7 @@ export type Database = {
         Row: {
           controller_id: string
           created_at: string
+          display_order: number
           id: string
           is_visible: boolean
           updated_at: string
@@ -214,6 +218,7 @@ export type Database = {
         Insert: {
           controller_id: string
           created_at?: string
+          display_order?: number
           id?: string
           is_visible?: boolean
           updated_at?: string
@@ -221,6 +226,7 @@ export type Database = {
         Update: {
           controller_id?: string
           created_at?: string
+          display_order?: number
           id?: string
           is_visible?: boolean
           updated_at?: string

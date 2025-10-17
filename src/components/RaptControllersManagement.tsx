@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AirVent, Thermometer, Check, X } from "lucide-react";
+import { AirVent, Thermometer, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -21,9 +21,17 @@ interface ControllerData {
   heating_utilisation: number;
 }
 
+interface SelectedController {
+  id: string;
+  controller_id: string;
+  is_visible: boolean;
+  display_order: number;
+}
+
 export function RaptControllersManagement() {
   const [controllers, setControllers] = useState<ControllerData[]>([]);
   const [selectedControllers, setSelectedControllers] = useState<Record<string, boolean>>({});
+  const [selectedControllersData, setSelectedControllersData] = useState<SelectedController[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingControllerId, setEditingControllerId] = useState<string | null>(null);
   const [tempTargetTemp, setTempTargetTemp] = useState<string>("");
@@ -67,10 +75,11 @@ export function RaptControllersManagement() {
 
       if (controllersError) throw controllersError;
 
-      // Load selected controllers
+      // Load selected controllers with display_order
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_rapt_temp_controllers')
-        .select('*');
+        .select('*')
+        .order('display_order');
 
       if (selectedError) throw selectedError;
 
@@ -88,6 +97,7 @@ export function RaptControllersManagement() {
       }
 
       setControllers(controllersData || []);
+      setSelectedControllersData(selectedData || []);
 
       // Create a map of selected controllers
       const selectedMap: Record<string, boolean> = {};
@@ -126,15 +136,19 @@ export function RaptControllersManagement() {
 
         if (error) throw error;
       } else {
+        // Get max display_order and add 1
+        const maxOrder = Math.max(...selectedControllersData.map(c => c.display_order), 0);
+        
         // Insert new
         const { error } = await supabase
           .from('selected_rapt_temp_controllers')
-          .insert({ controller_id: controllerId, is_visible: visible });
+          .insert({ controller_id: controllerId, is_visible: visible, display_order: maxOrder + 1 });
 
         if (error) throw error;
       }
 
       setSelectedControllers(prev => ({ ...prev, [controllerId]: visible }));
+      loadData(); // Reload to get updated data
 
       toast({
         title: "Inställning sparad",
@@ -145,6 +159,66 @@ export function RaptControllersManagement() {
       toast({
         title: "Fel",
         description: "Kunde inte spara inställning",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMoveUp = async (controllerId: string) => {
+    const currentIndex = selectedControllersData.findIndex(c => c.controller_id === controllerId);
+    if (currentIndex <= 0) return;
+
+    const current = selectedControllersData[currentIndex];
+    const previous = selectedControllersData[currentIndex - 1];
+
+    try {
+      // Swap display_order
+      await supabase
+        .from('selected_rapt_temp_controllers')
+        .update({ display_order: previous.display_order })
+        .eq('controller_id', current.controller_id);
+
+      await supabase
+        .from('selected_rapt_temp_controllers')
+        .update({ display_order: current.display_order })
+        .eq('controller_id', previous.controller_id);
+
+      loadData();
+    } catch (error) {
+      console.error('Error moving controller:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte flytta controller",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMoveDown = async (controllerId: string) => {
+    const currentIndex = selectedControllersData.findIndex(c => c.controller_id === controllerId);
+    if (currentIndex < 0 || currentIndex >= selectedControllersData.length - 1) return;
+
+    const current = selectedControllersData[currentIndex];
+    const next = selectedControllersData[currentIndex + 1];
+
+    try {
+      // Swap display_order
+      await supabase
+        .from('selected_rapt_temp_controllers')
+        .update({ display_order: next.display_order })
+        .eq('controller_id', current.controller_id);
+
+      await supabase
+        .from('selected_rapt_temp_controllers')
+        .update({ display_order: current.display_order })
+        .eq('controller_id', next.controller_id);
+
+      loadData();
+    } catch (error) {
+      console.error('Error moving controller:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte flytta controller",
         variant: "destructive",
       });
     }
@@ -239,14 +313,20 @@ export function RaptControllersManagement() {
       <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
         💡 <strong>Tips:</strong> Endast controllers som är markerade som "Visa" synkas automatiskt {getSyncIntervalText()}. Dolda controllers visas här men uppdateras inte.
       </div>
-      {controllers.map((controller) => (
+      {controllers.map((controller) => {
+        const controllerIndex = selectedControllersData.findIndex(c => c.controller_id === controller.controller_id);
+        const isFirst = controllerIndex === 0;
+        const isLast = controllerIndex === selectedControllersData.length - 1;
+        const isSelected = selectedControllers[controller.controller_id];
+        
+        return (
         <Card key={controller.id} className="p-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <AirVent size={24} className="text-primary" />
-                <div className="flex-1">
-                  <p className="font-medium">{controller.name}</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <AirVent size={24} className="text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{controller.name}</p>
                   <div className="space-y-1">
                     {controller.current_temp !== null && (
                       <p className="text-sm text-muted-foreground">
@@ -293,7 +373,30 @@ export function RaptControllersManagement() {
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2">
+              {isSelected && controllerIndex >= 0 && (
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleMoveUp(controller.controller_id)}
+                    disabled={isFirst}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleMoveDown(controller.controller_id)}
+                    disabled={isLast}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 <Checkbox
                   id={`controller-${controller.controller_id}`}
                   checked={selectedControllers[controller.controller_id] || false}
@@ -303,7 +406,7 @@ export function RaptControllersManagement() {
                 />
                 <label
                   htmlFor={`controller-${controller.controller_id}`}
-                  className="text-sm cursor-pointer leading-none"
+                  className="text-sm cursor-pointer leading-none whitespace-nowrap"
                 >
                   Visa
                 </label>
@@ -352,7 +455,8 @@ export function RaptControllersManagement() {
             )}
           </div>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }
