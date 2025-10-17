@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
+import { RaptControllerDialog } from "./RaptControllerDialog";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -54,6 +55,8 @@ export function BrewingDashboard() {
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
+  const [selectedController, setSelectedController] = useState<TempController | null>(null);
+  const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const navigate = useNavigate();
@@ -650,7 +653,12 @@ export function BrewingDashboard() {
             {controllers.length > 0 && controllers.map((controller) => (
               <div 
                 key={controller.id}
-                className={`flex items-center h-full ${isMobile ? 'gap-1' : 'gap-2'}`}
+                className={`flex items-center h-full cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1' : 'gap-2'}`}
+                onClick={() => {
+                  setSelectedController(controller);
+                  setControllerDialogOpen(true);
+                }}
+                title={`${controller.name}\nNuvarande: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
               >
                 <AirVent 
                   style={{
@@ -808,6 +816,15 @@ export function BrewingDashboard() {
           </div>
         )}
       </div>
+
+      {/* RAPT Controller Settings Dialog */}
+      {selectedController && (
+        <RaptControllerDialog
+          controller={selectedController}
+          open={controllerDialogOpen}
+          onOpenChange={setControllerDialogOpen}
+        />
+      )}
     </div>
   );
 
