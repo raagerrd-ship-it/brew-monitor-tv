@@ -37,15 +37,7 @@ export function RaptPillsManagement() {
 
   const loadData = async () => {
     try {
-      // Load all pills
-      const { data: pillsData, error: pillsError } = await supabase
-        .from('rapt_pills')
-        .select('*')
-        .order('name');
-
-      if (pillsError) throw pillsError;
-
-      // Load selected pills with display_order
+      // Load selected pills with display_order first
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_rapt_pills')
         .select('*')
@@ -53,12 +45,37 @@ export function RaptPillsManagement() {
 
       if (selectedError) throw selectedError;
 
-      setPills(pillsData || []);
       setSelectedPillsData(selectedData || []);
+      
+      // Get all pill IDs from selected pills (to maintain order)
+      const selectedPillIds = selectedData?.map(s => s.pill_id) || [];
+
+      if (selectedPillIds.length === 0) {
+        setPills([]);
+        setLoading(false);
+        return;
+      }
+
+      // Load all pills data
+      const { data: pillsData, error: pillsError } = await supabase
+        .from('rapt_pills')
+        .select('*')
+        .in('pill_id', selectedPillIds);
+
+      if (pillsError) throw pillsError;
+
+      // Sort pills by display_order
+      const sortedPills = (pillsData || []).sort((a, b) => {
+        const aIndex = selectedPillIds.indexOf(a.pill_id);
+        const bIndex = selectedPillIds.indexOf(b.pill_id);
+        return aIndex - bIndex;
+      });
+
+      setPills(sortedPills);
 
       // Create a map of selected pills
       const selectedMap: Record<string, boolean> = {};
-      pillsData?.forEach(pill => {
+      sortedPills.forEach(pill => {
         const selected = selectedData?.find(s => s.pill_id === pill.pill_id);
         selectedMap[pill.pill_id] = selected?.is_visible ?? false;
       });

@@ -67,21 +67,41 @@ export function RaptControllersManagement() {
 
   const loadData = async () => {
     try {
-      // Load all controllers
-      const { data: controllersData, error: controllersError } = await supabase
-        .from('rapt_temp_controllers')
-        .select('*')
-        .order('name');
-
-      if (controllersError) throw controllersError;
-
-      // Load selected controllers with display_order
+      // Load selected controllers with display_order first
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_rapt_temp_controllers')
         .select('*')
         .order('display_order');
 
       if (selectedError) throw selectedError;
+
+      setSelectedControllersData(selectedData || []);
+      
+      // Get all controller IDs from selected controllers (to maintain order)
+      const selectedControllerIds = selectedData?.map(s => s.controller_id) || [];
+
+      if (selectedControllerIds.length === 0) {
+        setControllers([]);
+        setLoading(false);
+        return;
+      }
+
+      // Load all controllers data
+      const { data: controllersData, error: controllersError } = await supabase
+        .from('rapt_temp_controllers')
+        .select('*')
+        .in('controller_id', selectedControllerIds);
+
+      if (controllersError) throw controllersError;
+
+      // Sort controllers by display_order
+      const sortedControllers = (controllersData || []).sort((a, b) => {
+        const aIndex = selectedControllerIds.indexOf(a.controller_id);
+        const bIndex = selectedControllerIds.indexOf(b.controller_id);
+        return aIndex - bIndex;
+      });
+
+      setControllers(sortedControllers);
 
       // Load sync settings to get the interval
       const { data: syncData, error: syncError } = await supabase
@@ -96,12 +116,9 @@ export function RaptControllersManagement() {
         setSyncInterval(syncData.rapt_sync_interval);
       }
 
-      setControllers(controllersData || []);
-      setSelectedControllersData(selectedData || []);
-
       // Create a map of selected controllers
       const selectedMap: Record<string, boolean> = {};
-      controllersData?.forEach(controller => {
+      sortedControllers.forEach(controller => {
         const selected = selectedData?.find(s => s.controller_id === controller.controller_id);
         selectedMap[controller.controller_id] = selected?.is_visible ?? false;
       });
