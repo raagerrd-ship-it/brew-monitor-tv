@@ -3,11 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Thermometer, Settings } from 'lucide-react';
+import { Loader2, Thermometer } from 'lucide-react';
 
 interface TempController {
   id: string;
@@ -28,7 +26,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp?.toString() || '12');
-  const [pidEnabled, setPidEnabled] = useState(true);
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -74,50 +71,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
     }
   };
 
-  const handleSetPIDEnabled = async (enabled: boolean) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
-        body: {
-          controllerId: controller.controller_id,
-          action: 'setPIDEnabled',
-          value: enabled
-        }
-      });
-
-      if (error) throw error;
-
-      // Check if the response contains an error
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      setPidEnabled(enabled);
-      toast({
-        title: "PID-kontroll uppdaterad",
-        description: `PID-kontroll är nu ${enabled ? 'aktiverad' : 'inaktiverad'}`,
-      });
-    } catch (error) {
-      console.error('Error updating PID enabled:', error);
-      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera PID-kontroll";
-      
-      // Check for specific RAPT API errors
-      let userFriendlyMessage = errorMessage;
-      if (errorMessage.includes('not registered')) {
-        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
-      } else if (errorMessage.includes('RAPT API error')) {
-        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
-      }
-      
-      toast({
-        title: "Fel vid uppdatering",
-        description: userFriendlyMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,28 +118,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </p>
           </div>
 
-          <Separator />
-
-          {/* PID Control */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-primary" />
-                <Label htmlFor="pid-enabled" className="text-base font-semibold cursor-pointer">
-                  PID-kontroll
-                </Label>
-              </div>
-              <Switch
-                id="pid-enabled"
-                checked={pidEnabled}
-                onCheckedChange={handleSetPIDEnabled}
-                disabled={loading}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Aktivera avancerad PID-temperaturreglering för exakt kontroll
-            </p>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
