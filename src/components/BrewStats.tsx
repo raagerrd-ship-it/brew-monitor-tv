@@ -55,9 +55,8 @@ export function BrewStats({ brew }: BrewStatsProps) {
             </p>
             <Progress 
               value={brew.attenuation} 
-              className={`h-2 bg-background [&>div]:bg-ferment-green [&>div]:rounded-full transition-all duration-500 ${
-                brew.attenuation > 75 ? '[&>div]:shadow-[0_0_15px_hsl(var(--ferment-green))]' : ''
-              }`} 
+              className="h-2 bg-ferment-green/20"
+              indicatorClassName="bg-ferment-green"
             />
           </div>
         </div>
