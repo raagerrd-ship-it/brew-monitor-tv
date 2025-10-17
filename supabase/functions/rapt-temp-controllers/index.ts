@@ -36,6 +36,9 @@ serve(async (req) => {
 
     const controllers = await response.json();
     console.log(`Successfully fetched ${controllers.length} Temperature Controllers`);
+    if (controllers.length > 0) {
+      console.log('First controller raw data:', JSON.stringify(controllers[0], null, 2));
+    }
 
     return new Response(JSON.stringify(controllers), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
