@@ -36,6 +36,31 @@ export default function Settings() {
   useEffect(() => {
     loadSettings();
     loadApiSettings();
+    
+    // Subscribe to sync_settings changes for real-time updates
+    const channel = supabase
+      .channel('sync-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sync_settings'
+        },
+        (payload) => {
+          console.log('Sync settings updated:', payload);
+          const newData = payload.new as any;
+          if (newData) {
+            setLastRaptSync(newData.last_rapt_sync_at);
+            setLastRaptQuickSync(newData.last_rapt_quick_sync_at);
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadApiSettings = async () => {
