@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Thermometer } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { sv } from 'date-fns/locale';
 
 interface TempController {
   id: string;
@@ -26,6 +28,24 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp?.toString() || '12');
+  const [lastSync, setLastSync] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLastSync = async () => {
+      const { data } = await supabase
+        .from('sync_settings')
+        .select('last_rapt_quick_sync_at')
+        .single();
+      
+      if (data?.last_rapt_quick_sync_at) {
+        setLastSync(data.last_rapt_quick_sync_at);
+      }
+    };
+
+    if (open) {
+      fetchLastSync();
+    }
+  }, [open]);
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -80,19 +100,64 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             <Thermometer className="w-5 h-5 text-primary" />
             {controller.name}
           </DialogTitle>
-          <DialogDescription>
-            Nuvarande temperatur: {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : 'Okänd'}
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Target Temperature */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="target-temp" className="text-base font-semibold">
-                Måltemperatur
-              </Label>
+        <div className="space-y-3 py-2">
+          {/* Current Temperature */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Nuvarande temperatur</span>
             </div>
+            <span className="text-lg font-semibold">
+              {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : 'Okänd'}
+            </span>
+          </div>
+
+          {/* Target Temperature Display */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Måltemperatur</span>
+            </div>
+            <span className="text-lg font-semibold">
+              {controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°C` : 'Ej satt'}
+            </span>
+          </div>
+
+          {/* Last Update */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Senaste data</span>
+            </div>
+            <span className="text-sm">
+              {controller.last_update 
+                ? formatDistanceToNow(new Date(controller.last_update), { addSuffix: true, locale: sv })
+                : 'Okänd'}
+            </span>
+          </div>
+
+          {/* Last Sync */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Senaste synkronisering</span>
+            </div>
+            <span className="text-sm">
+              {lastSync 
+                ? formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: sv })
+                : 'Okänd'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-4 py-4 border-t">
+          {/* Target Temperature Input */}
+          <div className="space-y-3">
+            <Label htmlFor="target-temp" className="text-base font-semibold">
+              Ändra måltemperatur
+            </Label>
             <div className="flex gap-2">
               <div className="flex-1">
                 <Input
