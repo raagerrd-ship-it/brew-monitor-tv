@@ -838,7 +838,7 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 my-2 ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
