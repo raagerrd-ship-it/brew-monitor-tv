@@ -194,50 +194,68 @@ export function RaptControllersManagement() {
     <div className="space-y-3">
       {controllers.map((controller) => (
         <Card key={controller.id} className="p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <AirVent size={24} className="text-primary" />
-              <div className="flex-1">
-                <p className="font-medium">{controller.name}</p>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">
-                    {controller.current_temp !== null || controller.target_temp !== null ? (
-                      <>
-                        {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
-                        {controller.current_temp !== null && controller.target_temp !== null && ' | '}
-                        {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
-                      </>
-                    ) : (
-                      'Ingen data'
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1">
+                <AirVent size={24} className="text-primary" />
+                <div className="flex-1">
+                  <p className="font-medium">{controller.name}</p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      {controller.current_temp !== null || controller.target_temp !== null ? (
+                        <>
+                          {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
+                          {controller.current_temp !== null && controller.target_temp !== null && ' | '}
+                          {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
+                        </>
+                      ) : (
+                        'Ingen data'
+                      )}
+                    </p>
+                    {(controller.cooling_enabled || controller.heating_enabled) && (
+                      <p className="text-xs font-medium">
+                        {controller.heating_enabled && controller.heating_utilisation > 0 && (
+                          <span className="text-orange-500">🔥 Värme aktiv ({controller.heating_utilisation.toFixed(0)}%)</span>
+                        )}
+                        {controller.cooling_enabled && controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp && (
+                          <span className="text-blue-500">❄️ Kyla aktiv</span>
+                        )}
+                        {controller.heating_utilisation === 0 && controller.current_temp <= controller.target_temp && (
+                          <span className="text-muted-foreground">⏸️ Standby</span>
+                        )}
+                      </p>
                     )}
-                  </p>
-                  {(controller.cooling_enabled || controller.heating_enabled) && (
-                    <p className="text-xs font-medium">
-                      {controller.heating_enabled && controller.heating_utilisation > 0 && (
-                        <span className="text-orange-500">🔥 Värme aktiv ({controller.heating_utilisation.toFixed(0)}%)</span>
-                      )}
-                      {controller.cooling_enabled && controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp && (
-                        <span className="text-blue-500">❄️ Kyla aktiv</span>
-                      )}
-                      {controller.heating_utilisation === 0 && controller.current_temp <= controller.target_temp && (
-                        <span className="text-muted-foreground">⏸️ Standby</span>
-                      )}
-                    </p>
-                  )}
-                  {controller.last_update && (
-                    <p className="text-xs text-muted-foreground">
-                      Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 
-                        addSuffix: true, 
-                        locale: sv 
-                      })}
-                    </p>
-                  )}
+                    {controller.last_update && (
+                      <p className="text-xs text-muted-foreground">
+                        Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 
+                          addSuffix: true, 
+                          locale: sv 
+                        })}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id={`controller-${controller.controller_id}`}
+                  checked={selectedControllers[controller.controller_id] || false}
+                  onCheckedChange={(checked) =>
+                    handleToggleController(controller.controller_id, !!checked)
+                  }
+                />
+                <label
+                  htmlFor={`controller-${controller.controller_id}`}
+                  className="text-sm cursor-pointer leading-none"
+                >
+                  Visa
+                </label>
               </div>
             </div>
             
             {editingControllerId === controller.controller_id ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pl-9">
                 <Input
                   type="number"
                   value={tempTargetTemp}
@@ -264,7 +282,7 @@ export function RaptControllersManagement() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="pl-9">
                 <Button
                   size="sm"
                   variant="outline"
@@ -272,23 +290,8 @@ export function RaptControllersManagement() {
                   className="h-8 px-3"
                 >
                   <Thermometer className="h-4 w-4 mr-1" />
-                  Ändra
+                  Ändra måltemperatur
                 </Button>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`controller-${controller.controller_id}`}
-                    checked={selectedControllers[controller.controller_id] || false}
-                    onCheckedChange={(checked) =>
-                      handleToggleController(controller.controller_id, !!checked)
-                    }
-                  />
-                  <label
-                    htmlFor={`controller-${controller.controller_id}`}
-                    className="text-sm cursor-pointer leading-none"
-                  >
-                    Visa
-                  </label>
-                </div>
               </div>
             )}
           </div>
