@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
-import { AirVent } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AirVent, Thermometer, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -20,6 +22,9 @@ export function RaptControllersManagement() {
   const [controllers, setControllers] = useState<ControllerData[]>([]);
   const [selectedControllers, setSelectedControllers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [editingControllerId, setEditingControllerId] = useState<string | null>(null);
+  const [tempTargetTemp, setTempTargetTemp] = useState<string>("");
+  const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -106,6 +111,70 @@ export function RaptControllersManagement() {
     }
   };
 
+  const handleStartEdit = (controller: ControllerData) => {
+    setEditingControllerId(controller.controller_id);
+    setTempTargetTemp(controller.target_temp?.toString() || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingControllerId(null);
+    setTempTargetTemp("");
+  };
+
+  const handleUpdateTargetTemp = async (controllerId: string) => {
+    const controller = controllers.find(c => c.controller_id === controllerId);
+    if (!controller) return;
+
+    const targetTemp = parseFloat(tempTargetTemp);
+    
+    if (isNaN(targetTemp)) {
+      toast({
+        title: "Ogiltigt värde",
+        description: "Ange en giltig temperatur",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
+        body: {
+          controllerId: controller.controller_id,
+          action: 'setTargetTemperature',
+          value: targetTemp
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Update local state
+      setControllers(prev => prev.map(c => 
+        c.controller_id === controllerId 
+          ? { ...c, target_temp: targetTemp }
+          : c
+      ));
+
+      setEditingControllerId(null);
+      setTempTargetTemp("");
+
+      toast({
+        title: "Måltemperatur uppdaterad",
+        description: `${controller.name} måltemperatur är nu ${targetTemp}°C`,
+      });
+    } catch (error) {
+      console.error('Error updating target temperature:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera måltemperatur",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;
   }
@@ -122,10 +191,10 @@ export function RaptControllersManagement() {
     <div className="space-y-3">
       {controllers.map((controller) => (
         <Card key={controller.id} className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1">
               <AirVent size={24} className="text-primary" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium">{controller.name}</p>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">
@@ -150,21 +219,62 @@ export function RaptControllersManagement() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id={`controller-${controller.controller_id}`}
-                checked={selectedControllers[controller.controller_id] || false}
-                onCheckedChange={(checked) =>
-                  handleToggleController(controller.controller_id, !!checked)
-                }
-              />
-              <label
-                htmlFor={`controller-${controller.controller_id}`}
-                className="text-sm cursor-pointer leading-none"
-              >
-                Visa
-              </label>
-            </div>
+            
+            {editingControllerId === controller.controller_id ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={tempTargetTemp}
+                  onChange={(e) => setTempTargetTemp(e.target.value)}
+                  placeholder="°C"
+                  className="w-20 h-8"
+                  disabled={updating}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleUpdateTargetTemp(controller.controller_id)}
+                  disabled={updating}
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  disabled={updating}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStartEdit(controller)}
+                  className="h-8 px-3"
+                >
+                  <Thermometer className="h-4 w-4 mr-1" />
+                  Ändra
+                </Button>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`controller-${controller.controller_id}`}
+                    checked={selectedControllers[controller.controller_id] || false}
+                    onCheckedChange={(checked) =>
+                      handleToggleController(controller.controller_id, !!checked)
+                    }
+                  />
+                  <label
+                    htmlFor={`controller-${controller.controller_id}`}
+                    className="text-sm cursor-pointer leading-none"
+                  >
+                    Visa
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       ))}
