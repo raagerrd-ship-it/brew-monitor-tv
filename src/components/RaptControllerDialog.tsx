@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +27,7 @@ interface RaptControllerDialogProps {
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp).toString() : '12');
+  const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         body: {
           controllerId: controller.controller_id,
           action: 'setTargetTemperature',
-          value: parseFloat(targetTemp)
+          value: targetTemp
         }
       });
 
@@ -163,35 +163,39 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         </div>
 
         <div className="space-y-4 py-4 border-t">
-          {/* Target Temperature Input */}
-          <div className="space-y-3">
-            <Label htmlFor="target-temp" className="text-base font-semibold">
-              Ändra måltemperatur
-            </Label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  id="target-temp"
-                  type="number"
-                  min="-5"
-                  max="25"
-                  step="1"
-                  value={targetTemp}
-                  onChange={(e) => setTargetTemp(e.target.value)}
-                  className="text-lg"
-                  disabled={loading}
-                />
-              </div>
-              <Button 
-                onClick={handleSetTargetTemperature} 
-                disabled={loading}
-                className="min-w-[100px]"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt'}
-              </Button>
+          {/* Target Temperature Slider */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="target-temp" className="text-base font-semibold">
+                Ändra måltemperatur
+              </Label>
+              <span className="text-2xl font-bold text-primary">
+                {targetTemp}°C
+              </span>
             </div>
+            <Slider
+              id="target-temp"
+              min={-5}
+              max={25}
+              step={1}
+              value={[targetTemp]}
+              onValueChange={(value) => setTargetTemp(value[0])}
+              disabled={loading}
+              className="py-4"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>-5°C</span>
+              <span>+25°C</span>
+            </div>
+            <Button 
+              onClick={handleSetTargetTemperature} 
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt måltemperatur'}
+            </Button>
             <p className="text-sm text-muted-foreground">
-              Ställ in önskad måltemperatur (-5°C till +25°C) för temperaturstyrt jäsning
+              Ställ in önskad måltemperatur (-5°C till +25°C) på glykolkylare.
             </p>
           </div>
 
