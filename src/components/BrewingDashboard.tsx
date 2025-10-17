@@ -913,8 +913,16 @@ export function BrewingDashboard() {
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '60%', height: '60%', right: '-15%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                        {/* Wine glass outline */}
-                        <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill="none"/>
+                        <defs>
+                          <linearGradient id={`abvFill-${brew.batch_id}`} x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0.1"/>
+                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.1"/>
+                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.8"/>
+                            <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.8"/>
+                          </linearGradient>
+                        </defs>
+                        {/* Wine glass with fill */}
+                        <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill={`url(#abvFill-${brew.batch_id})`}/>
                         <line x1="12" y1="18" x2="12" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
                         <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
                       </svg>
