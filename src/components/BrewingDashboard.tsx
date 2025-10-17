@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery, ChevronLeft, ChevronRight, Pill, AirVent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -206,21 +207,15 @@ export function BrewingDashboard() {
                     !coldcrashNotifiedRef.current.has(brew.batch_id)
                   ) {
                     coldcrashNotifiedRef.current.add(brew.batch_id);
-                    toast({
-                      title: `${updatedReading.name} är klar! 🍺`,
+                    sonnerToast(`${updatedReading.name} är klar! 🍺`, {
                       description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
                       duration: Infinity,
-                      action: (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            // Toast closes automatically when action is clicked
-                          }}
-                        >
-                          Kvittera
-                        </Button>
-                      ),
+                      action: {
+                        label: 'Kvittera',
+                        onClick: () => {
+                          // Toast closes automatically
+                        },
+                      },
                     });
                   }
                   
@@ -439,21 +434,15 @@ export function BrewingDashboard() {
           !coldcrashNotifiedRef.current.has(reading.batch_id)
         ) {
           coldcrashNotifiedRef.current.add(reading.batch_id);
-          toast({
-            title: `${reading.name} är klar! 🍺`,
+          sonnerToast(`${reading.name} är klar! 🍺`, {
             description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
             duration: Infinity,
-            action: (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  // Toast closes automatically when action is clicked
-                }}
-              >
-                Kvittera
-              </Button>
-            ),
+            action: {
+              label: 'Kvittera',
+              onClick: () => {
+                // Toast closes automatically
+              },
+            },
           });
         }
         
