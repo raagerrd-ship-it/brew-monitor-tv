@@ -53,12 +53,15 @@ export function BrewStats({ brew }: BrewStatsProps) {
             <p className="text-4xl font-bold text-ferment-green mb-1 leading-none">
               {brew.attenuation}%
             </p>
-            <Progress 
-              value={brew.attenuation} 
-              className="h-2"
-              style={{ backgroundColor: 'hsl(120 50% 45% / 0.2)' }}
-              indicatorStyle={{ backgroundColor: 'hsl(120 50% 45%)' }}
-            />
+            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full transition-all duration-300" 
+                style={{ 
+                  width: `${brew.attenuation}%`,
+                  backgroundColor: '#22c55e'
+                }}
+              />
+            </div>
           </div>
         </div>
 
