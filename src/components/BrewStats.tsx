@@ -23,7 +23,7 @@ export function BrewStats({ brew }: BrewStatsProps) {
               <Droplets className="h-6 w-6 text-primary" />
             </div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5 font-semibold">SG</p>
-            <p className="text-7xl font-bold text-primary mb-0.5 leading-none">
+            <p className="text-5xl sm:text-6xl font-bold text-primary mb-0.5 leading-none break-all">
               {brew.currentSG.toFixed(3)}
             </p>
             <p className="text-[10px] text-muted-foreground font-medium">
