@@ -28,6 +28,7 @@ export default function Settings() {
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
   const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
+  const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [apiSettings, setApiSettings] = useState<{
     brewfather: { userId: string; apiKey: string; configured: boolean };
     rapt: { username: string; apiSecret: string; configured: boolean };
@@ -53,6 +54,7 @@ export default function Settings() {
           if (newData) {
             setLastRaptSync(newData.last_rapt_sync_at);
             setLastRaptQuickSync(newData.last_rapt_quick_sync_at);
+            setLastFullSync(newData.last_full_sync_at);
           }
         }
       )
@@ -97,6 +99,7 @@ export default function Settings() {
         setLastRaptSync(data.last_rapt_sync_at);
         setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
+        setLastFullSync(data.last_full_sync_at);
         console.log('Last RAPT sync:', data.last_rapt_sync_at);
         console.log('Last RAPT quick sync:', data.last_rapt_quick_sync_at);
       }
@@ -234,6 +237,9 @@ export default function Settings() {
         title: "Synkronisering klar",
         description: "Full synkronisering har genomförts",
       });
+      
+      // Reload settings to get updated timestamp
+      await loadSettings();
     } catch (error) {
       console.error('Error during full sync:', error);
       toast({
@@ -516,6 +522,25 @@ export default function Settings() {
                 </label>
               </div>
             </div>
+            
+              {lastFullSync ? (
+                <p className="text-sm text-muted-foreground">
+                  Senaste fullsynkning:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(lastFullSync).toLocaleString("sv-SE", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Ingen fullsynkning har gjorts än
+                </p>
+              )}
 
               <div>
                 <Button 
