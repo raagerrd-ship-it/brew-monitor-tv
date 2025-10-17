@@ -248,17 +248,19 @@ export function RaptControllersManagement() {
                 <div className="flex-1">
                   <p className="font-medium">{controller.name}</p>
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">
-                      {controller.current_temp !== null || controller.target_temp !== null ? (
-                        <>
-                          {controller.current_temp !== null && `Aktuell: ${controller.current_temp.toFixed(1)}°C`}
-                          {controller.current_temp !== null && controller.target_temp !== null && ' | '}
-                          {controller.target_temp !== null && `Inställning: ${controller.target_temp.toFixed(1)}°C`}
-                        </>
-                      ) : (
-                        'Ingen data'
-                      )}
-                    </p>
+                    {controller.current_temp !== null && (
+                      <p className="text-sm text-muted-foreground">
+                        Aktuell: {controller.current_temp.toFixed(1)}°C
+                      </p>
+                    )}
+                    {controller.target_temp !== null && (
+                      <p className="text-sm text-muted-foreground">
+                        Inställning: {controller.target_temp.toFixed(1)}°C
+                      </p>
+                    )}
+                    {controller.current_temp === null && controller.target_temp === null && (
+                      <p className="text-sm text-muted-foreground">Ingen data</p>
+                    )}
                     <div className="flex gap-2">
                       {controller.heating_enabled && (
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
