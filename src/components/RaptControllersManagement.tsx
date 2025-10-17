@@ -214,21 +214,21 @@ export function RaptControllersManagement() {
                     </p>
                     <div className="flex gap-2">
                       {controller.heating_enabled && (
-                        <span className={`text-xs px-2 py-0.5 rounded ${
+                        <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation > 0 
-                            ? 'bg-orange-500/20 text-orange-500 font-medium' 
-                            : 'bg-muted text-muted-foreground'
+                            ? 'bg-orange-500 text-white shadow-md animate-pulse' 
+                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
-                          🔥 Värme {controller.heating_utilisation > 0 ? `(${controller.heating_utilisation.toFixed(0)}%)` : ''}
+                          🔥 {controller.heating_utilisation > 0 ? `VÄRME AKTIV (${controller.heating_utilisation.toFixed(0)}%)` : 'Värme av'}
                         </span>
                       )}
                       {controller.cooling_enabled && (
-                        <span className={`text-xs px-2 py-0.5 rounded ${
+                        <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp
-                            ? 'bg-blue-500/20 text-blue-500 font-medium'
-                            : 'bg-muted text-muted-foreground'
+                            ? 'bg-blue-500 text-white shadow-md animate-pulse'
+                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
-                          ❄️ Kyla
+                          ❄️ {controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp ? 'KYLA AKTIV' : 'Kyla av'}
                         </span>
                       )}
                     </div>
