@@ -639,6 +639,44 @@ export function BrewingDashboard() {
     };
   };
 
+  // Extract color from controller name (like "Red", "Blue", "Green", etc.)
+  const getControllerColor = (name: string): string => {
+    const colorMap: Record<string, string> = {
+      'red': '#ef4444',
+      'blue': '#3b82f6',
+      'green': '#22c55e',
+      'yellow': '#eab308',
+      'purple': '#a855f7',
+      'pink': '#ec4899',
+      'orange': '#f97316',
+      'cyan': '#06b6d4',
+      'lime': '#84cc16',
+      'amber': '#f59e0b',
+      'teal': '#14b8a6',
+      'indigo': '#6366f1',
+      'violet': '#8b5cf6',
+      'fuchsia': '#d946ef',
+      'rose': '#f43f5e',
+      'sky': '#0ea5e9',
+      'emerald': '#10b981',
+      'slate': '#64748b',
+      'gray': '#6b7280',
+      'zinc': '#71717a',
+      'neutral': '#737373',
+      'stone': '#78716c',
+    };
+
+    const lowerName = name.toLowerCase();
+    for (const [color, hex] of Object.entries(colorMap)) {
+      if (lowerName.includes(color)) {
+        return hex;
+      }
+    }
+    
+    // Default to primary theme color if no color found
+    return 'currentColor';
+  };
+
   // Convert HSL to RGB for inline styles
   const hslToRgb = (h: number, s: number, l: number): string => {
     const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -667,7 +705,10 @@ export function BrewingDashboard() {
         <div className="flex items-center gap-4">
           <div data-name="RaptMain" className={`flex items-stretch justify-end h-full ${isMobile ? 'gap-1.5' : 'gap-3'}`}>
             {/* Temp Controllers */}
-            {controllers.length > 0 && controllers.map((controller) => (
+            {controllers.length > 0 && controllers.map((controller) => {
+              const controllerColor = getControllerColor(controller.name);
+              
+              return (
               <div 
                 key={controller.id}
                 className={`flex items-center h-full cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1' : 'gap-2'}`}
@@ -681,8 +722,8 @@ export function BrewingDashboard() {
                   style={{
                     width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
                     height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                    color: controllerColor,
                   }}
-                  className="text-primary"
                 />
                 <span 
                   className="font-bold tabular-nums text-foreground"
@@ -693,7 +734,8 @@ export function BrewingDashboard() {
                   {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
                 </span>
               </div>
-            ))}
+              );
+            })}
             
             {/* Pills */}
             {pills.length > 0 && pills.map((pill) => {
