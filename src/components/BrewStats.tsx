@@ -65,13 +65,13 @@ export function BrewStats({ brew }: BrewStatsProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-muted/50 backdrop-blur-sm p-2 border border-secondary/10 overflow-hidden">
+        <div className="rounded-2xl bg-muted/50 backdrop-blur-sm p-2 border border-beer-gold/10 overflow-hidden">
           <div className="text-center flex flex-col justify-center h-full min-w-0">
-            <div className="inline-flex rounded-full bg-secondary/20 p-2 mb-0.5 mx-auto">
-              <Wine className="h-5 w-5 text-secondary" />
+            <div className="inline-flex rounded-full bg-beer-gold/30 p-2 mb-0.5 mx-auto">
+              <Wine className="h-5 w-5 text-beer-gold" />
             </div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5 font-semibold">ABV</p>
-            <p className="text-4xl font-bold text-secondary leading-none">
+            <p className="text-4xl font-bold text-beer-gold leading-none">
               {brew.abv}%
             </p>
           </div>
