@@ -216,19 +216,19 @@ export function RaptControllersManagement() {
                       {controller.heating_enabled && (
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation > 0 
-                            ? 'bg-orange-500 text-white shadow-md animate-pulse' 
+                            ? 'bg-orange-500 text-white shadow-md' 
                             : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
-                          🔥 {controller.heating_utilisation > 0 ? `VÄRME AKTIV (${controller.heating_utilisation.toFixed(0)}%)` : 'Värme av'}
+                          🔥 Värme {controller.heating_utilisation > 0 ? 'på' : 'av'}
                         </span>
                       )}
                       {controller.cooling_enabled && (
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp
-                            ? 'bg-blue-500 text-white shadow-md animate-pulse'
+                            ? 'bg-blue-500 text-white shadow-md'
                             : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
-                          ❄️ {controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp ? 'KYLA AKTIV' : 'Kyla av'}
+                          ❄️ Kyla {controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp ? 'på' : 'av'}
                         </span>
                       )}
                     </div>
