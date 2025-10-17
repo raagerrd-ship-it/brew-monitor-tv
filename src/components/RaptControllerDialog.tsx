@@ -46,15 +46,30 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
       if (error) throw error;
 
+      // Check if the response contains an error
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       toast({
         title: "Måltemperatur uppdaterad",
         description: `${controller.name} måltemperatur är nu ${targetTemp}°C`,
       });
     } catch (error) {
       console.error('Error updating target temperature:', error);
+      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera måltemperatur";
+      
+      // Check for specific RAPT API errors
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes('not registered')) {
+        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
+      } else if (errorMessage.includes('RAPT API error')) {
+        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
+      }
+      
       toast({
-        title: "Fel",
-        description: error instanceof Error ? error.message : "Kunde inte uppdatera måltemperatur",
+        title: "Fel vid uppdatering",
+        description: userFriendlyMessage,
         variant: "destructive",
       });
     } finally {
@@ -75,6 +90,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
       if (error) throw error;
 
+      // Check if the response contains an error
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       setPidEnabled(enabled);
       toast({
         title: "PID-kontroll uppdaterad",
@@ -82,9 +102,19 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       });
     } catch (error) {
       console.error('Error updating PID enabled:', error);
+      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera PID-kontroll";
+      
+      // Check for specific RAPT API errors
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes('not registered')) {
+        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
+      } else if (errorMessage.includes('RAPT API error')) {
+        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
+      }
+      
       toast({
-        title: "Fel",
-        description: error instanceof Error ? error.message : "Kunde inte uppdatera PID-kontroll",
+        title: "Fel vid uppdatering",
+        description: userFriendlyMessage,
         variant: "destructive",
       });
     } finally {
@@ -109,15 +139,30 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
       if (error) throw error;
 
+      // Check if the response contains an error
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       toast({
         title: "PID-parametrar uppdaterade",
         description: `P=${pidP}, I=${pidI}, D=${pidD}`,
       });
     } catch (error) {
       console.error('Error updating PID parameters:', error);
+      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera PID-parametrar";
+      
+      // Check for specific RAPT API errors
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes('not registered')) {
+        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
+      } else if (errorMessage.includes('RAPT API error')) {
+        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
+      }
+      
       toast({
-        title: "Fel",
-        description: error instanceof Error ? error.message : "Kunde inte uppdatera PID-parametrar",
+        title: "Fel vid uppdatering",
+        description: userFriendlyMessage,
         variant: "destructive",
       });
     } finally {
