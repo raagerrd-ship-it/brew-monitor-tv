@@ -32,6 +32,28 @@ export function RaptControllersManagement() {
 
   useEffect(() => {
     loadData();
+
+    // Subscribe to realtime updates for temperature controllers
+    const channel = supabase
+      .channel('rapt_temp_controllers_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rapt_temp_controllers'
+        },
+        (payload) => {
+          console.log('Temperature controller updated:', payload);
+          // Reload data when any controller is updated
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadData = async () => {
