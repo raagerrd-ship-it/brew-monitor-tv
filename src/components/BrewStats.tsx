@@ -67,16 +67,24 @@ export function BrewStats({ brew }: BrewStatsProps) {
 
         <div className="rounded-2xl bg-muted/50 backdrop-blur-sm p-2 border border-beer-gold/10 overflow-hidden">
           <div className="text-center flex flex-col justify-center h-full min-w-0">
-            <div className="inline-flex rounded-full bg-muted p-2 mb-0.5 mx-auto relative" style={{ position: 'relative' }}>
-              <div 
-                className="absolute bottom-0 left-0 right-0 transition-all duration-500 rounded-full"
-                style={{ 
-                  height: `${Math.min((brew.abv / 10) * 100, 100)}%`,
-                  backgroundColor: '#f59e0b',
-                  zIndex: 1
-                }}
-              />
-              <Wine className="h-5 w-5 text-foreground relative" style={{ zIndex: 2 }} />
+            <div className="inline-flex rounded-full bg-muted p-2 mb-0.5 mx-auto relative">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="relative">
+                <defs>
+                  <linearGradient id="abvFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="currentColor" stopOpacity="0.3" />
+                    <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="#f59e0b" />
+                  </linearGradient>
+                </defs>
+                <path 
+                  d="M8 22h8M7 10h10M12 15v7M12 15c4.97 0 9-4.03 9-9V4s-1.7 1-9 1S3 4 3 4v2c0 4.97 4.03 9 9 9" 
+                  stroke="url(#abvFill)" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  fill="none"
+                  className="text-foreground"
+                />
+              </svg>
             </div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5 font-semibold">ABV</p>
             <p className="text-4xl font-bold text-beer-gold leading-none">
