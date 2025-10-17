@@ -63,18 +63,6 @@ serve(async (req) => {
         queryParams.append('target', value.toString());
         break;
       
-      case 'setCoolingEnabled':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingEnabled';
-        queryParams.append('temperatureControllerId', controllerId);
-        queryParams.append('enabled', value.toString());
-        break;
-      
-      case 'setHeatingEnabled':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetHeatingEnabled';
-        queryParams.append('temperatureControllerId', controllerId);
-        queryParams.append('enabled', value.toString());
-        break;
-      
       case 'setPIDEnabled':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPIDEnabled';
         queryParams.append('temperatureControllerId', controllerId);
