@@ -212,19 +212,26 @@ export function RaptControllersManagement() {
                         'Ingen data'
                       )}
                     </p>
-                    {(controller.cooling_enabled || controller.heating_enabled) && (
-                      <p className="text-xs font-medium">
-                        {controller.heating_enabled && controller.heating_utilisation > 0 && (
-                          <span className="text-orange-500">🔥 Värme aktiv ({controller.heating_utilisation.toFixed(0)}%)</span>
-                        )}
-                        {controller.cooling_enabled && controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp && (
-                          <span className="text-blue-500">❄️ Kyla aktiv</span>
-                        )}
-                        {controller.heating_utilisation === 0 && controller.current_temp <= controller.target_temp && (
-                          <span className="text-muted-foreground">⏸️ Standby</span>
-                        )}
-                      </p>
-                    )}
+                    <div className="flex gap-2">
+                      {controller.heating_enabled && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          controller.heating_utilisation > 0 
+                            ? 'bg-orange-500/20 text-orange-500 font-medium' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          🔥 Värme {controller.heating_utilisation > 0 ? `(${controller.heating_utilisation.toFixed(0)}%)` : ''}
+                        </span>
+                      )}
+                      {controller.cooling_enabled && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp
+                            ? 'bg-blue-500/20 text-blue-500 font-medium'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          ❄️ Kyla
+                        </span>
+                      )}
+                    </div>
                     {controller.last_update && (
                       <p className="text-xs text-muted-foreground">
                         Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 
