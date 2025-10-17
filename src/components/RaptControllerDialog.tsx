@@ -29,9 +29,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [loading, setLoading] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp?.toString() || '12');
   const [pidEnabled, setPidEnabled] = useState(true);
-  const [pidP, setPidP] = useState('8.0');
-  const [pidI, setPidI] = useState('0.002');
-  const [pidD, setPidD] = useState('2.0');
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -122,54 +119,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
     }
   };
 
-  const handleSetPID = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
-        body: {
-          controllerId: controller.controller_id,
-          action: 'setPID',
-          value: {
-            proportionalGain: parseFloat(pidP),
-            integralTime: parseFloat(pidI),
-            derivativeTime: parseFloat(pidD)
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      // Check if the response contains an error
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      toast({
-        title: "PID-parametrar uppdaterade",
-        description: `P=${pidP}, I=${pidI}, D=${pidD}`,
-      });
-    } catch (error) {
-      console.error('Error updating PID parameters:', error);
-      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera PID-parametrar";
-      
-      // Check for specific RAPT API errors
-      let userFriendlyMessage = errorMessage;
-      if (errorMessage.includes('not registered')) {
-        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
-      } else if (errorMessage.includes('RAPT API error')) {
-        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
-      }
-      
-      toast({
-        title: "Fel vid uppdatering",
-        description: userFriendlyMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] bg-background border-border">
@@ -237,58 +186,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             <p className="text-sm text-muted-foreground">
               Aktivera avancerad PID-temperaturreglering för exakt kontroll
             </p>
-
-            {pidEnabled && (
-              <div className="space-y-3 pt-2">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="pid-p" className="text-sm">P (Proportional)</Label>
-                    <Input
-                      id="pid-p"
-                      type="number"
-                      step="0.1"
-                      value={pidP}
-                      onChange={(e) => setPidP(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pid-i" className="text-sm">I (Integral)</Label>
-                    <Input
-                      id="pid-i"
-                      type="number"
-                      step="0.001"
-                      value={pidI}
-                      onChange={(e) => setPidI(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pid-d" className="text-sm">D (Derivative)</Label>
-                    <Input
-                      id="pid-d"
-                      type="number"
-                      step="0.1"
-                      value={pidD}
-                      onChange={(e) => setPidD(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-                <Button 
-                  onClick={handleSetPID} 
-                  disabled={loading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Uppdatera PID-parametrar
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Standard: P=8.0, I=0.002, D=2.0. Justera försiktigt för optimal prestanda.
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </DialogContent>
