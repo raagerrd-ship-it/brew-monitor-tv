@@ -16,6 +16,9 @@ interface ControllerData {
   current_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
+  cooling_enabled: boolean;
+  heating_enabled: boolean;
+  heating_utilisation: number;
 }
 
 export function RaptControllersManagement() {
@@ -208,6 +211,19 @@ export function RaptControllersManagement() {
                       'Ingen data'
                     )}
                   </p>
+                  {(controller.cooling_enabled || controller.heating_enabled) && (
+                    <p className="text-xs font-medium">
+                      {controller.heating_enabled && controller.heating_utilisation > 0 && (
+                        <span className="text-orange-500">🔥 Värme aktiv ({controller.heating_utilisation.toFixed(0)}%)</span>
+                      )}
+                      {controller.cooling_enabled && controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp && (
+                        <span className="text-blue-500">❄️ Kyla aktiv</span>
+                      )}
+                      {controller.heating_utilisation === 0 && controller.current_temp <= controller.target_temp && (
+                        <span className="text-muted-foreground">⏸️ Standby</span>
+                      )}
+                    </p>
+                  )}
                   {controller.last_update && (
                     <p className="text-xs text-muted-foreground">
                       Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 

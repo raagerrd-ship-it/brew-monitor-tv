@@ -127,6 +127,9 @@ serve(async (req) => {
           .update({
             current_temp: currentTemp,
             target_temp: targetTemp,
+            cooling_enabled: controller.coolingEnabled || false,
+            heating_enabled: controller.heatingEnabled || false,
+            heating_utilisation: controller.heatingUtilisation || 0,
             last_update: lastUpdate,
             updated_at: new Date().toISOString()
           })

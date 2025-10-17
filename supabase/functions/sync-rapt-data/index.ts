@@ -141,6 +141,9 @@ serve(async (req) => {
         name: controller.name || 'Unknown Controller',
         current_temp: controller.temperature || null,
         target_temp: controller.targetTemperature || null,
+        cooling_enabled: controller.coolingEnabled || false,
+        heating_enabled: controller.heatingEnabled || false,
+        heating_utilisation: controller.heatingUtilisation || 0,
         last_update: controller.lastActivityTime ? new Date(controller.lastActivityTime).toISOString() : new Date().toISOString(),
       };
     });
