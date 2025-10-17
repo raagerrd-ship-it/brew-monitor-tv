@@ -799,7 +799,7 @@ export function BrewingDashboard() {
               </div>
             )}
             
-            <div className="flex-1 overflow-hidden px-3" ref={emblaRef}>
+            <div className="flex-1 overflow-hidden px-3 py-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew) => (
                   <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
@@ -811,7 +811,7 @@ export function BrewingDashboard() {
           </>
         ) : (
           // Desktop: Grid layout
-          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4`}>
+          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4 py-6`}>
             {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
           </div>
         )}
@@ -838,7 +838,7 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 my-2 ${
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
