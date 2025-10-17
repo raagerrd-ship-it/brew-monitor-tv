@@ -34,11 +34,18 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
     const fetchLastSync = async () => {
       const { data } = await supabase
         .from('sync_settings')
-        .select('last_rapt_quick_sync_at')
+        .select('last_rapt_sync_at, last_rapt_quick_sync_at')
         .single();
       
-      if (data?.last_rapt_quick_sync_at) {
-        setLastSync(data.last_rapt_quick_sync_at);
+      if (data) {
+        // Använd den senaste av de två synkroniseringstiderna
+        const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean);
+        if (times.length > 0) {
+          const mostRecent = times.reduce((latest, current) => 
+            new Date(current) > new Date(latest) ? current : latest
+          );
+          setLastSync(mostRecent);
+        }
       }
     };
 
