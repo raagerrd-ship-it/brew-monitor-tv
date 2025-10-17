@@ -31,6 +31,7 @@ interface BrewData {
   battery: number | null;
   sgData: Array<{ date: string; value: number; temp: number }>;
   fermentationRate: number | null; // SG change per 24h based on last 2 hours
+  coldcrashAcknowledged: boolean;
 }
 
 interface PillData {
@@ -68,9 +69,6 @@ export function BrewingDashboard() {
   
   // Ref to hold the latest brews state for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
-  
-  // Ref to track brews that have already shown the coldcrash notification
-  const coldcrashNotifiedRef = useRef<Set<string>>(new Set());
   
   // Update ref whenever brews changes
   useEffect(() => {
@@ -200,20 +198,23 @@ export function BrewingDashboard() {
                   const newSgData = updatedReading.sg_data || [];
                   const newFermentationRate = calculateFermentationRate(newSgData);
                   
-                  // Check if fermentation has stopped (rate is 0.000)
+                  // Check if fermentation has stopped (rate is 0.000) and not yet acknowledged
                   if (
                     newFermentationRate !== null && 
                     Math.abs(newFermentationRate) < 0.0005 && // Essentially 0.000 when rounded to 3 decimals
-                    !coldcrashNotifiedRef.current.has(brew.batch_id)
+                    !brew.coldcrashAcknowledged
                   ) {
-                    coldcrashNotifiedRef.current.add(brew.batch_id);
                     sonnerToast(`${updatedReading.name} är klar! 🍺`, {
                       description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
                       duration: Infinity,
                       action: {
                         label: 'Kvittera',
-                        onClick: () => {
-                          // Toast closes automatically
+                        onClick: async () => {
+                          // Update database to acknowledge coldcrash
+                          await supabase
+                            .from('brew_readings')
+                            .update({ coldcrash_acknowledged: true })
+                            .eq('batch_id', brew.batch_id);
                         },
                       },
                     });
@@ -236,7 +237,8 @@ export function BrewingDashboard() {
                       }) : 'Ingen data',
                     lastUpdateRaw: updatedReading.last_update,
                     sgData: newSgData,
-                    fermentationRate: newFermentationRate
+                    fermentationRate: newFermentationRate,
+                    coldcrashAcknowledged: updatedReading.coldcrash_acknowledged ?? brew.coldcrashAcknowledged
                   };
                 }
                 return brew;
@@ -427,20 +429,23 @@ export function BrewingDashboard() {
         const sgData = reading.sg_data || [];
         const fermentationRate = calculateFermentationRate(sgData);
         
-        // Check if fermentation has stopped on initial load
+        // Check if fermentation has stopped on initial load and not yet acknowledged
         if (
           fermentationRate !== null && 
           Math.abs(fermentationRate) < 0.0005 && // Essentially 0.000 when rounded to 3 decimals
-          !coldcrashNotifiedRef.current.has(reading.batch_id)
+          !reading.coldcrash_acknowledged
         ) {
-          coldcrashNotifiedRef.current.add(reading.batch_id);
           sonnerToast(`${reading.name} är klar! 🍺`, {
             description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
             duration: Infinity,
             action: {
               label: 'Kvittera',
-              onClick: () => {
-                // Toast closes automatically
+              onClick: async () => {
+                // Update database to acknowledge coldcrash
+                await supabase
+                  .from('brew_readings')
+                  .update({ coldcrash_acknowledged: true })
+                  .eq('batch_id', reading.batch_id);
               },
             },
           });
@@ -470,7 +475,8 @@ export function BrewingDashboard() {
           lastUpdateRaw: reading.last_update,
           battery: reading.battery,
           sgData: sgData,
-          fermentationRate: fermentationRate
+          fermentationRate: fermentationRate,
+          coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false
         };
       });
 
