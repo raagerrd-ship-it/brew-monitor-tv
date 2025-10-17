@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { AirVent, Thermometer, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -178,6 +179,72 @@ export function RaptControllersManagement() {
     }
   };
 
+  const handleToggleHeating = async (controller: ControllerData, enabled: boolean) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
+        body: {
+          controllerId: controller.controller_id,
+          action: 'setHeatingEnabled',
+          value: enabled
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setControllers(prev => prev.map(c => 
+        c.controller_id === controller.controller_id 
+          ? { ...c, heating_enabled: enabled }
+          : c
+      ));
+
+      toast({
+        title: "Värme uppdaterad",
+        description: `Värme är nu ${enabled ? 'på' : 'av'} för ${controller.name}`,
+      });
+    } catch (error) {
+      console.error('Error toggling heating:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera värmeinställning",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleCooling = async (controller: ControllerData, enabled: boolean) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
+        body: {
+          controllerId: controller.controller_id,
+          action: 'setCoolingEnabled',
+          value: enabled
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setControllers(prev => prev.map(c => 
+        c.controller_id === controller.controller_id 
+          ? { ...c, cooling_enabled: enabled }
+          : c
+      ));
+
+      toast({
+        title: "Kyla uppdaterad",
+        description: `Kyla är nu ${enabled ? 'på' : 'av'} för ${controller.name}`,
+      });
+    } catch (error) {
+      console.error('Error toggling cooling:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera kylainställning",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;
   }
@@ -212,8 +279,12 @@ export function RaptControllersManagement() {
                         'Ingen data'
                       )}
                     </p>
-                    <div className="flex gap-2">
-                      {controller.heating_enabled && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={controller.heating_enabled}
+                          onCheckedChange={(checked) => handleToggleHeating(controller, checked)}
+                        />
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation > 0 
                             ? 'bg-orange-500 text-white shadow-md' 
@@ -221,8 +292,12 @@ export function RaptControllersManagement() {
                         }`}>
                           🔥 Värme {controller.heating_utilisation > 0 ? 'på' : 'av'}
                         </span>
-                      )}
-                      {controller.cooling_enabled && (
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={controller.cooling_enabled}
+                          onCheckedChange={(checked) => handleToggleCooling(controller, checked)}
+                        />
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp
                             ? 'bg-blue-500 text-white shadow-md'
@@ -230,7 +305,7 @@ export function RaptControllersManagement() {
                         }`}>
                           ❄️ Kyla {controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp ? 'på' : 'av'}
                         </span>
-                      )}
+                      </div>
                     </div>
                     {controller.last_update && (
                       <p className="text-xs text-muted-foreground">
