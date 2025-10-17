@@ -53,49 +53,43 @@ serve(async (req) => {
 
     // Determine API endpoint based on action
     let endpoint = '';
-    let body = {};
+    let queryParams = new URLSearchParams();
 
     switch (action) {
       case 'setTargetTemperature':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature';
-        body = {
-          temperatureControllerId: controllerId,
-          target: value
-        };
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('target', value.toString());
         break;
       
       case 'setPIDEnabled':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPIDEnabled';
-        body = {
-          temperatureControllerId: controllerId,
-          enabled: value
-        };
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('enabled', value.toString());
         break;
       
       case 'setPID':
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPID';
-        body = {
-          temperatureControllerId: controllerId,
-          proportionalGain: value.proportionalGain,
-          integralTime: value.integralTime,
-          derivativeTime: value.derivativeTime
-        };
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('proportionalGain', value.proportionalGain.toString());
+        queryParams.append('integralTime', value.integralTime.toString());
+        queryParams.append('derivativeTime', value.derivativeTime.toString());
         break;
       
       default:
         throw new Error(`Unknown action: ${action}`);
     }
 
-    console.log('Sending request to RAPT API:', endpoint, body);
+    const fullUrl = `${endpoint}?${queryParams.toString()}`;
+    console.log('Sending request to RAPT API:', fullUrl);
 
     // Call RAPT API
-    const response = await fetch(endpoint, {
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
