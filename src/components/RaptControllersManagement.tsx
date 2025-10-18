@@ -578,12 +578,12 @@ export function RaptControllersManagement() {
                 </div>
               </div>
             ) : (
-              <div className="flex gap-2 pl-9">
+              <div className="flex flex-col gap-2 pl-9">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => handleStartEdit(controller)}
-                  className="h-8 px-3"
+                  className="h-8 px-3 w-fit"
                 >
                   <Thermometer className="h-4 w-4 mr-1" />
                   Ändra måltemperatur
@@ -592,7 +592,7 @@ export function RaptControllersManagement() {
                   size="sm"
                   variant="outline"
                   onClick={() => handleStartEditLimits(controller)}
-                  className="h-8 px-3"
+                  className="h-8 px-3 w-fit"
                 >
                   Min/Max ({controller.min_target_temp ?? -5}°C / {controller.max_target_temp ?? 25}°C)
                 </Button>
