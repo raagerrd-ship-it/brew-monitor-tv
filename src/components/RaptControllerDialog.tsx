@@ -29,6 +29,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [loading, setLoading] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [currentController, setCurrentController] = useState(controller);
 
   useEffect(() => {
     const fetchLastSync = async () => {
@@ -51,8 +52,33 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
     if (open) {
       fetchLastSync();
+      setCurrentController(controller);
+      
+      // Set up realtime subscription for this specific controller
+      const channel = supabase
+        .channel(`controller_${controller.controller_id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'rapt_temp_controllers',
+            filter: `controller_id=eq.${controller.controller_id}`
+          },
+          (payload) => {
+            console.log('Controller realtime update:', payload);
+            if (payload.eventType === 'UPDATE' && payload.new) {
+              setCurrentController(payload.new as TempController);
+            }
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [open]);
+  }, [open, controller]);
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -120,7 +146,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               <span className="text-sm text-muted-foreground">Nuvarande temperatur</span>
             </div>
             <span className="text-lg font-semibold">
-              {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : 'Okänd'}
+              {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}
             </span>
           </div>
 
@@ -131,7 +157,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               <span className="text-sm text-muted-foreground">Måltemperatur</span>
             </div>
             <span className="text-lg font-semibold">
-              {controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°C` : 'Ej satt'}
+              {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°C` : 'Ej satt'}
             </span>
           </div>
 
@@ -142,8 +168,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               <span className="text-sm text-muted-foreground">Senaste data</span>
             </div>
             <span className="text-sm">
-              {controller.last_update 
-                ? formatDistanceToNow(new Date(controller.last_update), { addSuffix: true, locale: sv })
+              {currentController.last_update 
+                ? formatDistanceToNow(new Date(currentController.last_update), { addSuffix: true, locale: sv })
                 : 'Okänd'}
             </span>
           </div>
