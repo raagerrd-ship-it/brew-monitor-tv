@@ -56,6 +56,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       fetchLastSync();
       setCurrentController(controller);
       
+      // Update targetTemp when dialog opens with new controller
+      if (controller.target_temp !== null) {
+        setTargetTemp(Math.round(controller.target_temp));
+      }
+      
       // Set up realtime subscription for this specific controller
       const controllerChannel = supabase
         .channel(`controller_${controller.controller_id}`)
