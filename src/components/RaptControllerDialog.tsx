@@ -70,7 +70,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           (payload) => {
             console.log('Controller realtime update:', payload);
             if (payload.eventType === 'UPDATE' && payload.new) {
-              setCurrentController(payload.new as TempController);
+              const updatedController = payload.new as TempController;
+              setCurrentController(updatedController);
+              if (updatedController.target_temp !== null) {
+                setTargetTemp(Math.round(updatedController.target_temp));
+              }
             }
           }
         )
