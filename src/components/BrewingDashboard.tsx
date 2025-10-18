@@ -416,7 +416,7 @@ export function BrewingDashboard() {
         .from('brew_readings')
         .select('*')
         .in('batch_id', selectedBatchIds)
-        .order('created_at')
+        .order('created_at', { ascending: false })
 
       if (readingsError) throw readingsError;
 
