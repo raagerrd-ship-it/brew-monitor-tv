@@ -57,7 +57,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       setCurrentController(controller);
       
       // Set up realtime subscription for this specific controller
-      const channel = supabase
+      const controllerChannel = supabase
         .channel(`controller_${controller.controller_id}`)
         .on(
           'postgres_changes',
@@ -76,8 +76,35 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         )
         .subscribe();
       
+      // Set up realtime subscription for sync settings
+      const syncChannel = supabase
+        .channel('sync_settings_updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'sync_settings'
+          },
+          (payload) => {
+            console.log('Sync settings realtime update:', payload);
+            if (payload.new) {
+              const data = payload.new as { last_rapt_sync_at: string | null; last_rapt_quick_sync_at: string | null };
+              const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean);
+              if (times.length > 0) {
+                const mostRecent = times.reduce((latest, current) => 
+                  new Date(current) > new Date(latest) ? current : latest
+                );
+                setLastSync(mostRecent);
+              }
+            }
+          }
+        )
+        .subscribe();
+      
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(controllerChannel);
+        supabase.removeChannel(syncChannel);
       };
     }
   }, [open, controller]);
