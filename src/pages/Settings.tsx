@@ -372,7 +372,7 @@ export default function Settings() {
                 </div>
               )}
               
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -578,7 +578,7 @@ export default function Settings() {
                 </div>
               )}
               
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   variant="outline"
                   onClick={() => {

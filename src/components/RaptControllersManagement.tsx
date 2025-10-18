@@ -420,7 +420,7 @@ export function RaptControllersManagement() {
         return (
         <Card key={controller.id} className="p-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <AirVent size={24} className="text-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -439,7 +439,7 @@ export function RaptControllersManagement() {
                     {controller.current_temp === null && controller.target_temp === null && (
                       <p className="text-sm text-muted-foreground">Ingen data</p>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {controller.heating_enabled && (
                         <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                           controller.heating_utilisation > 0 
@@ -471,43 +471,45 @@ export function RaptControllersManagement() {
                 </div>
               </div>
               
-              {isSelected && controllerIndex >= 0 && (
-                <div className="flex flex-col gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleMoveUp(controller.controller_id)}
-                    disabled={isFirst}
-                    className="h-6 w-6 p-0"
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {isSelected && controllerIndex >= 0 && (
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleMoveUp(controller.controller_id)}
+                      disabled={isFirst}
+                      className="h-6 w-6 p-0"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleMoveDown(controller.controller_id)}
+                      disabled={isLast}
+                      className="h-6 w-6 p-0"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`controller-${controller.controller_id}`}
+                    checked={selectedControllers[controller.controller_id] || false}
+                    onCheckedChange={(checked) =>
+                      handleToggleController(controller.controller_id, !!checked)
+                    }
+                  />
+                  <label
+                    htmlFor={`controller-${controller.controller_id}`}
+                    className="text-sm cursor-pointer leading-none whitespace-nowrap"
                   >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleMoveDown(controller.controller_id)}
-                    disabled={isLast}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
+                    Visa
+                  </label>
                 </div>
-              )}
-              
-              <div className="flex items-center space-x-2 flex-shrink-0">
-                <Checkbox
-                  id={`controller-${controller.controller_id}`}
-                  checked={selectedControllers[controller.controller_id] || false}
-                  onCheckedChange={(checked) =>
-                    handleToggleController(controller.controller_id, !!checked)
-                  }
-                />
-                <label
-                  htmlFor={`controller-${controller.controller_id}`}
-                  className="text-sm cursor-pointer leading-none whitespace-nowrap"
-                >
-                  Visa
-                </label>
               </div>
             </div>
             
@@ -540,41 +542,45 @@ export function RaptControllersManagement() {
               </div>
             ) : editingLimitsId === controller.controller_id ? (
               <div className="space-y-2 pl-9">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground w-12">Min:</span>
-                  <Input
-                    type="number"
-                    value={tempMinTemp}
-                    onChange={(e) => setTempMinTemp(e.target.value)}
-                    placeholder="°C"
-                    className="w-20 h-8"
-                    disabled={updating}
-                  />
-                  <span className="text-sm text-muted-foreground w-12">Max:</span>
-                  <Input
-                    type="number"
-                    value={tempMaxTemp}
-                    onChange={(e) => setTempMaxTemp(e.target.value)}
-                    placeholder="°C"
-                    className="w-20 h-8"
-                    disabled={updating}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleUpdateLimits(controller.controller_id)}
-                    disabled={updating}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleCancelEditLimits}
-                    disabled={updating}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-sm text-muted-foreground w-12">Min:</span>
+                    <Input
+                      type="number"
+                      value={tempMinTemp}
+                      onChange={(e) => setTempMinTemp(e.target.value)}
+                      placeholder="°C"
+                      className="w-20 h-8"
+                      disabled={updating}
+                    />
+                    <span className="text-sm text-muted-foreground w-12">Max:</span>
+                    <Input
+                      type="number"
+                      value={tempMaxTemp}
+                      onChange={(e) => setTempMaxTemp(e.target.value)}
+                      placeholder="°C"
+                      className="w-20 h-8"
+                      disabled={updating}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleUpdateLimits(controller.controller_id)}
+                      disabled={updating}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleCancelEditLimits}
+                      disabled={updating}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
