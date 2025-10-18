@@ -259,7 +259,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt måltemperatur'}
             </Button>
             <p className="text-sm text-muted-foreground">
-              Ställ in önskad måltemperatur ({currentController.min_target_temp ?? -5}°C till {currentController.max_target_temp ?? 25}°C) på glykolkylare.
+              Ställ in önskad måltemperatur {currentController.min_target_temp ?? -5}°C till {currentController.max_target_temp ?? 25}°C.
             </p>
           </div>
 
