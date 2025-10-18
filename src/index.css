@@ -50,6 +50,7 @@ All colors MUST be HSL.
     
     /* Shadows */
     --glow-amber: 0 0 30px hsl(38 90% 60% / 0.3);
+    --glow-text: 0 0 20px hsl(38 90% 60% / 0.8), 0 0 40px hsl(38 90% 60% / 0.4), 0 0 60px hsl(38 90% 60% / 0.2);
     --shadow-deep: 0 10px 40px hsl(222 30% 5% / 0.6);
   }
 }
@@ -74,5 +75,10 @@ All colors MUST be HSL.
   .scrollbar-hide {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+  }
+  
+  /* Glowing text effect */
+  .text-glow {
+    text-shadow: var(--glow-text);
   }
 }

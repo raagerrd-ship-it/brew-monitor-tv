@@ -718,7 +718,13 @@ export function BrewingDashboard() {
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
       <div className="h-[8%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
-        <h1 className="font-bold bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent animate-gradient bg-[length:200%_auto] leading-relaxed pb-0.5" style={{ fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))' }}>
+        <h1 className="font-bold text-glow leading-relaxed pb-0.5" style={{ 
+          fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
+          background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent'
+        }}>
           Bryggövervakare
         </h1>
         
