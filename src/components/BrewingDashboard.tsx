@@ -50,6 +50,8 @@ interface TempController {
   current_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
+  min_target_temp: number | null;
+  max_target_temp: number | null;
 }
 
 export function BrewingDashboard() {

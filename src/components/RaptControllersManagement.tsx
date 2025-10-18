@@ -19,6 +19,8 @@ interface ControllerData {
   cooling_enabled: boolean;
   heating_enabled: boolean;
   heating_utilisation: number;
+  min_target_temp: number | null;
+  max_target_temp: number | null;
 }
 
 interface SelectedController {
@@ -35,6 +37,9 @@ export function RaptControllersManagement() {
   const [loading, setLoading] = useState(true);
   const [editingControllerId, setEditingControllerId] = useState<string | null>(null);
   const [tempTargetTemp, setTempTargetTemp] = useState<string>("");
+  const [editingLimitsId, setEditingLimitsId] = useState<string | null>(null);
+  const [tempMinTemp, setTempMinTemp] = useState<string>("");
+  const [tempMaxTemp, setTempMaxTemp] = useState<string>("");
   const [updating, setUpdating] = useState(false);
   const [syncInterval, setSyncInterval] = useState<number>(300);
   const { toast } = useToast();
@@ -305,6 +310,82 @@ export function RaptControllersManagement() {
     }
   };
 
+  const handleStartEditLimits = (controller: ControllerData) => {
+    setEditingLimitsId(controller.controller_id);
+    setTempMinTemp(controller.min_target_temp?.toString() || "-5");
+    setTempMaxTemp(controller.max_target_temp?.toString() || "25");
+  };
+
+  const handleCancelEditLimits = () => {
+    setEditingLimitsId(null);
+    setTempMinTemp("");
+    setTempMaxTemp("");
+  };
+
+  const handleUpdateLimits = async (controllerId: string) => {
+    const controller = controllers.find(c => c.controller_id === controllerId);
+    if (!controller) return;
+
+    const minTemp = parseFloat(tempMinTemp);
+    const maxTemp = parseFloat(tempMaxTemp);
+    
+    if (isNaN(minTemp) || isNaN(maxTemp)) {
+      toast({
+        title: "Ogiltigt värde",
+        description: "Ange giltiga temperaturer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (minTemp >= maxTemp) {
+      toast({
+        title: "Ogiltigt intervall",
+        description: "Min temperatur måste vara lägre än max temperatur",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('rapt_temp_controllers')
+        .update({ 
+          min_target_temp: minTemp,
+          max_target_temp: maxTemp
+        })
+        .eq('controller_id', controllerId);
+
+      if (error) throw error;
+
+      // Update local state
+      setControllers(prev => prev.map(c => 
+        c.controller_id === controllerId 
+          ? { ...c, min_target_temp: minTemp, max_target_temp: maxTemp }
+          : c
+      ));
+
+      setEditingLimitsId(null);
+      setTempMinTemp("");
+      setTempMaxTemp("");
+
+      toast({
+        title: "Temperaturintervall uppdaterat",
+        description: `${controller.name}: ${minTemp}°C till ${maxTemp}°C`,
+      });
+    } catch (error) {
+      console.error('Error updating limits:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera temperaturintervall",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;
   }
@@ -457,8 +538,47 @@ export function RaptControllersManagement() {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+            ) : editingLimitsId === controller.controller_id ? (
+              <div className="space-y-2 pl-9">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground w-12">Min:</span>
+                  <Input
+                    type="number"
+                    value={tempMinTemp}
+                    onChange={(e) => setTempMinTemp(e.target.value)}
+                    placeholder="°C"
+                    className="w-20 h-8"
+                    disabled={updating}
+                  />
+                  <span className="text-sm text-muted-foreground w-12">Max:</span>
+                  <Input
+                    type="number"
+                    value={tempMaxTemp}
+                    onChange={(e) => setTempMaxTemp(e.target.value)}
+                    placeholder="°C"
+                    className="w-20 h-8"
+                    disabled={updating}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleUpdateLimits(controller.controller_id)}
+                    disabled={updating}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCancelEditLimits}
+                    disabled={updating}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             ) : (
-              <div className="pl-9">
+              <div className="flex gap-2 pl-9">
                 <Button
                   size="sm"
                   variant="outline"
@@ -467,6 +587,14 @@ export function RaptControllersManagement() {
                 >
                   <Thermometer className="h-4 w-4 mr-1" />
                   Ändra måltemperatur
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStartEditLimits(controller)}
+                  className="h-8 px-3"
+                >
+                  Min/Max ({controller.min_target_temp ?? -5}°C / {controller.max_target_temp ?? 25}°C)
                 </Button>
               </div>
             )}

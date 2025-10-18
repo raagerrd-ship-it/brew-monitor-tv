@@ -16,6 +16,8 @@ interface TempController {
   current_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
+  min_target_temp: number | null;
+  max_target_temp: number | null;
 }
 
 interface RaptControllerDialogProps {
@@ -201,8 +203,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </div>
             <Slider
               id="target-temp"
-              min={-5}
-              max={25}
+              min={currentController.min_target_temp ?? -5}
+              max={currentController.max_target_temp ?? 25}
               step={1}
               value={[targetTemp]}
               onValueChange={(value) => setTargetTemp(value[0])}
@@ -210,8 +212,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               className="py-4"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>-5°C</span>
-              <span>+25°C</span>
+              <span>{currentController.min_target_temp ?? -5}°C</span>
+              <span>{currentController.max_target_temp ?? 25}°C</span>
             </div>
             <Button 
               onClick={handleSetTargetTemperature} 
@@ -221,7 +223,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt måltemperatur'}
             </Button>
             <p className="text-sm text-muted-foreground">
-              Ställ in önskad måltemperatur (-5°C till +25°C) på glykolkylare.
+              Ställ in önskad måltemperatur ({currentController.min_target_temp ?? -5}°C till {currentController.max_target_temp ?? 25}°C) på glykolkylare.
             </p>
           </div>
 

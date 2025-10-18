@@ -120,6 +120,8 @@ export type Database = {
           heating_utilisation: number | null
           id: string
           last_update: string | null
+          max_target_temp: number | null
+          min_target_temp: number | null
           name: string
           target_temp: number | null
           updated_at: string
@@ -133,6 +135,8 @@ export type Database = {
           heating_utilisation?: number | null
           id?: string
           last_update?: string | null
+          max_target_temp?: number | null
+          min_target_temp?: number | null
           name: string
           target_temp?: number | null
           updated_at?: string
@@ -146,6 +150,8 @@ export type Database = {
           heating_utilisation?: number | null
           id?: string
           last_update?: string | null
+          max_target_temp?: number | null
+          min_target_temp?: number | null
           name?: string
           target_temp?: number | null
           updated_at?: string
