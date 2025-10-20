@@ -127,10 +127,10 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 opacity-40 hover:opacity-100 transition-opacity"
+              className="h-7 w-7 bg-background/50 backdrop-blur-sm border border-border/30 opacity-60 hover:opacity-100 hover:bg-background/80 transition-all"
               title="Zooma diagram"
             >
-              <ZoomIn className="h-3 w-3" />
+              <ZoomIn className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2" align="end">
