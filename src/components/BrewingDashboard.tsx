@@ -766,15 +766,46 @@ export function BrewingDashboard() {
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Compact Header Bar */}
       <div className="h-[8%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
-        <h1 className="font-bold text-glow brewing-title leading-relaxed pb-0.5" style={{ 
-          fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
-          background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          color: 'transparent'
-        }}>
-          Bryggövervakare
-        </h1>
+        <div className="relative">
+          <h1 className="font-bold brewing-title leading-relaxed pb-0.5" style={{ 
+            fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
+            background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent'
+          }}>
+            Bryggövervakare
+          </h1>
+          {/* Extra bubbles */}
+          <span className="absolute text-[0.3em] opacity-40" style={{ 
+            left: '5%', 
+            bottom: '-8px',
+            color: 'hsl(38 90% 60%)',
+            animation: 'bubble-rise 4s infinite ease-in, bubble-float 2.5s infinite ease-in-out',
+            animationDelay: '0.5s, 0.2s'
+          }}>○</span>
+          <span className="absolute text-[0.25em] opacity-40" style={{ 
+            left: '35%', 
+            bottom: '-8px',
+            color: 'hsl(45 95% 65%)',
+            animation: 'bubble-rise 3.5s infinite ease-in, bubble-float 2s infinite ease-in-out',
+            animationDelay: '2s, 1s'
+          }}>○</span>
+          <span className="absolute text-[0.35em] opacity-40" style={{ 
+            left: '55%', 
+            bottom: '-8px',
+            color: 'hsl(38 90% 60%)',
+            animation: 'bubble-rise 3.8s infinite ease-in, bubble-float 2.2s infinite ease-in-out',
+            animationDelay: '3s, 1.5s'
+          }}>○</span>
+          <span className="absolute text-[0.28em] opacity-40" style={{ 
+            left: '88%', 
+            bottom: '-8px',
+            color: 'hsl(45 95% 65%)',
+            animation: 'bubble-rise 4.2s infinite ease-in, bubble-float 2.8s infinite ease-in-out',
+            animationDelay: '1s, 0.5s'
+          }}>○</span>
+        </div>
         
         <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
           <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-3 justify-end'}`}>
