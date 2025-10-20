@@ -81,4 +81,57 @@ All colors MUST be HSL.
   .text-glow {
     text-shadow: var(--glow-text);
   }
+  
+  /* Brewing bubbles animation */
+  @keyframes bubble-rise {
+    0% {
+      transform: translateY(0) scale(0);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.8;
+    }
+    100% {
+      transform: translateY(-80px) scale(1);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes bubble-float {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(10px);
+    }
+  }
+  
+  .brewing-title {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .brewing-title::before,
+  .brewing-title::after {
+    content: '○';
+    position: absolute;
+    color: hsl(38 90% 60% / 0.4);
+    font-size: 0.3em;
+    animation: bubble-rise 3s infinite ease-in, bubble-float 2s infinite ease-in-out;
+  }
+  
+  .brewing-title::before {
+    left: 15%;
+    bottom: -10px;
+    animation-delay: 0s, 0s;
+  }
+  
+  .brewing-title::after {
+    left: 75%;
+    bottom: -10px;
+    animation-delay: 1.5s, 0.7s;
+  }
 }
