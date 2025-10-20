@@ -767,7 +767,7 @@ export function BrewingDashboard() {
       {/* Compact Header Bar */}
       <div className="h-[8%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
         <div className="relative">
-          <h1 className="font-bold brewing-title leading-relaxed pb-0.5" style={{ 
+          <h1 className="font-bold brewing-title leading-relaxed pb-0.5 relative z-0" style={{ 
             fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
             background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
             WebkitBackgroundClip: 'text',
@@ -777,30 +777,30 @@ export function BrewingDashboard() {
             Bryggövervakare
           </h1>
           {/* Extra bubbles */}
-          <span className="absolute text-[0.3em] opacity-40" style={{ 
+          <span className="absolute text-[0.3em] opacity-40 z-10" style={{ 
             left: '5%', 
-            top: '-15px',
+            top: '20%',
             color: 'hsl(38 90% 60%)',
             animation: 'bubble-rise 4s infinite ease-in, bubble-float 2.5s infinite ease-in-out',
             animationDelay: '0.5s, 0.2s'
           }}>○</span>
-          <span className="absolute text-[0.25em] opacity-40" style={{ 
+          <span className="absolute text-[0.25em] opacity-40 z-10" style={{ 
             left: '35%', 
-            top: '-8px',
+            top: '50%',
             color: 'hsl(45 95% 65%)',
             animation: 'bubble-rise 3.5s infinite ease-in, bubble-float 2s infinite ease-in-out',
             animationDelay: '2s, 1s'
           }}>○</span>
-          <span className="absolute text-[0.35em] opacity-40" style={{ 
+          <span className="absolute text-[0.35em] opacity-40 z-10" style={{ 
             left: '55%', 
-            top: '-18px',
+            top: '15%',
             color: 'hsl(38 90% 60%)',
             animation: 'bubble-rise 3.8s infinite ease-in, bubble-float 2.2s infinite ease-in-out',
             animationDelay: '3s, 1.5s'
           }}>○</span>
-          <span className="absolute text-[0.28em] opacity-40" style={{ 
+          <span className="absolute text-[0.28em] opacity-40 z-10" style={{ 
             left: '88%', 
-            top: '-10px',
+            top: '40%',
             color: 'hsl(45 95% 65%)',
             animation: 'bubble-rise 4.2s infinite ease-in, bubble-float 2.8s infinite ease-in-out',
             animationDelay: '1s, 0.5s'
