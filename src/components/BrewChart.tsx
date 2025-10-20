@@ -119,15 +119,15 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Zoom controls - Compact popover */}
-      <div className="absolute top-2 right-2 z-10">
+    <div className="h-full relative">
+      {/* Zoom controls - Overlay on chart */}
+      <div className="absolute top-1 right-1 z-20">
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 bg-background/50 backdrop-blur-sm border border-border/30 opacity-60 hover:opacity-100 hover:bg-background/80 transition-all"
+              className="h-7 w-7 bg-background/70 backdrop-blur-sm border border-border/40 opacity-70 hover:opacity-100 hover:bg-background/90 transition-all"
               title="Zooma diagram"
             >
               <ZoomIn className="h-4 w-4" />
@@ -151,8 +151,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
         </Popover>
       </div>
       
-      <div className="flex-1 relative">
-        <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={filteredData} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
@@ -264,7 +263,6 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           />
         </ComposedChart>
       </ResponsiveContainer>
-      </div>
     </div>
   );
 }
