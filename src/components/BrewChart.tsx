@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Area,
   CartesianGrid,
@@ -9,6 +10,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
+import { Button } from "@/components/ui/button";
 
 interface BrewChartProps {
   data: Array<{ date: string; value: number; temp: number }>;
@@ -17,9 +19,27 @@ interface BrewChartProps {
   singleView?: boolean;
 }
 
+type ZoomPeriod = '24h' | '48h' | '7d' | 'all';
+
 export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) {
+  const [zoomPeriod, setZoomPeriod] = useState<ZoomPeriod>('all');
+  
+  // Filter data based on selected zoom period
+  const getFilteredData = () => {
+    if (zoomPeriod === 'all' || !data || data.length === 0) {
+      return data;
+    }
+    
+    const now = new Date();
+    const hoursToShow = zoomPeriod === '24h' ? 24 : zoomPeriod === '48h' ? 48 : 168; // 7d = 168h
+    const cutoffTime = new Date(now.getTime() - hoursToShow * 60 * 60 * 1000);
+    
+    return data.filter(d => new Date(d.date) >= cutoffTime);
+  };
+  
+  const filteredData = getFilteredData();
   // Check if data is empty or has no values
-  if (!data || data.length === 0) {
+  if (!filteredData || filteredData.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
         <p className="text-muted-foreground text-lg">N/A</p>
@@ -29,7 +49,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
 
   // Find all unique midnight timestamps (day boundaries)
   const midnightTimestamps = new Set<number>();
-  data.forEach((d) => {
+  filteredData.forEach((d) => {
     const date = new Date(d.date);
     const midnight = new Date(date);
     midnight.setHours(0, 0, 0, 0);
@@ -44,10 +64,10 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     const midnightTime = sortedMidnights[i];
     
     // Find the reading closest to this midnight
-    let closestReading = data[0];
-    let minDistance = Math.abs(new Date(data[0].date).getTime() - midnightTime);
+    let closestReading = filteredData[0];
+    let minDistance = Math.abs(new Date(filteredData[0].date).getTime() - midnightTime);
     
-    data.forEach((d) => {
+    filteredData.forEach((d) => {
       const distance = Math.abs(new Date(d.date).getTime() - midnightTime);
       if (distance < minDistance) {
         minDistance = distance;
@@ -60,9 +80,9 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   
   // Find points to show labels for (closest to 00:00 each day - once per day)
   const labelPoints = new Set<string>();
-  const dayGroups = new Map<string, typeof data>();
+  const dayGroups = new Map<string, typeof filteredData>();
   
-  data.forEach((d) => {
+  filteredData.forEach((d) => {
     const date = new Date(d.date);
     const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
     if (!dayGroups.has(dayKey)) {
@@ -89,10 +109,33 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     labelPoints.add(closestToMidnight.date);
   });
 
+  const zoomButtons: Array<{ period: ZoomPeriod; label: string }> = [
+    { period: '24h', label: '24h' },
+    { period: '48h', label: '48h' },
+    { period: '7d', label: '7d' },
+    { period: 'all', label: 'Allt' },
+  ];
+
   return (
-    <div className="h-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
+    <div className="h-full flex flex-col">
+      {/* Zoom controls */}
+      <div className="flex gap-1 mb-2 justify-end">
+        {zoomButtons.map(({ period, label }) => (
+          <Button
+            key={period}
+            variant={zoomPeriod === period ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setZoomPeriod(period)}
+            className="h-6 px-2 text-xs"
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+      
+      <div className="flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={filteredData} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
           {dayChangeMarkers.map((timestamp, idx) => (
@@ -203,6 +246,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
