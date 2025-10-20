@@ -743,7 +743,7 @@ export function BrewingDashboard() {
                   setSelectedController(controller);
                   setControllerDialogOpen(true);
                 }}
-                title={`${controller.name}\nNuvarande: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
+                title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
               >
                 <AirVent 
                   style={{
@@ -758,7 +758,12 @@ export function BrewingDashboard() {
                     fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
                   }}
                 >
-                  {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
+                  {controller.pill_temp !== null 
+                    ? `${controller.pill_temp.toFixed(1)}°C` 
+                    : controller.current_temp !== null 
+                      ? `${controller.current_temp.toFixed(1)}°C` 
+                      : '--°C'
+                  }
                 </span>
               </div>
               );
