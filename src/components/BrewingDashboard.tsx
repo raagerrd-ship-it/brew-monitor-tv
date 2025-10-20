@@ -198,7 +198,28 @@ export function BrewingDashboard() {
             setBrews(prevBrews => 
               prevBrews.map(brew => {
                 if (brew.batch_id === updatedReading.batch_id) {
-                  const newSgData = updatedReading.sg_data || [];
+                  let newSgData = updatedReading.sg_data || [];
+                  
+                  // If status is Conditioning or Completed, freeze the chart
+                  if (updatedReading.status === 'Conditioning' || updatedReading.status === 'Completed') {
+                    const sortedData = [...newSgData].sort((a, b) => 
+                      new Date(a.date).getTime() - new Date(b.date).getTime()
+                    );
+                    
+                    let cutoffIndex = sortedData.length - 1;
+                    for (let i = sortedData.length - 1; i > 0; i--) {
+                      const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
+                      const rate = calculateFermentationRate(recentData);
+                      
+                      if (rate !== null && Math.abs(rate) >= 0.001) {
+                        cutoffIndex = i;
+                        break;
+                      }
+                    }
+                    
+                    newSgData = sortedData.slice(0, cutoffIndex + 1);
+                  }
+                  
                   const newFermentationRate = calculateFermentationRate(newSgData);
                   
                   // Check if fermentation has stopped (rate is 0.000) and not yet acknowledged
@@ -429,7 +450,33 @@ export function BrewingDashboard() {
 
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => {
-        const sgData = reading.sg_data || [];
+        let sgData = reading.sg_data || [];
+        
+        // If status is Conditioning or Completed, freeze the chart at the last fermentation point
+        if (reading.status === 'Conditioning' || reading.status === 'Completed') {
+          // Find the last point where fermentation was active (SG was still changing)
+          // We'll keep data up to the point where SG stopped changing significantly
+          const sortedData = [...sgData].sort((a, b) => 
+            new Date(a.date).getTime() - new Date(b.date).getTime()
+          );
+          
+          // Find the cutoff point where fermentation essentially stopped
+          let cutoffIndex = sortedData.length - 1;
+          for (let i = sortedData.length - 1; i > 0; i--) {
+            const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
+            const rate = calculateFermentationRate(recentData);
+            
+            // If we find a point where fermentation was still active, that's our cutoff
+            if (rate !== null && Math.abs(rate) >= 0.001) {
+              cutoffIndex = i;
+              break;
+            }
+          }
+          
+          // Keep data up to the cutoff point plus a small buffer
+          sgData = sortedData.slice(0, cutoffIndex + 1);
+        }
+        
         const fermentationRate = calculateFermentationRate(sgData);
         
         // Check if fermentation has stopped on initial load and not yet acknowledged
