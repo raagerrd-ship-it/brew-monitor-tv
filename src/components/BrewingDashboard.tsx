@@ -48,6 +48,7 @@ interface TempController {
   controller_id: string;
   name: string;
   current_temp: number | null;
+  pill_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
   min_target_temp: number | null;

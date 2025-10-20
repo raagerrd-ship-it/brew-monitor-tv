@@ -140,6 +140,7 @@ serve(async (req) => {
         controller_id: controller.id,
         name: controller.name || 'Unknown Controller',
         current_temp: controller.temperature || null,
+        pill_temp: controller.controlDeviceTemperature || null,
         target_temp: controller.targetTemperature || null,
         cooling_enabled: controller.coolingEnabled || false,
         heating_enabled: controller.heatingEnabled || false,

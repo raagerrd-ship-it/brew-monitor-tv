@@ -14,6 +14,7 @@ interface TempController {
   controller_id: string;
   name: string;
   current_temp: number | null;
+  pill_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
   min_target_temp: number | null;
@@ -177,11 +178,24 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         </DialogHeader>
 
         <div className="space-y-2 py-2">
-          {/* Current Temperature */}
+          {/* Pill Temperature (if available) */}
+          {currentController.pill_temp !== null && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Thermometer className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Pill-temperatur</span>
+              </div>
+              <span className="text-lg font-semibold text-primary">
+                {currentController.pill_temp.toFixed(1)}°C
+              </span>
+            </div>
+          )}
+
+          {/* Built-in Temperature */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Nuvarande temperatur</span>
+              <span className="text-sm text-muted-foreground">Inbyggd sensor</span>
             </div>
             <span className="text-lg font-semibold">
               {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}

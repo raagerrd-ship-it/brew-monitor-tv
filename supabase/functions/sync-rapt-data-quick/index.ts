@@ -119,6 +119,7 @@ serve(async (req) => {
 
       for (const controller of selectedControllersData) {
         const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
+        const pillTemp = controller.controlDeviceTemperature || null;
         const targetTemp = controller.targetTemperature;
         const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
@@ -126,6 +127,7 @@ serve(async (req) => {
           .from('rapt_temp_controllers')
           .update({
             current_temp: currentTemp,
+            pill_temp: pillTemp,
             target_temp: targetTemp,
             cooling_enabled: controller.coolingEnabled || false,
             heating_enabled: controller.heatingEnabled || false,

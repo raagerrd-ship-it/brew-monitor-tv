@@ -123,6 +123,7 @@ export type Database = {
           max_target_temp: number | null
           min_target_temp: number | null
           name: string
+          pill_temp: number | null
           target_temp: number | null
           updated_at: string
         }
@@ -138,6 +139,7 @@ export type Database = {
           max_target_temp?: number | null
           min_target_temp?: number | null
           name: string
+          pill_temp?: number | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -153,6 +155,7 @@ export type Database = {
           max_target_temp?: number | null
           min_target_temp?: number | null
           name?: string
+          pill_temp?: number | null
           target_temp?: number | null
           updated_at?: string
         }
