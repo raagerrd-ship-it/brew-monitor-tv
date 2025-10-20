@@ -779,28 +779,28 @@ export function BrewingDashboard() {
           {/* Extra bubbles */}
           <span className="absolute text-[0.3em] opacity-40" style={{ 
             left: '5%', 
-            bottom: '-8px',
+            bottom: '-12px',
             color: 'hsl(38 90% 60%)',
             animation: 'bubble-rise 4s infinite ease-in, bubble-float 2.5s infinite ease-in-out',
             animationDelay: '0.5s, 0.2s'
           }}>○</span>
           <span className="absolute text-[0.25em] opacity-40" style={{ 
             left: '35%', 
-            bottom: '-8px',
+            bottom: '-5px',
             color: 'hsl(45 95% 65%)',
             animation: 'bubble-rise 3.5s infinite ease-in, bubble-float 2s infinite ease-in-out',
             animationDelay: '2s, 1s'
           }}>○</span>
           <span className="absolute text-[0.35em] opacity-40" style={{ 
             left: '55%', 
-            bottom: '-8px',
+            bottom: '-15px',
             color: 'hsl(38 90% 60%)',
             animation: 'bubble-rise 3.8s infinite ease-in, bubble-float 2.2s infinite ease-in-out',
             animationDelay: '3s, 1.5s'
           }}>○</span>
           <span className="absolute text-[0.28em] opacity-40" style={{ 
             left: '88%', 
-            bottom: '-8px',
+            bottom: '-7px',
             color: 'hsl(45 95% 65%)',
             animation: 'bubble-rise 4.2s infinite ease-in, bubble-float 2.8s infinite ease-in-out',
             animationDelay: '1s, 0.5s'
