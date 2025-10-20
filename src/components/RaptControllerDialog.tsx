@@ -193,15 +193,15 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2 py-2">
+        <div className="space-y-1.5 py-1">
           {/* Pill Temperature (if available) */}
           {currentController.pill_temp !== null && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Thermometer className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Pill-temperatur</span>
+                <Thermometer className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs text-muted-foreground">Pill-temperatur</span>
               </div>
-              <span className="text-lg font-semibold text-primary">
+              <span className="text-sm font-semibold text-primary">
                 {currentController.pill_temp.toFixed(1)}°C
               </span>
             </div>
@@ -210,10 +210,10 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           {/* Built-in Temperature */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Inbyggd sensor</span>
+              <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Inbyggd sensor</span>
             </div>
-            <span className="text-lg font-semibold">
+            <span className="text-sm font-semibold">
               {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}
             </span>
           </div>
@@ -221,10 +221,10 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           {/* Target Temperature Display */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Måltemperatur</span>
+              <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Måltemperatur</span>
             </div>
-            <span className="text-lg font-semibold">
+            <span className="text-sm font-semibold">
               {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°C` : 'Ej satt'}
             </span>
           </div>
@@ -232,10 +232,10 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           {/* Last Update */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Senaste data</span>
+              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Senaste data</span>
             </div>
-            <span className="text-sm">
+            <span className="text-xs">
               {currentController.last_update 
                 ? formatDistanceToNow(new Date(currentController.last_update), { addSuffix: true, locale: sv })
                 : 'Okänd'}
@@ -245,10 +245,10 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           {/* Last Sync */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Senaste synkronisering</span>
+              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Senaste synkronisering</span>
             </div>
-            <span className="text-sm">
+            <span className="text-xs">
               {lastSync 
                 ? formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: sv })
                 : 'Okänd'}
@@ -256,34 +256,13 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </div>
         </div>
 
-        <div className="space-y-4 py-4 border-t">
-          {/* Target Temperature Slider */}
-          {!isAuthenticated && (
-            <div className="bg-muted/50 p-4 rounded-lg flex items-center gap-3 mb-4">
-              <Lock className="w-5 h-5 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Inloggning krävs</p>
-                <p className="text-xs text-muted-foreground">Du måste logga in för att ändra temperaturinställningar</p>
-              </div>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate("/login");
-                }}
-              >
-                Logga in
-              </Button>
-            </div>
-          )}
-          
-          <div className="space-y-4">
+        {isAuthenticated && <div className="space-y-3 py-3 border-t">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label htmlFor="target-temp" className="text-base font-semibold">
+              <Label htmlFor="target-temp" className="text-sm font-semibold">
                 Ändra måltemperatur
               </Label>
-              <span className="text-2xl font-bold text-primary">
+              <span className="text-xl font-bold text-primary">
                 {targetTemp}°C
               </span>
             </div>
@@ -294,8 +273,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               step={1}
               value={[targetTemp]}
               onValueChange={(value) => setTargetTemp(value[0])}
-              disabled={loading || !isAuthenticated}
-              className="py-4"
+              disabled={loading}
+              className="py-2"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{currentController.min_target_temp ?? -5}°C</span>
@@ -303,17 +282,33 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </div>
             <Button 
               onClick={handleSetTargetTemperature} 
-              disabled={loading || !isAuthenticated}
+              disabled={loading}
               className="w-full"
+              size="sm"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt måltemperatur'}
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Ställ in önskad måltemperatur {currentController.min_target_temp ?? -5}°C till {currentController.max_target_temp ?? 25}°C.
-            </p>
           </div>
+        </div>}
 
-        </div>
+        {!isAuthenticated && (
+          <div className="bg-muted/50 p-3 rounded-lg flex items-center gap-2 border-t">
+            <Lock className="w-4 h-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs font-medium">Logga in för att ändra temperatur</p>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                onOpenChange(false);
+                navigate("/login");
+              }}
+            >
+              Logga in
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
