@@ -51,6 +51,7 @@ All colors MUST be HSL.
     /* Shadows */
     --glow-amber: 0 0 30px hsl(38 90% 60% / 0.3);
     --glow-text: 0 0 20px hsl(38 90% 60% / 0.8), 0 0 40px hsl(38 90% 60% / 0.4), 0 0 60px hsl(38 90% 60% / 0.2);
+    --glow-text-intense: 0 0 30px hsl(38 90% 70% / 1), 0 0 50px hsl(38 90% 60% / 0.6), 0 0 80px hsl(38 90% 60% / 0.3);
     --shadow-deep: 0 10px 40px hsl(222 30% 5% / 0.6);
   }
 }
@@ -77,9 +78,18 @@ All colors MUST be HSL.
     scrollbar-width: none;  /* Firefox */
   }
   
-  /* Glowing text effect */
+  /* Glowing text effect with pulse */
+  @keyframes glow-pulse {
+    0%, 100% {
+      text-shadow: var(--glow-text);
+    }
+    50% {
+      text-shadow: var(--glow-text-intense);
+    }
+  }
+  
   .text-glow {
-    text-shadow: var(--glow-text);
+    animation: glow-pulse 3s ease-in-out infinite;
   }
   
   /* Brewing bubbles animation */
