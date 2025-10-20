@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -188,7 +188,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       <DialogContent className="sm:max-w-[380px] bg-background border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Thermometer className="w-5 h-5 text-primary" />
+            <AirVent className="w-5 h-5 text-primary" />
             {controller.name}
           </DialogTitle>
         </DialogHeader>
