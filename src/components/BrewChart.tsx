@@ -121,7 +121,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   return (
     <div className="h-full relative">
       {/* Zoom controls - Overlay on chart */}
-      <div className="absolute top-1 right-1 z-20">
+      <div className="absolute top-4 right-1 z-20">
         <Popover>
           <PopoverTrigger asChild>
             <Button
