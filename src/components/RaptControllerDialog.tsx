@@ -23,7 +23,7 @@ interface TempController {
 }
 
 interface RaptControllerDialogProps {
-  controller: TempController;
+  controller: TempController | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -33,9 +33,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
+  const [targetTemp, setTargetTemp] = useState(controller?.target_temp !== null ? Math.round(controller?.target_temp ?? 12) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [currentController, setCurrentController] = useState(controller);
+  
+  // Don't render if controller is null
+  if (!controller) {
+    return null;
+  }
 
   // Check authentication
   useEffect(() => {
