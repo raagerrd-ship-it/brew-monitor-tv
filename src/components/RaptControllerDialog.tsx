@@ -185,7 +185,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background border-border">
+      <DialogContent className="sm:max-w-[380px] bg-background border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Thermometer className="w-5 h-5 text-primary" />
