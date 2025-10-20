@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Thermometer, Clock, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -29,10 +30,25 @@ interface RaptControllerDialogProps {
 
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [currentController, setCurrentController] = useState(controller);
+
+  // Check authentication
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchLastSync = async () => {
@@ -242,6 +258,26 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
         <div className="space-y-4 py-4 border-t">
           {/* Target Temperature Slider */}
+          {!isAuthenticated && (
+            <div className="bg-muted/50 p-4 rounded-lg flex items-center gap-3 mb-4">
+              <Lock className="w-5 h-5 text-muted-foreground" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Inloggning krävs</p>
+                <p className="text-xs text-muted-foreground">Du måste logga in för att ändra temperaturinställningar</p>
+              </div>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate("/login");
+                }}
+              >
+                Logga in
+              </Button>
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="target-temp" className="text-base font-semibold">
@@ -258,7 +294,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               step={1}
               value={[targetTemp]}
               onValueChange={(value) => setTargetTemp(value[0])}
-              disabled={loading}
+              disabled={loading || !isAuthenticated}
               className="py-4"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -267,7 +303,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </div>
             <Button 
               onClick={handleSetTargetTemperature} 
-              disabled={loading}
+              disabled={loading || !isAuthenticated}
               className="w-full"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sätt måltemperatur'}

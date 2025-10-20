@@ -6,14 +6,17 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { User } from "@supabase/supabase-js";
 
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [syncInterval, setSyncInterval] = useState<string>("60");
   const [syncing, setSyncing] = useState(false);
   const [quickSyncing, setQuickSyncing] = useState(false);
@@ -33,7 +36,31 @@ export default function Settings() {
     rapt: { username: string; apiSecret: string; configured: boolean };
   } | null>(null);
 
+  // Check authentication
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/login");
+        return;
+      }
+      setUser(session.user);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/login");
+        return;
+      }
+      setUser(session.user);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!user) return;
     loadSettings();
     loadApiSettings();
     
@@ -334,10 +361,31 @@ export default function Settings() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/login");
+    } catch (error) {
+      toast({
+        title: "Fel",
+        description: "Kunde inte logga ut",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto max-w-4xl">
-        <div className="py-4">
+        <div className="py-4 flex items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
@@ -346,6 +394,15 @@ export default function Settings() {
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Tillbaka till Dashboard
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="mb-4"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Logga ut
           </Button>
         </div>
         
