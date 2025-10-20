@@ -11,6 +11,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ZoomIn } from "lucide-react";
 
 interface BrewChartProps {
   data: Array<{ date: string; value: number; temp: number }>;
@@ -112,28 +114,44 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
   const zoomButtons: Array<{ period: ZoomPeriod; label: string }> = [
     { period: '24h', label: '24h' },
     { period: '48h', label: '48h' },
-    { period: '7d', label: '7d' },
+    { period: '7d', label: '7 dagar' },
     { period: 'all', label: 'Allt' },
   ];
 
   return (
     <div className="h-full flex flex-col">
-      {/* Zoom controls */}
-      <div className="flex gap-1 mb-2 justify-end">
-        {zoomButtons.map(({ period, label }) => (
-          <Button
-            key={period}
-            variant={zoomPeriod === period ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setZoomPeriod(period)}
-            className="h-6 px-2 text-xs"
-          >
-            {label}
-          </Button>
-        ))}
+      {/* Zoom controls - Compact popover */}
+      <div className="absolute top-2 right-2 z-10">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-40 hover:opacity-100 transition-opacity"
+              title="Zooma diagram"
+            >
+              <ZoomIn className="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2" align="end">
+            <div className="flex flex-col gap-1">
+              {zoomButtons.map(({ period, label }) => (
+                <Button
+                  key={period}
+                  variant={zoomPeriod === period ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setZoomPeriod(period)}
+                  className="justify-start"
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       
-      <div className="flex-1">
+      <div className="flex-1 relative">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={filteredData} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
