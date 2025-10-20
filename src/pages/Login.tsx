@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, ArrowLeft } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -95,8 +95,18 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
-      <Card className="w-full max-w-md p-8 space-y-6">
-        <div className="space-y-2 text-center">
+      <Card className="w-full max-w-md p-8 space-y-6 relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/")}
+          className="absolute top-4 left-4"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Tillbaka
+        </Button>
+
+        <div className="space-y-2 text-center mt-8">
           <h1 className="text-3xl font-bold text-glow brewing-title bg-gradient-to-r from-beer-amber via-primary to-ferment-green bg-clip-text text-transparent">
             Bryggövervakare
           </h1>
