@@ -104,13 +104,13 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   const getEventDisplay = (type: string) => {
     switch (type) {
       case 'diacetylrast':
-        return { label: 'D', color: '#f97316' }; // orange
+        return { label: 'Diacetylrast', color: '#f97316' }; // orange
       case 'torrhumling':
-        return { label: 'T', color: '#22c55e' }; // green
+        return { label: 'Torrhumling', color: '#22c55e' }; // green
       case 'coldcrash':
-        return { label: 'C', color: '#3b82f6' }; // blue
+        return { label: 'Coldcrash', color: '#3b82f6' }; // blue
       default:
-        return { label: 'E', color: '#a855f7' }; // purple
+        return { label: 'Händelse', color: '#a855f7' }; // purple
     }
   };
 
