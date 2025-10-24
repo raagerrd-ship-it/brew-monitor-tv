@@ -140,19 +140,29 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
   );
   
-  const eventOffsets = sortedEvents.map((event, index) => {
-    if (index === 0) return 10;
-    
-    const currentTime = new Date(event.event_date).getTime();
-    const prevTime = new Date(sortedEvents[index - 1].event_date).getTime();
-    const hoursDiff = (currentTime - prevTime) / (1000 * 60 * 60);
-    
-    // If events are within 48 hours, alternate the offset
-    if (hoursDiff < 48) {
-      return index % 2 === 0 ? 10 : 35;
+  // Map each event to its closest data point
+  const eventsWithPosition = sortedEvents.map(event => ({
+    event,
+    closestDate: getClosestDataPoint(event.event_date)
+  }));
+  
+  // Group events by their closest data point
+  const eventGroups = new Map<string, typeof eventsWithPosition>();
+  eventsWithPosition.forEach(item => {
+    if (!eventGroups.has(item.closestDate)) {
+      eventGroups.set(item.closestDate, []);
     }
-    
-    return 10;
+    eventGroups.get(item.closestDate)!.push(item);
+  });
+  
+  // Calculate offset for each event based on its position in the group
+  const eventOffsets = new Map<string, number>();
+  eventGroups.forEach((group) => {
+    group.forEach((item, indexInGroup) => {
+      // Stack labels vertically when multiple events are at the same position
+      const offset = 10 + (indexInGroup * 25);
+      eventOffsets.set(item.event.id, offset);
+    });
   });
 
   return (
@@ -173,15 +183,14 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             />
           ))}
           {/* Event markers */}
-          {sortedEvents.map((event, index) => {
-            const eventDisplay = getEventDisplay(event.event_type);
-            const closestDate = getClosestDataPoint(event.event_date);
-            const offset = eventOffsets[index];
-            console.log('Rendering event:', event.event_type, 'at', closestDate, 'offset:', offset); // Debug
+          {eventsWithPosition.map((item) => {
+            const eventDisplay = getEventDisplay(item.event.event_type);
+            const offset = eventOffsets.get(item.event.id) || 10;
+            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate, 'offset:', offset); // Debug
             return (
               <ReferenceLine
-                key={event.id}
-                x={closestDate}
+                key={item.event.id}
+                x={item.closestDate}
                 yAxisId="sg"
                 stroke={eventDisplay.color}
                 strokeWidth={3}
