@@ -135,27 +135,25 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     return closest.date;
   };
 
-  // Calculate label offsets to prevent overlap
-  const getEventOffset = (eventIndex: number, events: BrewEvent[]) => {
-    const sortedEvents = [...events].sort((a, b) => 
-      new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-    );
-    const currentEvent = sortedEvents[eventIndex];
-    const currentTime = new Date(currentEvent.event_date).getTime();
+  // Sort events by date and calculate offsets to prevent overlap
+  const sortedEvents = [...events].sort((a, b) => 
+    new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+  );
+  
+  const eventOffsets = sortedEvents.map((event, index) => {
+    if (index === 0) return 10;
     
-    // Check how many events are within 24 hours before this one
-    let nearbyCount = 0;
-    for (let i = 0; i < eventIndex; i++) {
-      const prevTime = new Date(sortedEvents[i].event_date).getTime();
-      const hoursDiff = (currentTime - prevTime) / (1000 * 60 * 60);
-      if (hoursDiff < 24) {
-        nearbyCount++;
-      }
+    const currentTime = new Date(event.event_date).getTime();
+    const prevTime = new Date(sortedEvents[index - 1].event_date).getTime();
+    const hoursDiff = (currentTime - prevTime) / (1000 * 60 * 60);
+    
+    // If events are within 48 hours, alternate the offset
+    if (hoursDiff < 48) {
+      return index % 2 === 0 ? 10 : 35;
     }
     
-    // Alternate offsets: 10, 30, 50, 70, etc.
-    return 10 + (nearbyCount % 4) * 20;
-  };
+    return 10;
+  });
 
   return (
     <div className="h-full">
@@ -175,31 +173,29 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             />
           ))}
           {/* Event markers */}
-          {events
-            .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
-            .map((event, index) => {
-              const eventDisplay = getEventDisplay(event.event_type);
-              const closestDate = getClosestDataPoint(event.event_date);
-              const offset = getEventOffset(index, events);
-              console.log('Rendering event:', event.event_type, 'at', closestDate, 'offset:', offset); // Debug
-              return (
-                <ReferenceLine
-                  key={event.id}
-                  x={closestDate}
-                  yAxisId="sg"
-                  stroke={eventDisplay.color}
-                  strokeWidth={3}
-                  label={{
-                    value: eventDisplay.label,
-                    position: 'top',
-                    fill: eventDisplay.color,
-                    fontSize: 14,
-                    fontWeight: 'bold',
-                    offset: offset
-                  }}
-                />
-              );
-            })}
+          {sortedEvents.map((event, index) => {
+            const eventDisplay = getEventDisplay(event.event_type);
+            const closestDate = getClosestDataPoint(event.event_date);
+            const offset = eventOffsets[index];
+            console.log('Rendering event:', event.event_type, 'at', closestDate, 'offset:', offset); // Debug
+            return (
+              <ReferenceLine
+                key={event.id}
+                x={closestDate}
+                yAxisId="sg"
+                stroke={eventDisplay.color}
+                strokeWidth={3}
+                label={{
+                  value: eventDisplay.label,
+                  position: 'top',
+                  fill: eventDisplay.color,
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  offset: offset
+                }}
+              />
+            );
+          })}
           <XAxis
             dataKey="date"
             stroke="hsl(var(--muted-foreground))"
