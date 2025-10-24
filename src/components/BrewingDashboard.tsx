@@ -483,8 +483,20 @@ export function BrewingDashboard() {
         return;
       }
 
-      // Load events for all brews
-      await loadBrewEvents();
+      // Load events FIRST before mapping brew data
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('brew_events')
+        .select('*')
+        .order('event_date');
+      
+      // Group events by brew_id
+      const eventsByBrewId: Record<string, BrewEvent[]> = {};
+      (eventsData || []).forEach((event: BrewEvent) => {
+        if (!eventsByBrewId[event.brew_id]) {
+          eventsByBrewId[event.brew_id] = [];
+        }
+        eventsByBrewId[event.brew_id].push(event);
+      });
 
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => {
@@ -565,7 +577,7 @@ export function BrewingDashboard() {
           sgData: sgData,
           fermentationRate: fermentationRate,
           coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
-          events: brewEvents[reading.id] || []
+          events: eventsByBrewId[reading.id] || []
         };
       });
 
