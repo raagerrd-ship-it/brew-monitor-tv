@@ -56,8 +56,13 @@ export function BrewEventDialog({
 }: BrewEventDialogProps) {
   const [open, setOpen] = useState(false);
   const [eventType, setEventType] = useState<string>("");
-  const [eventDate, setEventDate] = useState<Date>();
-  const [eventTime, setEventTime] = useState<string>("12:00");
+  const [eventDate, setEventDate] = useState<Date>(new Date());
+  const [eventTime, setEventTime] = useState<string>(() => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  });
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -94,10 +99,13 @@ export function BrewEventDialog({
         description: "Händelsen har sparats",
       });
 
-      // Reset form
+      // Reset form to current date/time
       setEventType("");
-      setEventDate(undefined);
-      setEventTime("12:00");
+      setEventDate(new Date());
+      const resetNow = new Date();
+      const resetHours = resetNow.getHours().toString().padStart(2, '0');
+      const resetMinutes = resetNow.getMinutes().toString().padStart(2, '0');
+      setEventTime(`${resetHours}:${resetMinutes}`);
       setNotes("");
       
       // Close dialog
