@@ -159,6 +159,41 @@ serve(async (req) => {
         console.error(`Failed to upsert Temperature Controllers data: ${controllersUpsertError.message}`);
       } else {
         console.log(`Successfully synced ${controllersData.length} Temperature Controllers`);
+        
+        // Auto-add new controllers to selected_rapt_temp_controllers
+        const { data: existingSelected } = await supabase
+          .from('selected_rapt_temp_controllers')
+          .select('controller_id');
+        
+        const existingIds = new Set(existingSelected?.map((s: any) => s.controller_id) || []);
+        const newControllers = controllersData.filter((c: any) => !existingIds.has(c.controller_id));
+        
+        if (newControllers.length > 0) {
+          // Get the highest display_order
+          const { data: maxOrder } = await supabase
+            .from('selected_rapt_temp_controllers')
+            .select('display_order')
+            .order('display_order', { ascending: false })
+            .limit(1);
+          
+          let nextOrder = (maxOrder && maxOrder.length > 0) ? maxOrder[0].display_order + 1 : 1;
+          
+          const newSelectedControllers = newControllers.map((c: any) => ({
+            controller_id: c.controller_id,
+            is_visible: true,
+            display_order: nextOrder++
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('selected_rapt_temp_controllers')
+            .insert(newSelectedControllers);
+          
+          if (insertError) {
+            console.error(`Failed to add new controllers to selection: ${insertError.message}`);
+          } else {
+            console.log(`Auto-added ${newControllers.length} new controllers to selection`);
+          }
+        }
       }
     }
 
