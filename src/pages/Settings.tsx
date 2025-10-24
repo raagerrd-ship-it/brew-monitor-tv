@@ -91,7 +91,7 @@ export default function Settings() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   const loadApiSettings = async () => {
     try {
