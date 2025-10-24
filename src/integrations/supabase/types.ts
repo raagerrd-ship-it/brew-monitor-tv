@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      brew_events: {
+        Row: {
+          brew_id: string
+          created_at: string
+          event_date: string
+          event_type: string
+          id: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          brew_id: string
+          created_at?: string
+          event_date: string
+          event_type: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brew_id?: string
+          created_at?: string
+          event_date?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brew_events_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brew_readings: {
         Row: {
           abv: number
@@ -319,18 +357,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      trigger_brew_sync: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      trigger_full_brew_sync: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      trigger_rapt_quick_sync: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      trigger_brew_sync: { Args: never; Returns: undefined }
+      trigger_full_brew_sync: { Args: never; Returns: undefined }
+      trigger_rapt_quick_sync: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

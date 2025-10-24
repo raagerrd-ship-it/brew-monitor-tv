@@ -8,16 +8,25 @@ import {
   XAxis,
   YAxis,
   ReferenceLine,
+  Label,
 } from "recharts";
+
+interface BrewEvent {
+  id: string;
+  event_type: string;
+  event_date: string;
+  notes: string | null;
+}
 
 interface BrewChartProps {
   data: Array<{ date: string; value: number; temp: number }>;
   og: number;
   fg: number;
   singleView?: boolean;
+  events?: BrewEvent[];
 }
 
-export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) {
+export function BrewChart({ data, og, fg, singleView = false, events = [] }: BrewChartProps) {
   // Check if data is empty or has no values
   if (!data || data.length === 0) {
     return (
@@ -89,6 +98,20 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
     labelPoints.add(closestToMidnight.date);
   });
 
+  // Map event type to display label and color
+  const getEventDisplay = (type: string) => {
+    switch (type) {
+      case 'diacetylrast':
+        return { label: 'D', color: '#f97316' }; // orange
+      case 'torrhumling':
+        return { label: 'T', color: '#22c55e' }; // green
+      case 'coldcrash':
+        return { label: 'C', color: '#3b82f6' }; // blue
+      default:
+        return { label: 'E', color: '#a855f7' }; // purple
+    }
+  };
+
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -97,7 +120,7 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
           {/* Day change markers */}
           {dayChangeMarkers.map((timestamp, idx) => (
             <ReferenceLine
-              key={idx}
+              key={`day-${idx}`}
               x={timestamp}
               yAxisId="sg"
               stroke="hsl(var(--primary))"
@@ -106,6 +129,27 @@ export function BrewChart({ data, og, fg, singleView = false }: BrewChartProps) 
               strokeWidth={2}
             />
           ))}
+          {/* Event markers */}
+          {events.map((event) => {
+            const eventDisplay = getEventDisplay(event.event_type);
+            return (
+              <ReferenceLine
+                key={event.id}
+                x={event.event_date}
+                yAxisId="sg"
+                stroke={eventDisplay.color}
+                strokeWidth={2}
+              >
+                <Label
+                  value={eventDisplay.label}
+                  position="top"
+                  fill={eventDisplay.color}
+                  fontSize={12}
+                  fontWeight="bold"
+                />
+              </ReferenceLine>
+            );
+          })}
           <XAxis
             dataKey="date"
             stroke="hsl(var(--muted-foreground))"

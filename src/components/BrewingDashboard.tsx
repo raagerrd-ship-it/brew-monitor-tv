@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
 import { RaptControllerDialog } from "./RaptControllerDialog";
+import { BrewEventDialog } from "./BrewEventDialog";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +13,14 @@ import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+interface BrewEvent {
+  id: string;
+  brew_id: string;
+  event_type: string;
+  event_date: string;
+  notes: string | null;
+}
 
 interface BrewData {
   id: string;
@@ -32,6 +41,7 @@ interface BrewData {
   sgData: Array<{ date: string; value: number; temp: number }>;
   fermentationRate: number | null; // SG change per 24h based on last 2 hours
   coldcrashAcknowledged: boolean;
+  events: BrewEvent[];
 }
 
 interface PillData {
@@ -64,6 +74,7 @@ export function BrewingDashboard() {
   const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
+  const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -93,6 +104,30 @@ export function BrewingDashboard() {
     loadPills();
     loadControllers();
   }, []);
+
+  const loadBrewEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('brew_events')
+        .select('*')
+        .order('event_date');
+      
+      if (error) throw error;
+      
+      // Group events by brew_id
+      const eventsByBrew: Record<string, BrewEvent[]> = {};
+      (data || []).forEach((event: BrewEvent) => {
+        if (!eventsByBrew[event.brew_id]) {
+          eventsByBrew[event.brew_id] = [];
+        }
+        eventsByBrew[event.brew_id].push(event);
+      });
+      
+      setBrewEvents(eventsByBrew);
+    } catch (error) {
+      console.error('Error loading brew events:', error);
+    }
+  };
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -448,6 +483,9 @@ export function BrewingDashboard() {
         return;
       }
 
+      // Load events for all brews
+      await loadBrewEvents();
+
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => {
         let sgData = reading.sg_data || [];
@@ -526,7 +564,8 @@ export function BrewingDashboard() {
           battery: reading.battery,
           sgData: sgData,
           fermentationRate: fermentationRate,
-          coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false
+          coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
+          events: brewEvents[reading.id] || []
         };
       });
 
@@ -1022,17 +1061,25 @@ export function BrewingDashboard() {
                       {brew.style} • {brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
-                  <span
-                    className="rounded-full px-2.5 py-1 font-bold whitespace-nowrap flex-shrink-0"
-                    style={{ 
-                      fontSize: 'min(calc(30cqh * 1.0), calc(100cqw * 0.16))',
-                      backgroundColor: brew.status === "Konditionering" ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
-                      color: brew.status === "Konditionering" ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                      animation: brew.status === "Konditionering" ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
-                    }}
-                  >
-                    {brew.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <BrewEventDialog
+                      brewId={brew.id}
+                      brewName={brew.name}
+                      events={brew.events}
+                      onEventsChange={loadBrewEvents}
+                    />
+                    <span
+                      className="rounded-full px-2.5 py-1 font-bold whitespace-nowrap flex-shrink-0"
+                      style={{ 
+                        fontSize: 'min(calc(30cqh * 1.0), calc(100cqw * 0.16))',
+                        backgroundColor: brew.status === "Konditionering" ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
+                        color: brew.status === "Konditionering" ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                        animation: brew.status === "Konditionering" ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                      }}
+                    >
+                      {brew.status}
+                    </span>
+                  </div>
                 </div>
               </div>
               
@@ -1042,7 +1089,8 @@ export function BrewingDashboard() {
                   data={brew.sgData} 
                   og={brew.originalGravity} 
                   fg={brew.finalGravity} 
-                  singleView={true} 
+                  singleView={true}
+                  events={brew.events}
                 />
               </div>
 
