@@ -28,7 +28,10 @@ Deno.serve(async (req) => {
     if (settingsData) {
       await supabase
         .from('sync_settings')
-        .update({ last_sync_time: new Date().toISOString() })
+        .update({ 
+          last_sync_time: new Date().toISOString(),
+          last_full_sync_at: new Date().toISOString()
+        })
         .eq('id', settingsData.id)
     }
 
