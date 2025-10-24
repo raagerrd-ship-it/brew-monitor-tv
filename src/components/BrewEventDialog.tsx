@@ -100,6 +100,9 @@ export function BrewEventDialog({
       setEventTime("12:00");
       setNotes("");
       
+      // Close dialog
+      setOpen(false);
+      
       onEventsChange();
     } catch (error) {
       console.error("Error adding event:", error);
@@ -146,9 +149,8 @@ export function BrewEventDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="icon" className="h-8 w-8">
           <Plus className="h-4 w-4" />
-          Händelser
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
