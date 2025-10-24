@@ -36,6 +36,8 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     );
   }
 
+  console.log('BrewChart events:', events); // Debug log
+
   // Find all unique midnight timestamps (day boundaries)
   const midnightTimestamps = new Set<number>();
   data.forEach((d) => {
@@ -112,10 +114,27 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     }
   };
 
+  // Find the closest data point to each event for more accurate positioning
+  const getClosestDataPoint = (eventDate: string) => {
+    const eventTime = new Date(eventDate).getTime();
+    let closest = data[0];
+    let minDiff = Math.abs(new Date(data[0].date).getTime() - eventTime);
+    
+    data.forEach((point) => {
+      const diff = Math.abs(new Date(point.date).getTime() - eventTime);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = point;
+      }
+    });
+    
+    return closest.date;
+  };
+
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 5, right: -10, left: -20, bottom: 5 }}>
+        <ComposedChart data={data} margin={{ top: 20, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
           {dayChangeMarkers.map((timestamp, idx) => (
@@ -132,22 +151,24 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           {/* Event markers */}
           {events.map((event) => {
             const eventDisplay = getEventDisplay(event.event_type);
+            const closestDate = getClosestDataPoint(event.event_date);
+            console.log('Rendering event:', event.event_type, 'at', closestDate); // Debug
             return (
               <ReferenceLine
                 key={event.id}
-                x={event.event_date}
+                x={closestDate}
                 yAxisId="sg"
                 stroke={eventDisplay.color}
-                strokeWidth={2}
-              >
-                <Label
-                  value={eventDisplay.label}
-                  position="top"
-                  fill={eventDisplay.color}
-                  fontSize={12}
-                  fontWeight="bold"
-                />
-              </ReferenceLine>
+                strokeWidth={3}
+                label={{
+                  value: eventDisplay.label,
+                  position: 'top',
+                  fill: eventDisplay.color,
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  offset: 10
+                }}
+              />
             );
           })}
           <XAxis
