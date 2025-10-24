@@ -103,6 +103,10 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   // Map event type to display label and color
   const getEventDisplay = (type: string) => {
     switch (type) {
+      case 'jast':
+        return { label: 'Jäst', color: '#eab308' }; // yellow
+      case 'syresattning':
+        return { label: 'Syresättning', color: '#0ea5e9' }; // cyan
       case 'diacetylrast':
         return { label: 'Diacetylrast', color: '#f97316' }; // orange
       case 'torrhumling':

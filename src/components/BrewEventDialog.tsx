@@ -42,6 +42,8 @@ interface BrewEventDialogProps {
 }
 
 const EVENT_TYPES = [
+  { value: "jast", label: "Jäst" },
+  { value: "syresattning", label: "Syresättning" },
   { value: "diacetylrast", label: "Diacetylrast" },
   { value: "torrhumling", label: "Torrhumling" },
   { value: "coldcrash", label: "Coldcrash" },
