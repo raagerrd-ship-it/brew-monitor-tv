@@ -31,6 +31,7 @@ export default function Settings() {
   const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
+  const [lastBrewfatherQuickSync, setLastBrewfatherQuickSync] = useState<string | null>(null);
   const [apiSettings, setApiSettings] = useState<{
     brewfather: { userId: string; apiKey: string; configured: boolean };
     rapt: { username: string; apiSecret: string; configured: boolean };
@@ -81,6 +82,7 @@ export default function Settings() {
             setLastRaptSync(newData.last_rapt_sync_at);
             setLastRaptQuickSync(newData.last_rapt_quick_sync_at);
             setLastFullSync(newData.last_full_sync_at);
+            setLastBrewfatherQuickSync(newData.last_sync_time);
           }
         }
       )
@@ -126,6 +128,7 @@ export default function Settings() {
         setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
         setLastFullSync(data.last_full_sync_at);
+        setLastBrewfatherQuickSync(data.last_sync_time);
         console.log('Last RAPT sync:', data.last_rapt_sync_at);
         console.log('Last RAPT quick sync:', data.last_rapt_quick_sync_at);
       }
@@ -487,6 +490,25 @@ export default function Settings() {
                 </SelectContent>
               </Select>
             </div>
+
+            {lastBrewfatherQuickSync ? (
+              <p className="text-sm text-muted-foreground">
+                Senaste snabbsynkning:{" "}
+                <span className="font-medium text-foreground">
+                  {new Date(lastBrewfatherQuickSync).toLocaleString("sv-SE", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Ingen snabbsynkning har gjorts än
+              </p>
+            )}
 
             <div>
               <Button
