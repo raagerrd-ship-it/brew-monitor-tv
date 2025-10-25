@@ -167,11 +167,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           {eventsWithPosition.map((item) => {
             const eventDisplay = getEventDisplay(item.event.event_type);
             
-            // Find the index of this data point to determine position
-            const dataIndex = data.findIndex(d => d.date === item.closestDate);
-            const isInFirstHalf = dataIndex < data.length / 2;
-            
-            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate, 'dataIndex:', dataIndex, 'isInFirstHalf:', isInFirstHalf); // Debug
+            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate); // Debug
             return (
               <ReferenceLine
                 key={item.event.id}
@@ -181,14 +177,12 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
                 strokeWidth={3}
                 label={{
                   value: eventDisplay.label,
-                  position: 'top',
+                  position: 'insideTopRight',
                   fill: eventDisplay.color,
                   fontSize: 14,
                   fontWeight: 'bold',
                   angle: -90,
-                  offset: isInFirstHalf ? 8 : -8,
-                  dx: 0,
-                  dy: 0
+                  offset: 0
                 }}
               />
             );
