@@ -185,8 +185,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           {/* Event markers */}
           {eventsWithPosition.map((item) => {
             const eventDisplay = getEventDisplay(item.event.event_type);
-            const offset = eventOffsets.get(item.event.id) || 10;
-            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate, 'offset:', offset); // Debug
+            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate); // Debug
             return (
               <ReferenceLine
                 key={item.event.id}
@@ -200,7 +199,8 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
                   fill: eventDisplay.color,
                   fontSize: 14,
                   fontWeight: 'bold',
-                  offset: offset
+                  angle: -90,
+                  offset: 10
                 }}
               />
             );
