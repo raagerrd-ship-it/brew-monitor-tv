@@ -200,12 +200,12 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
                 strokeWidth={3}
                 label={{
                   value: eventDisplay.label,
-                  position: isInFirstHalf ? 'insideTopRight' : 'insideTopLeft',
+                  position: isInFirstHalf ? 'insideRight' : 'insideLeft',
                   fill: eventDisplay.color,
                   fontSize: 14,
                   fontWeight: 'bold',
                   angle: -90,
-                  offset: 0
+                  offset: 5
                 }}
               />
             );
