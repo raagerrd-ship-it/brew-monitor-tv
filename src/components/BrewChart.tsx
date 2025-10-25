@@ -135,7 +135,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     return closest.date;
   };
 
-  // Sort events by date and calculate offsets to prevent overlap
+  // Sort events by date
   const sortedEvents = [...events].sort((a, b) => 
     new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
   );
@@ -145,25 +145,6 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     event,
     closestDate: getClosestDataPoint(event.event_date)
   }));
-  
-  // Group events by their closest data point
-  const eventGroups = new Map<string, typeof eventsWithPosition>();
-  eventsWithPosition.forEach(item => {
-    if (!eventGroups.has(item.closestDate)) {
-      eventGroups.set(item.closestDate, []);
-    }
-    eventGroups.get(item.closestDate)!.push(item);
-  });
-  
-  // Calculate offset for each event based on its position in the group
-  const eventOffsets = new Map<string, number>();
-  eventGroups.forEach((group) => {
-    group.forEach((item, indexInGroup) => {
-      // Stack labels vertically when multiple events are at the same position
-      const offset = 10 + (indexInGroup * 25);
-      eventOffsets.set(item.event.id, offset);
-    });
-  });
 
   return (
     <div className="h-full">
@@ -186,11 +167,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           {eventsWithPosition.map((item) => {
             const eventDisplay = getEventDisplay(item.event.event_type);
             
-            // Find the index of this data point to determine position
-            const dataIndex = data.findIndex(d => d.date === item.closestDate);
-            const isInFirstHalf = dataIndex < data.length / 2;
-            
-            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate, 'dataIndex:', dataIndex, 'total:', data.length, 'isInFirstHalf:', isInFirstHalf); // Debug
+            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate); // Debug
             return (
               <ReferenceLine
                 key={item.event.id}
@@ -200,12 +177,12 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
                 strokeWidth={3}
                 label={{
                   value: eventDisplay.label,
-                  position: isInFirstHalf ? 'insideTopRight' : 'insideTopLeft',
+                  position: 'insideTopRight',
                   fill: eventDisplay.color,
                   fontSize: 14,
                   fontWeight: 'bold',
                   angle: -90,
-                  offset: 10
+                  offset: 0
                 }}
               />
             );
