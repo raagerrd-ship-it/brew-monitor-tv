@@ -206,7 +206,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
                   fontWeight: 'bold',
                   angle: -90,
                   offset: isInFirstHalf ? 15 : -15,
-                  textAnchor: 'end'
+                  textAnchor: 'start'
                 }}
               />
             );
