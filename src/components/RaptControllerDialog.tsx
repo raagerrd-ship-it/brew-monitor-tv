@@ -290,11 +290,21 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
                 </span>
               </div>
             </div>
-            {currentController.heating_utilisation !== null && currentController.heating_utilisation > 0 && (
+            {(currentController.heating_utilisation !== null && currentController.heating_utilisation > 0) && (
               <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-medium text-green-600">
+                <Flame className="w-3 h-3 text-orange-500" />
+                <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                <span className="text-xs font-medium text-orange-600">
                   Aktiv {currentController.heating_utilisation.toFixed(0)}%
+                </span>
+              </div>
+            )}
+            {currentController.cooling_enabled && !(currentController.heating_utilisation !== null && currentController.heating_utilisation > 0) && (
+              <div className="flex items-center gap-1.5">
+                <Snowflake className="w-3 h-3 text-blue-500" />
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-xs font-medium text-blue-600">
+                  Aktiv
                 </span>
               </div>
             )}
