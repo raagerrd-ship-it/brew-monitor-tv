@@ -301,6 +301,20 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
                 </span>
               </div>
             )}
+            
+            {currentController.cooling_enabled && 
+             currentController.heating_utilisation === 0 && 
+             currentController.current_temp !== null &&
+             currentController.target_temp !== null &&
+             currentController.current_temp > currentController.target_temp && (
+              <div className="flex items-center gap-2 pt-1 px-2 py-1.5 bg-blue-500/10 rounded-md border border-blue-500/20">
+                <Snowflake className="w-3.5 h-3.5 text-blue-500" />
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-xs font-semibold text-blue-600">
+                  Kyler just nu
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Last Update */}
