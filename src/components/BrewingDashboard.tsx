@@ -104,8 +104,7 @@ export function BrewingDashboard() {
 
   useEffect(() => {
     loadBrews();
-    loadPills();
-    loadControllers();
+    loadRaptData();
   }, []);
 
   const loadBrewEvents = async () => {
@@ -342,7 +341,7 @@ export function BrewingDashboard() {
           table: 'rapt_pills'
         },
         () => {
-          loadPills();
+          loadRaptData();
         }
       )
       .subscribe();
@@ -358,7 +357,7 @@ export function BrewingDashboard() {
           table: 'rapt_temp_controllers'
         },
         () => {
-          loadControllers();
+          loadRaptData();
         }
       )
       .subscribe();
@@ -374,7 +373,7 @@ export function BrewingDashboard() {
           table: 'selected_rapt_pills'
         },
         () => {
-          loadPills();
+          loadRaptData();
         }
       )
       .subscribe();
@@ -390,7 +389,7 @@ export function BrewingDashboard() {
           table: 'selected_rapt_temp_controllers'
         },
         () => {
-          loadControllers();
+          loadRaptData();
         }
       )
       .subscribe();
@@ -598,93 +597,28 @@ export function BrewingDashboard() {
     }
   };
 
-  const loadPills = async () => {
+  const loadRaptData = async () => {
     try {
-      // Get selected pills with display_order
-      const { data: selectedData, error: selectedError } = await supabase
-        .from('selected_rapt_pills')
-        .select('pill_id')
-        .eq('is_visible', true)
-        .order('display_order');
-
-      if (selectedError) {
-        console.error('Error loading selected pills:', selectedError);
-        return;
-      }
-
-      const selectedPillIds = selectedData?.map(s => s.pill_id) || [];
-
-      if (selectedPillIds.length === 0) {
-        setPills([]);
-        return;
-      }
-
-      // Get only selected pills
-      const { data, error } = await supabase
-        .from('rapt_pills')
-        .select('*')
-        .in('pill_id', selectedPillIds);
+      console.log('Loading RAPT data from public edge function...');
+      
+      const { data, error } = await supabase.functions.invoke('get-public-rapt-data');
 
       if (error) {
-        console.error('Error loading Pills:', error);
+        console.error('Error loading RAPT data:', error);
         return;
       }
 
-      // Sort pills based on display_order from selectedData
-      const sortedPills = (data || []).sort((a, b) => {
-        const aIndex = selectedPillIds.indexOf(a.pill_id);
-        const bIndex = selectedPillIds.indexOf(b.pill_id);
-        return aIndex - bIndex;
-      });
+      if (!data.success) {
+        console.error('Failed to load RAPT data:', data.error);
+        return;
+      }
 
-      setPills(sortedPills);
+      setPills(data.pills || []);
+      setControllers(data.controllers || []);
+      
+      console.log(`Loaded ${data.pills?.length || 0} pills and ${data.controllers?.length || 0} controllers`);
     } catch (error) {
-      console.error('Error loading Pills:', error);
-    }
-  };
-
-  const loadControllers = async () => {
-    try {
-      // Get selected controllers with display_order
-      const { data: selectedData, error: selectedError } = await supabase
-        .from('selected_rapt_temp_controllers')
-        .select('controller_id')
-        .eq('is_visible', true)
-        .order('display_order');
-
-      if (selectedError) {
-        console.error('Error loading selected controllers:', selectedError);
-        return;
-      }
-
-      const selectedControllerIds = selectedData?.map(s => s.controller_id) || [];
-
-      if (selectedControllerIds.length === 0) {
-        setControllers([]);
-        return;
-      }
-
-      // Get only selected controllers
-      const { data, error } = await supabase
-        .from('rapt_temp_controllers')
-        .select('*')
-        .in('controller_id', selectedControllerIds);
-
-      if (error) {
-        console.error('Error loading temperature controllers:', error);
-        return;
-      }
-
-      // Sort controllers based on display_order from selectedData
-      const sortedControllers = (data || []).sort((a, b) => {
-        const aIndex = selectedControllerIds.indexOf(a.controller_id);
-        const bIndex = selectedControllerIds.indexOf(b.controller_id);
-        return aIndex - bIndex;
-      });
-
-      setControllers(sortedControllers);
-    } catch (error) {
-      console.error('Error loading temperature controllers:', error);
+      console.error('Error loading RAPT data:', error);
     }
   };
 
