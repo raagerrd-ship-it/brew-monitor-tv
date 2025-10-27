@@ -63,6 +63,9 @@ interface TempController {
   last_update: string | null;
   min_target_temp: number | null;
   max_target_temp: number | null;
+  cooling_enabled: boolean | null;
+  heating_enabled: boolean | null;
+  heating_utilisation: number | null;
 }
 
 export function BrewingDashboard() {

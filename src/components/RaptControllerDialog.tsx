@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -20,6 +20,9 @@ interface TempController {
   last_update: string | null;
   min_target_temp: number | null;
   max_target_temp: number | null;
+  cooling_enabled: boolean | null;
+  heating_enabled: boolean | null;
+  heating_utilisation: number | null;
 }
 
 interface RaptControllerDialogProps {
@@ -269,6 +272,32 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             <span className="text-sm font-semibold">
               {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°C` : 'Ej satt'}
             </span>
+          </div>
+
+          {/* Heating/Cooling Status */}
+          <div className="flex items-center justify-between py-2 border-t">
+            <div className="flex gap-3">
+              <div className="flex items-center gap-1.5">
+                <Flame className={`w-4 h-4 ${currentController.heating_enabled ? 'text-orange-500' : 'text-muted-foreground/40'}`} />
+                <span className={`text-xs ${currentController.heating_enabled ? 'font-medium text-foreground' : 'text-muted-foreground/60'}`}>
+                  Värme
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Snowflake className={`w-4 h-4 ${currentController.cooling_enabled ? 'text-blue-500' : 'text-muted-foreground/40'}`} />
+                <span className={`text-xs ${currentController.cooling_enabled ? 'font-medium text-foreground' : 'text-muted-foreground/60'}`}>
+                  Kyla
+                </span>
+              </div>
+            </div>
+            {currentController.heating_utilisation !== null && currentController.heating_utilisation > 0 && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs font-medium text-green-600">
+                  Aktiv {currentController.heating_utilisation.toFixed(0)}%
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Last Update */}
