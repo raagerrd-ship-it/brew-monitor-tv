@@ -38,67 +38,22 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
 
   console.log('BrewChart events:', events); // Debug log
 
-  // Find all unique midnight timestamps (day boundaries)
-  const midnightTimestamps = new Set<number>();
-  data.forEach((d) => {
+  // Convert dates to timestamps for linear scale
+  const chartData = data.map(d => ({
+    ...d,
+    timestamp: new Date(d.date).getTime()
+  }));
+
+  // Find day boundaries for reference lines
+  const dayBoundaries = new Set<number>();
+  chartData.forEach((d) => {
     const date = new Date(d.date);
     const midnight = new Date(date);
     midnight.setHours(0, 0, 0, 0);
-    midnightTimestamps.add(midnight.getTime());
+    dayBoundaries.add(midnight.getTime());
   });
   
-  // For each midnight (except the first day), find the closest reading
-  const sortedMidnights = Array.from(midnightTimestamps).sort();
-  const dayChangeMarkers: string[] = [];
-  
-  for (let i = 1; i < sortedMidnights.length; i++) {
-    const midnightTime = sortedMidnights[i];
-    
-    // Find the reading closest to this midnight
-    let closestReading = data[0];
-    let minDistance = Math.abs(new Date(data[0].date).getTime() - midnightTime);
-    
-    data.forEach((d) => {
-      const distance = Math.abs(new Date(d.date).getTime() - midnightTime);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestReading = d;
-      }
-    });
-    
-    dayChangeMarkers.push(closestReading.date);
-  }
-  
-  // Find points to show labels for (closest to 00:00 each day - once per day)
-  const labelPoints = new Set<string>();
-  const dayGroups = new Map<string, typeof data>();
-  
-  data.forEach((d) => {
-    const date = new Date(d.date);
-    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    if (!dayGroups.has(dayKey)) {
-      dayGroups.set(dayKey, []);
-    }
-    dayGroups.get(dayKey)!.push(d);
-  });
-  
-  dayGroups.forEach((dayData) => {
-    // Find closest to midnight (00:00)
-    let closestToMidnight = dayData[0];
-    let minMidnightDist = Math.abs(new Date(dayData[0].date).getHours() * 60 + new Date(dayData[0].date).getMinutes());
-    
-    dayData.forEach((d) => {
-      const date = new Date(d.date);
-      const midnightDist = Math.abs(date.getHours() * 60 + date.getMinutes());
-      
-      if (midnightDist < minMidnightDist) {
-        minMidnightDist = midnightDist;
-        closestToMidnight = d;
-      }
-    });
-    
-    labelPoints.add(closestToMidnight.date);
-  });
+  const sortedDayBoundaries = Array.from(dayBoundaries).sort().slice(1); // Skip first day
 
   // Map event type to display label and color
   const getEventDisplay = (type: string) => {
@@ -118,41 +73,21 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     }
   };
 
-  // Find the closest data point to each event for more accurate positioning
-  const getClosestDataPoint = (eventDate: string) => {
-    const eventTime = new Date(eventDate).getTime();
-    let closest = data[0];
-    let minDiff = Math.abs(new Date(data[0].date).getTime() - eventTime);
-    
-    data.forEach((point) => {
-      const diff = Math.abs(new Date(point.date).getTime() - eventTime);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = point;
-      }
-    });
-    
-    return closest.date;
-  };
-
-  // Sort events by date
+  // Sort events by date and convert to timestamps
   const sortedEvents = [...events].sort((a, b) => 
     new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-  );
-  
-  // Map each event to its closest data point
-  const eventsWithPosition = sortedEvents.map(event => ({
-    event,
-    closestDate: getClosestDataPoint(event.event_date)
+  ).map(event => ({
+    ...event,
+    timestamp: new Date(event.event_date).getTime()
   }));
 
   return (
     <div className="h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 20, right: -10, left: -20, bottom: 5 }}>
+        <ComposedChart data={chartData} margin={{ top: 20, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
-          {dayChangeMarkers.map((timestamp, idx) => (
+          {sortedDayBoundaries.map((timestamp, idx) => (
             <ReferenceLine
               key={`day-${idx}`}
               x={timestamp}
@@ -164,14 +99,13 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             />
           ))}
           {/* Event markers */}
-          {eventsWithPosition.map((item) => {
-            const eventDisplay = getEventDisplay(item.event.event_type);
+          {sortedEvents.map((event) => {
+            const eventDisplay = getEventDisplay(event.event_type);
             
-            console.log('Rendering event:', item.event.event_type, 'at', item.closestDate); // Debug
             return (
               <ReferenceLine
-                key={item.event.id}
-                x={item.closestDate}
+                key={event.id}
+                x={event.timestamp}
                 yAxisId="sg"
                 stroke={eventDisplay.color}
                 strokeWidth={3}
@@ -188,14 +122,14 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             );
           })}
           <XAxis
-            dataKey="date"
+            dataKey="timestamp"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            scale="time"
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
-            ticks={Array.from(labelPoints)}
             tickFormatter={(value) => {
-              if (!value) return '';
-              
               try {
                 const date = new Date(value);
                 if (isNaN(date.getTime())) return '';
@@ -239,9 +173,8 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: "1px" }}
             itemStyle={{ lineHeight: "1.1", padding: "1px 0" }}
             labelFormatter={(label) => {
-              if (!label) return '';
               try {
-                const date = new Date(label);
+                const date = new Date(Number(label));
                 if (isNaN(date.getTime())) return String(label);
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
