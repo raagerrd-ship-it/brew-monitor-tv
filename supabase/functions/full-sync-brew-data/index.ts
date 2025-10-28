@@ -224,8 +224,11 @@ Deno.serve(async (req) => {
           value: r.sg,
           temp: r.temp,
         }))
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-      const readingsWithSG = readings.filter((r: any) => r.sg)
+      const readingsWithSG = readings
+        .filter((r: any) => r.sg)
+        .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
       const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
       const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
       const currentTemp = latestReading?.temp || 20

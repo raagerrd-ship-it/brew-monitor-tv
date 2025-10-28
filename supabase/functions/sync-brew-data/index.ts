@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       const readings = result.data || []
       const existingBrew = existingBrewsMap.get(result.batchId)
 
-      // Transform data
+      // Transform data and sort by date (oldest first)
       const sgData = readings
         .filter((r: any) => r.sg && r.temp)
         .map((r: any) => ({
@@ -103,9 +103,12 @@ Deno.serve(async (req) => {
           value: r.sg,
           temp: r.temp,
         }))
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-      // Get the latest reading
-      const readingsWithSG = readings.filter((r: any) => r.sg)
+      // Get the latest reading (sort to ensure we get the most recent)
+      const readingsWithSG = readings
+        .filter((r: any) => r.sg)
+        .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
       const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
       const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050
       const currentTemp = latestReading?.temp || 20
