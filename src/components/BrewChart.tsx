@@ -53,7 +53,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     dayBoundaries.add(midnight.getTime());
   });
   
-  const sortedDayBoundaries = Array.from(dayBoundaries).sort().slice(1); // Skip first day
+  const sortedDayBoundaries = Array.from(dayBoundaries).sort();
 
   // Map event type to display label and color
   const getEventDisplay = (type: string) => {
