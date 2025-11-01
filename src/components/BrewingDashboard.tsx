@@ -66,6 +66,7 @@ interface TempController {
   cooling_enabled: boolean | null;
   heating_enabled: boolean | null;
   heating_utilisation: number | null;
+  linked_pill_id: string | null;
 }
 
 export function BrewingDashboard() {
@@ -797,85 +798,89 @@ export function BrewingDashboard() {
         
         <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
           <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-3 justify-end'}`}>
-            {/* Temp Controllers */}
+            {/* Temp Controllers with their linked Pills */}
             {controllers.length > 0 && controllers.map((controller) => {
               const controllerColor = getControllerColor(controller.name);
               
-              return (
-              <div 
-                key={controller.id}
-                className={`flex items-center h-full cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1' : 'gap-2'}`}
-                onClick={() => {
-                  setSelectedController(controller);
-                  setControllerDialogOpen(true);
-                }}
-                title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
-              >
-                <AirVent 
-                  style={{
-                    width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                    height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                    color: controllerColor,
-                  }}
-                />
-                <span 
-                  className="font-bold tabular-nums text-foreground"
-                  style={{
-                    fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
-                  }}
-                >
-                  {controller.pill_temp !== null 
-                    ? `${controller.pill_temp.toFixed(1)}°C` 
-                    : controller.current_temp !== null 
-                      ? `${controller.current_temp.toFixed(1)}°C` 
-                      : '--°C'
-                  }
-                </span>
-              </div>
-              );
-            })}
-            
-            {/* Pills */}
-            {pills.length > 0 && pills.map((pill) => {
-              const isPillStale = pill.last_update ? 
-                ((new Date().getTime() - new Date(pill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
+              // Find the pill that belongs to this controller
+              const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
+              const isPillStale = linkedPill?.last_update ? 
+                ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
                 : true;
               
               return (
               <div 
-                key={pill.id}
-                className={`relative flex items-center h-full transition-opacity ${isMobile ? 'gap-1' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
-                title={`${pill.name}\nBatteri: ${pill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+                key={controller.id}
+                className={`flex flex-col items-center justify-center h-full ${isMobile ? 'gap-0.5' : 'gap-1'}`}
               >
-                <div className="relative">
-                  <Pill
+                {/* Controller */}
+                <div 
+                  className={`flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1' : 'gap-2'}`}
+                  onClick={() => {
+                    setSelectedController(controller);
+                    setControllerDialogOpen(true);
+                  }}
+                  title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
+                >
+                  <AirVent 
                     style={{
                       width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                      height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))'
+                      height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                      color: controllerColor,
                     }}
-                    color={pill.color}
-                    strokeWidth={2.5}
-                    className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
                   />
-                  {isPillStale && (
-                    <div 
-                      className={`absolute -top-0.5 -right-0.5 rounded-full border-2 border-background animate-pulse ${isMobile ? 'w-2 h-2' : 'w-3 h-3'}`}
-                      style={{
-                        backgroundColor: 'rgb(249 115 22)',
-                        boxShadow: '0 0 8px rgb(249 115 22)'
-                      }}
-                    />
-                  )}
+                  <span 
+                    className="font-bold tabular-nums text-foreground"
+                    style={{
+                      fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+                    }}
+                  >
+                    {controller.pill_temp !== null 
+                      ? `${controller.pill_temp.toFixed(1)}°C` 
+                      : controller.current_temp !== null 
+                        ? `${controller.current_temp.toFixed(1)}°C` 
+                        : '--°C'
+                    }
+                  </span>
                 </div>
-                <span 
-                  className="font-bold tabular-nums" 
-                  style={{ 
-                    fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
-                    color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
-                  }}
-                >
-                  {pill.battery_level}%
-                </span>
+                
+                {/* Linked Pill (if exists) */}
+                {linkedPill && (
+                  <div 
+                    className={`relative flex items-center transition-opacity ${isMobile ? 'gap-1' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
+                    title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+                  >
+                    <div className="relative">
+                      <Pill
+                        style={{
+                          width: isMobile ? 'min(calc(90cqh * 0.35), calc(100cqw * 0.03))' : 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))',
+                          height: isMobile ? 'min(calc(90cqh * 0.35), calc(100cqw * 0.03))' : 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))'
+                        }}
+                        color={linkedPill.color}
+                        strokeWidth={2.5}
+                        className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
+                      />
+                      {isPillStale && (
+                        <div 
+                          className={`absolute -top-0.5 -right-0.5 rounded-full border-2 border-background animate-pulse ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}
+                          style={{
+                            backgroundColor: 'rgb(249 115 22)',
+                            boxShadow: '0 0 8px rgb(249 115 22)'
+                          }}
+                        />
+                      )}
+                    </div>
+                    <span 
+                      className="font-bold tabular-nums" 
+                      style={{ 
+                        fontSize: isMobile ? 'min(calc(60cqh * 0.35), calc(100cqw * 0.02))' : 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))',
+                        color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+                      }}
+                    >
+                      {linkedPill.battery_level}%
+                    </span>
+                  </div>
+                )}
               </div>
               );
             })}
