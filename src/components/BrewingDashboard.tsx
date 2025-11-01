@@ -811,26 +811,31 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-center justify-center py-1 ${isMobile ? 'gap-1.5' : 'gap-2'} ${isMobile ? 'min-w-[4.5rem]' : 'min-w-[5.5rem]'}`}
+                className={`flex flex-col items-center justify-start py-2 ${isMobile ? 'gap-2' : 'gap-3'} ${isMobile ? 'w-[4.5rem]' : 'w-[6rem]'}`}
               >
                 {/* Controller */}
                 <div 
-                  className={`flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1.5' : 'gap-2'}`}
+                  className={`flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1.5 h-8' : 'gap-2 h-10'} w-full`}
                   onClick={() => {
                     setSelectedController(controller);
                     setControllerDialogOpen(true);
                   }}
                   title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
                 >
-                  <AirVent 
-                    style={{
-                      width: isMobile ? 'min(calc(75cqh * 0.38), calc(100cqw * 0.032))' : 'min(calc(75cqh * 0.42), calc(100cqw * 0.038))',
-                      height: isMobile ? 'min(calc(75cqh * 0.38), calc(100cqw * 0.032))' : 'min(calc(75cqh * 0.42), calc(100cqw * 0.038))',
-                      color: controllerColor,
-                    }}
-                  />
+                  <div className="flex items-center justify-center" style={{ 
+                    width: isMobile ? '1.75rem' : '2.25rem',
+                    height: isMobile ? '1.75rem' : '2.25rem'
+                  }}>
+                    <AirVent 
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        color: controllerColor,
+                      }}
+                    />
+                  </div>
                   <span 
-                    className="font-bold tabular-nums text-foreground"
+                    className="font-bold tabular-nums text-foreground min-w-[3rem] text-center"
                     style={{
                       fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
                     }}
@@ -845,16 +850,19 @@ export function BrewingDashboard() {
                 </div>
                 
                 {/* Linked Pill (if exists) */}
-                {linkedPill && (
+                {linkedPill ? (
                   <div 
-                    className={`relative flex items-center transition-opacity ${isMobile ? 'gap-1.5' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`relative flex items-center justify-center transition-opacity ${isMobile ? 'gap-1.5 h-7' : 'gap-2 h-8'} w-full ${isPillStale ? 'opacity-50' : ''}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
-                    <div className="relative">
+                    <div className="relative flex items-center justify-center" style={{ 
+                      width: isMobile ? '1.5rem' : '1.75rem',
+                      height: isMobile ? '1.5rem' : '1.75rem'
+                    }}>
                       <Pill
                         style={{
-                          width: isMobile ? 'min(calc(75cqh * 0.32), calc(100cqw * 0.028))' : 'min(calc(75cqh * 0.36), calc(100cqw * 0.032))',
-                          height: isMobile ? 'min(calc(75cqh * 0.32), calc(100cqw * 0.028))' : 'min(calc(75cqh * 0.36), calc(100cqw * 0.032))'
+                          width: '100%',
+                          height: '100%'
                         }}
                         color={linkedPill.color}
                         strokeWidth={2.5}
@@ -871,7 +879,7 @@ export function BrewingDashboard() {
                       )}
                     </div>
                     <span 
-                      className="font-bold tabular-nums" 
+                      className="font-bold tabular-nums min-w-[2.5rem] text-center" 
                       style={{ 
                         fontSize: isMobile ? 'min(calc(50cqh * 0.32), calc(100cqw * 0.018))' : 'min(calc(50cqh * 0.36), calc(100cqw * 0.022))',
                         color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
@@ -880,6 +888,8 @@ export function BrewingDashboard() {
                       {linkedPill.battery_level}%
                     </span>
                   </div>
+                ) : (
+                  <div className={`${isMobile ? 'h-7' : 'h-8'} w-full`} />
                 )}
               </div>
               );
