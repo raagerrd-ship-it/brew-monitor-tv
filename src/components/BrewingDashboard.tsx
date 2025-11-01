@@ -753,8 +753,8 @@ export function BrewingDashboard() {
 
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
-      {/* Compact Header Bar */}
-      <div className="h-[8%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
+      {/* Header Bar */}
+      <div className="h-[11%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
         <div className="relative">
           <h1 className="font-bold brewing-title leading-relaxed pb-0.5 relative z-0" style={{ 
             fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
@@ -811,11 +811,11 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-center justify-center h-full ${isMobile ? 'gap-0.5' : 'gap-1'}`}
+                className={`flex flex-col items-center justify-center py-1 ${isMobile ? 'gap-1.5' : 'gap-2'} ${isMobile ? 'min-w-[4.5rem]' : 'min-w-[5.5rem]'}`}
               >
                 {/* Controller */}
                 <div 
-                  className={`flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1' : 'gap-2'}`}
+                  className={`flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1.5' : 'gap-2'}`}
                   onClick={() => {
                     setSelectedController(controller);
                     setControllerDialogOpen(true);
@@ -824,15 +824,15 @@ export function BrewingDashboard() {
                 >
                   <AirVent 
                     style={{
-                      width: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
-                      height: isMobile ? 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))' : 'min(calc(90cqh * 0.5), calc(100cqw * 0.042))',
+                      width: isMobile ? 'min(calc(75cqh * 0.38), calc(100cqw * 0.032))' : 'min(calc(75cqh * 0.42), calc(100cqw * 0.038))',
+                      height: isMobile ? 'min(calc(75cqh * 0.38), calc(100cqw * 0.032))' : 'min(calc(75cqh * 0.42), calc(100cqw * 0.038))',
                       color: controllerColor,
                     }}
                   />
                   <span 
                     className="font-bold tabular-nums text-foreground"
                     style={{
-                      fontSize: isMobile ? 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))' : 'min(calc(60cqh * 0.5), calc(100cqw * 0.028))',
+                      fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
                     }}
                   >
                     {controller.pill_temp !== null 
@@ -847,14 +847,14 @@ export function BrewingDashboard() {
                 {/* Linked Pill (if exists) */}
                 {linkedPill && (
                   <div 
-                    className={`relative flex items-center transition-opacity ${isMobile ? 'gap-1' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`relative flex items-center transition-opacity ${isMobile ? 'gap-1.5' : 'gap-2'} ${isPillStale ? 'opacity-50' : ''}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
                     <div className="relative">
                       <Pill
                         style={{
-                          width: isMobile ? 'min(calc(90cqh * 0.35), calc(100cqw * 0.03))' : 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))',
-                          height: isMobile ? 'min(calc(90cqh * 0.35), calc(100cqw * 0.03))' : 'min(calc(90cqh * 0.4), calc(100cqw * 0.035))'
+                          width: isMobile ? 'min(calc(75cqh * 0.32), calc(100cqw * 0.028))' : 'min(calc(75cqh * 0.36), calc(100cqw * 0.032))',
+                          height: isMobile ? 'min(calc(75cqh * 0.32), calc(100cqw * 0.028))' : 'min(calc(75cqh * 0.36), calc(100cqw * 0.032))'
                         }}
                         color={linkedPill.color}
                         strokeWidth={2.5}
@@ -873,7 +873,7 @@ export function BrewingDashboard() {
                     <span 
                       className="font-bold tabular-nums" 
                       style={{ 
-                        fontSize: isMobile ? 'min(calc(60cqh * 0.35), calc(100cqw * 0.02))' : 'min(calc(60cqh * 0.4), calc(100cqw * 0.024))',
+                        fontSize: isMobile ? 'min(calc(50cqh * 0.32), calc(100cqw * 0.018))' : 'min(calc(50cqh * 0.36), calc(100cqw * 0.022))',
                         color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
                       }}
                     >
