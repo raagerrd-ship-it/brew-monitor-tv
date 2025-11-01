@@ -132,10 +132,10 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             dataKey="timestamp"
             type="number"
             domain={['dataMin', 'dataMax']}
-            scale="time"
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
+            tickCount={8}
             tickFormatter={(value) => {
               try {
                 const date = new Date(value);
