@@ -835,7 +835,7 @@ export function BrewingDashboard() {
                     />
                   </div>
                   <span 
-                    className="font-bold tabular-nums text-foreground flex-1 text-right"
+                    className="font-bold tabular-nums text-foreground flex-1 text-left"
                     style={{
                       fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
                     }}
@@ -879,7 +879,7 @@ export function BrewingDashboard() {
                       )}
                     </div>
                     <span 
-                      className="font-bold tabular-nums flex-1 text-right" 
+                      className="font-bold tabular-nums flex-1 text-left" 
                       style={{ 
                         fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
                         color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
