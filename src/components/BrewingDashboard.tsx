@@ -811,7 +811,7 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-center justify-start py-0.5 ${isMobile ? 'gap-0.5' : 'gap-1'} ${isMobile ? 'w-[4rem]' : 'w-[5.5rem]'}`}
+                className={`flex flex-col items-center justify-start py-0.5 gap-0 ${isMobile ? 'w-[4rem]' : 'w-[5.5rem]'}`}
               >
                 {/* Controller */}
                 <div 
