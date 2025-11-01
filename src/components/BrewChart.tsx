@@ -44,16 +44,23 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     timestamp: new Date(d.date).getTime()
   }));
 
-  // Find day boundaries for reference lines
-  const dayBoundaries = new Set<number>();
-  chartData.forEach((d) => {
-    const date = new Date(d.date);
-    const midnight = new Date(date);
-    midnight.setHours(0, 0, 0, 0);
-    dayBoundaries.add(midnight.getTime());
-  });
-  
-  const sortedDayBoundaries = Array.from(dayBoundaries).sort();
+  // Generate midnight markers for ALL days in the date range
+  const sortedDayBoundaries: number[] = [];
+  if (chartData.length > 0) {
+    const firstDate = new Date(chartData[0].date);
+    const lastDate = new Date(chartData[chartData.length - 1].date);
+    
+    // Start from the first midnight after the first data point
+    const currentMidnight = new Date(firstDate);
+    currentMidnight.setHours(0, 0, 0, 0);
+    currentMidnight.setDate(currentMidnight.getDate() + 1);
+    
+    // Generate midnight for each day until the last data point
+    while (currentMidnight <= lastDate) {
+      sortedDayBoundaries.push(currentMidnight.getTime());
+      currentMidnight.setDate(currentMidnight.getDate() + 1);
+    }
+  }
 
   // Map event type to display label and color
   const getEventDisplay = (type: string) => {
