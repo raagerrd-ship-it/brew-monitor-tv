@@ -1026,7 +1026,18 @@ export function BrewingDashboard() {
                         animation: brew.status === "Konditionering" ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
                       }}
                     >
-                      {brew.status}
+                      {brew.status === "Jäsning" && brew.sgData.length > 0 ? (
+                        (() => {
+                          const sortedData = [...brew.sgData].sort((a, b) => 
+                            new Date(a.date).getTime() - new Date(b.date).getTime()
+                          );
+                          const firstDate = new Date(sortedData[0].date);
+                          const daysSinceStart = Math.floor(
+                            (new Date().getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+                          );
+                          return `${brew.status} dag ${daysSinceStart}`;
+                        })()
+                      ) : brew.status}
                     </span>
                   </div>
                 </div>
