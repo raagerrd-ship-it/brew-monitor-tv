@@ -815,7 +815,7 @@ export function BrewingDashboard() {
               >
                 {/* Controller */}
                 <div 
-                  className={`flex items-center justify-start cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-1 h-7' : 'gap-1.5 h-8'} w-full`}
+                  className={`flex items-center justify-start cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-2 h-7' : 'gap-2.5 h-8'} w-full`}
                   onClick={() => {
                     setSelectedController(controller);
                     setControllerDialogOpen(true);
@@ -835,7 +835,7 @@ export function BrewingDashboard() {
                     />
                   </div>
                   <span 
-                    className="font-bold tabular-nums text-foreground flex-1 text-left"
+                    className="font-bold tabular-nums text-foreground text-left whitespace-nowrap"
                     style={{
                       fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
                     }}
@@ -852,7 +852,7 @@ export function BrewingDashboard() {
                 {/* Linked Pill (if exists) */}
                 {linkedPill ? (
                   <div 
-                    className={`relative flex items-center justify-start transition-opacity ${isMobile ? 'gap-1 h-6' : 'gap-1.5 h-7'} w-full ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`relative flex items-center justify-start transition-opacity ${isMobile ? 'gap-2 h-6' : 'gap-2.5 h-7'} w-full ${isPillStale ? 'opacity-50' : ''}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
                     <div className="relative flex items-center justify-center flex-shrink-0" style={{ 
@@ -879,7 +879,7 @@ export function BrewingDashboard() {
                       )}
                     </div>
                     <span 
-                      className="font-bold tabular-nums flex-1 text-left" 
+                      className="font-bold tabular-nums text-left whitespace-nowrap" 
                       style={{ 
                         fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
                         color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
