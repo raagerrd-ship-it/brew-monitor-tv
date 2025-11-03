@@ -811,20 +811,20 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-center justify-start py-0.5 gap-0 ${isMobile ? 'w-[5rem]' : 'w-[7rem]'}`}
+                className={`flex flex-col items-start justify-start py-0.5 gap-1 ${isMobile ? 'w-[5.5rem]' : 'w-[8rem]'}`}
               >
                 {/* Controller */}
                 <div 
-                  className={`flex items-center justify-start cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'gap-2 h-7' : 'gap-2.5 h-8'} w-full`}
+                  className={`flex flex-row items-center justify-between cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'h-7' : 'h-8'} w-full gap-1.5`}
                   onClick={() => {
                     setSelectedController(controller);
                     setControllerDialogOpen(true);
                   }}
                   title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
                 >
-                  <div className="flex items-center justify-center flex-shrink-0" style={{ 
-                    width: isMobile ? '1.25rem' : '1.5rem',
-                    height: isMobile ? '1.25rem' : '1.5rem'
+                  <div className="flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
+                    width: isMobile ? '1.75rem' : '2rem',
+                    height: isMobile ? '1.75rem' : '2rem'
                   }}>
                     <AirVent 
                       style={{
@@ -834,30 +834,32 @@ export function BrewingDashboard() {
                       }}
                     />
                   </div>
-                  <span 
-                    className="font-bold tabular-nums text-foreground text-left whitespace-nowrap"
-                    style={{
-                      fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
-                    }}
-                  >
-                    {controller.pill_temp !== null 
-                      ? `${controller.pill_temp.toFixed(1)}°C` 
-                      : controller.current_temp !== null 
-                        ? `${controller.current_temp.toFixed(1)}°C` 
-                        : '--°C'
-                    }
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span 
+                      className="font-bold tabular-nums text-foreground block text-left whitespace-nowrap"
+                      style={{
+                        fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
+                      }}
+                    >
+                      {controller.pill_temp !== null 
+                        ? `${controller.pill_temp.toFixed(1)}°C` 
+                        : controller.current_temp !== null 
+                          ? `${controller.current_temp.toFixed(1)}°C` 
+                          : '--°C'
+                      }
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Linked Pill (if exists) */}
                 {linkedPill ? (
                   <div 
-                    className={`relative flex items-center justify-start transition-opacity ${isMobile ? 'gap-2 h-6' : 'gap-2.5 h-7'} w-full ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`relative flex flex-row items-center justify-between transition-opacity ${isMobile ? 'h-6' : 'h-7'} w-full gap-1.5 ${isPillStale ? 'opacity-50' : ''}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
-                    <div className="relative flex items-center justify-center flex-shrink-0" style={{ 
-                      width: isMobile ? '1rem' : '1.25rem',
-                      height: isMobile ? '1rem' : '1.25rem'
+                    <div className="relative flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
+                      width: isMobile ? '1.5rem' : '1.75rem',
+                      height: isMobile ? '1.5rem' : '1.75rem'
                     }}>
                       <Pill
                         style={{
@@ -878,15 +880,17 @@ export function BrewingDashboard() {
                         />
                       )}
                     </div>
-                    <span 
-                      className="font-bold tabular-nums text-left whitespace-nowrap" 
-                      style={{ 
-                        fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
-                        color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
-                      }}
-                    >
-                      {linkedPill.battery_level}%
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span 
+                        className="font-bold tabular-nums block text-left whitespace-nowrap" 
+                        style={{ 
+                          fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
+                          color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+                        }}
+                      >
+                        {linkedPill.battery_level}%
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div className={`${isMobile ? 'h-6' : 'h-7'} w-full`} />
