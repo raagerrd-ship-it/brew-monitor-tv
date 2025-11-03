@@ -811,7 +811,7 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-center justify-start py-0.5 gap-0 ${isMobile ? 'w-[4rem]' : 'w-[5.5rem]'}`}
+                className={`flex flex-col items-center justify-start py-0.5 gap-0 ${isMobile ? 'w-[5rem]' : 'w-[7rem]'}`}
               >
                 {/* Controller */}
                 <div 
@@ -896,7 +896,7 @@ export function BrewingDashboard() {
             })}
           </div>
           
-          <div className="flex flex-col items-center min-w-[12%] gap-0">
+          <div className="flex flex-col items-center min-w-[14%] gap-0">
             <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(42cqh * 0.8), calc(100cqw * 0.026))' }}>
               {currentTime.toLocaleTimeString("sv-SE", {
                 hour: "2-digit",
