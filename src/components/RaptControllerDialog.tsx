@@ -6,10 +6,9 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake, Play } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TempController {
   id: string;
@@ -32,12 +31,6 @@ interface RaptControllerDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface Profile {
-  id: string;
-  name: string;
-  description?: string;
-}
-
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -46,10 +39,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [currentController, setCurrentController] = useState(controller);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<string>('');
-  const [loadingProfiles, setLoadingProfiles] = useState(false);
-  const [startingProfile, setStartingProfile] = useState(false);
 
   // Get controller color based on name
   const getControllerColor = (name: string): string => {
@@ -125,35 +114,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       }
     };
 
-    const fetchProfiles = async () => {
-      if (!isAuthenticated) return;
-      
-      setLoadingProfiles(true);
-      try {
-        const { data, error } = await supabase.functions.invoke('rapt-profiles');
-        
-        if (error) throw error;
-        
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-        
-        setProfiles(data || []);
-      } catch (error) {
-        console.error('Error fetching profiles:', error);
-        toast({
-          title: "Kunde inte hämta profiler",
-          description: error instanceof Error ? error.message : "Ett fel uppstod",
-          variant: "destructive",
-        });
-      } finally {
-        setLoadingProfiles(false);
-      }
-    };
-
     if (open) {
       fetchLastSync();
-      fetchProfiles();
       setCurrentController(controller);
       
       // Update targetTemp when dialog opens with new controller
@@ -216,7 +178,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         supabase.removeChannel(syncChannel);
       };
     }
-  }, [open, controller, isAuthenticated]);
+  }, [open, controller]);
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -262,54 +224,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleStartProfile = async () => {
-    if (!selectedProfile) {
-      toast({
-        title: "Ingen profil vald",
-        description: "Välj en profil att starta",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setStartingProfile(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('rapt-start-profile', {
-        body: {
-          controllerId: controller.controller_id,
-          profileId: selectedProfile
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      const profileName = profiles.find(p => p.id === selectedProfile)?.name || 'Profil';
-      
-      toast({
-        title: "Profil startad",
-        description: `${profileName} har startats på ${controller.name}`,
-      });
-
-      setSelectedProfile('');
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Error starting profile:', error);
-      const errorMessage = error instanceof Error ? error.message : "Kunde inte starta profil";
-      
-      toast({
-        title: "Fel vid start av profil",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setStartingProfile(false);
     }
   };
 
@@ -460,46 +374,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               size="sm"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
-            </Button>
-          </div>
-
-          <div className="space-y-3 pt-3 border-t">
-            <Label htmlFor="profile-select" className="text-sm font-semibold">
-              Starta profil
-            </Label>
-            <Select
-              value={selectedProfile}
-              onValueChange={setSelectedProfile}
-              disabled={loadingProfiles || startingProfile}
-            >
-              <SelectTrigger id="profile-select">
-                <SelectValue placeholder={loadingProfiles ? "Laddar profiler..." : "Välj profil"} />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.length === 0 && !loadingProfiles && (
-                  <SelectItem value="none" disabled>Inga profiler tillgängliga</SelectItem>
-                )}
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button 
-              onClick={handleStartProfile} 
-              disabled={!selectedProfile || startingProfile || loadingProfiles}
-              className="w-full"
-              size="sm"
-            >
-              {startingProfile ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 mr-1" />
-                  Starta profil
-                </>
-              )}
             </Button>
           </div>
         </div>}
