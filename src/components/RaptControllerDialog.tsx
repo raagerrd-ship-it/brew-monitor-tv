@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake, PlayCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { Badge } from '@/components/ui/badge';
 
 interface TempController {
   id: string;
@@ -31,6 +32,16 @@ interface RaptControllerDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface ProfileSession {
+  id: string;
+  profileId: string;
+  deviceId: string;
+  name: string;
+  startedAt: string;
+  status: string;
+  currentStepName?: string;
+}
+
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -39,6 +50,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [currentController, setCurrentController] = useState(controller);
+  const [activeProfile, setActiveProfile] = useState<ProfileSession | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   // Get controller color based on name
   const getControllerColor = (name: string): string => {
@@ -114,8 +127,40 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       }
     };
 
+    const fetchActiveProfile = async () => {
+      if (!isAuthenticated) return;
+      
+      setLoadingProfile(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('rapt-profile-sessions', {
+          body: { controllerId: controller.controller_id }
+        });
+        
+        if (error) {
+          console.error('Error fetching profile sessions:', error);
+          return;
+        }
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+          // Find active profile (status could be 'Running' or similar)
+          const active = data.find((session: ProfileSession) => 
+            session.status === 'Running' || session.status === 'Active'
+          );
+          setActiveProfile(active || null);
+          console.log('Active profile:', active);
+        } else {
+          setActiveProfile(null);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
     if (open) {
       fetchLastSync();
+      fetchActiveProfile();
       setCurrentController(controller);
       
       // Update targetTemp when dialog opens with new controller
@@ -178,7 +223,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         supabase.removeChannel(syncChannel);
       };
     }
-  }, [open, controller]);
+  }, [open, controller, isAuthenticated]);
 
   const handleSetTargetTemperature = async () => {
     setLoading(true);
@@ -238,6 +283,29 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         </DialogHeader>
 
         <div className="space-y-1.5 py-1">
+          {/* Active Profile */}
+          {activeProfile && (
+            <div className="flex items-center justify-between p-2 bg-primary/10 rounded-md border border-primary/20">
+              <div className="flex items-center gap-2">
+                <PlayCircle className="w-4 h-4 text-primary" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-foreground">{activeProfile.name}</span>
+                  {activeProfile.currentStepName && (
+                    <span className="text-xs text-muted-foreground">{activeProfile.currentStepName}</span>
+                  )}
+                </div>
+              </div>
+              <Badge variant="default" className="text-xs">Aktiv</Badge>
+            </div>
+          )}
+          
+          {loadingProfile && (
+            <div className="flex items-center justify-center p-2">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground ml-2">Kontrollerar profil...</span>
+            </div>
+          )}
+
           {/* Pill Temperature (if available) */}
           {currentController.pill_temp !== null && (
             <div className="flex items-center justify-between">
