@@ -1296,25 +1296,23 @@ export function BrewingDashboard() {
                           </svg>
                         </div>
                         <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Temp</p>
-                        <div className="flex items-baseline gap-1 z-10 pl-2 w-full">
+                        <p 
+                          className="font-bold leading-none z-10 pl-2"
+                          style={{ 
+                            color: tempColor,
+                            fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
+                          }}
+                        >
+                          {brew.currentTemp}°
+                        </p>
+                        {controller && controller.target_temp !== null && (
                           <p 
-                            className="font-bold leading-none"
-                            style={{ 
-                              color: tempColor,
-                              fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
-                            }}
+                            className="text-muted-foreground uppercase tracking-wider z-10 pl-2"
+                            style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}
                           >
-                            {brew.currentTemp}°
+                            Inställd {controller.target_temp.toFixed(0)}°
                           </p>
-                          {controller && controller.target_temp !== null && (
-                            <p 
-                              className="text-muted-foreground/70 leading-none"
-                              style={{ fontSize: 'min(calc(35cqh * 0.85), calc(100cqw * 0.18))' }}
-                            >
-                              ({controller.target_temp.toFixed(0)}°)
-                            </p>
-                          )}
-                        </div>
+                        )}
                       </div>
                     );
                   })()}
