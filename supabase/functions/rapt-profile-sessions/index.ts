@@ -87,12 +87,25 @@ serve(async (req) => {
     
     // Check if profile session info is in the controller data
     const sessions: any[] = [];
-    if (controller.profileSession) {
+    if (controller.activeProfileSession) {
+      console.log('Found activeProfileSession:', JSON.stringify(controller.activeProfileSession, null, 2));
+      
+      // Transform to match the expected format
+      const session = controller.activeProfileSession;
+      const currentStep = session.profile?.steps?.[0]; // Get first/current step
+      
+      sessions.push({
+        id: session.id,
+        profileId: session.profileId,
+        deviceId: controllerId,
+        name: session.name,
+        startedAt: session.startDate || session.createdOn,
+        status: 'Running',
+        currentStepName: currentStep?.name
+      });
+    } else if (controller.profileSession) {
       console.log('Found profileSession:', JSON.stringify(controller.profileSession, null, 2));
       sessions.push(controller.profileSession);
-    } else if (controller.activeProfileSession) {
-      console.log('Found activeProfileSession:', JSON.stringify(controller.activeProfileSession, null, 2));
-      sessions.push(controller.activeProfileSession);
     } else if (controller.currentProfileSession) {
       console.log('Found currentProfileSession:', JSON.stringify(controller.currentProfileSession, null, 2));
       sessions.push(controller.currentProfileSession);
