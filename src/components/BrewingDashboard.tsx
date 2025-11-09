@@ -1269,57 +1269,64 @@ export function BrewingDashboard() {
                   </div>
 
                   {/* Temp */}
-                  <div 
-                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
-                    style={{ 
-                      containerType: 'size',
-                      borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.2)`,
-                      borderWidth: '1px',
-                      borderStyle: 'solid',
-                      ...(updatedFields[brew.batch_id]?.temp && {
-                        boxShadow: `0 0 20px hsl(${getTempColor(brew.currentTemp).hsl} / 0.6)`,
-                        borderColor: `hsl(${getTempColor(brew.currentTemp).hsl} / 0.6)`
-                      })
-                    }}
-                  >
-                    <div className="absolute top-1/2 -translate-y-1/2 opacity-20 animate-pulse" style={{ width: '60%', height: '60%', right: '-15%' }}>
-                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                        {/* Thermometer outline */}
-                        <path 
-                          d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" 
-                          stroke={getTempColor(brew.currentTemp).rgb}
-                          strokeWidth="1" 
-                          fill="none"
-                        />
-                        {/* Thermometer fill - calculate based on 0-30 degrees */}
-                        <defs>
-                          <clipPath id={`thermo-clip-${brew.batch_id}`}>
-                            <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" />
-                          </clipPath>
-                        </defs>
-                        <rect 
-                          x="8" 
-                          y={`${24 - (Math.min(Math.max(brew.currentTemp, 0), 30) / 30) * 20}`}
-                          width="8" 
-                          height="20" 
-                          fill={getTempColor(brew.currentTemp).rgb}
-                          clipPath={`url(#thermo-clip-${brew.batch_id})`}
-                          className="transition-all duration-500"
-                          opacity="0.8"
-                        />
-                      </svg>
-                    </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Temp</p>
-                    <p 
-                      className="font-bold leading-none z-10 pl-2"
-                      style={{ 
-                        color: getTempColor(brew.currentTemp).rgb,
-                        fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
-                      }}
-                    >
-                      {brew.currentTemp}°
-                    </p>
-                  </div>
+                  {(() => {
+                    const { pill } = findDevicesForBrew(brew);
+                    const tempColor = pill?.color || 'hsl(var(--primary))';
+                    
+                    return (
+                      <div 
+                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                        style={{ 
+                          containerType: 'size',
+                          borderColor: `${tempColor}33`,
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                          ...(updatedFields[brew.batch_id]?.temp && {
+                            boxShadow: `0 0 20px ${tempColor}99`,
+                            borderColor: `${tempColor}99`
+                          })
+                        }}
+                      >
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20 animate-pulse" style={{ width: '60%', height: '60%', right: '-15%' }}>
+                          <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                            {/* Thermometer outline */}
+                            <path 
+                              d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" 
+                              stroke={tempColor}
+                              strokeWidth="1" 
+                              fill="none"
+                            />
+                            {/* Thermometer fill - calculate based on 0-30 degrees */}
+                            <defs>
+                              <clipPath id={`thermo-clip-${brew.batch_id}`}>
+                                <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" />
+                              </clipPath>
+                            </defs>
+                            <rect 
+                              x="8" 
+                              y={`${24 - (Math.min(Math.max(brew.currentTemp, 0), 30) / 30) * 20}`}
+                              width="8" 
+                              height="20" 
+                              fill={tempColor}
+                              clipPath={`url(#thermo-clip-${brew.batch_id})`}
+                              className="transition-all duration-500"
+                              opacity="0.8"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Temp</p>
+                        <p 
+                          className="font-bold leading-none z-10 pl-2"
+                          style={{ 
+                            color: tempColor,
+                            fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
+                          }}
+                        >
+                          {brew.currentTemp}°
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   {/* Utjäsning */}
                   <div 
