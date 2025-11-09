@@ -1306,7 +1306,7 @@ export function BrewingDashboard() {
                           >
                             {brew.currentTemp}°
                           </p>
-                          {controller?.target_temp !== null && (
+                          {controller && controller.target_temp !== null && (
                             <p 
                               className="text-muted-foreground/70 leading-none"
                               style={{ fontSize: 'min(calc(35cqh * 0.85), calc(100cqw * 0.18))' }}
