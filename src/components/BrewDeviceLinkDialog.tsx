@@ -102,11 +102,21 @@ export function BrewDeviceLinkDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Ingen (automatisk matchning)</SelectItem>
-                {controllers.map((controller) => (
-                  <SelectItem key={controller.id} value={controller.controller_id}>
-                    {controller.name}
-                  </SelectItem>
-                ))}
+                {controllers.map((controller) => {
+                  const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
+                  return (
+                    <SelectItem key={controller.id} value={controller.controller_id}>
+                      <div className="flex items-center gap-2">
+                        <span>{controller.name}</span>
+                        {linkedPill && (
+                          <span className="text-xs text-muted-foreground">
+                            (Pill: {linkedPill.name})
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

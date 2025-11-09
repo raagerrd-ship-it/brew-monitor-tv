@@ -1136,35 +1136,6 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Show matching pill icon - clickable to link devices */}
-                    {(() => {
-                      const { pill, controller } = findDevicesForBrew(brew);
-                      const deviceToShow = pill || (controller?.linked_pill_id ? pills.find(p => p.pill_id === controller.linked_pill_id) : null);
-                      
-                      return (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          title={deviceToShow ? `Pill: ${deviceToShow.name}` : 'Ingen pill kopplad'}
-                          onClick={() => {
-                            console.log('Pill button clicked for brew:', brew.name);
-                            setDeviceLinkDialog({
-                              open: true,
-                              brewId: brew.batch_id,
-                              brewName: brew.name,
-                              currentControllerId: brew.linked_controller_id || null,
-                              currentPillId: brew.linked_pill_id || null,
-                            });
-                          }}
-                        >
-                          <Pill
-                            style={{ color: deviceToShow?.color || '#888' }}
-                            className="h-4 w-4"
-                          />
-                        </Button>
-                      );
-                    })()}
                     <BrewEventDialog
                       brewId={brew.id}
                       brewName={brew.name}
@@ -1270,12 +1241,12 @@ export function BrewingDashboard() {
 
                   {/* Temp */}
                   {(() => {
-                    const { pill } = findDevicesForBrew(brew);
+                    const { pill, controller } = findDevicesForBrew(brew);
                     const tempColor = pill?.color || 'hsl(var(--primary))';
                     
                     return (
                       <div 
-                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden cursor-pointer hover:opacity-80`}
                         style={{ 
                           containerType: 'size',
                           borderColor: `${tempColor}33`,
@@ -1286,6 +1257,16 @@ export function BrewingDashboard() {
                             borderColor: `${tempColor}99`
                           })
                         }}
+                        onClick={() => {
+                          setDeviceLinkDialog({
+                            open: true,
+                            brewId: brew.batch_id,
+                            brewName: brew.name,
+                            currentControllerId: brew.linked_controller_id || null,
+                            currentPillId: brew.linked_pill_id || null,
+                          });
+                        }}
+                        title="Klicka för att koppla enheter"
                       >
                         <div className="absolute top-1/2 -translate-y-1/2 opacity-20 animate-pulse" style={{ width: '60%', height: '60%', right: '-15%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
@@ -1315,15 +1296,25 @@ export function BrewingDashboard() {
                           </svg>
                         </div>
                         <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Temp</p>
-                        <p 
-                          className="font-bold leading-none z-10 pl-2"
-                          style={{ 
-                            color: tempColor,
-                            fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
-                          }}
-                        >
-                          {brew.currentTemp}°
-                        </p>
+                        <div className="flex items-baseline gap-1 z-10 pl-2 w-full">
+                          <p 
+                            className="font-bold leading-none"
+                            style={{ 
+                              color: tempColor,
+                              fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))'
+                            }}
+                          >
+                            {brew.currentTemp}°
+                          </p>
+                          {controller?.target_temp !== null && (
+                            <p 
+                              className="text-muted-foreground/70 leading-none"
+                              style={{ fontSize: 'min(calc(35cqh * 0.85), calc(100cqw * 0.18))' }}
+                            >
+                              ({controller.target_temp.toFixed(0)}°)
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
