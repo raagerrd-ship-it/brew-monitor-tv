@@ -598,6 +598,63 @@ export function BrewingDashboard() {
     }
   };
 
+  // Helper function to find matching pill/controller for a brew
+  const findDevicesForBrew = (brew: BrewData): { pill: PillData | null; controller: TempController | null } => {
+    let matchingPill: PillData | null = null;
+    let matchingController: TempController | null = null;
+
+    // Try to match by color name in brew name
+    const brewNameLower = brew.name.toLowerCase();
+    const colorKeywords = ['röd', 'red', 'blå', 'blue', 'grön', 'green', 'gul', 'yellow', 'lila', 'purple', 'rosa', 'pink', 'orange', 'cyan', 'lime', 'amber', 'bärnsten', 'turkos', 'teal', 'indigo', 'violet', 'violett', 'fuchsia', 'rose', 'himmel', 'sky', 'smaragd', 'emerald'];
+
+    // Find color keywords in brew name
+    const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
+
+    // Try to match pill by color
+    if (brewColors.length > 0) {
+      matchingPill = pills.find(pill => {
+        const pillNameLower = pill.name.toLowerCase();
+        return brewColors.some(color => pillNameLower.includes(color));
+      }) || null;
+    }
+
+    // Try to match controller by color  
+    if (brewColors.length > 0) {
+      matchingController = controllers.find(ctrl => {
+        const ctrlNameLower = ctrl.name.toLowerCase();
+        return brewColors.some(color => ctrlNameLower.includes(color));
+      }) || null;
+    }
+
+    // If no color match, try temperature matching (±3°C tolerance)
+    if (!matchingController && !matchingPill) {
+      const brewTemp = brew.currentTemp;
+      
+      // Try to match controller by temperature
+      matchingController = controllers.find(ctrl => {
+        if (ctrl.pill_temp !== null) {
+          return Math.abs(ctrl.pill_temp - brewTemp) <= 3;
+        }
+        if (ctrl.current_temp !== null) {
+          return Math.abs(ctrl.current_temp - brewTemp) <= 3;
+        }
+        return false;
+      }) || null;
+
+      // If controller matched, use its linked pill
+      if (matchingController && matchingController.linked_pill_id) {
+        matchingPill = pills.find(p => p.pill_id === matchingController.linked_pill_id) || null;
+      }
+    }
+
+    // If we found a controller but no pill, check if controller has a linked pill
+    if (matchingController && !matchingPill && matchingController.linked_pill_id) {
+      matchingPill = pills.find(p => p.pill_id === matchingController.linked_pill_id) || null;
+    }
+
+    return { pill: matchingPill, controller: matchingController };
+  };
+
   const loadRaptData = async () => {
     try {
       console.log('Loading RAPT data from public edge function...');
@@ -1030,6 +1087,36 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Show matching pill/controller icons */}
+                    {(() => {
+                      const { pill, controller } = findDevicesForBrew(brew);
+                      return (
+                        <>
+                          {controller && (
+                            <div
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30"
+                              title={`Kontroller: ${controller.name}`}
+                            >
+                              <AirVent
+                                style={{ color: getControllerColor(controller.name) }}
+                                className="w-5 h-5"
+                              />
+                            </div>
+                          )}
+                          {pill && (
+                            <div
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30"
+                              title={`Pill: ${pill.name}`}
+                            >
+                              <Pill
+                                style={{ color: pill.color }}
+                                className="w-5 h-5"
+                              />
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <BrewEventDialog
                       brewId={brew.id}
                       brewName={brew.name}
