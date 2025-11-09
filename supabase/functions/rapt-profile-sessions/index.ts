@@ -51,43 +51,53 @@ serve(async (req) => {
     const authData = await authResponse.json();
     const accessToken = authData.access_token;
 
-    // Try different endpoints to find profile session information
-    // First, try GetTemperatureController to see if it includes profile info
-    const controllerEndpoint = `https://api.rapt.io/api/TemperatureControllers/GetTemperatureController?id=${controllerId}`;
-    console.log('Requesting controller details:', controllerEndpoint);
+    // Get all temperature controllers to find profile session information
+    const controllersEndpoint = 'https://api.rapt.io/api/TemperatureControllers/GetTemperatureControllers';
+    console.log('Requesting all controllers:', controllersEndpoint);
 
-    const controllerResponse = await fetch(controllerEndpoint, {
+    const controllersResponse = await fetch(controllersEndpoint, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
 
-    if (!controllerResponse.ok) {
-      const errorText = await controllerResponse.text();
-      console.error('RAPT API error:', controllerResponse.status, errorText);
-      
-      // Return empty array if endpoint doesn't work
-      if (controllerResponse.status === 404) {
-        console.log('GetTemperatureController returned 404, returning empty array');
-        return new Response(JSON.stringify([]), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      throw new Error(`RAPT API error: ${controllerResponse.status} - ${errorText}`);
+    if (!controllersResponse.ok) {
+      const errorText = await controllersResponse.text();
+      console.error('RAPT API error:', controllersResponse.status, errorText);
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const controllerData = await controllerResponse.json();
-    console.log('Controller data:', JSON.stringify(controllerData, null, 2));
+    const controllers = await controllersResponse.json();
+    console.log(`Fetched ${controllers.length} controllers`);
+    
+    // Find the specific controller
+    const controller = controllers.find((c: any) => c.id === controllerId);
+    
+    if (!controller) {
+      console.log(`Controller ${controllerId} not found`);
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Found controller:', JSON.stringify(controller, null, 2));
     
     // Check if profile session info is in the controller data
     const sessions: any[] = [];
-    if (controllerData.profileSession || controllerData.activeProfileSession) {
-      const profileSession = controllerData.profileSession || controllerData.activeProfileSession;
-      if (profileSession) {
-        sessions.push(profileSession);
-      }
+    if (controller.profileSession) {
+      console.log('Found profileSession:', JSON.stringify(controller.profileSession, null, 2));
+      sessions.push(controller.profileSession);
+    } else if (controller.activeProfileSession) {
+      console.log('Found activeProfileSession:', JSON.stringify(controller.activeProfileSession, null, 2));
+      sessions.push(controller.activeProfileSession);
+    } else if (controller.currentProfileSession) {
+      console.log('Found currentProfileSession:', JSON.stringify(controller.currentProfileSession, null, 2));
+      sessions.push(controller.currentProfileSession);
+    } else {
+      console.log('No profile session found in controller data. Controller keys:', Object.keys(controller));
     }
 
     return new Response(JSON.stringify(sessions), {
