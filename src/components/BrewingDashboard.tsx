@@ -928,9 +928,10 @@ export function BrewingDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span 
-                      className="font-bold tabular-nums text-foreground block text-left whitespace-nowrap"
+                      className="font-bold tabular-nums block text-left whitespace-nowrap"
                       style={{
                         fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
+                        color: linkedPill?.color || 'hsl(var(--foreground))',
                       }}
                     >
                       {controller.pill_temp !== null 
