@@ -1093,6 +1093,19 @@ export function BrewingDashboard() {
           onOpenChange={setControllerDialogOpen}
         />
       )}
+
+      {/* Device Link Dialog */}
+      <BrewDeviceLinkDialog
+        open={deviceLinkDialog.open}
+        onOpenChange={(open) => setDeviceLinkDialog({ ...deviceLinkDialog, open })}
+        brewId={deviceLinkDialog.brewId}
+        brewName={deviceLinkDialog.brewName}
+        currentControllerId={deviceLinkDialog.currentControllerId}
+        currentPillId={deviceLinkDialog.currentPillId}
+        controllers={raptControllers}
+        pills={raptPills}
+        onUpdate={loadBrews}
+      />
     </div>
   );
 
@@ -1379,22 +1392,4 @@ export function BrewingDashboard() {
             </Card>
     );
   }
-
-  return (
-    <div>
-      {/* ... existing JSX ... */}
-      
-      <BrewDeviceLinkDialog
-        open={deviceLinkDialog.open}
-        onOpenChange={(open) => setDeviceLinkDialog({ ...deviceLinkDialog, open })}
-        brewId={deviceLinkDialog.brewId}
-        brewName={deviceLinkDialog.brewName}
-        currentControllerId={deviceLinkDialog.currentControllerId}
-        currentPillId={deviceLinkDialog.currentPillId}
-        controllers={raptControllers}
-        pills={raptPills}
-        onUpdate={loadBrews}
-      />
-    </div>
-  );
 }
