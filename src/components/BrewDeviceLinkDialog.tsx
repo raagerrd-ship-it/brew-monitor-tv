@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,14 @@ export function BrewDeviceLinkDialog({
   const [selectedControllerId, setSelectedControllerId] = useState<string>(currentControllerId || "none");
   const [selectedPillId, setSelectedPillId] = useState<string>(currentPillId || "none");
   const [saving, setSaving] = useState(false);
+
+  // Update selected values when dialog opens or props change
+  useEffect(() => {
+    if (open) {
+      setSelectedControllerId(currentControllerId || "none");
+      setSelectedPillId(currentPillId || "none");
+    }
+  }, [open, currentControllerId, currentPillId]);
 
   const handleSave = async () => {
     setSaving(true);
