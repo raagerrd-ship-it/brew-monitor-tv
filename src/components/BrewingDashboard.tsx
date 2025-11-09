@@ -1128,31 +1128,27 @@ export function BrewingDashboard() {
                       const deviceToShow = pill || (controller?.linked_pill_id ? pills.find(p => p.pill_id === controller.linked_pill_id) : null);
                       
                       return (
-                        <>
-                          <button
-                            type="button"
-                            className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border relative"
-                            title={deviceToShow ? `Pill: ${deviceToShow.name} - Klicka för att ändra` : 'Ingen pill - Klicka för att koppla'}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('Pill button clicked for brew:', brew.name);
-                              setDeviceLinkDialog({
-                                open: true,
-                                brewId: brew.batch_id,
-                                brewName: brew.name,
-                                currentControllerId: brew.linked_controller_id || null,
-                                currentPillId: brew.linked_pill_id || null,
-                              });
-                            }}
-                            style={{ zIndex: 10 }}
-                          >
-                            <Pill
-                              style={{ color: deviceToShow?.color || '#888' }}
-                              className="w-5 h-5 pointer-events-none"
-                            />
-                          </button>
-                        </>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={deviceToShow ? `Pill: ${deviceToShow.name}` : 'Ingen pill kopplad'}
+                          onClick={() => {
+                            console.log('Pill button clicked for brew:', brew.name);
+                            setDeviceLinkDialog({
+                              open: true,
+                              brewId: brew.batch_id,
+                              brewName: brew.name,
+                              currentControllerId: brew.linked_controller_id || null,
+                              currentPillId: brew.linked_pill_id || null,
+                            });
+                          }}
+                        >
+                          <Pill
+                            style={{ color: deviceToShow?.color || '#888' }}
+                            className="h-4 w-4"
+                          />
+                        </Button>
                       );
                     })()}
                     <BrewEventDialog
