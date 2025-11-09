@@ -605,7 +605,7 @@ export function BrewingDashboard() {
 
     // Try to match by color name in brew name
     const brewNameLower = brew.name.toLowerCase();
-    const colorKeywords = ['röd', 'red', 'blå', 'blue', 'grön', 'green', 'gul', 'yellow', 'lila', 'purple', 'rosa', 'pink', 'orange', 'cyan', 'lime', 'amber', 'bärnsten', 'turkos', 'teal', 'indigo', 'violet', 'violett', 'fuchsia', 'rose', 'himmel', 'sky', 'smaragd', 'emerald'];
+    const colorKeywords = ['röd', 'red', 'blå', 'blue', 'grön', 'green', 'gul', 'gyllene', 'guld', 'golden', 'yellow', 'lila', 'purple', 'rosa', 'pink', 'orange', 'cyan', 'lime', 'amber', 'bärnsten', 'turkos', 'teal', 'indigo', 'violet', 'violett', 'fuchsia', 'rose', 'himmel', 'sky', 'smaragd', 'emerald'];
 
     // Find color keywords in brew name
     const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
