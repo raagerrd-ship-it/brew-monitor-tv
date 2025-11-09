@@ -66,6 +66,8 @@ export type Database = {
           final_gravity: number
           id: string
           last_update: string | null
+          linked_controller_id: string | null
+          linked_pill_id: string | null
           name: string
           original_gravity: number
           sg_data: Json
@@ -86,6 +88,8 @@ export type Database = {
           final_gravity: number
           id?: string
           last_update?: string | null
+          linked_controller_id?: string | null
+          linked_pill_id?: string | null
           name: string
           original_gravity: number
           sg_data?: Json
@@ -106,6 +110,8 @@ export type Database = {
           final_gravity?: number
           id?: string
           last_update?: string | null
+          linked_controller_id?: string | null
+          linked_pill_id?: string | null
           name?: string
           original_gravity?: number
           sg_data?: Json

@@ -5,6 +5,7 @@ import { BrewChart } from "./BrewChart";
 import { SyncCountdown } from "./SyncCountdown";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewEventDialog } from "./BrewEventDialog";
+import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +43,8 @@ interface BrewData {
   fermentationRate: number | null; // SG change per 24h based on last 2 hours
   coldcrashAcknowledged: boolean;
   events: BrewEvent[];
+  linked_controller_id: string | null;
+  linked_pill_id: string | null;
 }
 
 interface PillData {
@@ -84,6 +87,21 @@ export function BrewingDashboard() {
   const isMobile = useIsMobile();
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "center" });
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [raptControllers, setRaptControllers] = useState<TempController[]>([]);
+  const [raptPills, setRaptPills] = useState<PillData[]>([]);
+  const [deviceLinkDialog, setDeviceLinkDialog] = useState<{
+    open: boolean;
+    brewId: string;
+    brewName: string;
+    currentControllerId: string | null;
+    currentPillId: string | null;
+  }>({
+    open: false,
+    brewId: "",
+    brewName: "",
+    currentControllerId: null,
+    currentPillId: null,
+  });
   
   // Ref to hold the latest brews state for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
@@ -580,7 +598,9 @@ export function BrewingDashboard() {
           sgData: sgData,
           fermentationRate: fermentationRate,
           coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
-          events: eventsByBrewId[reading.id] || []
+          events: eventsByBrewId[reading.id] || [],
+          linked_controller_id: reading.linked_controller_id || null,
+          linked_pill_id: reading.linked_pill_id || null,
         };
       });
 
@@ -600,6 +620,19 @@ export function BrewingDashboard() {
 
   // Helper function to find matching pill/controller for a brew
   const findDevicesForBrew = (brew: BrewData): { pill: PillData | null; controller: TempController | null } => {
+    // First, check for manual connections
+    if (brew.linked_controller_id) {
+      const manualController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
+      const manualPill = brew.linked_pill_id 
+        ? pills.find(p => p.pill_id === brew.linked_pill_id) || null
+        : null;
+      
+      if (manualController || manualPill) {
+        return { pill: manualPill, controller: manualController };
+      }
+    }
+
+    // Fallback to automatic matching
     let matchingPill: PillData | null = null;
     let matchingController: TempController | null = null;
 
@@ -673,6 +706,8 @@ export function BrewingDashboard() {
 
       setPills(data.pills || []);
       setControllers(data.controllers || []);
+      setRaptPills(data.pills || []);
+      setRaptControllers(data.controllers || []);
       
       console.log(`Loaded ${data.pills?.length || 0} pills and ${data.controllers?.length || 0} controllers`);
     } catch (error) {
@@ -1094,8 +1129,17 @@ export function BrewingDashboard() {
                         <>
                           {controller && (
                             <div
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30"
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors"
                               title={`Kontroller: ${controller.name}`}
+                              onClick={() => {
+                                setDeviceLinkDialog({
+                                  open: true,
+                                  brewId: brew.batch_id,
+                                  brewName: brew.name,
+                                  currentControllerId: brew.linked_controller_id || null,
+                                  currentPillId: brew.linked_pill_id || null,
+                                });
+                              }}
                             >
                               <AirVent
                                 style={{ color: getControllerColor(controller.name) }}
@@ -1105,14 +1149,41 @@ export function BrewingDashboard() {
                           )}
                           {pill && (
                             <div
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30"
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors"
                               title={`Pill: ${pill.name}`}
+                              onClick={() => {
+                                setDeviceLinkDialog({
+                                  open: true,
+                                  brewId: brew.batch_id,
+                                  brewName: brew.name,
+                                  currentControllerId: brew.linked_controller_id || null,
+                                  currentPillId: brew.linked_pill_id || null,
+                                });
+                              }}
                             >
                               <Pill
                                 style={{ color: pill.color }}
                                 className="w-5 h-5"
                               />
                             </div>
+                          )}
+                          {!controller && !pill && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => {
+                                setDeviceLinkDialog({
+                                  open: true,
+                                  brewId: brew.batch_id,
+                                  brewName: brew.name,
+                                  currentControllerId: brew.linked_controller_id || null,
+                                  currentPillId: brew.linked_pill_id || null,
+                                });
+                              }}
+                            >
+                              <Settings className="w-4 h-4" />
+                            </Button>
                           )}
                         </>
                       );
@@ -1345,4 +1416,22 @@ export function BrewingDashboard() {
             </Card>
     );
   }
+
+  return (
+    <div>
+      {/* ... existing JSX ... */}
+      
+      <BrewDeviceLinkDialog
+        open={deviceLinkDialog.open}
+        onOpenChange={(open) => setDeviceLinkDialog({ ...deviceLinkDialog, open })}
+        brewId={deviceLinkDialog.brewId}
+        brewName={deviceLinkDialog.brewName}
+        currentControllerId={deviceLinkDialog.currentControllerId}
+        currentPillId={deviceLinkDialog.currentPillId}
+        controllers={raptControllers}
+        pills={raptPills}
+        onUpdate={loadBrews}
+      />
+    </div>
+  );
 }
