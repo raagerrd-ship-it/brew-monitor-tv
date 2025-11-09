@@ -1122,73 +1122,36 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Show matching pill/controller icons */}
+                    {/* Show matching pill icon - clickable to link devices */}
                     {(() => {
                       const { pill, controller } = findDevicesForBrew(brew);
+                      const deviceToShow = pill || (controller?.linked_pill_id ? pills.find(p => p.pill_id === controller.linked_pill_id) : null);
+                      
                       return (
                         <>
-                          {controller && (
-                            <button
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border z-10"
-                              title={`Kontroller: ${controller.name} - Klicka för att ändra`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('Controller icon clicked');
-                                setDeviceLinkDialog({
-                                  open: true,
-                                  brewId: brew.batch_id,
-                                  brewName: brew.name,
-                                  currentControllerId: brew.linked_controller_id || null,
-                                  currentPillId: brew.linked_pill_id || null,
-                                });
-                              }}
-                            >
-                              <AirVent
-                                style={{ color: getControllerColor(controller.name) }}
-                                className="w-5 h-5 pointer-events-none"
-                              />
-                            </button>
-                          )}
-                          {pill && (
-                            <button
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border z-10"
-                              title={`Pill: ${pill.name} - Klicka för att ändra`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('Pill icon clicked');
-                                setDeviceLinkDialog({
-                                  open: true,
-                                  brewId: brew.batch_id,
-                                  brewName: brew.name,
-                                  currentControllerId: brew.linked_controller_id || null,
-                                  currentPillId: brew.linked_pill_id || null,
-                                });
-                              }}
-                            >
-                              <Pill
-                                style={{ color: pill.color }}
-                                className="w-5 h-5 pointer-events-none"
-                              />
-                            </button>
-                          )}
-                          {!controller && !pill && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2"
-                              onClick={() => {
-                                setDeviceLinkDialog({
-                                  open: true,
-                                  brewId: brew.batch_id,
-                                  brewName: brew.name,
-                                  currentControllerId: brew.linked_controller_id || null,
-                                  currentPillId: brew.linked_pill_id || null,
-                                });
-                              }}
-                            >
-                              <Settings className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <button
+                            type="button"
+                            className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border relative"
+                            title={deviceToShow ? `Pill: ${deviceToShow.name} - Klicka för att ändra` : 'Ingen pill - Klicka för att koppla'}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('Pill button clicked for brew:', brew.name);
+                              setDeviceLinkDialog({
+                                open: true,
+                                brewId: brew.batch_id,
+                                brewName: brew.name,
+                                currentControllerId: brew.linked_controller_id || null,
+                                currentPillId: brew.linked_pill_id || null,
+                              });
+                            }}
+                            style={{ zIndex: 10 }}
+                          >
+                            <Pill
+                              style={{ color: deviceToShow?.color || '#888' }}
+                              className="w-5 h-5 pointer-events-none"
+                            />
+                          </button>
                         </>
                       );
                     })()}
