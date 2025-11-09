@@ -51,33 +51,44 @@ serve(async (req) => {
     const authData = await authResponse.json();
     const accessToken = authData.access_token;
 
-    // Try to get profile sessions for the controller
-    const endpoint = `https://api.rapt.io/api/ProfileSessions/GetProfileSessions?deviceId=${controllerId}`;
-    console.log('Requesting:', endpoint);
+    // Try different endpoints to find profile session information
+    // First, try GetTemperatureController to see if it includes profile info
+    const controllerEndpoint = `https://api.rapt.io/api/TemperatureControllers/GetTemperatureController?id=${controllerId}`;
+    console.log('Requesting controller details:', controllerEndpoint);
 
-    const response = await fetch(endpoint, {
+    const controllerResponse = await fetch(controllerEndpoint, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('RAPT API error:', response.status, errorText);
+    if (!controllerResponse.ok) {
+      const errorText = await controllerResponse.text();
+      console.error('RAPT API error:', controllerResponse.status, errorText);
       
-      // Return empty array if endpoint doesn't exist or controller has no sessions
-      if (response.status === 404) {
+      // Return empty array if endpoint doesn't work
+      if (controllerResponse.status === 404) {
+        console.log('GetTemperatureController returned 404, returning empty array');
         return new Response(JSON.stringify([]), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      throw new Error(`RAPT API error: ${response.status} - ${errorText}`);
+      throw new Error(`RAPT API error: ${controllerResponse.status} - ${errorText}`);
     }
 
-    const sessions = await response.json();
-    console.log('Profile sessions:', JSON.stringify(sessions, null, 2));
+    const controllerData = await controllerResponse.json();
+    console.log('Controller data:', JSON.stringify(controllerData, null, 2));
+    
+    // Check if profile session info is in the controller data
+    const sessions: any[] = [];
+    if (controllerData.profileSession || controllerData.activeProfileSession) {
+      const profileSession = controllerData.profileSession || controllerData.activeProfileSession;
+      if (profileSession) {
+        sessions.push(profileSession);
+      }
+    }
 
     return new Response(JSON.stringify(sessions), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
