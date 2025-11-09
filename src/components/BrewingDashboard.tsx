@@ -1128,10 +1128,12 @@ export function BrewingDashboard() {
                       return (
                         <>
                           {controller && (
-                            <div
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors"
-                              title={`Kontroller: ${controller.name}`}
-                              onClick={() => {
+                            <button
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border z-10"
+                              title={`Kontroller: ${controller.name} - Klicka för att ändra`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Controller icon clicked');
                                 setDeviceLinkDialog({
                                   open: true,
                                   brewId: brew.batch_id,
@@ -1143,15 +1145,17 @@ export function BrewingDashboard() {
                             >
                               <AirVent
                                 style={{ color: getControllerColor(controller.name) }}
-                                className="w-5 h-5"
+                                className="w-5 h-5 pointer-events-none"
                               />
-                            </div>
+                            </button>
                           )}
                           {pill && (
-                            <div
-                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors"
-                              title={`Pill: ${pill.name}`}
-                              onClick={() => {
+                            <button
+                              className="flex-shrink-0 p-1.5 rounded bg-background/30 cursor-pointer hover:bg-background/50 transition-colors border border-border/50 hover:border-border z-10"
+                              title={`Pill: ${pill.name} - Klicka för att ändra`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Pill icon clicked');
                                 setDeviceLinkDialog({
                                   open: true,
                                   brewId: brew.batch_id,
@@ -1163,9 +1167,9 @@ export function BrewingDashboard() {
                             >
                               <Pill
                                 style={{ color: pill.color }}
-                                className="w-5 h-5"
+                                className="w-5 h-5 pointer-events-none"
                               />
-                            </div>
+                            </button>
                           )}
                           {!controller && !pill && (
                             <Button
