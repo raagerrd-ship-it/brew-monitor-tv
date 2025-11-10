@@ -888,9 +888,10 @@ export function BrewingDashboard() {
         <div className="relative">
           {isMobile ? (
             <Beer 
-              className="h-8 w-8" 
+              className="h-8 w-8 drop-shadow-[0_0_8px_hsl(38_90%_60%/0.6)] animate-pulse" 
               style={{ 
-                color: 'hsl(38 90% 60%)'
+                color: 'hsl(38 90% 60%)',
+                filter: 'drop-shadow(0 0 12px hsl(38 90% 60% / 0.4))'
               }}
             />
           ) : (
