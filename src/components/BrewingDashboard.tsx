@@ -282,7 +282,8 @@ export function BrewingDashboard() {
             setBrews(prevBrews => 
               prevBrews.map(brew => {
                 if (brew.batch_id === updatedReading.batch_id) {
-                  let newSgData = updatedReading.sg_data || [];
+                  const originalSgData = updatedReading.sg_data || [];
+                  let newSgData = originalSgData;
                   
                   // If status is Conditioning or Completed, freeze the chart
                   if (updatedReading.status === 'Conditioning' || updatedReading.status === 'Completed') {
@@ -304,7 +305,8 @@ export function BrewingDashboard() {
                     newSgData = sortedData.slice(0, cutoffIndex + 1);
                   }
                   
-                  const newFermentationRate = calculateFermentationRate(newSgData);
+                  // Always calculate fermentation rate on ALL data, not frozen data
+                  const newFermentationRate = calculateFermentationRate(originalSgData);
                   
                   // Check if fermentation has stopped (rate is 0.000) and not yet acknowledged
                   if (
@@ -549,7 +551,8 @@ export function BrewingDashboard() {
 
       // Transform database data to component format
       const brewsData = brewReadings.map((reading: any) => {
-        let sgData = reading.sg_data || [];
+        const originalSgData = reading.sg_data || [];
+        let sgData = originalSgData;
         
         // If status is Conditioning or Completed, freeze the chart at the last fermentation point
         if (reading.status === 'Conditioning' || reading.status === 'Completed') {
@@ -576,7 +579,8 @@ export function BrewingDashboard() {
           sgData = sortedData.slice(0, cutoffIndex + 1);
         }
         
-        const fermentationRate = calculateFermentationRate(sgData);
+        // Always calculate fermentation rate on ALL data, not frozen data
+        const fermentationRate = calculateFermentationRate(originalSgData);
         
         // Check if fermentation has stopped on initial load and not yet acknowledged
         if (
