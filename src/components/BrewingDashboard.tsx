@@ -452,50 +452,56 @@ export function BrewingDashboard() {
     }
   }, []);
 
-  // Calculate fermentation rate (SG change per 24h based on last 24 hours)
+  // Calculate fermentation rate (SG change per 24h based on recent data)
   const calculateFermentationRate = (sgData: Array<{ date: string; value: number; temp: number }>): number | null => {
     if (!sgData || sgData.length < 2) return null;
     
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
     // Filter readings from last 24 hours
-    const recentReadings = sgData.filter(d => new Date(d.date) >= twentyFourHoursAgo).sort((a, b) => 
+    const last24h = sgData.filter(d => new Date(d.date) >= twentyFourHoursAgo).sort((a, b) => 
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
-    if (recentReadings.length < 2) {
-      // If less than 24 hours of data, use all available data
-      const sortedData = [...sgData].sort((a, b) => 
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-      
-      if (sortedData.length < 2) return null;
-      
-      const firstReading = sortedData[0];
-      const lastReading = sortedData[sortedData.length - 1];
+    // If we have 24h data, use it
+    if (last24h.length >= 2) {
+      const firstReading = last24h[0];
+      const lastReading = last24h[last24h.length - 1];
       
       const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
       const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
       
       if (timeDiffHours === 0) return null;
       
-      const sgDiff = firstReading.value - lastReading.value; // Positive = fermentation happening
+      const sgDiff = firstReading.value - lastReading.value;
       const ratePerHour = sgDiff / timeDiffHours;
-      return ratePerHour * 24; // Convert to per 24h
+      return ratePerHour * 24;
     }
     
-    const firstReading = recentReadings[0];
-    const lastReading = recentReadings[recentReadings.length - 1];
+    // Otherwise, use max 7 days of recent data to avoid skewing by old fermentation
+    const last7days = sgData.filter(d => new Date(d.date) >= sevenDaysAgo).sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    const dataToUse = last7days.length >= 2 ? last7days : [...sgData].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    if (dataToUse.length < 2) return null;
+    
+    const firstReading = dataToUse[0];
+    const lastReading = dataToUse[dataToUse.length - 1];
     
     const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
     const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
     
     if (timeDiffHours === 0) return null;
     
-    const sgDiff = firstReading.value - lastReading.value; // Positive = fermentation happening
+    const sgDiff = firstReading.value - lastReading.value;
     const ratePerHour = sgDiff / timeDiffHours;
-    return ratePerHour * 24; // Convert to per 24h
+    return ratePerHour * 24;
   };
 
   const loadBrews = async () => {
