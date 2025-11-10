@@ -1368,7 +1368,7 @@ export function BrewingDashboard() {
                             className="text-muted-foreground uppercase tracking-wider z-10 pl-2"
                             style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}
                           >
-                            Inställd {controller.target_temp.toFixed(0)}°
+                            Inställ {controller.target_temp.toFixed(0)}°
                           </p>
                         )}
                       </div>
