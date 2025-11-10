@@ -887,13 +887,19 @@ export function BrewingDashboard() {
       <div className="h-[11%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
         <div className="relative">
           {isMobile ? (
-            <Beer 
-              className="h-8 w-8 drop-shadow-[0_0_8px_hsl(38_90%_60%/0.6)] animate-pulse" 
-              style={{ 
-                color: 'hsl(38 90% 60%)',
-                filter: 'drop-shadow(0 0 12px hsl(38 90% 60% / 0.4))'
-              }}
-            />
+            <div className="relative inline-block">
+              <div className="absolute inset-0 rounded-full animate-pulse" style={{
+                boxShadow: '0 0 20px 8px hsl(38 90% 60% / 0.6)',
+                filter: 'blur(8px)'
+              }} />
+              <Beer 
+                className="h-8 w-8 relative z-10" 
+                style={{ 
+                  color: 'hsl(38 90% 60%)',
+                  filter: 'drop-shadow(0 0 16px hsl(38 90% 60% / 0.8))'
+                }}
+              />
+            </div>
           ) : (
             <h1 className="font-bold brewing-title leading-relaxed pb-0.5 relative z-0" style={{ 
               fontSize: 'min(calc(60cqh * 0.8), calc(100cqw * 0.035))',
