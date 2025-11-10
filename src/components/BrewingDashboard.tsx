@@ -185,7 +185,7 @@ export function BrewingDashboard() {
   const handleShareBrew = async (brew: BrewData) => {
     // Create URL-friendly slug from brew name
     const brewSlug = brew.name.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const shareUrl = `${window.location.origin}${window.location.pathname}?brew=${brewSlug}`;
+    const shareUrl = `https://brew-monitor-tv.lovable.app/?brew=${brewSlug}`;
     
     try {
       await navigator.clipboard.writeText(shareUrl);
