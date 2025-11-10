@@ -126,6 +126,34 @@ export function BrewingDashboard() {
     loadRaptData();
   }, []);
 
+  // Re-sort brews when controllers change
+  useEffect(() => {
+    if (brews.length === 0 || controllers.length === 0) return;
+    
+    setBrews(prevBrews => {
+      const sorted = [...prevBrews].sort((a, b) => {
+        const aControllerIndex = controllers.findIndex(c => c.controller_id === a.linked_controller_id);
+        const bControllerIndex = controllers.findIndex(c => c.controller_id === b.linked_controller_id);
+        
+        // If both have linked controllers, sort by controller order
+        if (aControllerIndex !== -1 && bControllerIndex !== -1) {
+          return aControllerIndex - bControllerIndex;
+        }
+        
+        // Brews with linked controllers come before those without
+        if (aControllerIndex !== -1) return -1;
+        if (bControllerIndex !== -1) return 1;
+        
+        // If neither has a linked controller, maintain original order
+        return 0;
+      });
+      
+      // Only update if order actually changed
+      const orderChanged = sorted.some((brew, index) => brew.id !== prevBrews[index].id);
+      return orderChanged ? sorted : prevBrews;
+    });
+  }, [controllers]);
+
   const loadBrewEvents = async () => {
     try {
       const { data, error } = await supabase
