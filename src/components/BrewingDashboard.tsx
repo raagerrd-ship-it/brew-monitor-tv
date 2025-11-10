@@ -9,7 +9,7 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Battery, ChevronLeft, ChevronRight, Pill, AirVent } from "lucide-react";
+import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Beer, Battery, ChevronLeft, ChevronRight, Pill, AirVent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
@@ -887,7 +887,7 @@ export function BrewingDashboard() {
       <div className="h-[11%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
         <div className="relative">
           {isMobile ? (
-            <Wine 
+            <Beer 
               className="h-8 w-8" 
               style={{ 
                 color: 'hsl(38 90% 60%)'
