@@ -1354,7 +1354,7 @@ export function BrewingDashboard() {
                           </svg>
                         </div>
                         <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>
-                          Temp{controller && controller.target_temp !== null && ` (Inställ ${controller.target_temp.toFixed(0)}°)`}
+                          Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
                           className="font-bold leading-none z-10 pl-2"
