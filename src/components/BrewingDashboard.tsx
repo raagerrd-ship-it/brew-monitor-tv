@@ -1036,7 +1036,7 @@ export function BrewingDashboard() {
                         className="font-bold tabular-nums block text-left whitespace-nowrap" 
                         style={{ 
                           fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
-                          color: linkedPill.battery_level > 50 ? 'rgb(34 197 94)' : linkedPill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+                          color: linkedPill.color
                         }}
                       >
                         {linkedPill.battery_level}%
