@@ -1405,37 +1405,51 @@ export function BrewingDashboard() {
                   </div>
 
                   {/* Batteri */}
-                  <div 
-                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-primary/20 transition-all duration-1000 relative overflow-hidden ${
-                      updatedFields[brew.batch_id]?.battery ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
-                    }`}
-                    style={{ containerType: 'size' }}
-                  >
-                    <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
-                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-                        {/* Battery outline */}
-                        <rect x="2" y="6" width="18" height="12" rx="2" stroke="hsl(var(--primary))" strokeWidth="1" fill="none"/>
-                        <path d="M22 9v6" stroke="hsl(var(--primary))" strokeWidth="1" strokeLinecap="round"/>
-                        {/* Battery fill */}
-                        {brew.battery !== null && (
-                          <rect 
-                            x="4" 
-                            y="8" 
-                            width={`${(brew.battery / 100) * 14}`} 
-                            height="8" 
-                            rx="1" 
-                            fill="hsl(var(--primary))"
-                            className="transition-all duration-500"
-                            opacity="0.8"
-                          />
-                        )}
-                      </svg>
-                    </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Batteri</p>
-                    <p className="font-bold text-primary leading-none z-10 pl-2" style={{ fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))' }}>
-                      {brew.battery !== null ? `${brew.battery}%` : "N/A"}
-                    </p>
-                  </div>
+                  {(() => {
+                    const { pill } = findDevicesForBrew(brew);
+                    const batteryColor = pill?.color || 'hsl(var(--primary))';
+                    
+                    return (
+                      <div 
+                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                        style={{ 
+                          containerType: 'size',
+                          borderColor: `${batteryColor}33`,
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                          boxShadow: updatedFields[brew.batch_id]?.battery ? `0 0 20px ${batteryColor}99` : undefined
+                        }}
+                      >
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                          <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
+                            {/* Battery outline */}
+                            <rect x="2" y="6" width="18" height="12" rx="2" stroke={batteryColor} strokeWidth="1" fill="none"/>
+                            <path d="M22 9v6" stroke={batteryColor} strokeWidth="1" strokeLinecap="round"/>
+                            {/* Battery fill */}
+                            {brew.battery !== null && (
+                              <rect 
+                                x="4" 
+                                y="8" 
+                                width={`${(brew.battery / 100) * 14}`} 
+                                height="8" 
+                                rx="1" 
+                                fill={batteryColor}
+                                className="transition-all duration-500"
+                                opacity="0.8"
+                              />
+                            )}
+                          </svg>
+                        </div>
+                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(calc(28cqh * 0.7), calc(100cqw * 0.13))' }}>Batteri</p>
+                        <p className="font-bold leading-none z-10 pl-2" style={{ 
+                          fontSize: 'min(calc(70cqh * 0.85), calc(100cqw * 0.37))',
+                          color: batteryColor
+                        }}>
+                          {brew.battery !== null ? `${brew.battery}%` : "N/A"}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </Card>
