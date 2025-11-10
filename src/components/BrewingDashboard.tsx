@@ -8,8 +8,8 @@ import { BrewEventDialog } from "./BrewEventDialog";
 import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Beer, Battery, ChevronLeft, ChevronRight, Pill, AirVent } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Settings, Loader2, Droplets, Thermometer, TrendingDown, Wine, Beer, Battery, ChevronLeft, ChevronRight, Pill, AirVent, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
@@ -89,6 +89,8 @@ export function BrewingDashboard() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [raptControllers, setRaptControllers] = useState<TempController[]>([]);
   const [raptPills, setRaptPills] = useState<PillData[]>([]);
+  const [searchParams] = useSearchParams();
+  const focusedBrewId = searchParams.get('brew');
   const [deviceLinkDialog, setDeviceLinkDialog] = useState<{
     open: boolean;
     brewId: string;
@@ -153,6 +155,41 @@ export function BrewingDashboard() {
       return orderChanged ? sorted : prevBrews;
     });
   }, [controllers]);
+
+  // Scroll to focused brew when URL param is present
+  useEffect(() => {
+    if (!focusedBrewId || !emblaApi || brews.length === 0) return;
+    
+    const brewIndex = brews.findIndex(b => b.batch_id === focusedBrewId);
+    if (brewIndex !== -1) {
+      emblaApi.scrollTo(brewIndex);
+      
+      // Show a subtle indication that this brew is focused
+      sonnerToast(`${brews[brewIndex].name} är i fokus`, {
+        description: "Detta öl delades med dig",
+        duration: 3000,
+      });
+    }
+  }, [focusedBrewId, emblaApi, brews]);
+
+  const handleShareBrew = async (brew: BrewData) => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?brew=${brew.batch_id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      sonnerToast(`${brew.name} delad!`, {
+        description: "Länken har kopierats till urklipp",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast({
+        title: "Kunde inte kopiera länk",
+        description: "Försök igen",
+        variant: "destructive",
+      });
+    }
+  };
 
   const loadBrewEvents = async () => {
     try {
@@ -1194,6 +1231,15 @@ export function BrewingDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleShareBrew(brew)}
+                      className="h-8 w-8 hover:bg-primary/10"
+                      title="Dela detta öl"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </Button>
                     <BrewEventDialog
                       brewId={brew.id}
                       brewName={brew.name}
