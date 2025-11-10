@@ -160,7 +160,17 @@ export function BrewingDashboard() {
   useEffect(() => {
     if (!focusedBrewId || !emblaApi || brews.length === 0) return;
     
-    const brewIndex = brews.findIndex(b => b.batch_id === focusedBrewId);
+    // Try to find brew by batch_id first, then by name slug
+    let brewIndex = brews.findIndex(b => b.batch_id === focusedBrewId);
+    
+    // If not found by batch_id, try to match by name slug
+    if (brewIndex === -1) {
+      brewIndex = brews.findIndex(b => {
+        const brewSlug = b.name.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        return brewSlug === focusedBrewId;
+      });
+    }
+    
     if (brewIndex !== -1) {
       emblaApi.scrollTo(brewIndex);
       
@@ -173,7 +183,9 @@ export function BrewingDashboard() {
   }, [focusedBrewId, emblaApi, brews]);
 
   const handleShareBrew = async (brew: BrewData) => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}?brew=${brew.batch_id}`;
+    // Create URL-friendly slug from brew name
+    const brewSlug = brew.name.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const shareUrl = `${window.location.origin}${window.location.pathname}?brew=${brewSlug}`;
     
     try {
       await navigator.clipboard.writeText(shareUrl);
