@@ -127,7 +127,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
       <Button
         variant="ghost"
         size="icon"
-        className="absolute top-2 right-2 z-10 h-8 w-8"
+        className="absolute top-2 left-2 z-10 h-8 w-8"
         onClick={() => setSmoothLines(!smoothLines)}
         title={smoothLines ? "Visa raka linjer" : "Visa utjämnade linjer"}
       >
