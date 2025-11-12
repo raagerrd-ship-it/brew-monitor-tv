@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Area,
   CartesianGrid,
@@ -10,6 +11,8 @@ import {
   ReferenceLine,
   Label,
 } from "recharts";
+import { Button } from "./ui/button";
+import { TrendingUp } from "lucide-react";
 
 interface BrewEvent {
   id: string;
@@ -27,6 +30,8 @@ interface BrewChartProps {
 }
 
 export function BrewChart({ data, og, fg, singleView = false, events = [] }: BrewChartProps) {
+  const [smoothLines, setSmoothLines] = useState(true);
+  
   // Check if data is empty or has no values
   if (!data || data.length === 0) {
     return (
@@ -37,6 +42,9 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   }
 
   console.log('BrewChart events:', events); // Debug log
+  
+  const lineType = smoothLines ? "natural" : "linear";
+  const areaType = smoothLines ? "monotone" : "linear";
 
   // Convert dates to timestamps for linear scale
   const chartData = data.map(d => ({
@@ -89,7 +97,16 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   }));
 
   return (
-    <div className="h-full">
+    <div className="h-full relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 z-10 h-8 w-8"
+        onClick={() => setSmoothLines(!smoothLines)}
+        title={smoothLines ? "Visa raka linjer" : "Visa utjämnade linjer"}
+      >
+        <TrendingUp className={smoothLines ? "text-primary" : "text-muted-foreground"} />
+      </Button>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartData} margin={{ top: 20, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
@@ -200,7 +217,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           />
           <Line
             yAxisId="sg"
-            type="natural"
+            type={lineType}
             dataKey="value"
             stroke="hsl(var(--beer-amber))"
             strokeWidth={2.5}
@@ -213,7 +230,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
           />
           <Area
             yAxisId="temp"
-            type="monotone"
+            type={areaType}
             dataKey="temp"
             stroke="hsl(var(--temp-blue) / 0.4)"
             strokeWidth={1}
