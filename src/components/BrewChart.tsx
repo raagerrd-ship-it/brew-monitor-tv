@@ -209,7 +209,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             stroke="hsl(var(--temp-blue))"
             style={{ fontSize: "10px" }}
             tick={{ fill: "hsl(var(--temp-blue))" }}
-            tickFormatter={(value) => `${value}°C`}
+            tickFormatter={(value) => `${value.toFixed(1)}°C`}
           />
           <Tooltip
             contentStyle={{
@@ -237,7 +237,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             }}
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
-              if (name === "temp") return [`${value}°C`, "Temp"];
+              if (name === "temp") return [`${value.toFixed(1)}°C`, "Temp"];
               return [value, name];
             }}
           />
