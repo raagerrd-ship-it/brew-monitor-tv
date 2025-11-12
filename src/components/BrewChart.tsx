@@ -237,7 +237,10 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             }}
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
-              if (name === "temp") return [`${value.toFixed(1)}°C`, "Temp"];
+              if (name === "temp") return [
+                <span style={{ color: "hsl(var(--temp-blue) / 0.9)" }}>{value.toFixed(1)}°C</span>,
+                <span style={{ color: "hsl(var(--temp-blue) / 0.9)" }}>Temp</span>
+              ];
               return [value, name];
             }}
           />
@@ -258,11 +261,11 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             yAxisId="temp"
             type={areaType}
             dataKey="temp"
-            stroke="hsl(var(--temp-blue) / 0.8)"
+            stroke="hsl(var(--temp-blue) / 0.4)"
             strokeWidth={1}
             fill="hsl(var(--temp-blue) / 0.1)"
             dot={false}
-            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.8)" }}
+            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.6)" }}
             name="temp"
           />
         </ComposedChart>
