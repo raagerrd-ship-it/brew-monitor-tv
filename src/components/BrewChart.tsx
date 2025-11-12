@@ -258,11 +258,11 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             yAxisId="temp"
             type={areaType}
             dataKey="temp"
-            stroke="hsl(var(--temp-blue) / 0.4)"
+            stroke="hsl(var(--temp-blue) / 0.8)"
             strokeWidth={1}
             fill="hsl(var(--temp-blue) / 0.1)"
             dot={false}
-            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.6)" }}
+            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.8)" }}
             name="temp"
           />
         </ComposedChart>
