@@ -43,8 +43,8 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
 
   console.log('BrewChart events:', events); // Debug log
   
-  const lineType = smoothLines ? "basis" : "linear";
-  const areaType = smoothLines ? "basis" : "linear";
+  const lineType = smoothLines ? "monotoneX" : "linear";
+  const areaType = smoothLines ? "monotoneX" : "linear";
 
   // Convert dates to timestamps for linear scale
   const chartData = data.map(d => ({
