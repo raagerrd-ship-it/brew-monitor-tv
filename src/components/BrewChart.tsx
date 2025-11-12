@@ -46,8 +46,34 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   const lineType = smoothLines ? "monotoneX" : "linear";
   const areaType = smoothLines ? "monotoneX" : "linear";
 
+  // Calculate moving average for smoother lines
+  const calculateMovingAverage = (data: Array<{ date: string; value: number; temp: number }>, windowSize: number) => {
+    if (!smoothLines || windowSize < 2) return data;
+    
+    const result = [];
+    for (let i = 0; i < data.length; i++) {
+      const start = Math.max(0, i - Math.floor(windowSize / 2));
+      const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+      const window = data.slice(start, end);
+      
+      const avgValue = window.reduce((sum, d) => sum + d.value, 0) / window.length;
+      const avgTemp = window.reduce((sum, d) => sum + d.temp, 0) / window.length;
+      
+      result.push({
+        ...data[i],
+        value: avgValue,
+        temp: avgTemp
+      });
+    }
+    return result;
+  };
+
+  // Determine window size based on data length (5-10% of data points)
+  const windowSize = Math.max(3, Math.floor(data.length * 0.08));
+  const smoothedData = calculateMovingAverage(data, windowSize);
+
   // Convert dates to timestamps for linear scale
-  const chartData = data.map(d => ({
+  const chartData = smoothedData.map(d => ({
     ...d,
     timestamp: new Date(d.date).getTime()
   }));
