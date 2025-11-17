@@ -5,17 +5,29 @@ interface AutoCoolingCountdownProps {
   lastAdjustmentTime: string | null;
   checkIntervalMinutes: number;
   enabled: boolean;
+  coolingActive: boolean;
 }
 
 export const AutoCoolingCountdown = ({ 
   lastAdjustmentTime, 
   checkIntervalMinutes,
-  enabled 
+  enabled,
+  coolingActive
 }: AutoCoolingCountdownProps) => {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
   useEffect(() => {
-    if (!enabled || !lastAdjustmentTime) {
+    if (!enabled) {
+      setTimeRemaining("--");
+      return;
+    }
+
+    if (!coolingActive) {
+      setTimeRemaining("Kylaren är inte aktiv");
+      return;
+    }
+
+    if (!lastAdjustmentTime) {
       setTimeRemaining("--");
       return;
     }
@@ -45,10 +57,14 @@ export const AutoCoolingCountdown = ({
     const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
-  }, [lastAdjustmentTime, checkIntervalMinutes, enabled]);
+  }, [lastAdjustmentTime, checkIntervalMinutes, enabled, coolingActive]);
 
   if (!enabled) {
     return <span className="text-muted-foreground text-xs">Inaktiverad</span>;
+  }
+
+  if (!coolingActive) {
+    return <span className="text-muted-foreground text-xs">Kylaren är inte aktiv</span>;
   }
 
   return (
