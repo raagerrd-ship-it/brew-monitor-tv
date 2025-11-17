@@ -263,17 +263,27 @@ serve(async (req) => {
 
     console.log(`Lowest temp controller ${lowestTempController.name} is actively cooling - checking if adjustment needed`);
 
-    // Update last_check_at timestamp only when cooling is active
-    const { error: updateError } = await supabase
-      .from('auto_cooling_settings')
-      .update({ last_check_at: new Date().toISOString() })
-      .eq('id', settings.id);
-
-    if (updateError) {
-      console.error('Failed to update last_check_at:', updateError);
-    } else {
-      console.log('Updated last_check_at timestamp - countdown started');
+    // Check if enough time has passed since last check
+    const now = new Date();
+    const checkIntervalMs = settings.check_interval_minutes * 60 * 1000;
+    
+    if (settings.last_check_at) {
+      const lastCheckTime = new Date(settings.last_check_at);
+      const timeSinceLastCheck = now.getTime() - lastCheckTime.getTime();
+      
+      if (timeSinceLastCheck < checkIntervalMs) {
+        const remainingMinutes = Math.ceil((checkIntervalMs - timeSinceLastCheck) / 60000);
+        console.log(`Not enough time has passed since last check. ${remainingMinutes} minutes remaining until next check.`);
+        return new Response(JSON.stringify({ 
+          message: `Wait ${remainingMinutes} more minutes`,
+          minutesRemaining: remainingMinutes
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
+
+    console.log(`Interval has passed or no last_check_at - proceeding with check`);
 
     // Check if we have enough history data (at least 1 new reading since last check)
     const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
@@ -303,6 +313,15 @@ serve(async (req) => {
     
     if (!allActivelyCooling) {
       console.log(`Controller ${lowestTempController.name} has not been actively trying to cool for the entire interval, no adjustment needed`);
+      
+      // Update last_check_at since we did the check
+      await supabase
+        .from('auto_cooling_settings')
+        .update({ last_check_at: new Date().toISOString() })
+        .eq('id', settings.id);
+      
+      console.log('Updated last_check_at timestamp - countdown restarted');
+      
       return new Response(JSON.stringify({ message: 'Not actively cooling entire period' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -310,6 +329,14 @@ serve(async (req) => {
 
     console.log(`Controller ${lowestTempController.name} has been actively trying to cool (temp > target) for the entire interval`);
     console.log(`Time to adjust cooler temperature to help ${lowestTempController.name}`);
+    
+    // Update last_check_at since we're doing the adjustment
+    await supabase
+      .from('auto_cooling_settings')
+      .update({ last_check_at: new Date().toISOString() })
+      .eq('id', settings.id);
+    
+    console.log('Updated last_check_at timestamp - countdown restarted');
 
     const adjustments = [];
     const shouldAdjustCooler = true;
