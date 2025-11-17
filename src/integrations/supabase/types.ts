@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      auto_cooling_settings: {
+        Row: {
+          check_interval_minutes: number
+          created_at: string
+          enabled: boolean
+          id: string
+          max_diff_from_lowest: number
+          temp_reduction_degrees: number
+          updated_at: string
+        }
+        Insert: {
+          check_interval_minutes?: number
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_diff_from_lowest?: number
+          temp_reduction_degrees?: number
+          updated_at?: string
+        }
+        Update: {
+          check_interval_minutes?: number
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_diff_from_lowest?: number
+          temp_reduction_degrees?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brew_events: {
         Row: {
           brew_id: string
@@ -358,6 +388,36 @@ export type Database = {
           rapt_sync_interval?: number
           sync_interval?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      temp_controller_history: {
+        Row: {
+          controller_id: string
+          cooling_enabled: boolean
+          created_at: string
+          current_temp: number
+          id: string
+          recorded_at: string
+          target_temp: number
+        }
+        Insert: {
+          controller_id: string
+          cooling_enabled: boolean
+          created_at?: string
+          current_temp: number
+          id?: string
+          recorded_at?: string
+          target_temp: number
+        }
+        Update: {
+          controller_id?: string
+          cooling_enabled?: boolean
+          created_at?: string
+          current_temp?: number
+          id?: string
+          recorded_at?: string
+          target_temp?: number
         }
         Relationships: []
       }

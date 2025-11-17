@@ -143,6 +143,15 @@ serve(async (req) => {
       console.log(`Successfully updated ${controllersUpdated} Temperature Controllers`);
     }
 
+    // Record temperature history for auto-cooling adjustment
+    try {
+      console.log('Recording temperature history...');
+      await supabase.functions.invoke('record-temp-history');
+    } catch (historyError) {
+      console.error('Error recording temperature history:', historyError);
+      // Don't fail the main sync if history recording fails
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
