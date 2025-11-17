@@ -1107,27 +1107,18 @@ export default function Settings() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Kylarens aktuell temp:</span>
+                          <span className="text-muted-foreground">Kylare temp:</span>
                           <p className="font-medium">
                             {coolerControllerId 
                               ? (() => {
                                   const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                                  return cooler?.current_temp !== null && cooler?.current_temp !== undefined
-                                    ? `${Number(cooler.current_temp).toFixed(1)}°C`
+                                  const current = cooler?.current_temp !== null && cooler?.current_temp !== undefined
+                                    ? Number(cooler.current_temp).toFixed(1)
                                     : 'N/A';
-                                })()
-                              : 'N/A'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Kylarens måltemp:</span>
-                          <p className="font-medium">
-                            {coolerControllerId 
-                              ? (() => {
-                                  const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                                  return cooler?.target_temp !== null && cooler?.target_temp !== undefined
-                                    ? `${Number(cooler.target_temp).toFixed(1)}°C`
+                                  const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
+                                    ? Number(cooler.target_temp).toFixed(1)
                                     : 'N/A';
+                                  return `${current}°C / ${target}°C`;
                                 })()
                               : 'N/A'}
                           </p>
@@ -1137,7 +1128,28 @@ export default function Settings() {
                           <p className="font-medium">{followedControllerIds.length} controllers</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lägsta måltemp:</span>
+                          <span className="text-muted-foreground">Lägsta controller:</span>
+                          <p className="font-medium">
+                            {(() => {
+                              const followedControllers = availableControllers.filter(c => 
+                                followedControllerIds.includes(c.id)
+                              );
+                              if (followedControllers.length === 0) return 'N/A';
+                              
+                              const controllersWithTarget = followedControllers
+                                .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                              
+                              if (controllersWithTarget.length === 0) return 'N/A';
+                              
+                              const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                              const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                              
+                              return lowestController?.name || 'N/A';
+                            })()}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Lägsta temp:</span>
                           <p className="font-medium">
                             {(() => {
                               const followedControllers = availableControllers.filter(c => 
@@ -1155,8 +1167,8 @@ export default function Settings() {
                               const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
                               
                               return currentTemp !== null && currentTemp !== undefined
-                                ? `${Number(currentTemp).toFixed(1)}°C (mål: ${lowestTargetTemp.toFixed(1)}°C)`
-                                : `Mål: ${lowestTargetTemp.toFixed(1)}°C`;
+                                ? `${Number(currentTemp).toFixed(1)}°C / ${lowestTargetTemp.toFixed(1)}°C`
+                                : `N/A / ${lowestTargetTemp.toFixed(1)}°C`;
                             })()}
                           </p>
                         </div>
