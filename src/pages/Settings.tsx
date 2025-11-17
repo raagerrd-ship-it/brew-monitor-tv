@@ -1124,10 +1124,6 @@ export default function Settings() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Följer antal:</span>
-                          <p className="font-medium">{followedControllerIds.length} controllers</p>
-                        </div>
-                        <div>
                           <span className="text-muted-foreground">Lägsta controller:</span>
                           <p className="font-medium">
                             {(() => {
@@ -1185,21 +1181,6 @@ export default function Settings() {
                           <p className="font-medium">{maxDiffFromLowest}°C</p>
                         </div>
                       </div>
-                      {followedControllerIds.length > 0 && (
-                        <div className="pt-2 border-t border-primary/10">
-                          <span className="text-xs text-muted-foreground">Följda controllers:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {followedControllerIds.map(id => {
-                              const controller = availableControllers.find(c => c.id === id);
-                              return controller ? (
-                                <span key={id} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                                  {controller.name}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {adjustmentLogs.length > 0 && (
