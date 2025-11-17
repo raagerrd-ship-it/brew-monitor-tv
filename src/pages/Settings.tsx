@@ -1,6 +1,7 @@
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
+import { SyncChecklist } from "@/components/SyncChecklist";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +59,12 @@ export default function Settings() {
     new_target_temp: number;
     lowest_followed_temp: number;
     reason: string;
+  }>>([]);
+  const [syncSteps, setSyncSteps] = useState<Array<{
+    id: string;
+    label: string;
+    completed: boolean;
+    inProgress: boolean;
   }>>([]);
 
   // Check authentication
@@ -372,12 +379,42 @@ export default function Settings() {
 
   const handleFullSync = async () => {
     setSyncing(true);
+    
+    const steps = [
+      { id: 'brewfather-batches', label: 'Brewfather batches', completed: false, inProgress: false },
+      { id: 'brewfather-readings', label: 'Brewfather avläsningar', completed: false, inProgress: false },
+      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
+      { id: 'rapt-pills', label: 'RAPT pills', completed: false, inProgress: false },
+      { id: 'rapt-sessions', label: 'RAPT profil sessioner', completed: false, inProgress: false },
+    ];
+    
+    setSyncSteps(steps);
+    
     try {
-      const { error } = await supabase.functions.invoke('full-sync-brew-data', {
-        body: {}
-      });
-
-      if (error) throw error;
+      // Step 1: Brewfather batches
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-batches' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('brewfather-batches', { body: {} });
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-batches' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 2: Brewfather readings
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-readings' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('brewfather-readings', { body: {} });
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-readings' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 3: RAPT controllers
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-temp-controllers', { body: {} });
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 4: RAPT pills
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-pills', { body: {} });
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 5: RAPT sessions
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-profile-sessions', { body: {} });
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, completed: true, inProgress: false } : s));
 
       toast({
         title: "Synkronisering klar",
@@ -912,6 +949,10 @@ export default function Settings() {
                   {syncing ? 'Synkroniserar...' : 'Kör full synkronisering nu'}
                 </Button>
               </div>
+
+              {syncing && syncSteps.length > 0 && (
+                <SyncChecklist steps={syncSteps} />
+              )}
             </div>
           </div>
         </Card>
