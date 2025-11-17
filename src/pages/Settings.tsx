@@ -1433,7 +1433,7 @@ export default function Settings() {
                       <p>• När denna controllers kyla är aktiv (temp {'>'} target) startar nedräkningen</p>
                       <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens temperatur med {tempReduction}°C</p>
                       <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
-                      <p>• Om ingen controller aktivt kyler sätts kylaren till 18°C</p>
+                      <p>• Om ingen controller har kyla påslagen sätts kylaren till 18°C</p>
                       <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
                       <p>• Kylaren sätts aldrig utanför sitt min/max-intervall</p>
                     </div>

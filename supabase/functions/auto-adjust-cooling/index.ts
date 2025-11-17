@@ -172,12 +172,11 @@ serve(async (req) => {
       }
     }
 
-    // Check if lowest controller is actively cooling (current_temp > target_temp)
-    const lowestCurrentTemp = parseFloat(lowestTempController.current_temp || '0');
-    const isActivelyCooling = lowestCurrentTemp > lowestTargetTemp;
+    // Check if any followed controller has cooling capability
+    const hasAnyCoolingCapability = followedControllersFullData.some(c => c.cooling_enabled === true);
 
-    if (!isActivelyCooling) {
-      console.log(`Lowest temp controller ${lowestTempController.name} is not actively cooling (current: ${lowestCurrentTemp}°C <= target: ${lowestTargetTemp}°C) - setting cooler to default 18°C`);
+    if (!hasAnyCoolingCapability) {
+      console.log(`No followed controller has cooling enabled - setting cooler to default 18°C`);
       
       const defaultTemp = 18;
       
@@ -209,7 +208,7 @@ serve(async (req) => {
                 old_target_temp: currentCoolerTarget,
                 new_target_temp: defaultTemp,
                 lowest_followed_temp: lowestTargetTemp,
-                reason: `No controller actively cooling - set to default 18°C`
+                reason: `No controller has cooling capability - set to default 18°C`
               });
 
             return new Response(JSON.stringify({ 
@@ -218,7 +217,7 @@ serve(async (req) => {
                 cooler: coolerController.name,
                 oldTarget: currentCoolerTarget,
                 newTarget: defaultTemp,
-                reason: 'Set to default - no active cooling'
+                reason: 'Set to default - no cooling capability'
               }]
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -227,14 +226,35 @@ serve(async (req) => {
         }
       }
       
-      // Reset timer since no active cooling
+      // Reset timer since no cooling capability
       await supabase
         .from('auto_cooling_settings')
         .update({ last_check_at: null })
         .eq('id', settings.id);
 
       return new Response(JSON.stringify({ 
-        message: 'No active cooling, cooler at default',
+        message: 'No cooling capability, cooler at default',
+        resetTimer: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if lowest controller is actively cooling (current_temp > target_temp)
+    const lowestCurrentTemp = parseFloat(lowestTempController.current_temp || '0');
+    const isActivelyCooling = lowestCurrentTemp > lowestTargetTemp;
+
+    if (!isActivelyCooling) {
+      console.log(`Lowest temp controller ${lowestTempController.name} is not actively cooling (current: ${lowestCurrentTemp}°C <= target: ${lowestTargetTemp}°C) - resetting timer`);
+      
+      // Reset timer since not actively cooling
+      await supabase
+        .from('auto_cooling_settings')
+        .update({ last_check_at: null })
+        .eq('id', settings.id);
+
+      return new Response(JSON.stringify({ 
+        message: 'Lowest controller not actively cooling',
         resetTimer: true 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
