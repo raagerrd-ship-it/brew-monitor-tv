@@ -66,6 +66,12 @@ export default function Settings() {
     completed: boolean;
     inProgress: boolean;
   }>>([]);
+  const [raptSyncSteps, setRaptSyncSteps] = useState<Array<{
+    id: string;
+    label: string;
+    completed: boolean;
+    inProgress: boolean;
+  }>>([]);
 
   // Check authentication
   useEffect(() => {
@@ -492,12 +498,30 @@ export default function Settings() {
 
   const handleRaptFullSync = async () => {
     setRaptSyncing(true);
+    
+    const steps = [
+      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
+      { id: 'rapt-pills', label: 'RAPT pills', completed: false, inProgress: false },
+      { id: 'rapt-sessions', label: 'RAPT profil sessioner', completed: false, inProgress: false },
+    ];
+    
+    setRaptSyncSteps(steps);
+    
     try {
-      const { error } = await supabase.functions.invoke('sync-rapt-data', {
-        body: {}
-      });
-
-      if (error) throw error;
+      // Step 1: RAPT controllers
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-temp-controllers', { body: {} });
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 2: RAPT pills
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-pills', { body: {} });
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
+      
+      // Step 3: RAPT sessions
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, inProgress: true } : s));
+      await supabase.functions.invoke('rapt-profile-sessions', { body: {} });
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, completed: true, inProgress: false } : s));
 
       toast({
         title: "Full RAPT synkning klar",
@@ -1112,6 +1136,10 @@ export default function Settings() {
                   {raptSyncing ? 'Synkroniserar...' : 'Kör fullsynkning nu'}
                 </Button>
               </div>
+
+              {raptSyncing && raptSyncSteps.length > 0 && (
+                <SyncChecklist steps={raptSyncSteps} />
+              )}
             </div>
 
             <div className="border-t pt-6">
