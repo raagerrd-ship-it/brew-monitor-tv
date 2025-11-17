@@ -164,27 +164,37 @@ serve(async (req) => {
 
       // Only adjust if we're actually lowering the target
       if (finalTarget < currentCoolerTarget) {
-        console.log(`Adjusting cooler from ${currentCoolerTarget}°C to ${finalTarget}°C due to ${strugglingController.name} struggling to cool`);
+        // Check against cooler's own min/max limits
+        const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
+        const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
         
-        // Call the update controller function for the COOLER
-        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-          body: {
-            controllerId: coolerController.controller_id,
-            action: 'setTargetTemperature',
-            value: finalTarget
-          }
-        });
-
-        if (updateResponse.error) {
-          console.error(`Failed to update cooler controller ${coolerController.name}:`, updateResponse.error);
+        if (finalTarget < coolerMinTemp) {
+          console.log(`Cannot set cooler below its minimum (${coolerMinTemp}°C), skipping adjustment`);
+        } else if (finalTarget > coolerMaxTemp) {
+          console.log(`Cannot set cooler above its maximum (${coolerMaxTemp}°C), skipping adjustment`);
         } else {
-          console.log(`Successfully updated cooler controller ${coolerController.name}`);
-          adjustments.push({
-            cooler: coolerController.name,
-            oldTarget: currentCoolerTarget,
-            newTarget: finalTarget,
-            reason: `Followed controller ${strugglingController.name} struggling to cool`
+          console.log(`Adjusting cooler from ${currentCoolerTarget}°C to ${finalTarget}°C due to ${strugglingController.name} struggling to cool`);
+          
+          // Call the update controller function for the COOLER
+          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+            body: {
+              controllerId: coolerController.controller_id,
+              action: 'setTargetTemperature',
+              value: finalTarget
+            }
           });
+
+          if (updateResponse.error) {
+            console.error(`Failed to update cooler controller ${coolerController.name}:`, updateResponse.error);
+          } else {
+            console.log(`Successfully updated cooler controller ${coolerController.name}`);
+            adjustments.push({
+              cooler: coolerController.name,
+              oldTarget: currentCoolerTarget,
+              newTarget: finalTarget,
+              reason: `Followed controller ${strugglingController.name} struggling to cool`
+            });
+          }
         }
       } else {
         console.log('Cooler target would not be lowered, skipping adjustment');
