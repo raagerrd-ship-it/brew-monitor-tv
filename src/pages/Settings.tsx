@@ -40,6 +40,7 @@ export default function Settings() {
   const [autoCoolingInterval, setAutoCoolingInterval] = useState<string>("60");
   const [tempReduction, setTempReduction] = useState<string>("2");
   const [maxDiffFromLowest, setMaxDiffFromLowest] = useState<string>("10");
+  const [autoCoolingSettingsId, setAutoCoolingSettingsId] = useState<string | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -153,6 +154,7 @@ export default function Settings() {
       if (error) throw error;
 
       if (data) {
+        setAutoCoolingSettingsId(data.id);
         setAutoCoolingEnabled(data.enabled);
         setAutoCoolingInterval(data.check_interval_minutes.toString());
         setTempReduction(data.temp_reduction_degrees.toString());
@@ -393,10 +395,12 @@ export default function Settings() {
   const handleAutoCoolingEnabledChange = async (checked: boolean) => {
     setAutoCoolingEnabled(checked);
     try {
+      if (!autoCoolingSettingsId) return;
+      
       const { error } = await supabase
         .from('auto_cooling_settings')
         .update({ enabled: checked })
-        .limit(1);
+        .eq('id', autoCoolingSettingsId);
 
       if (error) throw error;
 
@@ -417,10 +421,12 @@ export default function Settings() {
   const handleAutoCoolingIntervalChange = async (value: string) => {
     setAutoCoolingInterval(value);
     try {
+      if (!autoCoolingSettingsId) return;
+      
       const { error } = await supabase
         .from('auto_cooling_settings')
         .update({ check_interval_minutes: parseInt(value) })
-        .limit(1);
+        .eq('id', autoCoolingSettingsId);
 
       if (error) throw error;
 
@@ -441,10 +447,12 @@ export default function Settings() {
   const handleTempReductionChange = async (value: string) => {
     setTempReduction(value);
     try {
+      if (!autoCoolingSettingsId) return;
+      
       const { error } = await supabase
         .from('auto_cooling_settings')
         .update({ temp_reduction_degrees: parseFloat(value) })
-        .limit(1);
+        .eq('id', autoCoolingSettingsId);
 
       if (error) throw error;
 
@@ -465,10 +473,12 @@ export default function Settings() {
   const handleMaxDiffChange = async (value: string) => {
     setMaxDiffFromLowest(value);
     try {
+      if (!autoCoolingSettingsId) return;
+      
       const { error } = await supabase
         .from('auto_cooling_settings')
         .update({ max_diff_from_lowest: parseFloat(value) })
-        .limit(1);
+        .eq('id', autoCoolingSettingsId);
 
       if (error) throw error;
 
