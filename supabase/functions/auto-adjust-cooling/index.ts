@@ -35,125 +35,135 @@ serve(async (req) => {
 
     console.log('Settings:', settings);
 
-    // Get visible controllers
-    const { data: selectedControllers, error: selectedError } = await supabase
-      .from('selected_rapt_temp_controllers')
-      .select('controller_id')
-      .eq('is_visible', true);
-
-    if (selectedError || !selectedControllers || selectedControllers.length === 0) {
-      console.log('No visible controllers found');
-      return new Response(JSON.stringify({ message: 'No visible controllers' }), {
+    // Check if cooler controller is set
+    if (!settings.cooler_controller_id) {
+      console.log('No cooler controller configured');
+      return new Response(JSON.stringify({ message: 'No cooler configured' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const visibleControllerIds = selectedControllers.map(c => c.controller_id);
-    console.log('Checking controllers:', visibleControllerIds);
+    // Get followed controllers
+    const { data: followedControllers, error: followedError } = await supabase
+      .from('auto_cooling_followed_controllers')
+      .select('controller_id');
 
-    // Get current controller data
-    const { data: controllers, error: controllersError } = await supabase
+    if (followedError || !followedControllers || followedControllers.length === 0) {
+      console.log('No followed controllers configured');
+      return new Response(JSON.stringify({ message: 'No followed controllers' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const followedControllerIds = followedControllers.map(c => c.controller_id);
+    console.log('Followed controllers:', followedControllerIds);
+
+    // Get cooler controller data
+    const { data: coolerController, error: coolerError } = await supabase
       .from('rapt_temp_controllers')
       .select('*')
-      .in('controller_id', visibleControllerIds)
-      .eq('cooling_enabled', true);
+      .eq('controller_id', settings.cooler_controller_id)
+      .eq('cooling_enabled', true)
+      .single();
 
-    if (controllersError || !controllers || controllers.length === 0) {
-      console.log('No controllers with cooling enabled found');
-      return new Response(JSON.stringify({ message: 'No cooling controllers' }), {
+    if (coolerError || !coolerController) {
+      console.log('Cooler controller not found or cooling not enabled');
+      return new Response(JSON.stringify({ message: 'Cooler not available' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Found ${controllers.length} controllers with cooling enabled`);
+    console.log(`Cooler controller: ${coolerController.name} (${coolerController.controller_id})`);
 
-    // Find the lowest target temperature among visible controllers
-    const { data: allVisibleControllers } = await supabase
+    // Get followed controllers data to find lowest target temp
+    const { data: followedControllersData } = await supabase
       .from('rapt_temp_controllers')
       .select('target_temp')
-      .in('controller_id', visibleControllerIds);
+      .in('controller_id', followedControllerIds);
 
-    const lowestTargetTemp = allVisibleControllers && allVisibleControllers.length > 0
-      ? Math.min(...allVisibleControllers.map(c => parseFloat(c.target_temp || '999')))
+    const lowestTargetTemp = followedControllersData && followedControllersData.length > 0
+      ? Math.min(...followedControllersData.map(c => parseFloat(c.target_temp || '999')))
       : null;
 
-    console.log('Lowest target temp among visible controllers:', lowestTargetTemp);
+    console.log('Lowest target temp among followed controllers:', lowestTargetTemp);
 
     const adjustments = [];
     const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
 
-    for (const controller of controllers) {
-      console.log(`\nChecking controller: ${controller.name} (${controller.controller_id})`);
-      console.log(`Current: ${controller.current_temp}°C, Target: ${controller.target_temp}°C`);
+    // Check only the cooler controller
+    const controller = coolerController;
+    console.log(`\nChecking cooler controller: ${controller.name} (${controller.controller_id})`);
+    console.log(`Current: ${controller.current_temp}°C, Target: ${controller.target_temp}°C`);
 
-      // Get temperature history for this controller
-      const { data: history, error: historyError } = await supabase
-        .from('temp_controller_history')
-        .select('*')
-        .eq('controller_id', controller.controller_id)
-        .gte('recorded_at', checkTime.toISOString())
-        .order('recorded_at', { ascending: false });
+    // Get temperature history for cooler controller
+    const { data: history, error: historyError } = await supabase
+      .from('temp_controller_history')
+      .select('*')
+      .eq('controller_id', controller.controller_id)
+      .gte('recorded_at', checkTime.toISOString())
+      .order('recorded_at', { ascending: false });
 
-      if (historyError || !history || history.length === 0) {
-        console.log(`No history data for controller ${controller.name}`);
-        continue;
+    if (historyError || !history || history.length === 0) {
+      console.log(`No history data for cooler controller ${controller.name}`);
+      return new Response(JSON.stringify({ message: 'No history data' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
+
+    // Check if temperature has been stagnant
+    const oldestRecord = history[history.length - 1];
+    const newestRecord = history[0];
+    const tempDiff = Math.abs(parseFloat(newestRecord.current_temp) - parseFloat(oldestRecord.current_temp));
+
+    console.log(`Temp diff over period: ${tempDiff.toFixed(2)}°C`);
+
+    // If temperature hasn't changed more than 0.5°C and cooling is enabled
+    if (tempDiff < 0.5 && controller.cooling_enabled) {
+      const currentTemp = parseFloat(controller.current_temp || '0');
+      const currentTarget = parseFloat(controller.target_temp || '0');
+      const newTarget = currentTarget - parseFloat(settings.temp_reduction_degrees);
+
+      // Check against lowest target temp with max diff
+      let finalTarget = newTarget;
+      if (lowestTargetTemp !== null) {
+        const maxAllowedTarget = lowestTargetTemp - parseFloat(settings.max_diff_from_lowest);
+        if (newTarget < maxAllowedTarget) {
+          console.log(`Limiting target to ${maxAllowedTarget}°C (lowest followed: ${lowestTargetTemp}°C - ${settings.max_diff_from_lowest}°C)`);
+          finalTarget = maxAllowedTarget;
+        }
       }
 
-      console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
-
-      // Check if temperature has been stagnant
-      const oldestRecord = history[history.length - 1];
-      const newestRecord = history[0];
-      const tempDiff = Math.abs(parseFloat(newestRecord.current_temp) - parseFloat(oldestRecord.current_temp));
-
-      console.log(`Temp diff over period: ${tempDiff.toFixed(2)}°C`);
-
-      // If temperature hasn't changed more than 0.5°C and cooling is enabled
-      if (tempDiff < 0.5 && controller.cooling_enabled) {
-        const currentTemp = parseFloat(controller.current_temp || '0');
-        const currentTarget = parseFloat(controller.target_temp || '0');
-        const newTarget = currentTarget - parseFloat(settings.temp_reduction_degrees);
-
-        // Check against lowest target temp with max diff
-        let finalTarget = newTarget;
-        if (lowestTargetTemp !== null) {
-          const maxAllowedTarget = lowestTargetTemp - parseFloat(settings.max_diff_from_lowest);
-          if (newTarget < maxAllowedTarget) {
-            console.log(`Limiting target to ${maxAllowedTarget}°C (lowest: ${lowestTargetTemp}°C - ${settings.max_diff_from_lowest}°C)`);
-            finalTarget = maxAllowedTarget;
+      // Only adjust if we're actually lowering the target
+      if (finalTarget < currentTarget) {
+        console.log(`Temperature stagnant. Adjusting target from ${currentTarget}°C to ${finalTarget}°C`);
+        
+        // Call the update controller function
+        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+          body: {
+            controllerId: controller.controller_id,
+            action: 'setTargetTemperature',
+            value: finalTarget
           }
-        }
+        });
 
-        // Only adjust if we're actually lowering the target
-        if (finalTarget < currentTarget) {
-          console.log(`Temperature stagnant. Adjusting target from ${currentTarget}°C to ${finalTarget}°C`);
-          
-          // Call the update controller function
-          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-            body: {
-              controllerId: controller.controller_id,
-              action: 'setTargetTemperature',
-              value: finalTarget
-            }
-          });
-
-          if (updateResponse.error) {
-            console.error(`Failed to update controller ${controller.name}:`, updateResponse.error);
-          } else {
-            console.log(`Successfully updated controller ${controller.name}`);
-            adjustments.push({
-              controller: controller.name,
-              oldTarget: currentTarget,
-              newTarget: finalTarget,
-              reason: 'Temperature stagnant'
-            });
-          }
+        if (updateResponse.error) {
+          console.error(`Failed to update cooler controller ${controller.name}:`, updateResponse.error);
         } else {
-          console.log('Target would not be lowered, skipping adjustment');
+          console.log(`Successfully updated cooler controller ${controller.name}`);
+          adjustments.push({
+            controller: controller.name,
+            oldTarget: currentTarget,
+            newTarget: finalTarget,
+            reason: 'Temperature stagnant'
+          });
         }
       } else {
-        console.log('Temperature is changing, no adjustment needed');
+        console.log('Target would not be lowered, skipping adjustment');
       }
+    } else {
+      console.log('Temperature is changing, no adjustment needed');
     }
 
     console.log(`\nCompleted auto adjustment check. Made ${adjustments.length} adjustments.`);
