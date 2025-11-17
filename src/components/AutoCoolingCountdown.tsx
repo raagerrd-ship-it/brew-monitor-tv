@@ -28,7 +28,7 @@ export const AutoCoolingCountdown = ({
     }
 
     if (!lastAdjustmentTime) {
-      setTimeRemaining("--");
+      setTimeRemaining("Väntar på data...");
       return;
     }
 
@@ -39,7 +39,17 @@ export const AutoCoolingCountdown = ({
       const diff = nextCheck.getTime() - now.getTime();
 
       if (diff <= 0) {
-        setTimeRemaining("Kontrollerar nu...");
+        // Time has passed, but edge function might not have updated yet
+        // Show that we're past due but waiting for the actual check
+        const overdueSec = Math.abs(Math.floor(diff / 1000));
+        if (overdueSec < 5) {
+          setTimeRemaining("Kontrollerar...");
+        } else if (overdueSec < 60) {
+          setTimeRemaining(`Väntar (${overdueSec}s)`);
+        } else {
+          const overdueMin = Math.floor(overdueSec / 60);
+          setTimeRemaining(`Väntar (${overdueMin}m)`);
+        }
         return;
       }
 
