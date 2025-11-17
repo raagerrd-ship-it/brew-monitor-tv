@@ -1097,7 +1097,7 @@ export default function Settings() {
                   <div className="space-y-4 pl-6 border-l-2 border-border">
                     <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
                       <p className="text-sm font-medium text-primary">Aktuella inställningar:</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-1 gap-2 text-xs">
                         <div>
                           <span className="text-muted-foreground">Kylare:</span>
                           <p className="font-medium">
