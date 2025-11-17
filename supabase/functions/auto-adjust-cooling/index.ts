@@ -240,8 +240,8 @@ serve(async (req) => {
       });
     }
 
-    // Check if lowest controller is actively cooling (current_temp > target_temp)
-    const lowestCurrentTemp = parseFloat(lowestTempController.current_temp || '0');
+    // Check if lowest controller is actively cooling (pill_temp > target_temp)
+    const lowestCurrentTemp = parseFloat(lowestTempController.pill_temp ?? lowestTempController.current_temp ?? '0');
     const isActivelyCooling = lowestCurrentTemp > lowestTargetTemp;
 
     if (!isActivelyCooling) {

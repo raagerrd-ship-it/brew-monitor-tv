@@ -37,7 +37,7 @@ serve(async (req) => {
     // Get current data for these controllers
     const { data: controllers, error: controllersError } = await supabase
       .from('rapt_temp_controllers')
-      .select('controller_id, current_temp, target_temp, cooling_enabled')
+      .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled')
       .in('controller_id', visibleControllerIds);
 
     if (controllersError || !controllers) {
@@ -49,7 +49,7 @@ serve(async (req) => {
     // Insert history records
     const historyRecords = controllers.map(c => ({
       controller_id: c.controller_id,
-      current_temp: c.current_temp,
+      current_temp: c.pill_temp ?? c.current_temp,
       target_temp: c.target_temp,
       cooling_enabled: c.cooling_enabled || false
     }));
