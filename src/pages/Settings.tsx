@@ -150,8 +150,25 @@ export default function Settings() {
         (payload) => {
           console.log('Auto cooling settings updated:', payload);
           const newData = payload.new as any;
-          if (newData && newData.last_check_at) {
-            setLastAutoCoolingCheck(newData.last_check_at);
+          if (newData) {
+            if (newData.last_check_at !== undefined) {
+              setLastAutoCoolingCheck(newData.last_check_at);
+            }
+            if (newData.enabled !== undefined) {
+              setAutoCoolingEnabled(newData.enabled);
+            }
+            if (newData.check_interval_minutes !== undefined) {
+              setAutoCoolingInterval(newData.check_interval_minutes.toString());
+            }
+            if (newData.temp_reduction_degrees !== undefined) {
+              setTempReduction(newData.temp_reduction_degrees.toString());
+            }
+            if (newData.max_diff_from_lowest !== undefined) {
+              setMaxDiffFromLowest(newData.max_diff_from_lowest.toString());
+            }
+            if (newData.cooler_controller_id !== undefined) {
+              setCoolerControllerId(newData.cooler_controller_id || "");
+            }
           }
         }
       )
