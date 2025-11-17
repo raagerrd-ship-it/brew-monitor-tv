@@ -1113,7 +1113,7 @@ export default function Settings() {
                               ? (() => {
                                   const cooler = availableControllers.find(c => c.id === coolerControllerId);
                                   return cooler?.current_temp !== null && cooler?.current_temp !== undefined
-                                    ? `${cooler.current_temp}°C`
+                                    ? `${Number(cooler.current_temp).toFixed(1)}°C`
                                     : 'N/A';
                                 })()
                               : 'N/A'}
@@ -1126,7 +1126,7 @@ export default function Settings() {
                               ? (() => {
                                   const cooler = availableControllers.find(c => c.id === coolerControllerId);
                                   return cooler?.target_temp !== null && cooler?.target_temp !== undefined
-                                    ? `${cooler.target_temp}°C`
+                                    ? `${Number(cooler.target_temp).toFixed(1)}°C`
                                     : 'N/A';
                                 })()
                               : 'N/A'}
@@ -1137,7 +1137,7 @@ export default function Settings() {
                           <p className="font-medium">{followedControllerIds.length} controllers</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lägsta värde:</span>
+                          <span className="text-muted-foreground">Lägsta måltemp:</span>
                           <p className="font-medium">
                             {(() => {
                               const followedControllers = availableControllers.filter(c => 
@@ -1145,12 +1145,18 @@ export default function Settings() {
                               );
                               if (followedControllers.length === 0) return 'N/A';
                               
-                              const temps = followedControllers
-                                .map(c => c.pill_temp ?? c.current_temp)
-                                .filter((t): t is number => t !== null && t !== undefined);
+                              const controllersWithTarget = followedControllers
+                                .filter(c => c.target_temp !== null && c.target_temp !== undefined);
                               
-                              if (temps.length === 0) return 'N/A';
-                              return `${Math.min(...temps).toFixed(1)}°C`;
+                              if (controllersWithTarget.length === 0) return 'N/A';
+                              
+                              const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                              const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                              const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
+                              
+                              return currentTemp !== null && currentTemp !== undefined
+                                ? `${Number(currentTemp).toFixed(1)}°C (mål: ${lowestTargetTemp.toFixed(1)}°C)`
+                                : `Mål: ${lowestTargetTemp.toFixed(1)}°C`;
                             })()}
                           </p>
                         </div>
