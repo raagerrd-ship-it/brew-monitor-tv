@@ -387,47 +387,33 @@ export default function Settings() {
     setSyncing(true);
     
     const steps = [
-      { id: 'brewfather-batches', label: 'Brewfather batches', completed: false, inProgress: false },
-      { id: 'brewfather-readings', label: 'Brewfather avläsningar', completed: false, inProgress: false },
-      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
-      { id: 'rapt-pills', label: 'RAPT pills', completed: false, inProgress: false },
-      { id: 'rapt-sessions', label: 'RAPT profil sessioner', completed: false, inProgress: false },
+      { id: 'brewfather-data', label: 'Brewfather data', completed: false, inProgress: false },
+      { id: 'rapt-data', label: 'RAPT data', completed: false, inProgress: false },
     ];
     
     setSyncSteps(steps);
     
     try {
-      // Step 1: Brewfather batches
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-batches' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('brewfather-batches', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-batches' ? { ...s, completed: true, inProgress: false } : s));
+      // Show progress as sync runs
+      const syncPromise = supabase.functions.invoke('full-sync-brew-data', { body: {} });
       
-      // Step 2: Brewfather readings
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-readings' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('brewfather-readings', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-readings' ? { ...s, completed: true, inProgress: false } : s));
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, inProgress: true } : s));
       
-      // Step 3: RAPT controllers
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-temp-controllers', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, completed: true, inProgress: false } : s));
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
       
-      // Step 4: RAPT pills
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-pills', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
+      const { error } = await syncPromise;
       
-      // Step 5: RAPT sessions
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-profile-sessions', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, completed: true, inProgress: false } : s));
+      if (error) throw error;
+      
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
 
       toast({
         title: "Synkronisering klar",
         description: "Full synkronisering har genomförts",
       });
       
-      // Reload settings to get updated timestamp
       await loadSettings();
     } catch (error) {
       console.error('Error during full sync:', error);
@@ -500,35 +486,40 @@ export default function Settings() {
     setRaptSyncing(true);
     
     const steps = [
-      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
+      { id: 'rapt-auth', label: 'RAPT autentisering', completed: false, inProgress: false },
       { id: 'rapt-pills', label: 'RAPT pills', completed: false, inProgress: false },
-      { id: 'rapt-sessions', label: 'RAPT profil sessioner', completed: false, inProgress: false },
+      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
     ];
     
     setRaptSyncSteps(steps);
     
     try {
-      // Step 1: RAPT controllers
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-temp-controllers', { body: {} });
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
+      // Show progress steps as the sync runs
+      const syncPromise = supabase.functions.invoke('sync-rapt-data', { body: {} });
       
-      // Step 2: RAPT pills
+      // Simulate progress (auth takes ~1s, pills ~3s, controllers ~2s based on logs)
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-auth' ? { ...s, inProgress: true } : s));
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-auth' ? { ...s, completed: true, inProgress: false } : s));
       setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-pills', { body: {} });
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
       
-      // Step 3: RAPT sessions
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, inProgress: true } : s));
-      await supabase.functions.invoke('rapt-profile-sessions', { body: {} });
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-sessions' ? { ...s, completed: true, inProgress: false } : s));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
+      
+      // Wait for actual sync to complete
+      const { error } = await syncPromise;
+      
+      if (error) throw error;
+      
+      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
 
       toast({
         title: "Full RAPT synkning klar",
         description: "Alla enheter har uppdaterats",
       });
       
-      // Reload settings to get updated timestamp
       await loadSettings();
     } catch (error) {
       console.error('Error during full RAPT sync:', error);
