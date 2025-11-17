@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -694,84 +695,92 @@ export default function Settings() {
         <Card className="p-6 mb-6">
           <h2 className="text-xl font-bold mb-6">Brewfather inställningar</h2>
           
-          <div className="space-y-8">
-            <div className="space-y-4 pb-6 border-b">
-              <h3 className="text-lg font-semibold mb-4">Brewfather API-uppgifter</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
-              </p>
-              
-              {apiSettings?.brewfather && (
-                <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">User ID:</span>
-                    <span className="text-sm font-mono">{apiSettings.brewfather.userId}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">API-nyckel:</span>
-                    <span className="text-sm font-mono">{apiSettings.brewfather.apiKey}</span>
+          <Accordion type="multiple" className="space-y-4">
+            <AccordionItem value="brewfather-api">
+              <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                Brewfather API-uppgifter
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
+                  </p>
+                  
+                  {apiSettings?.brewfather && (
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">User ID:</span>
+                        <span className="text-sm font-mono">{apiSettings.brewfather.userId}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">API-nyckel:</span>
+                        <span className="text-sm font-mono">{apiSettings.brewfather.apiKey}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera Brewfather-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
+                        });
+                      }}
+                      className="flex-1"
+                    >
+                      Uppdatera User ID
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera Brewfather-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
+                        });
+                      }}
+                      className="flex-1"
+                    >
+                      Uppdatera API-nyckel
+                    </Button>
                   </div>
                 </div>
-              )}
-              
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera Brewfather-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera User ID
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera Brewfather-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera API-nyckel
-                </Button>
-              </div>
-            </div>
+              </AccordionContent>
+            </AccordionItem>
             
-            <div className="space-y-4 pb-6 border-b">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">Snabb synkronisering</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Uppdaterar löpande data för synliga öl
-                </p>
-                <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
-                  <p>• Aktuellt SG (Specific Gravity)</p>
-                  <p>• Aktuell temperatur</p>
-                  <p>• Batterinivå</p>
-                  <p>• Senaste avläsningstidpunkt</p>
-                </div>
-              </div>
-              
-              <div>
-              <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
-              <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
-                <SelectTrigger className="w-full bg-card">
-                  <SelectValue placeholder="Välj frekvens" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border z-50">
-                  <SelectItem value="0">Aldrig</SelectItem>
-                  <SelectItem value="60">Varje minut</SelectItem>
-                  <SelectItem value="300">Var 5:e minut</SelectItem>
-                  <SelectItem value="600">Var 10:e minut</SelectItem>
-                  <SelectItem value="900">Var 15:e minut</SelectItem>
-                  <SelectItem value="3600">Varje timme</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <AccordionItem value="brewfather-quick-sync">
+              <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                Snabb synkronisering
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Uppdaterar löpande data för synliga öl
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1 mb-4 pl-4">
+                    <p>• Aktuellt SG (Specific Gravity)</p>
+                    <p>• Aktuell temperatur</p>
+                    <p>• Batterinivå</p>
+                    <p>• Senaste avläsningstidpunkt</p>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
+                    <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
+                      <SelectTrigger className="w-full bg-card">
+                        <SelectValue placeholder="Välj frekvens" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="60">Varje minut</SelectItem>
+                        <SelectItem value="300">Var 5:e minut</SelectItem>
+                        <SelectItem value="600">Var 10:e minut</SelectItem>
+                        <SelectItem value="900">Var 15:e minut</SelectItem>
+                        <SelectItem value="3600">Varje timme</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
             {lastBrewfatherQuickSync ? (
               <p className="text-sm text-muted-foreground">
@@ -919,56 +928,66 @@ export default function Settings() {
         <Card className="p-6 mb-6">
           <h2 className="text-xl font-bold mb-6">RAPT Inställningar</h2>
           
-          <div className="space-y-6">
-            <div className="space-y-4 pb-6 border-b">
-              <h3 className="text-lg font-semibold mb-4">RAPT API-uppgifter</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Be AI-assistenten uppdatera dina RAPT Portal-inloggningsuppgifter i chatten
-              </p>
-              
-              {apiSettings?.rapt && (
-                <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Användarnamn:</span>
-                    <span className="text-sm font-mono">{apiSettings.rapt.username}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">API-nyckel:</span>
-                    <span className="text-sm font-mono">{apiSettings.rapt.apiSecret}</span>
+          <Accordion type="multiple" className="space-y-4">
+            <AccordionItem value="rapt-api">
+              <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                RAPT API-uppgifter
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Be AI-assistenten uppdatera dina RAPT Portal-inloggningsuppgifter i chatten
+                  </p>
+                  
+                  {apiSettings?.rapt && (
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Användarnamn:</span>
+                        <span className="text-sm font-mono">{apiSettings.rapt.username}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">API-nyckel:</span>
+                        <span className="text-sm font-mono">{apiSettings.rapt.apiSecret}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera RAPT-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
+                        });
+                      }}
+                      className="flex-1"
+                    >
+                      Uppdatera användarnamn
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera RAPT-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
+                        });
+                      }}
+                      className="flex-1"
+                    >
+                      Uppdatera API-nyckel
+                    </Button>
                   </div>
                 </div>
-              )}
-              
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera RAPT-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera användarnamn
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    toast({
-                      title: "Uppdatera RAPT-uppgifter",
-                      description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
-                    });
-                  }}
-                  className="flex-1"
-                >
-                  Uppdatera API-nyckel
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-4 pb-6 border-b">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">Snabb datasynkning</h3>
+              </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="rapt-quick-sync">
+              <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                Snabb datasynkning
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4">
                 <p className="text-sm text-muted-foreground mb-4">
                   Uppdaterar endast data för valda enheter
                 </p>
@@ -978,10 +997,10 @@ export default function Settings() {
                   <p>• Snabbt och effektivt för frekvent synkning</p>
                 </div>
               </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
-                <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
+                    <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
                   <SelectTrigger className="w-full bg-card">
                     <SelectValue placeholder="Välj frekvens" />
                   </SelectTrigger>
@@ -1075,10 +1094,10 @@ export default function Settings() {
 
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold mb-4">Automatisk Kylreglering</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
-              </p>
-              <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
+                  </p>
+                  <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="auto-cooling-enabled"
