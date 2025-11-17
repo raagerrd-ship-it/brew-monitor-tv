@@ -1429,11 +1429,13 @@ export default function Settings() {
 
                     <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
                       <p className="font-medium text-foreground">Hur det fungerar:</p>
-                      <p>• Systemet övervakar de controllers du valt att följa</p>
-                      <p>• Om någon följd controller har kyla på i {autoCoolingInterval} min utan att temperaturen sjunker mer än 0.5°C</p>
-                      <p>• Då sänks kylarens måltemperatur med {tempReduction}°C</p>
-                      <p>• Max {maxDiffFromLowest}°C lägre än den följda controller med lägst temperatur</p>
-                      <p>• Kylaren sätts aldrig utanför sitt egna min/max-intervall</p>
+                      <p>• Systemet övervakar den följda controllern med lägst måltemperatur</p>
+                      <p>• När denna controllers kyla är aktiv (temp {'>'} target) startar nedräkningen</p>
+                      <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens temperatur med {tempReduction}°C</p>
+                      <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
+                      <p>• Om ingen controller aktivt kyler sätts kylaren till 18°C</p>
+                      <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
+                      <p>• Kylaren sätts aldrig utanför sitt min/max-intervall</p>
                     </div>
                   </div>
                 )}
