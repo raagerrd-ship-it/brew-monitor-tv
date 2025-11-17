@@ -61,6 +61,7 @@ export default function Settings() {
     lowest_followed_temp: number;
     reason: string;
   }>>([]);
+  const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [syncSteps, setSyncSteps] = useState<Array<{
     id: string;
     label: string;
@@ -138,6 +139,21 @@ export default function Settings() {
           loadAdjustmentLogs();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'auto_cooling_settings'
+        },
+        (payload) => {
+          console.log('Auto cooling settings updated:', payload);
+          const newData = payload.new as any;
+          if (newData && newData.last_check_at) {
+            setLastAutoCoolingCheck(newData.last_check_at);
+          }
+        }
+      )
       .subscribe();
     
     return () => {
@@ -206,6 +222,7 @@ export default function Settings() {
         setTempReduction(data.temp_reduction_degrees.toString());
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         setCoolerControllerId(data.cooler_controller_id || "");
+        setLastAutoCoolingCheck(data.last_check_at);
       }
 
       // Load followed controllers
@@ -1243,7 +1260,7 @@ export default function Settings() {
                           <p className="text-xs text-muted-foreground mt-1">Systemet kontrollerar automatiskt varje {autoCoolingInterval} minut{parseInt(autoCoolingInterval) !== 1 ? 'er' : ''}</p>
                         </div>
                         <AutoCoolingCountdown 
-                          lastAdjustmentTime={adjustmentLogs.length > 0 ? adjustmentLogs[0].created_at : null}
+                          lastAdjustmentTime={lastAutoCoolingCheck}
                           checkIntervalMinutes={parseInt(autoCoolingInterval)}
                           enabled={autoCoolingEnabled}
                         />
