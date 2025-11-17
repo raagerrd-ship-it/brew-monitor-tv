@@ -2,6 +2,7 @@ import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
+import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1232,6 +1233,20 @@ export default function Settings() {
                             );
                           })()}
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-accent/20 border border-accent/40 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Nästa temperaturkontroll:</p>
+                          <p className="text-xs text-muted-foreground mt-1">Systemet kontrollerar automatiskt varje {autoCoolingInterval} minut{parseInt(autoCoolingInterval) !== 1 ? 'er' : ''}</p>
+                        </div>
+                        <AutoCoolingCountdown 
+                          lastAdjustmentTime={adjustmentLogs.length > 0 ? adjustmentLogs[0].created_at : null}
+                          checkIntervalMinutes={parseInt(autoCoolingInterval)}
+                          enabled={autoCoolingEnabled}
+                        />
                       </div>
                     </div>
 
