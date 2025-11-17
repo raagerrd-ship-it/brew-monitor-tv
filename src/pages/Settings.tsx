@@ -1043,6 +1043,51 @@ export default function Settings() {
 
                 {autoCoolingEnabled && (
                   <div className="space-y-4 pl-6 border-l-2 border-border">
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
+                      <p className="text-sm font-medium text-primary">Aktuella inställningar:</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Kylare:</span>
+                          <p className="font-medium">
+                            {coolerControllerId 
+                              ? availableControllers.find(c => c.id === coolerControllerId)?.name || 'Ej vald'
+                              : 'Ej vald'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Följer antal:</span>
+                          <p className="font-medium">{followedControllerIds.length} controllers</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Kontrollintervall:</span>
+                          <p className="font-medium">{autoCoolingInterval} min</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Sänkning:</span>
+                          <p className="font-medium">{tempReduction}°C</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Max diff:</span>
+                          <p className="font-medium">{maxDiffFromLowest}°C</p>
+                        </div>
+                      </div>
+                      {followedControllerIds.length > 0 && (
+                        <div className="pt-2 border-t border-primary/10">
+                          <span className="text-xs text-muted-foreground">Följda controllers:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {followedControllerIds.map(id => {
+                              const controller = availableControllers.find(c => c.id === id);
+                              return controller ? (
+                                <span key={id} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                  {controller.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <div>
                       <label className="text-sm font-medium mb-2 block">Välj kylare</label>
                       <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
