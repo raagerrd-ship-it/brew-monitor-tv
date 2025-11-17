@@ -132,6 +132,16 @@ serve(async (req) => {
 
       console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
 
+      // Check if cooling has been enabled for the ENTIRE interval
+      const allCoolingEnabled = history.every(record => record.cooling_enabled === true);
+      
+      if (!allCoolingEnabled) {
+        console.log(`Controller ${followedController.name} has not had cooling enabled for the entire interval, skipping`);
+        continue;
+      }
+
+      console.log(`Controller ${followedController.name} has had cooling ON for the entire interval`);
+
       // Check if temperature has been stagnant
       const oldestRecord = history[history.length - 1];
       const newestRecord = history[0];
@@ -139,9 +149,9 @@ serve(async (req) => {
 
       console.log(`Temp diff over period: ${tempDiff.toFixed(2)}°C`);
 
-      // If temperature hasn't changed more than 0.5°C
+      // If temperature hasn't changed more than 0.5°C despite cooling the entire time
       if (tempDiff < 0.5) {
-        console.log(`Controller ${followedController.name} struggling to cool - temp only changed ${tempDiff.toFixed(2)}°C`);
+        console.log(`Controller ${followedController.name} struggling to cool - cooling entire period but temp only changed ${tempDiff.toFixed(2)}°C`);
         shouldAdjustCooler = true;
         strugglingController = followedController;
         break; // Found one struggling controller, that's enough to adjust cooler
