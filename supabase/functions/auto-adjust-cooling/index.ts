@@ -194,6 +194,28 @@ serve(async (req) => {
               newTarget: finalTarget,
               reason: `Followed controller ${strugglingController.name} struggling to cool`
             });
+
+            // Log the adjustment to database
+            const lowestFollowedTemp = followedControllersFullData
+              .map(c => parseFloat(c.pill_temp || c.current_temp || '999'))
+              .reduce((min, temp) => Math.min(min, temp), 999);
+
+            const { error: logError } = await supabase
+              .from('auto_cooling_adjustments')
+              .insert({
+                cooler_controller_id: coolerController.controller_id,
+                cooler_controller_name: coolerController.name,
+                old_target_temp: currentCoolerTarget,
+                new_target_temp: finalTarget,
+                lowest_followed_temp: lowestFollowedTemp,
+                reason: `${strugglingController.name} struggling to cool`
+              });
+
+            if (logError) {
+              console.error('Failed to log adjustment:', logError);
+            } else {
+              console.log('Adjustment logged to database');
+            }
           }
         }
       } else {
