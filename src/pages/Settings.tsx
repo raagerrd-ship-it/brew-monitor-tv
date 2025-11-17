@@ -1194,13 +1194,11 @@ export default function Settings() {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 text-muted-foreground">
+                                <span>Måltemp:</span>
                                 <span>{log.old_target_temp.toFixed(1)}°C</span>
                                 <span>→</span>
                                 <span className="text-foreground font-medium">
                                   {log.new_target_temp.toFixed(1)}°C
-                                </span>
-                                <span className="text-xs">
-                                  (lägsta: {log.lowest_followed_temp.toFixed(1)}°C)
                                 </span>
                               </div>
                               <p className="text-muted-foreground italic">
