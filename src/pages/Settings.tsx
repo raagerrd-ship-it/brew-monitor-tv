@@ -1097,7 +1097,7 @@ export default function Settings() {
                   <div className="space-y-4 pl-6 border-l-2 border-border">
                     <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
                       <p className="text-sm font-medium text-primary">Aktuella inställningar:</p>
-                      <div className="grid grid-cols-1 gap-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <span className="text-muted-foreground">Kylare:</span>
                           <p className="font-medium">
@@ -1108,20 +1108,23 @@ export default function Settings() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">Kylare temp:</span>
-                          <p className="font-medium">
-                            {coolerControllerId 
-                              ? (() => {
-                                  const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                                  const current = cooler?.current_temp !== null && cooler?.current_temp !== undefined
-                                    ? Number(cooler.current_temp).toFixed(1)
-                                    : 'N/A';
-                                  const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
-                                    ? Number(cooler.target_temp).toFixed(1)
-                                    : 'N/A';
-                                  return `${current}°C (aktuell) / ${target}°C (mål)`;
-                                })()
-                              : 'N/A'}
-                          </p>
+                          {coolerControllerId 
+                            ? (() => {
+                                const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                                const current = cooler?.current_temp !== null && cooler?.current_temp !== undefined
+                                  ? Number(cooler.current_temp).toFixed(1)
+                                  : 'N/A';
+                                const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
+                                  ? Number(cooler.target_temp).toFixed(1)
+                                  : 'N/A';
+                                return (
+                                  <div className="font-medium">
+                                    <div>{current}°C (aktuell)</div>
+                                    <div>{target}°C (mål)</div>
+                                  </div>
+                                );
+                              })()
+                            : <p className="font-medium">N/A</p>}
                         </div>
                         <div>
                           <span className="text-muted-foreground">Lägsta controller:</span>
@@ -1146,27 +1149,28 @@ export default function Settings() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">Controller temp:</span>
-                          <p className="font-medium">
-                            {(() => {
-                              const followedControllers = availableControllers.filter(c => 
-                                followedControllerIds.includes(c.id)
-                              );
-                              if (followedControllers.length === 0) return 'N/A';
-                              
-                              const controllersWithTarget = followedControllers
-                                .filter(c => c.target_temp !== null && c.target_temp !== undefined);
-                              
-                              if (controllersWithTarget.length === 0) return 'N/A';
-                              
-                              const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                              const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                              const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
-                              
-                              return currentTemp !== null && currentTemp !== undefined
-                                ? `${Number(currentTemp).toFixed(1)}°C (aktuell) / ${lowestTargetTemp.toFixed(1)}°C (mål)`
-                                : `N/A / ${lowestTargetTemp.toFixed(1)}°C (mål)`;
-                            })()}
-                          </p>
+                          {(() => {
+                            const followedControllers = availableControllers.filter(c => 
+                              followedControllerIds.includes(c.id)
+                            );
+                            if (followedControllers.length === 0) return <p className="font-medium">N/A</p>;
+                            
+                            const controllersWithTarget = followedControllers
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                            
+                            if (controllersWithTarget.length === 0) return <p className="font-medium">N/A</p>;
+                            
+                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                            const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
+                            
+                            return (
+                              <div className="font-medium">
+                                <div>{currentTemp !== null && currentTemp !== undefined ? `${Number(currentTemp).toFixed(1)}°C` : 'N/A'} (aktuell)</div>
+                                <div>{lowestTargetTemp.toFixed(1)}°C (mål)</div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
