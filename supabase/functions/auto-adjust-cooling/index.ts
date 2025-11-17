@@ -115,7 +115,133 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Lowest temp controller ${lowestTempController.name} has cooling enabled - checking if adjustment needed`);
+    const currentCoolerTarget = parseFloat(coolerController.target_temp || '18');
+    const lowestTargetTemp = parseFloat(lowestTempController.target_temp || '999');
+    const tempDiff = currentCoolerTarget - lowestTargetTemp;
+
+    console.log(`Cooler target: ${currentCoolerTarget}°C, Lowest controller target: ${lowestTargetTemp}°C, Diff: ${tempDiff.toFixed(1)}°C`);
+
+    // Check if cooler is more than 10 degrees colder than lowest controller
+    if (tempDiff > 10) {
+      console.log(`Cooler is ${tempDiff.toFixed(1)}°C colder than lowest controller - increasing cooler temperature`);
+      
+      const newTarget = lowestTargetTemp - 10; // Set to 10 degrees below lowest controller
+      
+      // Check against cooler's own min/max limits
+      const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
+      const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
+      
+      if (newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
+        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+          body: {
+            controllerId: coolerController.controller_id,
+            action: 'setTargetTemperature',
+            value: newTarget
+          }
+        });
+
+        if (updateResponse.error) {
+          console.error(`Failed to increase cooler temperature:`, updateResponse.error);
+        } else {
+          console.log(`Successfully increased cooler from ${currentCoolerTarget}°C to ${newTarget}°C`);
+          
+          // Log the adjustment
+          await supabase
+            .from('auto_cooling_adjustments')
+            .insert({
+              cooler_controller_id: coolerController.controller_id,
+              cooler_controller_name: coolerController.name,
+              old_target_temp: currentCoolerTarget,
+              new_target_temp: newTarget,
+              lowest_followed_temp: lowestTargetTemp,
+              reason: `Cooler was ${tempDiff.toFixed(1)}°C colder than lowest controller - increased to maintain 10°C diff`
+            });
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            adjustments: [{
+              cooler: coolerController.name,
+              oldTarget: currentCoolerTarget,
+              newTarget: newTarget,
+              reason: `Increased - diff was ${tempDiff.toFixed(1)}°C`
+            }]
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+
+    // Check if lowest controller is actively cooling (current_temp > target_temp)
+    const lowestCurrentTemp = parseFloat(lowestTempController.current_temp || '0');
+    const isActivelyCooling = lowestCurrentTemp > lowestTargetTemp;
+
+    if (!isActivelyCooling) {
+      console.log(`Lowest temp controller ${lowestTempController.name} is not actively cooling (current: ${lowestCurrentTemp}°C <= target: ${lowestTargetTemp}°C) - setting cooler to default 18°C`);
+      
+      const defaultTemp = 18;
+      
+      // Only update if current target is different from default
+      if (Math.abs(currentCoolerTarget - defaultTemp) > 0.1) {
+        const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
+        const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
+        
+        if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
+          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+            body: {
+              controllerId: coolerController.controller_id,
+              action: 'setTargetTemperature',
+              value: defaultTemp
+            }
+          });
+
+          if (updateResponse.error) {
+            console.error(`Failed to set cooler to default:`, updateResponse.error);
+          } else {
+            console.log(`Successfully set cooler to default ${defaultTemp}°C`);
+            
+            // Log the adjustment
+            await supabase
+              .from('auto_cooling_adjustments')
+              .insert({
+                cooler_controller_id: coolerController.controller_id,
+                cooler_controller_name: coolerController.name,
+                old_target_temp: currentCoolerTarget,
+                new_target_temp: defaultTemp,
+                lowest_followed_temp: lowestTargetTemp,
+                reason: `No controller actively cooling - set to default 18°C`
+              });
+
+            return new Response(JSON.stringify({ 
+              success: true, 
+              adjustments: [{
+                cooler: coolerController.name,
+                oldTarget: currentCoolerTarget,
+                newTarget: defaultTemp,
+                reason: 'Set to default - no active cooling'
+              }]
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      }
+      
+      // Reset timer since no active cooling
+      await supabase
+        .from('auto_cooling_settings')
+        .update({ last_check_at: null })
+        .eq('id', settings.id);
+
+      return new Response(JSON.stringify({ 
+        message: 'No active cooling, cooler at default',
+        resetTimer: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`Lowest temp controller ${lowestTempController.name} is actively cooling - checking if adjustment needed`);
 
     // Update last_check_at timestamp only when cooling is active
     const { error: updateError } = await supabase
@@ -166,12 +292,10 @@ serve(async (req) => {
     console.log(`Time to adjust cooler temperature to help ${lowestTempController.name}`);
 
     const adjustments = [];
-    const lowestTargetTemp = parseFloat(lowestTempController.target_temp || '999');
     const shouldAdjustCooler = true;
     const strugglingController = lowestTempController;
 
     if (shouldAdjustCooler && strugglingController) {
-      const currentCoolerTarget = parseFloat(coolerController.target_temp || '0');
       const newTarget = currentCoolerTarget - parseFloat(settings.temp_reduction_degrees);
 
       // Check against lowest target temp with max diff
