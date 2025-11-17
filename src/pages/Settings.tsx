@@ -1223,7 +1223,7 @@ export default function Settings() {
                           <p className="font-medium">
                             {(() => {
                               const followedControllers = availableControllers.filter(c => 
-                                followedControllerIds.includes(c.id)
+                                followedControllerIds.includes(c.id) && c.cooling_enabled === true
                               );
                               if (followedControllers.length === 0) return 'N/A';
                               
@@ -1243,7 +1243,7 @@ export default function Settings() {
                           <span className="text-muted-foreground">Controller temp:</span>
                           {(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id)
+                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
                             );
                             if (followedControllers.length === 0) return <p className="font-medium">N/A</p>;
                             
