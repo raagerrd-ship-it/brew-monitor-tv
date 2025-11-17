@@ -181,7 +181,37 @@ export default function Settings() {
         },
         (payload) => {
           console.log('Temperature controller updated:', payload);
-          loadAvailableControllers();
+          const newData = payload.new as any;
+          if (newData && newData.controller_id) {
+            setAvailableControllers(prev => {
+              const index = prev.findIndex(c => c.id === newData.controller_id);
+              if (index !== -1) {
+                const updated = [...prev];
+                updated[index] = {
+                  ...updated[index],
+                  name: newData.name ?? updated[index].name,
+                  current_temp: newData.current_temp ?? updated[index].current_temp,
+                  pill_temp: newData.pill_temp ?? updated[index].pill_temp,
+                  target_temp: newData.target_temp ?? updated[index].target_temp,
+                  cooling_enabled: newData.cooling_enabled ?? updated[index].cooling_enabled
+                };
+                return updated;
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'auto_cooling_followed_controllers'
+        },
+        (payload) => {
+          console.log('Followed controllers updated:', payload);
+          loadAutoCoolingSettings();
         }
       )
       .subscribe();
