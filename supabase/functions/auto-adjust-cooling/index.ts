@@ -132,15 +132,20 @@ serve(async (req) => {
 
       console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
 
-      // Check if cooling has been enabled for the ENTIRE interval
-      const allCoolingEnabled = history.every(record => record.cooling_enabled === true);
+      // Check if cooling has been enabled AND actively needed for the ENTIRE interval
+      // Cooling is actively needed when current_temp > target_temp
+      const allActivelyCooling = history.every(record => {
+        const currentTemp = parseFloat(record.current_temp);
+        const targetTemp = parseFloat(record.target_temp);
+        return record.cooling_enabled === true && currentTemp > targetTemp;
+      });
       
-      if (!allCoolingEnabled) {
-        console.log(`Controller ${followedController.name} has not had cooling enabled for the entire interval, skipping`);
+      if (!allActivelyCooling) {
+        console.log(`Controller ${followedController.name} has not been actively trying to cool for the entire interval, skipping`);
         continue;
       }
 
-      console.log(`Controller ${followedController.name} has had cooling ON for the entire interval`);
+      console.log(`Controller ${followedController.name} has been actively trying to cool (temp > target) for the entire interval`);
 
       // Check if temperature has been stagnant
       const oldestRecord = history[history.length - 1];
@@ -149,9 +154,9 @@ serve(async (req) => {
 
       console.log(`Temp diff over period: ${tempDiff.toFixed(2)}°C`);
 
-      // If temperature hasn't changed more than 0.5°C despite cooling the entire time
+      // If temperature hasn't changed more than 0.5°C despite actively trying to cool the entire time
       if (tempDiff < 0.5) {
-        console.log(`Controller ${followedController.name} struggling to cool - cooling entire period but temp only changed ${tempDiff.toFixed(2)}°C`);
+        console.log(`Controller ${followedController.name} struggling to cool - actively cooling entire period but temp only changed ${tempDiff.toFixed(2)}°C`);
         shouldAdjustCooler = true;
         strugglingController = followedController;
         break; // Found one struggling controller, that's enough to adjust cooler
