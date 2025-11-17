@@ -1254,7 +1254,7 @@ export default function Settings() {
                             
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
                             const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.current_temp;
+                            const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
                             
                             return (
                               <div className="font-medium">
