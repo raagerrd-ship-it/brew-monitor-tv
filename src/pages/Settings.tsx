@@ -36,6 +36,10 @@ export default function Settings() {
     brewfather: { userId: string; apiKey: string; configured: boolean };
     rapt: { username: string; apiSecret: string; configured: boolean };
   } | null>(null);
+  const [autoCoolingEnabled, setAutoCoolingEnabled] = useState(false);
+  const [autoCoolingInterval, setAutoCoolingInterval] = useState<string>("60");
+  const [tempReduction, setTempReduction] = useState<string>("2");
+  const [maxDiffFromLowest, setMaxDiffFromLowest] = useState<string>("10");
 
   // Check authentication
   useEffect(() => {
@@ -64,6 +68,7 @@ export default function Settings() {
     if (!user) return;
     loadSettings();
     loadApiSettings();
+    loadAutoCoolingSettings();
     
     // Subscribe to sync_settings changes for real-time updates
     const channel = supabase
@@ -134,6 +139,27 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadAutoCoolingSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('auto_cooling_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setAutoCoolingEnabled(data.enabled);
+        setAutoCoolingInterval(data.check_interval_minutes.toString());
+        setTempReduction(data.temp_reduction_degrees.toString());
+        setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
+      }
+    } catch (error) {
+      console.error('Error loading auto cooling settings:', error);
     }
   };
 
@@ -361,6 +387,102 @@ export default function Settings() {
       });
     } finally {
       setRaptSyncing(false);
+    }
+  };
+
+  const handleAutoCoolingEnabledChange = async (checked: boolean) => {
+    setAutoCoolingEnabled(checked);
+    try {
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ enabled: checked })
+        .limit(1);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: checked ? "Automatisk kylreglering aktiverad" : "Automatisk kylreglering inaktiverad",
+      });
+    } catch (error) {
+      console.error('Error updating auto cooling enabled:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAutoCoolingIntervalChange = async (value: string) => {
+    setAutoCoolingInterval(value);
+    try {
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ check_interval_minutes: parseInt(value) })
+        .limit(1);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: "Kontrollintervall har uppdaterats",
+      });
+    } catch (error) {
+      console.error('Error updating check interval:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTempReductionChange = async (value: string) => {
+    setTempReduction(value);
+    try {
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ temp_reduction_degrees: parseFloat(value) })
+        .limit(1);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: "Temperatursänkning har uppdaterats",
+      });
+    } catch (error) {
+      console.error('Error updating temp reduction:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMaxDiffChange = async (value: string) => {
+    setMaxDiffFromLowest(value);
+    try {
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ max_diff_from_lowest: parseFloat(value) })
+        .limit(1);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: "Max differens har uppdaterats",
+      });
+    } catch (error) {
+      console.error('Error updating max diff:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
     }
   };
 
@@ -788,6 +910,96 @@ export default function Settings() {
                   <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
                   {raptSyncing ? 'Synkroniserar...' : 'Kör fullsynkning nu'}
                 </Button>
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">Automatisk Kylreglering</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="auto-cooling-enabled"
+                    checked={autoCoolingEnabled}
+                    onCheckedChange={handleAutoCoolingEnabledChange}
+                  />
+                  <label
+                    htmlFor="auto-cooling-enabled"
+                    className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Aktivera automatisk temperaturjustering
+                  </label>
+                </div>
+
+                {autoCoolingEnabled && (
+                  <div className="space-y-4 pl-6 border-l-2 border-border">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Kontrollintervall</label>
+                      <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
+                        <SelectTrigger className="w-full bg-card">
+                          <SelectValue placeholder="Välj intervall" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="30">30 minuter</SelectItem>
+                          <SelectItem value="60">1 timme</SelectItem>
+                          <SelectItem value="90">1.5 timmar</SelectItem>
+                          <SelectItem value="120">2 timmar</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Hur länge temperaturen ska vara stilla innan justering
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Temperatursänkning (°C)</label>
+                      <Select value={tempReduction} onValueChange={handleTempReductionChange}>
+                        <SelectTrigger className="w-full bg-card">
+                          <SelectValue placeholder="Välj sänkning" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="1">1°C</SelectItem>
+                          <SelectItem value="1.5">1.5°C</SelectItem>
+                          <SelectItem value="2">2°C</SelectItem>
+                          <SelectItem value="2.5">2.5°C</SelectItem>
+                          <SelectItem value="3">3°C</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Hur mycket måltemperaturen ska sänkas per justering
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Max differens mot lägsta (°C)</label>
+                      <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
+                        <SelectTrigger className="w-full bg-card">
+                          <SelectValue placeholder="Välj max differens" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="5">5°C</SelectItem>
+                          <SelectItem value="7.5">7.5°C</SelectItem>
+                          <SelectItem value="10">10°C</SelectItem>
+                          <SelectItem value="12.5">12.5°C</SelectItem>
+                          <SelectItem value="15">15°C</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Maximalt antal grader lägre än lägsta inställda temperaturen
+                      </p>
+                    </div>
+
+                    <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
+                      <p className="font-medium text-foreground">Hur det fungerar:</p>
+                      <p>• Kontrollerar controllers som försöker kyla</p>
+                      <p>• Om temperaturen inte sjunkit på {autoCoolingInterval} min</p>
+                      <p>• Sänks måltemperaturen med {tempReduction}°C</p>
+                      <p>• Max {maxDiffFromLowest}°C lägre än lägsta synliga controller</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
