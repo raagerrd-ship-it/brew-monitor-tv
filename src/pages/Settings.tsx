@@ -1145,7 +1145,7 @@ export default function Settings() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lägsta temp:</span>
+                          <span className="text-muted-foreground">Controller temp:</span>
                           <p className="font-medium">
                             {(() => {
                               const followedControllers = availableControllers.filter(c => 
