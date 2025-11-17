@@ -1168,18 +1168,6 @@ export default function Settings() {
                             })()}
                           </p>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">Kontrollintervall:</span>
-                          <p className="font-medium">{autoCoolingInterval} min</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Sänkning:</span>
-                          <p className="font-medium">{tempReduction}°C</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Max diff:</span>
-                          <p className="font-medium">{maxDiffFromLowest}°C</p>
-                        </div>
                       </div>
                     </div>
 
