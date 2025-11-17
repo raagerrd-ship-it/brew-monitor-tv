@@ -50,7 +50,8 @@ export default function Settings() {
     name: string, 
     current_temp: number | null,
     pill_temp: number | null,
-    target_temp: number | null
+    target_temp: number | null,
+    cooling_enabled: boolean | null
   }>>([]);
   const [adjustmentLogs, setAdjustmentLogs] = useState<Array<{
     id: string;
@@ -154,6 +155,18 @@ export default function Settings() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rapt_temp_controllers'
+        },
+        (payload) => {
+          console.log('Temperature controller updated:', payload);
+          loadAvailableControllers();
+        }
+      )
       .subscribe();
     
     return () => {
@@ -249,7 +262,7 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled')
           .in('controller_id', controllerIds);
 
         if (controllers) {
@@ -258,7 +271,8 @@ export default function Settings() {
             name: c.name,
             current_temp: c.current_temp,
             pill_temp: c.pill_temp,
-            target_temp: c.target_temp
+            target_temp: c.target_temp,
+            cooling_enabled: c.cooling_enabled
           })));
         }
       }
@@ -1263,6 +1277,11 @@ export default function Settings() {
                           lastAdjustmentTime={lastAutoCoolingCheck}
                           checkIntervalMinutes={parseInt(autoCoolingInterval)}
                           enabled={autoCoolingEnabled}
+                          coolingActive={(() => {
+                            if (!coolerControllerId) return false;
+                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                            return cooler?.cooling_enabled ?? false;
+                          })()}
                         />
                       </div>
                     </div>
