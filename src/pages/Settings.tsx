@@ -1118,7 +1118,7 @@ export default function Settings() {
                                   const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
                                     ? Number(cooler.target_temp).toFixed(1)
                                     : 'N/A';
-                                  return `${current}°C / ${target}°C`;
+                                  return `${current}°C (aktuell) / ${target}°C (mål)`;
                                 })()
                               : 'N/A'}
                           </p>
@@ -1163,8 +1163,8 @@ export default function Settings() {
                               const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
                               
                               return currentTemp !== null && currentTemp !== undefined
-                                ? `${Number(currentTemp).toFixed(1)}°C / ${lowestTargetTemp.toFixed(1)}°C`
-                                : `N/A / ${lowestTargetTemp.toFixed(1)}°C`;
+                                ? `${Number(currentTemp).toFixed(1)}°C (aktuell) / ${lowestTargetTemp.toFixed(1)}°C (mål)`
+                                : `N/A / ${lowestTargetTemp.toFixed(1)}°C (mål)`;
                             })()}
                           </p>
                         </div>
