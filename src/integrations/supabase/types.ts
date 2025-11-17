@@ -72,6 +72,7 @@ export type Database = {
           created_at: string
           enabled: boolean
           id: string
+          last_check_at: string | null
           max_diff_from_lowest: number
           temp_reduction_degrees: number
           updated_at: string
@@ -82,6 +83,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_check_at?: string | null
           max_diff_from_lowest?: number
           temp_reduction_degrees?: number
           updated_at?: string
@@ -92,6 +94,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_check_at?: string | null
           max_diff_from_lowest?: number
           temp_reduction_degrees?: number
           updated_at?: string

@@ -35,6 +35,18 @@ serve(async (req) => {
 
     console.log('Settings:', settings);
 
+    // Update last_check_at timestamp
+    const { error: updateError } = await supabase
+      .from('auto_cooling_settings')
+      .update({ last_check_at: new Date().toISOString() })
+      .eq('id', settings.id);
+
+    if (updateError) {
+      console.error('Failed to update last_check_at:', updateError);
+    } else {
+      console.log('Updated last_check_at timestamp');
+    }
+
     // Check if cooler controller is set
     if (!settings.cooler_controller_id) {
       console.log('No cooler controller configured');
