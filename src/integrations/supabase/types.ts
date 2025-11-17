@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      auto_cooling_adjustments: {
+        Row: {
+          cooler_controller_id: string
+          cooler_controller_name: string
+          created_at: string
+          id: string
+          lowest_followed_temp: number
+          new_target_temp: number
+          old_target_temp: number
+          reason: string
+        }
+        Insert: {
+          cooler_controller_id: string
+          cooler_controller_name: string
+          created_at?: string
+          id?: string
+          lowest_followed_temp: number
+          new_target_temp: number
+          old_target_temp: number
+          reason: string
+        }
+        Update: {
+          cooler_controller_id?: string
+          cooler_controller_name?: string
+          created_at?: string
+          id?: string
+          lowest_followed_temp?: number
+          new_target_temp?: number
+          old_target_temp?: number
+          reason?: string
+        }
+        Relationships: []
+      }
       auto_cooling_followed_controllers: {
         Row: {
           controller_id: string

@@ -50,6 +50,15 @@ export default function Settings() {
     pill_temp: number | null,
     target_temp: number | null
   }>>([]);
+  const [adjustmentLogs, setAdjustmentLogs] = useState<Array<{
+    id: string;
+    created_at: string;
+    cooler_controller_name: string;
+    old_target_temp: number;
+    new_target_temp: number;
+    lowest_followed_temp: number;
+    reason: string;
+  }>>([]);
 
   // Check authentication
   useEffect(() => {
@@ -80,6 +89,7 @@ export default function Settings() {
     loadApiSettings();
     loadAutoCoolingSettings();
     loadAvailableControllers();
+    loadAdjustmentLogs();
     
     // Subscribe to sync_settings changes for real-time updates
     const channel = supabase
@@ -100,6 +110,18 @@ export default function Settings() {
             setLastFullSync(newData.last_full_sync_at);
             setLastBrewfatherQuickSync(newData.last_sync_time);
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'auto_cooling_adjustments'
+        },
+        (payload) => {
+          console.log('New adjustment log:', payload);
+          loadAdjustmentLogs();
         }
       )
       .subscribe();
@@ -211,6 +233,24 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error loading available controllers:', error);
+    }
+  };
+
+  const loadAdjustmentLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (data) {
+        setAdjustmentLogs(data);
+      }
+    } catch (error) {
+      console.error('Error loading adjustment logs:', error);
     }
   };
 
@@ -1130,6 +1170,47 @@ export default function Settings() {
                         </div>
                       )}
                     </div>
+
+                    {adjustmentLogs.length > 0 && (
+                      <div className="bg-muted/50 border border-border rounded-lg p-4">
+                        <p className="text-sm font-medium mb-3">Justeringshistorik:</p>
+                        <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                          {adjustmentLogs.map(log => (
+                            <div 
+                              key={log.id} 
+                              className="bg-card border border-border rounded p-3 text-xs space-y-1"
+                            >
+                              <div className="flex justify-between items-start">
+                                <span className="font-medium text-primary">
+                                  {log.cooler_controller_name}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  {new Date(log.created_at).toLocaleString('sv-SE', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <span>{log.old_target_temp.toFixed(1)}°C</span>
+                                <span>→</span>
+                                <span className="text-foreground font-medium">
+                                  {log.new_target_temp.toFixed(1)}°C
+                                </span>
+                                <span className="text-xs">
+                                  (lägsta: {log.lowest_followed_temp.toFixed(1)}°C)
+                                </span>
+                              </div>
+                              <p className="text-muted-foreground italic">
+                                {log.reason}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <label className="text-sm font-medium mb-2 block">Välj kylare</label>
