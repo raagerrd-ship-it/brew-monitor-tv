@@ -14,9 +14,28 @@ export type Database = {
   }
   public: {
     Tables: {
+      auto_cooling_followed_controllers: {
+        Row: {
+          controller_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       auto_cooling_settings: {
         Row: {
           check_interval_minutes: number
+          cooler_controller_id: string | null
           created_at: string
           enabled: boolean
           id: string
@@ -26,6 +45,7 @@ export type Database = {
         }
         Insert: {
           check_interval_minutes?: number
+          cooler_controller_id?: string | null
           created_at?: string
           enabled?: boolean
           id?: string
@@ -35,6 +55,7 @@ export type Database = {
         }
         Update: {
           check_interval_minutes?: number
+          cooler_controller_id?: string | null
           created_at?: string
           enabled?: boolean
           id?: string

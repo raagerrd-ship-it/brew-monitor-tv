@@ -41,6 +41,9 @@ export default function Settings() {
   const [tempReduction, setTempReduction] = useState<string>("2");
   const [maxDiffFromLowest, setMaxDiffFromLowest] = useState<string>("10");
   const [autoCoolingSettingsId, setAutoCoolingSettingsId] = useState<string | null>(null);
+  const [coolerControllerId, setCoolerControllerId] = useState<string>("");
+  const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
+  const [availableControllers, setAvailableControllers] = useState<Array<{id: string, name: string}>>([]);
 
   // Check authentication
   useEffect(() => {
@@ -70,6 +73,7 @@ export default function Settings() {
     loadSettings();
     loadApiSettings();
     loadAutoCoolingSettings();
+    loadAvailableControllers();
     
     // Subscribe to sync_settings changes for real-time updates
     const channel = supabase
@@ -159,9 +163,42 @@ export default function Settings() {
         setAutoCoolingInterval(data.check_interval_minutes.toString());
         setTempReduction(data.temp_reduction_degrees.toString());
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
+        setCoolerControllerId(data.cooler_controller_id || "");
+      }
+
+      // Load followed controllers
+      const { data: followedData, error: followedError } = await supabase
+        .from('auto_cooling_followed_controllers')
+        .select('controller_id');
+
+      if (!followedError && followedData) {
+        setFollowedControllerIds(followedData.map(f => f.controller_id));
       }
     } catch (error) {
       console.error('Error loading auto cooling settings:', error);
+    }
+  };
+
+  const loadAvailableControllers = async () => {
+    try {
+      const { data: selected } = await supabase
+        .from('selected_rapt_temp_controllers')
+        .select('controller_id')
+        .eq('is_visible', true);
+
+      if (selected && selected.length > 0) {
+        const controllerIds = selected.map(s => s.controller_id);
+        const { data: controllers } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, name')
+          .in('controller_id', controllerIds);
+
+        if (controllers) {
+          setAvailableControllers(controllers.map(c => ({ id: c.controller_id, name: c.name })));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading available controllers:', error);
     }
   };
 
@@ -488,6 +525,67 @@ export default function Settings() {
       });
     } catch (error) {
       console.error('Error updating max diff:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCoolerControllerChange = async (value: string) => {
+    setCoolerControllerId(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ cooler_controller_id: value })
+        .eq('id', autoCoolingSettingsId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: "Kylare vald",
+      });
+    } catch (error) {
+      console.error('Error updating cooler controller:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFollowedControllerToggle = async (controllerId: string, checked: boolean) => {
+    try {
+      if (checked) {
+        // Add to followed controllers
+        const { error } = await supabase
+          .from('auto_cooling_followed_controllers')
+          .insert({ controller_id: controllerId });
+
+        if (error) throw error;
+        setFollowedControllerIds([...followedControllerIds, controllerId]);
+      } else {
+        // Remove from followed controllers
+        const { error } = await supabase
+          .from('auto_cooling_followed_controllers')
+          .delete()
+          .eq('controller_id', controllerId);
+
+        if (error) throw error;
+        setFollowedControllerIds(followedControllerIds.filter(id => id !== controllerId));
+      }
+
+      toast({
+        title: "Inställningar sparade",
+        description: checked ? "Controller tillagd" : "Controller borttagen",
+      });
+    } catch (error) {
+      console.error('Error updating followed controllers:', error);
       toast({
         title: "Fel",
         description: "Kunde inte spara inställningar",
@@ -946,6 +1044,55 @@ export default function Settings() {
                 {autoCoolingEnabled && (
                   <div className="space-y-4 pl-6 border-l-2 border-border">
                     <div>
+                      <label className="text-sm font-medium mb-2 block">Välj kylare</label>
+                      <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
+                        <SelectTrigger className="w-full bg-card">
+                          <SelectValue placeholder="Välj vilken controller som är kylaren" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          {availableControllers.map(controller => (
+                            <SelectItem key={controller.id} value={controller.id}>
+                              {controller.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Controller som ska justera sin temperatur
+                      </p>
+                    </div>
+
+                    {coolerControllerId && (
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Följ dessa controllers</label>
+                        <div className="space-y-2">
+                          {availableControllers
+                            .filter(c => c.id !== coolerControllerId)
+                            .map(controller => (
+                              <div key={controller.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`follow-${controller.id}`}
+                                  checked={followedControllerIds.includes(controller.id)}
+                                  onCheckedChange={(checked) => 
+                                    handleFollowedControllerToggle(controller.id, checked as boolean)
+                                  }
+                                />
+                                <label
+                                  htmlFor={`follow-${controller.id}`}
+                                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {controller.name}
+                                </label>
+                              </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Kylaren kommer att följa dessa controllers måltemperatur
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
                       <label className="text-sm font-medium mb-2 block">Kontrollintervall</label>
                       <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
                         <SelectTrigger className="w-full bg-card">
@@ -997,16 +1144,16 @@ export default function Settings() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Maximalt antal grader lägre än lägsta inställda temperaturen
+                        Max antal grader lägre än den följda controllern med lägst temperatur
                       </p>
                     </div>
 
                     <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
                       <p className="font-medium text-foreground">Hur det fungerar:</p>
-                      <p>• Kontrollerar controllers som försöker kyla</p>
-                      <p>• Om temperaturen inte sjunkit på {autoCoolingInterval} min</p>
-                      <p>• Sänks måltemperaturen med {tempReduction}°C</p>
-                      <p>• Max {maxDiffFromLowest}°C lägre än lägsta synliga controller</p>
+                      <p>• Kylaren följer de valda controllers måltemperatur</p>
+                      <p>• Om kylarens temperatur inte sjunkit på {autoCoolingInterval} min</p>
+                      <p>• Sänks kylarens måltemperatur med {tempReduction}°C</p>
+                      <p>• Max {maxDiffFromLowest}°C lägre än den följda controller med lägst temperatur</p>
                     </div>
                   </div>
                 )}
