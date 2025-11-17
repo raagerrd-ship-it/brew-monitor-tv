@@ -1107,7 +1107,20 @@ export default function Settings() {
                           </p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Kylarens temp:</span>
+                          <span className="text-muted-foreground">Kylarens aktuell temp:</span>
+                          <p className="font-medium">
+                            {coolerControllerId 
+                              ? (() => {
+                                  const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                                  return cooler?.current_temp !== null && cooler?.current_temp !== undefined
+                                    ? `${cooler.current_temp}°C`
+                                    : 'N/A';
+                                })()
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Kylarens måltemp:</span>
                           <p className="font-medium">
                             {coolerControllerId 
                               ? (() => {
