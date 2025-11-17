@@ -456,15 +456,19 @@ export function RaptControllersManagement() {
                           🔥 Värme {controller.heating_utilisation > 0 ? 'på' : 'av'}
                         </span>
                       )}
-                      {controller.cooling_enabled && (
-                        <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
-                          controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                        }`}>
-                          ❄️ Kyla {controller.heating_utilisation === 0 && controller.current_temp > controller.target_temp ? 'på' : 'av'}
-                        </span>
-                      )}
+                      {controller.cooling_enabled && (() => {
+                        const displayTemp = controller.pill_temp ?? controller.current_temp;
+                        const isActivelyCooling = controller.heating_utilisation === 0 && displayTemp > controller.target_temp;
+                        return (
+                          <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
+                            isActivelyCooling
+                              ? 'bg-blue-500 text-white shadow-md'
+                              : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                          }`}>
+                            ❄️ Kyla {isActivelyCooling ? 'på' : 'av'}
+                          </span>
+                        );
+                      })()}
                     </div>
                     {controller.last_update && (
                       <p className="text-xs text-muted-foreground">
