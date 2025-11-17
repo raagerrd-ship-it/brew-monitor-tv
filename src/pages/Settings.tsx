@@ -1269,10 +1269,7 @@ export default function Settings() {
 
                     <div className="bg-accent/20 border border-accent/40 rounded-lg p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">Nästa temperaturkontroll:</p>
-                          <p className="text-xs text-muted-foreground mt-1">Systemet kontrollerar automatiskt varje {autoCoolingInterval} minut{parseInt(autoCoolingInterval) !== 1 ? 'er' : ''}</p>
-                        </div>
+                        <p className="text-sm font-medium">Nästa temperaturkontroll:</p>
                         <AutoCoolingCountdown 
                           lastAdjustmentTime={lastAutoCoolingCheck}
                           checkIntervalMinutes={parseInt(autoCoolingInterval)}
