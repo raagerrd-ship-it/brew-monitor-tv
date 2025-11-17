@@ -35,18 +35,6 @@ serve(async (req) => {
 
     console.log('Settings:', settings);
 
-    // Update last_check_at timestamp
-    const { error: updateError } = await supabase
-      .from('auto_cooling_settings')
-      .update({ last_check_at: new Date().toISOString() })
-      .eq('id', settings.id);
-
-    if (updateError) {
-      console.error('Failed to update last_check_at:', updateError);
-    } else {
-      console.log('Updated last_check_at timestamp');
-    }
-
     // Check if cooler controller is set
     if (!settings.cooler_controller_id) {
       console.log('No cooler controller configured');
@@ -87,21 +75,6 @@ serve(async (req) => {
 
     console.log(`Cooler controller: ${coolerController.name} (${coolerController.controller_id})`);
 
-    // Get followed controllers data to find lowest target temp
-    const { data: followedControllersData } = await supabase
-      .from('rapt_temp_controllers')
-      .select('target_temp')
-      .in('controller_id', followedControllerIds);
-
-    const lowestTargetTemp = followedControllersData && followedControllersData.length > 0
-      ? Math.min(...followedControllersData.map(c => parseFloat(c.target_temp || '999')))
-      : null;
-
-    console.log('Lowest target temp among followed controllers:', lowestTargetTemp);
-
-    const adjustments = [];
-    const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
-
     // Get data for followed controllers
     const { data: followedControllersFullData, error: followedDataError } = await supabase
       .from('rapt_temp_controllers')
@@ -115,65 +88,87 @@ serve(async (req) => {
       });
     }
 
-    // Check each followed controller to see if any are struggling to cool
-    let shouldAdjustCooler = false;
-    let strugglingController = null;
+    // Find the controller with the lowest target temperature
+    const lowestTempController = followedControllersFullData.reduce((lowest, current) => {
+      const currentTarget = parseFloat(current.target_temp || '999');
+      const lowestTarget = parseFloat(lowest.target_temp || '999');
+      return currentTarget < lowestTarget ? current : lowest;
+    });
 
-    for (const followedController of followedControllersFullData) {
-      // Only check controllers that have cooling enabled
-      if (!followedController.cooling_enabled) {
-        console.log(`Controller ${followedController.name} does not have cooling enabled, skipping`);
-        continue;
-      }
+    console.log(`Controller with lowest target temp: ${lowestTempController.name} (${lowestTempController.target_temp}°C)`);
 
-      console.log(`\nChecking followed controller: ${followedController.name} (${followedController.controller_id})`);
-      console.log(`Current: ${followedController.current_temp}°C, Target: ${followedController.target_temp}°C, Cooling: ON`);
-
-      // Get temperature history for this followed controller
-      const { data: history, error: historyError } = await supabase
-        .from('temp_controller_history')
-        .select('*')
-        .eq('controller_id', followedController.controller_id)
-        .gte('recorded_at', checkTime.toISOString())
-        .order('recorded_at', { ascending: false });
-
-      if (historyError || !history || history.length === 0) {
-        console.log(`No history data for controller ${followedController.name}`);
-        continue;
-      }
-
-      console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
-
-      // Check if cooling has been enabled AND actively needed for the ENTIRE interval
-      // Cooling is actively needed when current_temp > target_temp
-      const allActivelyCooling = history.every(record => {
-        const currentTemp = parseFloat(record.current_temp);
-        const targetTemp = parseFloat(record.target_temp);
-        return record.cooling_enabled === true && currentTemp > targetTemp;
-      });
+    // Check if the lowest temp controller has cooling enabled
+    if (!lowestTempController.cooling_enabled) {
+      console.log(`Lowest temp controller ${lowestTempController.name} does not have cooling enabled - resetting last_check_at`);
       
-      if (!allActivelyCooling) {
-        console.log(`Controller ${followedController.name} has not been actively trying to cool for the entire interval, skipping`);
-        continue;
-      }
+      // Reset last_check_at since cooling is not active
+      await supabase
+        .from('auto_cooling_settings')
+        .update({ last_check_at: null })
+        .eq('id', settings.id);
 
-      console.log(`Controller ${followedController.name} has been actively trying to cool (temp > target) for the entire interval`);
-
-      // Check if temperature has been stagnant
-      const oldestRecord = history[history.length - 1];
-      const newestRecord = history[0];
-      const tempDiff = Math.abs(parseFloat(newestRecord.current_temp) - parseFloat(oldestRecord.current_temp));
-
-      console.log(`Temp diff over period: ${tempDiff.toFixed(2)}°C`);
-
-      // If temperature hasn't changed more than 0.5°C despite actively trying to cool the entire time
-      if (tempDiff < 0.5) {
-        console.log(`Controller ${followedController.name} struggling to cool - actively cooling entire period but temp only changed ${tempDiff.toFixed(2)}°C`);
-        shouldAdjustCooler = true;
-        strugglingController = followedController;
-        break; // Found one struggling controller, that's enough to adjust cooler
-      }
+      return new Response(JSON.stringify({ 
+        message: 'Lowest temp controller cooling not active',
+        resetTimer: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    console.log(`Lowest temp controller ${lowestTempController.name} has cooling enabled - checking if adjustment needed`);
+
+    // Update last_check_at timestamp only when cooling is active
+    const { error: updateError } = await supabase
+      .from('auto_cooling_settings')
+      .update({ last_check_at: new Date().toISOString() })
+      .eq('id', settings.id);
+
+    if (updateError) {
+      console.error('Failed to update last_check_at:', updateError);
+    } else {
+      console.log('Updated last_check_at timestamp - countdown started');
+    }
+
+    // Check if we have enough history data (at least 1 new reading since last check)
+    const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
+    
+    const { data: history, error: historyError } = await supabase
+      .from('temp_controller_history')
+      .select('*')
+      .eq('controller_id', lowestTempController.controller_id)
+      .gte('recorded_at', checkTime.toISOString())
+      .order('recorded_at', { ascending: false });
+
+    if (historyError || !history || history.length < 2) {
+      console.log(`Not enough history data for controller ${lowestTempController.name} (need at least 2 readings)`);
+      return new Response(JSON.stringify({ message: 'Not enough data yet' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
+
+    // Check if cooling has been enabled AND actively needed for the ENTIRE interval
+    const allActivelyCooling = history.every(record => {
+      const currentTemp = parseFloat(record.current_temp);
+      const targetTemp = parseFloat(record.target_temp);
+      return record.cooling_enabled === true && currentTemp > targetTemp;
+    });
+    
+    if (!allActivelyCooling) {
+      console.log(`Controller ${lowestTempController.name} has not been actively trying to cool for the entire interval, no adjustment needed`);
+      return new Response(JSON.stringify({ message: 'Not actively cooling entire period' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`Controller ${lowestTempController.name} has been actively trying to cool (temp > target) for the entire interval`);
+    console.log(`Time to adjust cooler temperature to help ${lowestTempController.name}`);
+
+    const adjustments = [];
+    const lowestTargetTemp = parseFloat(lowestTempController.target_temp || '999');
+    const shouldAdjustCooler = true;
+    const strugglingController = lowestTempController;
 
     if (shouldAdjustCooler && strugglingController) {
       const currentCoolerTarget = parseFloat(coolerController.target_temp || '0');
