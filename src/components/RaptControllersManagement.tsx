@@ -458,7 +458,7 @@ export function RaptControllersManagement() {
                       )}
                       {controller.cooling_enabled && (() => {
                         const displayTemp = controller.pill_temp ?? controller.current_temp;
-                        const isActivelyCooling = controller.heating_utilisation === 0 && displayTemp > controller.target_temp;
+                        const isActivelyCooling = controller.heating_utilisation === 0 && displayTemp > (controller.target_temp + 0.1);
                         return (
                           <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
                             isActivelyCooling
