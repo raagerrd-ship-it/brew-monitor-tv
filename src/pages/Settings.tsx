@@ -43,7 +43,13 @@ export default function Settings() {
   const [autoCoolingSettingsId, setAutoCoolingSettingsId] = useState<string | null>(null);
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
-  const [availableControllers, setAvailableControllers] = useState<Array<{id: string, name: string}>>([]);
+  const [availableControllers, setAvailableControllers] = useState<Array<{
+    id: string, 
+    name: string, 
+    current_temp: number | null,
+    pill_temp: number | null,
+    target_temp: number | null
+  }>>([]);
 
   // Check authentication
   useEffect(() => {
@@ -190,11 +196,17 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name')
+          .select('controller_id, name, current_temp, pill_temp, target_temp')
           .in('controller_id', controllerIds);
 
         if (controllers) {
-          setAvailableControllers(controllers.map(c => ({ id: c.controller_id, name: c.name })));
+          setAvailableControllers(controllers.map(c => ({ 
+            id: c.controller_id, 
+            name: c.name,
+            current_temp: c.current_temp,
+            pill_temp: c.pill_temp,
+            target_temp: c.target_temp
+          })));
         }
       }
     } catch (error) {
@@ -1055,8 +1067,39 @@ export default function Settings() {
                           </p>
                         </div>
                         <div>
+                          <span className="text-muted-foreground">Kylarens temp:</span>
+                          <p className="font-medium">
+                            {coolerControllerId 
+                              ? (() => {
+                                  const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                                  return cooler?.target_temp !== null && cooler?.target_temp !== undefined
+                                    ? `${cooler.target_temp}°C`
+                                    : 'N/A';
+                                })()
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
                           <span className="text-muted-foreground">Följer antal:</span>
                           <p className="font-medium">{followedControllerIds.length} controllers</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Lägsta värde:</span>
+                          <p className="font-medium">
+                            {(() => {
+                              const followedControllers = availableControllers.filter(c => 
+                                followedControllerIds.includes(c.id)
+                              );
+                              if (followedControllers.length === 0) return 'N/A';
+                              
+                              const temps = followedControllers
+                                .map(c => c.pill_temp ?? c.current_temp)
+                                .filter((t): t is number => t !== null && t !== undefined);
+                              
+                              if (temps.length === 0) return 'N/A';
+                              return `${Math.min(...temps).toFixed(1)}°C`;
+                            })()}
+                          </p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Kontrollintervall:</span>
