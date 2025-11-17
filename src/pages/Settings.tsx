@@ -138,6 +138,8 @@ export default function Settings() {
         (payload) => {
           console.log('New adjustment log:', payload);
           loadAdjustmentLogs();
+          // Update last_check_at to restart countdown immediately
+          setLastAutoCoolingCheck(new Date().toISOString());
         }
       )
       .on(
