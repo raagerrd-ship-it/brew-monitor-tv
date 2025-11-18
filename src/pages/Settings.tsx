@@ -47,6 +47,7 @@ export default function Settings() {
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
+    controller_id: string,
     name: string, 
     current_temp: number | null,
     pill_temp: number | null,
@@ -190,6 +191,7 @@ export default function Settings() {
                 c.id === updatedController.controller_id 
                   ? {
                       id: updatedController.controller_id,
+                      controller_id: updatedController.controller_id,
                       name: updatedController.name,
                       current_temp: updatedController.current_temp,
                       pill_temp: updatedController.pill_temp,
@@ -345,6 +347,7 @@ export default function Settings() {
         if (controllers) {
           setAvailableControllers(controllers.map(c => ({ 
             id: c.controller_id, 
+            controller_id: c.controller_id,
             name: c.name,
             current_temp: c.current_temp,
             pill_temp: c.pill_temp,
@@ -1358,7 +1361,7 @@ export default function Settings() {
                           })()}
                           currentTemp={(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id)
+                              followedControllerIds.includes(c.controller_id)
                             );
                             console.log('Followed controllers for countdown:', followedControllers);
                             
@@ -1379,7 +1382,7 @@ export default function Settings() {
                           })()}
                           targetTemp={(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id)
+                              followedControllerIds.includes(c.controller_id)
                             );
                             if (followedControllers.length === 0) return null;
                             
