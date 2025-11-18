@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1565,16 +1566,21 @@ export default function Settings() {
                       </p>
                     </div>
 
-                    <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
-                      <p className="font-medium text-foreground">Hur det fungerar:</p>
-                      <p>• Systemet övervakar den följda controllern med lägst måltemperatur</p>
-                      <p>• När denna controllers kyla är aktiv (temp {'>'} target) startar nedräkningen</p>
-                      <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens temperatur med {tempReduction}°C</p>
-                      <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
-                      <p>• Om ingen controller har kyla påslagen sätts kylaren till 18°C</p>
-                      <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
-                      <p>• Kylaren sätts aldrig utanför sitt min/max-intervall</p>
-                    </div>
+                    <Collapsible className="bg-muted/50 rounded-lg">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/70 transition-colors">
+                        <span className="font-medium text-foreground text-xs">Hur det fungerar</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                        <p>• Systemet övervakar den följda controllern med lägst måltemperatur</p>
+                        <p>• När denna controllers nuvarande temperatur är över mål + tolerans (kyla aktiv) startar nedräkningen</p>
+                        <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens måltemperatur med {tempReduction}°C</p>
+                        <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
+                        <p>• Om ingen controller har aktiv kyla sätts kylaren till 18°C</p>
+                        <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
+                        <p>• Kylaren sätts aldrig utanför sitt min/max-intervall från RAPT</p>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 )}
               </div>
