@@ -101,7 +101,7 @@ export const AutoCoolingCountdown = ({
     return <span className="text-green-600 text-sm font-medium">Måltemp uppnådd</span>;
   }
 
-  const tempDiff = (currentTemp - targetTemp).toFixed(1);
+  const tempDiff = (currentTemp - (targetTemp + TEMP_TOLERANCE)).toFixed(1);
   
   return (
     <div className="flex items-center gap-1">
