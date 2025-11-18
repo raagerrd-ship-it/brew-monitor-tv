@@ -1340,10 +1340,13 @@ export default function Settings() {
                             const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
                             const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
                             
+                            const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
+                            
                             return (
                               <div className="font-medium">
                                 <div>{currentTemp !== null && currentTemp !== undefined ? `${Number(currentTemp).toFixed(1)}°C` : 'N/A'} (aktuell)</div>
                                 <div>{lowestTargetTemp.toFixed(1)}°C (mål)</div>
+                                <div className="text-xs text-muted-foreground">{hysteresis.toFixed(1)}°C (tolerans)</div>
                               </div>
                             );
                           })()}
