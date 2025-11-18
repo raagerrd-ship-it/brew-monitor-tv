@@ -81,8 +81,9 @@ export const AutoCoolingCountdown = ({
     return <span className="text-muted-foreground text-xs">Kylaren är inte aktiv</span>;
   }
 
-  // Check if target temperature is reached
-  if (currentTemp !== null && targetTemp !== null && currentTemp <= targetTemp) {
+  // Check if target temperature is reached (with 0.1°C tolerance)
+  const TEMP_TOLERANCE = 0.1;
+  if (currentTemp !== null && targetTemp !== null && currentTemp <= (targetTemp + TEMP_TOLERANCE)) {
     return <span className="text-green-600 text-sm font-medium">Måltemp uppnådd</span>;
   }
 
