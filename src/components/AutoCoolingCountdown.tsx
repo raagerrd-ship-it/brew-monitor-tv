@@ -98,8 +98,9 @@ export const AutoCoolingCountdown = ({
   // Check if target temperature is reached (with 0.1°C tolerance)
   const TEMP_TOLERANCE = 0.1;
   const tempDiff = currentTemp - (targetTemp + TEMP_TOLERANCE);
+  const roundedDiff = Math.round(tempDiff * 10) / 10; // Round to 1 decimal
   
-  if (tempDiff <= 0) {
+  if (roundedDiff <= 0) {
     return <span className="text-green-600 text-sm font-medium">Måltemp uppnådd</span>;
   }
   
@@ -107,7 +108,7 @@ export const AutoCoolingCountdown = ({
     <div className="flex items-center gap-1">
       <Clock className="w-3 h-3 text-primary" />
       <span className="font-mono text-sm font-medium text-primary">
-        {timeRemaining} <span className="text-xs text-muted-foreground">(+{tempDiff.toFixed(1)}°C över mål)</span>
+        {timeRemaining} <span className="text-xs text-muted-foreground">(+{roundedDiff.toFixed(1)}°C över mål)</span>
       </span>
     </div>
   );
