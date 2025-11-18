@@ -8,6 +8,7 @@ interface AutoCoolingCountdownProps {
   coolingActive: boolean;
   currentTemp: number | null;
   targetTemp: number | null;
+  coolingHysteresis: number | null;
 }
 
 export const AutoCoolingCountdown = ({ 
@@ -16,7 +17,8 @@ export const AutoCoolingCountdown = ({
   enabled,
   coolingActive,
   currentTemp,
-  targetTemp
+  targetTemp,
+  coolingHysteresis
 }: AutoCoolingCountdownProps) => {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
@@ -95,8 +97,8 @@ export const AutoCoolingCountdown = ({
     );
   }
 
-  // Check if target temperature is reached (with 0.1°C tolerance)
-  const TEMP_TOLERANCE = 0.1;
+  // Check if target temperature is reached (with cooling hysteresis from RAPT)
+  const TEMP_TOLERANCE = coolingHysteresis ?? 0.1; // Fallback to 0.1 if not available
   const tempDiff = currentTemp - (targetTemp + TEMP_TOLERANCE);
   const roundedDiff = Math.round(tempDiff * 10) / 10; // Round to 1 decimal
   

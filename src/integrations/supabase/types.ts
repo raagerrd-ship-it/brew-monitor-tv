@@ -266,9 +266,11 @@ export type Database = {
         Row: {
           controller_id: string
           cooling_enabled: boolean | null
+          cooling_hysteresis: number | null
           created_at: string
           current_temp: number | null
           heating_enabled: boolean | null
+          heating_hysteresis: number | null
           heating_utilisation: number | null
           id: string
           last_update: string | null
@@ -283,9 +285,11 @@ export type Database = {
         Insert: {
           controller_id: string
           cooling_enabled?: boolean | null
+          cooling_hysteresis?: number | null
           created_at?: string
           current_temp?: number | null
           heating_enabled?: boolean | null
+          heating_hysteresis?: number | null
           heating_utilisation?: number | null
           id?: string
           last_update?: string | null
@@ -300,9 +304,11 @@ export type Database = {
         Update: {
           controller_id?: string
           cooling_enabled?: boolean | null
+          cooling_hysteresis?: number | null
           created_at?: string
           current_temp?: number | null
           heating_enabled?: boolean | null
+          heating_hysteresis?: number | null
           heating_utilisation?: number | null
           id?: string
           last_update?: string | null

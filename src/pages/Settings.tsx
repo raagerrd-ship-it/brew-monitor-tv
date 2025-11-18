@@ -52,7 +52,8 @@ export default function Settings() {
     current_temp: number | null,
     pill_temp: number | null,
     target_temp: number | null,
-    cooling_enabled: boolean | null
+    cooling_enabled: boolean | null,
+    cooling_hysteresis: number | null
   }>>([]);
   const [adjustmentLogs, setAdjustmentLogs] = useState<Array<{
     id: string;
@@ -196,7 +197,8 @@ export default function Settings() {
                       current_temp: updatedController.current_temp,
                       pill_temp: updatedController.pill_temp,
                       target_temp: updatedController.target_temp,
-                      cooling_enabled: updatedController.cooling_enabled
+                      cooling_enabled: updatedController.cooling_enabled,
+                      cooling_hysteresis: updatedController.cooling_hysteresis
                     }
                   : c
               )
@@ -225,7 +227,8 @@ export default function Settings() {
                   current_temp: newData.current_temp ?? updated[index].current_temp,
                   pill_temp: newData.pill_temp ?? updated[index].pill_temp,
                   target_temp: newData.target_temp ?? updated[index].target_temp,
-                  cooling_enabled: newData.cooling_enabled ?? updated[index].cooling_enabled
+                  cooling_enabled: newData.cooling_enabled ?? updated[index].cooling_enabled,
+                  cooling_hysteresis: newData.cooling_hysteresis ?? updated[index].cooling_hysteresis
                 };
                 return updated;
               }
@@ -341,7 +344,7 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, cooling_hysteresis')
           .in('controller_id', controllerIds);
 
         if (controllers) {
@@ -352,7 +355,8 @@ export default function Settings() {
             current_temp: c.current_temp,
             pill_temp: c.pill_temp,
             target_temp: c.target_temp,
-            cooling_enabled: c.cooling_enabled
+            cooling_enabled: c.cooling_enabled,
+            cooling_hysteresis: c.cooling_hysteresis
           })));
         }
       }
@@ -1394,6 +1398,21 @@ export default function Settings() {
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
                             console.log('Lowest target temp:', lowestTargetTemp);
                             return lowestTargetTemp;
+                          })()}
+                          coolingHysteresis={(() => {
+                            const followedControllers = availableControllers.filter(c => 
+                              followedControllerIds.includes(c.controller_id)
+                            );
+                            if (followedControllers.length === 0) return null;
+                            
+                            const controllersWithTarget = followedControllers
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
+                            
+                            if (controllersWithTarget.length === 0) return null;
+                            
+                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                            return lowestController?.cooling_hysteresis ?? null;
                           })()}
                         />
                       </div>
