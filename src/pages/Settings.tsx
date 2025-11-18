@@ -1461,9 +1461,7 @@ export default function Settings() {
                                       {log.followed_current_temp?.toFixed(1)}°C
                                     </span>
                                     <span>/ Mål:</span>
-                                    <span>{log.followed_target_temp?.toFixed(1)}°C</span>
-                                    <span>/ Tolerans:</span>
-                                    <span>{log.followed_hysteresis?.toFixed(1)}°C</span>
+                                    <span>{log.followed_target_temp?.toFixed(1)}°C ({log.followed_hysteresis?.toFixed(1)}°C)</span>
                                   </div>
                                 </div>
                               )}
