@@ -83,9 +83,21 @@ export const AutoCoolingCountdown = ({
     return <span className="text-muted-foreground text-xs">Kylaren är inte aktiv</span>;
   }
 
+  // Check if we have temperature data
+  if (currentTemp === null || targetTemp === null) {
+    return (
+      <div className="flex items-center gap-1">
+        <Clock className="w-3 h-3 text-muted-foreground" />
+        <span className="font-mono text-sm text-muted-foreground">
+          {timeRemaining} <span className="text-xs">(väntar på temperaturdata)</span>
+        </span>
+      </div>
+    );
+  }
+
   // Check if target temperature is reached (with 0.1°C tolerance)
   const TEMP_TOLERANCE = 0.1;
-  if (currentTemp !== null && targetTemp !== null && currentTemp <= (targetTemp + TEMP_TOLERANCE)) {
+  if (currentTemp <= (targetTemp + TEMP_TOLERANCE)) {
     return <span className="text-green-600 text-sm font-medium">Måltemp uppnådd</span>;
   }
 
@@ -93,7 +105,7 @@ export const AutoCoolingCountdown = ({
     <div className="flex items-center gap-1">
       <Clock className="w-3 h-3 text-primary" />
       <span className="font-mono text-sm font-medium text-primary">
-        {timeRemaining}
+        {timeRemaining} <span className="text-xs text-muted-foreground">(kylning pågår)</span>
       </span>
     </div>
   );
