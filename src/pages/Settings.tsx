@@ -1356,6 +1356,16 @@ export default function Settings() {
                             const cooler = availableControllers.find(c => c.id === coolerControllerId);
                             return cooler?.cooling_enabled ?? false;
                           })()}
+                          currentTemp={(() => {
+                            if (!coolerControllerId) return null;
+                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                            return cooler?.current_temp ?? null;
+                          })()}
+                          targetTemp={(() => {
+                            if (!coolerControllerId) return null;
+                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                            return cooler?.target_temp ?? null;
+                          })()}
                         />
                       </div>
                     </div>

@@ -6,13 +6,17 @@ interface AutoCoolingCountdownProps {
   checkIntervalMinutes: number;
   enabled: boolean;
   coolingActive: boolean;
+  currentTemp: number | null;
+  targetTemp: number | null;
 }
 
 export const AutoCoolingCountdown = ({ 
   lastAdjustmentTime, 
   checkIntervalMinutes,
   enabled,
-  coolingActive
+  coolingActive,
+  currentTemp,
+  targetTemp
 }: AutoCoolingCountdownProps) => {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
@@ -75,6 +79,11 @@ export const AutoCoolingCountdown = ({
 
   if (!coolingActive) {
     return <span className="text-muted-foreground text-xs">Kylaren är inte aktiv</span>;
+  }
+
+  // Check if target temperature is reached
+  if (currentTemp !== null && targetTemp !== null && currentTemp <= targetTemp) {
+    return <span className="text-green-600 text-sm font-medium">Måltemp uppnådd</span>;
   }
 
   return (
