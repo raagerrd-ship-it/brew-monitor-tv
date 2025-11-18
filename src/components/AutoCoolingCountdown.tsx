@@ -21,6 +21,8 @@ export const AutoCoolingCountdown = ({
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
   useEffect(() => {
+    console.log('AutoCoolingCountdown props:', { currentTemp, targetTemp, enabled, coolingActive });
+    
     if (!enabled) {
       setTimeRemaining("--");
       return;
