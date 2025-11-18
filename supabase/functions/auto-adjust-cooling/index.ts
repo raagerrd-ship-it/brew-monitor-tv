@@ -154,6 +154,11 @@ serve(async (req) => {
               old_target_temp: currentCoolerTarget,
               new_target_temp: newTarget,
               lowest_followed_temp: lowestTargetTemp,
+              followed_controller_id: lowestTempController.controller_id,
+              followed_controller_name: lowestTempController.name,
+              followed_current_temp: parseFloat(lowestTempController.pill_temp ?? lowestTempController.current_temp ?? '0'),
+              followed_target_temp: lowestTargetTemp,
+              followed_hysteresis: parseFloat(lowestTempController.cooling_hysteresis ?? '0.2'),
               reason: `Cooler was ${tempDiff.toFixed(1)}°C colder than lowest controller - increased to maintain 10°C diff`
             });
 
@@ -199,7 +204,7 @@ serve(async (req) => {
           } else {
             console.log(`Successfully set cooler to default ${defaultTemp}°C`);
             
-            // Log the adjustment
+            // Log the adjustment (no specific followed controller in this case)
             await supabase
               .from('auto_cooling_adjustments')
               .insert({
@@ -208,6 +213,11 @@ serve(async (req) => {
                 old_target_temp: currentCoolerTarget,
                 new_target_temp: defaultTemp,
                 lowest_followed_temp: lowestTargetTemp,
+                followed_controller_id: null,
+                followed_controller_name: null,
+                followed_current_temp: null,
+                followed_target_temp: null,
+                followed_hysteresis: null,
                 reason: `No controller has cooling capability - set to default 18°C`
               });
 
@@ -401,6 +411,11 @@ serve(async (req) => {
                 old_target_temp: currentCoolerTarget,
                 new_target_temp: finalTarget,
                 lowest_followed_temp: lowestFollowedTemp,
+                followed_controller_id: strugglingController.controller_id,
+                followed_controller_name: strugglingController.name,
+                followed_current_temp: parseFloat(strugglingController.pill_temp ?? strugglingController.current_temp ?? '0'),
+                followed_target_temp: parseFloat(strugglingController.target_temp || '0'),
+                followed_hysteresis: parseFloat(strugglingController.cooling_hysteresis ?? '0.2'),
                 reason: `${strugglingController.name} struggling to cool`
               });
 

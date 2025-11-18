@@ -63,6 +63,11 @@ export default function Settings() {
     old_target_temp: number;
     new_target_temp: number;
     lowest_followed_temp: number;
+    followed_controller_id: string | null;
+    followed_controller_name: string | null;
+    followed_current_temp: number | null;
+    followed_target_temp: number | null;
+    followed_hysteresis: number | null;
     reason: string;
   }>>([]);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
@@ -1422,14 +1427,14 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    {adjustmentLogs.length > 0 && (
+                        {adjustmentLogs.length > 0 && (
                       <div className="bg-muted/50 border border-border rounded-lg p-4">
                         <p className="text-sm font-medium mb-3">Justeringshistorik:</p>
                         <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
                           {adjustmentLogs.map(log => (
                             <div 
                               key={log.id} 
-                              className="bg-card border border-border rounded p-3 text-xs space-y-1"
+                              className="bg-card border border-border rounded p-3 text-xs space-y-2"
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-medium text-primary">
@@ -1444,8 +1449,27 @@ export default function Settings() {
                                   })}
                                 </span>
                               </div>
+                              
+                              {log.followed_controller_name && (
+                                <div className="bg-muted/30 rounded p-2 space-y-1">
+                                  <p className="font-medium text-foreground">
+                                    Controller: {log.followed_controller_name}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <span>Temp:</span>
+                                    <span className="text-destructive font-medium">
+                                      {log.followed_current_temp?.toFixed(1)}°C
+                                    </span>
+                                    <span>/ Mål:</span>
+                                    <span>{log.followed_target_temp?.toFixed(1)}°C</span>
+                                    <span>/ Tolerans:</span>
+                                    <span>{log.followed_hysteresis?.toFixed(1)}°C</span>
+                                  </div>
+                                </div>
+                              )}
+                              
                               <div className="flex items-center gap-2 text-muted-foreground">
-                                <span>Måltemp:</span>
+                                <span>Kylarens måltemp:</span>
                                 <span>{log.old_target_temp.toFixed(1)}°C</span>
                                 <span>→</span>
                                 <span className="text-foreground font-medium">
