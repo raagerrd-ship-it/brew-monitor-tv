@@ -1358,31 +1358,38 @@ export default function Settings() {
                           })()}
                           currentTemp={(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                              followedControllerIds.includes(c.id)
                             );
+                            console.log('Followed controllers for countdown:', followedControllers);
+                            
                             if (followedControllers.length === 0) return null;
                             
                             const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
+                            
+                            console.log('Controllers with target and cooling enabled:', controllersWithTarget);
                             
                             if (controllersWithTarget.length === 0) return null;
                             
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
                             const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            return lowestController?.pill_temp ?? lowestController?.current_temp ?? null;
+                            const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp ?? null;
+                            console.log('Lowest controller current temp:', currentTemp);
+                            return currentTemp;
                           })()}
                           targetTemp={(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                              followedControllerIds.includes(c.id)
                             );
                             if (followedControllers.length === 0) return null;
                             
                             const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
                             
                             if (controllersWithTarget.length === 0) return null;
                             
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                            console.log('Lowest target temp:', lowestTargetTemp);
                             return lowestTargetTemp;
                           })()}
                         />
