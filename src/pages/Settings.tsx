@@ -182,6 +182,34 @@ export default function Settings() {
           table: 'rapt_temp_controllers'
         },
         (payload) => {
+          console.log('RAPT controller updated:', payload);
+          const updatedController = payload.new as any;
+          if (updatedController) {
+            setAvailableControllers(prev => 
+              prev.map(c => 
+                c.id === updatedController.controller_id 
+                  ? {
+                      id: updatedController.controller_id,
+                      name: updatedController.name,
+                      current_temp: updatedController.current_temp,
+                      pill_temp: updatedController.pill_temp,
+                      target_temp: updatedController.target_temp,
+                      cooling_enabled: updatedController.cooling_enabled
+                    }
+                  : c
+              )
+            );
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rapt_temp_controllers'
+        },
+        (payload) => {
           console.log('Temperature controller updated:', payload);
           const newData = payload.new as any;
           if (newData && newData.controller_id) {
