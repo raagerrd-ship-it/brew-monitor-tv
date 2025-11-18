@@ -145,6 +145,8 @@ serve(async (req) => {
         cooling_enabled: controller.coolingEnabled || false,
         heating_enabled: controller.heatingEnabled || false,
         heating_utilisation: controller.heatingUtilisation || 0,
+        cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
+        heating_hysteresis: controller.heatingHysteresis ?? 0.2,
         last_update: controller.lastActivityTime ? new Date(controller.lastActivityTime).toISOString() : new Date().toISOString(),
       };
     });
