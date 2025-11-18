@@ -250,9 +250,10 @@ serve(async (req) => {
       });
     }
 
-    // Check if lowest controller is actively cooling (pill_temp > target_temp + 0.1)
+    // Check if lowest controller is actively cooling (pill_temp > target_temp + hysteresis)
     const lowestCurrentTemp = parseFloat(lowestTempController.pill_temp ?? lowestTempController.current_temp ?? '0');
-    const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + 0.1);
+    const lowestHysteresis = parseFloat(lowestTempController.cooling_hysteresis ?? '0.2');
+    const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + lowestHysteresis);
 
     if (!isActivelyCooling) {
       console.log(`Lowest temp controller ${lowestTempController.name} is not actively cooling (current: ${lowestCurrentTemp}°C <= target: ${lowestTargetTemp}°C) - resetting timer`);
@@ -314,11 +315,11 @@ serve(async (req) => {
 
     console.log(`Found ${history.length} history records in the last ${settings.check_interval_minutes} minutes`);
 
-    // Check if all history records show active cooling (temp > target + 0.1)
+    // Check if all history records show active cooling (temp > target + hysteresis)
     const allActivelyCooling = history.every(record => {
       const currentTemp = parseFloat(record.current_temp);
       const targetTemp = parseFloat(record.target_temp);
-      return record.cooling_enabled === true && currentTemp > (targetTemp + 0.1);
+      return record.cooling_enabled === true && currentTemp > (targetTemp + lowestHysteresis);
     });
     
     if (!allActivelyCooling) {
