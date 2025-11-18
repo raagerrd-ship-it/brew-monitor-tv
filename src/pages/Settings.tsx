@@ -1357,14 +1357,33 @@ export default function Settings() {
                             return cooler?.cooling_enabled ?? false;
                           })()}
                           currentTemp={(() => {
-                            if (!coolerControllerId) return null;
-                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                            return cooler?.current_temp ?? null;
+                            const followedControllers = availableControllers.filter(c => 
+                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                            );
+                            if (followedControllers.length === 0) return null;
+                            
+                            const controllersWithTarget = followedControllers
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                            
+                            if (controllersWithTarget.length === 0) return null;
+                            
+                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                            return lowestController?.pill_temp ?? lowestController?.current_temp ?? null;
                           })()}
                           targetTemp={(() => {
-                            if (!coolerControllerId) return null;
-                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                            return cooler?.target_temp ?? null;
+                            const followedControllers = availableControllers.filter(c => 
+                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                            );
+                            if (followedControllers.length === 0) return null;
+                            
+                            const controllersWithTarget = followedControllers
+                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                            
+                            if (controllersWithTarget.length === 0) return null;
+                            
+                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                            return lowestTargetTemp;
                           })()}
                         />
                       </div>
