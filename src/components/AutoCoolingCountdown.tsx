@@ -85,13 +85,13 @@ export const AutoCoolingCountdown = ({
     return <span className="text-muted-foreground text-xs">Kylaren är inte aktiv</span>;
   }
 
-  // Check if we have temperature data
+  // Check if we have temperature data - if not, it means no followed controller has cooling enabled
   if (currentTemp === null || targetTemp === null) {
     return (
       <div className="flex items-center gap-1">
         <Clock className="w-3 h-3 text-muted-foreground" />
-        <span className="font-mono text-sm text-muted-foreground">
-          {timeRemaining} <span className="text-xs">(väntar på temperaturdata)</span>
+        <span className="text-sm text-muted-foreground">
+          Ingen följd controller är aktiv med kyla
         </span>
       </div>
     );
