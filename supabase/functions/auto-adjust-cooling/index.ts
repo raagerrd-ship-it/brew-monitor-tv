@@ -97,7 +97,83 @@ serve(async (req) => {
 
     console.log(`Controller with lowest target temp: ${lowestTempController.name} (${lowestTempController.target_temp}°C)`);
 
-    // Check if the lowest temp controller has cooling enabled
+    const currentCoolerTarget = parseFloat(coolerController.target_temp || '18');
+    const lowestTargetTemp = parseFloat(lowestTempController.target_temp || '999');
+
+    // Check if any followed controller has cooling enabled
+    const hasAnyCoolingCapability = followedControllersFullData.some(c => c.cooling_enabled === true);
+
+    if (!hasAnyCoolingCapability) {
+      console.log(`No followed controller has cooling enabled - setting cooler to default 18°C`);
+      
+      const defaultTemp = 18;
+      
+      // Only update if current target is different from default
+      if (Math.abs(currentCoolerTarget - defaultTemp) > 0.1) {
+        const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
+        const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
+        
+        if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
+          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+            body: {
+              controllerId: coolerController.controller_id,
+              action: 'setTargetTemperature',
+              value: defaultTemp
+            }
+          });
+
+          if (updateResponse.error) {
+            console.error(`Failed to set cooler to default:`, updateResponse.error);
+          } else {
+            console.log(`Successfully set cooler to default ${defaultTemp}°C`);
+            
+            // Log the adjustment (no specific followed controller in this case)
+            await supabase
+              .from('auto_cooling_adjustments')
+              .insert({
+                cooler_controller_id: coolerController.controller_id,
+                cooler_controller_name: coolerController.name,
+                old_target_temp: currentCoolerTarget,
+                new_target_temp: defaultTemp,
+                lowest_followed_temp: 0,
+                followed_controller_id: null,
+                followed_controller_name: null,
+                followed_current_temp: null,
+                followed_target_temp: null,
+                followed_hysteresis: null,
+                reason: `Ingen följd controller är aktiv med kyla`
+              });
+
+            return new Response(JSON.stringify({ 
+              success: true, 
+              adjustments: [{
+                cooler: coolerController.name,
+                oldTarget: currentCoolerTarget,
+                newTarget: defaultTemp,
+                reason: 'Ingen cooling aktiv - standardtemp 18°C'
+              }]
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      }
+      
+      // Reset timer since no cooling capability
+      await supabase
+        .from('auto_cooling_settings')
+        .update({ last_check_at: null })
+        .eq('id', settings.id);
+
+      return new Response(JSON.stringify({ 
+        message: 'No cooling capability, cooler at default',
+        resetTimer: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // If lowest temp controller doesn't have cooling enabled, skip further checks
     if (!lowestTempController.cooling_enabled) {
       console.log(`Lowest temp controller ${lowestTempController.name} does not have cooling enabled - resetting last_check_at`);
       
@@ -115,10 +191,7 @@ serve(async (req) => {
       });
     }
 
-    const currentCoolerTarget = parseFloat(coolerController.target_temp || '18');
-    const lowestTargetTemp = parseFloat(lowestTempController.target_temp || '999');
     const tempDiff = currentCoolerTarget - lowestTargetTemp;
-
     console.log(`Cooler target: ${currentCoolerTarget}°C, Lowest controller target: ${lowestTargetTemp}°C, Diff: ${tempDiff.toFixed(1)}°C`);
 
     // Check if cooler is more than 10 degrees colder than lowest controller
@@ -175,79 +248,6 @@ serve(async (req) => {
           });
         }
       }
-    }
-
-    // Check if any followed controller has cooling capability
-    const hasAnyCoolingCapability = followedControllersFullData.some(c => c.cooling_enabled === true);
-
-    if (!hasAnyCoolingCapability) {
-      console.log(`No followed controller has cooling enabled - setting cooler to default 18°C`);
-      
-      const defaultTemp = 18;
-      
-      // Only update if current target is different from default
-      if (Math.abs(currentCoolerTarget - defaultTemp) > 0.1) {
-        const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
-        const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
-        
-        if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
-          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-            body: {
-              controllerId: coolerController.controller_id,
-              action: 'setTargetTemperature',
-              value: defaultTemp
-            }
-          });
-
-          if (updateResponse.error) {
-            console.error(`Failed to set cooler to default:`, updateResponse.error);
-          } else {
-            console.log(`Successfully set cooler to default ${defaultTemp}°C`);
-            
-            // Log the adjustment (no specific followed controller in this case)
-            await supabase
-              .from('auto_cooling_adjustments')
-              .insert({
-                cooler_controller_id: coolerController.controller_id,
-                cooler_controller_name: coolerController.name,
-                old_target_temp: currentCoolerTarget,
-                new_target_temp: defaultTemp,
-                lowest_followed_temp: lowestTargetTemp,
-                followed_controller_id: null,
-                followed_controller_name: null,
-                followed_current_temp: null,
-                followed_target_temp: null,
-                followed_hysteresis: null,
-                reason: `No controller has cooling capability - set to default 18°C`
-              });
-
-            return new Response(JSON.stringify({ 
-              success: true, 
-              adjustments: [{
-                cooler: coolerController.name,
-                oldTarget: currentCoolerTarget,
-                newTarget: defaultTemp,
-                reason: 'Set to default - no cooling capability'
-              }]
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-      }
-      
-      // Reset timer since no cooling capability
-      await supabase
-        .from('auto_cooling_settings')
-        .update({ last_check_at: null })
-        .eq('id', settings.id);
-
-      return new Response(JSON.stringify({ 
-        message: 'No cooling capability, cooler at default',
-        resetTimer: true 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     // Check if lowest controller is actively cooling (pill_temp > target_temp + hysteresis)
