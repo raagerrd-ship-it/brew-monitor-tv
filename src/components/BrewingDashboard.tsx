@@ -810,43 +810,7 @@ export function BrewingDashboard() {
     );
   }
 
-  if (brews.length === 0) {
-    return (
-      <div className="h-screen w-full bg-background flex flex-col overflow-hidden p-4">
-        <div className="mb-4 relative">
-          <p className="absolute right-0 top-0 text-xs text-muted-foreground">
-            {currentTime.toLocaleDateString("sv-SE", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}{" "}
-            {currentTime.toLocaleTimeString("sv-SE", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-          
-          <div className="text-center py-2">
-            <h1 className="text-4xl font-bold bg-gradient-beer bg-clip-text text-transparent leading-tight pb-1">
-              Bryggövervakare
-            </h1>
-          </div>
-        </div>
-
-        <Card className="max-w-2xl mx-auto p-8 text-center">
-          <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
-          <p className="text-muted-foreground mb-6">
-            Gå till inställningar för att välja vilka öl du vill visa på dashboarden
-          </p>
-          <Button onClick={() => navigate('/settings')}>
-            <Settings className="mr-2 h-4 w-4" />
-            Öppna Inställningar
-          </Button>
-        </Card>
-      </div>
-    );
-  }
+  // No early return - show header even when no brews are selected
 
   // Dynamic grid layout based on number of brews
   const getGridLayout = () => {
@@ -1132,7 +1096,21 @@ export function BrewingDashboard() {
 
       {/* Main Display Area - All Brews */}
       <div className="flex-1 overflow-hidden relative flex flex-col">
-        {isMobile ? (
+        {brews.length === 0 ? (
+          // No brews selected - show message
+          <div className="flex items-center justify-center h-full p-4">
+            <Card className="max-w-2xl w-full p-8 text-center">
+              <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
+              <p className="text-muted-foreground mb-6">
+                Gå till inställningar för att välja vilka öl du vill visa på dashboarden
+              </p>
+              <Button onClick={() => navigate('/settings')}>
+                <Settings className="mr-2 h-4 w-4" />
+                Öppna Inställningar
+              </Button>
+            </Card>
+          </div>
+        ) : isMobile ? (
           // Mobile: Swipeable carousel
           <>
             {/* Pagination dots and swipe indicators */}
