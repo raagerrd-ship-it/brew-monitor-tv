@@ -998,11 +998,11 @@ export function BrewingDashboard() {
         <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
           <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-3 justify-end'}`}>
             {/* Temp Controllers with their linked Pills */}
-            {controllers.length > 0 && controllers.map((controller) => {
+            {raptControllers.length > 0 && raptControllers.map((controller) => {
               const controllerColor = getControllerColor(controller.name);
               
               // Find the pill that belongs to this controller
-              const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
+              const linkedPill = raptPills.find(p => p.pill_id === controller.linked_pill_id);
               const isPillStale = linkedPill?.last_update ? 
                 ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
                 : true;
