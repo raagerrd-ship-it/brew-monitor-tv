@@ -974,7 +974,7 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`flex flex-col items-start justify-start py-0.5 gap-2 ${isMobile ? 'w-[5.5rem]' : 'w-[8rem]'}`}
+                className={`flex flex-col items-start justify-start py-0.5 gap-2 ${isMobile ? 'w-[6.5rem]' : 'w-[9rem]'}`}
               >
                 {/* Controller */}
                 <div 
