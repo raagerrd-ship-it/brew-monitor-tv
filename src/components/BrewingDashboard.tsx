@@ -1064,21 +1064,23 @@ export function BrewingDashboard() {
             })}
           </div>
           
-          <div className="flex flex-col items-center min-w-[14%] gap-0">
-            <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(42cqh * 0.8), calc(100cqw * 0.026))' }}>
-              {currentTime.toLocaleTimeString("sv-SE", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}:{currentTime.getSeconds().toString().padStart(2, '0')}
-            </p>
-            <p className="text-muted-foreground/70 uppercase tracking-wider font-semibold -mt-1" style={{ fontSize: 'min(calc(24cqh * 0.9), calc(100cqw * 0.017))' }}>
-              {currentTime.toLocaleDateString("sv-SE", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              })}
-            </p>
-          </div>
+          {!isMobile && (
+            <div className="flex flex-col items-center min-w-[14%] gap-0">
+              <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(calc(42cqh * 0.8), calc(100cqw * 0.026))' }}>
+                {currentTime.toLocaleTimeString("sv-SE", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}:{currentTime.getSeconds().toString().padStart(2, '0')}
+              </p>
+              <p className="text-muted-foreground/70 uppercase tracking-wider font-semibold -mt-1" style={{ fontSize: 'min(calc(24cqh * 0.9), calc(100cqw * 0.017))' }}>
+                {currentTime.toLocaleDateString("sv-SE", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}
+              </p>
+            </div>
+          )}
           
           <div className="relative flex items-center justify-center" style={{ width: 'min(calc(80cqh * 0.85), calc(100cqw * 0.038))', height: 'min(calc(80cqh * 0.85), calc(100cqw * 0.038))' }}>
             <Button
