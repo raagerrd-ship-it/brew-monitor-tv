@@ -986,8 +986,8 @@ export function BrewingDashboard() {
                   title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
                 >
                   <div className="flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
-                    width: isMobile ? '1.75rem' : '2rem',
-                    height: isMobile ? '1.75rem' : '2rem'
+                    width: isMobile ? '1.25rem' : '2rem',
+                    height: isMobile ? '1.25rem' : '2rem'
                   }}>
                     <AirVent 
                       style={{
@@ -999,9 +999,9 @@ export function BrewingDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span 
-                      className="font-bold tabular-nums block text-left whitespace-nowrap"
+                      className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
                       style={{
-                        fontSize: isMobile ? 'min(calc(50cqh * 0.42), calc(100cqw * 0.024))' : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
+                        fontSize: isMobile ? undefined : 'min(calc(50cqh * 0.48), calc(100cqw * 0.028))',
                         color: linkedPill?.color || 'hsl(var(--foreground))',
                       }}
                     >
@@ -1022,8 +1022,8 @@ export function BrewingDashboard() {
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
                     <div className="relative flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
-                      width: isMobile ? '1.5rem' : '1.75rem',
-                      height: isMobile ? '1.5rem' : '1.75rem'
+                      width: isMobile ? '1rem' : '1.75rem',
+                      height: isMobile ? '1rem' : '1.75rem'
                     }}>
                       <Pill
                         style={{
@@ -1046,9 +1046,9 @@ export function BrewingDashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <span 
-                        className="font-bold tabular-nums block text-left whitespace-nowrap" 
+                        className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-xs' : ''}`}
                         style={{ 
-                          fontSize: isMobile ? 'min(calc(50cqh * 0.38), calc(100cqw * 0.022))' : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
+                          fontSize: isMobile ? undefined : 'min(calc(50cqh * 0.42), calc(100cqw * 0.026))',
                           color: linkedPill.color
                         }}
                       >
