@@ -1207,10 +1207,28 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 ${
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 relative ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
+              {/* Overlay for completed/conditioning brews */}
+              {(brew.status === "Konditionering" || brew.status === "Klar") && (
+                <div 
+                  className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+                  style={{ backgroundColor: "hsl(var(--background) / 0.6)" }}
+                >
+                  <div 
+                    className="px-6 py-3 rounded-xl font-bold text-center"
+                    style={{
+                      backgroundColor: brew.status === "Klar" ? "hsl(var(--ferment-green) / 0.9)" : "hsl(var(--primary) / 0.9)",
+                      color: "hsl(var(--background))",
+                      fontSize: 'min(3vh, 2.5vw)'
+                    }}
+                  >
+                    {brew.status === "Klar" ? "✓ Klar" : "⏳ Konditionering"}
+                  </div>
+                </div>
+              )}
               {/* Header - 10% */}
               <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
@@ -1276,21 +1294,7 @@ export function BrewingDashboard() {
               </div>
 
               {/* Stats Grid - 32% */}
-              <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0 relative">
-                {/* Status overlay for completed/conditioning brews */}
-                {(brew.status === "Konditionering" || brew.status === "Klar") && (
-                  <div className="absolute top-0 left-2 right-2 z-20 flex justify-center">
-                    <div 
-                      className="px-3 py-0.5 rounded-b-md text-xs font-medium"
-                      style={{
-                        backgroundColor: brew.status === "Klar" ? "hsl(var(--ferment-green) / 0.9)" : "hsl(var(--primary) / 0.9)",
-                        color: "hsl(var(--background))"
-                      }}
-                    >
-                      {brew.status === "Klar" ? "✓ Klar - slutvärden" : "⏳ Konditionering - värdena ändras inte"}
-                    </div>
-                  </div>
-                )}
+              <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-4 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
