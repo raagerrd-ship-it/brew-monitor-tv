@@ -1001,7 +1001,7 @@ export function BrewingDashboard() {
                     <span 
                       className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
                       style={{
-                        fontSize: isMobile ? undefined : 'min(4vh, 2.8vw)',
+                        fontSize: isMobile ? undefined : 'min(2.5vh, 1.8vw)',
                         color: linkedPill?.color || 'hsl(var(--foreground))',
                       }}
                     >
@@ -1048,7 +1048,7 @@ export function BrewingDashboard() {
                       <span 
                         className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-xs' : ''}`}
                         style={{ 
-                          fontSize: isMobile ? undefined : 'min(3.5vh, 2.6vw)',
+                          fontSize: isMobile ? undefined : 'min(2vh, 1.5vw)',
                           color: linkedPill.color
                         }}
                       >
