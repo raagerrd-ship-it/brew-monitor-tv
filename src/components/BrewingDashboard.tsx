@@ -1484,7 +1484,7 @@ export function BrewingDashboard() {
                           fontSize: 'min(5.5vh, 3.5vw)',
                           color: batteryColor
                         }}>
-                          {brew.battery !== null ? `${brew.battery}%` : "N/A"}
+                          {brew.battery !== null ? `${brew.battery}%` : "--"}
                         </p>
                       </div>
                     );
