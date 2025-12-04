@@ -1207,28 +1207,10 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full transition-all duration-1000 relative ${
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full relative ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
               >
-              {/* Overlay for completed/conditioning brews */}
-              {(brew.status === "Konditionering" || brew.status === "Klar") && (
-                <div 
-                  className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
-                  style={{ backgroundColor: "hsl(var(--background) / 0.6)" }}
-                >
-                  <div 
-                    className="px-6 py-3 rounded-xl font-bold text-center"
-                    style={{
-                      backgroundColor: brew.status === "Klar" ? "hsl(var(--ferment-green) / 0.9)" : "hsl(var(--primary) / 0.9)",
-                      color: "hsl(var(--background))",
-                      fontSize: 'min(3vh, 2.5vw)'
-                    }}
-                  >
-                    {brew.status === "Klar" ? "✓ Klar" : "⏳ Konditionering"}
-                  </div>
-                </div>
-              )}
               {/* Header - 10% */}
               <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
@@ -1358,9 +1340,11 @@ export function BrewingDashboard() {
                     const { pill, controller } = findDevicesForBrew(brew);
                     const tempColor = pill?.color || 'hsl(var(--primary))';
                     
+                    const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
+                    
                     return (
                       <div 
-                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden cursor-pointer hover:opacity-80`}
+                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden cursor-pointer hover:opacity-80 ${isInactive ? 'opacity-40' : ''}`}
                         style={{ 
                           containerType: 'size',
                           borderColor: `${tempColor}33`,
@@ -1464,10 +1448,11 @@ export function BrewingDashboard() {
                   {(() => {
                     const { pill } = findDevicesForBrew(brew);
                     const batteryColor = pill?.color || 'hsl(var(--primary))';
+                    const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
                     
                     return (
                       <div 
-                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 transition-all duration-1000 relative overflow-hidden`}
+                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden ${isInactive ? 'opacity-40' : ''}`}
                         style={{ 
                           containerType: 'size',
                           borderColor: `${batteryColor}33`,
