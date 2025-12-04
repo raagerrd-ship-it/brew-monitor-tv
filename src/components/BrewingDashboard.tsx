@@ -1394,7 +1394,7 @@ export function BrewingDashboard() {
                           </svg>
                         </div>
                         <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>
-                          Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
+                          Temp{!isInactive && controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
                           className="font-bold leading-none z-10 pl-2"
@@ -1403,7 +1403,7 @@ export function BrewingDashboard() {
                             fontSize: 'min(5.5vh, 3.5vw)'
                           }}
                         >
-                          {brew.currentTemp}°
+                          {isInactive ? "--" : `${brew.currentTemp}°`}
                         </p>
                       </div>
                     );
@@ -1484,7 +1484,7 @@ export function BrewingDashboard() {
                           fontSize: 'min(5.5vh, 3.5vw)',
                           color: batteryColor
                         }}>
-                          {brew.battery !== null ? `${brew.battery}%` : "--"}
+                          {isInactive ? "--" : (brew.battery !== null ? `${brew.battery}%` : "--")}
                         </p>
                       </div>
                     );
