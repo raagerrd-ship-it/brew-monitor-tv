@@ -1289,14 +1289,14 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(2.2vh, 1.8vw)' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(4.5vh, 3.5vw)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 2.5vw)' }}>Gravity</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 5vw)' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                     <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.4vh, 1.2vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.4vh, 1.2vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
-                      <p className="font-medium truncate" style={{ fontSize: 'min(1.4vh, 1.2vw)' }}>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
+                      <p className="font-medium truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>
                         {brew.fermentationRate !== null ? (
                           <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
                         ) : (
