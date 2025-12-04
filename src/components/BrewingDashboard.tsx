@@ -1242,9 +1242,9 @@ export function BrewingDashboard() {
                       className="rounded-full px-2.5 py-1 font-bold whitespace-nowrap flex-shrink-0"
                       style={{ 
                         fontSize: 'min(1.8vh, 2vw)',
-                        backgroundColor: brew.status === "Konditionering" ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
-                        color: brew.status === "Konditionering" ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                        animation: brew.status === "Konditionering" ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                        backgroundColor: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
+                        color: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                        animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
                       }}
                     >
                       {brew.status === "Jäsning" && brew.sgData.length > 0 ? (
@@ -1366,7 +1366,7 @@ export function BrewingDashboard() {
                         }}
                         title="Klicka för att koppla enheter"
                       >
-                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20 animate-pulse" style={{ width: '60%', height: '60%', right: '-15%' }}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-20 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                             {/* Thermometer outline */}
                             <path 
@@ -1416,28 +1416,26 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
-                      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                        {/* Rising bubbles - colored based on attenuation level */}
-                        {/* Bottom bubbles (80-100%) - always active if attenuation > 80 */}
-                        <circle cx="14" cy="22" r="1" stroke={brew.attenuation >= 80 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.4s' }} />
-                        <circle cx="8" cy="20" r="1.2" stroke={brew.attenuation >= 80 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className="animate-pulse" />
-                        <circle cx="18" cy="20" r="1.8" stroke={brew.attenuation >= 70 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1" fill="none" opacity={brew.attenuation >= 70 ? "0.7" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.5s' }} />
-                        
-                        {/* Middle bubbles (50-70%) */}
-                        <circle cx="8" cy="18" r="2.5" stroke={brew.attenuation >= 60 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 60 ? "0.7" : "0.2"} className="animate-pulse" />
-                        <circle cx="10" cy="16" r="1.3" stroke={brew.attenuation >= 50 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1" fill="none" opacity={brew.attenuation >= 50 ? "0.6" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.8s' }} />
-                        <circle cx="16" cy="14" r="3" stroke={brew.attenuation >= 40 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 40 ? "0.6" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.3s' }} />
-                        
-                        {/* Upper-middle bubbles (30-40%) */}
-                        <circle cx="6" cy="12" r="1.5" stroke={brew.attenuation >= 30 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1" fill="none" opacity={brew.attenuation >= 30 ? "0.5" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.2s' }} />
-                        <circle cx="16" cy="10" r="0.8" stroke={brew.attenuation >= 20 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 20 ? "0.4" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.1s' }} />
-                        
-                        {/* Top bubbles (10-20%) */}
-                        <circle cx="12" cy="8" r="2" stroke={brew.attenuation >= 10 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 10 ? "0.4" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.6s' }} />
-                        <circle cx="9" cy="6" r="1.2" stroke={brew.attenuation >= 5 ? "hsl(var(--ferment-green))" : "hsl(var(--ferment-green))"} strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 5 ? "0.3" : "0.2"} className="animate-pulse" style={{ animationDelay: '0.7s' }} />
-                      </svg>
-                    </div>
+                    {(() => {
+                      const isInactiveAttenuation = brew.status === "Konditionering" || brew.status === "Klar";
+                      return (
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                          <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+                            {/* Rising bubbles - colored based on attenuation level */}
+                            <circle cx="14" cy="22" r="1" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.4s' }} />
+                            <circle cx="8" cy="20" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
+                            <circle cx="18" cy="20" r="1.8" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 70 ? "0.7" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.5s' }} />
+                            <circle cx="8" cy="18" r="2.5" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 60 ? "0.7" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
+                            <circle cx="10" cy="16" r="1.3" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 50 ? "0.6" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.8s' }} />
+                            <circle cx="16" cy="14" r="3" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 40 ? "0.6" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.3s' }} />
+                            <circle cx="6" cy="12" r="1.5" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 30 ? "0.5" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.2s' }} />
+                            <circle cx="16" cy="10" r="0.8" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 20 ? "0.4" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.1s' }} />
+                            <circle cx="12" cy="8" r="2" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 10 ? "0.4" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.6s' }} />
+                            <circle cx="9" cy="6" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 5 ? "0.3" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.7s' }} />
+                          </svg>
+                        </div>
+                      );
+                    })()}
                     <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>Utjäsning</p>
                     <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 3.5vw)' }}>
                       {brew.attenuation}%
