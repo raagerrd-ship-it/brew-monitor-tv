@@ -1276,7 +1276,21 @@ export function BrewingDashboard() {
               </div>
 
               {/* Stats Grid - 32% */}
-              <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
+              <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0 relative">
+                {/* Status overlay for completed/conditioning brews */}
+                {(brew.status === "Konditionering" || brew.status === "Klar") && (
+                  <div className="absolute top-0 left-2 right-2 z-20 flex justify-center">
+                    <div 
+                      className="px-3 py-0.5 rounded-b-md text-xs font-medium"
+                      style={{
+                        backgroundColor: brew.status === "Klar" ? "hsl(var(--ferment-green) / 0.9)" : "hsl(var(--primary) / 0.9)",
+                        color: "hsl(var(--background))"
+                      }}
+                    >
+                      {brew.status === "Klar" ? "✓ Klar - slutvärden" : "⏳ Konditionering - värdena ändras inte"}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-4 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
