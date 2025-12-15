@@ -147,7 +147,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               wrapperStyle={{ fontSize: '11px' }}
             />
             <Line 
-              type="monotone" 
+              type="natural" 
               dataKey="currentTemp" 
               stroke={controllerColor}
               strokeWidth={2}
