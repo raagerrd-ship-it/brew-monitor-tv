@@ -396,7 +396,8 @@ export function BrewingDashboard() {
                       }) : 'Ingen data',
                     lastUpdateRaw: updatedReading.last_update,
                     sgData: newSgData,
-                    fermentationRate: newFermentationRate,
+                    // For Conditioning or Completed status, show 0 rate (pill is likely removed)
+                    fermentationRate: (updatedReading.status === 'Conditioning' || updatedReading.status === 'Completed') ? 0 : newFermentationRate,
                     coldcrashAcknowledged: updatedReading.coldcrash_acknowledged ?? brew.coldcrashAcknowledged
                   };
                 }
@@ -683,7 +684,8 @@ export function BrewingDashboard() {
           lastUpdateRaw: reading.last_update,
           battery: reading.battery,
           sgData: sgData,
-          fermentationRate: fermentationRate,
+          // For Conditioning or Completed status, show 0 rate (pill is likely removed)
+          fermentationRate: (reading.status === 'Conditioning' || reading.status === 'Completed') ? 0 : fermentationRate,
           coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
           events: eventsByBrewId[reading.id] || [],
           linked_controller_id: reading.linked_controller_id || null,
