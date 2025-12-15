@@ -381,6 +381,7 @@ export function BrewingDashboard() {
                   
                   return {
                     ...brew,
+                    status: updatedReading.status ?? brew.status,
                     currentSG: updatedReading.current_sg,
                     currentTemp: updatedReading.current_temp,
                     attenuation: updatedReading.attenuation,
@@ -397,7 +398,7 @@ export function BrewingDashboard() {
                     lastUpdateRaw: updatedReading.last_update,
                     sgData: newSgData,
                     // For Conditioning or Completed status, show 0 rate (pill is likely removed)
-                    fermentationRate: (updatedReading.status === 'Conditioning' || updatedReading.status === 'Completed') ? 0 : newFermentationRate,
+                    fermentationRate: ((updatedReading.status ?? brew.status) === 'Conditioning' || (updatedReading.status ?? brew.status) === 'Completed') ? 0 : newFermentationRate,
                     coldcrashAcknowledged: updatedReading.coldcrash_acknowledged ?? brew.coldcrashAcknowledged
                   };
                 }
