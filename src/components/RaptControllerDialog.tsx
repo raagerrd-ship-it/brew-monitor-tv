@@ -10,6 +10,7 @@ import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
+import { ControllerTempChart } from './ControllerTempChart';
 
 interface TempController {
   id: string;
@@ -274,7 +275,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[380px] bg-background border-border">
+      <DialogContent className="sm:max-w-[450px] bg-background border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AirVent className="w-5 h-5" style={{ color: controllerColor }} />
@@ -408,6 +409,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
                 ? formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: sv })
                 : 'Okänd'}
             </span>
+          </div>
+
+          {/* Temperature Chart */}
+          <div className="pt-3 border-t">
+            <ControllerTempChart 
+              controllerId={controller.controller_id} 
+              controllerColor={controllerColor}
+            />
           </div>
         </div>
 
