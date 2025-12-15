@@ -76,7 +76,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
 
       // Apply stronger smoothing for 7-day view
       if (timeRange === '7d') {
-        chartData = smoothData(chartData, 5);
+        chartData = smoothData(chartData, 11);
       }
 
       setData(chartData);
