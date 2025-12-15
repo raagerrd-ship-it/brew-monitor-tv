@@ -24,6 +24,24 @@ interface ChartDataPoint {
   targetTemp: number;
 }
 
+// Moving average smoothing function
+const smoothData = (data: ChartDataPoint[], windowSize: number): ChartDataPoint[] => {
+  if (windowSize <= 1 || data.length <= windowSize) return data;
+  
+  return data.map((point, index) => {
+    const start = Math.max(0, index - Math.floor(windowSize / 2));
+    const end = Math.min(data.length, index + Math.ceil(windowSize / 2));
+    const window = data.slice(start, end);
+    
+    const avgTemp = window.reduce((sum, p) => sum + p.currentTemp, 0) / window.length;
+    
+    return {
+      ...point,
+      currentTemp: avgTemp,
+    };
+  });
+};
+
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +67,17 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
         return;
       }
 
-      const chartData: ChartDataPoint[] = (history || []).map((record: HistoryRecord) => ({
+      let chartData: ChartDataPoint[] = (history || []).map((record: HistoryRecord) => ({
         time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
         timestamp: new Date(record.recorded_at).getTime(),
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),
       }));
+
+      // Apply stronger smoothing for 7-day view
+      if (timeRange === '7d') {
+        chartData = smoothData(chartData, 5);
+      }
 
       setData(chartData);
       setLoading(false);
