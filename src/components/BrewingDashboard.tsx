@@ -1231,7 +1231,7 @@ export function BrewingDashboard() {
                       {brew.name}
                     </h2>
                     <p className="text-muted-foreground truncate" style={{ fontSize: 'min(1.5vh, 1.8vw)' }}>
-                      {brew.style} • {brew.lastUpdate} • {brew.batchNumber}
+                      {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
