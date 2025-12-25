@@ -473,6 +473,11 @@ export function BrewingDashboard() {
           table: 'selected_rapt_pills'
         },
         () => {
+          console.log('Selected RAPT pills changed, reloading...');
+          sonnerToast('Inställningar uppdaterade', {
+            description: 'RAPT Pill-listan har ändrats från en annan enhet',
+            duration: 5000,
+          });
           loadRaptData();
         }
       )
@@ -489,6 +494,11 @@ export function BrewingDashboard() {
           table: 'selected_rapt_temp_controllers'
         },
         () => {
+          console.log('Selected RAPT controllers changed, reloading...');
+          sonnerToast('Inställningar uppdaterade', {
+            description: 'RAPT-kontrollerlistan har ändrats från en annan enhet',
+            duration: 5000,
+          });
           loadRaptData();
         }
       )
