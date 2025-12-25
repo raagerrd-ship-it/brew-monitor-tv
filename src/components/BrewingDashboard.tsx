@@ -1301,8 +1301,8 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 1.8vw)' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 3.5vw)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 1.6vw)' }}>Gravity</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 3vw)' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                     <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
