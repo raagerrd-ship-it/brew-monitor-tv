@@ -818,12 +818,16 @@ export function BrewingDashboard() {
   // Dynamic grid layout based on number of brews
   // All layouts use flex with fixed card widths matching 2-brew proportions
   const getGridLayout = () => {
+    const count = brews.length;
+    if (count === 3) return "flex justify-center gap-6"; // 3 cards in a row
     return "flex flex-wrap justify-center gap-6";
   };
   
   // Get card width class - locks cards to 2-brew proportions
   const getCardWidthClass = () => {
-    return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout for all counts
+    const count = brews.length;
+    if (count === 3) return "w-[calc(33.333%-1rem)]"; // 3 equal cards in one row
+    return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout
   };
 
   // Calculate temperature color - interpolate from blue (0°C) to red (30°C)
@@ -1297,14 +1301,14 @@ export function BrewingDashboard() {
                     }`}
                     style={{ containerType: 'size' }}
                   >
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 2.5vw)' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 5vw)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 1.8vw)' }}>Gravity</p>
+                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 3.5vw)' }}>
                       {brew.currentSG.toFixed(3)}
                     </p>
                     <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
-                      <p className="font-medium truncate" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
+                      <p className="font-medium truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>
                         {brew.fermentationRate !== null ? (
                           <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
                         ) : (
@@ -1337,8 +1341,8 @@ export function BrewingDashboard() {
                         <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>ABV</p>
-                    <p className="font-bold text-secondary leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 3.5vw)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>ABV</p>
+                    <p className="font-bold text-secondary leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 2.5vw)' }}>
                       {brew.abv.toFixed(1)}%
                     </p>
                   </div>
@@ -1401,14 +1405,14 @@ export function BrewingDashboard() {
                             />
                           </svg>
                         </div>
-                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>
+                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>
                           Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
                           className="font-bold leading-none z-10 pl-2"
                           style={{ 
                             color: tempColor,
-                            fontSize: 'min(5.5vh, 3.5vw)'
+                            fontSize: 'min(5.5vh, 2.5vw)'
                           }}
                         >
                           {brew.currentTemp}°
@@ -1444,8 +1448,8 @@ export function BrewingDashboard() {
                         </div>
                       );
                     })()}
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>Utjäsning</p>
-                    <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 3.5vw)' }}>
+                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Utjäsning</p>
+                    <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 2.5vw)' }}>
                       {brew.attenuation}%
                     </p>
                   </div>
@@ -1487,9 +1491,9 @@ export function BrewingDashboard() {
                             )}
                           </svg>
                         </div>
-                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1.3vw)' }}>Batteri</p>
+                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Batteri</p>
                         <p className="font-bold leading-none z-10 pl-2" style={{ 
-                          fontSize: 'min(5.5vh, 3.5vw)',
+                          fontSize: 'min(5.5vh, 2.5vw)',
                           color: batteryColor
                         }}>
                           {isInactive ? "--" : (brew.battery !== null ? `${brew.battery}%` : "--")}
