@@ -195,7 +195,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
-            tickCount={8}
+            ticks={sortedDayBoundaries}
             tickFormatter={(value) => {
               try {
                 const date = new Date(value);
