@@ -61,10 +61,14 @@ export default {
       backgroundImage: {
         'gradient-beer': 'var(--gradient-beer)',
         'gradient-card': 'var(--gradient-card)',
+        'gradient-header': 'var(--gradient-header)',
+        'gradient-glass': 'var(--gradient-glass)',
       },
       boxShadow: {
         'glow-amber': 'var(--glow-amber)',
         'deep': 'var(--shadow-deep)',
+        'header': 'var(--shadow-header)',
+        'glass': '0 4px 16px hsl(222 30% 5% / 0.2)',
       },
       borderRadius: {
         lg: "var(--radius)",
