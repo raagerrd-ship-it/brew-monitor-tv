@@ -818,12 +818,16 @@ export function BrewingDashboard() {
   // Dynamic grid layout based on number of brews
   // All layouts use flex with fixed card widths matching 2-brew proportions
   const getGridLayout = () => {
+    const count = brews.length;
+    if (count === 3) return "flex justify-center gap-6"; // 3 cards in a row
     return "flex flex-wrap justify-center gap-6";
   };
   
-  // Get card width class - locks cards to 2-brew proportions (each card takes ~50% of full width)
+  // Get card width class - locks cards to 2-brew proportions
   const getCardWidthClass = () => {
-    return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout for all counts
+    const count = brews.length;
+    if (count === 3) return "w-[calc(33.333%-1rem)]"; // 3 equal cards in one row
+    return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout
   };
 
   // Calculate temperature color - interpolate from blue (0°C) to red (30°C)
