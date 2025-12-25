@@ -941,9 +941,20 @@ export function BrewingDashboard() {
 
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
-      {/* Header Bar */}
-      <div className="h-[11%] flex items-center justify-between border-b border-border/50 backdrop-blur-sm bg-background/80 flex-shrink-0 overflow-visible px-6 gap-4" style={{ containerType: 'size' }}>
-        <div className="relative">
+      {/* Header Bar - Modern Glassmorphism Design */}
+      <div 
+        className="h-[11%] flex items-center justify-between flex-shrink-0 overflow-visible px-6 gap-6 header-glow"
+        style={{ 
+          containerType: 'size',
+          background: 'linear-gradient(180deg, hsl(222 18% 14% / 0.95) 0%, hsl(222 20% 10% / 0.85) 100%)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid hsl(222 15% 25% / 0.3)',
+          boxShadow: '0 4px 30px hsl(222 30% 5% / 0.4), inset 0 1px 0 hsl(222 15% 35% / 0.1)'
+        }}
+      >
+        {/* Title Section */}
+        <div className="relative flex items-center">
           {isMobile ? (
             <div className="relative inline-block">
               <div className="absolute inset-0 rounded-full animate-pulse" style={{
@@ -959,51 +970,19 @@ export function BrewingDashboard() {
               />
             </div>
           ) : (
-            <h1 className="font-bold brewing-title leading-relaxed pb-0.5 relative z-0" style={{ 
-              fontSize: 'min(8vh, 3.5vw)',
-              background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent'
-            }}>
+            <h1 
+              className="font-bold leading-relaxed pb-0.5 relative z-0 animated-gradient-text tracking-tight" 
+              style={{ 
+                fontSize: 'min(7.5vh, 3.2vw)',
+                textShadow: '0 0 40px hsl(38 90% 60% / 0.4)'
+              }}
+            >
               Bryggövervakare
             </h1>
           )}
-          {/* Extra bubbles - hide on mobile */}
-          {!isMobile && (
-            <>
-              <span className="absolute text-[0.3em] opacity-40 z-10" style={{ 
-                left: '5%', 
-                top: '20%',
-                color: 'hsl(38 90% 60%)',
-                animation: 'bubble-rise 4s infinite ease-in, bubble-float 2.5s infinite ease-in-out',
-                animationDelay: '0.5s, 0.2s'
-              }}>○</span>
-              <span className="absolute text-[0.25em] opacity-40 z-10" style={{ 
-                left: '35%', 
-                top: '50%',
-                color: 'hsl(45 95% 65%)',
-                animation: 'bubble-rise 3.5s infinite ease-in, bubble-float 2s infinite ease-in-out',
-                animationDelay: '2s, 1s'
-              }}>○</span>
-              <span className="absolute text-[0.35em] opacity-40 z-10" style={{ 
-                left: '55%', 
-                top: '15%',
-                color: 'hsl(38 90% 60%)',
-                animation: 'bubble-rise 3.8s infinite ease-in, bubble-float 2.2s infinite ease-in-out',
-                animationDelay: '3s, 1.5s'
-              }}>○</span>
-              <span className="absolute text-[0.28em] opacity-40 z-10" style={{ 
-                left: '88%', 
-                top: '40%',
-                color: 'hsl(45 95% 65%)',
-                animation: 'bubble-rise 4.2s infinite ease-in, bubble-float 2.8s infinite ease-in-out',
-                animationDelay: '1s, 0.5s'
-              }}>○</span>
-            </>
-          )}
         </div>
         
+        {/* RAPT Section with Card Design */}
         <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
           <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-3 justify-end'}`}>
             {/* Temp Controllers with their linked Pills */}
@@ -1019,26 +998,33 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className="flex flex-col items-start justify-start py-0.5 gap-2 flex-shrink-0 min-w-fit"
+                className={`glass-card glass-card-hover rounded-xl flex flex-col items-start justify-center cursor-pointer flex-shrink-0 min-w-fit ${isMobile ? 'px-2 py-1.5' : 'px-4 py-2'}`}
+                style={{
+                  borderColor: `${controllerColor}20`,
+                }}
+                onClick={() => {
+                  setSelectedController(controller);
+                  setControllerDialogOpen(true);
+                }}
+                title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
               >
-                {/* Controller */}
-                <div 
-                  className={`flex flex-row items-center justify-between cursor-pointer hover:opacity-80 transition-opacity ${isMobile ? 'h-7' : 'h-8'} w-full gap-1.5`}
-                  onClick={() => {
-                    setSelectedController(controller);
-                    setControllerDialogOpen(true);
-                  }}
-                  title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
-                >
-                  <div className="flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
-                    width: isMobile ? '1.25rem' : '2rem',
-                    height: isMobile ? '1.25rem' : '2rem'
-                  }}>
+                {/* Controller Row */}
+                <div className={`flex flex-row items-center gap-2 ${isMobile ? 'h-7' : 'h-8'} w-full`}>
+                  <div 
+                    className="flex items-center justify-center flex-shrink-0 rounded-lg" 
+                    style={{ 
+                      width: isMobile ? '1.5rem' : '2.25rem',
+                      height: isMobile ? '1.5rem' : '2.25rem',
+                      background: `linear-gradient(135deg, ${controllerColor}25, ${controllerColor}10)`,
+                      boxShadow: `0 0 12px ${controllerColor}30`
+                    }}
+                  >
                     <AirVent 
                       style={{
-                        width: '100%',
-                        height: '100%',
+                        width: '65%',
+                        height: '65%',
                         color: controllerColor,
+                        filter: `drop-shadow(0 0 4px ${controllerColor})`
                       }}
                     />
                   </div>
@@ -1046,8 +1032,9 @@ export function BrewingDashboard() {
                     <span 
                       className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
                       style={{
-                        fontSize: isMobile ? undefined : 'min(2.5vh, 1.8vw)',
+                        fontSize: isMobile ? undefined : 'min(2.8vh, 1.9vw)',
                         color: linkedPill?.color || 'hsl(var(--foreground))',
+                        textShadow: linkedPill?.color ? `0 0 10px ${linkedPill.color}50` : 'none'
                       }}
                     >
                       {controller.pill_temp !== null 
@@ -1060,24 +1047,29 @@ export function BrewingDashboard() {
                   </div>
                 </div>
                 
-                {/* Linked Pill (if exists) */}
+                {/* Linked Pill Row (if exists) */}
                 {linkedPill ? (
                   <div 
-                    className={`relative flex flex-row items-center justify-between transition-opacity ${isMobile ? 'h-6' : 'h-7'} w-full gap-1.5 ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`flex flex-row items-center gap-2 transition-opacity ${isMobile ? 'h-6 mt-1' : 'h-7 mt-1.5'} w-full ${isPillStale ? 'opacity-50' : ''}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
-                    <div className="relative flex items-center justify-center flex-shrink-0 bg-background/30 rounded p-0.5" style={{ 
-                      width: isMobile ? '1rem' : '1.75rem',
-                      height: isMobile ? '1rem' : '1.75rem'
-                    }}>
+                    <div 
+                      className="relative flex items-center justify-center flex-shrink-0 rounded-lg" 
+                      style={{ 
+                        width: isMobile ? '1.25rem' : '1.85rem',
+                        height: isMobile ? '1.25rem' : '1.85rem',
+                        background: `linear-gradient(135deg, ${linkedPill.color}20, transparent)`
+                      }}
+                    >
                       <Pill
                         style={{
-                          width: '100%',
-                          height: '100%'
+                          width: '70%',
+                          height: '70%',
+                          filter: `drop-shadow(0 0 3px ${linkedPill.color})`
                         }}
                         color={linkedPill.color}
                         strokeWidth={2.5}
-                        className={`drop-shadow-md ${isPillStale ? 'animate-pulse' : ''}`}
+                        className={isPillStale ? 'animate-pulse' : ''}
                       />
                       {isPillStale && (
                         <div 
@@ -1089,12 +1081,13 @@ export function BrewingDashboard() {
                         />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
                       <span 
-                        className={`font-bold tabular-nums block text-left whitespace-nowrap ${isMobile ? 'text-xs' : ''}`}
+                        className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-xs' : ''}`}
                         style={{ 
-                          fontSize: isMobile ? undefined : 'min(2vh, 1.5vw)',
-                          color: linkedPill.color
+                          fontSize: isMobile ? undefined : 'min(2vh, 1.4vw)',
+                          color: linkedPill.color,
+                          opacity: 0.9
                         }}
                       >
                         {linkedPill.battery_level}%
@@ -1102,22 +1095,49 @@ export function BrewingDashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div className={`${isMobile ? 'h-6' : 'h-7'} w-full`} />
+                  <div className={`${isMobile ? 'h-6 mt-1' : 'h-7 mt-1.5'} w-full`} />
                 )}
               </div>
               );
             })}
           </div>
           
+          {/* Clock Section - Modern Typography */}
           {!isMobile && (
-            <div className="flex flex-col items-center min-w-[14%] gap-0">
-              <p className="font-semibold tabular-nums tracking-tight" style={{ fontSize: 'min(5.5vh, 2.6vw)' }}>
-                {currentTime.toLocaleTimeString("sv-SE", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}:{currentTime.getSeconds().toString().padStart(2, '0')}
-              </p>
-              <p className="text-muted-foreground/70 uppercase tracking-wider font-semibold -mt-1" style={{ fontSize: 'min(3.5vh, 1.7vw)' }}>
+            <div 
+              className="glass-card rounded-xl flex flex-col items-center justify-center px-5 py-2 min-w-[13%]"
+              style={{
+                borderColor: 'hsl(222 15% 35% / 0.25)'
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <div 
+                  className="w-1.5 h-1.5 rounded-full live-indicator"
+                  style={{ 
+                    backgroundColor: 'hsl(120 60% 50%)',
+                    boxShadow: '0 0 8px hsl(120 60% 50% / 0.6)'
+                  }}
+                />
+                <p 
+                  className="font-semibold tabular-nums tracking-tight"
+                  style={{ 
+                    fontSize: 'min(5vh, 2.4vw)',
+                    fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                    letterSpacing: '-0.02em'
+                  }}
+                >
+                  {currentTime.toLocaleTimeString("sv-SE", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  <span className="text-muted-foreground/60">:</span>
+                  <span className="text-muted-foreground/80">{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                </p>
+              </div>
+              <p 
+                className="text-muted-foreground/60 uppercase tracking-widest font-medium -mt-0.5" 
+                style={{ fontSize: 'min(2.8vh, 1.4vw)' }}
+              >
                 {currentTime.toLocaleDateString("sv-SE", {
                   weekday: "short",
                   day: "numeric",
@@ -1127,14 +1147,25 @@ export function BrewingDashboard() {
             </div>
           )}
           
-          <div className="relative flex items-center justify-center" style={{ width: 'min(6vh, 3.8vw)', height: 'min(6vh, 3.8vw)' }}>
+          {/* Settings Button - Circular Glassmorphism */}
+          <div 
+            className="relative flex items-center justify-center glass-card rounded-full" 
+            style={{ 
+              width: 'min(6.5vh, 4vw)', 
+              height: 'min(6.5vh, 4vw)',
+              borderColor: 'hsl(222 15% 35% / 0.25)'
+            }}
+          >
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate('/settings')}
-              className="opacity-40 hover:opacity-100 hover:bg-transparent transition-all duration-300 group w-full h-full"
+              className="opacity-50 hover:opacity-100 hover:bg-transparent transition-all duration-300 w-full h-full rounded-full settings-btn"
             >
-              <Settings className="transition-all duration-300 group-hover:[fill:hsl(var(--primary))]" style={{ width: '50%', height: '50%' }} />
+              <Settings 
+                className="transition-colors duration-300 hover:text-primary" 
+                style={{ width: '45%', height: '45%' }} 
+              />
             </Button>
             <SyncCountdown className="w-full h-full" />
           </div>
