@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useVersionCheck } from "@/hooks/use-version-check";
 
 interface BrewEvent {
   id: string;
@@ -122,6 +123,9 @@ export function BrewingDashboard() {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Check for new app versions every 60 seconds
+  useVersionCheck(60000);
 
   useEffect(() => {
     loadBrews();
