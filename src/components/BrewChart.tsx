@@ -84,17 +84,27 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   const uniqueDayTicks: number[] = [];
   
   if (chartData.length > 0) {
+    const firstTimestamp = chartData[0].timestamp;
+    const lastTimestamp = chartData[chartData.length - 1].timestamp;
     const firstDate = new Date(chartData[0].date);
     const lastDate = new Date(chartData[chartData.length - 1].date);
+    
+    // First tick should be at the first data point (not midnight)
+    uniqueDayTicks.push(firstTimestamp);
     
     // Start from midnight of the first day
     const firstMidnight = new Date(firstDate);
     firstMidnight.setHours(0, 0, 0, 0);
     
-    // Add unique day ticks (midnight of each day)
+    // Add subsequent day ticks at midnight (only if different from first day)
     const currentDay = new Date(firstMidnight);
+    currentDay.setDate(currentDay.getDate() + 1);
     while (currentDay <= lastDate) {
-      uniqueDayTicks.push(currentDay.getTime());
+      const dayTimestamp = currentDay.getTime();
+      // Only add if it's within the data range
+      if (dayTimestamp >= firstTimestamp && dayTimestamp <= lastTimestamp) {
+        uniqueDayTicks.push(dayTimestamp);
+      }
       currentDay.setDate(currentDay.getDate() + 1);
     }
     
