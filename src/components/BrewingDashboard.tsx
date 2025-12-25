@@ -494,12 +494,30 @@ export function BrewingDashboard() {
       )
       .subscribe();
 
+    // Set up realtime for selected brews (visibility changes from Settings)
+    const selectedBrewsChannel = supabase
+      .channel('selected_brews_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'selected_brews'
+        },
+        () => {
+          console.log('Selected brews changed, reloading...');
+          loadBrews();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(brewChannel);
       supabase.removeChannel(pillsChannel);
       supabase.removeChannel(controllersChannel);
       supabase.removeChannel(selectedPillsChannel);
       supabase.removeChannel(selectedControllersChannel);
+      supabase.removeChannel(selectedBrewsChannel);
     }
   }, []);
 
