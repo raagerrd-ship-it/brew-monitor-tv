@@ -816,14 +816,20 @@ export function BrewingDashboard() {
   // No early return - show header even when no brews are selected
 
   // Dynamic grid layout based on number of brews
-  // Use max-width to maintain similar card proportions as 2-brew layout
+  // Cards maintain fixed proportions matching the 2-brew layout
   const getGridLayout = () => {
     const count = brews.length;
-    if (count === 1) return "grid-cols-1 grid-rows-1 max-w-[50%]";
-    if (count === 2) return "grid-cols-2 grid-rows-1";
-    if (count === 3) return "grid-cols-3 grid-rows-1 max-w-[75%]";
-    if (count === 4) return "grid-cols-2 grid-rows-2";
-    return "grid-cols-3"; // 5+ brews still use 3 columns with scrolling
+    // For 1-3 brews, use flex layout with fixed card widths (50% of container = 2-brew proportion)
+    if (count <= 3) return "flex justify-center gap-6";
+    if (count === 4) return "grid grid-cols-2 grid-rows-2";
+    return "grid grid-cols-3"; // 5+ brews still use 3 columns with scrolling
+  };
+  
+  // Get card width class - locks cards to 2-brew proportions (each card takes ~50% of full width)
+  const getCardWidthClass = () => {
+    const count = brews.length;
+    if (count <= 3) return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout
+    return "w-full"; // Grid handles sizing for 4+
   };
 
   // Calculate temperature color - interpolate from blue (0°C) to red (30°C)
@@ -1170,9 +1176,13 @@ export function BrewingDashboard() {
             </div>
           </>
         ) : (
-          // Desktop: Grid layout
-          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4 py-6 mx-auto`}>
-            {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
+          // Desktop: Grid/Flex layout
+          <div className={`${getGridLayout()} h-full w-full p-4 py-6`}>
+            {brews.map((brew) => (
+              <div key={brew.id} className={getCardWidthClass()}>
+                {renderBrewCard(brew, updatedFields, getTempColor)}
+              </div>
+            ))}
           </div>
         )}
       </div>
