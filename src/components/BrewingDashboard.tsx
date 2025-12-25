@@ -826,7 +826,9 @@ export function BrewingDashboard() {
   // Get card width class - locks cards to 2-brew proportions
   const getCardWidthClass = () => {
     const count = brews.length;
-    if (count === 3) return "w-[calc(33.333%-1rem)]"; // 3 equal cards in one row
+    // With gap-6 (1.5rem), 3 cards need: (100% - 2*1.5rem) / 3 = 33.333% - 1rem
+    // But to fill entire width: 100% / 3 - gap adjustment = calc((100% - 3rem) / 3)
+    if (count === 3) return "flex-1"; // Let flex handle equal distribution
     return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout
   };
 
