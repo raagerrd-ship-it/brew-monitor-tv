@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -34,6 +34,7 @@ export function BrewManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  const isLocalChange = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -50,6 +51,13 @@ export function BrewManagement() {
         },
         (payload) => {
           console.log('Selected brews updated:', payload);
+          if (!isLocalChange.current) {
+            toast({
+              title: "Uppdatering från annan enhet",
+              description: "Öl-valet har ändrats",
+            });
+          }
+          isLocalChange.current = false;
           loadData();
         }
       )
@@ -58,7 +66,7 @@ export function BrewManagement() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   const loadData = async () => {
     try {
@@ -132,6 +140,7 @@ export function BrewManagement() {
 
   const saveSelection = async () => {
     try {
+      isLocalChange.current = true;
       setSaving(true);
 
       // Delete all existing selections

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
@@ -44,6 +44,7 @@ export function RaptControllersManagement() {
   const [updating, setUpdating] = useState(false);
   const [syncInterval, setSyncInterval] = useState<number>(300);
   const { toast } = useToast();
+  const isLocalChange = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -60,6 +61,13 @@ export function RaptControllersManagement() {
         },
         (payload) => {
           console.log('Temperature controller updated:', payload);
+          if (!isLocalChange.current) {
+            toast({
+              title: "Uppdatering från annan enhet",
+              description: "Controller-data har uppdaterats",
+            });
+          }
+          isLocalChange.current = false;
           loadData();
         }
       )
@@ -72,6 +80,13 @@ export function RaptControllersManagement() {
         },
         (payload) => {
           console.log('Selected controllers updated:', payload);
+          if (!isLocalChange.current) {
+            toast({
+              title: "Uppdatering från annan enhet",
+              description: "Controller-inställningar har ändrats",
+            });
+          }
+          isLocalChange.current = false;
           loadData();
         }
       )
@@ -87,6 +102,13 @@ export function RaptControllersManagement() {
           const newData = payload.new as any;
           if (newData?.rapt_sync_interval) {
             setSyncInterval(newData.rapt_sync_interval);
+            if (!isLocalChange.current) {
+              toast({
+                title: "Uppdatering från annan enhet",
+                description: "Synkroniseringsinställningar har ändrats",
+              });
+            }
+            isLocalChange.current = false;
           }
         }
       )
@@ -95,7 +117,7 @@ export function RaptControllersManagement() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   const loadData = async () => {
     try {
@@ -169,6 +191,7 @@ export function RaptControllersManagement() {
 
   const handleToggleController = async (controllerId: string, visible: boolean) => {
     try {
+      isLocalChange.current = true;
       // Check if entry exists
       const { data: existing } = await supabase
         .from('selected_rapt_temp_controllers')
@@ -221,6 +244,7 @@ export function RaptControllersManagement() {
     const previous = selectedControllersData[currentIndex - 1];
 
     try {
+      isLocalChange.current = true;
       // Swap display_order
       await supabase
         .from('selected_rapt_temp_controllers')
@@ -251,6 +275,7 @@ export function RaptControllersManagement() {
     const next = selectedControllersData[currentIndex + 1];
 
     try {
+      isLocalChange.current = true;
       // Swap display_order
       await supabase
         .from('selected_rapt_temp_controllers')
