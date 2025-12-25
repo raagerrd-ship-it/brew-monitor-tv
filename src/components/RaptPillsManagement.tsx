@@ -33,6 +33,39 @@ export function RaptPillsManagement() {
 
   useEffect(() => {
     loadData();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('rapt_pills_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rapt_pills'
+        },
+        (payload) => {
+          console.log('RAPT pill updated:', payload);
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'selected_rapt_pills'
+        },
+        (payload) => {
+          console.log('Selected pills updated:', payload);
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadData = async () => {
