@@ -37,6 +37,27 @@ export function BrewManagement() {
 
   useEffect(() => {
     loadData();
+
+    // Subscribe to realtime updates for selected brews
+    const channel = supabase
+      .channel('selected_brews_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'selected_brews'
+        },
+        (payload) => {
+          console.log('Selected brews updated:', payload);
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadData = async () => {
