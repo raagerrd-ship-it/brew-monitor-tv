@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
@@ -30,6 +30,7 @@ export function RaptPillsManagement() {
   const [selectedPillsData, setSelectedPillsData] = useState<SelectedPill[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const isLocalChange = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -46,6 +47,13 @@ export function RaptPillsManagement() {
         },
         (payload) => {
           console.log('RAPT pill updated:', payload);
+          if (!isLocalChange.current) {
+            toast({
+              title: "Uppdatering från annan enhet",
+              description: "Pill-data har uppdaterats",
+            });
+          }
+          isLocalChange.current = false;
           loadData();
         }
       )
@@ -58,6 +66,13 @@ export function RaptPillsManagement() {
         },
         (payload) => {
           console.log('Selected pills updated:', payload);
+          if (!isLocalChange.current) {
+            toast({
+              title: "Uppdatering från annan enhet",
+              description: "Pill-inställningar har ändrats",
+            });
+          }
+          isLocalChange.current = false;
           loadData();
         }
       )
@@ -66,7 +81,7 @@ export function RaptPillsManagement() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   const loadData = async () => {
     try {
@@ -127,6 +142,7 @@ export function RaptPillsManagement() {
 
   const handleTogglePill = async (pillId: string, visible: boolean) => {
     try {
+      isLocalChange.current = true;
       // Check if entry exists
       const { data: existing } = await supabase
         .from('selected_rapt_pills')
@@ -179,6 +195,7 @@ export function RaptPillsManagement() {
     const previous = selectedPillsData[currentIndex - 1];
 
     try {
+      isLocalChange.current = true;
       // Swap display_order
       await supabase
         .from('selected_rapt_pills')
@@ -209,6 +226,7 @@ export function RaptPillsManagement() {
     const next = selectedPillsData[currentIndex + 1];
 
     try {
+      isLocalChange.current = true;
       // Swap display_order
       await supabase
         .from('selected_rapt_pills')
