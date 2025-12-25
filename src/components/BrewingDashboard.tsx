@@ -506,6 +506,10 @@ export function BrewingDashboard() {
         },
         () => {
           console.log('Selected brews changed, reloading...');
+          sonnerToast('Inställningar uppdaterade', {
+            description: 'Öllistan har ändrats från en annan enhet',
+            duration: 5000,
+          });
           loadBrews();
         }
       )
