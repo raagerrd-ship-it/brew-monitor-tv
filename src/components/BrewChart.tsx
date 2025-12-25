@@ -78,20 +78,33 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     timestamp: new Date(d.date).getTime()
   }));
 
-  // Generate midnight markers for ALL days in the date range
-  const sortedDayBoundaries: number[] = [];
+  // Generate midnight markers for ALL days in the date range (for reference lines)
+  const dayBoundariesForLines: number[] = [];
+  // Generate unique day ticks for X-axis labels (one per day)
+  const uniqueDayTicks: number[] = [];
+  
   if (chartData.length > 0) {
     const firstDate = new Date(chartData[0].date);
     const lastDate = new Date(chartData[chartData.length - 1].date);
     
-    // Start from the first midnight after the first data point
-    const currentMidnight = new Date(firstDate);
-    currentMidnight.setHours(0, 0, 0, 0);
+    // Start from midnight of the first day
+    const firstMidnight = new Date(firstDate);
+    firstMidnight.setHours(0, 0, 0, 0);
+    
+    // Add unique day ticks (midnight of each day)
+    const currentDay = new Date(firstMidnight);
+    while (currentDay <= lastDate) {
+      uniqueDayTicks.push(currentDay.getTime());
+      currentDay.setDate(currentDay.getDate() + 1);
+    }
+    
+    // Day boundary lines start from midnight AFTER first day
+    const currentMidnight = new Date(firstMidnight);
     currentMidnight.setDate(currentMidnight.getDate() + 1);
     
     // Generate midnight for each day until the last data point
     while (currentMidnight <= lastDate) {
-      sortedDayBoundaries.push(currentMidnight.getTime());
+      dayBoundariesForLines.push(currentMidnight.getTime());
       currentMidnight.setDate(currentMidnight.getDate() + 1);
     }
   }
@@ -154,7 +167,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
         <ComposedChart data={chartData} margin={{ top: 20, right: -10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           {/* Day change markers */}
-          {sortedDayBoundaries.map((timestamp, idx) => (
+          {dayBoundariesForLines.map((timestamp, idx) => (
             <ReferenceLine
               key={`day-${idx}`}
               x={timestamp}
@@ -195,7 +208,7 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "9px" }}
             tick={{ fill: "hsl(var(--muted-foreground))" }}
-            ticks={sortedDayBoundaries}
+            ticks={uniqueDayTicks}
             tickFormatter={(value) => {
               try {
                 const date = new Date(value);
