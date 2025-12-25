@@ -816,9 +816,10 @@ export function BrewingDashboard() {
   // No early return - show header even when no brews are selected
 
   // Dynamic grid layout based on number of brews
+  // For 1-2 brews, use max-width to maintain 2-brew proportions
   const getGridLayout = () => {
     const count = brews.length;
-    if (count === 1) return "grid-cols-1 grid-rows-1";
+    if (count === 1) return "grid-cols-1 grid-rows-1 max-w-[50%]";
     if (count === 2) return "grid-cols-2 grid-rows-1";
     if (count === 3) return "grid-cols-3 grid-rows-1";
     if (count === 4) return "grid-cols-2 grid-rows-2";
@@ -1170,7 +1171,7 @@ export function BrewingDashboard() {
           </>
         ) : (
           // Desktop: Grid layout
-          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4 py-6`}>
+          <div className={`grid gap-6 ${getGridLayout()} h-full w-full p-4 py-6 mx-auto`}>
             {brews.map((brew) => renderBrewCard(brew, updatedFields, getTempColor))}
           </div>
         )}
