@@ -114,13 +114,30 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
     }
   };
 
-  // Sort events by date and convert to timestamps
-  const sortedEvents = [...events].sort((a, b) => 
-    new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-  ).map(event => ({
-    ...event,
-    timestamp: new Date(event.event_date).getTime()
-  }));
+  // Sort events by date and convert to timestamps, showing only one per day
+  const getEventsPerDay = () => {
+    const eventsByDay = new Map<string, typeof events[0]>();
+    
+    // Group events by day, keeping only one per day
+    events.forEach(event => {
+      const eventDate = new Date(event.event_date);
+      const dayKey = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
+      
+      // Keep the first event of each day (or could prioritize by type)
+      if (!eventsByDay.has(dayKey)) {
+        eventsByDay.set(dayKey, event);
+      }
+    });
+    
+    return Array.from(eventsByDay.values())
+      .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+      .map(event => ({
+        ...event,
+        timestamp: new Date(event.event_date).getTime()
+      }));
+  };
+
+  const sortedEvents = getEventsPerDay();
 
   return (
     <div className="h-full relative">
