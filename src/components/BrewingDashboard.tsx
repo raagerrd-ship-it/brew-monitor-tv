@@ -83,6 +83,7 @@ export function BrewingDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -130,6 +131,17 @@ export function BrewingDashboard() {
   useEffect(() => {
     loadBrews();
     loadRaptData();
+    
+    // Check authentication status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Re-sort brews when controllers change
@@ -1262,23 +1274,14 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full relative group ${
+                className={`bg-gradient-card border-border/50 shadow-deep flex flex-col overflow-hidden h-full relative ${
+                  isAuthenticated ? 'group' : ''
+                } ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
                 style={{
-                  transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (!hasCardGlow) {
-                    e.currentTarget.style.boxShadow = '0 10px 50px hsl(222 30% 5% / 0.7)';
-                    e.currentTarget.style.borderColor = 'hsl(222 15% 25%)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!hasCardGlow) {
-                    e.currentTarget.style.boxShadow = '';
-                    e.currentTarget.style.borderColor = '';
-                  }
+                  backdropFilter: 'blur(12px)',
+                  background: 'linear-gradient(180deg, hsl(222 18% 13% / 0.95) 0%, hsl(222 20% 10% / 0.98) 100%)',
                 }}
               >
               {/* Header - 10% */}
@@ -1289,39 +1292,42 @@ export function BrewingDashboard() {
                       {brew.name}
                     </h2>
                     <p 
-                      className="text-muted-foreground/70 group-hover:truncate transition-all duration-200" 
+                      className="text-muted-foreground/70 truncate" 
                       style={{ fontSize: 'min(1.4vh, 1.6vw)' }}
                     >
                       {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {/* Hidden action buttons - appear on hover */}
-                    <div className="flex items-center gap-1 max-w-0 group-hover:max-w-[80px] overflow-hidden transition-all duration-200">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleShareBrew(brew)}
-                        className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex-shrink-0"
-                        title="Dela detta öl"
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <BrewEventDialog
-                        brewId={brew.id}
-                        brewName={brew.name}
-                        events={brew.events}
-                        onEventsChange={loadBrewEvents}
-                      />
-                    </div>
+                    {/* Action buttons - only visible when authenticated */}
+                    {isAuthenticated && (
+                      <div className="flex items-center gap-1 max-w-0 group-hover:max-w-[80px] overflow-hidden transition-all duration-200">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleShareBrew(brew)}
+                          className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex-shrink-0"
+                          title="Dela detta öl"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <BrewEventDialog
+                          brewId={brew.id}
+                          brewName={brew.name}
+                          events={brew.events}
+                          onEventsChange={loadBrewEvents}
+                        />
+                      </div>
+                    )}
                     {/* Status badge - always visible */}
                     <span
-                      className="rounded-full px-2.5 py-0.5 font-semibold whitespace-nowrap flex-shrink-0"
+                      className="rounded-full px-2.5 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-sm"
                       style={{ 
                         fontSize: 'min(1.6vh, 1.8vw)',
                         backgroundColor: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary) / 0.15)" : "hsl(var(--ferment-green) / 0.15)",
                         color: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                        animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                        animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                        boxShadow: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "0 0 15px hsl(var(--ferment-green) / 0.3)"
                       }}
                     >
                       {brew.status === "Jäsning" && brew.sgData.length > 0 ? (
@@ -1354,23 +1360,34 @@ export function BrewingDashboard() {
 
               {/* Stats Grid - 32% */}
               <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
-                <div className="grid grid-cols-3 gap-4 h-full">
+                <div className="grid grid-cols-3 gap-3 h-full">
                   {/* SG - Large Featured Card */}
                   <div 
-                    className={`col-span-1 row-span-2 rounded-lg p-0.5 flex flex-col items-center justify-center gap-0.5 border transition-all duration-1000 relative overflow-hidden ${
+                    className={`col-span-1 row-span-2 rounded-xl p-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-1000 relative overflow-hidden ${
                       brew.coldcrashAcknowledged 
-                        ? 'bg-green-500/10 border-green-500/30' 
-                        : 'bg-background/50 border-primary/20'
+                        ? 'bg-green-500/10 border border-green-500/30' 
+                        : 'backdrop-blur-sm border border-primary/20'
                     } ${
-                      updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_20px_hsl(var(--primary)/0.6)] border-primary/60' : ''
+                      updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_25px_hsl(var(--primary)/0.5)] border-primary/50' : ''
                     }`}
-                    style={{ containerType: 'size' }}
+                    style={{ 
+                      containerType: 'size',
+                      background: brew.coldcrashAcknowledged 
+                        ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
+                        : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)'
+                    }}
                   >
-                    <p className="text-muted-foreground uppercase tracking-wider flex items-center justify-center z-10 px-1" style={{ fontSize: 'min(3vh, 1.6vw)' }}>Gravity</p>
-                    <p className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" style={{ fontSize: 'min(6vh, 3vw)' }}>
+                    <p className="text-muted-foreground/80 uppercase tracking-wider flex items-center justify-center z-10 px-1 font-medium" style={{ fontSize: 'min(2.8vh, 1.5vw)' }}>Gravity</p>
+                    <p 
+                      className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" 
+                      style={{ 
+                        fontSize: 'min(6vh, 3vw)',
+                        textShadow: '0 0 20px hsl(var(--primary) / 0.4)'
+                      }}
+                    >
                       {brew.currentSG.toFixed(3)}
                     </p>
-                    <div className="text-muted-foreground mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
+                    <div className="text-muted-foreground/70 mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
                       <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
                       <p className="tabular-nums truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
                       <p className="font-medium truncate" style={{ fontSize: 'min(1.8vh, 1.1vw)' }}>
@@ -1385,12 +1402,15 @@ export function BrewingDashboard() {
 
                   {/* ABV */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
-                      updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_20px_hsl(var(--secondary)/0.6)] border-secondary/60' : ''
+                    className={`rounded-xl p-1.5 pr-3 flex flex-col items-start justify-center gap-0 backdrop-blur-sm border border-secondary/20 transition-all duration-1000 relative overflow-hidden ${
+                      updatedFields[brew.batch_id]?.abv ? 'shadow-[0_0_25px_hsl(var(--secondary)/0.5)] border-secondary/50' : ''
                     }`}
-                    style={{ containerType: 'size' }}
+                    style={{ 
+                      containerType: 'size',
+                      background: 'linear-gradient(135deg, hsl(45 80% 55% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)'
+                    }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '60%', height: '60%', right: '-15%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '60%', height: '60%', right: '-15%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         <defs>
                           <linearGradient id={`abvFill-${brew.batch_id}`} x1="0" x2="0" y1="0" y2="1">
@@ -1406,8 +1426,14 @@ export function BrewingDashboard() {
                         <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
                       </svg>
                     </div>
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>ABV</p>
-                    <p className="font-bold text-secondary leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 2.5vw)' }}>
+                    <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>ABV</p>
+                    <p 
+                      className="font-bold text-secondary leading-none z-10 pl-2" 
+                      style={{ 
+                        fontSize: 'min(5.5vh, 2.5vw)',
+                        textShadow: '0 0 15px hsl(var(--secondary) / 0.3)'
+                      }}
+                    >
                       {brew.abv.toFixed(1)}%
                     </p>
                   </div>
@@ -1421,29 +1447,32 @@ export function BrewingDashboard() {
                     
                     return (
                       <div 
-                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden cursor-pointer hover:opacity-80 ${isInactive ? 'opacity-40' : ''}`}
+                        className={`rounded-xl p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden backdrop-blur-sm ${isAuthenticated ? 'cursor-pointer hover:opacity-80' : ''} ${isInactive ? 'opacity-40' : ''}`}
                         style={{ 
                           containerType: 'size',
                           borderColor: `${tempColor}33`,
                           borderWidth: '1px',
                           borderStyle: 'solid',
+                          background: `linear-gradient(135deg, ${tempColor}08 0%, hsl(222 18% 15% / 0.5) 100%)`,
                           ...(updatedFields[brew.batch_id]?.temp && {
-                            boxShadow: `0 0 20px ${tempColor}99`,
-                            borderColor: `${tempColor}99`
+                            boxShadow: `0 0 25px ${tempColor}66`,
+                            borderColor: `${tempColor}66`
                           })
                         }}
                         onClick={() => {
-                          setDeviceLinkDialog({
-                            open: true,
-                            brewId: brew.batch_id,
-                            brewName: brew.name,
-                            currentControllerId: brew.linked_controller_id || null,
-                            currentPillId: brew.linked_pill_id || null,
-                          });
+                          if (isAuthenticated) {
+                            setDeviceLinkDialog({
+                              open: true,
+                              brewId: brew.batch_id,
+                              brewName: brew.name,
+                              currentControllerId: brew.linked_controller_id || null,
+                              currentPillId: brew.linked_pill_id || null,
+                            });
+                          }
                         }}
-                        title="Klicka för att koppla enheter"
+                        title={isAuthenticated ? "Klicka för att koppla enheter" : undefined}
                       >
-                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-20 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-15 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                             {/* Thermometer outline */}
                             <path 
@@ -1470,14 +1499,15 @@ export function BrewingDashboard() {
                             />
                           </svg>
                         </div>
-                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>
+                        <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>
                           Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
                           className="font-bold leading-none z-10 pl-2"
                           style={{ 
                             color: tempColor,
-                            fontSize: 'min(5.5vh, 2.5vw)'
+                            fontSize: 'min(5.5vh, 2.5vw)',
+                            textShadow: `0 0 15px ${tempColor}40`
                           }}
                         >
                           {brew.currentTemp}°
@@ -1488,15 +1518,18 @@ export function BrewingDashboard() {
 
                   {/* Utjäsning */}
                   <div 
-                    className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
-                      updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_20px_hsl(var(--ferment-green)/0.6)] border-ferment-green/60' : ''
+                    className={`rounded-xl p-1.5 pr-3 flex flex-col items-start justify-center gap-0 backdrop-blur-sm border border-ferment-green/20 transition-all duration-1000 relative overflow-hidden ${
+                      updatedFields[brew.batch_id]?.attenuation ? 'shadow-[0_0_25px_hsl(var(--ferment-green)/0.5)] border-ferment-green/50' : ''
                     }`}
-                    style={{ containerType: 'size' }}
+                    style={{ 
+                      containerType: 'size',
+                      background: 'linear-gradient(135deg, hsl(120 50% 45% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)'
+                    }}
                   >
                     {(() => {
                       const isInactiveAttenuation = brew.status === "Konditionering" || brew.status === "Klar";
                       return (
-                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '55%', height: '55%', right: '-12%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                             {/* Rising bubbles - colored based on attenuation level */}
                             <circle cx="14" cy="22" r="1" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.4s' }} />
@@ -1513,8 +1546,14 @@ export function BrewingDashboard() {
                         </div>
                       );
                     })()}
-                    <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Utjäsning</p>
-                    <p className="font-bold text-ferment-green leading-none z-10 pl-2" style={{ fontSize: 'min(5.5vh, 2.5vw)' }}>
+                    <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Utjäsning</p>
+                    <p 
+                      className="font-bold text-ferment-green leading-none z-10 pl-2" 
+                      style={{ 
+                        fontSize: 'min(5.5vh, 2.5vw)',
+                        textShadow: '0 0 15px hsl(var(--ferment-green) / 0.3)'
+                      }}
+                    >
                       {brew.attenuation}%
                     </p>
                   </div>
@@ -1527,16 +1566,17 @@ export function BrewingDashboard() {
                     
                     return (
                       <div 
-                        className={`bg-background/50 rounded-lg p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden ${isInactive ? 'opacity-40' : ''}`}
+                        className={`rounded-xl p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden backdrop-blur-sm ${isInactive ? 'opacity-40' : ''}`}
                         style={{ 
                           containerType: 'size',
                           borderColor: `${batteryColor}33`,
                           borderWidth: '1px',
                           borderStyle: 'solid',
-                          boxShadow: updatedFields[brew.batch_id]?.battery ? `0 0 20px ${batteryColor}99` : undefined
+                          background: `linear-gradient(135deg, ${batteryColor}05 0%, hsl(222 18% 15% / 0.5) 100%)`,
+                          boxShadow: updatedFields[brew.batch_id]?.battery ? `0 0 25px ${batteryColor}66` : undefined
                         }}
                       >
-                        <div className="absolute top-1/2 -translate-y-1/2 opacity-20" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '55%', height: '55%', right: '-12%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
                             {/* Battery outline */}
                             <rect x="2" y="6" width="18" height="12" rx="2" stroke={batteryColor} strokeWidth="1" fill="none"/>
@@ -1556,11 +1596,15 @@ export function BrewingDashboard() {
                             )}
                           </svg>
                         </div>
-                        <p className="text-muted-foreground uppercase tracking-wider z-10 pl-2" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Batteri</p>
-                        <p className="font-bold leading-none z-10 pl-2" style={{ 
-                          fontSize: 'min(5.5vh, 2.5vw)',
-                          color: batteryColor
-                        }}>
+                        <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Batteri</p>
+                        <p 
+                          className="font-bold leading-none z-10 pl-2" 
+                          style={{ 
+                            fontSize: 'min(5.5vh, 2.5vw)',
+                            color: batteryColor,
+                            textShadow: `0 0 15px ${batteryColor}30`
+                          }}
+                        >
                           {isInactive ? "--" : (brew.battery !== null ? `${brew.battery}%` : "--")}
                         </p>
                       </div>
