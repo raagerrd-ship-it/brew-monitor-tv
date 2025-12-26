@@ -1513,7 +1513,7 @@ export function BrewingDashboard() {
                         }}
                         title={isAuthenticated ? "Klicka för att koppla enheter" : undefined}
                       >
-                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-10 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '60%', height: '60%', right: '-15%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                             {/* Thermometer outline - thinner stroke */}
                             <path 
