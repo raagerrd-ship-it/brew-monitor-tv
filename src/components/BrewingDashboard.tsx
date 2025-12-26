@@ -1274,14 +1274,16 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border/50 shadow-deep flex flex-col overflow-hidden h-full relative ${
+                className={`border-white/10 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-md ${
                   isAuthenticated ? 'group' : ''
                 } ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
                 style={{
-                  backdropFilter: 'blur(12px)',
-                  background: 'linear-gradient(180deg, hsl(222 18% 13% / 0.95) 0%, hsl(222 20% 10% / 0.98) 100%)',
+                  background: 'linear-gradient(180deg, hsl(222 18% 14% / 0.85) 0%, hsl(222 20% 11% / 0.9) 100%)',
+                  boxShadow: hasCardGlow 
+                    ? undefined 
+                    : '0 8px 32px hsl(222 30% 5% / 0.5), inset 0 1px 0 hsl(222 15% 30% / 0.1)',
                 }}
               >
               {/* Header - 10% */}
