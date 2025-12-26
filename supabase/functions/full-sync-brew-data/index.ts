@@ -280,7 +280,20 @@ Deno.serve(async (req) => {
       console.log(`Successfully full synced ${brewUpdates.length} brews in parallel`)
     }
 
-    console.log('FULL brew data sync completed')
+    // Also trigger RAPT device sync
+    console.log('Triggering RAPT device sync...')
+    try {
+      const { error: raptError } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
+      if (raptError) {
+        console.error('Error syncing RAPT devices:', raptError)
+      } else {
+        console.log('RAPT device sync triggered successfully')
+      }
+    } catch (raptSyncError) {
+      console.error('Failed to trigger RAPT sync:', raptSyncError)
+    }
+
+    console.log('FULL brew data sync completed (including RAPT devices)')
 
     return new Response(
       JSON.stringify({ message: 'Full sync completed', count: brewUpdates.length }),
