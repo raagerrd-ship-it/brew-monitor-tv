@@ -6,6 +6,7 @@ import { SyncCountdown } from "./SyncCountdown";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewEventDialog } from "./BrewEventDialog";
 import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
+import { Logo } from "./Logo";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -981,29 +982,7 @@ export function BrewingDashboard() {
           style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)' }}
         />
         <div className="relative flex items-center">
-          {isMobile ? (
-            <div className="relative inline-block">
-              <Beer 
-                className="h-8 w-8" 
-                style={{ 
-                  color: 'hsl(38 90% 60%)',
-                }}
-              />
-            </div>
-          ) : (
-            <h1 
-              className="font-bold leading-relaxed tracking-tight" 
-              style={{ 
-                fontSize: 'min(7vh, 3vw)',
-                background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-              }}
-            >
-              Bryggövervakare
-            </h1>
-          )}
+          <Logo />
         </div>
         
         {/* RAPT Section */}
