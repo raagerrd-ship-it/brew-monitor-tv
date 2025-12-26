@@ -18,10 +18,10 @@ export const Logo = () => {
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
         style={{
-          color: 'hsl(35 50% 25%)',
-          filter: 'blur(3px)',
-          opacity: 0.4,
-          transform: 'translateY(2px)',
+          color: 'hsl(30 60% 15%)',
+          filter: 'blur(4px)',
+          opacity: 0.6,
+          transform: 'translateY(3px)',
         }}
       >
         Bryggövervakare
