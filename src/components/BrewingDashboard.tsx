@@ -1273,8 +1273,8 @@ export function BrewingDashboard() {
           </div>
         ) : isMobile ? (
           // Mobile: Swipeable carousel
-          <div className="flex flex-col flex-1 pt-[100px]">
-            {/* Pagination dots and swipe indicators */}
+          <div className="flex flex-col flex-1 pt-[88px]">
+            {/* Pagination dots */}
             {brews.length > 1 && (
               <div className="relative py-3 flex-shrink-0">
                 <div className="flex justify-center gap-2">
@@ -1291,26 +1291,6 @@ export function BrewingDashboard() {
                     />
                   ))}
                 </div>
-                
-                {/* Swipe indicators */}
-                {selectedIndex > 0 && (
-                  <button
-                    onClick={() => emblaApi?.scrollPrev()}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 animate-pulse"
-                    aria-label="Föregående öl"
-                  >
-                    <ChevronLeft className="h-6 w-6 text-primary" />
-                  </button>
-                )}
-                {selectedIndex < brews.length - 1 && (
-                  <button
-                    onClick={() => emblaApi?.scrollNext()}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full border border-primary/20 animate-pulse"
-                    aria-label="Nästa öl"
-                  >
-                    <ChevronRight className="h-6 w-6 text-primary" />
-                  </button>
-                )}
               </div>
             )}
             
