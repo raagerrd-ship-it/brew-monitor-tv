@@ -1273,7 +1273,7 @@ export function BrewingDashboard() {
           </div>
         ) : isMobile ? (
           // Mobile: Swipeable carousel
-          <>
+          <div className="flex flex-col flex-1 pt-2">
             {/* Pagination dots and swipe indicators */}
             {brews.length > 1 && (
               <div className="relative py-3 flex-shrink-0">
@@ -1314,7 +1314,7 @@ export function BrewingDashboard() {
               </div>
             )}
             
-            <div className="flex-1 overflow-hidden px-3 pt-[100px] pb-2" ref={emblaRef}>
+            <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew) => (
                   <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
@@ -1323,7 +1323,7 @@ export function BrewingDashboard() {
                 ))}
               </div>
             </div>
-          </>
+          </div>
         ) : (
           // Desktop: Grid/Flex layout
           <div className={`${getGridLayout()} h-full w-full p-4 py-6`}>
