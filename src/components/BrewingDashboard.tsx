@@ -969,7 +969,7 @@ export function BrewingDashboard() {
       </div>
       {/* Header Bar - Clean Modern Design */}
       <div 
-        className="h-[11%] flex items-center justify-between flex-shrink-0 overflow-visible px-6 gap-6 relative"
+        className={`flex-shrink-0 overflow-visible relative ${isMobile ? 'flex flex-col py-2 px-3 gap-2' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
         style={{ 
           containerType: 'size',
           background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
@@ -981,12 +981,34 @@ export function BrewingDashboard() {
           className="absolute inset-x-0 top-0 h-px"
           style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)' }}
         />
-        <div className="relative flex items-center">
-          <Logo />
-        </div>
+        
+        {/* Mobile: Logo row with settings */}
+        {isMobile ? (
+          <div className="flex items-center justify-between w-full">
+            <Logo />
+            <div 
+              className="relative flex items-center justify-center" 
+              style={{ width: '36px', height: '36px' }}
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/settings')}
+                className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+              >
+                <Settings className="w-5 h-5" />
+              </Button>
+              <SyncCountdown className="w-full h-full" />
+            </div>
+          </div>
+        ) : (
+          <div className="relative flex items-center">
+            <Logo />
+          </div>
+        )}
         
         {/* RAPT Section */}
-        <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
+        <div className={`flex items-center ${isMobile ? 'gap-2 w-full overflow-hidden' : 'gap-4'}`}>
           {/* Grouped RAPT container */}
           {raptControllers.length > 0 && (
             <div 
@@ -1128,27 +1150,29 @@ export function BrewingDashboard() {
             </div>
           )}
           
-          {/* Settings Button */}
-          <div 
-            className="relative flex items-center justify-center" 
-            style={{ 
-              width: 'min(6vh, 3.8vw)', 
-              height: 'min(6vh, 3.8vw)',
-            }}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/settings')}
-              className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+          {/* Settings Button - Desktop only (mobile has it in logo row) */}
+          {!isMobile && (
+            <div 
+              className="relative flex items-center justify-center" 
+              style={{ 
+                width: 'min(6vh, 3.8vw)', 
+                height: 'min(6vh, 3.8vw)',
+              }}
             >
-              <Settings 
-                className="transition-colors duration-200" 
-                style={{ width: '50%', height: '50%' }} 
-              />
-            </Button>
-            <SyncCountdown className="w-full h-full" />
-          </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/settings')}
+                className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+              >
+                <Settings 
+                  className="transition-colors duration-200" 
+                  style={{ width: '50%', height: '50%' }} 
+                />
+              </Button>
+              <SyncCountdown className="w-full h-full" />
+            </div>
+          )}
         </div>
       </div>
 
