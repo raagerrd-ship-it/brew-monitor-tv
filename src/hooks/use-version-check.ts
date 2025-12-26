@@ -22,6 +22,7 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
           },
         });
         
@@ -29,28 +30,48 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
         
         const html = await response.text();
         
-        // Extract script tags to detect bundle changes
-        const scriptMatches = html.match(/<script[^>]*src="[^"]*"[^>]*>/g);
-        const scriptsHash = await hashString(scriptMatches?.join('') || '');
+        // Extract ALL script tags including their full src attributes with timestamps
+        // This catches both bundle hash changes and Vite timestamp changes (?t=xxx)
+        const scriptMatches = html.match(/<script[^>]*src="([^"]*)"[^>]*>/g);
+        
+        // Also extract link tags for CSS changes
+        const linkMatches = html.match(/<link[^>]*href="([^"]*)"[^>]*>/g);
+        
+        // Combine all resource references for comparison
+        const resourcesString = [
+          ...(scriptMatches || []),
+          ...(linkMatches || [])
+        ].join('|');
+        
+        const resourcesHash = await hashString(resourcesString);
         
         if (isFirstCheck.current) {
-          lastHtmlHash.current = scriptsHash;
+          lastHtmlHash.current = resourcesHash;
           isFirstCheck.current = false;
-          console.log('Version check initialized');
+          console.log('Version check initialized with hash:', resourcesHash.substring(0, 8));
           return;
         }
         
-        if (lastHtmlHash.current && scriptsHash !== lastHtmlHash.current) {
-          console.log('New version detected, reloading...');
+        if (lastHtmlHash.current && resourcesHash !== lastHtmlHash.current) {
+          console.log('New version detected!');
+          console.log('Old hash:', lastHtmlHash.current.substring(0, 8));
+          console.log('New hash:', resourcesHash.substring(0, 8));
+          
           sonnerToast('Ny version tillgänglig', {
             description: 'Sidan uppdateras automatiskt...',
             duration: 3000,
           });
           
-          // Wait for toast to show, then reload
+          // Update the hash before reload to prevent multiple reloads
+          lastHtmlHash.current = resourcesHash;
+          
+          // Wait for toast to show, then force reload with cache clear
           setTimeout(() => {
-            window.location.reload();
+            // Force a hard reload to bypass cache
+            window.location.href = window.location.href.split('?')[0] + '?reload=' + Date.now();
           }, 2000);
+        } else {
+          console.log('Version check: no changes detected');
         }
       } catch (error) {
         console.error('Version check failed:', error);
