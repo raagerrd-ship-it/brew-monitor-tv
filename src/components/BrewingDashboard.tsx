@@ -1283,9 +1283,16 @@ export function BrewingDashboard() {
                   background: 'linear-gradient(180deg, hsl(222 18% 14% / 0.85) 0%, hsl(222 20% 11% / 0.9) 100%)',
                   boxShadow: hasCardGlow 
                     ? undefined 
-                    : '0 8px 32px hsl(222 30% 5% / 0.5), inset 0 1px 0 hsl(222 15% 30% / 0.1)',
+                    : '0 8px 32px hsl(222 30% 5% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
                 }}
               >
+              {/* Glass highlight overlay */}
+              <div 
+                className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, hsl(0 0% 100% / 0.15) 20%, hsl(0 0% 100% / 0.25) 50%, hsl(0 0% 100% / 0.15) 80%, transparent 100%)'
+                }}
+              />
               {/* Header - 10% */}
               <div className="h-[10%] px-3 py-2 border-b border-border/30 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
