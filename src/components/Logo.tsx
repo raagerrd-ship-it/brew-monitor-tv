@@ -3,7 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 export const Logo = () => {
   const isMobile = useIsMobile();
 
-  const fontSize = isMobile ? 'min(5vh, 6vw)' : 'min(5vh, 2.2vw)';
+  const fontSize = isMobile ? 'min(6vh, 7vw)' : 'min(6vh, 2.8vw)';
 
   return (
     <span 
