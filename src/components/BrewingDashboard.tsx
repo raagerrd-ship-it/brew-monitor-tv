@@ -1390,7 +1390,10 @@ export function BrewingDashboard() {
                       containerType: 'size',
                       background: brew.coldcrashAcknowledged 
                         ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
-                        : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)'
+                        : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)',
+                      boxShadow: updatedFields[brew.batch_id]?.sg 
+                        ? undefined 
+                        : '0 4px 12px hsl(222 30% 5% / 0.4), 0 2px 4px hsl(222 30% 5% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.05)'
                     }}
                   >
                     <p className="text-muted-foreground/80 uppercase tracking-wider flex items-center justify-center z-10 px-1 font-medium" style={{ fontSize: 'min(2.8vh, 1.5vw)' }}>Gravity</p>
@@ -1423,7 +1426,10 @@ export function BrewingDashboard() {
                     }`}
                     style={{ 
                       containerType: 'size',
-                      background: 'linear-gradient(135deg, hsl(45 80% 55% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)'
+                      background: 'linear-gradient(135deg, hsl(45 80% 55% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)',
+                      boxShadow: updatedFields[brew.batch_id]?.abv 
+                        ? undefined 
+                        : '0 4px 12px hsl(222 30% 5% / 0.4), 0 2px 4px hsl(222 30% 5% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.05)'
                     }}
                   >
                     <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '60%', height: '60%', right: '-15%' }}>
@@ -1470,8 +1476,10 @@ export function BrewingDashboard() {
                           borderWidth: '1px',
                           borderStyle: 'solid',
                           background: `linear-gradient(135deg, ${tempColor}08 0%, hsl(222 18% 15% / 0.5) 100%)`,
+                          boxShadow: updatedFields[brew.batch_id]?.temp 
+                            ? `0 0 25px ${tempColor}66`
+                            : '0 4px 12px hsl(222 30% 5% / 0.4), 0 2px 4px hsl(222 30% 5% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.05)',
                           ...(updatedFields[brew.batch_id]?.temp && {
-                            boxShadow: `0 0 25px ${tempColor}66`,
                             borderColor: `${tempColor}66`
                           })
                         }}
@@ -1539,7 +1547,10 @@ export function BrewingDashboard() {
                     }`}
                     style={{ 
                       containerType: 'size',
-                      background: 'linear-gradient(135deg, hsl(120 50% 45% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)'
+                      background: 'linear-gradient(135deg, hsl(120 50% 45% / 0.06) 0%, hsl(222 18% 15% / 0.5) 100%)',
+                      boxShadow: updatedFields[brew.batch_id]?.attenuation 
+                        ? undefined 
+                        : '0 4px 12px hsl(222 30% 5% / 0.4), 0 2px 4px hsl(222 30% 5% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.05)'
                     }}
                   >
                     {(() => {
@@ -1589,7 +1600,9 @@ export function BrewingDashboard() {
                           borderWidth: '1px',
                           borderStyle: 'solid',
                           background: `linear-gradient(135deg, ${batteryColor}05 0%, hsl(222 18% 15% / 0.5) 100%)`,
-                          boxShadow: updatedFields[brew.batch_id]?.battery ? `0 0 25px ${batteryColor}66` : undefined
+                          boxShadow: updatedFields[brew.batch_id]?.battery 
+                            ? `0 0 25px ${batteryColor}66` 
+                            : '0 4px 12px hsl(222 30% 5% / 0.4), 0 2px 4px hsl(222 30% 5% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.05)'
                         }}
                       >
                         <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '55%', height: '55%', right: '-12%' }}>
