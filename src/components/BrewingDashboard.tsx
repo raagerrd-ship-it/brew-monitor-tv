@@ -1352,8 +1352,7 @@ export function BrewingDashboard() {
                           ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
                           : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
                         color: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                        animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                        border: (brew.status === "Konditionering" || brew.status === "Klar") 
+                        border: (brew.status === "Konditionering" || brew.status === "Klar")
                           ? "1px solid hsl(var(--primary) / 0.3)" 
                           : "1px solid hsl(var(--ferment-green) / 0.4)",
                         boxShadow: (brew.status === "Konditionering" || brew.status === "Klar") 
