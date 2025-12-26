@@ -1273,7 +1273,7 @@ export function BrewingDashboard() {
           </div>
         ) : isMobile ? (
           // Mobile: Swipeable carousel
-          <div className="flex flex-col flex-1 pt-2">
+          <div className="flex flex-col flex-1 pt-20">
             {/* Pagination dots and swipe indicators */}
             {brews.length > 1 && (
               <div className="relative py-3 flex-shrink-0">
