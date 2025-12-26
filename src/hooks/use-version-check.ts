@@ -58,17 +58,36 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
           console.log('New hash:', resourcesHash.substring(0, 8));
           
           sonnerToast('Ny version tillgänglig', {
-            description: 'Sidan uppdateras automatiskt...',
+            description: 'Rensar cache och uppdaterar...',
             duration: 3000,
           });
           
           // Update the hash before reload to prevent multiple reloads
           lastHtmlHash.current = resourcesHash;
           
-          // Wait for toast to show, then force reload with cache clear
-          setTimeout(() => {
-            // Force a hard reload to bypass cache
-            window.location.href = window.location.href.split('?')[0] + '?reload=' + Date.now();
+          // Wait for toast to show, then clear caches and reload
+          setTimeout(async () => {
+            try {
+              // 1. Clear all Service Worker caches
+              if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                console.log('Service Worker caches cleared:', cacheNames);
+              }
+              
+              // 2. Unregister all Service Workers
+              if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map(reg => reg.unregister()));
+                console.log('Service Workers unregistered:', registrations.length);
+              }
+              
+              // 3. Force hard reload with cache-busting URL
+              window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+            } catch (error) {
+              console.error('Cache clear failed, forcing reload anyway:', error);
+              window.location.reload();
+            }
           }, 2000);
         } else {
           console.log('Version check: no changes detected');
