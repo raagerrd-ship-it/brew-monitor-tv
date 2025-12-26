@@ -1,7 +1,7 @@
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Stylized beer glass SVG icon
-const BeerGlassIcon = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+// Stylized beer stein/sejdel SVG icon
+const BeerSteinIcon = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
   <svg 
     viewBox="0 0 48 48" 
     fill="none" 
@@ -9,58 +9,59 @@ const BeerGlassIcon = ({ className, style }: { className?: string; style?: React
     className={className}
     style={style}
   >
-    {/* Glass body - slightly tapered */}
-    <path 
-      d="M12 12 L14 42 C14 44 16 46 24 46 C32 46 34 44 34 42 L36 12 Z" 
-      fill="url(#beerGradient)" 
-      stroke="hsl(38 30% 70%)" 
-      strokeWidth="1"
-      opacity="0.95"
+    {/* Stein body - straight sided mug */}
+    <rect 
+      x="8" y="10" width="24" height="34" rx="2"
+      fill="url(#steinBeerGradient)" 
+      stroke="hsl(38 30% 60%)" 
+      strokeWidth="1.5"
     />
+    
+    {/* Horizontal bands/rings on stein */}
+    <line x1="8" y1="18" x2="32" y2="18" stroke="hsl(38 40% 50%)" strokeWidth="1" opacity="0.5" />
+    <line x1="8" y1="36" x2="32" y2="36" stroke="hsl(38 40% 50%)" strokeWidth="1" opacity="0.5" />
     
     {/* Glass highlight/reflection */}
-    <path 
-      d="M14 14 L15.5 40 C15.5 41 16.5 42 18 42" 
-      stroke="white" 
-      strokeWidth="2" 
-      strokeLinecap="round"
-      opacity="0.25"
-    />
+    <rect x="10" y="12" width="3" height="28" rx="1" fill="white" opacity="0.2" />
     
     {/* Foam top */}
-    <ellipse cx="24" cy="12" rx="12" ry="4" fill="hsl(45 50% 95%)" />
-    <ellipse cx="20" cy="10" rx="4" ry="2.5" fill="hsl(45 60% 98%)" />
-    <ellipse cx="28" cy="11" rx="3.5" ry="2" fill="hsl(45 60% 98%)" />
-    <ellipse cx="24" cy="9" rx="3" ry="1.8" fill="white" />
-    <ellipse cx="17" cy="12" rx="2.5" ry="1.5" fill="hsl(45 60% 98%)" />
-    <ellipse cx="31" cy="12" rx="2" ry="1.2" fill="white" />
+    <ellipse cx="20" cy="10" rx="12" ry="4" fill="hsl(45 50% 95%)" />
+    <ellipse cx="16" cy="8" rx="4" ry="2.5" fill="hsl(45 60% 98%)" />
+    <ellipse cx="24" cy="9" rx="3.5" ry="2" fill="hsl(45 60% 98%)" />
+    <ellipse cx="20" cy="7" rx="3" ry="1.8" fill="white" />
+    <ellipse cx="13" cy="10" rx="2.5" ry="1.5" fill="hsl(45 60% 98%)" />
+    <ellipse cx="27" cy="10" rx="2" ry="1.2" fill="white" />
+    
+    {/* Foam drip on side */}
+    <path d="M30 10 Q32 12 31 16" stroke="hsl(45 50% 95%)" strokeWidth="2" fill="none" strokeLinecap="round" />
     
     {/* Bubbles rising */}
-    <circle cx="20" cy="30" r="1.2" fill="white" opacity="0.4" />
-    <circle cx="26" cy="35" r="0.8" fill="white" opacity="0.35" />
-    <circle cx="22" cy="25" r="1" fill="white" opacity="0.3" />
-    <circle cx="28" cy="28" r="0.9" fill="white" opacity="0.35" />
-    <circle cx="19" cy="38" r="0.7" fill="white" opacity="0.3" />
+    <circle cx="16" cy="28" r="1" fill="white" opacity="0.4" />
+    <circle cx="22" cy="32" r="0.8" fill="white" opacity="0.35" />
+    <circle cx="18" cy="24" r="0.8" fill="white" opacity="0.3" />
+    <circle cx="25" cy="26" r="0.7" fill="white" opacity="0.35" />
     
-    {/* Handle */}
+    {/* Handle - thick curved handle typical for sejdel */}
     <path 
-      d="M36 18 C42 18 44 22 44 28 C44 34 42 38 36 38" 
-      stroke="hsl(38 30% 65%)" 
-      strokeWidth="3" 
+      d="M32 14 L36 14 C42 14 44 20 44 27 C44 34 42 40 36 40 L32 40" 
+      stroke="hsl(38 35% 55%)" 
+      strokeWidth="4" 
       strokeLinecap="round"
+      strokeLinejoin="round"
       fill="none"
     />
+    {/* Handle inner edge highlight */}
     <path 
-      d="M36 20 C40 20 42 23 42 28 C42 33 40 36 36 36" 
-      stroke="hsl(38 40% 80%)" 
-      strokeWidth="1" 
+      d="M33 17 L35 17 C39 17 41 22 41 27 C41 32 39 37 35 37 L33 37" 
+      stroke="hsl(38 45% 75%)" 
+      strokeWidth="1.5" 
       strokeLinecap="round"
       fill="none"
-      opacity="0.5"
+      opacity="0.6"
     />
     
     <defs>
-      <linearGradient id="beerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="steinBeerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="hsl(38 90% 55%)" />
         <stop offset="50%" stopColor="hsl(35 85% 50%)" />
         <stop offset="100%" stopColor="hsl(30 80% 45%)" />
@@ -75,7 +76,7 @@ export const Logo = () => {
   if (isMobile) {
     return (
       <div className="relative">
-        <BeerGlassIcon 
+        <BeerSteinIcon 
           className="h-9 w-9"
           style={{
             filter: 'drop-shadow(0 2px 4px hsl(38 90% 40% / 0.3))',
@@ -88,7 +89,7 @@ export const Logo = () => {
   return (
     <div className="flex items-center gap-3">
       {/* Icon */}
-      <BeerGlassIcon 
+      <BeerSteinIcon 
         className="h-12 w-12"
         style={{
           filter: 'drop-shadow(0 2px 8px hsl(38 90% 40% / 0.4))',
