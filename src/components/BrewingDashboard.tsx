@@ -1262,42 +1262,61 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full relative ${
+                className={`bg-gradient-card border-border shadow-deep flex flex-col overflow-hidden h-full relative group ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
+                style={{
+                  transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (!hasCardGlow) {
+                    e.currentTarget.style.boxShadow = '0 10px 50px hsl(222 30% 5% / 0.7)';
+                    e.currentTarget.style.borderColor = 'hsl(222 15% 25%)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!hasCardGlow) {
+                    e.currentTarget.style.boxShadow = '';
+                    e.currentTarget.style.borderColor = '';
+                  }
+                }}
               >
               {/* Header - 10% */}
-              <div className="h-[10%] p-2 pb-1 border-b border-border/50 flex-shrink-0" style={{ containerType: 'size' }}>
+              <div className="h-[10%] px-3 py-2 border-b border-border/30 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
                   <div className="min-w-0 flex-1">
                     <h2 className="font-bold text-foreground leading-tight truncate" style={{ fontSize: 'min(2.5vh, 2.4vw)' }}>
                       {brew.name}
                     </h2>
-                    <p className="text-muted-foreground truncate" style={{ fontSize: 'min(1.5vh, 1.8vw)' }}>
+                    <p className="text-muted-foreground/70 truncate" style={{ fontSize: 'min(1.4vh, 1.6vw)' }}>
                       {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleShareBrew(brew)}
-                      className="h-8 w-8 hover:bg-primary/10"
-                      title="Dela detta öl"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </Button>
-                    <BrewEventDialog
-                      brewId={brew.id}
-                      brewName={brew.name}
-                      events={brew.events}
-                      onEventsChange={loadBrewEvents}
-                    />
+                  <div className="flex items-center gap-1.5">
+                    {/* Hidden action buttons - appear on hover */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleShareBrew(brew)}
+                        className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground"
+                        title="Dela detta öl"
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <BrewEventDialog
+                        brewId={brew.id}
+                        brewName={brew.name}
+                        events={brew.events}
+                        onEventsChange={loadBrewEvents}
+                      />
+                    </div>
+                    {/* Status badge - always visible */}
                     <span
-                      className="rounded-full px-2.5 py-1 font-bold whitespace-nowrap flex-shrink-0"
+                      className="rounded-full px-2.5 py-0.5 font-semibold whitespace-nowrap flex-shrink-0"
                       style={{ 
-                        fontSize: 'min(1.8vh, 2vw)',
-                        backgroundColor: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary) / 0.2)" : "hsl(var(--ferment-green) / 0.2)",
+                        fontSize: 'min(1.6vh, 1.8vw)',
+                        backgroundColor: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary) / 0.15)" : "hsl(var(--ferment-green) / 0.15)",
                         color: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
                         animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
                       }}
