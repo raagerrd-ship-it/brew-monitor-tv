@@ -969,7 +969,7 @@ export function BrewingDashboard() {
       </div>
       {/* Header Bar - Clean Modern Design */}
       <div 
-        className={`flex-shrink-0 overflow-visible relative ${isMobile ? 'flex flex-col py-2 px-3 gap-2' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
+        className={`flex-shrink-0 overflow-visible relative ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
         style={{ 
           containerType: 'size',
           background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
@@ -1008,11 +1008,11 @@ export function BrewingDashboard() {
         )}
         
         {/* RAPT Section */}
-        <div className={`flex items-center ${isMobile ? 'gap-2 w-full overflow-hidden' : 'gap-4'}`}>
+        <div className={`flex items-center ${isMobile ? 'gap-2 w-full overflow-hidden justify-center' : 'gap-4'}`}>
           {/* Grouped RAPT container */}
           {raptControllers.length > 0 && (
             <div 
-              className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-1.5 py-1 flex-1 overflow-x-auto scrollbar-hide' : 'gap-1.5 px-2 py-1.5'}`}
+              className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-1.5 py-1.5 overflow-x-auto scrollbar-hide' : 'gap-1.5 px-2 py-1.5'}`}
               style={{
                 background: 'hsl(222 20% 11%)',
                 border: '1px solid hsl(222 15% 18%)',
