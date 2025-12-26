@@ -382,18 +382,14 @@ export function BrewingDashboard() {
                   ) {
                     sonnerToast(`${updatedReading.name} är klar! 🍺`, {
                       description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
-                      duration: Infinity,
-                      action: {
-                        label: 'Kvittera',
-                        onClick: async () => {
-                          // Update database to acknowledge coldcrash
-                          await supabase
-                            .from('brew_readings')
-                            .update({ coldcrash_acknowledged: true })
-                            .eq('batch_id', brew.batch_id);
-                        },
-                      },
+                      duration: 5000,
                     });
+                    
+                    // Auto-acknowledge in database
+                    supabase
+                      .from('brew_readings')
+                      .update({ coldcrash_acknowledged: true })
+                      .eq('batch_id', brew.batch_id);
                   }
                   
                   return {
