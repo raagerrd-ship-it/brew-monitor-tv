@@ -1256,7 +1256,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area - All Brews */}
-      <div className="flex-1 overflow-hidden relative flex flex-col">
+      <div className="flex-1 overflow-hidden relative flex flex-col z-0">
         {brews.length === 0 ? (
           // No brews selected - show message
           <div className="flex items-center justify-center h-full p-4">
