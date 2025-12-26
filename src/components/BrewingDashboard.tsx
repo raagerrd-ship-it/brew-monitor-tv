@@ -1092,42 +1092,34 @@ export function BrewingDashboard() {
             </div>
           )}
           
-          {/* Clock Section - matching RAPT group style */}
+          {/* Clock Section */}
           {!isMobile && (
-            <div 
-              className="flex items-center rounded-lg px-3 py-1.5"
-              style={{
-                background: 'hsl(222 20% 11%)',
-                border: '1px solid hsl(222 15% 16%)',
-              }}
-            >
-              <div className="flex flex-col items-center justify-center">
-                <p 
-                  className="font-semibold tabular-nums tracking-tight text-foreground"
-                  style={{ 
-                    fontSize: 'min(4.5vh, 2.2vw)',
-                    fontVariantNumeric: 'tabular-nums',
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {currentTime.toLocaleTimeString("sv-SE", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  <span className="text-muted-foreground/40">:</span>
-                  <span className="text-muted-foreground/60">{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-                </p>
-                <p 
-                  className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
-                  style={{ fontSize: 'min(2vh, 1.1vw)' }}
-                >
-                  {currentTime.toLocaleDateString("sv-SE", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </p>
-              </div>
+            <div className="flex flex-col items-end justify-center">
+              <p 
+                className="font-semibold tabular-nums tracking-tight text-foreground"
+                style={{ 
+                  fontSize: 'min(4.5vh, 2.2vw)',
+                  fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1.1,
+                }}
+              >
+                {currentTime.toLocaleTimeString("sv-SE", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                <span className="text-muted-foreground/40">:</span>
+                <span className="text-muted-foreground/60">{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+              </p>
+              <p 
+                className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
+                style={{ fontSize: 'min(2vh, 1.1vw)' }}
+              >
+                {currentTime.toLocaleDateString("sv-SE", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}
+              </p>
             </div>
           )}
           
