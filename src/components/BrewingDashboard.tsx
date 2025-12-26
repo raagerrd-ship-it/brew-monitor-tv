@@ -983,7 +983,7 @@ export function BrewingDashboard() {
         
         {/* RAPT Section */}
         <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-3'}`}>
-          <div data-name="RaptMain" className={`flex items-stretch h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-2.5 justify-end'}`}>
+          <div data-name="RaptMain" className={`flex items-center h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-2 justify-end'}`}>
             {/* Temp Controllers with their linked Pills */}
             {raptControllers.length > 0 && raptControllers.map((controller) => {
               const controllerColor = getControllerColor(controller.name);
@@ -997,90 +997,85 @@ export function BrewingDashboard() {
               return (
               <div 
                 key={controller.id}
-                className={`rounded-lg flex flex-col items-start justify-center cursor-pointer flex-shrink-0 min-w-fit transition-colors duration-200 ${isMobile ? 'px-2 py-1.5' : 'px-3.5 py-2'}`}
+                className={`rounded-md flex items-center cursor-pointer flex-shrink-0 transition-colors duration-200 ${isMobile ? 'px-2 py-1.5 gap-2' : 'px-3 py-2 gap-3'}`}
                 style={{
                   background: 'hsl(222 18% 13%)',
-                  border: '1px solid hsl(222 15% 20%)',
+                  border: '1px solid hsl(222 15% 18%)',
                 }}
                 onClick={() => {
                   setSelectedController(controller);
                   setControllerDialogOpen(true);
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'hsl(222 18% 16%)';
-                  e.currentTarget.style.borderColor = 'hsl(222 15% 25%)';
+                  e.currentTarget.style.background = 'hsl(222 18% 15%)';
+                  e.currentTarget.style.borderColor = 'hsl(222 15% 22%)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'hsl(222 18% 13%)';
-                  e.currentTarget.style.borderColor = 'hsl(222 15% 20%)';
+                  e.currentTarget.style.borderColor = 'hsl(222 15% 18%)';
                 }}
                 title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
               >
-                {/* Controller Row */}
-                <div className={`flex flex-row items-center gap-2 ${isMobile ? 'h-7' : 'h-8'} w-full`}>
-                  <AirVent 
-                    style={{
-                      width: isMobile ? '1.25rem' : '1.5rem',
-                      height: isMobile ? '1.25rem' : '1.5rem',
-                      color: controllerColor,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span 
-                    className={`font-bold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
-                    style={{
-                      fontSize: isMobile ? undefined : 'min(2.6vh, 1.8vw)',
-                      color: linkedPill?.color || 'hsl(var(--foreground))',
-                    }}
-                  >
-                    {controller.pill_temp !== null 
-                      ? `${controller.pill_temp.toFixed(1)}°C` 
-                      : controller.current_temp !== null 
-                        ? `${controller.current_temp.toFixed(1)}°C` 
-                        : '--°C'
-                    }
-                  </span>
-                </div>
+                {/* Controller icon */}
+                <AirVent 
+                  style={{
+                    width: isMobile ? '1rem' : '1.2rem',
+                    height: isMobile ? '1rem' : '1.2rem',
+                    color: controllerColor,
+                    flexShrink: 0,
+                    opacity: 0.7,
+                  }}
+                />
                 
-                {/* Linked Pill Row (if exists) */}
-                {linkedPill ? (
+                {/* Temperature */}
+                <span 
+                  className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
+                  style={{
+                    fontSize: isMobile ? undefined : 'min(2.8vh, 1.6vw)',
+                    color: linkedPill?.color || 'hsl(var(--foreground))',
+                  }}
+                >
+                  {controller.pill_temp !== null 
+                    ? `${controller.pill_temp.toFixed(1)}°C` 
+                    : controller.current_temp !== null 
+                      ? `${controller.current_temp.toFixed(1)}°C` 
+                      : '--°C'
+                  }
+                </span>
+                
+                {/* Pill battery indicator - compact */}
+                {linkedPill && (
                   <div 
-                    className={`flex flex-row items-center gap-2 transition-opacity ${isMobile ? 'h-5 mt-0.5' : 'h-6 mt-1'} w-full ${isPillStale ? 'opacity-50' : ''}`}
+                    className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
                     title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                   >
                     <div className="relative flex items-center">
                       <Pill
                         style={{
-                          width: isMobile ? '0.9rem' : '1.1rem',
-                          height: isMobile ? '0.9rem' : '1.1rem',
+                          width: isMobile ? '0.75rem' : '0.9rem',
+                          height: isMobile ? '0.75rem' : '0.9rem',
                           flexShrink: 0,
                         }}
                         color={linkedPill.color}
-                        strokeWidth={2.5}
+                        strokeWidth={2}
                         className={isPillStale ? 'animate-pulse' : ''}
                       />
                       {isPillStale && (
                         <div 
-                          className={`absolute -top-0.5 -right-0.5 rounded-full border border-background ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}
-                          style={{
-                            backgroundColor: 'rgb(249 115 22)',
-                          }}
+                          className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
+                          style={{ backgroundColor: 'hsl(25 95% 53%)' }}
                         />
                       )}
                     </div>
                     <span 
-                      className={`font-medium tabular-nums whitespace-nowrap ${isMobile ? 'text-xs' : ''}`}
+                      className={`tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : 'text-xs'}`}
                       style={{ 
-                        fontSize: isMobile ? undefined : 'min(1.8vh, 1.3vw)',
                         color: linkedPill.color,
-                        opacity: 0.85
                       }}
                     >
                       {linkedPill.battery_level}%
                     </span>
                   </div>
-                ) : (
-                  <div className={`${isMobile ? 'h-5 mt-0.5' : 'h-6 mt-1'} w-full`} />
                 )}
               </div>
               );
