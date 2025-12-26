@@ -126,7 +126,7 @@ export function BrewingDashboard() {
   }, []);
 
   // Check for new app versions every 60 seconds
-  useVersionCheck(60000);
+  const { appLoadTime } = useVersionCheck(60000);
 
   useEffect(() => {
     loadBrews();
@@ -952,7 +952,20 @@ export function BrewingDashboard() {
   };
 
   return (
-    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden relative">
+      {/* Version indicator - bottom right */}
+      <div 
+        className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
+        style={{ fontSize: 'min(1.5vh, 0.7vw)' }}
+      >
+        Laddad: {appLoadTime.toLocaleString('sv-SE', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })}
+      </div>
       {/* Header Bar - Clean Modern Design */}
       <div 
         className="h-[11%] flex items-center justify-between flex-shrink-0 overflow-visible px-6 gap-6 relative"
