@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 
 // Check for new app versions by comparing the HTML content
 export const useVersionCheck = (checkInterval = 60000) => { // Default: check every minute
   const lastHtmlHash = useRef<string | null>(null);
+  const [appLoadTime] = useState(() => new Date());
   const isFirstCheck = useRef(true);
 
   useEffect(() => {
@@ -108,4 +109,6 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
       clearInterval(interval);
     };
   }, [checkInterval]);
+
+  return { appLoadTime };
 };
