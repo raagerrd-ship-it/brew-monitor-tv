@@ -95,32 +95,32 @@ export const Logo = () => {
         }}
       />
       
-      {/* Text on same line */}
-      <div className="flex items-baseline gap-2">
-        <span 
-          className="font-bold tracking-tight"
-          style={{ 
-            fontSize: 'min(4.5vh, 2vw)',
+      {/* Text as unified word */}
+      <span 
+        className="font-bold tracking-tight"
+        style={{ 
+          fontSize: 'min(4vh, 1.8vw)',
+          letterSpacing: '-0.01em',
+        }}
+      >
+        <span
+          style={{
             background: 'linear-gradient(135deg, hsl(38 90% 60%) 0%, hsl(45 95% 65%) 50%, hsl(38 85% 55%) 100%)',
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',
-            letterSpacing: '-0.02em',
           }}
         >
           Brygg
         </span>
-        <span 
-          className="font-medium"
+        <span
           style={{ 
-            fontSize: 'min(3.5vh, 1.6vw)',
             color: 'hsl(35 65% 38%)',
-            letterSpacing: '0.02em',
           }}
         >
           övervakare
         </span>
-      </div>
+      </span>
     </div>
   );
 };
