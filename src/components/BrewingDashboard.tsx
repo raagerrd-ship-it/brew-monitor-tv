@@ -1430,7 +1430,7 @@ export function BrewingDashboard() {
                     <p 
                       className={`font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums ${updatedFields[brew.batch_id]?.sg ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'max(28px, min(6vh, 3vw))',
+                        fontSize: 'max(32px, min(6vh, 3vw))',
                         textShadow: '0 0 20px hsl(var(--primary) / 0.4)'
                       }}
                     >
@@ -1482,7 +1482,7 @@ export function BrewingDashboard() {
                     <p 
                       className={`font-bold text-secondary leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.abv ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'max(22px, min(5.5vh, 2.5vw))',
+                        fontSize: 'max(28px, min(5.5vh, 2.5vw))',
                         textShadow: '0 0 15px hsl(var(--secondary) / 0.3)'
                       }}
                     >
@@ -1560,7 +1560,7 @@ export function BrewingDashboard() {
                           className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.temp ? 'animate-value-shimmer' : ''}`}
                           style={{ 
                             color: tempColor,
-                            fontSize: 'max(22px, min(5.5vh, 2.5vw))',
+                            fontSize: 'max(28px, min(5.5vh, 2.5vw))',
                             textShadow: `0 0 15px ${tempColor}40`
                           }}
                         >
@@ -1607,7 +1607,7 @@ export function BrewingDashboard() {
                     <p 
                       className={`font-bold text-ferment-green leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.attenuation ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'max(22px, min(5.5vh, 2.5vw))',
+                        fontSize: 'max(28px, min(5.5vh, 2.5vw))',
                         textShadow: '0 0 15px hsl(var(--ferment-green) / 0.3)'
                       }}
                     >
@@ -1659,7 +1659,7 @@ export function BrewingDashboard() {
                         <p 
                           className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.battery ? 'animate-value-shimmer' : ''} ${!isInactive && brew.battery !== null && brew.battery < 20 ? 'animate-battery-pulse' : ''}`}
                           style={{ 
-                            fontSize: 'max(22px, min(5.5vh, 2.5vw))',
+                            fontSize: 'max(28px, min(5.5vh, 2.5vw))',
                             color: !isInactive && brew.battery !== null && brew.battery < 20 ? 'hsl(0 70% 50%)' : batteryColor,
                             textShadow: !isInactive && brew.battery !== null && brew.battery < 20 ? '0 0 15px hsl(0 70% 50% / 0.4)' : `0 0 15px ${batteryColor}30`
                           }}
