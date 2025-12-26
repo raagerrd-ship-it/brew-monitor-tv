@@ -1388,7 +1388,7 @@ export function BrewingDashboard() {
                     </h2>
                     <p 
                       className="text-muted-foreground/60 truncate font-medium" 
-                      style={{ fontSize: 'max(12px, min(1.3vh, 1.5vw))', letterSpacing: '0.02em' }}
+                      style={{ fontSize: 'max(14px, min(1.6vh, 1.8vw))', letterSpacing: '0.02em' }}
                     >
                       {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
                     </p>
