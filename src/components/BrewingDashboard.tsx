@@ -1274,23 +1274,30 @@ export function BrewingDashboard() {
             return (
               <Card 
                 key={brew.id}
-                className={`border-white/10 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-md ${
+                className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-xl ${
                   isAuthenticated ? 'group' : ''
                 } ${
                   hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
                 }`}
                 style={{
-                  background: 'linear-gradient(180deg, hsl(222 18% 14% / 0.85) 0%, hsl(222 20% 11% / 0.9) 100%)',
+                  background: 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
                   boxShadow: hasCardGlow 
                     ? undefined 
-                    : '0 8px 32px hsl(222 30% 5% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
+                    : '0 8px 32px hsl(222 30% 5% / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
                 }}
               >
-              {/* Glass highlight overlay */}
+              {/* Glass highlight overlay - top edge */}
               <div 
-                className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+                className="absolute inset-x-0 top-0 h-[2px] pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(90deg, transparent 0%, hsl(0 0% 100% / 0.15) 20%, hsl(0 0% 100% / 0.25) 50%, hsl(0 0% 100% / 0.15) 80%, transparent 100%)'
+                  background: 'linear-gradient(90deg, transparent 5%, hsl(0 0% 100% / 0.2) 25%, hsl(0 0% 100% / 0.35) 50%, hsl(0 0% 100% / 0.2) 75%, transparent 95%)'
+                }}
+              />
+              {/* Glass gradient overlay - subtle shine */}
+              <div 
+                className="absolute inset-0 pointer-events-none z-0"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(0 0% 100% / 0.06) 0%, transparent 40%, transparent 60%, hsl(0 0% 0% / 0.05) 100%)'
                 }}
               />
               {/* Header - 10% */}
