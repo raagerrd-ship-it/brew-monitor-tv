@@ -1284,22 +1284,25 @@ export function BrewingDashboard() {
               {/* Header - 10% */}
               <div className="h-[10%] px-3 py-2 border-b border-border/30 flex-shrink-0" style={{ containerType: 'size' }}>
                 <div className="flex items-center justify-between gap-2 h-full">
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <h2 className="font-bold text-foreground leading-tight truncate" style={{ fontSize: 'min(2.5vh, 2.4vw)' }}>
                       {brew.name}
                     </h2>
-                    <p className="text-muted-foreground/70 truncate" style={{ fontSize: 'min(1.4vh, 1.6vw)' }}>
+                    <p 
+                      className="text-muted-foreground/70 group-hover:truncate transition-all duration-200" 
+                      style={{ fontSize: 'min(1.4vh, 1.6vw)' }}
+                    >
                       {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     {/* Hidden action buttons - appear on hover */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="flex items-center gap-1 max-w-0 group-hover:max-w-[80px] overflow-hidden transition-all duration-200">
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleShareBrew(brew)}
-                        className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground"
+                        className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex-shrink-0"
                         title="Dela detta öl"
                       >
                         <Share2 className="h-3.5 w-3.5" />
