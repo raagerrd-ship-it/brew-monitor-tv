@@ -1295,7 +1295,14 @@ export function BrewingDashboard() {
                 }}
               />
               {/* Header - 10% */}
-              <div className="h-[10%] px-3 py-2 border-b border-border/30 flex-shrink-0" style={{ containerType: 'size' }}>
+              <div className="h-[10%] px-3 py-2 flex-shrink-0 relative" style={{ containerType: 'size' }}>
+                {/* Gradient header border */}
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-[1px]"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.5) 25%, hsl(var(--border) / 0.6) 50%, hsl(var(--border) / 0.5) 75%, transparent 95%)'
+                  }}
+                />
                 <div className="flex items-center justify-between gap-2 h-full">
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <h2 
@@ -1336,15 +1343,25 @@ export function BrewingDashboard() {
                         />
                       </div>
                     )}
-                    {/* Status badge - always visible */}
+                    {/* Status badge - glassmorphism style */}
                     <span
-                      className="rounded-full px-2.5 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-sm"
+                      className="rounded-full px-2.5 py-1 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
                       style={{ 
                         fontSize: 'min(1.6vh, 1.8vw)',
-                        backgroundColor: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary) / 0.15)" : "hsl(var(--ferment-green) / 0.15)",
+                        background: (brew.status === "Konditionering" || brew.status === "Klar") 
+                          ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                          : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
                         color: (brew.status === "Konditionering" || brew.status === "Klar") ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
                         animation: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                        boxShadow: (brew.status === "Konditionering" || brew.status === "Klar") ? "none" : "0 0 15px hsl(var(--ferment-green) / 0.3)"
+                        border: (brew.status === "Konditionering" || brew.status === "Klar") 
+                          ? "1px solid hsl(var(--primary) / 0.3)" 
+                          : "1px solid hsl(var(--ferment-green) / 0.4)",
+                        boxShadow: (brew.status === "Konditionering" || brew.status === "Klar") 
+                          ? "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)" 
+                          : "0 0 20px hsl(var(--ferment-green) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.15), inset 0 -1px 0 hsl(0 0% 0% / 0.1)",
+                        textShadow: (brew.status === "Konditionering" || brew.status === "Klar") 
+                          ? "none" 
+                          : "0 0 10px hsl(var(--ferment-green) / 0.5)"
                       }}
                     >
                       {brew.status === "Jäsning" && brew.sgData.length > 0 ? (
@@ -1397,9 +1414,9 @@ export function BrewingDashboard() {
                         : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
                     }}
                   >
-                    <p className="text-muted-foreground/80 uppercase tracking-wider flex items-center justify-center z-10 px-1 font-medium" style={{ fontSize: 'min(2.8vh, 1.5vw)' }}>Gravity</p>
+                    <p className="text-muted-foreground/60 tracking-wide flex items-center justify-center z-10 px-1 font-normal" style={{ fontSize: 'min(2.8vh, 1.5vw)' }}>Gravity</p>
                     <p 
-                      className="font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums" 
+                      className={`font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums ${updatedFields[brew.batch_id]?.sg ? 'animate-value-shimmer' : ''}`}
                       style={{ 
                         fontSize: 'min(6vh, 3vw)',
                         textShadow: '0 0 20px hsl(var(--primary) / 0.4)'
@@ -1433,25 +1450,25 @@ export function BrewingDashboard() {
                         : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
                     }}
                   >
-                    <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '60%', height: '60%', right: '-15%' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '60%', height: '60%', right: '-15%' }}>
                       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
                         <defs>
                           <linearGradient id={`abvFill-${brew.batch_id}`} x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0.1"/>
-                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.1"/>
-                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.8"/>
-                            <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.8"/>
+                            <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0.05"/>
+                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.05"/>
+                            <stop offset={`${100 - Math.min((brew.abv / 10) * 100, 100)}%`} stopColor="hsl(var(--secondary))" stopOpacity="0.6"/>
+                            <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.6"/>
                           </linearGradient>
                         </defs>
-                        {/* Wine glass with fill */}
-                        <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="1" fill={`url(#abvFill-${brew.batch_id})`}/>
-                        <line x1="12" y1="18" x2="12" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
-                        <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="1"/>
+                        {/* Wine glass with fill - thinner strokes */}
+                        <path d="M8 2l-1 12c0 2 2 4 5 4s5-2 5-4L16 2z" stroke="hsl(var(--secondary))" strokeWidth="0.75" fill={`url(#abvFill-${brew.batch_id})`}/>
+                        <line x1="12" y1="18" x2="12" y2="22" stroke="hsl(var(--secondary))" strokeWidth="0.75"/>
+                        <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="0.75"/>
                       </svg>
                     </div>
-                    <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>ABV</p>
+                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Abv</p>
                     <p 
-                      className="font-bold text-secondary leading-none z-10 pl-2" 
+                      className={`font-bold text-secondary leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.abv ? 'animate-value-shimmer' : ''}`}
                       style={{ 
                         fontSize: 'min(5.5vh, 2.5vw)',
                         textShadow: '0 0 15px hsl(var(--secondary) / 0.3)'
@@ -1497,13 +1514,13 @@ export function BrewingDashboard() {
                         }}
                         title={isAuthenticated ? "Klicka för att koppla enheter" : undefined}
                       >
-                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-15 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-10 ${isInactive ? '' : 'animate-pulse'}`} style={{ width: '60%', height: '60%', right: '-15%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                            {/* Thermometer outline */}
+                            {/* Thermometer outline - thinner stroke */}
                             <path 
                               d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" 
                               stroke={tempColor}
-                              strokeWidth="1" 
+                              strokeWidth="0.75" 
                               fill="none"
                             />
                             {/* Thermometer fill - calculate based on 0-30 degrees */}
@@ -1520,15 +1537,15 @@ export function BrewingDashboard() {
                               fill={tempColor}
                               clipPath={`url(#thermo-clip-${brew.batch_id})`}
                               className="transition-all duration-500"
-                              opacity="0.8"
+                              opacity="0.6"
                             />
                           </svg>
                         </div>
-                        <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>
+                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.8vh, 1vw)' }}>
                           Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
-                          className="font-bold leading-none z-10 pl-2"
+                          className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.temp ? 'animate-value-shimmer' : ''}`}
                           style={{ 
                             color: tempColor,
                             fontSize: 'min(5.5vh, 2.5vw)',
@@ -1557,26 +1574,26 @@ export function BrewingDashboard() {
                     {(() => {
                       const isInactiveAttenuation = brew.status === "Konditionering" || brew.status === "Klar";
                       return (
-                        <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '55%', height: '55%', right: '-12%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-                            {/* Rising bubbles - colored based on attenuation level */}
-                            <circle cx="14" cy="22" r="1" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.4s' }} />
-                            <circle cx="8" cy="20" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 80 ? "0.8" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
-                            <circle cx="18" cy="20" r="1.8" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 70 ? "0.7" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.5s' }} />
-                            <circle cx="8" cy="18" r="2.5" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 60 ? "0.7" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
-                            <circle cx="10" cy="16" r="1.3" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 50 ? "0.6" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.8s' }} />
-                            <circle cx="16" cy="14" r="3" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 40 ? "0.6" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.3s' }} />
-                            <circle cx="6" cy="12" r="1.5" stroke="hsl(var(--ferment-green))" strokeWidth="1" fill="none" opacity={brew.attenuation >= 30 ? "0.5" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.2s' }} />
-                            <circle cx="16" cy="10" r="0.8" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 20 ? "0.4" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.1s' }} />
-                            <circle cx="12" cy="8" r="2" stroke="hsl(var(--ferment-green))" strokeWidth="1.5" fill="none" opacity={brew.attenuation >= 10 ? "0.4" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.6s' }} />
-                            <circle cx="9" cy="6" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="0.8" fill="none" opacity={brew.attenuation >= 5 ? "0.3" : "0.2"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.7s' }} />
+                            {/* Rising bubbles - thinner strokes, gradient opacity */}
+                            <circle cx="14" cy="22" r="1" stroke="hsl(var(--ferment-green))" strokeWidth="0.5" fill="none" opacity={brew.attenuation >= 80 ? "0.7" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.4s' }} />
+                            <circle cx="8" cy="20" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="0.6" fill="none" opacity={brew.attenuation >= 80 ? "0.7" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
+                            <circle cx="18" cy="20" r="1.8" stroke="hsl(var(--ferment-green))" strokeWidth="0.6" fill="none" opacity={brew.attenuation >= 70 ? "0.6" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.5s' }} />
+                            <circle cx="8" cy="18" r="2.5" stroke="hsl(var(--ferment-green))" strokeWidth="0.75" fill="none" opacity={brew.attenuation >= 60 ? "0.6" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} />
+                            <circle cx="10" cy="16" r="1.3" stroke="hsl(var(--ferment-green))" strokeWidth="0.6" fill="none" opacity={brew.attenuation >= 50 ? "0.5" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.8s' }} />
+                            <circle cx="16" cy="14" r="3" stroke="hsl(var(--ferment-green))" strokeWidth="0.75" fill="none" opacity={brew.attenuation >= 40 ? "0.5" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.3s' }} />
+                            <circle cx="6" cy="12" r="1.5" stroke="hsl(var(--ferment-green))" strokeWidth="0.6" fill="none" opacity={brew.attenuation >= 30 ? "0.4" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.2s' }} />
+                            <circle cx="16" cy="10" r="0.8" stroke="hsl(var(--ferment-green))" strokeWidth="0.5" fill="none" opacity={brew.attenuation >= 20 ? "0.35" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.1s' }} />
+                            <circle cx="12" cy="8" r="2" stroke="hsl(var(--ferment-green))" strokeWidth="0.75" fill="none" opacity={brew.attenuation >= 10 ? "0.35" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.6s' }} />
+                            <circle cx="9" cy="6" r="1.2" stroke="hsl(var(--ferment-green))" strokeWidth="0.5" fill="none" opacity={brew.attenuation >= 5 ? "0.3" : "0.15"} className={isInactiveAttenuation ? '' : 'animate-pulse'} style={{ animationDelay: '0.7s' }} />
                           </svg>
                         </div>
                       );
                     })()}
-                    <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Utjäsning</p>
+                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Utjäsning</p>
                     <p 
-                      className="font-bold text-ferment-green leading-none z-10 pl-2" 
+                      className={`font-bold text-ferment-green leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.attenuation ? 'animate-value-shimmer' : ''}`}
                       style={{ 
                         fontSize: 'min(5.5vh, 2.5vw)',
                         textShadow: '0 0 15px hsl(var(--ferment-green) / 0.3)'
@@ -1606,11 +1623,11 @@ export function BrewingDashboard() {
                             : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
                         }}
                       >
-                        <div className="absolute top-1/2 -translate-y-1/2 opacity-15" style={{ width: '55%', height: '55%', right: '-12%' }}>
+                        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '55%', height: '55%', right: '-12%' }}>
                           <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-                            {/* Battery outline */}
-                            <rect x="2" y="6" width="18" height="12" rx="2" stroke={batteryColor} strokeWidth="1" fill="none"/>
-                            <path d="M22 9v6" stroke={batteryColor} strokeWidth="1" strokeLinecap="round"/>
+                            {/* Battery outline - thinner stroke */}
+                            <rect x="2" y="6" width="18" height="12" rx="2" stroke={batteryColor} strokeWidth="0.75" fill="none"/>
+                            <path d="M22 9v6" stroke={batteryColor} strokeWidth="0.75" strokeLinecap="round"/>
                             {/* Battery fill */}
                             {brew.battery !== null && (
                               <rect 
@@ -1621,18 +1638,18 @@ export function BrewingDashboard() {
                                 rx="1" 
                                 fill={batteryColor}
                                 className="transition-all duration-500"
-                                opacity="0.8"
+                                opacity="0.6"
                               />
                             )}
                           </svg>
                         </div>
-                        <p className="text-muted-foreground/70 uppercase tracking-wider z-10 pl-2 font-medium" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Batteri</p>
+                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.8vh, 1vw)' }}>Batteri</p>
                         <p 
-                          className="font-bold leading-none z-10 pl-2" 
+                          className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.battery ? 'animate-value-shimmer' : ''} ${!isInactive && brew.battery !== null && brew.battery < 20 ? 'animate-battery-pulse' : ''}`}
                           style={{ 
                             fontSize: 'min(5.5vh, 2.5vw)',
-                            color: batteryColor,
-                            textShadow: `0 0 15px ${batteryColor}30`
+                            color: !isInactive && brew.battery !== null && brew.battery < 20 ? 'hsl(0 70% 50%)' : batteryColor,
+                            textShadow: !isInactive && brew.battery !== null && brew.battery < 20 ? '0 0 15px hsl(0 70% 50% / 0.4)' : `0 0 15px ${batteryColor}30`
                           }}
                         >
                           {isInactive ? "--" : (brew.battery !== null ? `${brew.battery}%` : "--")}
