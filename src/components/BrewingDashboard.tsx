@@ -969,7 +969,7 @@ export function BrewingDashboard() {
       </div>
       {/* Header Bar - Clean Modern Design */}
       <div 
-        className={`flex-shrink-0 overflow-visible relative ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
+        className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
         style={{ 
           containerType: 'size',
           background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
