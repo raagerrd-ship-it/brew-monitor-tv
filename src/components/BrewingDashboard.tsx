@@ -943,14 +943,18 @@ export function BrewingDashboard() {
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       {/* Header Bar - Clean Modern Design */}
       <div 
-        className="h-[11%] flex items-center justify-between flex-shrink-0 overflow-visible px-6 gap-6"
+        className="h-[11%] flex items-center justify-between flex-shrink-0 overflow-visible px-6 gap-6 relative"
         style={{ 
           containerType: 'size',
-          background: 'hsl(222 20% 10%)',
-          borderBottom: '1px solid hsl(222 15% 18%)',
+          background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
+          borderBottom: '1px solid hsl(222 15% 16%)',
         }}
       >
-        {/* Title Section */}
+        {/* Subtle top highlight */}
+        <div 
+          className="absolute inset-x-0 top-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)' }}
+        />
         <div className="relative flex items-center">
           {isMobile ? (
             <div className="relative inline-block">
