@@ -1347,12 +1347,8 @@ export function BrewingDashboard() {
                         border: (brew.status === "Konditionering" || brew.status === "Klar")
                           ? "1px solid hsl(var(--primary) / 0.3)" 
                           : "1px solid hsl(var(--ferment-green) / 0.4)",
-                        boxShadow: (brew.status === "Konditionering" || brew.status === "Klar") 
-                          ? "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)" 
-                          : "0 0 20px hsl(var(--ferment-green) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.15), inset 0 -1px 0 hsl(0 0% 0% / 0.1)",
-                        textShadow: (brew.status === "Konditionering" || brew.status === "Klar") 
-                          ? "none" 
-                          : "0 0 10px hsl(var(--ferment-green) / 0.5)"
+                        boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
+                        textShadow: "none"
                       }}
                     >
                       {brew.status === "Jäsning" && brew.sgData.length > 0 ? (
