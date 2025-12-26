@@ -982,109 +982,119 @@ export function BrewingDashboard() {
         </div>
         
         {/* RAPT Section */}
-        <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-3'}`}>
-          <div data-name="RaptMain" className={`flex items-center h-full flex-nowrap ${isMobile ? 'gap-1.5 overflow-x-auto scrollbar-hide flex-1' : 'gap-2 justify-end'}`}>
-            {/* Temp Controllers with their linked Pills */}
-            {raptControllers.length > 0 && raptControllers.map((controller) => {
-              const controllerColor = getControllerColor(controller.name);
-              
-              // Find the pill that belongs to this controller
-              const linkedPill = raptPills.find(p => p.pill_id === controller.linked_pill_id);
-              const isPillStale = linkedPill?.last_update ? 
-                ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
-                : true;
-              
-              return (
-              <div 
-                key={controller.id}
-                className={`rounded-md flex items-center cursor-pointer flex-shrink-0 transition-colors duration-200 ${isMobile ? 'px-2 py-1.5 gap-2' : 'px-3 py-2 gap-3'}`}
-                style={{
-                  background: 'hsl(222 18% 13%)',
-                  border: '1px solid hsl(222 15% 18%)',
-                }}
-                onClick={() => {
-                  setSelectedController(controller);
-                  setControllerDialogOpen(true);
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'hsl(222 18% 15%)';
-                  e.currentTarget.style.borderColor = 'hsl(222 15% 22%)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'hsl(222 18% 13%)';
-                  e.currentTarget.style.borderColor = 'hsl(222 15% 18%)';
-                }}
-                title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
-              >
-                {/* Controller icon */}
-                <AirVent 
-                  style={{
-                    width: isMobile ? '1rem' : '1.2rem',
-                    height: isMobile ? '1rem' : '1.2rem',
-                    color: controllerColor,
-                    flexShrink: 0,
-                    opacity: 0.7,
-                  }}
-                />
+        <div className={`flex items-center ${isMobile ? 'gap-2 flex-1 overflow-hidden' : 'gap-4'}`}>
+          {/* Grouped RAPT container */}
+          {raptControllers.length > 0 && (
+            <div 
+              className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-1.5 py-1 flex-1 overflow-x-auto scrollbar-hide' : 'gap-1.5 px-2 py-1.5'}`}
+              style={{
+                background: 'hsl(222 20% 11%)',
+                border: '1px solid hsl(222 15% 16%)',
+              }}
+            >
+              {raptControllers.map((controller, index) => {
+                const controllerColor = getControllerColor(controller.name);
                 
-                {/* Temperature */}
-                <span 
-                  className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
-                  style={{
-                    fontSize: isMobile ? undefined : 'min(2.8vh, 1.6vw)',
-                    color: linkedPill?.color || 'hsl(var(--foreground))',
-                  }}
-                >
-                  {controller.pill_temp !== null 
-                    ? `${controller.pill_temp.toFixed(1)}°C` 
-                    : controller.current_temp !== null 
-                      ? `${controller.current_temp.toFixed(1)}°C` 
-                      : '--°C'
-                  }
-                </span>
+                // Find the pill that belongs to this controller
+                const linkedPill = raptPills.find(p => p.pill_id === controller.linked_pill_id);
+                const isPillStale = linkedPill?.last_update ? 
+                  ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
+                  : true;
                 
-                {/* Pill battery indicator - compact */}
-                {linkedPill && (
-                  <div 
-                    className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
-                    title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
-                  >
-                    <div className="relative flex items-center">
-                      <Pill
-                        style={{
-                          width: isMobile ? '0.75rem' : '0.9rem',
-                          height: isMobile ? '0.75rem' : '0.9rem',
-                          flexShrink: 0,
-                        }}
-                        color={linkedPill.color}
-                        strokeWidth={2}
-                        className={isPillStale ? 'animate-pulse' : ''}
+                return (
+                  <div key={controller.id} className="flex items-center">
+                    {/* Separator between cards */}
+                    {index > 0 && (
+                      <div 
+                        className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1.5'} w-px`}
+                        style={{ background: 'hsl(222 15% 20%)' }}
                       />
-                      {isPillStale && (
+                    )}
+                    
+                    <div 
+                      className={`flex items-center cursor-pointer flex-shrink-0 transition-all duration-200 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-2.5 py-1.5 gap-2.5'}`}
+                      style={{ background: 'transparent' }}
+                      onClick={() => {
+                        setSelectedController(controller);
+                        setControllerDialogOpen(true);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'hsl(222 18% 15%)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                      title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
+                    >
+                      {/* Controller icon */}
+                      <AirVent 
+                        style={{
+                          width: isMobile ? '1rem' : '1.1rem',
+                          height: isMobile ? '1rem' : '1.1rem',
+                          color: controllerColor,
+                          flexShrink: 0,
+                          opacity: 0.7,
+                        }}
+                      />
+                      
+                      {/* Temperature */}
+                      <span 
+                        className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`}
+                        style={{
+                          fontSize: isMobile ? undefined : 'min(2.6vh, 1.5vw)',
+                          color: linkedPill?.color || 'hsl(var(--foreground))',
+                        }}
+                      >
+                        {controller.pill_temp !== null 
+                          ? `${controller.pill_temp.toFixed(1)}°C` 
+                          : controller.current_temp !== null 
+                            ? `${controller.current_temp.toFixed(1)}°C` 
+                            : '--°C'
+                        }
+                      </span>
+                      
+                      {/* Pill battery indicator - compact */}
+                      {linkedPill && (
                         <div 
-                          className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
-                          style={{ backgroundColor: 'hsl(25 95% 53%)' }}
-                        />
+                          className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
+                          title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+                        >
+                          <div className="relative flex items-center">
+                            <Pill
+                              style={{
+                                width: isMobile ? '0.7rem' : '0.85rem',
+                                height: isMobile ? '0.7rem' : '0.85rem',
+                                flexShrink: 0,
+                              }}
+                              color={linkedPill.color}
+                              strokeWidth={2}
+                              className={isPillStale ? 'animate-pulse' : ''}
+                            />
+                            {isPillStale && (
+                              <div 
+                                className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
+                                style={{ backgroundColor: 'hsl(25 95% 53%)' }}
+                              />
+                            )}
+                          </div>
+                          <span 
+                            className={`tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+                            style={{ color: linkedPill.color }}
+                          >
+                            {linkedPill.battery_level}%
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <span 
-                      className={`tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : 'text-xs'}`}
-                      style={{ 
-                        color: linkedPill.color,
-                      }}
-                    >
-                      {linkedPill.battery_level}%
-                    </span>
                   </div>
-                )}
-              </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
           
           {/* Separator */}
-          {!isMobile && (
-            <div className="h-10 w-px bg-border/40" />
+          {!isMobile && raptControllers.length > 0 && (
+            <div className="h-10 w-px bg-border/30" />
           )}
           
           {/* Clock Section */}
