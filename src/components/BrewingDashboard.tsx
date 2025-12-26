@@ -1314,7 +1314,7 @@ export function BrewingDashboard() {
               </div>
             )}
             
-            <div className="flex-1 overflow-hidden px-3 pt-10 pb-2" ref={emblaRef}>
+            <div className="flex-1 overflow-hidden px-3 pt-16 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew) => (
                   <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
