@@ -1289,16 +1289,9 @@ export function BrewingDashboard() {
               >
               {/* Glass highlight overlay - top edge */}
               <div 
-                className="absolute inset-x-0 top-0 h-[2px] pointer-events-none z-10"
+                className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(90deg, transparent 5%, hsl(0 0% 100% / 0.2) 25%, hsl(0 0% 100% / 0.35) 50%, hsl(0 0% 100% / 0.2) 75%, transparent 95%)'
-                }}
-              />
-              {/* Glass gradient overlay - subtle shine */}
-              <div 
-                className="absolute inset-0 pointer-events-none z-0"
-                style={{
-                  background: 'linear-gradient(135deg, hsl(0 0% 100% / 0.06) 0%, transparent 40%, transparent 60%, hsl(0 0% 0% / 0.05) 100%)'
+                  background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.08) 30%, hsl(0 0% 100% / 0.12) 50%, hsl(0 0% 100% / 0.08) 70%, transparent 90%)'
                 }}
               />
               {/* Header - 10% */}
