@@ -17,6 +17,7 @@ export const Logo = () => {
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
+          filter: 'drop-shadow(0 2px 4px hsl(38 80% 30% / 0.5))',
         }}
       >
         Brygg
@@ -24,6 +25,7 @@ export const Logo = () => {
       <span
         style={{ 
           color: 'hsl(35 65% 38%)',
+          textShadow: '0 2px 4px hsl(35 50% 20% / 0.4)',
         }}
       >
         övervakare
