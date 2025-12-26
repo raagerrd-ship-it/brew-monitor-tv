@@ -1426,20 +1426,20 @@ export function BrewingDashboard() {
                         : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
                     }}
                   >
-                    <p className="text-muted-foreground/60 tracking-wide flex items-center justify-center z-10 px-1 font-normal" style={{ fontSize: 'min(1.8vh, 1.5vw)' }}>Gravity</p>
+                    <p className="text-muted-foreground/60 tracking-wide flex items-center justify-center z-10 px-1 font-normal" style={{ fontSize: 'max(12px, min(2.2vh, 1.5vw))' }}>Gravity</p>
                     <p 
                       className={`font-bold text-primary leading-none flex items-center justify-center z-10 px-1 tabular-nums ${updatedFields[brew.batch_id]?.sg ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'min(3.2vh, 3vw)',
+                        fontSize: 'max(28px, min(6vh, 3vw))',
                         textShadow: '0 0 20px hsl(var(--primary) / 0.4)'
                       }}
                     >
                       {brew.currentSG.toFixed(3)}
                     </p>
                     <div className="text-muted-foreground/70 mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.2vh, 1.1vw)' }}>OG: {brew.originalGravity.toFixed(3)}</p>
-                      <p className="tabular-nums truncate" style={{ fontSize: 'min(1.2vh, 1.1vw)' }}>FG: {brew.finalGravity.toFixed(3)}</p>
-                      <p className="font-medium truncate" style={{ fontSize: 'min(1.2vh, 1.1vw)' }}>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>OG: {brew.originalGravity.toFixed(3)}</p>
+                      <p className="tabular-nums truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>FG: {brew.finalGravity.toFixed(3)}</p>
+                      <p className="font-medium truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>
                         {brew.fermentationRate !== null ? (
                           <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
                         ) : (
@@ -1478,11 +1478,11 @@ export function BrewingDashboard() {
                         <line x1="9" y1="22" x2="15" y2="22" stroke="hsl(var(--secondary))" strokeWidth="0.75"/>
                       </svg>
                     </div>
-                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.2vh, 1vw)' }}>Abv</p>
+                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'max(11px, min(1.8vh, 1vw))' }}>Abv</p>
                     <p 
                       className={`font-bold text-secondary leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.abv ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'min(2.8vh, 2.5vw)',
+                        fontSize: 'max(22px, min(5.5vh, 2.5vw))',
                         textShadow: '0 0 15px hsl(var(--secondary) / 0.3)'
                       }}
                     >
@@ -1553,14 +1553,14 @@ export function BrewingDashboard() {
                             />
                           </svg>
                         </div>
-                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.2vh, 1vw)' }}>
+                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'max(11px, min(1.8vh, 1vw))' }}>
                           Temp{controller && controller.target_temp !== null && ` (${controller.target_temp.toFixed(0)}°)`}
                         </p>
                         <p 
                           className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.temp ? 'animate-value-shimmer' : ''}`}
                           style={{ 
                             color: tempColor,
-                            fontSize: 'min(2.8vh, 2.5vw)',
+                            fontSize: 'max(22px, min(5.5vh, 2.5vw))',
                             textShadow: `0 0 15px ${tempColor}40`
                           }}
                         >
@@ -1603,11 +1603,11 @@ export function BrewingDashboard() {
                         </div>
                       );
                     })()}
-                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.2vh, 1vw)' }}>Utjäsning</p>
+                    <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'max(11px, min(1.8vh, 1vw))' }}>Utjäsning</p>
                     <p 
                       className={`font-bold text-ferment-green leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.attenuation ? 'animate-value-shimmer' : ''}`}
                       style={{ 
-                        fontSize: 'min(2.8vh, 2.5vw)',
+                        fontSize: 'max(22px, min(5.5vh, 2.5vw))',
                         textShadow: '0 0 15px hsl(var(--ferment-green) / 0.3)'
                       }}
                     >
@@ -1655,11 +1655,11 @@ export function BrewingDashboard() {
                             )}
                           </svg>
                         </div>
-                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'min(1.2vh, 1vw)' }}>Batteri</p>
+                        <p className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" style={{ fontSize: 'max(11px, min(1.8vh, 1vw))' }}>Batteri</p>
                         <p 
                           className={`font-bold leading-none z-10 pl-2 ${updatedFields[brew.batch_id]?.battery ? 'animate-value-shimmer' : ''} ${!isInactive && brew.battery !== null && brew.battery < 20 ? 'animate-battery-pulse' : ''}`}
                           style={{ 
-                            fontSize: 'min(2.8vh, 2.5vw)',
+                            fontSize: 'max(22px, min(5.5vh, 2.5vw))',
                             color: !isInactive && brew.battery !== null && brew.battery < 20 ? 'hsl(0 70% 50%)' : batteryColor,
                             textShadow: !isInactive && brew.battery !== null && brew.battery < 20 ? '0 0 15px hsl(0 70% 50% / 0.4)' : `0 0 15px ${batteryColor}30`
                           }}
