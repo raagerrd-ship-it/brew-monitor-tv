@@ -968,15 +968,19 @@ export function BrewingDashboard() {
         className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`}
         style={{ 
           containerType: 'size',
-          background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
-          borderBottom: '1px solid hsl(222 15% 16%)',
+          ...(isMobile ? {} : {
+            background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
+            borderBottom: '1px solid hsl(222 15% 16%)',
+          })
         }}
       >
-        {/* Subtle top highlight */}
-        <div 
-          className="absolute inset-x-0 top-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)' }}
-        />
+        {/* Subtle top highlight - desktop only */}
+        {!isMobile && (
+          <div 
+            className="absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)' }}
+          />
+        )}
         
         {/* Mobile: Logo row with settings */}
         {isMobile ? (
