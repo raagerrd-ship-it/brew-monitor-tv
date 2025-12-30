@@ -684,27 +684,6 @@ export function BrewingDashboard() {
         // Always calculate fermentation rate on ALL data, not frozen data
         const fermentationRate = calculateFermentationRate(originalSgData);
         
-        // Check if fermentation has stopped on initial load and not yet acknowledged
-        if (
-          fermentationRate !== null && 
-          Math.abs(fermentationRate) < 0.0005 && // Essentially 0.000 when rounded to 3 decimals
-          !reading.coldcrash_acknowledged
-        ) {
-          sonnerToast(`${reading.name} är klar! 🍺`, {
-            description: "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!",
-            duration: Infinity,
-            action: {
-              label: 'Kvittera',
-              onClick: async () => {
-                // Update database to acknowledge coldcrash
-                await supabase
-                  .from('brew_readings')
-                  .update({ coldcrash_acknowledged: true })
-                  .eq('batch_id', reading.batch_id);
-              },
-            },
-          });
-        }
         
         return {
           id: reading.id,
