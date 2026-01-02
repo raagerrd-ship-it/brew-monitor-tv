@@ -182,10 +182,10 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
               key={`day-${idx}`}
               x={timestamp}
               yAxisId="sg"
-              stroke="hsl(var(--primary))"
-              strokeDasharray="3 3"
-              strokeOpacity={0.4}
-              strokeWidth={2}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="2 4"
+              strokeOpacity={0.25}
+              strokeWidth={1}
             />
           ))}
           {/* Event markers */}
