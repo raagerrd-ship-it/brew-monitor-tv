@@ -20,6 +20,23 @@ interface StatCardProps {
   valueSize?: string;
 }
 
+// Helper to convert color to proper opacity format
+function colorWithOpacity(color: string, opacity: number): string {
+  // If it's an hsl(var(--x)) format, convert to hsl(var(--x) / opacity)
+  if (color.startsWith('hsl(var(')) {
+    const varName = color.match(/hsl\(var\((--[^)]+)\)\)/)?.[1];
+    if (varName) {
+      return `hsl(var(${varName}) / ${opacity})`;
+    }
+  }
+  // If it's hsl(h s% l%) format, convert to hsl(h s% l% / opacity)
+  if (color.startsWith('hsl(') && !color.includes('/')) {
+    return color.replace(')', ` / ${opacity})`);
+  }
+  // For hex or other formats, use color-mix
+  return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`;
+}
+
 export function StatCard({
   label,
   value,
@@ -41,14 +58,13 @@ export function StatCard({
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     containerType: 'size',
-    borderColor: `${color}33`,
+    borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.2),
     borderWidth: '1px',
     borderStyle: 'solid',
-    background: customBackground || `linear-gradient(135deg, ${color}08 0%, hsl(222 18% 15% / 0.5) 100%)`,
+    background: customBackground || `linear-gradient(135deg, ${colorWithOpacity(color, 0.03)} 0%, hsl(222 18% 15% / 0.5) 100%)`,
     boxShadow: isUpdated 
-      ? `0 0 25px ${color}66`
+      ? `0 0 25px ${colorWithOpacity(color, 0.5)}`
       : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
-    ...(isUpdated && { borderColor: `${color}66` })
   };
 
   const gridClass = colSpan > 1 || rowSpan > 1 
@@ -84,7 +100,7 @@ export function StatCard({
         style={{ 
           color,
           fontSize: valueSize,
-          textShadow: `0 0 15px ${color}40`
+          textShadow: `0 0 15px ${colorWithOpacity(color, 0.3)}`
         }}
       >
         {value}
