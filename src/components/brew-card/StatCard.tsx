@@ -14,6 +14,10 @@ interface StatCardProps {
   children?: ReactNode;
   colSpan?: number;
   rowSpan?: number;
+  centered?: boolean;
+  customBackground?: string;
+  labelSize?: string;
+  valueSize?: string;
 }
 
 export function StatCard({
@@ -30,13 +34,17 @@ export function StatCard({
   children,
   colSpan = 1,
   rowSpan = 1,
+  centered = false,
+  customBackground,
+  labelSize = 'max(11px, min(1.8vh, 1vw))',
+  valueSize = 'max(28px, min(5.5vh, 2.5vw))',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     containerType: 'size',
     borderColor: `${color}33`,
     borderWidth: '1px',
     borderStyle: 'solid',
-    background: `linear-gradient(135deg, ${color}08 0%, hsl(222 18% 15% / 0.5) 100%)`,
+    background: customBackground || `linear-gradient(135deg, ${color}08 0%, hsl(222 18% 15% / 0.5) 100%)`,
     boxShadow: isUpdated 
       ? `0 0 25px ${color}66`
       : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
@@ -47,9 +55,13 @@ export function StatCard({
     ? `col-span-${colSpan} row-span-${rowSpan}` 
     : '';
 
+  const alignmentClass = centered ? 'items-center' : 'items-start';
+  const paddingClass = centered ? 'p-1' : 'p-1.5 pr-3';
+  const textAlignClass = centered ? 'text-center px-1' : 'pl-2';
+
   return (
     <div 
-      className={`rounded-xl p-1.5 pr-3 flex flex-col items-start justify-center gap-0 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 ${
+      className={`rounded-xl ${paddingClass} flex flex-col ${alignmentClass} justify-center gap-0 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 ${
         clickable ? 'cursor-pointer hover:opacity-80' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
@@ -62,16 +74,16 @@ export function StatCard({
         </div>
       )}
       <p 
-        className="text-muted-foreground/60 tracking-wide z-10 pl-2 font-normal" 
-        style={{ fontSize: 'max(11px, min(1.8vh, 1vw))' }}
+        className={`text-muted-foreground/60 tracking-wide z-10 font-normal ${textAlignClass}`}
+        style={{ fontSize: labelSize }}
       >
         {label}
       </p>
       <p 
-        className={`font-bold leading-none z-10 pl-2 ${isUpdated ? 'animate-value-shimmer' : ''}`}
+        className={`font-bold leading-none z-10 ${textAlignClass} ${isUpdated ? 'animate-value-shimmer' : ''}`}
         style={{ 
           color,
-          fontSize: 'max(28px, min(5.5vh, 2.5vw))',
+          fontSize: valueSize,
           textShadow: `0 0 15px ${color}40`
         }}
       >
