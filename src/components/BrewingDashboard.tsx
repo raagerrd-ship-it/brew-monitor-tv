@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { SyncCountdown } from "./SyncCountdown";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
-import { BrewCard } from "./BrewCard";
+import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
