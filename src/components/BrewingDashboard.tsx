@@ -15,6 +15,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVersionCheck } from "@/hooks/use-version-check";
 import { BrewData, BrewEvent, PillData, TempController } from "@/types/brew";
+import { getControllerColor, calculateFermentationRate } from "@/lib/brew-utils";
 
 export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -490,58 +491,6 @@ export function BrewingDashboard() {
     }
   }, []);
 
-  // Calculate fermentation rate (SG change per 24h based on recent data)
-  const calculateFermentationRate = (sgData: Array<{ date: string; value: number; temp: number }>): number | null => {
-    if (!sgData || sgData.length < 2) return null;
-    
-    const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    // Filter readings from last 24 hours
-    const last24h = sgData.filter(d => new Date(d.date) >= twentyFourHoursAgo).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    // If we have 24h data, use it
-    if (last24h.length >= 2) {
-      const firstReading = last24h[0];
-      const lastReading = last24h[last24h.length - 1];
-      
-      const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
-      const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
-      
-      if (timeDiffHours === 0) return null;
-      
-      const sgDiff = firstReading.value - lastReading.value;
-      const ratePerHour = sgDiff / timeDiffHours;
-      return ratePerHour * 24;
-    }
-    
-    // Otherwise, use max 7 days of recent data to avoid skewing by old fermentation
-    const last7days = sgData.filter(d => new Date(d.date) >= sevenDaysAgo).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    const dataToUse = last7days.length >= 2 ? last7days : [...sgData].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    if (dataToUse.length < 2) return null;
-    
-    const firstReading = dataToUse[0];
-    const lastReading = dataToUse[dataToUse.length - 1];
-    
-    const timeDiffMs = new Date(lastReading.date).getTime() - new Date(firstReading.date).getTime();
-    const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
-    
-    if (timeDiffHours === 0) return null;
-    
-    const sgDiff = firstReading.value - lastReading.value;
-    const ratePerHour = sgDiff / timeDiffHours;
-    return ratePerHour * 24;
-  };
-
   const loadBrews = async () => {
     try {
       setLoading(true);
@@ -725,48 +674,6 @@ export function BrewingDashboard() {
     // flex-1 with min-w-0 ensures equal width regardless of content
     if (count === 3) return "flex-1 min-w-0"; // Equal distribution, prevent content from affecting width
     return "w-[calc(50%-0.75rem)]"; // Fixed width matching 2-brew layout
-  };
-
-  // Extract color from controller name (like "Red", "Röd", "Blue", "Blå", etc.)
-  const getControllerColor = (name: string): string => {
-    const lowerName = name.toLowerCase();
-    
-    // Map of color keywords (English and Swedish) to hex values
-    const colorMatches: Array<[string[], string]> = [
-      [['red', 'röd'], '#ef4444'],
-      [['blue', 'blå'], '#3b82f6'],
-      [['green', 'grön'], '#22c55e'],
-      [['yellow', 'gul'], '#eab308'],
-      [['purple', 'lila'], '#a855f7'],
-      [['pink', 'rosa'], '#ec4899'],
-      [['orange'], '#f97316'],
-      [['cyan'], '#06b6d4'],
-      [['lime'], '#84cc16'],
-      [['amber', 'bärnsten'], '#f59e0b'],
-      [['teal', 'turkos'], '#14b8a6'],
-      [['indigo'], '#6366f1'],
-      [['violet', 'violett'], '#8b5cf6'],
-      [['fuchsia'], '#d946ef'],
-      [['rose'], '#f43f5e'],
-      [['sky', 'himmel'], '#0ea5e9'],
-      [['emerald', 'smaragd'], '#10b981'],
-      [['slate', 'skiffer'], '#64748b'],
-      [['gray', 'grey', 'grå'], '#6b7280'],
-      [['zinc', 'zink'], '#71717a'],
-      [['neutral', 'neutral'], '#737373'],
-      [['stone', 'sten'], '#78716c'],
-      [['white', 'vit'], '#f1f5f9'],
-      [['black', 'svart'], '#1e293b'],
-    ];
-
-    for (const [keywords, hex] of colorMatches) {
-      if (keywords.some(keyword => lowerName.includes(keyword))) {
-        return hex;
-      }
-    }
-    
-    // Default to primary theme color if no color found
-    return 'currentColor';
   };
 
   return (
