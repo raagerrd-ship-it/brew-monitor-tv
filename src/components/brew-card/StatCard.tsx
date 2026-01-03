@@ -1,4 +1,5 @@
 import { ReactNode, CSSProperties } from "react";
+import { colorWithOpacity } from "./utils";
 
 interface StatCardProps {
   label: string;
@@ -18,23 +19,6 @@ interface StatCardProps {
   customBackground?: string;
   labelSize?: string;
   valueSize?: string;
-}
-
-// Helper to convert color to proper opacity format
-function colorWithOpacity(color: string, opacity: number): string {
-  // If it's an hsl(var(--x)) format, convert to hsl(var(--x) / opacity)
-  if (color.startsWith('hsl(var(')) {
-    const varName = color.match(/hsl\(var\((--[^)]+)\)\)/)?.[1];
-    if (varName) {
-      return `hsl(var(${varName}) / ${opacity})`;
-    }
-  }
-  // If it's hsl(h s% l%) format, convert to hsl(h s% l% / opacity)
-  if (color.startsWith('hsl(') && !color.includes('/')) {
-    return color.replace(')', ` / ${opacity})`);
-  }
-  // For hex or other formats, use color-mix
-  return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`;
 }
 
 export function StatCard({
