@@ -4,6 +4,7 @@ import { BrewChart } from "./BrewChart";
 import { BrewEventDialog } from "./BrewEventDialog";
 import { Share2 } from "lucide-react";
 import { BrewData, PillData, TempController } from "@/types/brew";
+import { findDevicesForBrew } from "@/lib/brew-utils";
 
 interface BrewCardProps {
   brew: BrewData;
@@ -28,75 +29,8 @@ export function BrewCard({
 }: BrewCardProps) {
   const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
 
-  // Helper function to find matching pill/controller for a brew
-  const findDevicesForBrew = (): { pill: PillData | null; controller: TempController | null } => {
-    // First, check for manual connections
-    if (brew.linked_controller_id) {
-      const manualController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
-      const manualPill = brew.linked_pill_id 
-        ? pills.find(p => p.pill_id === brew.linked_pill_id) || null
-        : null;
-      
-      if (manualController || manualPill) {
-        return { pill: manualPill, controller: manualController };
-      }
-    }
-
-    // Fallback to automatic matching
-    let matchingPill: PillData | null = null;
-    let matchingController: TempController | null = null;
-
-    // Try to match by color name in brew name
-    const brewNameLower = brew.name.toLowerCase();
-    const colorKeywords = ['röd', 'red', 'blå', 'blue', 'grön', 'green', 'gul', 'gyllene', 'guld', 'golden', 'yellow', 'lila', 'purple', 'rosa', 'pink', 'orange', 'cyan', 'lime', 'amber', 'bärnsten', 'turkos', 'teal', 'indigo', 'violet', 'violett', 'fuchsia', 'rose', 'himmel', 'sky', 'smaragd', 'emerald'];
-
-    // Find color keywords in brew name
-    const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
-
-    // Try to match pill by color
-    if (brewColors.length > 0) {
-      matchingPill = pills.find(pill => {
-        const pillNameLower = pill.name.toLowerCase();
-        return brewColors.some(color => pillNameLower.includes(color));
-      }) || null;
-    }
-
-    // Try to match controller by color  
-    if (brewColors.length > 0) {
-      matchingController = controllers.find(ctrl => {
-        const ctrlNameLower = ctrl.name.toLowerCase();
-        return brewColors.some(color => ctrlNameLower.includes(color));
-      }) || null;
-    }
-
-    // If no color match, try temperature matching (±3°C tolerance)
-    if (!matchingController && !matchingPill) {
-      const brewTemp = brew.currentTemp;
-      
-      // Try to match controller by temperature
-      matchingController = controllers.find(ctrl => {
-        if (ctrl.pill_temp !== null) {
-          return Math.abs(ctrl.pill_temp - brewTemp) <= 3;
-        }
-        if (ctrl.current_temp !== null) {
-          return Math.abs(ctrl.current_temp - brewTemp) <= 3;
-        }
-        return false;
-      }) || null;
-
-      // If controller matched, use its linked pill
-      if (matchingController && matchingController.linked_pill_id) {
-        matchingPill = pills.find(p => p.pill_id === matchingController.linked_pill_id) || null;
-      }
-    }
-
-    // If we found a controller but no pill, check if controller has a linked pill
-    if (matchingController && !matchingPill && matchingController.linked_pill_id) {
-      matchingPill = pills.find(p => p.pill_id === matchingController.linked_pill_id) || null;
-    }
-
-    return { pill: matchingPill, controller: matchingController };
-  };
+  // Get matching devices using shared utility
+  const devices = findDevicesForBrew(brew, pills, controllers);
 
   return (
     <Card 
@@ -301,7 +235,7 @@ export function BrewCard({
 
           {/* Temp */}
           {(() => {
-            const { pill, controller } = findDevicesForBrew();
+            const { pill, controller } = devices;
             const tempColor = pill?.color || 'hsl(var(--primary))';
             
             const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
@@ -425,7 +359,7 @@ export function BrewCard({
 
           {/* Batteri */}
           {(() => {
-            const { pill } = findDevicesForBrew();
+            const { pill } = devices;
             const batteryColor = pill?.color || 'hsl(var(--primary))';
             const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
             
