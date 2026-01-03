@@ -1,6 +1,26 @@
 import { BrewData } from "@/types/brew";
 
 /**
+ * Convert a color to proper opacity format
+ * Handles hsl(var(--x)), hsl(h s% l%), and other color formats
+ */
+export function colorWithOpacity(color: string, opacity: number): string {
+  // If it's an hsl(var(--x)) format, convert to hsl(var(--x) / opacity)
+  if (color.startsWith('hsl(var(')) {
+    const varName = color.match(/hsl\(var\((--[^)]+)\)\)/)?.[1];
+    if (varName) {
+      return `hsl(var(${varName}) / ${opacity})`;
+    }
+  }
+  // If it's hsl(h s% l%) format, convert to hsl(h s% l% / opacity)
+  if (color.startsWith('hsl(') && !color.includes('/')) {
+    return color.replace(')', ` / ${opacity})`);
+  }
+  // For hex or other formats, use color-mix
+  return `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`;
+}
+
+/**
  * Check if brew status indicates inactive state (Conditioning or Completed)
  */
 export function isBrewInactive(status: string): boolean {
@@ -39,8 +59,8 @@ export function getStatusDisplayText(brew: BrewData): string {
 export function getStatGlowStyles(isGlowing: boolean, color: string): React.CSSProperties {
   if (isGlowing) {
     return {
-      boxShadow: `0 0 25px ${color}`,
-      borderColor: `${color}66`
+      boxShadow: `0 0 25px ${colorWithOpacity(color, 0.5)}`,
+      borderColor: colorWithOpacity(color, 0.5)
     };
   }
   return {
