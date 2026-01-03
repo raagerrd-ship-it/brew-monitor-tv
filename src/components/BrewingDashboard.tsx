@@ -14,63 +14,7 @@ import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVersionCheck } from "@/hooks/use-version-check";
-
-interface BrewEvent {
-  id: string;
-  brew_id: string;
-  event_type: string;
-  event_date: string;
-  notes: string | null;
-}
-
-interface BrewData {
-  id: string;
-  batch_id: string;
-  name: string;
-  style: string;
-  batchNumber: string;
-  status: string;
-  currentSG: number;
-  currentTemp: number;
-  attenuation: number;
-  abv: number;
-  originalGravity: number;
-  finalGravity: number;
-  lastUpdate: string;
-  lastUpdateRaw: string | null; // Store raw timestamp for comparison
-  battery: number | null;
-  sgData: Array<{ date: string; value: number; temp: number }>;
-  fermentationRate: number | null; // SG change per 24h based on last 2 hours
-  coldcrashAcknowledged: boolean;
-  events: BrewEvent[];
-  linked_controller_id: string | null;
-  linked_pill_id: string | null;
-}
-
-interface PillData {
-  id: string;
-  pill_id: string;
-  name: string;
-  color: string;
-  battery_level: number;
-  last_update: string | null;
-}
-
-interface TempController {
-  id: string;
-  controller_id: string;
-  name: string;
-  current_temp: number | null;
-  pill_temp: number | null;
-  target_temp: number | null;
-  last_update: string | null;
-  min_target_temp: number | null;
-  max_target_temp: number | null;
-  cooling_enabled: boolean | null;
-  heating_enabled: boolean | null;
-  heating_utilisation: number | null;
-  linked_pill_id: string | null;
-}
+import { BrewData, BrewEvent, PillData, TempController } from "@/types/brew";
 
 export function BrewingDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
