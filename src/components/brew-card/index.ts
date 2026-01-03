@@ -1,4 +1,5 @@
 export { BrewCard } from "./BrewCard";
+export { StatCard } from "./StatCard";
 export type { BrewCardProps, DeviceMatch, StatCardProps, TempCardProps, BatteryCardProps } from "./types";
 export { 
   isBrewInactive, 
