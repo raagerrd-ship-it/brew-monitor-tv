@@ -6,20 +6,28 @@ interface GravityStatProps {
 }
 
 export function GravityStat({ brew, updatedFields }: GravityStatProps) {
+  const baseColor = brew.coldcrashAcknowledged 
+    ? 'hsl(120 50% 45%)' 
+    : 'hsl(var(--primary))';
+  
+  const baseStyles = brew.coldcrashAcknowledged 
+    ? {
+        background: 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)',
+        borderColor: 'hsl(120 50% 45% / 0.3)',
+      }
+    : {
+        background: 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)',
+        borderColor: 'hsl(var(--primary) / 0.2)',
+      };
+
   return (
     <div 
-      className={`col-span-1 row-span-2 rounded-xl p-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-1000 relative overflow-hidden ${
-        brew.coldcrashAcknowledged 
-          ? 'bg-green-500/10 border border-green-500/30' 
-          : 'backdrop-blur-sm border border-primary/20'
-      } ${
+      className={`col-span-1 row-span-2 rounded-xl p-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-1000 relative overflow-hidden backdrop-blur-sm border ${
         updatedFields[brew.batch_id]?.sg ? 'shadow-[0_0_25px_hsl(var(--primary)/0.5)] border-primary/50' : ''
       }`}
       style={{ 
         containerType: 'size',
-        background: brew.coldcrashAcknowledged 
-          ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
-          : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)',
+        ...baseStyles,
         boxShadow: updatedFields[brew.batch_id]?.sg 
           ? undefined 
           : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
