@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BrewChart } from "./BrewChart";
+import { BrewChart } from "./brew-chart";
 import { BrewEventDialog } from "./BrewEventDialog";
 import { Share2 } from "lucide-react";
 import { BrewData, PillData, TempController } from "@/types/brew";
