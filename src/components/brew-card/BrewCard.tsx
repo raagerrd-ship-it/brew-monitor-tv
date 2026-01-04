@@ -132,9 +132,8 @@ export function BrewCard({
       </div>
 
       {/* Stats Grid - 32% */}
-      {/* Stats Grid - 32% */}
-      <div className="h-[32%] p-2 pt-1 pb-2 flex-shrink-0">
-        <div className="grid grid-cols-3 grid-rows-2 gap-2 h-full">
+      <div className="h-[32%] px-3 py-1.5 flex-shrink-0">
+        <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
           <GravityStat brew={brew} updatedFields={updatedFields} />
           <AbvStat brew={brew} updatedFields={updatedFields} />
           <TempStat 
