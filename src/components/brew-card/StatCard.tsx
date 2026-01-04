@@ -37,8 +37,8 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = 'max(11px, min(1.8vh, 1vw))',
-  valueSize = 'max(28px, min(5.5vh, 2.5vw))',
+  labelSize = 'max(9px, min(1.5vh, 0.9vw))',
+  valueSize = 'max(22px, min(4.5vh, 2.2vw))',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     containerType: 'size',
@@ -56,8 +56,8 @@ export function StatCard({
     : '';
 
   const alignmentClass = centered ? 'items-center' : 'items-start';
-  const paddingClass = centered ? 'p-1' : 'p-1.5 pr-3';
-  const textAlignClass = centered ? 'text-center px-1' : 'pl-2';
+  const paddingClass = centered ? 'p-0.5' : 'p-1 pr-2';
+  const textAlignClass = centered ? 'text-center px-0.5' : 'pl-1.5';
 
   return (
     <div 
