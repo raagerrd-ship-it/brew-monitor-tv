@@ -51,9 +51,10 @@ export function StatCard({
       : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
   };
 
-  const gridClass = colSpan > 1 || rowSpan > 1 
-    ? `col-span-${colSpan} row-span-${rowSpan}` 
-    : '';
+  // Use explicit classes for Tailwind purging to work correctly
+  const colSpanClass = colSpan === 2 ? 'col-span-2' : colSpan === 3 ? 'col-span-3' : '';
+  const rowSpanClass = rowSpan === 2 ? 'row-span-2' : rowSpan === 3 ? 'row-span-3' : '';
+  const gridClass = `${colSpanClass} ${rowSpanClass}`.trim();
 
   const alignmentClass = centered ? 'items-center' : 'items-start';
   const paddingClass = centered ? 'p-0.5' : 'p-1 pr-2';
