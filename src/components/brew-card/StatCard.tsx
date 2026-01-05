@@ -37,7 +37,7 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = 'max(10px, min(1.8vh, 1vw))',
+  labelSize = 'max(12px, min(2vh, 1.2vw))',
   valueSize = 'max(28px, min(5vh, 2.5vw))',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
