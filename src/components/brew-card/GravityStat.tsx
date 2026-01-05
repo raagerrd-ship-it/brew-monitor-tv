@@ -24,18 +24,18 @@ export function GravityStat({ brew, updatedFields }: GravityStatProps) {
       centered
       rowSpan={2}
       customBackground={customBackground}
-      labelSize="max(12px, min(2.2vh, 1.5vw))"
+      labelSize="max(14px, min(2.5vh, 1.6vw))"
       valueSize="max(32px, min(6vh, 3vw))"
       className="gap-0.5"
     >
       <div className="text-muted-foreground/70 mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
-        <p className="tabular-nums truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>
+        <p className="tabular-nums truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
           OG: {brew.originalGravity.toFixed(3)}
         </p>
-        <p className="tabular-nums truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>
+        <p className="tabular-nums truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
           FG: {brew.finalGravity.toFixed(3)}
         </p>
-        <p className="font-medium truncate" style={{ fontSize: 'max(10px, min(1.5vh, 1.1vw))' }}>
+        <p className="font-medium truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
           {brew.fermentationRate !== null ? (
             <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
           ) : (
