@@ -37,8 +37,8 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = 'max(9px, min(1.5vh, 0.9vw))',
-  valueSize = 'max(22px, min(4.5vh, 2.2vw))',
+  labelSize = 'max(10px, min(1.8vh, 1vw))',
+  valueSize = 'max(28px, min(5vh, 2.5vw))',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     containerType: 'size',
@@ -70,7 +70,7 @@ export function StatCard({
       title={title}
     >
       {icon && (
-        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '60%', height: '60%', right: '-15%' }}>
+        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '50%', height: '50%', right: '-10%' }}>
           {icon}
         </div>
       )}
