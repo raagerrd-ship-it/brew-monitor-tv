@@ -24,11 +24,16 @@ interface ChartDataPoint {
   targetTemp: number;
 }
 
-// Moving average smoothing function
+// Moving average smoothing function - preserves first and last points exactly
 const smoothData = (data: ChartDataPoint[], windowSize: number): ChartDataPoint[] => {
   if (windowSize <= 1 || data.length <= windowSize) return data;
   
   return data.map((point, index) => {
+    // Keep first and last points exactly as they are
+    if (index === 0 || index === data.length - 1) {
+      return point;
+    }
+    
     const start = Math.max(0, index - Math.floor(windowSize / 2));
     const end = Math.min(data.length, index + Math.ceil(windowSize / 2));
     const window = data.slice(start, end);
