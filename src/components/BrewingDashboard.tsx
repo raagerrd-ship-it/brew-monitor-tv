@@ -729,11 +729,7 @@ export function BrewingDashboard() {
               <SyncCountdown className="w-full h-full" />
             </div>
           </div>
-        ) : (
-          <div className="relative flex items-center">
-            <Logo />
-          </div>
-        )}
+        ) : null}
         
         {/* RAPT Section - Mobile */}
         {isMobile && raptControllers.length > 0 && (
@@ -823,166 +819,174 @@ export function BrewingDashboard() {
           </div>
         )}
         
-        {/* RAPT Section - Desktop (centered between logo and clock) */}
-        {!isMobile && raptControllers.length > 0 && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div 
-              className="flex items-center rounded-lg gap-1.5 px-2 py-1.5"
-              style={{
-                background: 'hsl(222 20% 11%)',
-                border: '1px solid hsl(222 15% 18%)',
-                boxShadow: '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.04)',
-              }}
-            >
-              {raptControllers.map((controller, index) => {
-                const controllerColor = getControllerColor(controller.name);
-                const linkedPill = raptPills.find(p => p.pill_id === controller.linked_pill_id);
-                const isPillStale = linkedPill?.last_update ? 
-                  ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
-                  : true;
-                
-                return (
-                  <div key={controller.id} className="flex items-center">
-                    {index > 0 && (
-                      <div 
-                        className="h-8 mx-1.5 w-px"
-                        style={{ background: 'hsl(222 15% 20%)' }}
-                      />
-                    )}
-                    
-                    <div 
-                      className="flex items-center cursor-pointer flex-shrink-0 transition-all duration-200 rounded px-2.5 py-1.5 gap-2.5"
-                      style={{ background: 'transparent' }}
-                      onClick={() => {
-                        setSelectedController(controller);
-                        setControllerDialogOpen(true);
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'hsl(222 18% 15%)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                      title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
-                    >
-                      <AirVent 
-                        style={{
-                          width: '1.1rem',
-                          height: '1.1rem',
-                          color: controllerColor,
-                          flexShrink: 0,
-                          opacity: 0.7,
-                        }}
-                      />
-                      
-                      <span 
-                        className="font-semibold tabular-nums whitespace-nowrap"
-                        style={{
-                          fontSize: 'min(2.6vh, 1.5vw)',
-                          color: linkedPill?.color || 'hsl(var(--foreground))',
-                        }}
-                      >
-                        {controller.pill_temp !== null 
-                          ? `${controller.pill_temp.toFixed(1)}°C` 
-                          : controller.current_temp !== null 
-                            ? `${controller.current_temp.toFixed(1)}°C` 
-                            : '--°C'
-                        }
-                      </span>
-                      
-                      {linkedPill && (
-                        <div 
-                          className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
-                          title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
-                        >
-                          <div className="relative flex items-center">
-                            <Pill
-                              style={{
-                                width: '0.85rem',
-                                height: '0.85rem',
-                                flexShrink: 0,
-                              }}
-                              color={linkedPill.color}
-                              strokeWidth={2}
-                              className={isPillStale ? 'animate-pulse' : ''}
-                            />
-                            {isPillStale && (
-                              <div 
-                                className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
-                                style={{ backgroundColor: 'hsl(25 95% 53%)' }}
-                              />
-                            )}
-                          </div>
-                          <span 
-                            className="tabular-nums whitespace-nowrap text-xs"
-                            style={{ color: linkedPill.color }}
-                          >
-                            {linkedPill.battery_level}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        
-        {/* Clock and Settings - Desktop (right side) */}
+        {/* Desktop: Three-column layout - Logo | RAPT (centered) | Clock+Settings */}
         {!isMobile && (
-          <div className="flex items-center gap-4">
-            {/* Clock Section */}
-            <div className="flex flex-col items-end justify-center">
-              <p 
-                className="font-semibold tabular-nums tracking-tight text-foreground"
-                style={{ 
-                  fontSize: 'min(4.5vh, 2.2vw)',
-                  fontVariantNumeric: 'tabular-nums',
-                  lineHeight: 1.1,
-                }}
-              >
-                {currentTime.toLocaleTimeString("sv-SE", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                <span className="text-muted-foreground/40">:</span>
-                <span className="text-muted-foreground/60">{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-              </p>
-              <p 
-                className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
-                style={{ fontSize: 'min(2vh, 1.1vw)' }}
-              >
-                {currentTime.toLocaleDateString("sv-SE", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                })}
-              </p>
+          <>
+            {/* Left column: Logo */}
+            <div className="flex items-center flex-shrink-0">
+              <Logo />
             </div>
             
-            {/* Settings Button */}
-            <div 
-              className="relative flex items-center justify-center" 
-              style={{ 
-                width: 'min(6vh, 3.8vw)', 
-                height: 'min(6vh, 3.8vw)',
-              }}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/settings')}
-                className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
-              >
-                <Settings 
-                  className="transition-colors duration-200" 
-                  style={{ width: '50%', height: '50%' }} 
-                />
-              </Button>
-              <SyncCountdown className="w-full h-full" />
+            {/* Center column: RAPT Section */}
+            <div className="flex-1 flex items-center justify-center">
+              {raptControllers.length > 0 && (
+                <div 
+                  className="flex items-center rounded-lg gap-1.5 px-2 py-1.5"
+                  style={{
+                    background: 'hsl(222 20% 11%)',
+                    border: '1px solid hsl(222 15% 18%)',
+                    boxShadow: '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.04)',
+                  }}
+                >
+                  {raptControllers.map((controller, index) => {
+                    const controllerColor = getControllerColor(controller.name);
+                    const linkedPill = raptPills.find(p => p.pill_id === controller.linked_pill_id);
+                    const isPillStale = linkedPill?.last_update ? 
+                      ((new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60)) > 24 
+                      : true;
+                    
+                    return (
+                      <div key={controller.id} className="flex items-center">
+                        {index > 0 && (
+                          <div 
+                            className="h-8 mx-1.5 w-px"
+                            style={{ background: 'hsl(222 15% 20%)' }}
+                          />
+                        )}
+                        
+                        <div 
+                          className="flex items-center cursor-pointer flex-shrink-0 transition-all duration-200 rounded px-2.5 py-1.5 gap-2.5"
+                          style={{ background: 'transparent' }}
+                          onClick={() => {
+                            setSelectedController(controller);
+                            setControllerDialogOpen(true);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'hsl(222 18% 15%)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                          title={`${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar`}
+                        >
+                          <AirVent 
+                            style={{
+                              width: '1.1rem',
+                              height: '1.1rem',
+                              color: controllerColor,
+                              flexShrink: 0,
+                              opacity: 0.7,
+                            }}
+                          />
+                          
+                          <span 
+                            className="font-semibold tabular-nums whitespace-nowrap"
+                            style={{
+                              fontSize: 'min(2.6vh, 1.5vw)',
+                              color: linkedPill?.color || 'hsl(var(--foreground))',
+                            }}
+                          >
+                            {controller.pill_temp !== null 
+                              ? `${controller.pill_temp.toFixed(1)}°C` 
+                              : controller.current_temp !== null 
+                                ? `${controller.current_temp.toFixed(1)}°C` 
+                                : '--°C'
+                            }
+                          </span>
+                          
+                          {linkedPill && (
+                            <div 
+                              className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
+                              title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
+                            >
+                              <div className="relative flex items-center">
+                                <Pill
+                                  style={{
+                                    width: '0.85rem',
+                                    height: '0.85rem',
+                                    flexShrink: 0,
+                                  }}
+                                  color={linkedPill.color}
+                                  strokeWidth={2}
+                                  className={isPillStale ? 'animate-pulse' : ''}
+                                />
+                                {isPillStale && (
+                                  <div 
+                                    className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
+                                    style={{ backgroundColor: 'hsl(25 95% 53%)' }}
+                                  />
+                                )}
+                              </div>
+                              <span 
+                                className="tabular-nums whitespace-nowrap text-xs"
+                                style={{ color: linkedPill.color }}
+                              >
+                                {linkedPill.battery_level}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
+            
+            {/* Right column: Clock and Settings */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              {/* Clock Section */}
+              <div className="flex flex-col items-end justify-center">
+                <p 
+                  className="font-semibold tabular-nums tracking-tight text-foreground"
+                  style={{ 
+                    fontSize: 'min(4.5vh, 2.2vw)',
+                    fontVariantNumeric: 'tabular-nums',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {currentTime.toLocaleTimeString("sv-SE", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  <span className="text-muted-foreground/40">:</span>
+                  <span className="text-muted-foreground/60">{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                </p>
+                <p 
+                  className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
+                  style={{ fontSize: 'min(2vh, 1.1vw)' }}
+                >
+                  {currentTime.toLocaleDateString("sv-SE", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </p>
+              </div>
+              
+              {/* Settings Button */}
+              <div 
+                className="relative flex items-center justify-center" 
+                style={{ 
+                  width: 'min(6vh, 3.8vw)', 
+                  height: 'min(6vh, 3.8vw)',
+                }}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate('/settings')}
+                  className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+                >
+                  <Settings 
+                    className="transition-colors duration-200" 
+                    style={{ width: '50%', height: '50%' }} 
+                  />
+                </Button>
+                <SyncCountdown className="w-full h-full" />
+              </div>
+            </div>
+          </>
         )}
       </div>
 
