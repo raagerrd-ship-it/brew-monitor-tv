@@ -57,29 +57,22 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       setLoading(true);
       
       // First, get the latest history entry to calculate the time range from
-      const { data: latestEntry, error: latestError } = await supabase
+      const { data: latestEntry } = await supabase
         .from('temp_controller_history')
         .select('recorded_at')
         .eq('controller_id', controllerId)
         .order('recorded_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      // Also get current controller data
-      const { data: controller } = await supabase
-        .from('rapt_temp_controllers')
-        .select('current_temp, pill_temp, target_temp, last_update')
-        .eq('controller_id', controllerId)
-        .single();
-
-      // Determine the latest timestamp (either from history or current controller data)
-      let latestTimestamp = new Date();
-      if (controller?.last_update) {
-        latestTimestamp = new Date(controller.last_update);
-      } else if (latestEntry?.recorded_at) {
-        latestTimestamp = new Date(latestEntry.recorded_at);
+      if (!latestEntry) {
+        setData([]);
+        setLoading(false);
+        return;
       }
 
+      // Use the latest history entry as the end point
+      const latestTimestamp = new Date(latestEntry.recorded_at);
       const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
       const startTime = new Date(latestTimestamp.getTime() - hoursAgo * 60 * 60 * 1000);
       
@@ -103,22 +96,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),
       }));
-
-      // Add current reading as the latest data point if it's newer than the last history entry
-      if (controller && !latestError) {
-        const currentTemp = controller.pill_temp ?? controller.current_temp;
-        const controllerTime = controller.last_update ? new Date(controller.last_update) : new Date();
-        const lastHistoryTime = chartData.length > 0 ? chartData[chartData.length - 1].timestamp : 0;
-        
-        if (currentTemp !== null && controller.target_temp !== null && controllerTime.getTime() > lastHistoryTime) {
-          chartData.push({
-            time: format(controllerTime, timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
-            timestamp: controllerTime.getTime(),
-            currentTemp: Number(currentTemp),
-            targetTemp: Number(controller.target_temp),
-          });
-        }
-      }
 
       // Apply stronger smoothing for 7-day view
       if (timeRange === '7d') {
