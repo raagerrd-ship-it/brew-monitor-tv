@@ -504,6 +504,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_temp_history_sampled: {
+        Args: {
+          p_controller_id: string
+          p_end_time: string
+          p_sample_interval_minutes?: number
+          p_start_time: string
+        }
+        Returns: {
+          cooling_enabled: boolean
+          current_temp: number
+          recorded_at: string
+          target_temp: number
+        }[]
+      }
       trigger_auto_cooling_adjustment: { Args: never; Returns: undefined }
       trigger_brew_sync: { Args: never; Returns: undefined }
       trigger_full_brew_sync: { Args: never; Returns: undefined }

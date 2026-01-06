@@ -10,7 +10,7 @@ interface ControllerTempChartProps {
   controllerColor?: string;
 }
 
-interface HistoryRecord {
+interface SampledRecord {
   recorded_at: string;
   current_temp: number;
   target_temp: number;
@@ -24,28 +24,6 @@ interface ChartDataPoint {
   targetTemp: number;
 }
 
-// Moving average smoothing function - preserves first and last points exactly
-const smoothData = (data: ChartDataPoint[], windowSize: number): ChartDataPoint[] => {
-  if (windowSize <= 1 || data.length <= windowSize) return data;
-  
-  return data.map((point, index) => {
-    // Keep first and last points exactly as they are
-    if (index === 0 || index === data.length - 1) {
-      return point;
-    }
-    
-    const start = Math.max(0, index - Math.floor(windowSize / 2));
-    const end = Math.min(data.length, index + Math.ceil(windowSize / 2));
-    const window = data.slice(start, end);
-    
-    const avgTemp = window.reduce((sum, p) => sum + p.currentTemp, 0) / window.length;
-    
-    return {
-      ...point,
-      currentTemp: avgTemp,
-    };
-  });
-};
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const [data, setData] = useState<ChartDataPoint[]>([]);
@@ -56,33 +34,21 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
     const fetchHistory = async () => {
       setLoading(true);
       
-      // First, get the latest history entry to calculate the time range from
-      const { data: latestEntry } = await supabase
-        .from('temp_controller_history')
-        .select('recorded_at')
-        .eq('controller_id', controllerId)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!latestEntry) {
-        setData([]);
-        setLoading(false);
-        return;
-      }
-
-      // Use the latest history entry as the end point
-      const latestTimestamp = new Date(latestEntry.recorded_at);
+      // Calculate time range
+      const now = new Date();
       const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
-      const startTime = new Date(latestTimestamp.getTime() - hoursAgo * 60 * 60 * 1000);
+      const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+      
+      // Use different sample intervals: 5 min for 24h, 30 min for 7d
+      const sampleInterval = timeRange === '24h' ? 5 : 30;
       
       const { data: history, error } = await supabase
-        .from('temp_controller_history')
-        .select('recorded_at, current_temp, target_temp, cooling_enabled')
-        .eq('controller_id', controllerId)
-        .gte('recorded_at', startTime.toISOString())
-        .lte('recorded_at', latestTimestamp.toISOString())
-        .order('recorded_at', { ascending: true });
+        .rpc('get_temp_history_sampled', {
+          p_controller_id: controllerId,
+          p_start_time: startTime.toISOString(),
+          p_end_time: now.toISOString(),
+          p_sample_interval_minutes: sampleInterval
+        });
 
       if (error) {
         console.error('Error fetching temperature history:', error);
@@ -90,17 +56,18 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
         return;
       }
 
-      let chartData: ChartDataPoint[] = (history || []).map((record: HistoryRecord) => ({
+      if (!history || history.length === 0) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+
+      const chartData: ChartDataPoint[] = history.map((record: SampledRecord) => ({
         time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
         timestamp: new Date(record.recorded_at).getTime(),
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),
       }));
-
-      // Apply stronger smoothing for 7-day view
-      if (timeRange === '7d') {
-        chartData = smoothData(chartData, 31);
-      }
 
       setData(chartData);
       setLoading(false);
