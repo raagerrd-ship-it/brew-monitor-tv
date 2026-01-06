@@ -59,25 +59,49 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
       const startTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
       
-      const { data: history, error } = await supabase
-        .from('temp_controller_history')
-        .select('recorded_at, current_temp, target_temp, cooling_enabled')
-        .eq('controller_id', controllerId)
-        .gte('recorded_at', startTime.toISOString())
-        .order('recorded_at', { ascending: true });
+      // Fetch history and current controller data in parallel
+      const [historyResult, controllerResult] = await Promise.all([
+        supabase
+          .from('temp_controller_history')
+          .select('recorded_at, current_temp, target_temp, cooling_enabled')
+          .eq('controller_id', controllerId)
+          .gte('recorded_at', startTime.toISOString())
+          .order('recorded_at', { ascending: true }),
+        supabase
+          .from('rapt_temp_controllers')
+          .select('current_temp, pill_temp, target_temp, last_update')
+          .eq('controller_id', controllerId)
+          .single()
+      ]);
 
-      if (error) {
-        console.error('Error fetching temperature history:', error);
+      if (historyResult.error) {
+        console.error('Error fetching temperature history:', historyResult.error);
         setLoading(false);
         return;
       }
 
-      let chartData: ChartDataPoint[] = (history || []).map((record: HistoryRecord) => ({
+      let chartData: ChartDataPoint[] = (historyResult.data || []).map((record: HistoryRecord) => ({
         time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
         timestamp: new Date(record.recorded_at).getTime(),
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),
       }));
+
+      // Add current reading as the latest data point
+      if (controllerResult.data && !controllerResult.error) {
+        const controller = controllerResult.data;
+        const currentTemp = controller.pill_temp ?? controller.current_temp;
+        const now = new Date();
+        
+        if (currentTemp !== null && controller.target_temp !== null) {
+          chartData.push({
+            time: format(now, timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
+            timestamp: now.getTime(),
+            currentTemp: Number(currentTemp),
+            targetTemp: Number(controller.target_temp),
+          });
+        }
+      }
 
       // Apply stronger smoothing for 7-day view
       if (timeRange === '7d') {
