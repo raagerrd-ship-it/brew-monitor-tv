@@ -38,15 +38,16 @@ Deno.serve(async (req) => {
     // Get sync settings to determine auto-management behavior
     const { data: syncSettings } = await supabase
       .from('sync_settings')
-      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting')
+      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived')
       .limit(1)
       .maybeSingle()
 
     const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
     const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
     const autoActivateFermenting = syncSettings?.auto_activate_fermenting ?? true
+    const autoHideArchived = syncSettings?.auto_hide_archived ?? true
 
-    console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting })
+    console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting, autoHideArchived })
 
     // Fetch ALL batches from Brewfather
     const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
@@ -87,8 +88,9 @@ Deno.serve(async (req) => {
 
     for (const batch of batchesData) {
       const isFermenting = batch.status === 'Fermenting'
-      const isCompleted = batch.status === 'Completed' || batch.status === 'Archived'
+      const isCompleted = batch.status === 'Completed'
       const isConditioning = batch.status === 'Conditioning'
+      const isArchived = batch.status === 'Archived'
       const isInTop3 = top3FermentingIds.includes(batch._id)
       
       const { data: existingBrew } = await supabase
@@ -110,6 +112,9 @@ Deno.serve(async (req) => {
           shouldBeVisible = false
         }
         if (isConditioning && autoHideConditioning) {
+          shouldBeVisible = false
+        }
+        if (isArchived && autoHideArchived) {
           shouldBeVisible = false
         }
       }

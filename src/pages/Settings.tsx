@@ -26,6 +26,7 @@ export default function Settings() {
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [autoHideCompleted, setAutoHideCompleted] = useState(true);
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
+  const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
   const [raptSyncing, setRaptSyncing] = useState(false);
@@ -291,6 +292,7 @@ export default function Settings() {
         setSyncInterval(data.sync_interval.toString());
         setAutoHideCompleted(data.auto_hide_completed ?? true);
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
+        setAutoHideArchived((data as any).auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
         setLastRaptSync(data.last_rapt_sync_at);
@@ -459,6 +461,9 @@ export default function Settings() {
             break;
           case 'auto_hide_conditioning':
             setAutoHideConditioning(value);
+            break;
+          case 'auto_hide_archived':
+            setAutoHideArchived(value);
             break;
           case 'auto_activate_fermenting':
             setAutoActivateFermenting(value);
@@ -1053,6 +1058,20 @@ export default function Settings() {
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Dölj öl som konditioneras
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-hide-archived"
+                  checked={autoHideArchived}
+                  onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_archived', !!checked)}
+                />
+                <label
+                  htmlFor="auto-hide-archived"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Dölj arkiverade öl
                 </label>
               </div>
             </div>
