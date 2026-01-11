@@ -421,6 +421,7 @@ export type Database = {
       sync_settings: {
         Row: {
           auto_activate_fermenting: boolean | null
+          auto_hide_archived: boolean | null
           auto_hide_completed: boolean | null
           auto_hide_conditioning: boolean | null
           created_at: string
@@ -437,6 +438,7 @@ export type Database = {
         }
         Insert: {
           auto_activate_fermenting?: boolean | null
+          auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
           created_at?: string
@@ -453,6 +455,7 @@ export type Database = {
         }
         Update: {
           auto_activate_fermenting?: boolean | null
+          auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
           created_at?: string
