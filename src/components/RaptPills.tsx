@@ -116,7 +116,7 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
   } : undefined;
 
   const textStyle = dynamicSize ? {
-    fontSize: isMobile ? 'min(2.5vh, 2vw)' : 'min(3vh, 2.3vw)'
+    fontSize: isMobile ? 'min(3vh, 2.5vw)' : 'min(3.5vh, 2.8vw)'
   } : undefined;
 
   return (
@@ -141,11 +141,15 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
             <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-warning rounded-full border border-background`} />
           )}
           <span 
-            className="font-extrabold tabular-nums drop-shadow-sm" 
+            className="font-bold tabular-nums leading-none" 
             style={{
-              ...(textStyle || { fontSize: `${pillSize * 0.85}px` }),
+              ...(textStyle || { fontSize: `${pillSize}px` }),
               color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)',
-              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+              textShadow: pill.battery_level > 50 
+                ? '0 0 15px rgba(34, 197, 94, 0.4)' 
+                : pill.battery_level > 20 
+                  ? '0 0 15px rgba(234, 179, 8, 0.4)' 
+                  : '0 0 15px rgba(239, 68, 68, 0.4)'
             }}
           >
             {pill.battery_level}%
