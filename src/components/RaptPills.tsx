@@ -141,10 +141,11 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
             <div className={`absolute -top-1 -right-1 ${isMobile ? 'w-1.5 h-1.5' : 'w-2 h-2'} bg-warning rounded-full border border-background`} />
           )}
           <span 
-            className="font-bold tabular-nums" 
-            style={textStyle || { 
-              fontSize: `${pillSize * 0.7}px`, 
-              color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)' 
+            className="font-extrabold tabular-nums drop-shadow-sm" 
+            style={{
+              ...(textStyle || { fontSize: `${pillSize * 0.85}px` }),
+              color: pill.battery_level > 50 ? 'rgb(34 197 94)' : pill.battery_level > 20 ? 'rgb(234 179 8)' : 'rgb(239 68 68)',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
             }}
           >
             {pill.battery_level}%
