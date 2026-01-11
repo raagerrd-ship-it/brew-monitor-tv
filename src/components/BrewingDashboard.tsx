@@ -918,8 +918,12 @@ export function BrewingDashboard() {
                                 )}
                               </div>
                               <span 
-                                className="tabular-nums whitespace-nowrap text-xs"
-                                style={{ color: linkedPill.color }}
+                                className="font-semibold tabular-nums whitespace-nowrap"
+                                style={{ 
+                                  fontSize: 'min(2.2vh, 1.3vw)',
+                                  color: linkedPill.color,
+                                  textShadow: `0 0 10px ${linkedPill.color}40`
+                                }}
                               >
                                 {linkedPill.battery_level}%
                               </span>
