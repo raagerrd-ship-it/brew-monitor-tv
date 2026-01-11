@@ -74,12 +74,9 @@ serve(async (req) => {
 
     const batches = await response.json();
     
-    // Filter out archived batches
-    const activeBatches = batches.filter((batch: any) => batch.status !== 'Archived');
-    
-    console.log('Returning', activeBatches.length, 'active batches out of', batches.length, 'total batches');
+    console.log('Returning', batches.length, 'batches');
 
-    return new Response(JSON.stringify(activeBatches), {
+    return new Response(JSON.stringify(batches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
