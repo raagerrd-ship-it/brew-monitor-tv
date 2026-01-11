@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     for (const batch of batchesData) {
       const isFermenting = batch.status === 'Fermenting'
-      const isCompleted = batch.status === 'Completed'
+      const isCompleted = batch.status === 'Completed' || batch.status === 'Archived'
       const isConditioning = batch.status === 'Conditioning'
       const isInTop3 = top3FermentingIds.includes(batch._id)
       
