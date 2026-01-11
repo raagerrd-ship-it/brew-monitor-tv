@@ -896,7 +896,7 @@ export function BrewingDashboard() {
                           
                           {linkedPill && (
                             <div 
-                              className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : 'opacity-60'}`}
+                              className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : ''}`}
                               title={`${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}`}
                             >
                               <div className="relative flex items-center">
@@ -922,7 +922,6 @@ export function BrewingDashboard() {
                                 style={{ 
                                   fontSize: 'min(2.2vh, 1.3vw)',
                                   color: linkedPill.color,
-                                  textShadow: `0 0 10px ${linkedPill.color}40`
                                 }}
                               >
                                 {linkedPill.battery_level}%
