@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake, PlayCircle } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake, PlayCircle, Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { ControllerTempChart } from './ControllerTempChart';
+import { StartFermentationSessionDialog } from './fermentation';
 
 interface TempController {
   id: string;
@@ -53,6 +54,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [currentController, setCurrentController] = useState(controller);
   const [activeProfile, setActiveProfile] = useState<ProfileSession | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [showStartSessionDialog, setShowStartSessionDialog] = useState(false);
 
   // Get controller color based on name
   const getControllerColor = (name: string): string => {
@@ -473,7 +475,29 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </Button>
           </div>
         )}
+
+        {/* Start Profile Button */}
+        {isAuthenticated && !activeProfile && (
+          <div className="border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setShowStartSessionDialog(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Starta fermenteringsprofil
+            </Button>
+          </div>
+        )}
       </DialogContent>
+
+      {/* Start Session Dialog */}
+      <StartFermentationSessionDialog
+        open={showStartSessionDialog}
+        onOpenChange={setShowStartSessionDialog}
+        preselectedControllerId={controller.controller_id}
+      />
     </Dialog>
   );
 }
