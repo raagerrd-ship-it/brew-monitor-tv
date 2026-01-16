@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FermentationProfile, FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { FermentationStepEditor } from "./FermentationStepEditor";
+import { FermentationProfileChart } from "./FermentationProfileChart";
 import {
   Dialog,
   DialogContent,
@@ -351,7 +352,7 @@ export function FermentationProfilesManagement() {
       {/* Steps for selected profile */}
       {selectedProfile && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg">Steg i "{selectedProfile.name}"</CardTitle>
             {isAuthenticated && (
               <Button onClick={openNewStepEditor} size="sm">
@@ -359,7 +360,14 @@ export function FermentationProfilesManagement() {
               </Button>
             )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Profile Chart */}
+            {steps.length > 0 && (
+              <div className="rounded-lg border bg-card/50 p-3">
+                <FermentationProfileChart steps={steps} />
+              </div>
+            )}
+
             {steps.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">Inga steg tillagda ännu</p>
             ) : (
