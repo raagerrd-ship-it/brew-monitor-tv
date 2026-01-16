@@ -110,6 +110,16 @@ serve(async (req) => {
 
       if (controllersError) throw controllersError;
 
+      // Get active fermentation sessions to avoid overwriting their target temps
+      const { data: activeSessions } = await supabase
+        .from('fermentation_sessions')
+        .select('controller_id')
+        .in('status', ['running', 'paused']);
+      
+      const controllersWithActiveSessions = new Set(
+        activeSessions?.map(s => s.controller_id) || []
+      );
+
       // Filter only selected controllers and update
       const selectedControllersData = controllersData.filter((controller: any) => 
         selectedControllerIds.includes(controller.id)
@@ -122,21 +132,33 @@ serve(async (req) => {
         const pillTemp = controller.controlDeviceTemperature || null;
         const targetTemp = controller.targetTemperature;
         const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
+        
+        // Check if this controller has an active fermentation session
+        const hasActiveSession = controllersWithActiveSessions.has(controller.id);
+
+        // Build update object - skip target_temp if controller is managed by fermentation profile
+        const updateData: Record<string, any> = {
+          current_temp: currentTemp,
+          pill_temp: pillTemp,
+          cooling_enabled: controller.coolingEnabled || false,
+          heating_enabled: controller.heatingEnabled || false,
+          heating_utilisation: controller.heatingUtilisation || 0,
+          cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
+          heating_hysteresis: controller.heatingHysteresis ?? 0.2,
+          last_update: lastUpdate,
+          updated_at: new Date().toISOString()
+        };
+
+        // Only update target_temp if NOT managed by a fermentation profile
+        if (!hasActiveSession) {
+          updateData.target_temp = targetTemp;
+        } else {
+          console.log(`Skipping target_temp update for controller ${controller.id} - managed by fermentation profile`);
+        }
 
         await supabase
           .from('rapt_temp_controllers')
-          .update({
-            current_temp: currentTemp,
-            pill_temp: pillTemp,
-            target_temp: targetTemp,
-            cooling_enabled: controller.coolingEnabled || false,
-            heating_enabled: controller.heatingEnabled || false,
-            heating_utilisation: controller.heatingUtilisation || 0,
-            cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
-            heating_hysteresis: controller.heatingHysteresis ?? 0.2,
-            last_update: lastUpdate,
-            updated_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('controller_id', controller.id);
 
         controllersUpdated++;
