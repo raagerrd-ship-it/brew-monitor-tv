@@ -28,6 +28,7 @@ interface Session {
   status: string
   current_step_index: number
   step_started_at: string
+  step_start_temp: number | null
   started_at: string
 }
 
@@ -95,27 +96,33 @@ async function setControllerTargetTemp(controllerId: string, targetTemp: number)
 
   try {
     // Get auth token
+    const formData = new URLSearchParams()
+    formData.append('client_id', 'rapt-user')
+    formData.append('grant_type', 'password')
+    formData.append('username', RAPT_USERNAME)
+    formData.append('password', RAPT_API_SECRET)
+
     const authResponse = await fetch('https://id.rapt.io/connect/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: 'rapt-user',
-        grant_type: 'password',
-        username: RAPT_USERNAME,
-        password: RAPT_API_SECRET,
-      }),
+      body: formData.toString(),
     })
 
     if (!authResponse.ok) {
-      console.error('RAPT auth failed:', await authResponse.text())
+      console.error('RAPT auth failed:', authResponse.status, await authResponse.text())
       return false
     }
 
     const authData = await authResponse.json()
     const accessToken = authData.access_token
 
-    // Set target temperature
-    const apiUrl = `https://api.rapt.io/api/TempController/SetTargetTemperature?controllerId=${controllerId}&targetTemperature=${targetTemp}`
+    // Set target temperature using correct API endpoint
+    const queryParams = new URLSearchParams()
+    queryParams.append('temperatureControllerId', controllerId)
+    queryParams.append('target', targetTemp.toString())
+    
+    const apiUrl = `https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature?${queryParams.toString()}`
+    console.log('Setting temperature via:', apiUrl)
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -126,11 +133,13 @@ async function setControllerTargetTemp(controllerId: string, targetTemp: number)
     })
 
     if (!response.ok) {
-      console.error('Failed to set temperature:', await response.text())
+      console.error('Failed to set temperature:', response.status, await response.text())
       return false
     }
 
-    return true
+    const result = await response.json()
+    console.log('Temperature set successfully, result:', result)
+    return result === true
   } catch (error) {
     console.error('Error setting temperature:', error)
     return false
@@ -271,16 +280,28 @@ Deno.serve(async (req) => {
             }
             stepCompleted = true
           } else {
-            // Linear ramp
+            // Linear ramp - use saved start temp or save it now
             if (controller && currentStep.duration_hours) {
-              const startTemp = controller.target_temp || currentStep.target_temp
+              let startTemp: number = session.step_start_temp ?? controller.target_temp ?? currentStep.target_temp
+              
+              // If no start temp saved yet, save the current controller target temp
+              if (session.step_start_temp === null) {
+                await supabase
+                  .from('fermentation_sessions')
+                  .update({ step_start_temp: startTemp })
+                  .eq('id', session.id)
+                console.log(`Saved start temp ${startTemp}°C for ramp`)
+              }
+              
               const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
+              
+              console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, newTarget: ${newTarget.toFixed(1)}°C, current: ${controller.target_temp}°C`)
               
               if (Math.abs(controller.target_temp - newTarget) > 0.1) {
                 const success = await setControllerTargetTemp(session.controller_id, Math.round(newTarget * 10) / 10)
                 if (success) {
                   actionTaken = 'temp_adjusted'
-                  actionDetails = { target_temp: newTarget, progress: elapsedHours / currentStep.duration_hours }
+                  actionDetails = { start_temp: startTemp, target_temp: newTarget, final_temp: currentStep.target_temp, progress: elapsedHours / currentStep.duration_hours }
                   
                   await supabase
                     .from('rapt_temp_controllers')
@@ -373,10 +394,14 @@ Deno.serve(async (req) => {
 
           results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
         } else {
-          // Move to next step
+          // Move to next step - reset step_start_temp for new step
           await supabase
             .from('fermentation_sessions')
-            .update({ current_step_index: nextStepIndex, step_started_at: new Date().toISOString() })
+            .update({ 
+              current_step_index: nextStepIndex, 
+              step_started_at: new Date().toISOString(),
+              step_start_temp: null  // Reset for new step
+            })
             .eq('id', session.id)
 
           await supabase.from('fermentation_step_log').insert({
