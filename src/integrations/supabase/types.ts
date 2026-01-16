@@ -317,6 +317,7 @@ export type Database = {
           profile_id: string
           started_at: string
           status: string
+          step_start_temp: number | null
           step_started_at: string
           updated_at: string
         }
@@ -330,6 +331,7 @@ export type Database = {
           profile_id: string
           started_at?: string
           status?: string
+          step_start_temp?: number | null
           step_started_at?: string
           updated_at?: string
         }
@@ -343,6 +345,7 @@ export type Database = {
           profile_id?: string
           started_at?: string
           status?: string
+          step_start_temp?: number | null
           step_started_at?: string
           updated_at?: string
         }
