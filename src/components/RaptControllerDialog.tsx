@@ -11,7 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { ControllerTempChart } from './ControllerTempChart';
-import { StartFermentationSessionDialog } from './fermentation';
+import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
 
 interface TempController {
   id: string;
@@ -55,6 +55,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [activeProfile, setActiveProfile] = useState<ProfileSession | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [showStartSessionDialog, setShowStartSessionDialog] = useState(false);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
 
   // Get controller color based on name
   const getControllerColor = (name: string): string => {
@@ -110,6 +111,43 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Check for active fermentation session
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      const { data } = await supabase
+        .from('fermentation_sessions')
+        .select('id')
+        .eq('controller_id', controller.controller_id)
+        .in('status', ['running', 'paused'])
+        .maybeSingle();
+      
+      setHasActiveSession(!!data);
+    };
+
+    if (open) {
+      checkActiveSession();
+      
+      // Subscribe to changes
+      const channel = supabase
+        .channel(`session-check-${controller.controller_id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'fermentation_sessions',
+            filter: `controller_id=eq.${controller.controller_id}`
+          },
+          () => checkActiveSession()
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [open, controller.controller_id]);
 
   useEffect(() => {
     const fetchLastSync = async () => {
@@ -286,28 +324,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         </DialogHeader>
 
         <div className="space-y-1.5 py-1">
-          {/* Active Profile */}
-          {activeProfile && (
-            <div className="flex items-center justify-between p-2 bg-primary/10 rounded-md border border-primary/20">
-              <div className="flex items-center gap-2">
-                <PlayCircle className="w-4 h-4 text-primary" />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">{activeProfile.name}</span>
-                  {activeProfile.currentStepName && (
-                    <span className="text-xs text-muted-foreground">{activeProfile.currentStepName}</span>
-                  )}
-                </div>
-              </div>
-              <Badge variant="default" className="text-xs">Aktiv</Badge>
-            </div>
-          )}
-          
-          {loadingProfile && (
-            <div className="flex items-center justify-center p-2">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-xs text-muted-foreground ml-2">Kontrollerar profil...</span>
-            </div>
-          )}
+          {/* Active Fermentation Session */}
+          <ActiveFermentationSession controllerId={controller.controller_id} />
 
           {/* Pill Temperature (if available) */}
           {currentController.pill_temp !== null && (
@@ -477,7 +495,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         )}
 
         {/* Start Profile Button */}
-        {isAuthenticated && !activeProfile && (
+        {isAuthenticated && !activeProfile && !hasActiveSession && (
           <div className="border-t pt-3">
             <Button
               variant="outline"
