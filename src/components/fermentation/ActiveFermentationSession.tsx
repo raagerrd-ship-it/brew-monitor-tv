@@ -46,12 +46,19 @@ interface SessionWithDetails extends FermentationSession {
   steps?: FermentationProfileStep[];
 }
 
+interface ControllerData {
+  current_temp: number | null;
+  target_temp: number | null;
+  name: string;
+}
+
 export function ActiveFermentationSession({ 
   controllerId, 
   brewId,
   compact = false 
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
+  const [controllerData, setControllerData] = useState<ControllerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -68,8 +75,8 @@ export function ActiveFermentationSession({
     if (controllerId || brewId) {
       loadSession();
       
-      // Subscribe to realtime updates
-      const channel = supabase
+      // Subscribe to realtime updates for sessions
+      const sessionChannel = supabase
         .channel(`fermentation-session-${controllerId || brewId}`)
         .on(
           'postgres_changes',
@@ -88,10 +95,41 @@ export function ActiveFermentationSession({
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(sessionChannel);
       };
     }
   }, [controllerId, brewId]);
+
+  // Subscribe to controller temp updates
+  useEffect(() => {
+    if (session?.controller_id) {
+      const controllerChannel = supabase
+        .channel(`controller-temp-${session.controller_id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'rapt_temp_controllers',
+            filter: `controller_id=eq.${session.controller_id}`
+          },
+          (payload) => {
+            if (payload.new) {
+              setControllerData({
+                current_temp: (payload.new as any).current_temp,
+                target_temp: (payload.new as any).target_temp,
+                name: (payload.new as any).name
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(controllerChannel);
+      };
+    }
+  }, [session?.controller_id]);
 
   const loadSession = async () => {
     setLoading(true);
@@ -110,8 +148,8 @@ export function ActiveFermentationSession({
     const { data: sessions } = await query.limit(1).maybeSingle();
     
     if (sessions) {
-      // Load profile and steps
-      const [profileRes, stepsRes] = await Promise.all([
+      // Load profile, steps, and controller data in parallel
+      const [profileRes, stepsRes, controllerRes] = await Promise.all([
         supabase
           .from('fermentation_profiles')
           .select('*')
@@ -121,7 +159,12 @@ export function ActiveFermentationSession({
           .from('fermentation_profile_steps')
           .select('*')
           .eq('profile_id', sessions.profile_id)
-          .order('step_order')
+          .order('step_order'),
+        supabase
+          .from('rapt_temp_controllers')
+          .select('current_temp, target_temp, name')
+          .eq('controller_id', sessions.controller_id)
+          .single()
       ]);
 
       setSession({
@@ -129,8 +172,13 @@ export function ActiveFermentationSession({
         profile: profileRes.data as FermentationProfile | undefined,
         steps: stepsRes.data as FermentationProfileStep[] | undefined
       });
+      
+      if (controllerRes.data) {
+        setControllerData(controllerRes.data as ControllerData);
+      }
     } else {
       setSession(null);
+      setControllerData(null);
     }
     
     setLoading(false);
@@ -313,15 +361,23 @@ export function ActiveFermentationSession({
           </div>
           {currentStep && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              {/* Target temp */}
-              {currentStep.target_temp && (
-                <span className="flex items-center gap-0.5 text-primary font-medium">
-                  <Thermometer className="w-3 h-3" />
-                  {currentStep.target_temp}°C
+              {/* Current temp → Target temp */}
+              {(controllerData?.current_temp != null || currentStep.target_temp) && (
+                <span className="flex items-center gap-0.5">
+                  <Thermometer className="w-3 h-3 text-muted-foreground" />
+                  {controllerData?.current_temp != null && (
+                    <span className="text-foreground font-medium">{controllerData.current_temp.toFixed(1)}°C</span>
+                  )}
+                  {controllerData?.current_temp != null && currentStep.target_temp && (
+                    <span className="text-muted-foreground">→</span>
+                  )}
+                  {currentStep.target_temp && (
+                    <span className="text-primary font-medium">{currentStep.target_temp}°C</span>
+                  )}
                 </span>
               )}
               {/* Separator */}
-              {currentStep.target_temp && <span className="text-muted-foreground/40">•</span>}
+              {(controllerData?.current_temp != null || currentStep.target_temp) && <span className="text-muted-foreground/40">•</span>}
               {/* Next step condition */}
               <span className="flex items-center gap-1 truncate">
                 {getStepIcon(currentStep.step_type)}
@@ -380,6 +436,33 @@ export function ActiveFermentationSession({
                 <div className="text-xs text-muted-foreground">{getStepDescription(currentStep)}</div>
               </div>
             </div>
+            
+            {/* Temperature display: Current → Target */}
+            {(controllerData?.current_temp != null || currentStep.target_temp) && (
+              <div className="flex items-center gap-2 py-1 px-2 bg-background/50 rounded text-xs">
+                <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">Temp:</span>
+                {controllerData?.current_temp != null && (
+                  <span className="font-medium text-foreground">{controllerData.current_temp.toFixed(1)}°C</span>
+                )}
+                {controllerData?.current_temp != null && currentStep.target_temp && (
+                  <span className="text-muted-foreground">→</span>
+                )}
+                {currentStep.target_temp && (
+                  <span className="font-medium text-primary">{currentStep.target_temp}°C</span>
+                )}
+                {controllerData?.current_temp != null && currentStep.target_temp && (
+                  <span className={`text-xs ${
+                    Math.abs(controllerData.current_temp - currentStep.target_temp) <= 0.5 
+                      ? 'text-green-500' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    ({controllerData.current_temp > currentStep.target_temp ? '+' : ''}
+                    {(controllerData.current_temp - currentStep.target_temp).toFixed(1)}°C)
+                  </span>
+                )}
+              </div>
+            )}
             
             {/* Step progress for time-based steps */}
             {(currentStep.step_type === 'hold' || (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear')) && currentStep.duration_hours && (
