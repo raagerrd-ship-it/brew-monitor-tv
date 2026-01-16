@@ -1364,7 +1364,7 @@ export default function Settings() {
                             
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
                             const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp;
+                            const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp;
                             
                             const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
                             
@@ -1409,7 +1409,7 @@ export default function Settings() {
                             
                             const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
                             const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.pill_temp ?? lowestController?.current_temp ?? null;
+                            const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp ?? null;
                             console.log('Lowest controller current temp:', currentTemp);
                             return currentTemp;
                           })()}

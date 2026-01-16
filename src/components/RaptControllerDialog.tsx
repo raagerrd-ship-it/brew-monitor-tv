@@ -327,29 +327,29 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           {/* Active Fermentation Session */}
           <ActiveFermentationSession controllerId={controller.controller_id} />
 
-          {/* Pill Temperature (if available) */}
+          {/* Built-in Temperature (primary) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs text-muted-foreground">Inbyggd sensor</span>
+            </div>
+            <span className="text-sm font-semibold text-primary">
+              {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}
+            </span>
+          </div>
+
+          {/* Pill Temperature (secondary, if available) */}
           {currentController.pill_temp !== null && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Thermometer className="w-3.5 h-3.5 text-primary" />
+                <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Pill-temperatur</span>
               </div>
-              <span className="text-sm font-semibold text-primary">
+              <span className="text-sm font-semibold text-muted-foreground">
                 {currentController.pill_temp.toFixed(1)}°C
               </span>
             </div>
           )}
-
-          {/* Built-in Temperature */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Inbyggd sensor</span>
-            </div>
-            <span className="text-sm font-semibold">
-              {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}
-            </span>
-          </div>
 
           {/* Target Temperature Display */}
           <div className="flex items-center justify-between">

@@ -229,7 +229,7 @@ serve(async (req) => {
               lowest_followed_temp: lowestTargetTemp,
               followed_controller_id: lowestTempController.controller_id,
               followed_controller_name: lowestTempController.name,
-              followed_current_temp: parseFloat(lowestTempController.pill_temp ?? lowestTempController.current_temp ?? '0'),
+              followed_current_temp: parseFloat(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'),
               followed_target_temp: lowestTargetTemp,
               followed_hysteresis: parseFloat(lowestTempController.cooling_hysteresis ?? '0.2'),
               reason: `Cooler was ${tempDiff.toFixed(1)}°C colder than lowest controller - increased to maintain 10°C diff`
@@ -250,8 +250,8 @@ serve(async (req) => {
       }
     }
 
-    // Check if lowest controller is actively cooling (pill_temp > target_temp + hysteresis)
-    const lowestCurrentTemp = parseFloat(lowestTempController.pill_temp ?? lowestTempController.current_temp ?? '0');
+    // Check if lowest controller is actively cooling (current_temp > target_temp + hysteresis)
+    const lowestCurrentTemp = parseFloat(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0');
     const lowestHysteresis = parseFloat(lowestTempController.cooling_hysteresis ?? '0.2');
     const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + lowestHysteresis);
 
@@ -401,7 +401,7 @@ serve(async (req) => {
 
             // Log the adjustment to database
             const lowestFollowedTemp = followedControllersFullData
-              .map(c => parseFloat(c.pill_temp || c.current_temp || '999'))
+              .map(c => parseFloat(c.current_temp || c.pill_temp || '999'))
               .reduce((min, temp) => Math.min(min, temp), 999);
 
             const { error: logError } = await supabase
@@ -414,7 +414,7 @@ serve(async (req) => {
                 lowest_followed_temp: lowestFollowedTemp,
                 followed_controller_id: strugglingController.controller_id,
                 followed_controller_name: strugglingController.name,
-                followed_current_temp: parseFloat(strugglingController.pill_temp ?? strugglingController.current_temp ?? '0'),
+                followed_current_temp: parseFloat(strugglingController.current_temp ?? strugglingController.pill_temp ?? '0'),
                 followed_target_temp: parseFloat(strugglingController.target_temp || '0'),
                 followed_hysteresis: parseFloat(strugglingController.cooling_hysteresis ?? '0.2'),
                 reason: `${strugglingController.name} struggling to cool`
