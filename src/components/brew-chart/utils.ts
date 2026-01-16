@@ -3,8 +3,75 @@ import {
   ChartDataPointWithTimestamp, 
   BrewChartEvent, 
   BrewChartEventWithTimestamp,
-  EventDisplay 
+  EventDisplay,
+  ControllerTempPoint
 } from "./types";
+
+/**
+ * Interpolate controller temperature for a given timestamp
+ * Uses linear interpolation between the two closest data points
+ */
+export function interpolateControllerTemp(
+  timestamp: number,
+  controllerData: ControllerTempPoint[]
+): number | null {
+  if (!controllerData || controllerData.length === 0) return null;
+
+  // Convert to timestamps and sort
+  const sortedData = controllerData
+    .map(d => ({
+      timestamp: new Date(d.recorded_at).getTime(),
+      temp: d.current_temp
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  // If before first point, use first point
+  if (timestamp <= sortedData[0].timestamp) {
+    return sortedData[0].temp;
+  }
+
+  // If after last point, use last point
+  if (timestamp >= sortedData[sortedData.length - 1].timestamp) {
+    return sortedData[sortedData.length - 1].temp;
+  }
+
+  // Find surrounding points and interpolate
+  for (let i = 0; i < sortedData.length - 1; i++) {
+    const current = sortedData[i];
+    const next = sortedData[i + 1];
+    
+    if (timestamp >= current.timestamp && timestamp <= next.timestamp) {
+      // Linear interpolation
+      const ratio = (timestamp - current.timestamp) / (next.timestamp - current.timestamp);
+      return current.temp + ratio * (next.temp - current.temp);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Merge SG data with controller temperature data
+ * Replaces pill temp with interpolated controller temp where available
+ */
+export function mergeWithControllerTemp(
+  sgData: ChartDataPoint[],
+  controllerData: ControllerTempPoint[]
+): ChartDataPoint[] {
+  if (!controllerData || controllerData.length === 0) {
+    return sgData;
+  }
+
+  return sgData.map(point => {
+    const timestamp = new Date(point.date).getTime();
+    const controllerTemp = interpolateControllerTemp(timestamp, controllerData);
+    
+    return {
+      ...point,
+      temp: controllerTemp !== null ? controllerTemp : point.temp
+    };
+  });
+}
 
 /**
  * Calculate moving average for smoother chart lines

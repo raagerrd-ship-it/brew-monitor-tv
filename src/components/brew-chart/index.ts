@@ -4,6 +4,7 @@ export type {
   BrewChartEvent, 
   ChartDataPoint,
   ChartDataPointWithTimestamp,
+  ControllerTempPoint,
   EventDisplay 
 } from "./types";
 export {
@@ -16,4 +17,6 @@ export {
   formatXAxisTick,
   formatTooltipLabel,
   getOptimalWindowSize,
+  mergeWithControllerTemp,
+  interpolateControllerTemp,
 } from "./utils";
