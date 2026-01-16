@@ -361,17 +361,9 @@ export function ActiveFermentationSession({
           </div>
           {currentStep && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              {/* Temperature display: Current → Running Target (→ Final Target for ramps) */}
+              {/* Temperature display: Running Target (→ Final Target for ramps) */}
               <span className="flex items-center gap-0.5">
                 <Thermometer className="w-3 h-3 text-muted-foreground" />
-                {/* Current temp */}
-                {controllerData?.current_temp != null && (
-                  <span className="text-foreground font-medium">{controllerData.current_temp.toFixed(1)}°C</span>
-                )}
-                {/* Arrow to running target */}
-                {controllerData?.current_temp != null && controllerData?.target_temp != null && (
-                  <span className="text-muted-foreground">→</span>
-                )}
                 {/* Running target (controller's current target) - highlighted for ramps */}
                 {controllerData?.target_temp != null && (
                   <span className={`font-medium ${
@@ -452,47 +444,26 @@ export function ActiveFermentationSession({
               </div>
             </div>
             
-            {/* Temperature display: Current → Running Target (→ Final for ramps) */}
-            {(controllerData?.current_temp != null || controllerData?.target_temp != null) && (
+            {/* Temperature display: Running Target (→ Final for ramps) */}
+            {controllerData?.target_temp != null && (
               <div className="flex items-center gap-2 py-1.5 px-2 bg-background/50 rounded text-xs">
                 <Thermometer className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  {/* Current temp */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground">Nu:</span>
-                    {controllerData?.current_temp != null && (
-                      <span className="font-medium text-foreground">{controllerData.current_temp.toFixed(1)}°C</span>
-                    )}
-                  </div>
-                  
                   {/* Running target (controller's current setpoint) */}
-                  {controllerData?.target_temp != null && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">→ Mål:</span>
-                      <span className={`font-medium ${
-                        currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear'
-                          ? 'text-amber-500'
-                          : 'text-primary'
-                      }`}>
-                        {controllerData.target_temp.toFixed(1)}°C
-                      </span>
-                      {/* Difference indicator */}
-                      {controllerData?.current_temp != null && (
-                        <span className={`${
-                          Math.abs(controllerData.current_temp - controllerData.target_temp) <= 0.5 
-                            ? 'text-green-500' 
-                            : 'text-muted-foreground'
-                        }`}>
-                          ({controllerData.current_temp > controllerData.target_temp ? '+' : ''}
-                          {(controllerData.current_temp - controllerData.target_temp).toFixed(1)}°)
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">Mål:</span>
+                    <span className={`font-medium ${
+                      currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear'
+                        ? 'text-amber-500'
+                        : 'text-primary'
+                    }`}>
+                      {controllerData.target_temp.toFixed(1)}°C
+                    </span>
+                  </div>
+
                   {/* Final target for linear ramps */}
                   {currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear' && currentStep.target_temp && 
-                   controllerData?.target_temp != null && Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
+                   Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
                     <div className="flex items-center gap-1">
                       <span className="text-muted-foreground">↘ Slut:</span>
                       <span className="font-medium text-primary/70">{currentStep.target_temp}°C</span>
