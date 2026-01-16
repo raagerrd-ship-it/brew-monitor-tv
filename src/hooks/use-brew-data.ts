@@ -1,0 +1,479 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
+import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
+import { calculateFermentationRate } from '@/lib/brew-utils';
+import { useRealtimeSubscription } from './use-realtime-subscription';
+
+interface UseBrewDataReturn {
+  brews: BrewData[];
+  setBrews: React.Dispatch<React.SetStateAction<BrewData[]>>;
+  pills: PillData[];
+  controllers: TempController[];
+  loading: boolean;
+  updatedFields: Record<string, Record<string, boolean>>;
+  brewEvents: Record<string, BrewEvent[]>;
+  isAuthenticated: boolean;
+  loadBrews: () => Promise<void>;
+  loadRaptData: () => Promise<void>;
+  loadBrewEvents: () => Promise<void>;
+}
+
+export function useBrewData(): UseBrewDataReturn {
+  const [brews, setBrews] = useState<BrewData[]>([]);
+  const [pills, setPills] = useState<PillData[]>([]);
+  const [controllers, setControllers] = useState<TempController[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
+  const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { toast } = useToast();
+
+  // Ref for realtime comparison
+  const brewsRef = useRef<BrewData[]>([]);
+  useEffect(() => {
+    brewsRef.current = brews;
+  }, [brews]);
+
+  // Auth state
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadBrewEvents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('brew_events')
+        .select('*')
+        .order('event_date');
+
+      if (error) throw error;
+
+      const eventsByBrew: Record<string, BrewEvent[]> = {};
+      (data || []).forEach((event: BrewEvent) => {
+        if (!eventsByBrew[event.brew_id]) {
+          eventsByBrew[event.brew_id] = [];
+        }
+        eventsByBrew[event.brew_id].push(event);
+      });
+
+      setBrewEvents(eventsByBrew);
+    } catch (error) {
+      console.error('Error loading brew events:', error);
+    }
+  }, []);
+
+  const loadBrews = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data: selectedBrews, error: selectedError } = await supabase
+        .from('selected_brews')
+        .select('batch_id')
+        .eq('is_visible', true)
+        .order('display_order');
+
+      if (selectedError) throw selectedError;
+
+      if (!selectedBrews || selectedBrews.length === 0) {
+        setBrews([]);
+        setLoading(false);
+        return;
+      }
+
+      const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
+
+      const [brewReadingsRes, eventsRes] = await Promise.all([
+        supabase
+          .from('brew_readings')
+          .select('*')
+          .in('batch_id', selectedBatchIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('brew_events')
+          .select('*')
+          .order('event_date'),
+      ]);
+
+      if (brewReadingsRes.error) throw brewReadingsRes.error;
+
+      const brewReadings = brewReadingsRes.data;
+      if (!brewReadings || brewReadings.length === 0) {
+        setBrews([]);
+        setLoading(false);
+        return;
+      }
+
+      // Group events by brew_id
+      const eventsByBrewId: Record<string, BrewEvent[]> = {};
+      (eventsRes.data || []).forEach((event: BrewEvent) => {
+        if (!eventsByBrewId[event.brew_id]) {
+          eventsByBrewId[event.brew_id] = [];
+        }
+        eventsByBrewId[event.brew_id].push(event);
+      });
+
+      const brewsData = brewReadings.map((reading: any) => {
+        const originalSgData = reading.sg_data || [];
+        let sgData = originalSgData;
+
+        if (reading.status === 'Conditioning' || reading.status === 'Completed') {
+          const sortedData = [...sgData].sort((a, b) =>
+            new Date(a.date).getTime() - new Date(b.date).getTime()
+          );
+
+          let cutoffIndex = sortedData.length - 1;
+          for (let i = sortedData.length - 1; i > 0; i--) {
+            const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
+            const rate = calculateFermentationRate(recentData);
+
+            if (rate !== null && Math.abs(rate) >= 0.001) {
+              cutoffIndex = i;
+              break;
+            }
+          }
+
+          sgData = sortedData.slice(0, cutoffIndex + 1);
+        }
+
+        const fermentationRate = calculateFermentationRate(originalSgData);
+
+        return {
+          id: reading.id,
+          batch_id: reading.batch_id,
+          name: reading.name,
+          style: reading.style,
+          batchNumber: reading.batch_number,
+          status: reading.status,
+          currentSG: reading.current_sg,
+          currentTemp: reading.current_temp,
+          attenuation: reading.attenuation,
+          abv: reading.abv,
+          originalGravity: reading.original_gravity,
+          finalGravity: reading.final_gravity,
+          lastUpdate: reading.last_update
+            ? new Date(reading.last_update).toLocaleString('sv-SE', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : 'Ingen data',
+          lastUpdateRaw: reading.last_update,
+          battery: reading.battery,
+          sgData: sgData,
+          fermentationRate:
+            reading.status === 'Conditioning' || reading.status === 'Completed'
+              ? 0
+              : fermentationRate,
+          coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
+          events: eventsByBrewId[reading.id] || [],
+          linked_controller_id: reading.linked_controller_id || null,
+          linked_pill_id: reading.linked_pill_id || null,
+        };
+      });
+
+      setBrews(brewsData);
+    } catch (error) {
+      console.error('Error loading brews:', error);
+      toast({
+        title: 'Fel',
+        description: 'Kunde inte ladda bryggdata',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const loadRaptData = useCallback(async () => {
+    try {
+      console.log('Loading RAPT data from public edge function...');
+
+      const { data, error } = await supabase.functions.invoke('get-public-rapt-data');
+
+      if (error) {
+        console.error('Error loading RAPT data:', error);
+        return;
+      }
+
+      if (!data.success) {
+        console.error('Failed to load RAPT data:', data.error);
+        return;
+      }
+
+      setPills(data.pills || []);
+      setControllers(data.controllers || []);
+
+      console.log(
+        `Loaded ${data.pills?.length || 0} pills and ${data.controllers?.length || 0} controllers`
+      );
+    } catch (error) {
+      console.error('Error loading RAPT data:', error);
+    }
+  }, []);
+
+  // Handle brew reading updates
+  const handleBrewUpdate = useCallback((payload: any) => {
+    if (payload.eventType === 'UPDATE' && payload.new) {
+      const updatedReading = payload.new;
+      const currentBrew = brewsRef.current.find(b => b.batch_id === updatedReading.batch_id);
+
+      if (!currentBrew) {
+        loadBrews();
+        return;
+      }
+
+      // Track changed fields for glow effect
+      const changedFields: Record<string, boolean> = {};
+
+      if (updatedReading.current_sg !== undefined) {
+        const newSGRounded = Number(updatedReading.current_sg.toFixed(3));
+        const screenSGRounded = Number(currentBrew.currentSG.toFixed(3));
+        if (newSGRounded !== screenSGRounded) changedFields.sg = true;
+      }
+
+      if (updatedReading.current_temp !== undefined) {
+        const newTempRounded = Math.round(updatedReading.current_temp);
+        const screenTempRounded = Math.round(currentBrew.currentTemp);
+        if (newTempRounded !== screenTempRounded) changedFields.temp = true;
+      }
+
+      if (updatedReading.attenuation !== undefined) {
+        if (Math.round(updatedReading.attenuation) !== Math.round(currentBrew.attenuation)) {
+          changedFields.attenuation = true;
+        }
+      }
+
+      if (updatedReading.abv !== undefined) {
+        const newABVRounded = Number(updatedReading.abv.toFixed(1));
+        const screenABVRounded = Number(currentBrew.abv.toFixed(1));
+        if (newABVRounded !== screenABVRounded) changedFields.abv = true;
+      }
+
+      if (
+        updatedReading.battery !== undefined &&
+        updatedReading.battery !== null &&
+        currentBrew.battery !== null
+      ) {
+        if (Math.round(updatedReading.battery) !== Math.round(currentBrew.battery)) {
+          changedFields.battery = true;
+        }
+      }
+
+      const newLastUpdate = updatedReading.last_update;
+      const screenLastUpdate = currentBrew.lastUpdateRaw;
+
+      if (
+        newLastUpdate !== screenLastUpdate &&
+        newLastUpdate !== undefined &&
+        screenLastUpdate !== undefined
+      ) {
+        changedFields.cardGlow = true;
+      }
+
+      setBrews(prevBrews =>
+        prevBrews.map(brew => {
+          if (brew.batch_id === updatedReading.batch_id) {
+            const originalSgData = updatedReading.sg_data || [];
+            let newSgData = originalSgData;
+
+            if (
+              updatedReading.status === 'Conditioning' ||
+              updatedReading.status === 'Completed'
+            ) {
+              const sortedData = [...newSgData].sort(
+                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+              );
+
+              let cutoffIndex = sortedData.length - 1;
+              for (let i = sortedData.length - 1; i > 0; i--) {
+                const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
+                const rate = calculateFermentationRate(recentData);
+
+                if (rate !== null && Math.abs(rate) >= 0.001) {
+                  cutoffIndex = i;
+                  break;
+                }
+              }
+
+              newSgData = sortedData.slice(0, cutoffIndex + 1);
+            }
+
+            const newFermentationRate = calculateFermentationRate(originalSgData);
+
+            // Cold crash notification
+            if (
+              newFermentationRate !== null &&
+              Math.abs(newFermentationRate) < 0.0005 &&
+              !brew.coldcrashAcknowledged
+            ) {
+              sonnerToast(`${updatedReading.name} är klar! 🍺`, {
+                description: 'Jäsningen är färdig (0.000/dag). Dags för Coldcrash!',
+                duration: 5000,
+              });
+
+              supabase
+                .from('brew_readings')
+                .update({ coldcrash_acknowledged: true })
+                .eq('batch_id', brew.batch_id);
+            }
+
+            return {
+              ...brew,
+              status: updatedReading.status ?? brew.status,
+              currentSG: updatedReading.current_sg,
+              currentTemp: updatedReading.current_temp,
+              attenuation: updatedReading.attenuation,
+              abv: updatedReading.abv,
+              battery: updatedReading.battery,
+              lastUpdate: updatedReading.last_update
+                ? new Date(updatedReading.last_update).toLocaleString('sv-SE', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Ingen data',
+              lastUpdateRaw: updatedReading.last_update,
+              sgData: newSgData,
+              fermentationRate:
+                (updatedReading.status ?? brew.status) === 'Conditioning' ||
+                (updatedReading.status ?? brew.status) === 'Completed'
+                  ? 0
+                  : newFermentationRate,
+              coldcrashAcknowledged:
+                updatedReading.coldcrash_acknowledged ?? brew.coldcrashAcknowledged,
+            };
+          }
+          return brew;
+        })
+      );
+
+      if (Object.keys(changedFields).length > 0) {
+        setUpdatedFields(prev => ({
+          ...prev,
+          [updatedReading.batch_id]: changedFields,
+        }));
+
+        setTimeout(() => {
+          setUpdatedFields(prev => {
+            const newFields = { ...prev };
+            delete newFields[updatedReading.batch_id];
+            return newFields;
+          });
+        }, 120000);
+      }
+    } else {
+      loadBrews();
+    }
+  }, [loadBrews]);
+
+  // Realtime subscriptions
+  useRealtimeSubscription({
+    table: 'brew_readings',
+    onPayload: handleBrewUpdate,
+  });
+
+  useRealtimeSubscription({
+    table: 'rapt_pills',
+    onPayload: loadRaptData,
+  });
+
+  useRealtimeSubscription({
+    table: 'rapt_temp_controllers',
+    onPayload: loadRaptData,
+  });
+
+  useRealtimeSubscription({
+    table: 'selected_rapt_pills',
+    onPayload: () => {
+      sonnerToast('Inställningar uppdaterade', {
+        description: 'RAPT Pill-listan har ändrats från en annan enhet',
+        duration: 5000,
+      });
+      loadRaptData();
+    },
+  });
+
+  useRealtimeSubscription({
+    table: 'selected_rapt_temp_controllers',
+    onPayload: () => {
+      sonnerToast('Inställningar uppdaterade', {
+        description: 'RAPT-kontrollerlistan har ändrats från en annan enhet',
+        duration: 5000,
+      });
+      loadRaptData();
+    },
+  });
+
+  useRealtimeSubscription({
+    table: 'selected_brews',
+    onPayload: () => {
+      sonnerToast('Inställningar uppdaterade', {
+        description: 'Öllistan har ändrats från en annan enhet',
+        duration: 5000,
+      });
+      loadBrews();
+    },
+  });
+
+  // Initial data load
+  useEffect(() => {
+    loadBrews();
+    loadRaptData();
+  }, [loadBrews, loadRaptData]);
+
+  // Re-sort brews when controllers change
+  useEffect(() => {
+    if (brews.length === 0 || controllers.length === 0) return;
+
+    setBrews(prevBrews => {
+      const sorted = [...prevBrews].sort((a, b) => {
+        const aControllerIndex = controllers.findIndex(
+          c => c.controller_id === a.linked_controller_id
+        );
+        const bControllerIndex = controllers.findIndex(
+          c => c.controller_id === b.linked_controller_id
+        );
+
+        if (aControllerIndex !== -1 && bControllerIndex !== -1) {
+          return aControllerIndex - bControllerIndex;
+        }
+
+        if (aControllerIndex !== -1) return -1;
+        if (bControllerIndex !== -1) return 1;
+
+        return 0;
+      });
+
+      const orderChanged = sorted.some((brew, index) => brew.id !== prevBrews[index].id);
+      return orderChanged ? sorted : prevBrews;
+    });
+  }, [controllers]);
+
+  return {
+    brews,
+    setBrews,
+    pills,
+    controllers,
+    loading,
+    updatedFields,
+    brewEvents,
+    isAuthenticated,
+    loadBrews,
+    loadRaptData,
+    loadBrewEvents,
+  };
+}
