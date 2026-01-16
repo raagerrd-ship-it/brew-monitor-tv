@@ -346,12 +346,12 @@ export function StartFermentationSessionDialog({
             {/* Brew selection (optional) */}
             <div className="space-y-2">
               <Label>Koppla till bryggning (valfritt)</Label>
-              <Select value={selectedBrewId} onValueChange={setSelectedBrewId}>
+              <Select value={selectedBrewId || "none"} onValueChange={(value) => setSelectedBrewId(value === "none" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Ingen bryggning vald" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Ingen bryggning</SelectItem>
+                  <SelectItem value="none">Ingen bryggning</SelectItem>
                   {brews.map((brew) => (
                     <SelectItem key={brew.id} value={brew.id}>
                       {brew.name}
