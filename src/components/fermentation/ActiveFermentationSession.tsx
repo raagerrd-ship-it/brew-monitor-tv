@@ -1,29 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { 
   FermentationSession, 
   FermentationProfile, 
   FermentationProfileStep,
-  STEP_TYPE_LABELS,
-  SESSION_STATUS_LABELS
 } from "@/types/fermentation";
-import { 
-  Play, 
-  Pause, 
-  Square, 
-  Thermometer, 
-  Clock, 
-  Activity, 
-  ArrowDown,
-  ChevronRight,
-  Loader2
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { Play, Pause, Square, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +19,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FermentationSessionCompact } from "./FermentationSessionCompact";
+import { FermentationSessionHeader } from "./FermentationSessionHeader";
+import { FermentationStepDisplay } from "./FermentationStepDisplay";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -65,73 +54,17 @@ export function ActiveFermentationSession({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
 
+  // Auth check
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
   }, []);
 
-  useEffect(() => {
-    if (controllerId || brewId) {
-      loadSession();
-      
-      // Subscribe to realtime updates for sessions
-      const sessionChannel = supabase
-        .channel(`fermentation-session-${controllerId || brewId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'fermentation_sessions',
-            filter: controllerId 
-              ? `controller_id=eq.${controllerId}` 
-              : `brew_id=eq.${brewId}`
-          },
-          () => {
-            loadSession();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(sessionChannel);
-      };
-    }
-  }, [controllerId, brewId]);
-
-  // Subscribe to controller temp updates
-  useEffect(() => {
-    if (session?.controller_id) {
-      const controllerChannel = supabase
-        .channel(`controller-temp-${session.controller_id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'rapt_temp_controllers',
-            filter: `controller_id=eq.${session.controller_id}`
-          },
-          (payload) => {
-            if (payload.new) {
-              setControllerData({
-                current_temp: (payload.new as any).current_temp,
-                target_temp: (payload.new as any).target_temp,
-                name: (payload.new as any).name
-              });
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(controllerChannel);
-      };
-    }
-  }, [session?.controller_id]);
-
-  const loadSession = async () => {
+  // Load session data
+  const loadSession = useCallback(async () => {
+    if (!controllerId && !brewId) return;
+    
     setLoading(true);
     
     let query = supabase
@@ -148,7 +81,6 @@ export function ActiveFermentationSession({
     const { data: sessions } = await query.limit(1).maybeSingle();
     
     if (sessions) {
-      // Load profile, steps, and controller data in parallel
       const [profileRes, stepsRes, controllerRes] = await Promise.all([
         supabase
           .from('fermentation_profiles')
@@ -182,9 +114,43 @@ export function ActiveFermentationSession({
     }
     
     setLoading(false);
-  };
+  }, [controllerId, brewId]);
 
-  const handlePauseResume = async () => {
+  // Initial load
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
+
+  // Realtime subscription for session updates
+  useRealtimeSubscription({
+    table: 'fermentation_sessions',
+    filter: controllerId 
+      ? `controller_id=eq.${controllerId}` 
+      : brewId 
+        ? `brew_id=eq.${brewId}` 
+        : undefined,
+    onPayload: loadSession,
+    enabled: !!(controllerId || brewId),
+  });
+
+  // Realtime subscription for controller temp updates
+  useRealtimeSubscription({
+    table: 'rapt_temp_controllers',
+    filter: session?.controller_id ? `controller_id=eq.${session.controller_id}` : undefined,
+    event: 'UPDATE',
+    onPayload: (payload: any) => {
+      if (payload.new) {
+        setControllerData({
+          current_temp: payload.new.current_temp,
+          target_temp: payload.new.target_temp,
+          name: payload.new.name
+        });
+      }
+    },
+    enabled: !!session?.controller_id,
+  });
+
+  const handlePauseResume = useCallback(async () => {
     if (!session) return;
     
     setActionLoading(true);
@@ -198,7 +164,6 @@ export function ActiveFermentationSession({
     if (error) {
       toast({ title: "Fel", description: "Kunde inte uppdatera session", variant: "destructive" });
     } else {
-      // Log the action
       await supabase.from('fermentation_step_log').insert({
         session_id: session.id,
         step_index: session.current_step_index,
@@ -216,9 +181,9 @@ export function ActiveFermentationSession({
     }
     
     setActionLoading(false);
-  };
+  }, [session, toast, loadSession]);
 
-  const handleCancel = async () => {
+  const handleCancel = useCallback(async () => {
     if (!session) return;
     
     setActionLoading(true);
@@ -244,86 +209,19 @@ export function ActiveFermentationSession({
     
     setActionLoading(false);
     setShowCancelDialog(false);
-  };
+  }, [session, toast]);
 
-  const getStepIcon = (stepType: string) => {
-    switch (stepType) {
-      case 'ramp': return <ArrowDown className="h-3 w-3" />;
-      case 'hold': return <Thermometer className="h-3 w-3" />;
-      case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
-      case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
-      case 'wait_for_sg': return <Activity className="h-3 w-3" />;
-      default: return <Clock className="h-3 w-3" />;
-    }
-  };
-
-  const getStepDescription = (step: FermentationProfileStep) => {
-    switch (step.step_type) {
-      case 'hold':
-        return `${step.target_temp}°C i ${step.duration_hours}h`;
-      case 'ramp':
-        return `${step.ramp_type === 'immediate' ? '→' : '↘'} ${step.target_temp}°C`;
-      case 'wait_for_temp':
-        return `Vänta tills ${step.target_temp}°C`;
-      case 'wait_for_gravity_stable':
-        return `Stabil SG ${step.gravity_stable_days}d`;
-      case 'wait_for_sg':
-        return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
-      default:
-        return '';
-    }
-  };
-
-  const formatRemainingTime = (remainingHours: number) => {
-    const hours = Math.floor(remainingHours);
-    const minutes = Math.round((remainingHours - hours) * 60);
-    if (hours === 0) {
-      return `${minutes}min kvar`;
-    }
-    return `${hours}h ${minutes}min kvar`;
-  };
-
-  const getNextStepCondition = (step: FermentationProfileStep, stepStartedAt: string) => {
-    switch (step.step_type) {
-      case 'hold': {
-        if (!step.duration_hours) return 'Okänd tid';
-        const stepStarted = new Date(stepStartedAt);
-        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
-        const remaining = Math.max(0, step.duration_hours - elapsed);
-        return formatRemainingTime(remaining);
-      }
-      case 'ramp': {
-        if (step.ramp_type === 'immediate') {
-          return 'Direkt ändring';
-        }
-        if (!step.duration_hours) return 'Okänd tid';
-        const stepStarted = new Date(stepStartedAt);
-        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
-        const remaining = Math.max(0, step.duration_hours - elapsed);
-        return formatRemainingTime(remaining);
-      }
-      case 'wait_for_temp':
-        return `Nå ${step.target_temp}°C`;
-      case 'wait_for_gravity_stable':
-        return `Stabil i ${step.gravity_stable_days}d`;
-      case 'wait_for_sg':
-        return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
-      default:
-        return '';
-    }
-  };
-
-  const calculateProgress = () => {
-    if (!session || !session.steps || session.steps.length === 0) return 0;
+  // Calculate progress values
+  const calculateProgress = useCallback(() => {
+    if (!session?.steps?.length) return 0;
     return ((session.current_step_index) / session.steps.length) * 100;
-  };
+  }, [session]);
 
-  const calculateStepProgress = () => {
-    if (!session || !session.steps) return 0;
+  const calculateStepProgress = useCallback(() => {
+    if (!session?.steps) return 0;
     const currentStep = session.steps[session.current_step_index];
     if (!currentStep) return 100;
 
-    // For time-based steps, calculate based on elapsed time
     if (currentStep.step_type === 'hold' || (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear')) {
       if (!currentStep.duration_hours) return 0;
       const stepStarted = new Date(session.step_started_at);
@@ -331,24 +229,12 @@ export function ActiveFermentationSession({
       return Math.min((elapsed / currentStep.duration_hours) * 100, 100);
     }
 
-    // For condition-based steps, we can't calculate progress
     return 0;
-  };
+  }, [session]);
 
-  if (loading) {
-    return null;
-  }
-
-  if (!session) {
-    return null;
-  }
-
-  const currentStep = session.steps?.[session.current_step_index];
-  const progress = calculateProgress();
-  const stepProgress = calculateStepProgress();
-
-  // Calculate ramp progress for gradient background
-  const getRampProgress = () => {
+  const getRampProgress = useCallback(() => {
+    if (!session?.steps) return null;
+    const currentStep = session.steps[session.current_step_index];
     if (!currentStep || currentStep.step_type !== 'ramp' || currentStep.ramp_type !== 'linear') {
       return null;
     }
@@ -356,118 +242,45 @@ export function ActiveFermentationSession({
     const stepStarted = new Date(session.step_started_at);
     const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
     return Math.min(Math.max(elapsed / currentStep.duration_hours, 0), 1);
-  };
+  }, [session]);
 
+  if (loading || !session) {
+    return null;
+  }
+
+  const currentStep = session.steps?.[session.current_step_index];
+  const progress = calculateProgress();
+  const stepProgress = calculateStepProgress();
   const rampProgress = getRampProgress();
   const isRamping = rampProgress !== null && rampProgress < 1;
 
+  // Compact view uses the dedicated component
   if (compact) {
     return (
-      <div 
-        className="relative flex items-center gap-2 p-2 rounded-md border overflow-hidden"
-        style={{
-          borderColor: isRamping ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--primary) / 0.2)',
-        }}
-      >
-        {/* Gradient background for ramp progress */}
-        {isRamping && (
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `linear-gradient(90deg, 
-                hsl(var(--primary) / 0.15) 0%, 
-                hsl(38 92% 50% / 0.2) ${rampProgress * 100}%, 
-                hsl(var(--primary) / 0.05) ${rampProgress * 100}%, 
-                hsl(var(--primary) / 0.05) 100%)`,
-            }}
-          />
-        )}
-        {!isRamping && (
-          <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
-        )}
-        
-        {/* Content */}
-        <div className="relative z-10 flex items-center gap-2 w-full">
-          {session.status === 'paused' ? (
-            <Pause className="w-3 h-3 text-muted-foreground shrink-0" />
-          ) : isRamping ? (
-            <ArrowDown className="w-3 h-3 text-amber-500 shrink-0 animate-pulse" />
-          ) : (
-            <Play className="w-3 h-3 text-primary shrink-0" />
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium truncate">{session.profile?.name}</span>
-              <Badge variant={session.status === 'paused' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                {session.current_step_index + 1}/{session.steps?.length || 0}
-              </Badge>
-              {isRamping && (
-                <span className="text-[10px] text-amber-500 font-medium shrink-0">
-                  {Math.round(rampProgress * 100)}%
-                </span>
-              )}
-            </div>
-            {currentStep && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                {/* Temperature display: Running Target (→ Final Target for ramps) */}
-                <span className="flex items-center gap-0.5">
-                  <Thermometer className="w-3 h-3 text-muted-foreground" />
-                  {/* Running target (controller's current target) - highlighted for ramps */}
-                  {controllerData?.target_temp != null && (
-                    <span className={`font-medium ${
-                      isRamping ? 'text-amber-500' : 'text-primary'
-                    }`}>
-                      {controllerData.target_temp.toFixed(1)}°C
-                    </span>
-                  )}
-                  {/* Show final target for linear ramps */}
-                  {isRamping && currentStep.target_temp && 
-                   controllerData?.target_temp != null && Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
-                    <>
-                      <span className="text-muted-foreground">↘</span>
-                      <span className="text-primary/70">{currentStep.target_temp}°C</span>
-                    </>
-                  )}
-                </span>
-                {/* Separator */}
-                <span className="text-muted-foreground/40">•</span>
-                {/* Next step condition */}
-                <span className="flex items-center gap-1 truncate">
-                  {getStepIcon(currentStep.step_type)}
-                  <span className="truncate">{getNextStepCondition(currentStep, session.step_started_at)}</span>
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <FermentationSessionCompact
+        profileName={session.profile?.name || ''}
+        status={session.status}
+        currentStepIndex={session.current_step_index}
+        totalSteps={session.steps?.length || 0}
+        currentStep={currentStep}
+        stepStartedAt={session.step_started_at}
+        targetTemp={controllerData?.target_temp ?? null}
+        isRamping={isRamping}
+        rampProgress={rampProgress}
+      />
     );
   }
 
+  // Full view
   return (
     <>
       <div className="rounded-lg border bg-card p-3 space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-full ${session.status === 'paused' ? 'bg-muted' : 'bg-primary/20'}`}>
-              {session.status === 'paused' ? (
-                <Pause className="w-3 h-3 text-muted-foreground" />
-              ) : (
-                <Play className="w-3 h-3 text-primary" />
-              )}
-            </div>
-            <div>
-              <div className="text-sm font-medium">{session.profile?.name}</div>
-              <div className="text-xs text-muted-foreground">
-                Startad {formatDistanceToNow(new Date(session.started_at), { addSuffix: true, locale: sv })}
-              </div>
-            </div>
-          </div>
-          <Badge variant={session.status === 'paused' ? 'secondary' : 'default'}>
-            {SESSION_STATUS_LABELS[session.status]}
-          </Badge>
-        </div>
+        <FermentationSessionHeader
+          profileName={session.profile?.name || ''}
+          status={session.status}
+          startedAt={session.started_at}
+        />
 
         {/* Overall Progress */}
         <div className="space-y-1">
@@ -480,88 +293,25 @@ export function ActiveFermentationSession({
 
         {/* Current Step */}
         {currentStep && (
-          <div className="bg-muted/50 rounded-md p-2 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1 rounded bg-background">
-                {getStepIcon(currentStep.step_type)}
-              </div>
-              <div className="flex-1">
-                <div className="text-xs font-medium">{STEP_TYPE_LABELS[currentStep.step_type]}</div>
-                <div className="text-xs text-muted-foreground">{getStepDescription(currentStep)}</div>
-              </div>
-            </div>
-            
-            {/* Temperature display: Running Target (→ Final for ramps) */}
-            {controllerData?.target_temp != null && (
-              <div className="flex items-center gap-2 py-1.5 px-2 bg-background/50 rounded text-xs">
-                <Thermometer className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  {/* Running target (controller's current setpoint) */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground">Mål:</span>
-                    <span className={`font-medium ${
-                      currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear'
-                        ? 'text-amber-500'
-                        : 'text-primary'
-                    }`}>
-                      {controllerData.target_temp.toFixed(1)}°C
-                    </span>
-                  </div>
-
-                  {/* Final target for linear ramps */}
-                  {currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear' && currentStep.target_temp && 
-                   Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">↘ Slut:</span>
-                      <span className="font-medium text-primary/70">{currentStep.target_temp}°C</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Step progress for time-based steps */}
-            {(currentStep.step_type === 'hold' || (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear')) && currentStep.duration_hours && (
-              <div className="space-y-1">
-                <Progress value={stepProgress} className="h-1" />
-                <div className="text-xs text-muted-foreground text-right">
-                  {Math.round(stepProgress)}% av {currentStep.duration_hours}h
-                </div>
-              </div>
-            )}
-
-            {/* Info for condition-based steps */}
-            {(currentStep.step_type === 'wait_for_gravity_stable' || currentStep.step_type === 'wait_for_sg' || currentStep.step_type === 'wait_for_temp') && (
-              <div className="text-xs text-muted-foreground italic">
-                Väntar på att villkoret ska uppfyllas...
-              </div>
-            )}
-          </div>
+          <FermentationStepDisplay
+            currentStep={currentStep}
+            steps={session.steps || []}
+            currentStepIndex={session.current_step_index}
+            stepStartedAt={session.step_started_at}
+            targetTemp={controllerData?.target_temp ?? null}
+            currentTemp={controllerData?.current_temp ?? null}
+            isRamping={isRamping}
+            rampProgress={rampProgress}
+            stepProgress={stepProgress}
+          />
         )}
 
         {/* Steps Overview */}
         {session.steps && session.steps.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {session.steps.map((step, index) => (
-              <div
-                key={step.id}
-                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
-                  index < session.current_step_index
-                    ? 'bg-primary/20 border-primary/30 text-primary'
-                    : index === session.current_step_index
-                    ? 'bg-primary border-primary text-primary-foreground'
-                    : 'bg-muted border-border text-muted-foreground'
-                }`}
-              >
-                {index < session.current_step_index ? (
-                  <ChevronRight className="h-2.5 w-2.5" />
-                ) : (
-                  getStepIcon(step.step_type)
-                )}
-                <span>{index + 1}</span>
-              </div>
-            ))}
-          </div>
+          <StepsOverview 
+            steps={session.steps} 
+            currentStepIndex={session.current_step_index} 
+          />
         )}
 
         {/* Actions */}
@@ -616,5 +366,44 @@ export function ActiveFermentationSession({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+// Sub-component for steps overview
+interface StepsOverviewProps {
+  steps: FermentationProfileStep[];
+  currentStepIndex: number;
+}
+
+function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
+  const getStepIcon = (stepType: string) => {
+    switch (stepType) {
+      case 'ramp': return '↘';
+      case 'hold': return '🌡';
+      case 'wait_for_temp': return '⏳';
+      case 'wait_for_gravity_stable': return '📊';
+      case 'wait_for_sg': return '📈';
+      default: return '⏱';
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {steps.map((step, index) => (
+        <div
+          key={step.id}
+          className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
+            index < currentStepIndex
+              ? 'bg-primary/20 border-primary/30 text-primary'
+              : index === currentStepIndex
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'bg-muted border-border text-muted-foreground'
+          }`}
+        >
+          <span className="text-[10px]">{getStepIcon(step.step_type)}</span>
+          <span>{index + 1}</span>
+        </div>
+      ))}
+    </div>
   );
 }
