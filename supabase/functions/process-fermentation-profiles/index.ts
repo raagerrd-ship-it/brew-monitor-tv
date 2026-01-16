@@ -1,0 +1,408 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface ProfileStep {
+  id: string
+  profile_id: string
+  step_order: number
+  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp'
+  target_temp: number | null
+  duration_hours: number | null
+  ramp_type: 'linear' | 'immediate' | null
+  gravity_stable_days: number | null
+  gravity_threshold: number | null
+  target_sg: number | null
+  sg_comparison: 'at_or_below' | 'at_or_above' | null
+  notes: string | null
+}
+
+interface Session {
+  id: string
+  profile_id: string
+  brew_id: string | null
+  controller_id: string
+  status: string
+  current_step_index: number
+  step_started_at: string
+  started_at: string
+}
+
+interface SgDataPoint {
+  date: string
+  value: number
+  temp: number
+}
+
+// Check if gravity has been stable for the required number of days
+function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
+  if (!sgData || sgData.length < 2) return false
+  
+  const now = new Date()
+  const cutoffDate = new Date(now.getTime() - stableDays * 24 * 60 * 60 * 1000)
+  
+  // Get readings from the stability period
+  const recentReadings = sgData.filter(r => new Date(r.date) >= cutoffDate)
+  
+  if (recentReadings.length < 2) return false
+  
+  // Calculate min and max SG in the period
+  const sgValues = recentReadings.map(r => r.value)
+  const minSg = Math.min(...sgValues)
+  const maxSg = Math.max(...sgValues)
+  
+  // Check if the variation is within threshold
+  return (maxSg - minSg) <= threshold
+}
+
+// Check if SG condition is met
+function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: string): boolean {
+  if (!sgData || sgData.length === 0) return false
+  
+  // Get the latest reading
+  const sortedData = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const latestSg = sortedData[0].value
+  
+  if (comparison === 'at_or_below') {
+    return latestSg <= targetSg
+  } else if (comparison === 'at_or_above') {
+    return latestSg >= targetSg
+  }
+  
+  return false
+}
+
+// Calculate the target temperature for a linear ramp
+function calculateRampTemp(startTemp: number, endTemp: number, durationHours: number, elapsedHours: number): number {
+  if (elapsedHours >= durationHours) return endTemp
+  
+  const progress = elapsedHours / durationHours
+  return startTemp + (endTemp - startTemp) * progress
+}
+
+// Set target temperature via RAPT API
+async function setControllerTargetTemp(controllerId: string, targetTemp: number): Promise<boolean> {
+  const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET')
+  const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME')
+  
+  if (!RAPT_API_SECRET || !RAPT_USERNAME) {
+    console.error('Missing RAPT credentials')
+    return false
+  }
+
+  try {
+    // Get auth token
+    const authResponse = await fetch('https://id.rapt.io/connect/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: 'rapt-user',
+        grant_type: 'password',
+        username: RAPT_USERNAME,
+        password: RAPT_API_SECRET,
+      }),
+    })
+
+    if (!authResponse.ok) {
+      console.error('RAPT auth failed:', await authResponse.text())
+      return false
+    }
+
+    const authData = await authResponse.json()
+    const accessToken = authData.access_token
+
+    // Set target temperature
+    const apiUrl = `https://api.rapt.io/api/TempController/SetTargetTemperature?controllerId=${controllerId}&targetTemperature=${targetTemp}`
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      console.error('Failed to set temperature:', await response.text())
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error setting temperature:', error)
+    return false
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get all running sessions
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('fermentation_sessions')
+      .select('*')
+      .eq('status', 'running')
+
+    if (sessionsError) {
+      throw new Error(`Failed to fetch sessions: ${sessionsError.message}`)
+    }
+
+    if (!sessions || sessions.length === 0) {
+      return new Response(JSON.stringify({ message: 'No active sessions' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const results: { sessionId: string; action: string; details: any }[] = []
+
+    for (const session of sessions as Session[]) {
+      // Get profile steps
+      const { data: steps, error: stepsError } = await supabase
+        .from('fermentation_profile_steps')
+        .select('*')
+        .eq('profile_id', session.profile_id)
+        .order('step_order', { ascending: true })
+
+      if (stepsError || !steps || steps.length === 0) {
+        console.error(`No steps found for profile ${session.profile_id}`)
+        continue
+      }
+
+      const currentStep = steps[session.current_step_index] as ProfileStep
+      
+      if (!currentStep) {
+        // All steps completed
+        await supabase
+          .from('fermentation_sessions')
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', session.id)
+
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: 'completed',
+          details: { message: 'Profile completed' },
+        })
+
+        results.push({ sessionId: session.id, action: 'completed', details: {} })
+        continue
+      }
+
+      // Get controller data
+      const { data: controller } = await supabase
+        .from('rapt_temp_controllers')
+        .select('*')
+        .eq('controller_id', session.controller_id)
+        .single()
+
+      // Get brew data if linked
+      let brewData: { sg_data: SgDataPoint[] } | null = null
+      if (session.brew_id) {
+        const { data } = await supabase
+          .from('brew_readings')
+          .select('sg_data')
+          .eq('id', session.brew_id)
+          .single()
+        brewData = data as { sg_data: SgDataPoint[] } | null
+      }
+
+      const stepStartedAt = new Date(session.step_started_at)
+      const now = new Date()
+      const elapsedHours = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
+
+      let stepCompleted = false
+      let actionTaken = 'checked'
+      let actionDetails: any = {}
+
+      switch (currentStep.step_type) {
+        case 'hold': {
+          // Hold temperature for duration
+          if (currentStep.target_temp !== null && controller) {
+            // Check if we need to adjust temperature
+            if (Math.abs(controller.target_temp - currentStep.target_temp) > 0.1) {
+              const success = await setControllerTargetTemp(session.controller_id, currentStep.target_temp)
+              if (success) {
+                actionTaken = 'temp_adjusted'
+                actionDetails = { target_temp: currentStep.target_temp }
+                
+                // Update controller in database
+                await supabase
+                  .from('rapt_temp_controllers')
+                  .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                  .eq('controller_id', session.controller_id)
+              }
+            }
+          }
+          
+          // Check if duration has passed
+          if (currentStep.duration_hours && elapsedHours >= currentStep.duration_hours) {
+            stepCompleted = true
+          }
+          break
+        }
+
+        case 'ramp': {
+          if (currentStep.target_temp === null) break
+
+          if (currentStep.ramp_type === 'immediate') {
+            // Set temperature immediately
+            if (controller && Math.abs(controller.target_temp - currentStep.target_temp) > 0.1) {
+              const success = await setControllerTargetTemp(session.controller_id, currentStep.target_temp)
+              if (success) {
+                actionTaken = 'temp_adjusted'
+                actionDetails = { target_temp: currentStep.target_temp }
+                
+                await supabase
+                  .from('rapt_temp_controllers')
+                  .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                  .eq('controller_id', session.controller_id)
+              }
+            }
+            stepCompleted = true
+          } else {
+            // Linear ramp
+            if (controller && currentStep.duration_hours) {
+              const startTemp = controller.target_temp || currentStep.target_temp
+              const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
+              
+              if (Math.abs(controller.target_temp - newTarget) > 0.1) {
+                const success = await setControllerTargetTemp(session.controller_id, Math.round(newTarget * 10) / 10)
+                if (success) {
+                  actionTaken = 'temp_adjusted'
+                  actionDetails = { target_temp: newTarget, progress: elapsedHours / currentStep.duration_hours }
+                  
+                  await supabase
+                    .from('rapt_temp_controllers')
+                    .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+                    .eq('controller_id', session.controller_id)
+                }
+              }
+              
+              if (elapsedHours >= currentStep.duration_hours) {
+                stepCompleted = true
+              }
+            }
+          }
+          break
+        }
+
+        case 'wait_for_temp': {
+          if (currentStep.target_temp !== null && controller) {
+            // Check if current temp has reached target
+            if (Math.abs(controller.current_temp - currentStep.target_temp) <= 0.5) {
+              stepCompleted = true
+              actionDetails = { current_temp: controller.current_temp, target_temp: currentStep.target_temp }
+            }
+          }
+          break
+        }
+
+        case 'wait_for_gravity_stable': {
+          if (brewData && currentStep.gravity_stable_days && currentStep.gravity_threshold) {
+            const stable = isGravityStable(
+              brewData.sg_data,
+              currentStep.gravity_stable_days,
+              currentStep.gravity_threshold
+            )
+            if (stable) {
+              stepCompleted = true
+              actionTaken = 'condition_met'
+              actionDetails = { condition: 'gravity_stable', days: currentStep.gravity_stable_days }
+            }
+          }
+          break
+        }
+
+        case 'wait_for_sg': {
+          if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
+            const met = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
+            if (met) {
+              stepCompleted = true
+              actionTaken = 'condition_met'
+              const sortedData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              actionDetails = { 
+                condition: 'sg_reached', 
+                target_sg: currentStep.target_sg, 
+                current_sg: sortedData[0]?.value,
+                comparison: currentStep.sg_comparison 
+              }
+            }
+          }
+          break
+        }
+      }
+
+      // Log action if something happened
+      if (actionTaken !== 'checked') {
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: actionTaken,
+          details: actionDetails,
+        })
+      }
+
+      // Advance to next step if completed
+      if (stepCompleted) {
+        const nextStepIndex = session.current_step_index + 1
+        
+        if (nextStepIndex >= steps.length) {
+          // Profile completed
+          await supabase
+            .from('fermentation_sessions')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', session.id)
+
+          await supabase.from('fermentation_step_log').insert({
+            session_id: session.id,
+            step_index: nextStepIndex,
+            action: 'completed',
+            details: { message: 'Profile completed' },
+          })
+
+          results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
+        } else {
+          // Move to next step
+          await supabase
+            .from('fermentation_sessions')
+            .update({ current_step_index: nextStepIndex, step_started_at: new Date().toISOString() })
+            .eq('id', session.id)
+
+          await supabase.from('fermentation_step_log').insert({
+            session_id: session.id,
+            step_index: nextStepIndex,
+            action: 'started',
+            details: { step_type: steps[nextStepIndex].step_type },
+          })
+
+          results.push({ sessionId: session.id, action: 'step_advanced', details: { newStepIndex: nextStepIndex } })
+        }
+      } else {
+        results.push({ sessionId: session.id, action: actionTaken, details: actionDetails })
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, results }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
+  } catch (error) {
+    console.error('Error processing fermentation profiles:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+})

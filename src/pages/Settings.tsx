@@ -3,6 +3,7 @@ import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
+import { FermentationProfilesManagement } from "@/components/fermentation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1641,6 +1642,14 @@ export default function Settings() {
                 Välj vilka Temperature Controllers som ska visas på dashboarden
               </p>
               <RaptControllersManagement />
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">Fermenteringsprofiler</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Skapa och hantera temperaturschemat för fermenteringen. Profiler kan styra måltemperaturen baserat på tid, SG-värden och temperaturvillkor.
+              </p>
+              <FermentationProfilesManagement />
             </div>
           </div>
         </Card>
