@@ -130,6 +130,7 @@ export function BrewCard({
             fg={brew.finalGravity} 
             singleView={true}
             events={brew.events}
+            controllerId={brew.linked_controller_id}
           />
         </div>
         

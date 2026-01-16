@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Area,
   CartesianGrid,
@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { Button } from "../ui/button";
 import { TrendingUp } from "lucide-react";
-import { BrewChartProps } from "./types";
+import { BrewChartProps, ControllerTempPoint } from "./types";
 import {
   calculateMovingAverage,
   addTimestamps,
@@ -23,10 +23,48 @@ import {
   formatXAxisTick,
   formatTooltipLabel,
   getOptimalWindowSize,
+  mergeWithControllerTemp,
 } from "./utils";
+import { supabase } from "@/integrations/supabase/client";
 
-export function BrewChart({ data, og, fg, singleView = false, events = [] }: BrewChartProps) {
+export function BrewChart({ data, og, fg, singleView = false, events = [], controllerId }: BrewChartProps) {
   const [smoothLines, setSmoothLines] = useState(true);
+  const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
+  
+  // Fetch controller temperature history when controllerId is provided
+  useEffect(() => {
+    if (!controllerId || !data || data.length === 0) {
+      setControllerTempData([]);
+      return;
+    }
+
+    const fetchControllerTemp = async () => {
+      // Get the time range from sg_data
+      const sortedData = [...data].sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      const startTime = sortedData[0].date;
+      const endTime = sortedData[sortedData.length - 1].date;
+
+      const { data: tempHistory, error } = await supabase.rpc('get_temp_history_sampled', {
+        p_controller_id: controllerId,
+        p_start_time: startTime,
+        p_end_time: endTime,
+        p_sample_interval_minutes: 15 // Sample every 15 minutes for chart
+      });
+
+      if (error) {
+        console.error('Error fetching controller temp history:', error);
+        return;
+      }
+
+      if (tempHistory && tempHistory.length > 0) {
+        setControllerTempData(tempHistory);
+      }
+    };
+
+    fetchControllerTemp();
+  }, [controllerId, data]);
   
   // Check if data is empty or has no values
   if (!data || data.length === 0) {
@@ -40,9 +78,12 @@ export function BrewChart({ data, og, fg, singleView = false, events = [] }: Bre
   const lineType = smoothLines ? "monotoneX" : "linear";
   const areaType = smoothLines ? "monotoneX" : "linear";
 
+  // Merge SG data with controller temperature if available
+  const dataWithControllerTemp = mergeWithControllerTemp(data, controllerTempData);
+
   // Calculate smoothed data with moving average
-  const windowSize = getOptimalWindowSize(data.length);
-  const smoothedData = calculateMovingAverage(data, windowSize, smoothLines);
+  const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
+  const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
   const chartData = addTimestamps(smoothedData);
 
   // Generate axis ticks and reference lines

@@ -8,6 +8,12 @@ export interface ChartDataPointWithTimestamp extends ChartDataPoint {
   timestamp: number;
 }
 
+export interface ControllerTempPoint {
+  recorded_at: string;
+  current_temp: number;
+  target_temp: number;
+}
+
 export interface BrewChartEvent {
   id: string;
   event_type: string;
@@ -25,6 +31,7 @@ export interface BrewChartProps {
   fg: number;
   singleView?: boolean;
   events?: BrewChartEvent[];
+  controllerId?: string | null;
 }
 
 export interface EventDisplay {
