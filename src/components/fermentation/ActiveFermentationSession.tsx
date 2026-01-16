@@ -347,54 +347,98 @@ export function ActiveFermentationSession({
   const progress = calculateProgress();
   const stepProgress = calculateStepProgress();
 
+  // Calculate ramp progress for gradient background
+  const getRampProgress = () => {
+    if (!currentStep || currentStep.step_type !== 'ramp' || currentStep.ramp_type !== 'linear') {
+      return null;
+    }
+    if (!currentStep.duration_hours) return null;
+    const stepStarted = new Date(session.step_started_at);
+    const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+    return Math.min(Math.max(elapsed / currentStep.duration_hours, 0), 1);
+  };
+
+  const rampProgress = getRampProgress();
+  const isRamping = rampProgress !== null && rampProgress < 1;
+
   if (compact) {
     return (
-      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md border border-primary/20">
-        {session.status === 'paused' ? (
-          <Pause className="w-3 h-3 text-muted-foreground shrink-0" />
-        ) : (
-          <Play className="w-3 h-3 text-primary shrink-0" />
+      <div 
+        className="relative flex items-center gap-2 p-2 rounded-md border overflow-hidden"
+        style={{
+          borderColor: isRamping ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--primary) / 0.2)',
+        }}
+      >
+        {/* Gradient background for ramp progress */}
+        {isRamping && (
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `linear-gradient(90deg, 
+                hsl(var(--primary) / 0.15) 0%, 
+                hsl(38 92% 50% / 0.2) ${rampProgress * 100}%, 
+                hsl(var(--primary) / 0.05) ${rampProgress * 100}%, 
+                hsl(var(--primary) / 0.05) 100%)`,
+            }}
+          />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium truncate">{session.profile?.name}</span>
-            <Badge variant={session.status === 'paused' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-              {session.current_step_index + 1}/{session.steps?.length || 0}
-            </Badge>
-          </div>
-          {currentStep && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              {/* Temperature display: Running Target (→ Final Target for ramps) */}
-              <span className="flex items-center gap-0.5">
-                <Thermometer className="w-3 h-3 text-muted-foreground" />
-                {/* Running target (controller's current target) - highlighted for ramps */}
-                {controllerData?.target_temp != null && (
-                  <span className={`font-medium ${
-                    currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear' 
-                      ? 'text-amber-500' 
-                      : 'text-primary'
-                  }`}>
-                    {controllerData.target_temp.toFixed(1)}°C
-                  </span>
-                )}
-                {/* Show final target for linear ramps */}
-                {currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear' && currentStep.target_temp && 
-                 controllerData?.target_temp != null && Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
-                  <>
-                    <span className="text-muted-foreground">↘</span>
-                    <span className="text-primary/70">{currentStep.target_temp}°C</span>
-                  </>
-                )}
-              </span>
-              {/* Separator */}
-              <span className="text-muted-foreground/40">•</span>
-              {/* Next step condition */}
-              <span className="flex items-center gap-1 truncate">
-                {getStepIcon(currentStep.step_type)}
-                <span className="truncate">{getNextStepCondition(currentStep, session.step_started_at)}</span>
-              </span>
-            </div>
+        {!isRamping && (
+          <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
+        )}
+        
+        {/* Content */}
+        <div className="relative z-10 flex items-center gap-2 w-full">
+          {session.status === 'paused' ? (
+            <Pause className="w-3 h-3 text-muted-foreground shrink-0" />
+          ) : isRamping ? (
+            <ArrowDown className="w-3 h-3 text-amber-500 shrink-0 animate-pulse" />
+          ) : (
+            <Play className="w-3 h-3 text-primary shrink-0" />
           )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium truncate">{session.profile?.name}</span>
+              <Badge variant={session.status === 'paused' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                {session.current_step_index + 1}/{session.steps?.length || 0}
+              </Badge>
+              {isRamping && (
+                <span className="text-[10px] text-amber-500 font-medium shrink-0">
+                  {Math.round(rampProgress * 100)}%
+                </span>
+              )}
+            </div>
+            {currentStep && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                {/* Temperature display: Running Target (→ Final Target for ramps) */}
+                <span className="flex items-center gap-0.5">
+                  <Thermometer className="w-3 h-3 text-muted-foreground" />
+                  {/* Running target (controller's current target) - highlighted for ramps */}
+                  {controllerData?.target_temp != null && (
+                    <span className={`font-medium ${
+                      isRamping ? 'text-amber-500' : 'text-primary'
+                    }`}>
+                      {controllerData.target_temp.toFixed(1)}°C
+                    </span>
+                  )}
+                  {/* Show final target for linear ramps */}
+                  {isRamping && currentStep.target_temp && 
+                   controllerData?.target_temp != null && Math.abs(controllerData.target_temp - currentStep.target_temp) > 0.1 && (
+                    <>
+                      <span className="text-muted-foreground">↘</span>
+                      <span className="text-primary/70">{currentStep.target_temp}°C</span>
+                    </>
+                  )}
+                </span>
+                {/* Separator */}
+                <span className="text-muted-foreground/40">•</span>
+                {/* Next step condition */}
+                <span className="flex items-center gap-1 truncate">
+                  {getStepIcon(currentStep.step_type)}
+                  <span className="truncate">{getNextStepCondition(currentStep, session.step_started_at)}</span>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
