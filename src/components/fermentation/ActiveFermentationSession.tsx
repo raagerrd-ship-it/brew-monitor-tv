@@ -274,6 +274,15 @@ export function ActiveFermentationSession({
     }
   };
 
+  const formatRemainingTime = (remainingHours: number) => {
+    const hours = Math.floor(remainingHours);
+    const minutes = Math.round((remainingHours - hours) * 60);
+    if (hours === 0) {
+      return `${minutes}min kvar`;
+    }
+    return `${hours}h ${minutes}min kvar`;
+  };
+
   const getNextStepCondition = (step: FermentationProfileStep, stepStartedAt: string) => {
     switch (step.step_type) {
       case 'hold': {
@@ -281,10 +290,7 @@ export function ActiveFermentationSession({
         const stepStarted = new Date(stepStartedAt);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
         const remaining = Math.max(0, step.duration_hours - elapsed);
-        if (remaining < 1) {
-          return `${Math.round(remaining * 60)}min kvar`;
-        }
-        return `${remaining.toFixed(1)}h kvar`;
+        return formatRemainingTime(remaining);
       }
       case 'ramp': {
         if (step.ramp_type === 'immediate') {
@@ -294,10 +300,7 @@ export function ActiveFermentationSession({
         const stepStarted = new Date(stepStartedAt);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
         const remaining = Math.max(0, step.duration_hours - elapsed);
-        if (remaining < 1) {
-          return `${Math.round(remaining * 60)}min kvar`;
-        }
-        return `${remaining.toFixed(1)}h kvar`;
+        return formatRemainingTime(remaining);
       }
       case 'wait_for_temp':
         return `Nå ${step.target_temp}°C`;
