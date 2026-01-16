@@ -351,6 +351,7 @@ export function BrewingDashboard() {
         open={deviceLinkDialog.open}
         onOpenChange={(open) => setDeviceLinkDialog(prev => ({ ...prev, open }))}
         brewId={deviceLinkDialog.brewId}
+        onUpdate={() => {}}
         brewName={deviceLinkDialog.brewName}
         currentControllerId={deviceLinkDialog.currentControllerId}
         currentPillId={deviceLinkDialog.currentPillId}
