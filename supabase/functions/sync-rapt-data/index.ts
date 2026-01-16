@@ -134,6 +134,16 @@ serve(async (req) => {
       console.log(`Successfully synced ${pillsData.length} Pills`);
     }
 
+    // Get active fermentation sessions to avoid overwriting their target temps
+    const { data: activeSessions } = await supabase
+      .from('fermentation_sessions')
+      .select('controller_id')
+      .in('status', ['running', 'paused']);
+    
+    const controllersWithActiveSessions = new Set(
+      activeSessions?.map(s => s.controller_id) || []
+    );
+
     // Prepare Temperature Controllers data for upsert
     const controllersData = controllers.map((controller: any) => {
       return {
@@ -151,50 +161,89 @@ serve(async (req) => {
       };
     });
 
-    // Upsert Temperature Controllers data
+    // Update Temperature Controllers - handle target_temp separately for active sessions
     if (controllersData.length > 0) {
-      const { error: controllersUpsertError } = await supabase
-        .from('rapt_temp_controllers')
-        .upsert(controllersData, { onConflict: 'controller_id' });
+      for (const controllerData of controllersData) {
+        const hasActiveSession = controllersWithActiveSessions.has(controllerData.controller_id);
+        
+        // Build update object - skip target_temp if controller is managed by fermentation profile
+        const updateData: Record<string, any> = {
+          name: controllerData.name,
+          current_temp: controllerData.current_temp,
+          pill_temp: controllerData.pill_temp,
+          cooling_enabled: controllerData.cooling_enabled,
+          heating_enabled: controllerData.heating_enabled,
+          heating_utilisation: controllerData.heating_utilisation,
+          cooling_hysteresis: controllerData.cooling_hysteresis,
+          heating_hysteresis: controllerData.heating_hysteresis,
+          last_update: controllerData.last_update,
+          updated_at: new Date().toISOString()
+        };
 
-      if (controllersUpsertError) {
-        console.error(`Failed to upsert Temperature Controllers data: ${controllersUpsertError.message}`);
-      } else {
-        console.log(`Successfully synced ${controllersData.length} Temperature Controllers`);
-        
-        // Auto-add new controllers to selected_rapt_temp_controllers
-        const { data: existingSelected } = await supabase
+        // Only update target_temp if NOT managed by a fermentation profile
+        if (!hasActiveSession) {
+          updateData.target_temp = controllerData.target_temp;
+        } else {
+          console.log(`Skipping target_temp update for controller ${controllerData.controller_id} - managed by fermentation profile`);
+        }
+
+        // Try update first, then insert if not exists
+        const { data: existing } = await supabase
+          .from('rapt_temp_controllers')
+          .select('id')
+          .eq('controller_id', controllerData.controller_id)
+          .single();
+
+        if (existing) {
+          await supabase
+            .from('rapt_temp_controllers')
+            .update(updateData)
+            .eq('controller_id', controllerData.controller_id);
+        } else {
+          // New controller - include target_temp in insert
+          await supabase
+            .from('rapt_temp_controllers')
+            .insert({
+              ...controllerData,
+              updated_at: new Date().toISOString()
+            });
+        }
+      }
+
+      console.log(`Successfully synced ${controllersData.length} Temperature Controllers`);
+      
+      // Auto-add new controllers to selected_rapt_temp_controllers
+      const { data: existingSelected } = await supabase
+        .from('selected_rapt_temp_controllers')
+        .select('controller_id');
+      
+      const existingIds = new Set(existingSelected?.map((s: any) => s.controller_id) || []);
+      const newControllers = controllersData.filter((c: any) => !existingIds.has(c.controller_id));
+      
+      if (newControllers.length > 0) {
+        // Get the highest display_order
+        const { data: maxOrder } = await supabase
           .from('selected_rapt_temp_controllers')
-          .select('controller_id');
+          .select('display_order')
+          .order('display_order', { ascending: false })
+          .limit(1);
         
-        const existingIds = new Set(existingSelected?.map((s: any) => s.controller_id) || []);
-        const newControllers = controllersData.filter((c: any) => !existingIds.has(c.controller_id));
+        let nextOrder = (maxOrder && maxOrder.length > 0) ? maxOrder[0].display_order + 1 : 1;
         
-        if (newControllers.length > 0) {
-          // Get the highest display_order
-          const { data: maxOrder } = await supabase
-            .from('selected_rapt_temp_controllers')
-            .select('display_order')
-            .order('display_order', { ascending: false })
-            .limit(1);
-          
-          let nextOrder = (maxOrder && maxOrder.length > 0) ? maxOrder[0].display_order + 1 : 1;
-          
-          const newSelectedControllers = newControllers.map((c: any) => ({
-            controller_id: c.controller_id,
-            is_visible: true,
-            display_order: nextOrder++
-          }));
-          
-          const { error: insertError } = await supabase
-            .from('selected_rapt_temp_controllers')
-            .insert(newSelectedControllers);
-          
-          if (insertError) {
-            console.error(`Failed to add new controllers to selection: ${insertError.message}`);
-          } else {
-            console.log(`Auto-added ${newControllers.length} new controllers to selection`);
-          }
+        const newSelectedControllers = newControllers.map((c: any) => ({
+          controller_id: c.controller_id,
+          is_visible: true,
+          display_order: nextOrder++
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('selected_rapt_temp_controllers')
+          .insert(newSelectedControllers);
+        
+        if (insertError) {
+          console.error(`Failed to add new controllers to selection: ${insertError.message}`);
+        } else {
+          console.log(`Auto-added ${newControllers.length} new controllers to selection`);
         }
       }
     }
