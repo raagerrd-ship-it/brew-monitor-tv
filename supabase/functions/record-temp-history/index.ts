@@ -49,7 +49,7 @@ serve(async (req) => {
     // Insert history records
     const historyRecords = controllers.map(c => ({
       controller_id: c.controller_id,
-      current_temp: c.pill_temp ?? c.current_temp,
+      current_temp: c.current_temp ?? c.pill_temp,
       target_temp: c.target_temp,
       cooling_enabled: c.cooling_enabled || false
     }));

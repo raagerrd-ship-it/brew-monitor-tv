@@ -404,7 +404,7 @@ function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: 
                 onClick={() => onControllerClick(controller)}
                 onMouseEnter={!isMobile ? (e) => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                 onMouseLeave={!isMobile ? (e) => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                title={!isMobile ? `${controller.name}\n${controller.pill_temp !== null ? `Pill: ${controller.pill_temp.toFixed(1)}°C` : `Inbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C`}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
+                title={!isMobile ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
               >
                 <AirVent 
                   style={{
@@ -423,11 +423,9 @@ function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: 
                     color: linkedPill?.color || 'hsl(var(--foreground))',
                   }}
                 >
-                  {controller.pill_temp !== null 
-                    ? `${controller.pill_temp.toFixed(1)}°C` 
-                    : controller.current_temp !== null 
-                      ? `${controller.current_temp.toFixed(1)}°C` 
-                      : '--°C'
+                  {controller.current_temp !== null 
+                    ? `${controller.current_temp.toFixed(1)}°C` 
+                    : '--°C'
                   }
                 </span>
                 
