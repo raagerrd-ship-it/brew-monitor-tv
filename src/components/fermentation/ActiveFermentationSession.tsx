@@ -226,6 +226,42 @@ export function ActiveFermentationSession({
     }
   };
 
+  const getNextStepCondition = (step: FermentationProfileStep, stepStartedAt: string) => {
+    switch (step.step_type) {
+      case 'hold': {
+        if (!step.duration_hours) return 'Okänd tid';
+        const stepStarted = new Date(stepStartedAt);
+        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+        const remaining = Math.max(0, step.duration_hours - elapsed);
+        if (remaining < 1) {
+          return `${Math.round(remaining * 60)}min kvar`;
+        }
+        return `${remaining.toFixed(1)}h kvar`;
+      }
+      case 'ramp': {
+        if (step.ramp_type === 'immediate') {
+          return 'Direkt ändring';
+        }
+        if (!step.duration_hours) return 'Okänd tid';
+        const stepStarted = new Date(stepStartedAt);
+        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+        const remaining = Math.max(0, step.duration_hours - elapsed);
+        if (remaining < 1) {
+          return `${Math.round(remaining * 60)}min kvar`;
+        }
+        return `${remaining.toFixed(1)}h kvar`;
+      }
+      case 'wait_for_temp':
+        return `Nå ${step.target_temp}°C`;
+      case 'wait_for_gravity_stable':
+        return `Stabil i ${step.gravity_stable_days}d`;
+      case 'wait_for_sg':
+        return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+      default:
+        return '';
+    }
+  };
+
   const calculateProgress = () => {
     if (!session || !session.steps || session.steps.length === 0) return 0;
     return ((session.current_step_index) / session.steps.length) * 100;
@@ -263,19 +299,37 @@ export function ActiveFermentationSession({
   if (compact) {
     return (
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md border border-primary/20">
-        <Play className="w-3 h-3 text-primary" />
+        {session.status === 'paused' ? (
+          <Pause className="w-3 h-3 text-muted-foreground shrink-0" />
+        ) : (
+          <Play className="w-3 h-3 text-primary shrink-0" />
+        )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-medium truncate">{session.profile?.name}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium truncate">{session.profile?.name}</span>
+            <Badge variant={session.status === 'paused' ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+              {session.current_step_index + 1}/{session.steps?.length || 0}
+            </Badge>
+          </div>
           {currentStep && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              {getStepIcon(currentStep.step_type)}
-              <span className="truncate">{getStepDescription(currentStep)}</span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+              {/* Target temp */}
+              {currentStep.target_temp && (
+                <span className="flex items-center gap-0.5 text-primary font-medium">
+                  <Thermometer className="w-3 h-3" />
+                  {currentStep.target_temp}°C
+                </span>
+              )}
+              {/* Separator */}
+              {currentStep.target_temp && <span className="text-muted-foreground/40">•</span>}
+              {/* Next step condition */}
+              <span className="flex items-center gap-1 truncate">
+                {getStepIcon(currentStep.step_type)}
+                <span className="truncate">{getNextStepCondition(currentStep, session.step_started_at)}</span>
+              </span>
             </div>
           )}
         </div>
-        <Badge variant={session.status === 'paused' ? 'secondary' : 'default'} className="text-xs shrink-0">
-          {session.status === 'paused' ? 'Pausad' : `${session.current_step_index + 1}/${session.steps?.length || 0}`}
-        </Badge>
       </div>
     );
   }
