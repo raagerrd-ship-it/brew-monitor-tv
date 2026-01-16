@@ -16,6 +16,9 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
 
+  // Use controller's built-in temp if available, otherwise fall back to pill/brew temp
+  const displayTemp = controller?.current_temp ?? brew.currentTemp;
+
   const thermometerIcon = (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
       <path 
@@ -31,7 +34,7 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
       </defs>
       <rect 
         x="8" 
-        y={`${calculateThermometerFill(brew.currentTemp)}`}
+        y={`${calculateThermometerFill(displayTemp)}`}
         width="8" 
         height="20" 
         fill={tempColor}
@@ -46,10 +49,22 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
     ? `Temp (${controller.target_temp.toFixed(0)}°)` 
     : 'Temp';
 
+  // Build tooltip text showing temp source
+  const tooltipParts: string[] = [];
+  if (isAuthenticated) {
+    tooltipParts.push("Klicka för att koppla enheter");
+  }
+  if (controller?.current_temp !== null && controller?.current_temp !== undefined) {
+    tooltipParts.push(`Inbyggd: ${controller.current_temp.toFixed(1)}°`);
+  }
+  if (pill) {
+    tooltipParts.push(`Pill: ${brew.currentTemp.toFixed(1)}°`);
+  }
+
   return (
     <StatCard
       label={label}
-      value={`${brew.currentTemp}°`}
+      value={`${displayTemp.toFixed(1)}°`}
       color={tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
@@ -64,7 +79,7 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
           );
         }
       }}
-      title={isAuthenticated ? "Klicka för att koppla enheter" : undefined}
+      title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
       icon={thermometerIcon}
     />
   );
