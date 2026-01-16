@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BrewChart } from "../brew-chart";
 import { BrewEventDialog } from "../BrewEventDialog";
+import { ActiveFermentationSession } from "../fermentation";
 import { Share2 } from "lucide-react";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
@@ -120,15 +121,22 @@ export function BrewCard({
         </div>
       </div>
       
-      {/* Chart Area - 58% */}
-      <div className="h-[58%] p-2 pb-1 flex-shrink-0">
-        <BrewChart 
-          data={brew.sgData} 
-          og={brew.originalGravity} 
-          fg={brew.finalGravity} 
-          singleView={true}
-          events={brew.events}
-        />
+      {/* Chart Area - adjusts based on active session */}
+      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
+        <div className="flex-1 min-h-0">
+          <BrewChart 
+            data={brew.sgData} 
+            og={brew.originalGravity} 
+            fg={brew.finalGravity} 
+            singleView={true}
+            events={brew.events}
+          />
+        </div>
+        
+        {/* Active Fermentation Session - compact view */}
+        <div className="mt-1 flex-shrink-0">
+          <ActiveFermentationSession brewId={brew.id} compact />
+        </div>
       </div>
 
       {/* Stats Grid - 32% */}
