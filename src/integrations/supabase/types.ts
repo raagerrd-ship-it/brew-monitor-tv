@@ -223,6 +223,181 @@ export type Database = {
         }
         Relationships: []
       }
+      fermentation_profile_steps: {
+        Row: {
+          created_at: string
+          duration_hours: number | null
+          gravity_stable_days: number | null
+          gravity_threshold: number | null
+          id: string
+          notes: string | null
+          profile_id: string
+          ramp_type: string | null
+          sg_comparison: string | null
+          step_order: number
+          step_type: string
+          target_sg: number | null
+          target_temp: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_hours?: number | null
+          gravity_stable_days?: number | null
+          gravity_threshold?: number | null
+          id?: string
+          notes?: string | null
+          profile_id: string
+          ramp_type?: string | null
+          sg_comparison?: string | null
+          step_order: number
+          step_type: string
+          target_sg?: number | null
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_hours?: number | null
+          gravity_stable_days?: number | null
+          gravity_threshold?: number | null
+          id?: string
+          notes?: string | null
+          profile_id?: string
+          ramp_type?: string | null
+          sg_comparison?: string | null
+          step_order?: number
+          step_type?: string
+          target_sg?: number | null
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fermentation_profile_steps_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "fermentation_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fermentation_profiles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fermentation_sessions: {
+        Row: {
+          brew_id: string | null
+          completed_at: string | null
+          controller_id: string
+          created_at: string
+          current_step_index: number
+          id: string
+          profile_id: string
+          started_at: string
+          status: string
+          step_started_at: string
+          updated_at: string
+        }
+        Insert: {
+          brew_id?: string | null
+          completed_at?: string | null
+          controller_id: string
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          profile_id: string
+          started_at?: string
+          status?: string
+          step_started_at?: string
+          updated_at?: string
+        }
+        Update: {
+          brew_id?: string | null
+          completed_at?: string | null
+          controller_id?: string
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          profile_id?: string
+          started_at?: string
+          status?: string
+          step_started_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fermentation_sessions_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fermentation_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "fermentation_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fermentation_step_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          session_id: string
+          step_index: number
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          session_id: string
+          step_index: number
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          session_id?: string
+          step_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fermentation_step_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "fermentation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

@@ -1,0 +1,320 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  FermentationProfileStep,
+  StepType,
+  RampType,
+  SgComparison,
+  STEP_TYPE_LABELS,
+  RAMP_TYPE_LABELS,
+  SG_COMPARISON_LABELS,
+} from "@/types/fermentation";
+
+interface FermentationStepEditorProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  step: FermentationProfileStep | null;
+  onSave: (stepData: Partial<FermentationProfileStep>) => void;
+}
+
+export function FermentationStepEditor({
+  open,
+  onOpenChange,
+  step,
+  onSave,
+}: FermentationStepEditorProps) {
+  const [stepType, setStepType] = useState<StepType>("hold");
+  const [targetTemp, setTargetTemp] = useState<string>("");
+  const [durationHours, setDurationHours] = useState<string>("");
+  const [rampType, setRampType] = useState<RampType>("linear");
+  const [gravityStableDays, setGravityStableDays] = useState<string>("3");
+  const [gravityThreshold, setGravityThreshold] = useState<string>("0.001");
+  const [targetSg, setTargetSg] = useState<string>("");
+  const [sgComparison, setSgComparison] = useState<SgComparison>("at_or_below");
+  const [notes, setNotes] = useState<string>("");
+
+  useEffect(() => {
+    if (step) {
+      setStepType(step.step_type);
+      setTargetTemp(step.target_temp?.toString() || "");
+      setDurationHours(step.duration_hours?.toString() || "");
+      setRampType(step.ramp_type || "linear");
+      setGravityStableDays(step.gravity_stable_days?.toString() || "3");
+      setGravityThreshold(step.gravity_threshold?.toString() || "0.001");
+      setTargetSg(step.target_sg?.toString() || "");
+      setSgComparison(step.sg_comparison || "at_or_below");
+      setNotes(step.notes || "");
+    } else {
+      resetForm();
+    }
+  }, [step, open]);
+
+  const resetForm = () => {
+    setStepType("hold");
+    setTargetTemp("");
+    setDurationHours("");
+    setRampType("linear");
+    setGravityStableDays("3");
+    setGravityThreshold("0.001");
+    setTargetSg("");
+    setSgComparison("at_or_below");
+    setNotes("");
+  };
+
+  const handleSave = () => {
+    const stepData: Partial<FermentationProfileStep> = {
+      step_type: stepType,
+      notes: notes.trim() || null,
+    };
+
+    switch (stepType) {
+      case "hold":
+        stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
+        stepData.duration_hours = durationHours ? parseInt(durationHours) : null;
+        break;
+      case "ramp":
+        stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
+        stepData.ramp_type = rampType;
+        stepData.duration_hours = rampType === "linear" ? (durationHours ? parseInt(durationHours) : null) : null;
+        break;
+      case "wait_for_temp":
+        stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
+        break;
+      case "wait_for_gravity_stable":
+        stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : null;
+        stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : null;
+        break;
+      case "wait_for_sg":
+        stepData.target_sg = targetSg ? parseFloat(targetSg) : null;
+        stepData.sg_comparison = sgComparison;
+        break;
+    }
+
+    onSave(stepData);
+  };
+
+  const renderStepTypeFields = () => {
+    switch (stepType) {
+      case "hold":
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Måltemperatur (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={targetTemp}
+                  onChange={(e) => setTargetTemp(e.target.value)}
+                  placeholder="20"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Varaktighet (timmar)</Label>
+                <Input
+                  type="number"
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(e.target.value)}
+                  placeholder="48"
+                />
+              </div>
+            </div>
+          </>
+        );
+
+      case "ramp":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label>Ramptyp</Label>
+              <Select value={rampType} onValueChange={(v) => setRampType(v as RampType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(RAMP_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Måltemperatur (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={targetTemp}
+                  onChange={(e) => setTargetTemp(e.target.value)}
+                  placeholder="4"
+                />
+              </div>
+              {rampType === "linear" && (
+                <div className="space-y-2">
+                  <Label>Tid för rampa (timmar)</Label>
+                  <Input
+                    type="number"
+                    value={durationHours}
+                    onChange={(e) => setDurationHours(e.target.value)}
+                    placeholder="24"
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        );
+
+      case "wait_for_temp":
+        return (
+          <div className="space-y-2">
+            <Label>Vänta tills temperaturen når (°C)</Label>
+            <Input
+              type="number"
+              step="0.5"
+              value={targetTemp}
+              onChange={(e) => setTargetTemp(e.target.value)}
+              placeholder="4"
+            />
+            <p className="text-xs text-muted-foreground">
+              Steget fortsätter automatiskt när controllerns nuvarande temperatur når målvärdet (±0.5°C).
+            </p>
+          </div>
+        );
+
+      case "wait_for_gravity_stable":
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Antal dagar stabil</Label>
+                <Input
+                  type="number"
+                  value={gravityStableDays}
+                  onChange={(e) => setGravityStableDays(e.target.value)}
+                  placeholder="3"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max SG-variation</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={gravityThreshold}
+                  onChange={(e) => setGravityThreshold(e.target.value)}
+                  placeholder="0.001"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Steget fortsätter när SG-värdet har varit stabilt (variation mindre än tröskeln) under det angivna antalet dagar.
+            </p>
+          </>
+        );
+
+      case "wait_for_sg":
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Jämförelse</Label>
+                <Select value={sgComparison} onValueChange={(v) => setSgComparison(v as SgComparison)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(SG_COMPARISON_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Mål-SG</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={targetSg}
+                  onChange={(e) => setTargetSg(e.target.value)}
+                  placeholder="1.020"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Steget fortsätter när SG-värdet når det angivna villkoret.
+            </p>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{step ? "Redigera steg" : "Nytt steg"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Stegtyp</Label>
+            <Select value={stepType} onValueChange={(v) => setStepType(v as StepType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STEP_TYPE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {renderStepTypeFields()}
+
+          <div className="space-y-2">
+            <Label>Anteckningar (valfritt)</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ytterligare information..."
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Avbryt
+          </Button>
+          <Button onClick={handleSave}>
+            {step ? "Spara" : "Lägg till"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
