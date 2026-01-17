@@ -21,9 +21,12 @@ interface FermentationProfileChartProps {
 interface ChartDataPoint {
   hour: number;
   temp: number;
+  tempSolid: number | null;
+  tempDashed: number | null;
   stepIndex: number;
   stepType: string;
   isWaiting: boolean;
+  isSgBased: boolean;
   stepName: string;
 }
 
@@ -34,6 +37,7 @@ interface StepAnnotation {
   stepType: string;
   label: string;
   temp: number | null;
+  isSgBased: boolean;
 }
 
 export function FermentationProfileChart({ steps, compact = false }: FermentationProfileChartProps) {
@@ -52,15 +56,16 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
     steps.forEach((step, index) => {
       const startHour = currentHour;
       const isWaitingStep = ['wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(step.step_type);
+      const isSgBasedHold = step.step_type === 'hold' && step.target_sg !== null;
       
       // Estimate duration for waiting steps (for visualization)
       let stepDuration = step.duration_hours ?? 0;
-      if (isWaitingStep) {
+      if (isWaitingStep || isSgBasedHold) {
         if (step.step_type === 'wait_for_gravity_stable') {
           stepDuration = (step.gravity_stable_days ?? 2) * 24;
         } else if (step.step_type === 'wait_for_temp') {
           stepDuration = 2; // Estimate 2 hours to reach temp
-        } else if (step.step_type === 'wait_for_sg') {
+        } else if (step.step_type === 'wait_for_sg' || isSgBasedHold) {
           stepDuration = 48; // Estimate 48 hours for SG target
         }
       }
@@ -69,6 +74,7 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
       stepDuration = Math.max(stepDuration, 2);
 
       const targetTemp = step.target_temp ?? currentTemp;
+      const shouldBeDashed = isWaitingStep || isSgBasedHold;
       
       if (step.step_type === 'ramp') {
         // Ramp: linear temperature change
@@ -79,9 +85,12 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         data.push({
           hour: currentHour,
           temp: startTemp,
+          tempSolid: startTemp,
+          tempDashed: null,
           stepIndex: index,
           stepType: step.step_type,
           isWaiting: false,
+          isSgBased: false,
           stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
         });
 
@@ -89,12 +98,16 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         const numPoints = Math.max(2, Math.floor(stepDuration / 2));
         for (let i = 1; i <= numPoints; i++) {
           const progress = i / numPoints;
+          const tempValue = startTemp + (endTemp - startTemp) * progress;
           data.push({
             hour: currentHour + stepDuration * progress,
-            temp: startTemp + (endTemp - startTemp) * progress,
+            temp: tempValue,
+            tempSolid: tempValue,
+            tempDashed: null,
             stepIndex: index,
             stepType: step.step_type,
             isWaiting: false,
+            isSgBased: false,
             stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
           });
         }
@@ -103,24 +116,30 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         minTemp = Math.min(minTemp, startTemp, endTemp);
         maxTemp = Math.max(maxTemp, startTemp, endTemp);
       } else if (step.step_type === 'hold') {
-        // Hold: flat temperature line
+        // Hold: flat temperature line (solid or dashed based on SG condition)
         currentTemp = targetTemp;
         
         data.push({
           hour: currentHour,
           temp: currentTemp,
+          tempSolid: isSgBasedHold ? null : currentTemp,
+          tempDashed: isSgBasedHold ? currentTemp : null,
           stepIndex: index,
-          stepType: step.step_type,
+          stepType: isSgBasedHold ? 'hold_sg' : step.step_type,
           isWaiting: false,
-          stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
+          isSgBased: isSgBasedHold,
+          stepName: isSgBasedHold ? 'Håll tills SG' : STEP_TYPE_LABELS[step.step_type] || step.step_type,
         });
         data.push({
           hour: currentHour + stepDuration,
           temp: currentTemp,
+          tempSolid: isSgBasedHold ? null : currentTemp,
+          tempDashed: isSgBasedHold ? currentTemp : null,
           stepIndex: index,
-          stepType: step.step_type,
+          stepType: isSgBasedHold ? 'hold_sg' : step.step_type,
           isWaiting: false,
-          stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
+          isSgBased: isSgBasedHold,
+          stepName: isSgBasedHold ? 'Håll tills SG' : STEP_TYPE_LABELS[step.step_type] || step.step_type,
         });
 
         minTemp = Math.min(minTemp, currentTemp);
@@ -132,17 +151,23 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         data.push({
           hour: currentHour,
           temp: tempToUse,
+          tempSolid: null,
+          tempDashed: tempToUse,
           stepIndex: index,
           stepType: step.step_type,
           isWaiting: true,
+          isSgBased: false,
           stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
         });
         data.push({
           hour: currentHour + stepDuration,
           temp: tempToUse,
+          tempSolid: null,
+          tempDashed: tempToUse,
           stepIndex: index,
           stepType: step.step_type,
           isWaiting: true,
+          isSgBased: false,
           stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
         });
 
@@ -156,9 +181,10 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         startHour,
         endHour: currentHour + stepDuration,
         stepIndex: index,
-        stepType: step.step_type,
-        label: step.notes || STEP_TYPE_LABELS[step.step_type] || step.step_type,
+        stepType: isSgBasedHold ? 'hold_sg' : step.step_type,
+        label: step.notes || (isSgBasedHold ? `Håll tills SG ≤ ${step.target_sg}` : STEP_TYPE_LABELS[step.step_type]) || step.step_type,
         temp: step.target_temp,
+        isSgBased: isSgBasedHold,
       });
 
       currentHour += stepDuration;
@@ -194,6 +220,7 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
     switch (stepType) {
       case 'ramp': return 'hsl(38 92% 50%)'; // amber
       case 'hold': return 'hsl(var(--primary))';
+      case 'hold_sg': return 'hsl(142 71% 45%)'; // green for SG-based hold
       case 'wait_for_gravity_stable': return 'hsl(142 71% 45%)'; // green
       case 'wait_for_sg': return 'hsl(142 71% 45%)';
       case 'wait_for_temp': return 'hsl(217 91% 60%)'; // blue
@@ -286,15 +313,17 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
               stroke="none"
               fill="hsl(var(--temp-blue) / 0.15)"
               activeDot={false}
+              connectNulls={false}
             />
 
-            {/* Temperature line */}
+            {/* Solid temperature line (time-based steps) */}
             <Line
               type="monotone"
-              dataKey="temp"
+              dataKey="tempSolid"
               stroke="hsl(var(--temp-blue))"
               strokeWidth={2.5}
               dot={false}
+              connectNulls={false}
               activeDot={{
                 r: 5,
                 fill: "hsl(var(--temp-blue))",
@@ -303,6 +332,26 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
               }}
               style={{
                 filter: "drop-shadow(0 0 4px hsl(var(--temp-blue) / 0.4))"
+              }}
+            />
+
+            {/* Dashed temperature line (SG-based steps) */}
+            <Line
+              type="monotone"
+              dataKey="tempDashed"
+              stroke="hsl(142 71% 45%)"
+              strokeWidth={2.5}
+              strokeDasharray="6 4"
+              dot={false}
+              connectNulls={false}
+              activeDot={{
+                r: 5,
+                fill: "hsl(142 71% 45%)",
+                stroke: "hsl(var(--background))",
+                strokeWidth: 2,
+              }}
+              style={{
+                filter: "drop-shadow(0 0 4px hsl(142 71% 45% / 0.4))"
               }}
             />
           </ComposedChart>
@@ -321,10 +370,20 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
                 border: `1px solid ${getStepColor(annot.stepType)}30`,
               }}
             >
-              <span
-                className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full shrink-0"
-                style={{ background: getStepColor(annot.stepType) }}
-              />
+              {/* Show dashed line icon for SG-based steps */}
+              {annot.isSgBased ? (
+                <span 
+                  className="w-3 sm:w-4 h-0.5 shrink-0" 
+                  style={{ 
+                    background: `repeating-linear-gradient(90deg, ${getStepColor(annot.stepType)} 0px, ${getStepColor(annot.stepType)} 3px, transparent 3px, transparent 5px)` 
+                  }} 
+                />
+              ) : (
+                <span
+                  className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full shrink-0"
+                  style={{ background: getStepColor(annot.stepType) }}
+                />
+              )}
               <span className="font-medium shrink-0" style={{ color: getStepColor(annot.stepType) }}>
                 {idx + 1}.
               </span>
