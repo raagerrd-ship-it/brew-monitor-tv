@@ -4,7 +4,7 @@ import { toast as sonnerToast } from 'sonner';
 // Check for new app versions by comparing the HTML content
 export const useVersionCheck = (checkInterval = 60000) => { // Default: check every minute
   const lastHtmlHash = useRef<string | null>(null);
-  const [appLoadTime] = useState(() => new Date());
+  const appLoadTime = useRef(new Date());
   const isFirstCheck = useRef(true);
 
   useEffect(() => {
@@ -110,5 +110,5 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
     };
   }, [checkInterval]);
 
-  return { appLoadTime };
+  return { appLoadTime: appLoadTime.current };
 };
