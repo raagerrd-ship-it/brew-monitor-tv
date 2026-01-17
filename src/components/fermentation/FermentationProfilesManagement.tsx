@@ -246,14 +246,26 @@ export function FermentationProfilesManagement() {
     const currentStep = steps[stepIndex];
     const swapStep = steps[swapIndex];
 
-    // Swap step_order values
-    const updates = [
-      supabase.from('fermentation_profile_steps').update({ step_order: swapStep.step_order }).eq('id', currentStep.id),
-      supabase.from('fermentation_profile_steps').update({ step_order: currentStep.step_order }).eq('id', swapStep.id),
-    ];
+    // Optimistic update - swap steps immediately in local state
+    const newSteps = [...steps];
+    const tempOrder = currentStep.step_order;
+    newSteps[stepIndex] = { ...currentStep, step_order: swapStep.step_order };
+    newSteps[swapIndex] = { ...swapStep, step_order: tempOrder };
+    // Sort by step_order to reflect the new order
+    newSteps.sort((a, b) => a.step_order - b.step_order);
+    setSteps(newSteps);
 
-    await Promise.all(updates);
-    loadSteps(selectedProfile.id);
+    // Sync with database in background
+    try {
+      await Promise.all([
+        supabase.from('fermentation_profile_steps').update({ step_order: swapStep.step_order }).eq('id', currentStep.id),
+        supabase.from('fermentation_profile_steps').update({ step_order: currentStep.step_order }).eq('id', swapStep.id),
+      ]);
+    } catch (error) {
+      // Revert on error
+      toast({ title: "Fel", description: "Kunde inte flytta steget", variant: "destructive" });
+      loadSteps(selectedProfile.id);
+    }
   };
 
   const getStepIcon = (stepType: string) => {
