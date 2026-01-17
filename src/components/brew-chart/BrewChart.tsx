@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, memo } from "react";
+import { useTvMode } from "@/contexts/TvModeContext";
 import {
   Area,
   CartesianGrid,
@@ -30,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 function BrewChartComponent({ data, og, fg, singleView = false, events = [], controllerId }: BrewChartProps) {
   const [smoothLines, setSmoothLines] = useState(true);
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
+  const { isTvMode } = useTvMode();
   
   // Fetch controller temperature history when controllerId is provided
   useEffect(() => {
@@ -218,6 +220,7 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             dot={false}
             activeDot={{ r: 5, fill: "hsl(var(--beer-amber))" }}
             name="value"
+            isAnimationActive={!isTvMode}
             style={{
               filter: "drop-shadow(0 0 6px hsl(var(--beer-amber) / 0.6))"
             }}
@@ -233,6 +236,7 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             dot={false}
             activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.6)" }}
             name="temp"
+            isAnimationActive={!isTvMode}
           />
         </ComposedChart>
       </ResponsiveContainer>
