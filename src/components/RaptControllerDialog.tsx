@@ -450,6 +450,17 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
                 {targetTemp}°C
               </span>
             </div>
+            
+            {/* Warning when session is active */}
+            {hasActiveSession && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-md border border-amber-500/20">
+                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-xs text-amber-600">
+                  Temperaturen styrs av den aktiva fermenteringsprofilen
+                </span>
+              </div>
+            )}
+            
             <Slider
               id="target-temp"
               min={currentController.min_target_temp ?? -5}
@@ -457,8 +468,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
               step={1}
               value={[targetTemp]}
               onValueChange={(value) => setTargetTemp(value[0])}
-              disabled={loading}
-              className="py-2"
+              disabled={loading || hasActiveSession}
+              className={`py-2 ${hasActiveSession ? 'opacity-50' : ''}`}
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{currentController.min_target_temp ?? -5}°C</span>
@@ -466,7 +477,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </div>
             <Button 
               onClick={handleSetTargetTemperature} 
-              disabled={loading}
+              disabled={loading || hasActiveSession}
               className="w-full"
               size="sm"
             >
