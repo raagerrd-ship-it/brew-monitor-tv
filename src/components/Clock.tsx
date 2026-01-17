@@ -5,20 +5,18 @@ function ClockComponent() {
   const lastSecondRef = useRef(currentTime.getSeconds());
 
   useEffect(() => {
-    let animationId: number;
-    
-    const tick = () => {
+    // Use setInterval instead of requestAnimationFrame
+    // because rAF pauses when tab is not focused or when casting to TV
+    const intervalId = setInterval(() => {
       const now = new Date();
       // Only update state when the second changes to avoid unnecessary re-renders
       if (now.getSeconds() !== lastSecondRef.current) {
         lastSecondRef.current = now.getSeconds();
         setCurrentTime(now);
       }
-      animationId = requestAnimationFrame(tick);
-    };
+    }, 250); // Check every 250ms for responsive updates
     
-    animationId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationId);
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
