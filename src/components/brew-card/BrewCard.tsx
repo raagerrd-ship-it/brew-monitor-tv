@@ -136,7 +136,11 @@ export function BrewCard({
         
         {/* Active Fermentation Session - compact view */}
         <div className="mt-1 flex-shrink-0">
-          <ActiveFermentationSession brewId={brew.id} compact />
+          <ActiveFermentationSession 
+            brewId={brew.id} 
+            compact 
+            preloadedSession={brew.fermentationSession}
+          />
         </div>
       </div>
 
