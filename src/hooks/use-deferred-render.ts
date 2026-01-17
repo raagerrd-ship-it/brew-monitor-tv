@@ -13,7 +13,7 @@ export function useDeferredRender(delayMs?: number): boolean {
   const { isTvMode } = useTvMode();
   
   // Use longer delay in TV mode to ensure basic UI renders first
-  const delay = delayMs ?? (isTvMode ? 200 : 50);
+  const delay = delayMs ?? (isTvMode ? 400 : 50);
   
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -40,9 +40,9 @@ export function useStaggeredRender(index: number, baseDelayMs?: number): boolean
   const { isTvMode } = useTvMode();
   
   // In TV mode, use MUCH longer stagger to prevent blocking
-  const staggerDelay = baseDelayMs ?? (isTvMode ? 600 : 50);
+  const staggerDelay = baseDelayMs ?? (isTvMode ? 1000 : 50);
   // Initial delay before first component + stagger per component
-  const initialDelay = isTvMode ? 300 : 100;
+  const initialDelay = isTvMode ? 500 : 100;
   const delay = initialDelay + (index * staggerDelay);
   
   useEffect(() => {

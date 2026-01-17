@@ -26,6 +26,7 @@ import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { useDeferredRender } from "@/hooks/use-deferred-render";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -61,6 +62,7 @@ export function ActiveFermentationSession({
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
   const { toast } = useToast();
+  const { isTvMode } = useTvMode();
   
   // Defer rendering to prevent blocking main thread during page updates
   const shouldRender = useDeferredRender();
@@ -79,9 +81,12 @@ export function ActiveFermentationSession({
 
   // Update progress every minute using setInterval
   // (setInterval works during TV casting, unlike requestAnimationFrame)
+  // In TV mode, use longer interval (30s) to reduce CPU load
   const lastMinuteRef = useRef(-1);
   
   useEffect(() => {
+    const checkInterval = isTvMode ? 30000 : 5000; // 30s in TV mode, 5s otherwise
+    
     const intervalId = setInterval(() => {
       const currentMinute = Math.floor(Date.now() / 60000);
       
@@ -89,10 +94,10 @@ export function ActiveFermentationSession({
         lastMinuteRef.current = currentMinute;
         setTick(t => t + 1);
       }
-    }, 5000); // Check every 5 seconds, only update on minute change
+    }, checkInterval);
     
     return () => clearInterval(intervalId);
-  }, []);
+  }, [isTvMode]);
 
   // Use preloaded session if available (for compact view optimization)
   useEffect(() => {
@@ -213,6 +218,7 @@ export function ActiveFermentationSession({
   }, [loadSession, preloadedSession, compact]);
 
   // Realtime subscription for session updates
+  // Disabled in TV mode since data is refreshed via version check page reload
   useRealtimeSubscription({
     table: 'fermentation_sessions',
     filter: controllerId 
@@ -221,10 +227,11 @@ export function ActiveFermentationSession({
         ? `brew_id=eq.${brewId}` 
         : undefined,
     onPayload: loadSession,
-    enabled: !!(controllerId || brewId),
+    enabled: !!(controllerId || brewId) && !isTvMode,
   });
 
   // Realtime subscription for controller temp updates
+  // Disabled in TV mode since data is refreshed via version check page reload
   useRealtimeSubscription({
     table: 'rapt_temp_controllers',
     filter: session?.controller_id ? `controller_id=eq.${session.controller_id}` : undefined,
@@ -238,7 +245,7 @@ export function ActiveFermentationSession({
         });
       }
     },
-    enabled: !!session?.controller_id,
+    enabled: !!session?.controller_id && !isTvMode,
   });
 
   const handlePauseResume = useCallback(async () => {

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useTvMode } from '@/contexts/TvModeContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type PostgresEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
@@ -16,6 +17,7 @@ interface RealtimeSubscriptionOptions {
 /**
  * Generic hook for Supabase realtime subscriptions.
  * Handles channel creation, subscription, and cleanup automatically.
+ * In TV mode, events are batched/debounced to reduce re-renders.
  */
 export function useRealtimeSubscription({
   table,
@@ -25,9 +27,45 @@ export function useRealtimeSubscription({
   onPayload,
   enabled = true,
 }: RealtimeSubscriptionOptions) {
+  const { isTvMode } = useTvMode();
+  
   // Use ref to avoid re-subscribing when callback changes
   const callbackRef = useRef(onPayload);
   callbackRef.current = onPayload;
+  
+  // Refs for batching in TV mode
+  const pendingPayloadRef = useRef<any>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced callback for TV mode - batch updates together
+  const processPayload = useCallback((payload: any) => {
+    if (isTvMode) {
+      // Batch updates - wait 2 seconds and use the latest
+      pendingPayloadRef.current = payload;
+      
+      if (!timeoutRef.current) {
+        timeoutRef.current = setTimeout(() => {
+          if (pendingPayloadRef.current) {
+            callbackRef.current(pendingPayloadRef.current);
+            pendingPayloadRef.current = null;
+          }
+          timeoutRef.current = null;
+        }, 2000);
+      }
+    } else {
+      callbackRef.current(payload);
+    }
+  }, [isTvMode]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -48,7 +86,7 @@ export function useRealtimeSubscription({
             filter,
           },
           (payload: any) => {
-            callbackRef.current(payload);
+            processPayload(payload);
           }
         )
         .subscribe();
@@ -63,7 +101,7 @@ export function useRealtimeSubscription({
             table,
           },
           (payload: any) => {
-            callbackRef.current(payload);
+            processPayload(payload);
           }
         )
         .subscribe();
@@ -72,7 +110,7 @@ export function useRealtimeSubscription({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [table, schema, event, filter, enabled]);
+  }, [table, schema, event, filter, enabled, processPayload]);
 }
 
 /**

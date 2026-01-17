@@ -53,9 +53,10 @@ function BrewCardComponent({
   if (isTvMode && !shouldRenderContent) {
     return (
       <Card 
-        className="border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-xl"
+        className="border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative"
         style={{
-          background: 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
+          // Simplified solid background for TV mode - no blur
+          background: 'hsl(222 18% 15%)',
         }}
       >
         <div className="h-[10%] px-3 py-2 flex-shrink-0">
@@ -78,25 +79,34 @@ function BrewCardComponent({
 
   return (
     <Card 
-      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-xl ${
+      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${
+        isTvMode ? '' : 'backdrop-blur-xl'
+      } ${
         showInteractiveElements ? 'group' : ''
       } ${
         hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
       }`}
       style={{
-        background: 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
-        boxShadow: hasCardGlow 
-          ? undefined 
-          : '0 8px 32px hsl(222 30% 5% / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
+        // Simplified solid background in TV mode - no gradients or blur
+        background: isTvMode 
+          ? 'hsl(222 18% 15%)' 
+          : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
+        boxShadow: isTvMode
+          ? '0 4px 12px hsl(222 30% 5% / 0.4)'
+          : hasCardGlow 
+            ? undefined 
+            : '0 8px 32px hsl(222 30% 5% / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
       }}
     >
-      {/* Glass highlight overlay - top edge */}
-      <div 
-        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
-        style={{
-          background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.08) 30%, hsl(0 0% 100% / 0.12) 50%, hsl(0 0% 100% / 0.08) 70%, transparent 90%)'
-        }}
-      />
+      {/* Glass highlight overlay - top edge (skip in TV mode) */}
+      {!isTvMode && (
+        <div 
+          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
+          style={{
+            background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.08) 30%, hsl(0 0% 100% / 0.12) 50%, hsl(0 0% 100% / 0.08) 70%, transparent 90%)'
+          }}
+        />
+      )}
       
       {/* Header - 10% */}
       <div className="h-[10%] px-3 py-2 flex-shrink-0 relative" style={{ containerType: 'size' }}>
