@@ -10,6 +10,8 @@ export interface BrewCardProps {
   onEventsChange: () => void;
   onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
   isTvMode?: boolean;
+  /** Index for staggered rendering in TV mode */
+  cardIndex?: number;
 }
 
 export interface DeviceMatch {

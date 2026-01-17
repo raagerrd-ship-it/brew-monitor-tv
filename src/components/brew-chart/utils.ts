@@ -257,3 +257,33 @@ export function formatTooltipLabel(timestamp: number | string): string {
 export function getOptimalWindowSize(dataLength: number): number {
   return Math.max(3, Math.floor(dataLength * 0.08));
 }
+
+/**
+ * Downsample data for TV mode to reduce rendering load
+ * Uses LTTB (Largest Triangle Three Buckets) inspired sampling
+ * @param data - Original data array
+ * @param maxPoints - Maximum number of points to keep (default: 100)
+ * @returns Downsampled data
+ */
+export function downsampleForTvMode<T>(data: T[], maxPoints: number = 100): T[] {
+  if (data.length <= maxPoints) return data;
+  
+  const result: T[] = [];
+  const step = (data.length - 2) / (maxPoints - 2);
+  
+  // Always keep first point
+  result.push(data[0]);
+  
+  // Sample middle points
+  for (let i = 1; i < maxPoints - 1; i++) {
+    const index = Math.round(1 + i * step);
+    if (index < data.length - 1) {
+      result.push(data[index]);
+    }
+  }
+  
+  // Always keep last point
+  result.push(data[data.length - 1]);
+  
+  return result;
+}

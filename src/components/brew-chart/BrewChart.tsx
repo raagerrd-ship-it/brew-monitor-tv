@@ -25,6 +25,7 @@ import {
   formatTooltipLabel,
   getOptimalWindowSize,
   mergeWithControllerTemp,
+  downsampleForTvMode,
 } from "./utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useDeferredRender } from "@/hooks/use-deferred-render";
@@ -74,14 +75,19 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
   }, [controllerId, data]);
   
   // Memoize all expensive calculations
+  // In TV mode, downsample to max 80 points to reduce rendering load
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    const dataWithControllerTemp = mergeWithControllerTemp(data, controllerTempData);
+    // Downsample early in TV mode to reduce all subsequent calculations
+    const sourceData = isTvMode ? downsampleForTvMode(data, 80) : data;
+    const controllerDataSampled = isTvMode ? downsampleForTvMode(controllerTempData, 80) : controllerTempData;
+    
+    const dataWithControllerTemp = mergeWithControllerTemp(sourceData, controllerDataSampled);
     const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
     const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
     return addTimestamps(smoothedData);
-  }, [data, controllerTempData, smoothLines]);
+  }, [data, controllerTempData, smoothLines, isTvMode]);
 
   const dayBoundaries = useMemo(() => 
     generateDayBoundaries(chartData), 
