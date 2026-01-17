@@ -214,7 +214,23 @@ export function ActiveFermentationSession({
   // Calculate progress values
   const calculateProgress = useCallback(() => {
     if (!session?.steps?.length) return 0;
-    return ((session.current_step_index) / session.steps.length) * 100;
+    const totalSteps = session.steps.length;
+    const completedSteps = session.current_step_index;
+    
+    // Calculate progress within current step
+    const currentStep = session.steps[session.current_step_index];
+    let stepProgress = 0;
+    
+    if (currentStep && (currentStep.step_type === 'hold' || (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear'))) {
+      if (currentStep.duration_hours) {
+        const stepStarted = new Date(session.step_started_at);
+        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+        stepProgress = Math.min(elapsed / currentStep.duration_hours, 1);
+      }
+    }
+    
+    // Overall progress = completed steps + current step progress (weighted)
+    return ((completedSteps + stepProgress) / totalSteps) * 100;
   }, [session]);
 
   const calculateStepProgress = useCallback(() => {
