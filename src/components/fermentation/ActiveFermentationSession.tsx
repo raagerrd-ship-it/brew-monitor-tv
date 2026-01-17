@@ -30,6 +30,7 @@ interface ActiveFermentationSessionProps {
   brewId?: string;
   compact?: boolean;
   preloadedSession?: FermentationSessionData | null;
+  isAuthenticated?: boolean;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -48,22 +49,28 @@ export function ActiveFermentationSession({
   brewId,
   compact = false,
   preloadedSession,
+  isAuthenticated: isAuthenticatedProp,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
   const [loading, setLoading] = useState(!preloadedSession);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
   const { toast } = useToast();
+  
+  // Use prop if provided, otherwise fetch (for non-compact views)
+  const isAuthenticated = isAuthenticatedProp ?? isAuthenticatedLocal;
 
-  // Auth check
+  // Auth check - only if not provided via props
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
-    });
-  }, []);
+    if (isAuthenticatedProp === undefined) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setIsAuthenticatedLocal(!!session);
+      });
+    }
+  }, [isAuthenticatedProp]);
 
   // Update progress every minute
   useEffect(() => {
