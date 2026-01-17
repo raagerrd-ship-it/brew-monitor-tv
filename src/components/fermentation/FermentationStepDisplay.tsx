@@ -1,4 +1,3 @@
-import { Progress } from "@/components/ui/progress";
 import { Thermometer, Clock, Activity, ArrowDown, ChevronRight, Loader2 } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 
@@ -7,6 +6,7 @@ interface FermentationStepDisplayProps {
   steps: FermentationProfileStep[];
   currentStepIndex: number;
   stepStartedAt: string;
+  stepStartTemp?: number | null;
   targetTemp: number | null;
   currentTemp: number | null;
   isRamping: boolean;
@@ -20,6 +20,7 @@ export function FermentationStepDisplay({
   steps,
   currentStepIndex,
   stepStartedAt,
+  stepStartTemp,
   targetTemp,
   currentTemp,
   isRamping,
@@ -133,6 +134,14 @@ export function FermentationStepDisplay({
           <div className="flex items-center gap-2 py-1.5 px-2 bg-background/50 rounded text-xs">
             <Thermometer className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              {/* Show start temp for ramp steps */}
+              {isRamping && stepStartTemp != null && (
+                <>
+                  <span className="text-muted-foreground">{Math.round(stepStartTemp)}°C</span>
+                  <span className="text-muted-foreground">→</span>
+                </>
+              )}
+              
               <span className={`font-medium ${isRamping ? 'text-amber-500' : 'text-primary'}`}>
                 {targetTemp.toFixed(1)}°C
               </span>
@@ -156,15 +165,12 @@ export function FermentationStepDisplay({
           </div>
         )}
         
-        {/* Step Progress */}
+        {/* Step Progress - time remaining only, no bar */}
         {(currentStep.step_type === 'hold' || 
           (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear')) && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-[10px]">
-              <span className="text-muted-foreground">Stegprogress</span>
-              <span className="font-medium">{getNextStepCondition(currentStep)}</span>
-            </div>
-            <Progress value={stepProgress} className="h-1" />
+          <div className="flex justify-between text-[10px] px-1">
+            <span className="text-muted-foreground">Stegprogress</span>
+            <span className="font-medium">{getNextStepCondition(currentStep)}</span>
           </div>
         )}
       </div>
