@@ -52,6 +52,7 @@ export function ActiveFermentationSession({
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [, setTick] = useState(0); // Force re-render for time-based progress
   const { toast } = useToast();
 
   // Auth check
@@ -59,6 +60,14 @@ export function ActiveFermentationSession({
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
+  }, []);
+
+  // Update progress every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 60000); // Every minute
+    return () => clearInterval(interval);
   }, []);
 
   // Load session data
@@ -219,18 +228,20 @@ export function ActiveFermentationSession({
     
     // Calculate progress within current step
     const currentStep = session.steps[session.current_step_index];
-    let stepProgress = 0;
+    let currentStepProgress = 0;
     
     if (currentStep && (currentStep.step_type === 'hold' || (currentStep.step_type === 'ramp' && currentStep.ramp_type === 'linear'))) {
       if (currentStep.duration_hours) {
         const stepStarted = new Date(session.step_started_at);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
-        stepProgress = Math.min(elapsed / currentStep.duration_hours, 1);
+        currentStepProgress = Math.min(elapsed / currentStep.duration_hours, 1);
       }
     }
     
     // Overall progress = completed steps + current step progress (weighted)
-    return ((completedSteps + stepProgress) / totalSteps) * 100;
+    const result = ((completedSteps + currentStepProgress) / totalSteps) * 100;
+    console.log('Progress calc:', { completedSteps, currentStepProgress, totalSteps, result });
+    return result;
   }, [session]);
 
   const calculateStepProgress = useCallback(() => {
