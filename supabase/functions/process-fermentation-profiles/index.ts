@@ -310,8 +310,23 @@ Deno.serve(async (req) => {
                 }
               }
               
-              if (elapsedHours >= currentStep.duration_hours) {
+              // Check if BOTH time has passed AND target temperature is reached
+              const timeComplete = elapsedHours >= currentStep.duration_hours
+              const tempReached = controller.current_temp !== null && 
+                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.5
+              
+              if (timeComplete && tempReached) {
                 stepCompleted = true
+                actionDetails = { 
+                  ...actionDetails, 
+                  time_complete: true, 
+                  temp_reached: true,
+                  current_temp: controller.current_temp,
+                  target_temp: currentStep.target_temp
+                }
+                console.log(`Ramp complete: time elapsed and temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
+              } else if (timeComplete && !tempReached) {
+                console.log(`Ramp time complete but temp not reached: current ${controller.current_temp}°C, target ${currentStep.target_temp}°C - waiting for temp`)
               }
             }
           }
