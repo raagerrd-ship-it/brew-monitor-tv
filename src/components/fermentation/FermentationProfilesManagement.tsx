@@ -367,7 +367,10 @@ export function FermentationProfilesManagement() {
             {/* Profile Chart */}
             {steps.length > 0 && (
               <div className="rounded-lg border bg-card/50 p-3">
-                <FermentationProfileChart steps={steps} />
+                <FermentationProfileChart 
+                  key={steps.map(s => `${s.id}-${s.step_order}`).join(',')} 
+                  steps={steps} 
+                />
               </div>
             )}
 
