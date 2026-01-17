@@ -298,6 +298,7 @@ export function ActiveFermentationSession({
             steps={session.steps || []}
             currentStepIndex={session.current_step_index}
             stepStartedAt={session.step_started_at}
+            stepStartTemp={session.step_start_temp}
             targetTemp={controllerData?.target_temp ?? null}
             currentTemp={controllerData?.current_temp ?? null}
             isRamping={isRamping}
