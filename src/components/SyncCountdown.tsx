@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SyncCountdownProps {
   className?: string;
 }
 
-export function SyncCountdown({ className = "" }: SyncCountdownProps) {
+export const SyncCountdown = memo(function SyncCountdown({ className = "" }: SyncCountdownProps) {
   const [progress, setProgress] = useState(0);
   const [syncInterval, setSyncInterval] = useState(60); // Default 60 seconds
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -148,4 +148,4 @@ export function SyncCountdown({ className = "" }: SyncCountdownProps) {
       />
     </svg>
   );
-}
+});
