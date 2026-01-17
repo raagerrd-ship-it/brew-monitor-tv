@@ -204,133 +204,135 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
   const chartHeight = compact ? 120 : 200;
 
   return (
-    <div className="w-full" style={{ height: chartHeight }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-          {/* Background areas for each step */}
-          {annotations.map((annot, idx) => (
-            <ReferenceArea
-              key={`area-${idx}`}
-              x1={annot.startHour}
-              x2={annot.endHour}
-              fill={getStepColor(annot.stepType)}
-              fillOpacity={0.08}
+    <div className="w-full flex flex-col">
+      <div style={{ height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+            {/* Background areas for each step */}
+            {annotations.map((annot, idx) => (
+              <ReferenceArea
+                key={`area-${idx}`}
+                x1={annot.startHour}
+                x2={annot.endHour}
+                fill={getStepColor(annot.stepType)}
+                fillOpacity={0.08}
+                stroke="none"
+              />
+            ))}
+
+            {/* Step separator lines */}
+            {annotations.slice(1).map((annot, idx) => (
+              <ReferenceLine
+                key={`sep-${idx}`}
+                x={annot.startHour}
+                stroke="hsl(var(--border))"
+                strokeDasharray="3 3"
+                strokeOpacity={0.5}
+              />
+            ))}
+
+            <XAxis
+              dataKey="hour"
+              type="number"
+              domain={[0, totalHours]}
+              stroke="hsl(var(--muted-foreground))"
+              style={{ fontSize: compact ? "9px" : "10px" }}
+              tick={{ fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={formatHour}
+              tickCount={compact ? 4 : 6}
+            />
+
+            <YAxis
+              domain={tempDomain}
+              stroke="hsl(var(--temp-blue))"
+              style={{ fontSize: compact ? "9px" : "10px" }}
+              tick={{ fill: "hsl(var(--temp-blue))" }}
+              tickFormatter={(value) => `${value}°`}
+              tickCount={compact ? 3 : 5}
+            />
+
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "8px",
+                color: "hsl(var(--foreground))",
+                padding: "8px 12px",
+                boxShadow: "0 4px 12px hsl(0 0% 0% / 0.2)",
+              }}
+              labelFormatter={(hour) => formatHour(Number(hour))}
+              formatter={(value: number, name: string, props: any) => {
+                const point = props.payload as ChartDataPoint;
+                return [
+                  <div key="tooltip" className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Thermometer className="w-3 h-3" style={{ color: getStepColor(point.stepType) }} />
+                      <span className="font-medium">{value.toFixed(1)}°C</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      {point.isWaiting ? <Activity className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                      {point.stepName}
+                    </div>
+                  </div>,
+                  ''
+                ];
+              }}
+            />
+
+            {/* Temperature area fill */}
+            <Area
+              type="monotone"
+              dataKey="temp"
               stroke="none"
+              fill="hsl(var(--temp-blue) / 0.15)"
+              activeDot={false}
             />
-          ))}
 
-          {/* Step separator lines */}
-          {annotations.slice(1).map((annot, idx) => (
-            <ReferenceLine
-              key={`sep-${idx}`}
-              x={annot.startHour}
-              stroke="hsl(var(--border))"
-              strokeDasharray="3 3"
-              strokeOpacity={0.5}
+            {/* Temperature line */}
+            <Line
+              type="monotone"
+              dataKey="temp"
+              stroke="hsl(var(--temp-blue))"
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{
+                r: 5,
+                fill: "hsl(var(--temp-blue))",
+                stroke: "hsl(var(--background))",
+                strokeWidth: 2,
+              }}
+              style={{
+                filter: "drop-shadow(0 0 4px hsl(var(--temp-blue) / 0.4))"
+              }}
             />
-          ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
 
-          <XAxis
-            dataKey="hour"
-            type="number"
-            domain={[0, totalHours]}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: compact ? "9px" : "10px" }}
-            tick={{ fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={formatHour}
-            tickCount={compact ? 4 : 6}
-          />
-
-          <YAxis
-            domain={tempDomain}
-            stroke="hsl(var(--temp-blue))"
-            style={{ fontSize: compact ? "9px" : "10px" }}
-            tick={{ fill: "hsl(var(--temp-blue))" }}
-            tickFormatter={(value) => `${value}°`}
-            tickCount={compact ? 3 : 5}
-          />
-
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "8px",
-              color: "hsl(var(--foreground))",
-              padding: "8px 12px",
-              boxShadow: "0 4px 12px hsl(0 0% 0% / 0.2)",
-            }}
-            labelFormatter={(hour) => formatHour(Number(hour))}
-            formatter={(value: number, name: string, props: any) => {
-              const point = props.payload as ChartDataPoint;
-              return [
-                <div key="tooltip" className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Thermometer className="w-3 h-3" style={{ color: getStepColor(point.stepType) }} />
-                    <span className="font-medium">{value.toFixed(1)}°C</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    {point.isWaiting ? <Activity className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                    {point.stepName}
-                  </div>
-                </div>,
-                ''
-              ];
-            }}
-          />
-
-          {/* Temperature area fill */}
-          <Area
-            type="monotone"
-            dataKey="temp"
-            stroke="none"
-            fill="hsl(var(--temp-blue) / 0.15)"
-            activeDot={false}
-          />
-
-          {/* Temperature line */}
-          <Line
-            type="monotone"
-            dataKey="temp"
-            stroke="hsl(var(--temp-blue))"
-            strokeWidth={2.5}
-            dot={false}
-            activeDot={{
-              r: 5,
-              fill: "hsl(var(--temp-blue))",
-              stroke: "hsl(var(--background))",
-              strokeWidth: 2,
-            }}
-            style={{
-              filter: "drop-shadow(0 0 4px hsl(var(--temp-blue) / 0.4))"
-            }}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-
-      {/* Step legend */}
+      {/* Step legend - scrollable on mobile */}
       {!compact && (
-        <div className="flex flex-wrap gap-2 mt-2 px-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 px-1 max-h-24 overflow-y-auto">
           {annotations.map((annot, idx) => (
             <div
               key={`legend-${idx}`}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md"
+              className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md shrink-0"
               style={{
                 background: `${getStepColor(annot.stepType)}15`,
                 border: `1px solid ${getStepColor(annot.stepType)}30`,
               }}
             >
               <span
-                className="w-2 h-2 rounded-full"
+                className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full shrink-0"
                 style={{ background: getStepColor(annot.stepType) }}
               />
-              <span className="font-medium" style={{ color: getStepColor(annot.stepType) }}>
+              <span className="font-medium shrink-0" style={{ color: getStepColor(annot.stepType) }}>
                 {idx + 1}.
               </span>
-              <span className="text-muted-foreground truncate max-w-[120px]">
+              <span className="text-muted-foreground truncate max-w-[60px] sm:max-w-[120px]">
                 {annot.label}
               </span>
               {annot.temp !== null && (
-                <span className="text-muted-foreground/70">
+                <span className="text-muted-foreground/70 shrink-0">
                   ({annot.temp}°)
                 </span>
               )}
