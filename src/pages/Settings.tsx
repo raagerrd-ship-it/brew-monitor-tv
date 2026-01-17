@@ -1403,187 +1403,189 @@ export default function Settings() {
           </TabsContent>
 
           {/* AUTOMATION TAB */}
-          <TabsContent value="automation">
-            <Card className="p-6 mb-6">
-              <h2 className="text-xl font-bold mb-6">Automatisk Kylreglering</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
-              </p>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="auto-cooling-enabled"
-                    checked={autoCoolingEnabled}
-                    onCheckedChange={handleAutoCoolingEnabledChange}
-                  />
-                  <label
-                    htmlFor="auto-cooling-enabled"
-                    className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Aktivera automatisk temperaturjustering
-                  </label>
-                </div>
+          <TabsContent value="automation" className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-bold">Automatisk Kylreglering</h2>
+                <p className="text-sm text-muted-foreground">
+                  Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="auto-cooling-enabled"
+                  checked={autoCoolingEnabled}
+                  onCheckedChange={handleAutoCoolingEnabledChange}
+                />
+                <label
+                  htmlFor="auto-cooling-enabled"
+                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Aktivera automatisk temperaturjustering
+                </label>
+              </div>
 
-                {autoCoolingEnabled && (
-                  <div className="space-y-4 pl-6 border-l-2 border-border">
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
-                      <p className="text-sm font-medium text-primary">Aktuella inställningar:</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Kylare:</span>
-                          <p className="font-medium">
-                            {coolerControllerId 
-                              ? availableControllers.find(c => c.id === coolerControllerId)?.name || 'Ej vald'
-                              : 'Ej vald'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Kylare temp:</span>
-                          {coolerControllerId 
-                            ? (() => {
-                                const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                                const current = cooler?.current_temp !== null && cooler?.current_temp !== undefined
-                                  ? Number(cooler.current_temp).toFixed(1)
-                                  : 'N/A';
-                                const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
-                                  ? Number(cooler.target_temp).toFixed(1)
-                                  : 'N/A';
-                                return (
-                                  <div className="font-medium">
-                                    <div>{current}°C (aktuell)</div>
-                                    <div>{target}°C (mål)</div>
-                                  </div>
-                                );
-                              })()
-                            : <p className="font-medium">N/A</p>}
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Lägsta controller:</span>
-                          <p className="font-medium">
-                            {(() => {
-                              const followedControllers = availableControllers.filter(c => 
-                                followedControllerIds.includes(c.id) && c.cooling_enabled === true
-                              );
-                              if (followedControllers.length === 0) return 'N/A';
-                              
-                              const controllersWithTarget = followedControllers
-                                .filter(c => c.target_temp !== null && c.target_temp !== undefined);
-                              
-                              if (controllersWithTarget.length === 0) return 'N/A';
-                              
-                              const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                              const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                              
-                              return lowestController?.name || 'N/A';
-                            })()}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Controller temp:</span>
-                          {(() => {
-                            const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
-                            );
-                            if (followedControllers.length === 0) return <p className="font-medium">N/A</p>;
-                            
-                            const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
-                            
-                            if (controllersWithTarget.length === 0) return <p className="font-medium">N/A</p>;
-                            
-                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp;
-                            
-                            const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
-                            
+              {autoCoolingEnabled && (
+                <div className="space-y-4 pl-4 border-l-2 border-primary/30">
+                  <p className="text-sm font-medium text-primary">Aktuella inställningar:</p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Kylare:</span>
+                      <p className="font-medium">
+                        {coolerControllerId 
+                          ? availableControllers.find(c => c.id === coolerControllerId)?.name || 'Ej vald'
+                          : 'Ej vald'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Kylare temp:</span>
+                      {coolerControllerId 
+                        ? (() => {
+                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                            const current = cooler?.current_temp !== null && cooler?.current_temp !== undefined
+                              ? Number(cooler.current_temp).toFixed(1)
+                              : 'N/A';
+                            const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
+                              ? Number(cooler.target_temp).toFixed(1)
+                              : 'N/A';
                             return (
                               <div className="font-medium">
-                                <div>{currentTemp !== null && currentTemp !== undefined ? `${Number(currentTemp).toFixed(1)}°C` : 'N/A'} (aktuell)</div>
-                                <div>{lowestTargetTemp.toFixed(1)}°C (mål)</div>
-                                <div className="text-xs text-muted-foreground">{hysteresis.toFixed(1)}°C (tolerans)</div>
+                                <div>{current}°C (aktuell)</div>
+                                <div>{target}°C (mål)</div>
                               </div>
                             );
-                          })()}
-                        </div>
-                      </div>
+                          })()
+                        : <p className="font-medium">N/A</p>}
                     </div>
-
-                    <div className="bg-accent/20 border border-accent/40 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Nästa temperaturkontroll:</p>
-                        <AutoCoolingCountdown 
-                          lastAdjustmentTime={lastAutoCoolingCheck}
-                          checkIntervalMinutes={parseInt(autoCoolingInterval)}
-                          enabled={autoCoolingEnabled}
-                          coolingActive={(() => {
-                            if (!coolerControllerId) return false;
-                            const cooler = availableControllers.find(c => c.id === coolerControllerId);
-                            return cooler?.cooling_enabled ?? false;
-                          })()}
-                          currentTemp={(() => {
-                            const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.controller_id)
-                            );
-                            console.log('Followed controllers for countdown:', followedControllers);
-                            
-                            if (followedControllers.length === 0) return null;
-                            
-                            const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
-                            
-                            console.log('Controllers with target and cooling enabled:', controllersWithTarget);
-                            
-                            if (controllersWithTarget.length === 0) return null;
-                            
-                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp ?? null;
-                            console.log('Lowest controller current temp:', currentTemp);
-                            return currentTemp;
-                          })()}
-                          targetTemp={(() => {
-                            const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.controller_id)
-                            );
-                            if (followedControllers.length === 0) return null;
-                            
-                            const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
-                            
-                            if (controllersWithTarget.length === 0) return null;
-                            
-                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                            console.log('Lowest target temp:', lowestTargetTemp);
-                            return lowestTargetTemp;
-                          })()}
-                          coolingHysteresis={(() => {
-                            const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.controller_id)
-                            );
-                            if (followedControllers.length === 0) return null;
-                            
-                            const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
-                            
-                            if (controllersWithTarget.length === 0) return null;
-                            
-                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            return lowestController?.cooling_hysteresis ?? null;
-                          })()}
-                        />
-                      </div>
+                    <div>
+                      <span className="text-muted-foreground">Lägsta controller:</span>
+                      <p className="font-medium">
+                        {(() => {
+                          const followedControllers = availableControllers.filter(c => 
+                            followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                          );
+                          if (followedControllers.length === 0) return 'N/A';
+                          
+                          const controllersWithTarget = followedControllers
+                            .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                          
+                          if (controllersWithTarget.length === 0) return 'N/A';
+                          
+                          const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                          const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                          
+                          return lowestController?.name || 'N/A';
+                        })()}
+                      </p>
                     </div>
+                    <div>
+                      <span className="text-muted-foreground">Controller temp:</span>
+                      {(() => {
+                        const followedControllers = availableControllers.filter(c => 
+                          followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                        );
+                        if (followedControllers.length === 0) return <p className="font-medium">N/A</p>;
+                        
+                        const controllersWithTarget = followedControllers
+                          .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                        
+                        if (controllersWithTarget.length === 0) return <p className="font-medium">N/A</p>;
+                        
+                        const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                        const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                        const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp;
+                        
+                        const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
+                        
+                        return (
+                          <div className="font-medium">
+                            <div>{currentTemp !== null && currentTemp !== undefined ? `${Number(currentTemp).toFixed(1)}°C` : 'N/A'} (aktuell)</div>
+                            <div>{lowestTargetTemp.toFixed(1)}°C (mål)</div>
+                            <div className="text-xs text-muted-foreground">{hysteresis.toFixed(1)}°C (tolerans)</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
 
-                    {adjustmentLogs.length > 0 && (
-                      <div className="bg-muted/50 border border-border rounded-lg p-4">
-                        <p className="text-sm font-medium mb-3">Justeringshistorik:</p>
-                        <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                  <div className="flex items-center justify-between py-2">
+                    <p className="text-sm font-medium">Nästa temperaturkontroll:</p>
+                    <AutoCoolingCountdown 
+                      lastAdjustmentTime={lastAutoCoolingCheck}
+                      checkIntervalMinutes={parseInt(autoCoolingInterval)}
+                      enabled={autoCoolingEnabled}
+                      coolingActive={(() => {
+                        if (!coolerControllerId) return false;
+                        const cooler = availableControllers.find(c => c.id === coolerControllerId);
+                        return cooler?.cooling_enabled ?? false;
+                      })()}
+                      currentTemp={(() => {
+                        const followedControllers = availableControllers.filter(c => 
+                          followedControllerIds.includes(c.controller_id)
+                        );
+                        console.log('Followed controllers for countdown:', followedControllers);
+                        
+                        if (followedControllers.length === 0) return null;
+                        
+                        const controllersWithTarget = followedControllers
+                          .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
+                        
+                        console.log('Controllers with target and cooling enabled:', controllersWithTarget);
+                        
+                        if (controllersWithTarget.length === 0) return null;
+                        
+                        const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                        const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                        const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp ?? null;
+                        console.log('Lowest controller current temp:', currentTemp);
+                        return currentTemp;
+                      })()}
+                      targetTemp={(() => {
+                        const followedControllers = availableControllers.filter(c => 
+                          followedControllerIds.includes(c.controller_id)
+                        );
+                        if (followedControllers.length === 0) return null;
+                        
+                        const controllersWithTarget = followedControllers
+                          .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
+                        
+                        if (controllersWithTarget.length === 0) return null;
+                        
+                        const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                        console.log('Lowest target temp:', lowestTargetTemp);
+                        return lowestTargetTemp;
+                      })()}
+                      coolingHysteresis={(() => {
+                        const followedControllers = availableControllers.filter(c => 
+                          followedControllerIds.includes(c.controller_id)
+                        );
+                        if (followedControllers.length === 0) return null;
+                        
+                        const controllersWithTarget = followedControllers
+                          .filter(c => c.target_temp !== null && c.target_temp !== undefined && c.cooling_enabled === true);
+                        
+                        if (controllersWithTarget.length === 0) return null;
+                        
+                        const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                        const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                        return lowestController?.cooling_hysteresis ?? null;
+                      })()}
+                    />
+                  </div>
+
+                  {adjustmentLogs.length > 0 && (
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors">
+                        <span className="text-sm font-medium">Justeringshistorik ({adjustmentLogs.length})</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="max-h-60 overflow-y-auto space-y-2 py-2">
                           {adjustmentLogs.map(log => (
                             <div 
                               key={log.id} 
-                              className="bg-card border border-border rounded p-3 text-xs space-y-2"
+                              className="border-l-2 border-border pl-3 py-1 text-xs space-y-1"
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-medium text-primary">
@@ -1600,170 +1602,159 @@ export default function Settings() {
                               </div>
                               
                               {log.followed_controller_name && (
-                                <div className="bg-muted/30 rounded p-2 space-y-1">
-                                  <p className="font-medium text-foreground">
-                                    Controller: {log.followed_controller_name}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-muted-foreground">
-                                    <span>Temp:</span>
-                                    <span className="text-destructive font-medium">
-                                      {log.followed_current_temp?.toFixed(1)}°C
-                                    </span>
-                                    <span>/ Mål:</span>
-                                    <span>{log.followed_target_temp?.toFixed(1)}°C ({log.followed_hysteresis?.toFixed(1)}°C)</span>
-                                  </div>
-                                </div>
+                                <p className="text-muted-foreground">
+                                  {log.followed_controller_name}: <span className="text-destructive">{log.followed_current_temp?.toFixed(1)}°C</span> / Mål: {log.followed_target_temp?.toFixed(1)}°C
+                                </p>
                               )}
                               
                               <div className="flex items-center gap-2 text-muted-foreground">
-                                <span>Kylarens måltemp:</span>
+                                <span>Kylare:</span>
                                 <span>{log.old_target_temp.toFixed(1)}°C</span>
                                 <span>→</span>
                                 <span className="text-foreground font-medium">
                                   {log.new_target_temp.toFixed(1)}°C
                                 </span>
                               </div>
-                              <p className="text-muted-foreground italic">
-                                {log.reason}
-                              </p>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Välj kylare</label>
-                      <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
-                        <SelectTrigger className="w-full bg-card">
-                          <SelectValue placeholder="Välj vilken controller som är kylaren" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          {availableControllers.map(controller => (
-                            <SelectItem key={controller.id} value={controller.id}>
-                              {controller.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Controller som ska justera sin temperatur
-                      </p>
-                    </div>
-
-                    {coolerControllerId && (
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Följ dessa controllers</label>
-                        <div className="space-y-2">
-                          {availableControllers
-                            .filter(c => c.id !== coolerControllerId)
-                            .map(controller => (
-                              <div key={controller.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`follow-${controller.id}`}
-                                  checked={followedControllerIds.includes(controller.id)}
-                                  onCheckedChange={(checked) => 
-                                    handleFollowedControllerToggle(controller.id, checked as boolean)
-                                  }
-                                />
-                                <label
-                                  htmlFor={`follow-${controller.id}`}
-                                  className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                  {controller.name}
-                                </label>
-                              </div>
-                            ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Kylaren kommer att följa dessa controllers måltemperatur
-                        </p>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Kontrollintervall</label>
-                      <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
-                        <SelectTrigger className="w-full bg-card">
-                          <SelectValue placeholder="Välj intervall" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          <SelectItem value="30">30 minuter</SelectItem>
-                          <SelectItem value="60">1 timme</SelectItem>
-                          <SelectItem value="90">1.5 timmar</SelectItem>
-                          <SelectItem value="120">2 timmar</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Hur länge temperaturen ska vara stilla innan justering
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Temperatursänkning (°C)</label>
-                      <Select value={tempReduction} onValueChange={handleTempReductionChange}>
-                        <SelectTrigger className="w-full bg-card">
-                          <SelectValue placeholder="Välj sänkning" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          <SelectItem value="1">1°C</SelectItem>
-                          <SelectItem value="1.5">1.5°C</SelectItem>
-                          <SelectItem value="2">2°C</SelectItem>
-                          <SelectItem value="2.5">2.5°C</SelectItem>
-                          <SelectItem value="3">3°C</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Hur mycket måltemperaturen ska sänkas per justering
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Max differens mot lägsta (°C)</label>
-                      <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
-                        <SelectTrigger className="w-full bg-card">
-                          <SelectValue placeholder="Välj max differens" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          <SelectItem value="5">5°C</SelectItem>
-                          <SelectItem value="7.5">7.5°C</SelectItem>
-                          <SelectItem value="10">10°C</SelectItem>
-                          <SelectItem value="12.5">12.5°C</SelectItem>
-                          <SelectItem value="15">15°C</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Max antal grader lägre än den följda controllern med lägst temperatur
-                      </p>
-                    </div>
-
-                    <Collapsible className="bg-muted/50 rounded-lg">
-                      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/70 transition-colors">
-                        <span className="font-medium text-foreground text-xs">Hur det fungerar</span>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                        <p>• Systemet övervakar den följda controllern med lägst måltemperatur</p>
-                        <p>• När denna controllers nuvarande temperatur är över mål + tolerans (kyla aktiv) startar nedräkningen</p>
-                        <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens måltemperatur med {tempReduction}°C</p>
-                        <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
-                        <p>• Om ingen controller har aktiv kyla sätts kylaren till 18°C</p>
-                        <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
-                        <p>• Kylaren sätts aldrig utanför sitt min/max-intervall från RAPT</p>
                       </CollapsibleContent>
                     </Collapsible>
-                  </div>
-                )}
-              </div>
-            </Card>
+                  )}
 
-            <Card className="p-6">
-              <h2 className="text-xl font-bold mb-4">Fermenteringsprofiler</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Skapa och hantera temperaturschemat för fermenteringen. Profiler kan styra måltemperaturen baserat på tid, SG-värden och temperaturvillkor.
-              </p>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Välj kylare</label>
+                    <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
+                      <SelectTrigger className="w-full bg-card">
+                        <SelectValue placeholder="Välj vilken controller som är kylaren" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        {availableControllers.map(controller => (
+                          <SelectItem key={controller.id} value={controller.id}>
+                            {controller.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Controller som ska justera sin temperatur
+                    </p>
+                  </div>
+
+                  {coolerControllerId && (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Följ dessa controllers</label>
+                      <div className="space-y-2">
+                        {availableControllers
+                          .filter(c => c.id !== coolerControllerId)
+                          .map(controller => (
+                            <div key={controller.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`follow-${controller.id}`}
+                                checked={followedControllerIds.includes(controller.id)}
+                                onCheckedChange={(checked) => 
+                                  handleFollowedControllerToggle(controller.id, checked as boolean)
+                                }
+                              />
+                              <label
+                                htmlFor={`follow-${controller.id}`}
+                                className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                {controller.name}
+                              </label>
+                            </div>
+                          ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Kylaren kommer att följa dessa controllers måltemperatur
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Kontrollintervall</label>
+                    <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
+                      <SelectTrigger className="w-full bg-card">
+                        <SelectValue placeholder="Välj intervall" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="30">30 minuter</SelectItem>
+                        <SelectItem value="60">1 timme</SelectItem>
+                        <SelectItem value="90">1.5 timmar</SelectItem>
+                        <SelectItem value="120">2 timmar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Hur länge temperaturen ska vara stilla innan justering
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Temperatursänkning (°C)</label>
+                    <Select value={tempReduction} onValueChange={handleTempReductionChange}>
+                      <SelectTrigger className="w-full bg-card">
+                        <SelectValue placeholder="Välj sänkning" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="1">1°C</SelectItem>
+                        <SelectItem value="1.5">1.5°C</SelectItem>
+                        <SelectItem value="2">2°C</SelectItem>
+                        <SelectItem value="2.5">2.5°C</SelectItem>
+                        <SelectItem value="3">3°C</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Hur mycket måltemperaturen ska sänkas per justering
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Max differens mot lägsta (°C)</label>
+                    <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
+                      <SelectTrigger className="w-full bg-card">
+                        <SelectValue placeholder="Välj max differens" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="5">5°C</SelectItem>
+                        <SelectItem value="7.5">7.5°C</SelectItem>
+                        <SelectItem value="10">10°C</SelectItem>
+                        <SelectItem value="12.5">12.5°C</SelectItem>
+                        <SelectItem value="15">15°C</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Max antal grader lägre än den följda controllern med lägst temperatur
+                    </p>
+                  </div>
+
+                  <Collapsible className="bg-muted/50 rounded-lg">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/70 transition-colors">
+                      <span className="font-medium text-foreground text-xs">Hur det fungerar</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                      <p>• Systemet övervakar den följda controllern med lägst måltemperatur</p>
+                      <p>• När denna controllers nuvarande temperatur är över mål + tolerans (kyla aktiv) startar nedräkningen</p>
+                      <p>• Efter {autoCoolingInterval} min med aktiv kyla sänks kylarens måltemperatur med {tempReduction}°C</p>
+                      <p>• Om kylaren blir mer än 10°C kallare än lägsta controller höjs den automatiskt</p>
+                      <p>• Om ingen controller har aktiv kyla sätts kylaren till 18°C</p>
+                      <p>• Max {maxDiffFromLowest}°C lägre än lägsta följda controller</p>
+                      <p>• Kylaren sätts aldrig utanför sitt min/max-intervall från RAPT</p>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-bold">Fermenteringsprofiler</h2>
+                <p className="text-sm text-muted-foreground">
+                  Skapa och hantera temperaturschemat för fermenteringen.
+                </p>
+              </div>
               <FermentationProfilesManagement />
-            </Card>
+            </div>
           </TabsContent>
 
           {/* DEVICES TAB */}
