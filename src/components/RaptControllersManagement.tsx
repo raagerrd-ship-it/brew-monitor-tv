@@ -468,30 +468,7 @@ export function RaptControllersManagement() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {isSelected && controllerIndex >= 0 && (
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleMoveUp(controller.controller_id)}
-                      disabled={isFirst}
-                      className="h-6 w-6 p-0"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleMoveDown(controller.controller_id)}
-                      disabled={isLast}
-                      className="h-6 w-6 p-0"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-                
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id={`controller-${controller.controller_id}`}
@@ -507,6 +484,31 @@ export function RaptControllersManagement() {
                     Visa
                   </label>
                 </div>
+                
+                {isSelected && controllerIndex >= 0 && (
+                  <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleMoveUp(controller.controller_id)}
+                      disabled={isFirst}
+                      className="h-8 w-8 p-0"
+                      title="Flytta upp"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleMoveDown(controller.controller_id)}
+                      disabled={isLast}
+                      className="h-8 w-8 p-0"
+                      title="Flytta ner"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
             
