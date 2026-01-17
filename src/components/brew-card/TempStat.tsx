@@ -46,7 +46,7 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
   );
 
   const label = controller && controller.target_temp !== null 
-    ? `Temp (${controller.target_temp.toFixed(0)}°)` 
+    ? `Temp (${controller.target_temp.toFixed(1)}°)` 
     : 'Temp';
 
   // Build tooltip text showing temp source
