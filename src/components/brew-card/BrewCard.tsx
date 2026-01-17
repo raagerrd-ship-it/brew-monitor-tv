@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BrewChart } from "../brew-chart";
@@ -24,8 +25,18 @@ export function BrewCard({
   onDeviceLinkOpen,
 }: BrewCardProps) {
   const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
-  const devices = findDevicesForBrew(brew, pills, controllers);
-  const statusText = getStatusDisplayText(brew);
+  
+  // Memoize expensive calculations
+  const devices = useMemo(() => 
+    findDevicesForBrew(brew, pills, controllers), 
+    [brew.linked_controller_id, brew.linked_pill_id, pills, controllers]
+  );
+  
+  const statusText = useMemo(() => 
+    getStatusDisplayText(brew), 
+    [brew.status, brew.fermentationRate]
+  );
+  
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
 
   return (
@@ -140,6 +151,7 @@ export function BrewCard({
             brewId={brew.id} 
             compact 
             preloadedSession={brew.fermentationSession}
+            isAuthenticated={isAuthenticated}
           />
         </div>
       </div>

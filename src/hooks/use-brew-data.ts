@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
@@ -20,6 +20,29 @@ interface UseBrewDataReturn {
   loadBrewEvents: () => Promise<void>;
 }
 
+// Helper function to sort brews by controller order
+function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]): BrewData[] {
+  if (brews.length === 0 || controllers.length === 0) return brews;
+  
+  return [...brews].sort((a, b) => {
+    const aControllerIndex = controllers.findIndex(
+      c => c.controller_id === a.linked_controller_id
+    );
+    const bControllerIndex = controllers.findIndex(
+      c => c.controller_id === b.linked_controller_id
+    );
+
+    if (aControllerIndex !== -1 && bControllerIndex !== -1) {
+      return aControllerIndex - bControllerIndex;
+    }
+
+    if (aControllerIndex !== -1) return -1;
+    if (bControllerIndex !== -1) return 1;
+
+    return 0;
+  });
+}
+
 export function useBrewData(): UseBrewDataReturn {
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
@@ -32,9 +55,15 @@ export function useBrewData(): UseBrewDataReturn {
 
   // Ref for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
+  const controllersRef = useRef<TempController[]>([]);
+  
   useEffect(() => {
     brewsRef.current = brews;
   }, [brews]);
+  
+  useEffect(() => {
+    controllersRef.current = controllers;
+  }, [controllers]);
 
   // Auth state
   useEffect(() => {
@@ -72,182 +101,245 @@ export function useBrewData(): UseBrewDataReturn {
     }
   }, []);
 
-  const loadBrews = useCallback(async () => {
+  // Internal function to load brews data (returns data instead of setting state)
+  const loadBrewsInternal = useCallback(async (): Promise<BrewData[]> => {
+    const { data: selectedBrews, error: selectedError } = await supabase
+      .from('selected_brews')
+      .select('batch_id')
+      .eq('is_visible', true)
+      .order('display_order');
+
+    if (selectedError) throw selectedError;
+
+    if (!selectedBrews || selectedBrews.length === 0) {
+      return [];
+    }
+
+    const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
+
+    const [brewReadingsRes, eventsRes, sessionsRes] = await Promise.all([
+      supabase
+        .from('brew_readings')
+        .select('*')
+        .in('batch_id', selectedBatchIds)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('brew_events')
+        .select('*')
+        .order('event_date'),
+      supabase
+        .from('fermentation_sessions')
+        .select('*')
+        .in('status', ['running', 'paused']),
+    ]);
+
+    if (brewReadingsRes.error) throw brewReadingsRes.error;
+
+    const brewReadings = brewReadingsRes.data;
+    if (!brewReadings || brewReadings.length === 0) {
+      return [];
+    }
+
+    // Fetch profiles and steps for active sessions
+    const activeSessions = sessionsRes.data || [];
+    const profileIds = [...new Set(activeSessions.map(s => s.profile_id))];
+    const sessionControllerIds = [...new Set(activeSessions.map(s => s.controller_id))];
+    
+    const [profilesRes, stepsRes, sessionControllersRes] = await Promise.all([
+      profileIds.length > 0 
+        ? supabase.from('fermentation_profiles').select('*').in('id', profileIds)
+        : Promise.resolve({ data: [] }),
+      profileIds.length > 0 
+        ? supabase.from('fermentation_profile_steps').select('*').in('profile_id', profileIds).order('step_order')
+        : Promise.resolve({ data: [] }),
+      sessionControllerIds.length > 0
+        ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, target_temp').in('controller_id', sessionControllerIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+    const stepsMap = new Map<string, any[]>();
+    (stepsRes.data || []).forEach((s: any) => {
+      if (!stepsMap.has(s.profile_id)) stepsMap.set(s.profile_id, []);
+      stepsMap.get(s.profile_id)!.push(s);
+    });
+    const sessionControllersMap = new Map((sessionControllersRes.data || []).map((c: any) => [c.controller_id, c]));
+
+    // Build session data by brew_id
+    const sessionsByBrewId = new Map<string, any>();
+    activeSessions.forEach(session => {
+      if (session.brew_id) {
+        const profile = profilesMap.get(session.profile_id);
+        const steps = stepsMap.get(session.profile_id) || [];
+        const controller = sessionControllersMap.get(session.controller_id);
+        sessionsByBrewId.set(session.brew_id, {
+          id: session.id,
+          profile_id: session.profile_id,
+          controller_id: session.controller_id,
+          status: session.status,
+          current_step_index: session.current_step_index,
+          step_started_at: session.step_started_at,
+          started_at: session.started_at,
+          step_start_temp: session.step_start_temp,
+          profile_name: profile?.name || '',
+          steps: steps.map((s: any) => ({
+            id: s.id,
+            step_type: s.step_type,
+            target_temp: s.target_temp,
+            duration_hours: s.duration_hours,
+            ramp_type: s.ramp_type,
+            gravity_stable_days: s.gravity_stable_days,
+            target_sg: s.target_sg,
+            sg_comparison: s.sg_comparison,
+            step_order: s.step_order,
+          })),
+          controller_current_temp: controller?.current_temp ?? null,
+          controller_target_temp: controller?.target_temp ?? null,
+        });
+      }
+    });
+
+    // Group events by brew_id
+    const eventsByBrewId: Record<string, BrewEvent[]> = {};
+    (eventsRes.data || []).forEach((event: BrewEvent) => {
+      if (!eventsByBrewId[event.brew_id]) {
+        eventsByBrewId[event.brew_id] = [];
+      }
+      eventsByBrewId[event.brew_id].push(event);
+    });
+
+    return brewReadings.map((reading: any) => {
+      const originalSgData = reading.sg_data || [];
+      let sgData = originalSgData;
+
+      if (reading.status === 'Conditioning' || reading.status === 'Completed') {
+        const sortedData = [...sgData].sort((a, b) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+        let cutoffIndex = sortedData.length - 1;
+        for (let i = sortedData.length - 1; i > 0; i--) {
+          const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
+          const rate = calculateFermentationRate(recentData);
+
+          if (rate !== null && Math.abs(rate) >= 0.001) {
+            cutoffIndex = i;
+            break;
+          }
+        }
+
+        sgData = sortedData.slice(0, cutoffIndex + 1);
+      }
+
+      const fermentationRate = calculateFermentationRate(originalSgData);
+
+      return {
+        id: reading.id,
+        batch_id: reading.batch_id,
+        name: reading.name,
+        style: reading.style,
+        batchNumber: reading.batch_number,
+        status: reading.status,
+        currentSG: reading.current_sg,
+        currentTemp: reading.current_temp,
+        attenuation: reading.attenuation,
+        abv: reading.abv,
+        originalGravity: reading.original_gravity,
+        finalGravity: reading.final_gravity,
+        lastUpdate: reading.last_update
+          ? new Date(reading.last_update).toLocaleString('sv-SE', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'Ingen data',
+        lastUpdateRaw: reading.last_update,
+        battery: reading.battery,
+        sgData: sgData,
+        fermentationRate:
+          reading.status === 'Conditioning' || reading.status === 'Completed'
+            ? 0
+            : fermentationRate,
+        coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
+        events: eventsByBrewId[reading.id] || [],
+        linked_controller_id: reading.linked_controller_id || null,
+        linked_pill_id: reading.linked_pill_id || null,
+        fermentationSession: sessionsByBrewId.get(reading.id) || null,
+      };
+    });
+  }, []);
+
+  // Internal function to load RAPT data (returns data instead of setting state)
+  const loadRaptDataInternal = useCallback(async (): Promise<{ pills: PillData[], controllers: TempController[] }> => {
+    // Direct parallel queries instead of edge function
+    const [selectedControllersRes, selectedPillsRes] = await Promise.all([
+      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
+      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true).order('display_order'),
+    ]);
+    
+    const controllerIds = selectedControllersRes.data?.map(s => s.controller_id) || [];
+    const pillIds = selectedPillsRes.data?.map(s => s.pill_id) || [];
+    
+    const [controllersRes, pillsRes] = await Promise.all([
+      controllerIds.length > 0 
+        ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', controllerIds)
+        : Promise.resolve({ data: [] }),
+      pillIds.length > 0
+        ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds) 
+        : Promise.resolve({ data: [] }),
+    ]);
+    
+    // Sort by display_order
+    const sortedControllers = (controllersRes.data || []).sort((a, b) => 
+      controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)
+    ) as TempController[];
+    
+    const sortedPills = (pillsRes.data || []).sort((a, b) =>
+      pillIds.indexOf(a.pill_id) - pillIds.indexOf(b.pill_id)
+    ) as PillData[];
+    
+    return { pills: sortedPills, controllers: sortedControllers };
+  }, []);
+
+  // Load all data in parallel and sort brews BEFORE setting state
+  const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
-
-      const { data: selectedBrews, error: selectedError } = await supabase
-        .from('selected_brews')
-        .select('batch_id')
-        .eq('is_visible', true)
-        .order('display_order');
-
-      if (selectedError) throw selectedError;
-
-      if (!selectedBrews || selectedBrews.length === 0) {
-        setBrews([]);
-        setLoading(false);
-        return;
-      }
-
-      const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
-
-      const [brewReadingsRes, eventsRes, sessionsRes] = await Promise.all([
-        supabase
-          .from('brew_readings')
-          .select('*')
-          .in('batch_id', selectedBatchIds)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('brew_events')
-          .select('*')
-          .order('event_date'),
-        supabase
-          .from('fermentation_sessions')
-          .select('*')
-          .in('status', ['running', 'paused']),
-      ]);
-
-      if (brewReadingsRes.error) throw brewReadingsRes.error;
-
-      const brewReadings = brewReadingsRes.data;
-      if (!brewReadings || brewReadings.length === 0) {
-        setBrews([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch profiles and steps for active sessions
-      const activeSessions = sessionsRes.data || [];
-      const profileIds = [...new Set(activeSessions.map(s => s.profile_id))];
-      const controllerIds = [...new Set(activeSessions.map(s => s.controller_id))];
       
-      const [profilesRes, stepsRes, controllersRes] = await Promise.all([
-        profileIds.length > 0 
-          ? supabase.from('fermentation_profiles').select('*').in('id', profileIds)
-          : Promise.resolve({ data: [] }),
-        profileIds.length > 0 
-          ? supabase.from('fermentation_profile_steps').select('*').in('profile_id', profileIds).order('step_order')
-          : Promise.resolve({ data: [] }),
-        controllerIds.length > 0
-          ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, target_temp').in('controller_id', controllerIds)
-          : Promise.resolve({ data: [] }),
+      // Load ALL data in parallel
+      const [brewsData, raptData] = await Promise.all([
+        loadBrewsInternal(),
+        loadRaptDataInternal(),
       ]);
-
-      const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
-      const stepsMap = new Map<string, any[]>();
-      (stepsRes.data || []).forEach((s: any) => {
-        if (!stepsMap.has(s.profile_id)) stepsMap.set(s.profile_id, []);
-        stepsMap.get(s.profile_id)!.push(s);
+      
+      // Sort brews by controllers BEFORE setting state (no visual reordering)
+      const sortedBrews = sortBrewsByControllers(brewsData, raptData.controllers);
+      
+      // Update all state at once
+      setBrews(sortedBrews);
+      setPills(raptData.pills);
+      setControllers(raptData.controllers);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Fel',
+        description: 'Kunde inte ladda data',
+        variant: 'destructive',
       });
-      const controllersMap = new Map((controllersRes.data || []).map((c: any) => [c.controller_id, c]));
+    } finally {
+      setLoading(false);
+    }
+  }, [loadBrewsInternal, loadRaptDataInternal, toast]);
 
-      // Build session data by brew_id
-      const sessionsByBrewId = new Map<string, any>();
-      activeSessions.forEach(session => {
-        if (session.brew_id) {
-          const profile = profilesMap.get(session.profile_id);
-          const steps = stepsMap.get(session.profile_id) || [];
-          const controller = controllersMap.get(session.controller_id);
-          sessionsByBrewId.set(session.brew_id, {
-            id: session.id,
-            profile_id: session.profile_id,
-            controller_id: session.controller_id,
-            status: session.status,
-            current_step_index: session.current_step_index,
-            step_started_at: session.step_started_at,
-            started_at: session.started_at,
-            step_start_temp: session.step_start_temp,
-            profile_name: profile?.name || '',
-            steps: steps.map((s: any) => ({
-              id: s.id,
-              step_type: s.step_type,
-              target_temp: s.target_temp,
-              duration_hours: s.duration_hours,
-              ramp_type: s.ramp_type,
-              gravity_stable_days: s.gravity_stable_days,
-              target_sg: s.target_sg,
-              sg_comparison: s.sg_comparison,
-              step_order: s.step_order,
-            })),
-            controller_current_temp: controller?.current_temp ?? null,
-            controller_target_temp: controller?.target_temp ?? null,
-          });
-        }
-      });
-
-      // Group events by brew_id
-      const eventsByBrewId: Record<string, BrewEvent[]> = {};
-      (eventsRes.data || []).forEach((event: BrewEvent) => {
-        if (!eventsByBrewId[event.brew_id]) {
-          eventsByBrewId[event.brew_id] = [];
-        }
-        eventsByBrewId[event.brew_id].push(event);
-      });
-
-      const brewsData = brewReadings.map((reading: any) => {
-        const originalSgData = reading.sg_data || [];
-        let sgData = originalSgData;
-
-        if (reading.status === 'Conditioning' || reading.status === 'Completed') {
-          const sortedData = [...sgData].sort((a, b) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-          );
-
-          let cutoffIndex = sortedData.length - 1;
-          for (let i = sortedData.length - 1; i > 0; i--) {
-            const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
-            const rate = calculateFermentationRate(recentData);
-
-            if (rate !== null && Math.abs(rate) >= 0.001) {
-              cutoffIndex = i;
-              break;
-            }
-          }
-
-          sgData = sortedData.slice(0, cutoffIndex + 1);
-        }
-
-        const fermentationRate = calculateFermentationRate(originalSgData);
-
-        return {
-          id: reading.id,
-          batch_id: reading.batch_id,
-          name: reading.name,
-          style: reading.style,
-          batchNumber: reading.batch_number,
-          status: reading.status,
-          currentSG: reading.current_sg,
-          currentTemp: reading.current_temp,
-          attenuation: reading.attenuation,
-          abv: reading.abv,
-          originalGravity: reading.original_gravity,
-          finalGravity: reading.final_gravity,
-          lastUpdate: reading.last_update
-            ? new Date(reading.last_update).toLocaleString('sv-SE', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : 'Ingen data',
-          lastUpdateRaw: reading.last_update,
-          battery: reading.battery,
-          sgData: sgData,
-          fermentationRate:
-            reading.status === 'Conditioning' || reading.status === 'Completed'
-              ? 0
-              : fermentationRate,
-          coldcrashAcknowledged: reading.coldcrash_acknowledged ?? false,
-          events: eventsByBrewId[reading.id] || [],
-          linked_controller_id: reading.linked_controller_id || null,
-          linked_pill_id: reading.linked_pill_id || null,
-          fermentationSession: sessionsByBrewId.get(reading.id) || null,
-        };
-      });
-
-      setBrews(brewsData);
+  // Public loadBrews for external use and realtime updates
+  const loadBrews = useCallback(async () => {
+    try {
+      const brewsData = await loadBrewsInternal();
+      // Sort using current controllers from ref
+      const sortedBrews = sortBrewsByControllers(brewsData, controllersRef.current);
+      setBrews(sortedBrews);
     } catch (error) {
       console.error('Error loading brews:', error);
       toast({
@@ -255,39 +347,24 @@ export function useBrewData(): UseBrewDataReturn {
         description: 'Kunde inte ladda bryggdata',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
-  }, [toast]);
+  }, [loadBrewsInternal, toast]);
 
+  // Public loadRaptData for external use and realtime updates
   const loadRaptData = useCallback(async () => {
     try {
-      console.log('Loading RAPT data from public edge function...');
-
-      const { data, error } = await supabase.functions.invoke('get-public-rapt-data');
-
-      if (error) {
-        console.error('Error loading RAPT data:', error);
-        return;
-      }
-
-      if (!data.success) {
-        console.error('Failed to load RAPT data:', data.error);
-        return;
-      }
-
-      setPills(data.pills || []);
-      setControllers(data.controllers || []);
-
-      console.log(
-        `Loaded ${data.pills?.length || 0} pills and ${data.controllers?.length || 0} controllers`
-      );
+      const raptData = await loadRaptDataInternal();
+      setPills(raptData.pills);
+      setControllers(raptData.controllers);
+      
+      // Re-sort brews with new controllers
+      setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
     } catch (error) {
       console.error('Error loading RAPT data:', error);
     }
-  }, []);
+  }, [loadRaptDataInternal]);
 
-  // Handle brew reading updates
+  // Handle brew reading updates - direct state update
   const handleBrewUpdate = useCallback((payload: any) => {
     if (payload.eventType === 'UPDATE' && payload.new) {
       const updatedReading = payload.new;
@@ -444,6 +521,29 @@ export function useBrewData(): UseBrewDataReturn {
     }
   }, [loadBrews]);
 
+  // Optimized realtime handlers - update in-place where possible
+  const handlePillUpdate = useCallback((payload: any) => {
+    if (payload.eventType === 'UPDATE' && payload.new) {
+      setPills(prev => prev.map(pill => 
+        pill.pill_id === payload.new.pill_id ? { ...pill, ...payload.new } : pill
+      ));
+    } else {
+      loadRaptData();
+    }
+  }, [loadRaptData]);
+
+  const handleControllerUpdate = useCallback((payload: any) => {
+    if (payload.eventType === 'UPDATE' && payload.new) {
+      setControllers(prev => prev.map(controller => 
+        controller.controller_id === payload.new.controller_id 
+          ? { ...controller, ...payload.new } 
+          : controller
+      ));
+    } else {
+      loadRaptData();
+    }
+  }, [loadRaptData]);
+
   // Realtime subscriptions
   useRealtimeSubscription({
     table: 'brew_readings',
@@ -452,12 +552,12 @@ export function useBrewData(): UseBrewDataReturn {
 
   useRealtimeSubscription({
     table: 'rapt_pills',
-    onPayload: loadRaptData,
+    onPayload: handlePillUpdate,
   });
 
   useRealtimeSubscription({
     table: 'rapt_temp_controllers',
-    onPayload: loadRaptData,
+    onPayload: handleControllerUpdate,
   });
 
   useRealtimeSubscription({
@@ -499,39 +599,10 @@ export function useBrewData(): UseBrewDataReturn {
     onPayload: loadBrews,
   });
 
-  // Initial data load
+  // Initial data load - single parallel load
   useEffect(() => {
-    loadBrews();
-    loadRaptData();
-  }, [loadBrews, loadRaptData]);
-
-  // Re-sort brews when controllers change
-  useEffect(() => {
-    if (brews.length === 0 || controllers.length === 0) return;
-
-    setBrews(prevBrews => {
-      const sorted = [...prevBrews].sort((a, b) => {
-        const aControllerIndex = controllers.findIndex(
-          c => c.controller_id === a.linked_controller_id
-        );
-        const bControllerIndex = controllers.findIndex(
-          c => c.controller_id === b.linked_controller_id
-        );
-
-        if (aControllerIndex !== -1 && bControllerIndex !== -1) {
-          return aControllerIndex - bControllerIndex;
-        }
-
-        if (aControllerIndex !== -1) return -1;
-        if (bControllerIndex !== -1) return 1;
-
-        return 0;
-      });
-
-      const orderChanged = sorted.some((brew, index) => brew.id !== prevBrews[index].id);
-      return orderChanged ? sorted : prevBrews;
-    });
-  }, [controllers]);
+    loadAllData();
+  }, [loadAllData]);
 
   return {
     brews,
