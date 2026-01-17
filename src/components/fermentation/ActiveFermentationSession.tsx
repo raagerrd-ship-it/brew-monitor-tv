@@ -239,9 +239,7 @@ export function ActiveFermentationSession({
     }
     
     // Overall progress = completed steps + current step progress (weighted)
-    const result = ((completedSteps + currentStepProgress) / totalSteps) * 100;
-    console.log('Progress calc:', { completedSteps, currentStepProgress, totalSteps, result });
-    return result;
+    return ((completedSteps + currentStepProgress) / totalSteps) * 100;
   }, [session]);
 
   const calculateStepProgress = useCallback(() => {
