@@ -99,7 +99,7 @@ export function BrewingDashboard() {
     };
   }, [emblaApi]);
 
-  // Memoized handlers
+  // Memoized handlers - MUST be before any conditional returns
   const handleShareBrew = useCallback(async (brew: typeof brews[0]) => {
     const brewSlug = brew.name.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const shareUrl = `https://brew-monitor-tv.lovable.app/?brew=${brewSlug}`;
@@ -130,7 +130,7 @@ export function BrewingDashboard() {
     setControllerDialogOpen(true);
   }, []);
 
-  // Memoized grid layout helpers
+  // Memoized grid layout helpers - MUST be before any conditional returns
   const gridLayout = useMemo(() => {
     const count = brews.length;
     if (count === 3) return "flex justify-center gap-6";
@@ -143,6 +143,7 @@ export function BrewingDashboard() {
     return "w-[calc(50%-0.75rem)]";
   }, [brews.length]);
 
+  // Loading state - AFTER all hooks
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-background flex items-center justify-center">
