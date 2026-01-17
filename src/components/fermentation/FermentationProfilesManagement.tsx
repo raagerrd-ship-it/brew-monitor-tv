@@ -419,31 +419,28 @@ export function FermentationProfilesManagement() {
                   className="flex items-center justify-between p-3 rounded-lg border bg-card"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-xs text-muted-foreground font-medium">{index + 1}</span>
-                      {isAuthenticated && (
-                        <div className="flex flex-col">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            onClick={() => moveStep(step.id, 'up')}
-                            disabled={index === 0}
-                          >
-                            <ArrowUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            onClick={() => moveStep(step.id, 'down')}
-                            disabled={index === steps.length - 1}
-                          >
-                            <ArrowDown className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    {isAuthenticated && (
+                      <div className="flex flex-col">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => moveStep(step.id, 'up')}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => moveStep(step.id, 'down')}
+                          disabled={index === steps.length - 1}
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                     <div className="p-2 rounded-full bg-muted">
                       {getStepIcon(step.step_type)}
                     </div>
