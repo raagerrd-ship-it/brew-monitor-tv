@@ -217,6 +217,7 @@ export function BrewingDashboard() {
             pills={pills}
             onControllerClick={handleControllerClick}
             isMobile={true}
+            isTvMode={isTvMode}
           />
         )}
         
@@ -234,6 +235,7 @@ export function BrewingDashboard() {
                   pills={pills}
                   onControllerClick={handleControllerClick}
                   isMobile={false}
+                  isTvMode={isTvMode}
                 />
               )}
             </div>
@@ -375,9 +377,10 @@ interface RaptControllerBarProps {
   pills: { pill_id: string; color: string; name: string; battery_level: number; last_update: string | null }[];
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
+  isTvMode?: boolean;
 }
 
-const RaptControllerBar = memo(function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: RaptControllerBarProps) {
+const RaptControllerBar = memo(function RaptControllerBar({ controllers, pills, onControllerClick, isMobile, isTvMode = false }: RaptControllerBarProps) {
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div 
@@ -405,12 +408,12 @@ const RaptControllerBar = memo(function RaptControllerBar({ controllers, pills, 
               )}
               
               <div 
-                className={`flex items-center cursor-pointer flex-shrink-0 transition-all duration-200 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-2.5 py-1.5 gap-2.5'}`}
+                className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-2.5 py-1.5 gap-2.5'} ${isTvMode ? '' : 'cursor-pointer transition-all duration-200'}`}
                 style={{ background: 'transparent' }}
-                onClick={() => onControllerClick(controller)}
-                onMouseEnter={!isMobile ? (e) => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
-                onMouseLeave={!isMobile ? (e) => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                title={!isMobile ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
+                onClick={isTvMode ? undefined : () => onControllerClick(controller)}
+                onMouseEnter={!isMobile && !isTvMode ? (e) => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
+                onMouseLeave={!isMobile && !isTvMode ? (e) => { e.currentTarget.style.background = 'transparent'; } : undefined}
+                title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
               >
                 <AirVent 
                   style={{
@@ -449,9 +452,9 @@ const RaptControllerBar = memo(function RaptControllerBar({ controllers, pills, 
                         }}
                         color={linkedPill.color}
                         strokeWidth={2}
-                        className={isPillStale && !isMobile ? 'animate-pulse' : ''}
+                        className={isPillStale && !isMobile && !isTvMode ? 'animate-pulse' : ''}
                       />
-                      {isPillStale && !isMobile && (
+                      {isPillStale && !isMobile && !isTvMode && (
                         <div 
                           className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5"
                           style={{ backgroundColor: 'hsl(25 95% 53%)' }}
