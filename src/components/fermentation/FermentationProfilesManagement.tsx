@@ -416,10 +416,10 @@ export function FermentationProfilesManagement() {
               {steps.map((step, index) => (
                 <div
                   key={step.id}
-                  className="flex items-start gap-2 p-3 rounded-lg border bg-card"
+                  className="flex items-center gap-2 p-3 rounded-lg border bg-card"
                 >
                   {isAuthenticated && (
-                    <div className="flex flex-col pt-1">
+                    <div className="flex flex-col">
                       <Button
                         variant="ghost"
                         size="icon"
