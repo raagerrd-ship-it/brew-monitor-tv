@@ -387,23 +387,33 @@ function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
     }
   };
 
+  const getStepTemp = (step: FermentationProfileStep) => {
+    if (step.target_temp != null) {
+      return `${step.target_temp}°`;
+    }
+    return null;
+  };
+
   return (
     <div className="flex flex-wrap gap-1">
-      {steps.map((step, index) => (
-        <div
-          key={step.id}
-          className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
-            index < currentStepIndex
-              ? 'bg-primary/20 border-primary/30 text-primary'
-              : index === currentStepIndex
-              ? 'bg-primary border-primary text-primary-foreground'
-              : 'bg-muted border-border text-muted-foreground'
-          }`}
-        >
-          <span className="text-[10px]">{getStepIcon(step.step_type)}</span>
-          <span>{index + 1}</span>
-        </div>
-      ))}
+      {steps.map((step, index) => {
+        const temp = getStepTemp(step);
+        return (
+          <div
+            key={step.id}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
+              index < currentStepIndex
+                ? 'bg-primary/20 border-primary/30 text-primary'
+                : index === currentStepIndex
+                ? 'bg-primary border-primary text-primary-foreground'
+                : 'bg-muted border-border text-muted-foreground'
+            }`}
+          >
+            <span className="text-[10px]">{getStepIcon(step.step_type)}</span>
+            <span>{index + 1}{temp && ` (${temp})`}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
