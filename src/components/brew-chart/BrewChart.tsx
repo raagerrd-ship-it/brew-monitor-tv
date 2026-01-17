@@ -27,11 +27,16 @@ import {
   mergeWithControllerTemp,
 } from "./utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useDeferredRender } from "@/hooks/use-deferred-render";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function BrewChartComponent({ data, og, fg, singleView = false, events = [], controllerId }: BrewChartProps) {
   const [smoothLines, setSmoothLines] = useState(true);
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const { isTvMode } = useTvMode();
+  
+  // Defer chart rendering to prevent blocking main thread during page updates
+  const shouldRenderChart = useDeferredRender();
   
   // Fetch controller temperature history when controllerId is provided
   useEffect(() => {
@@ -98,6 +103,15 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
     return (
       <div className="h-full flex items-center justify-center">
         <p className="text-muted-foreground text-lg">N/A</p>
+      </div>
+    );
+  }
+
+  // Show skeleton while deferring render to prevent blocking main thread
+  if (!shouldRenderChart) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Skeleton className="w-full h-full rounded-lg" />
       </div>
     );
   }

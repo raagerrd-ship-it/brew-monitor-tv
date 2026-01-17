@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   FermentationSession, 
   FermentationProfile, 
@@ -24,6 +25,7 @@ import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { useDeferredRender } from "@/hooks/use-deferred-render";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -59,6 +61,9 @@ export function ActiveFermentationSession({
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
   const { toast } = useToast();
+  
+  // Defer rendering to prevent blocking main thread during page updates
+  const shouldRender = useDeferredRender();
   
   // Use prop if provided, otherwise fetch (for non-compact views)
   const isAuthenticated = isAuthenticatedProp ?? isAuthenticatedLocal;
@@ -345,6 +350,15 @@ export function ActiveFermentationSession({
     const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
     return Math.min(Math.max(elapsed / currentStep.duration_hours, 0), 1);
   }, [session]);
+
+  // Show skeleton while deferring render to prevent blocking main thread
+  if (!shouldRender && compact) {
+    return (
+      <div className="rounded-lg border bg-card/50 p-3">
+        <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
 
   if (loading || !session) {
     return null;
