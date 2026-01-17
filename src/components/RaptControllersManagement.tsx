@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AirVent, Thermometer, Check, X, ChevronUp, ChevronDown } from "lucide-react";
+import { AirVent, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -36,8 +36,6 @@ export function RaptControllersManagement() {
   const [selectedControllers, setSelectedControllers] = useState<Record<string, boolean>>({});
   const [selectedControllersData, setSelectedControllersData] = useState<SelectedController[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingControllerId, setEditingControllerId] = useState<string | null>(null);
-  const [tempTargetTemp, setTempTargetTemp] = useState<string>("");
   const [editingLimitsId, setEditingLimitsId] = useState<string | null>(null);
   const [tempMinTemp, setTempMinTemp] = useState<string>("");
   const [tempMaxTemp, setTempMaxTemp] = useState<string>("");
@@ -298,69 +296,6 @@ export function RaptControllersManagement() {
     }
   };
 
-  const handleStartEdit = (controller: ControllerData) => {
-    setEditingControllerId(controller.controller_id);
-    setTempTargetTemp(controller.target_temp?.toString() || "");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingControllerId(null);
-    setTempTargetTemp("");
-  };
-
-  const handleUpdateTargetTemp = async (controllerId: string) => {
-    const controller = controllers.find(c => c.controller_id === controllerId);
-    if (!controller) return;
-
-    const targetTemp = parseFloat(tempTargetTemp);
-    
-    if (isNaN(targetTemp)) {
-      toast({
-        title: "Ogiltigt värde",
-        description: "Ange en giltig temperatur",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
-        body: {
-          controllerId: controller.controller_id,
-          action: 'setTargetTemperature',
-          value: targetTemp
-        }
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      // Update local state
-      setControllers(prev => prev.map(c => 
-        c.controller_id === controllerId 
-          ? { ...c, target_temp: targetTemp }
-          : c
-      ));
-
-      setEditingControllerId(null);
-      setTempTargetTemp("");
-
-      toast({
-        title: "Måltemperatur uppdaterad",
-        description: `${controller.name} måltemperatur är nu ${targetTemp}°C`,
-      });
-    } catch (error) {
-      console.error('Error updating target temperature:', error);
-      toast({
-        title: "Fel",
-        description: "Kunde inte uppdatera måltemperatur",
-        variant: "destructive",
-      });
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const handleStartEditLimits = (controller: ControllerData) => {
     setEditingLimitsId(controller.controller_id);
@@ -575,34 +510,7 @@ export function RaptControllersManagement() {
               </div>
             </div>
             
-            {editingControllerId === controller.controller_id ? (
-              <div className="flex items-center gap-2 pl-9">
-                <Input
-                  type="number"
-                  value={tempTargetTemp}
-                  onChange={(e) => setTempTargetTemp(e.target.value)}
-                  placeholder="°C"
-                  className="w-20 h-8"
-                  disabled={updating}
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleUpdateTargetTemp(controller.controller_id)}
-                  disabled={updating}
-                >
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleCancelEdit}
-                  disabled={updating}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : editingLimitsId === controller.controller_id ? (
+            {editingLimitsId === controller.controller_id ? (
               <div className="space-y-2 pl-9">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <div className="flex items-center gap-2 flex-1">
@@ -647,15 +555,6 @@ export function RaptControllersManagement() {
               </div>
             ) : (
               <div className="flex flex-col gap-2 pl-9">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleStartEdit(controller)}
-                  className="h-8 px-3 w-fit"
-                >
-                  <Thermometer className="h-4 w-4 mr-1" />
-                  Ändra måltemperatur
-                </Button>
                 <Button
                   size="sm"
                   variant="outline"
