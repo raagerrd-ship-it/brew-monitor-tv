@@ -277,7 +277,7 @@ serve(async (req) => {
         }
       }
       
-      await supabase.from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
+      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
       log('TIMER', 'info', 'Reset timer - no cooling capability');
       await printSummary(supabase, 'No cooling capability', false);
       return new Response(JSON.stringify({ message: 'No cooling capability', resetTimer: true, decisionLog }), {
@@ -289,7 +289,7 @@ serve(async (req) => {
 
     if (!lowestTempController.cooling_enabled) {
       log('LOWEST_COOLING', 'fail', `${lowestTempController.name} does not have cooling enabled`);
-      await supabase.from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
+      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
       log('TIMER', 'info', 'Reset timer - lowest not cooling');
       await printSummary(supabase, 'Lowest not cooling', false);
       return new Response(JSON.stringify({ message: 'Lowest temp controller cooling not active', resetTimer: true, decisionLog }), {
@@ -365,7 +365,7 @@ serve(async (req) => {
     });
 
     if (!isActivelyCooling) {
-      await supabase.from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
+      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
       log('TIMER', 'info', 'Reset timer - at target');
       await printSummary(supabase, 'Not actively cooling', false);
       return new Response(JSON.stringify({ message: 'Lowest controller not actively cooling', resetTimer: true, decisionLog }), {
@@ -431,7 +431,7 @@ serve(async (req) => {
       allActivelyCooling ? 'Controller has been trying to cool for entire interval' : 'Controller was NOT actively cooling for entire interval');
     
     if (!allActivelyCooling) {
-      await supabase.from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
       log('TIMER', 'info', 'Updated last_check_at');
       await printSummary(supabase, 'Not sustained cooling', false);
       return new Response(JSON.stringify({ message: 'Not actively cooling entire period', decisionLog }), {
@@ -444,7 +444,7 @@ serve(async (req) => {
       target_temp: lowestTargetTemp
     });
     
-    await supabase.from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
     log('TIMER', 'info', 'Updated last_check_at');
 
     const adjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];

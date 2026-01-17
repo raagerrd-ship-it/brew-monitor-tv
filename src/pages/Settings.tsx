@@ -3,6 +3,7 @@ import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
+import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -1560,6 +1561,16 @@ export default function Settings() {
                       </CollapsibleContent>
                     </Collapsible>
                   )}
+
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors">
+                      <span className="text-sm font-medium">Beslutslogg (senaste kontroller)</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="py-2">
+                      <AutoCoolingDecisionLogs />
+                    </CollapsibleContent>
+                  </Collapsible>
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Välj kylare</label>
