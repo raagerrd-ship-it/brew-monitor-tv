@@ -270,6 +270,9 @@ export function FermentationProfilesManagement() {
   const getStepDescription = (step: FermentationProfileStep) => {
     switch (step.step_type) {
       case 'hold':
+        if (step.target_sg !== null) {
+          return `Håll ${step.target_temp}°C tills SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+        }
         return `Håll ${step.target_temp}°C i ${step.duration_hours}h`;
       case 'ramp':
         return `${step.ramp_type === 'immediate' ? 'Ställ in' : 'Rampa till'} ${step.target_temp}°C${step.duration_hours ? ` över ${step.duration_hours}h` : ''}`;

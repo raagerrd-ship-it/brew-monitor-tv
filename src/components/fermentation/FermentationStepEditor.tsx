@@ -49,6 +49,7 @@ export function FermentationStepEditor({
   const [targetSg, setTargetSg] = useState<string>("");
   const [sgComparison, setSgComparison] = useState<SgComparison>("at_or_below");
   const [notes, setNotes] = useState<string>("");
+  const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg">("time");
 
   useEffect(() => {
     if (step) {
@@ -61,6 +62,12 @@ export function FermentationStepEditor({
       setTargetSg(step.target_sg?.toString() || "");
       setSgComparison(step.sg_comparison || "at_or_below");
       setNotes(step.notes || "");
+      // Determine hold end condition based on existing data
+      if (step.step_type === "hold" && step.target_sg !== null) {
+        setHoldEndCondition("sg");
+      } else {
+        setHoldEndCondition("time");
+      }
     } else {
       resetForm();
     }
@@ -76,18 +83,31 @@ export function FermentationStepEditor({
     setTargetSg("");
     setSgComparison("at_or_below");
     setNotes("");
+    setHoldEndCondition("time");
   };
 
   const handleSave = () => {
     const stepData: Partial<FermentationProfileStep> = {
       step_type: stepType,
       notes: notes.trim() || null,
+      // Clear all conditional fields first
+      duration_hours: null,
+      target_sg: null,
+      sg_comparison: null,
+      gravity_stable_days: null,
+      gravity_threshold: null,
+      ramp_type: null,
     };
 
     switch (stepType) {
       case "hold":
         stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
-        stepData.duration_hours = durationHours ? parseInt(durationHours) : null;
+        if (holdEndCondition === "time") {
+          stepData.duration_hours = durationHours ? parseInt(durationHours) : null;
+        } else {
+          stepData.target_sg = targetSg ? parseFloat(targetSg) : null;
+          stepData.sg_comparison = sgComparison;
+        }
         break;
       case "ramp":
         stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
@@ -115,17 +135,31 @@ export function FermentationStepEditor({
       case "hold":
         return (
           <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Måltemperatur (°C)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={targetTemp}
-                  onChange={(e) => setTargetTemp(e.target.value)}
-                  placeholder="20"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Måltemperatur (°C)</Label>
+              <Input
+                type="number"
+                step="0.5"
+                value={targetTemp}
+                onChange={(e) => setTargetTemp(e.target.value)}
+                placeholder="20"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Slutvillkor</Label>
+              <Select value={holdEndCondition} onValueChange={(v) => setHoldEndCondition(v as "time" | "sg")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="time">Tid (antal timmar)</SelectItem>
+                  <SelectItem value="sg">SG-värde uppnått</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {holdEndCondition === "time" ? (
               <div className="space-y-2">
                 <Label>Varaktighet (timmar)</Label>
                 <Input
@@ -135,7 +169,42 @@ export function FermentationStepEditor({
                   placeholder="48"
                 />
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Jämförelse</Label>
+                  <Select value={sgComparison} onValueChange={(v) => setSgComparison(v as SgComparison)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(SG_COMPARISON_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mål-SG</Label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    value={targetSg}
+                    onChange={(e) => setTargetSg(e.target.value)}
+                    placeholder="1.020"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <p className="text-xs text-muted-foreground">
+              {holdEndCondition === "time" 
+                ? "Håll temperaturen under angiven tid innan nästa steg."
+                : "Håll temperaturen tills SG-värdet når det angivna villkoret."
+              }
+            </p>
           </>
         );
 
