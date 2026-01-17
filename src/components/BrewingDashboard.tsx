@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SyncCountdown } from "./SyncCountdown";
+
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
@@ -197,7 +197,6 @@ export function BrewingDashboard() {
               >
                 <Settings className="w-5 h-5" />
               </Button>
-              <SyncCountdown className="w-full h-full" />
             </div>
           </div>
         ) : null}
@@ -251,7 +250,7 @@ export function BrewingDashboard() {
                     style={{ width: '50%', height: '50%' }} 
                   />
                 </Button>
-                <SyncCountdown className="w-full h-full" />
+                
               </div>
             </div>
           </>
