@@ -34,16 +34,6 @@ interface RaptControllerDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface ProfileSession {
-  id: string;
-  profileId: string;
-  deviceId: string;
-  name: string;
-  startedAt: string;
-  status: string;
-  currentStepName?: string;
-}
-
 export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -52,8 +42,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [currentController, setCurrentController] = useState(controller);
-  const [activeProfile, setActiveProfile] = useState<ProfileSession | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(false);
   const [showStartSessionDialog, setShowStartSessionDialog] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
@@ -168,40 +156,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
       }
     };
 
-    const fetchActiveProfile = async () => {
-      if (!isAuthenticated) return;
-      
-      setLoadingProfile(true);
-      try {
-        const { data, error } = await supabase.functions.invoke('rapt-profile-sessions', {
-          body: { controllerId: controller.controller_id }
-        });
-        
-        if (error) {
-          console.error('Error fetching profile sessions:', error);
-          return;
-        }
-        
-        if (data && Array.isArray(data) && data.length > 0) {
-          // Find active profile (status could be 'Running' or similar)
-          const active = data.find((session: ProfileSession) => 
-            session.status === 'Running' || session.status === 'Active'
-          );
-          setActiveProfile(active || null);
-          console.log('Active profile:', active);
-        } else {
-          setActiveProfile(null);
-        }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-      } finally {
-        setLoadingProfile(false);
-      }
-    };
-
     if (open) {
       fetchLastSync();
-      fetchActiveProfile();
       setCurrentController(controller);
       
       // Update targetTemp when dialog opens with new controller
@@ -506,7 +462,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
         )}
 
         {/* Start Profile Button */}
-        {isAuthenticated && !activeProfile && !hasActiveSession && (
+        {isAuthenticated && !hasActiveSession && (
           <div className="border-t pt-3">
             <Button
               variant="outline"
