@@ -137,6 +137,21 @@ export function BrewingDashboard() {
     return "w-[calc(50%-0.75rem)]";
   }, [brews.length]);
 
+  // Memoize formatted load time
+  const formattedLoadTime = useMemo(() => 
+    appLoadTime.toLocaleString('sv-SE', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit'
+    }), 
+    [appLoadTime]
+  );
+
+  // Check for TV mode
+  const isTvMode = searchParams.get('tv') === 'true';
+
   // Loading state - AFTER all hooks
   if (loading) {
     return (
@@ -153,13 +168,7 @@ export function BrewingDashboard() {
         className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
         style={{ fontSize: 'min(1.5vh, 0.7vw)' }}
       >
-        Laddad: {appLoadTime.toLocaleString('sv-SE', { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: '2-digit', 
-          minute: '2-digit',
-          second: '2-digit'
-        })}
+        Laddad: {formattedLoadTime}
       </div>
 
       {/* Header Bar */}
@@ -232,26 +241,27 @@ export function BrewingDashboard() {
             <div className="flex items-center gap-4 flex-shrink-0">
               <Clock />
               
-              <div 
-                className="relative flex items-center justify-center" 
-                style={{ 
-                  width: 'min(6vh, 3.8vw)', 
-                  height: 'min(6vh, 3.8vw)',
-                }}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigate('/settings')}
-                  className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+              {!isTvMode && (
+                <div 
+                  className="relative flex items-center justify-center" 
+                  style={{ 
+                    width: 'min(6vh, 3.8vw)', 
+                    height: 'min(6vh, 3.8vw)',
+                  }}
                 >
-                  <Settings 
-                    className="transition-colors duration-200" 
-                    style={{ width: '50%', height: '50%' }} 
-                  />
-                </Button>
-                
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => navigate('/settings')}
+                    className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full"
+                  >
+                    <Settings 
+                      className="transition-colors duration-200" 
+                      style={{ width: '50%', height: '50%' }} 
+                    />
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -306,6 +316,7 @@ export function BrewingDashboard() {
                       onShareBrew={handleShareBrew}
                       onEventsChange={loadBrewEvents}
                       onDeviceLinkOpen={handleDeviceLinkOpen}
+                      isTvMode={isTvMode}
                     />
                   </div>
                 ))}
@@ -325,6 +336,7 @@ export function BrewingDashboard() {
                   onShareBrew={handleShareBrew}
                   onEventsChange={loadBrewEvents}
                   onDeviceLinkOpen={handleDeviceLinkOpen}
+                  isTvMode={isTvMode}
                 />
               </div>
             ))}

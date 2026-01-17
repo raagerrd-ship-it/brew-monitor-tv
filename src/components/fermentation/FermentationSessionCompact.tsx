@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Play, Pause, ArrowDown, Thermometer, Clock, Activity, Timer } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 interface FermentationSessionCompactProps {
   profileName: string;
@@ -29,6 +30,8 @@ export function FermentationSessionCompact({
   isRamping,
   rampProgress,
 }: FermentationSessionCompactProps) {
+  const { isTvMode } = useTvMode();
+  
   // Check if ramp step time is complete but temp not reached
   const isRampTimeComplete = () => {
     if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
@@ -157,8 +160,8 @@ export function FermentationSessionCompact({
         />
       )}
       
-      {/* Waiting for temp pulse overlay */}
-      {waitingForTemp && (
+      {/* Waiting for temp pulse overlay - disabled in TV mode */}
+      {waitingForTemp && !isTvMode && (
         <div 
           className="absolute inset-0 pointer-events-none animate-pulse"
           style={{
@@ -183,7 +186,7 @@ export function FermentationSessionCompact({
           </div>
         ) : waitingForTemp ? (
           <div 
-            className="p-1.5 rounded-full animate-pulse"
+            className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
             style={{ 
               background: 'linear-gradient(135deg, hsl(200 90% 50% / 0.3) 0%, hsl(200 90% 50% / 0.15) 100%)',
               boxShadow: '0 0 12px hsl(200 90% 50% / 0.4)'
@@ -193,7 +196,7 @@ export function FermentationSessionCompact({
           </div>
         ) : isRamping ? (
           <div 
-            className="p-1.5 rounded-full animate-pulse"
+            className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
             style={{ 
               background: 'linear-gradient(135deg, hsl(38 92% 50% / 0.3) 0%, hsl(38 92% 50% / 0.15) 100%)',
               boxShadow: '0 0 12px hsl(38 92% 50% / 0.4)'
@@ -229,7 +232,7 @@ export function FermentationSessionCompact({
           {waitingForTemp && (
             <Badge 
               variant="outline"
-              className="shrink-0 text-xs font-medium animate-pulse flex items-center gap-0.5 px-1.5 py-0"
+              className={`shrink-0 text-xs font-medium flex items-center gap-0.5 px-1.5 py-0 ${isTvMode ? '' : 'animate-pulse'}`}
               style={{
                 borderColor: 'hsl(200 90% 50% / 0.4)',
                 background: 'hsl(200 90% 50% / 0.15)',

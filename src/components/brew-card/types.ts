@@ -9,6 +9,7 @@ export interface BrewCardProps {
   onShareBrew: (brew: BrewData) => void;
   onEventsChange: () => void;
   onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
+  isTvMode?: boolean;
 }
 
 export interface DeviceMatch {
