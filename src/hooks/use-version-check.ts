@@ -83,8 +83,10 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
                 console.log('Service Workers unregistered:', registrations.length);
               }
               
-              // 3. Force hard reload with cache-busting URL
-              window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+              // 3. Force hard reload while preserving existing query params (like ?tv=true)
+              const currentParams = new URLSearchParams(window.location.search);
+              currentParams.set('v', Date.now().toString());
+              window.location.href = window.location.origin + window.location.pathname + '?' + currentParams.toString();
             } catch (error) {
               console.error('Cache clear failed, forcing reload anyway:', error);
               window.location.reload();
