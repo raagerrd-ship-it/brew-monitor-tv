@@ -113,13 +113,6 @@ export function FermentationSessionCompact({
   const visualState = waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
 
   const getBackgroundStyle = () => {
-    // In TV mode, use simpler solid backgrounds without gradients
-    if (isTvMode) {
-      if (waitingForTemp) return 'hsl(200 50% 20%)';
-      if (isRamping) return 'hsl(38 50% 18%)';
-      return 'hsl(222 30% 18%)';
-    }
-    
     if (waitingForTemp) {
       return 'linear-gradient(135deg, hsl(200 90% 50% / 0.15) 0%, hsl(200 90% 50% / 0.08) 100%)';
     }
@@ -136,9 +129,6 @@ export function FermentationSessionCompact({
   };
 
   const getBoxShadow = () => {
-    // No shadows in TV mode for better performance
-    if (isTvMode) return 'none';
-    
     if (waitingForTemp) {
       return '0 4px 20px hsl(200 90% 50% / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.1)';
     }
@@ -150,17 +140,15 @@ export function FermentationSessionCompact({
 
   return (
     <div 
-      className={`relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden transition-all duration-300 ${
-        isTvMode ? '' : 'backdrop-blur-md'
-      }`}
+      className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
         background: getBackgroundStyle(),
         border: `1px solid ${getBorderColor()}`,
         boxShadow: getBoxShadow(),
       }}
     >
-      {/* Animated ramp progress overlay - skip in TV mode */}
-      {isRamping && !waitingForTemp && rampProgress !== null && !isTvMode && (
+      {/* Animated ramp progress overlay */}
+      {isRamping && !waitingForTemp && rampProgress !== null && (
         <div 
           className="absolute inset-0 pointer-events-none transition-all duration-500"
           style={{
@@ -182,15 +170,13 @@ export function FermentationSessionCompact({
         />
       )}
       
-      {/* Subtle shimmer effect on top edge - skip in TV mode */}
-      {!isTvMode && (
-        <div 
-          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
-          style={{
-            background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.15) 50%, transparent 90%)'
-          }}
-        />
-      )}
+      {/* Subtle shimmer effect on top edge */}
+      <div 
+        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+        style={{
+          background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.15) 50%, transparent 90%)'
+        }}
+      />
       
       {/* Status icon with glow */}
       <div className="relative z-10 shrink-0">
