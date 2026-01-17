@@ -120,6 +120,14 @@ serve(async (req) => {
         activeSessions?.map(s => s.controller_id) || []
       );
 
+      // Get cooler controller to avoid overwriting its target temp (managed by auto-cooling)
+      const { data: autoCoolingSettings } = await supabase
+        .from('auto_cooling_settings')
+        .select('cooler_controller_id, enabled')
+        .single();
+      
+      const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
+
       // Filter only selected controllers and update
       const selectedControllersData = controllersData.filter((controller: any) => 
         selectedControllerIds.includes(controller.id)
@@ -135,8 +143,11 @@ serve(async (req) => {
         
         // Check if this controller has an active fermentation session
         const hasActiveSession = controllersWithActiveSessions.has(controller.id);
+        
+        // Check if this is the cooler controller (managed by auto-cooling)
+        const isCoolerController = controller.id === coolerControllerId;
 
-        // Build update object - skip target_temp if controller is managed by fermentation profile
+        // Build update object - skip target_temp if controller is managed by fermentation profile or auto-cooling
         const updateData: Record<string, any> = {
           current_temp: currentTemp,
           pill_temp: pillTemp,
@@ -149,11 +160,12 @@ serve(async (req) => {
           updated_at: new Date().toISOString()
         };
 
-        // Only update target_temp if NOT managed by a fermentation profile
-        if (!hasActiveSession) {
+        // Only update target_temp if NOT managed by a fermentation profile AND NOT the cooler
+        if (!hasActiveSession && !isCoolerController) {
           updateData.target_temp = targetTemp;
         } else {
-          console.log(`Skipping target_temp update for controller ${controller.id} - managed by fermentation profile`);
+          const reason = hasActiveSession ? 'fermentation profile' : 'auto-cooling';
+          console.log(`Skipping target_temp update for controller ${controller.id} - managed by ${reason}`);
         }
 
         await supabase
