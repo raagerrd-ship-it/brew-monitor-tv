@@ -290,6 +290,7 @@ export function ActiveFermentationSession({
         currentStep={currentStep}
         stepStartedAt={session.step_started_at}
         targetTemp={controllerData?.target_temp ?? null}
+        currentTemp={controllerData?.current_temp ?? null}
         isRamping={isRamping}
         rampProgress={rampProgress}
       />

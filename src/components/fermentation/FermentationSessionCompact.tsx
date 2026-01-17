@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Play, Pause, ArrowDown, Thermometer, Clock, Activity } from "lucide-react";
+import { Play, Pause, ArrowDown, Thermometer, Clock, Activity, Timer } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 
 interface FermentationSessionCompactProps {
@@ -10,6 +10,7 @@ interface FermentationSessionCompactProps {
   currentStep?: FermentationProfileStep;
   stepStartedAt: string;
   targetTemp: number | null;
+  currentTemp?: number | null;
   isRamping: boolean;
   rampProgress: number | null;
 }
@@ -22,9 +23,32 @@ export function FermentationSessionCompact({
   currentStep,
   stepStartedAt,
   targetTemp,
+  currentTemp,
   isRamping,
   rampProgress,
 }: FermentationSessionCompactProps) {
+  // Check if ramp step time is complete but temp not reached
+  const isRampTimeComplete = () => {
+    if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
+      return false;
+    }
+    const stepStarted = new Date(stepStartedAt);
+    const elapsedHours = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+    return elapsedHours >= currentStep.duration_hours;
+  };
+
+  const isTargetTempReached = () => {
+    if (!currentStep || currentStep.target_temp == null || currentTemp == null) {
+      return false;
+    }
+    return Math.abs(currentTemp - currentStep.target_temp) <= 0.5;
+  };
+
+  const waitingForTemp = currentStep?.step_type === 'ramp' && isRampTimeComplete() && !isTargetTempReached();
+  const tempDifference = currentStep?.target_temp != null && currentTemp != null 
+    ? Math.abs(currentTemp - currentStep.target_temp).toFixed(1) 
+    : null;
+
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
       case 'ramp': return <ArrowDown className="h-3 w-3" />;
@@ -46,6 +70,11 @@ export function FermentationSessionCompact({
   };
 
   const getNextStepCondition = (step: FermentationProfileStep) => {
+    // If waiting for temp on ramp step, show that status
+    if (waitingForTemp && tempDifference) {
+      return `Väntar på temp (${tempDifference}° kvar)`;
+    }
+
     switch (step.step_type) {
       case 'hold': {
         if (!step.duration_hours) return 'Okänd tid';
@@ -75,21 +104,46 @@ export function FermentationSessionCompact({
     }
   };
 
+  // Determine the visual state
+  const visualState = waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
+
+  const getBackgroundStyle = () => {
+    if (waitingForTemp) {
+      return 'linear-gradient(135deg, hsl(200 90% 50% / 0.15) 0%, hsl(200 90% 50% / 0.08) 100%)';
+    }
+    if (isRamping) {
+      return 'linear-gradient(135deg, hsl(38 92% 50% / 0.12) 0%, hsl(var(--primary) / 0.08) 100%)';
+    }
+    return 'linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, hsl(var(--primary) / 0.05) 100%)';
+  };
+
+  const getBorderColor = () => {
+    if (waitingForTemp) return 'hsl(200 90% 50% / 0.3)';
+    if (isRamping) return 'hsl(38 92% 50% / 0.25)';
+    return 'hsl(var(--primary) / 0.2)';
+  };
+
+  const getBoxShadow = () => {
+    if (waitingForTemp) {
+      return '0 4px 20px hsl(200 90% 50% / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.1)';
+    }
+    if (isRamping) {
+      return '0 4px 20px hsl(38 92% 50% / 0.15), inset 0 1px 0 hsl(0 0% 100% / 0.1)';
+    }
+    return '0 4px 16px hsl(var(--primary) / 0.1), inset 0 1px 0 hsl(0 0% 100% / 0.08)';
+  };
+
   return (
     <div 
       className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
-        background: isRamping 
-          ? 'linear-gradient(135deg, hsl(38 92% 50% / 0.12) 0%, hsl(var(--primary) / 0.08) 100%)'
-          : 'linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, hsl(var(--primary) / 0.05) 100%)',
-        border: `1px solid ${isRamping ? 'hsl(38 92% 50% / 0.25)' : 'hsl(var(--primary) / 0.2)'}`,
-        boxShadow: isRamping 
-          ? '0 4px 20px hsl(38 92% 50% / 0.15), inset 0 1px 0 hsl(0 0% 100% / 0.1)'
-          : '0 4px 16px hsl(var(--primary) / 0.1), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
+        background: getBackgroundStyle(),
+        border: `1px solid ${getBorderColor()}`,
+        boxShadow: getBoxShadow(),
       }}
     >
       {/* Animated ramp progress overlay */}
-      {isRamping && rampProgress !== null && (
+      {isRamping && !waitingForTemp && rampProgress !== null && (
         <div 
           className="absolute inset-0 pointer-events-none transition-all duration-500"
           style={{
@@ -97,6 +151,16 @@ export function FermentationSessionCompact({
               hsl(38 92% 50% / 0.2) 0%, 
               hsl(38 92% 50% / 0.08) ${rampProgress * 100}%, 
               transparent ${rampProgress * 100}%)`,
+          }}
+        />
+      )}
+      
+      {/* Waiting for temp pulse overlay */}
+      {waitingForTemp && (
+        <div 
+          className="absolute inset-0 pointer-events-none animate-pulse"
+          style={{
+            background: 'linear-gradient(90deg, hsl(200 90% 50% / 0.1) 0%, hsl(200 90% 50% / 0.05) 100%)',
           }}
         />
       )}
@@ -114,6 +178,16 @@ export function FermentationSessionCompact({
         {status === 'paused' ? (
           <div className="p-1.5 rounded-full bg-muted/50">
             <Pause className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+        ) : waitingForTemp ? (
+          <div 
+            className="p-1.5 rounded-full animate-pulse"
+            style={{ 
+              background: 'linear-gradient(135deg, hsl(200 90% 50% / 0.3) 0%, hsl(200 90% 50% / 0.15) 100%)',
+              boxShadow: '0 0 12px hsl(200 90% 50% / 0.4)'
+            }}
+          >
+            <Timer className="w-3.5 h-3.5 text-blue-400" />
           </div>
         ) : isRamping ? (
           <div 
@@ -150,7 +224,21 @@ export function FermentationSessionCompact({
           >
             {currentStepIndex + 1}/{totalSteps}
           </Badge>
-          {isRamping && rampProgress !== null && (
+          {waitingForTemp && (
+            <Badge 
+              variant="outline"
+              className="text-[10px] px-2 py-0.5 h-5 shrink-0 font-medium animate-pulse"
+              style={{
+                borderColor: 'hsl(200 90% 50% / 0.4)',
+                background: 'hsl(200 90% 50% / 0.15)',
+                color: 'hsl(200 90% 70%)',
+              }}
+            >
+              <Timer className="w-3 h-3 mr-1" />
+              Väntar på temp
+            </Badge>
+          )}
+          {isRamping && !waitingForTemp && rampProgress !== null && (
             <span 
               className="text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded"
               style={{ 
@@ -167,23 +255,31 @@ export function FermentationSessionCompact({
           <div className="flex items-center gap-2 text-xs mt-1">
             {/* Temperature display */}
             <span className="flex items-center gap-1">
-              <Thermometer className="w-3.5 h-3.5 text-muted-foreground/70" />
-              {targetTemp != null && (
+              <Thermometer 
+                className="w-3.5 h-3.5" 
+                style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
+              />
+              {currentTemp != null && (
                 <span 
                   className="font-semibold"
                   style={{ 
-                    color: isRamping ? 'hsl(38 92% 60%)' : 'hsl(var(--primary))',
-                    textShadow: isRamping ? '0 0 8px hsl(38 92% 50% / 0.4)' : 'none'
+                    color: waitingForTemp ? 'hsl(200 90% 60%)' : isRamping ? 'hsl(38 92% 60%)' : 'hsl(var(--primary))',
+                    textShadow: waitingForTemp ? '0 0 8px hsl(200 90% 50% / 0.4)' : isRamping ? '0 0 8px hsl(38 92% 50% / 0.4)' : 'none'
                   }}
                 >
-                  {targetTemp.toFixed(1)}°C
+                  {currentTemp.toFixed(1)}°C
                 </span>
               )}
-              {isRamping && currentStep.target_temp && 
-               targetTemp != null && Math.abs(targetTemp - currentStep.target_temp) > 0.1 && (
+              {currentStep.target_temp && 
+               currentTemp != null && Math.abs(currentTemp - currentStep.target_temp) > 0.1 && (
                 <>
                   <span className="text-muted-foreground/50">→</span>
-                  <span className="text-primary/80 font-medium">{currentStep.target_temp}°C</span>
+                  <span 
+                    className="font-medium"
+                    style={{ color: waitingForTemp ? 'hsl(200 90% 70%)' : 'hsl(var(--primary) / 0.8)' }}
+                  >
+                    {currentStep.target_temp}°C
+                  </span>
                 </>
               )}
             </span>
