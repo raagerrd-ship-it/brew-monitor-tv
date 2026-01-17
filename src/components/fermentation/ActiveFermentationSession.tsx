@@ -310,7 +310,8 @@ export function ActiveFermentationSession({
         {session.steps && session.steps.length > 0 && (
           <StepsOverview 
             steps={session.steps} 
-            currentStepIndex={session.current_step_index} 
+            currentStepIndex={session.current_step_index}
+            stepStartTemp={session.step_start_temp}
           />
         )}
 
@@ -373,9 +374,10 @@ export function ActiveFermentationSession({
 interface StepsOverviewProps {
   steps: FermentationProfileStep[];
   currentStepIndex: number;
+  stepStartTemp?: number | null;
 }
 
-function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
+function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverviewProps) {
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
       case 'ramp': return '↘';
@@ -387,7 +389,15 @@ function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
     }
   };
 
-  const getStepTemp = (step: FermentationProfileStep) => {
+  const getStepTempDisplay = (step: FermentationProfileStep, index: number) => {
+    // For ramp steps that are current, show start → target
+    if (step.step_type === 'ramp' && step.target_temp != null) {
+      if (index === currentStepIndex && stepStartTemp != null) {
+        return `${Math.round(stepStartTemp)}→${step.target_temp}°`;
+      }
+      return `→${step.target_temp}°`;
+    }
+    // For other steps with target temp
     if (step.target_temp != null) {
       return `${step.target_temp}°`;
     }
@@ -397,7 +407,7 @@ function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
   return (
     <div className="flex flex-wrap gap-1">
       {steps.map((step, index) => {
-        const temp = getStepTemp(step);
+        const tempDisplay = getStepTempDisplay(step, index);
         return (
           <div
             key={step.id}
@@ -410,7 +420,7 @@ function StepsOverview({ steps, currentStepIndex }: StepsOverviewProps) {
             }`}
           >
             <span className="text-[10px]">{getStepIcon(step.step_type)}</span>
-            <span>{index + 1}{temp && ` (${temp})`}</span>
+            <span>{index + 1}{tempDisplay && ` (${tempDisplay})`}</span>
           </div>
         );
       })}
