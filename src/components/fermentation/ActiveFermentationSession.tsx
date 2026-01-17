@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -72,12 +72,25 @@ export function ActiveFermentationSession({
     }
   }, [isAuthenticatedProp]);
 
-  // Update progress every minute
+  // Update progress every minute using requestAnimationFrame
+  const lastMinuteRef = useRef(-1);
+  
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-    }, 60000); // Every minute
-    return () => clearInterval(interval);
+    let animationId: number;
+    
+    const tick = () => {
+      const currentMinute = Math.floor(Date.now() / 60000);
+      
+      if (currentMinute !== lastMinuteRef.current) {
+        lastMinuteRef.current = currentMinute;
+        setTick(t => t + 1);
+      }
+      
+      animationId = requestAnimationFrame(tick);
+    };
+    
+    animationId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationId);
   }, []);
 
   // Use preloaded session if available (for compact view optimization)

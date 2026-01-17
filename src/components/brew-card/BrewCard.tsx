@@ -23,6 +23,7 @@ function BrewCardComponent({
   onShareBrew,
   onEventsChange,
   onDeviceLinkOpen,
+  isTvMode = false,
 }: BrewCardProps) {
   const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
   
@@ -38,11 +39,14 @@ function BrewCardComponent({
   );
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
+  
+  // In TV mode, disable interactive features
+  const showInteractiveElements = isAuthenticated && !isTvMode;
 
   return (
     <Card 
       className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-xl ${
-        isAuthenticated ? 'group' : ''
+        showInteractiveElements ? 'group' : ''
       } ${
         hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
       }`}
@@ -90,8 +94,8 @@ function BrewCardComponent({
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* Action buttons - only visible when authenticated */}
-            {isAuthenticated && (
+            {/* Action buttons - only visible when authenticated and not in TV mode */}
+            {showInteractiveElements && (
               <div className="flex items-center gap-1 max-w-0 group-hover:max-w-[80px] overflow-hidden transition-all duration-200">
                 <Button
                   variant="ghost"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Clock } from "lucide-react";
 
 interface AutoCoolingCountdownProps {
@@ -21,6 +21,7 @@ export const AutoCoolingCountdown = ({
   coolingHysteresis
 }: AutoCoolingCountdownProps) => {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
+  const lastSecondRef = useRef(-1);
 
   useEffect(() => {
     console.log('AutoCoolingCountdown props:', { currentTemp, targetTemp, enabled, coolingActive });
@@ -40,41 +41,46 @@ export const AutoCoolingCountdown = ({
       return;
     }
 
-    const updateCountdown = () => {
-      const lastCheck = new Date(lastAdjustmentTime);
-      const nextCheck = new Date(lastCheck.getTime() + checkIntervalMinutes * 60 * 1000);
-      const now = new Date();
-      const diff = nextCheck.getTime() - now.getTime();
+    let animationId: number;
 
-      if (diff <= 0) {
-        // Time has passed, but edge function might not have updated yet
-        // Show that we're past due but waiting for the actual check
-        const overdueSec = Math.abs(Math.floor(diff / 1000));
-        if (overdueSec < 5) {
-          setTimeRemaining("Kontrollerar...");
-        } else if (overdueSec < 60) {
-          setTimeRemaining(`Väntar (${overdueSec}s)`);
+    const tick = () => {
+      const now = Date.now();
+      const currentSecond = Math.floor(now / 1000);
+      
+      if (currentSecond !== lastSecondRef.current) {
+        lastSecondRef.current = currentSecond;
+        
+        const lastCheck = new Date(lastAdjustmentTime);
+        const nextCheck = new Date(lastCheck.getTime() + checkIntervalMinutes * 60 * 1000);
+        const diff = nextCheck.getTime() - now;
+
+        if (diff <= 0) {
+          const overdueSec = Math.abs(Math.floor(diff / 1000));
+          if (overdueSec < 5) {
+            setTimeRemaining("Kontrollerar...");
+          } else if (overdueSec < 60) {
+            setTimeRemaining(`Väntar (${overdueSec}s)`);
+          } else {
+            const overdueMin = Math.floor(overdueSec / 60);
+            setTimeRemaining(`Väntar (${overdueMin}m)`);
+          }
         } else {
-          const overdueMin = Math.floor(overdueSec / 60);
-          setTimeRemaining(`Väntar (${overdueMin}m)`);
+          const minutes = Math.floor(diff / 60000);
+          const seconds = Math.floor((diff % 60000) / 1000);
+
+          if (minutes > 0) {
+            setTimeRemaining(`${minutes}m ${seconds}s`);
+          } else {
+            setTimeRemaining(`${seconds}s`);
+          }
         }
-        return;
       }
-
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-
-      if (minutes > 0) {
-        setTimeRemaining(`${minutes}m ${seconds}s`);
-      } else {
-        setTimeRemaining(`${seconds}s`);
-      }
+      
+      animationId = requestAnimationFrame(tick);
     };
 
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-
-    return () => clearInterval(interval);
+    animationId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationId);
   }, [lastAdjustmentTime, checkIntervalMinutes, enabled, coolingActive]);
 
   if (!enabled) {
