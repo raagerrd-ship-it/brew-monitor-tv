@@ -450,25 +450,22 @@ serve(async (req) => {
     const adjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
     const strugglingController = lowestTempController;
 
-    // Round current cooler target to nearest integer to avoid floating point issues from RAPT API
-    const roundedCoolerTarget = Math.round(currentCoolerTarget);
-    const proposedNewTarget = roundedCoolerTarget - parseFloat(String(settings.temp_reduction_degrees));
+    const proposedNewTarget = currentCoolerTarget - parseFloat(String(settings.temp_reduction_degrees));
     const maxAllowedTarget = lowestTargetTemp - parseFloat(String(settings.max_diff_from_lowest));
     
-    // Always use integer targets
-    let finalTarget = Math.round(proposedNewTarget);
-    if (finalTarget < Math.round(maxAllowedTarget)) {
-      finalTarget = Math.round(maxAllowedTarget);
-      log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget}°C`);
+    let finalTarget = proposedNewTarget;
+    if (proposedNewTarget < maxAllowedTarget) {
+      finalTarget = maxAllowedTarget;
+      log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget.toFixed(1)}°C`);
     }
 
     log('TARGET_CALCULATION', 'info', 'New target calculated', {
-      current: roundedCoolerTarget,
-      proposed: proposedNewTarget,
-      final: finalTarget
+      current: currentCoolerTarget,
+      proposed: proposedNewTarget.toFixed(1),
+      final: finalTarget.toFixed(1)
     });
 
-    if (finalTarget < roundedCoolerTarget) {
+    if (finalTarget < currentCoolerTarget) {
       const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
       const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
       
@@ -477,7 +474,7 @@ serve(async (req) => {
       } else if (finalTarget > coolerMaxTemp) {
         log('ADJUSTMENT', 'fail', `Cannot set cooler above maximum (${coolerMaxTemp}°C)`);
       } else {
-        log('ADJUSTMENT', 'action', `Lowering cooler from ${roundedCoolerTarget}°C to ${finalTarget}°C`);
+        log('ADJUSTMENT', 'action', `Lowering cooler from ${currentCoolerTarget}°C to ${finalTarget}°C`);
         
         const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
           body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: finalTarget }
@@ -487,7 +484,7 @@ serve(async (req) => {
           log('ADJUSTMENT', 'fail', 'Failed to update cooler controller');
         } else {
           log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`);
-          adjustments.push({ cooler: coolerController.name, oldTarget: roundedCoolerTarget, newTarget: finalTarget });
+          adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget });
 
           const lowestFollowedTemp = followedControllersFullData
             .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
@@ -496,7 +493,7 @@ serve(async (req) => {
           await supabase.from('auto_cooling_adjustments').insert({
             cooler_controller_id: coolerController.controller_id,
             cooler_controller_name: coolerController.name,
-            old_target_temp: roundedCoolerTarget,
+            old_target_temp: currentCoolerTarget,
             new_target_temp: finalTarget,
             lowest_followed_temp: lowestFollowedTemp,
             followed_controller_id: strugglingController.controller_id,
