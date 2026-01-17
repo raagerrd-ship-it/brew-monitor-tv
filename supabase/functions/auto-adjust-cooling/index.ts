@@ -191,12 +191,15 @@ serve(async (req) => {
       });
     }
 
+    // tempDiff > 0 means cooler is WARMER than lowest controller
+    // tempDiff < 0 means cooler is COLDER than lowest controller
     const tempDiff = currentCoolerTarget - lowestTargetTemp;
-    console.log(`Cooler target: ${currentCoolerTarget}°C, Lowest controller target: ${lowestTargetTemp}°C, Diff: ${tempDiff.toFixed(1)}°C`);
+    console.log(`Cooler target: ${currentCoolerTarget}°C, Lowest controller target: ${lowestTargetTemp}°C, Diff: ${tempDiff.toFixed(1)}°C (positive = cooler is warmer)`);
 
-    // Check if cooler is more than 10 degrees colder than lowest controller
-    if (tempDiff > 10) {
-      console.log(`Cooler is ${tempDiff.toFixed(1)}°C colder than lowest controller - increasing cooler temperature`);
+    // Check if cooler is more than 10 degrees COLDER than lowest controller (tempDiff < -10)
+    // In this case we should INCREASE the cooler temp since it's unnecessarily cold
+    if (tempDiff < -10) {
+      console.log(`Cooler is ${Math.abs(tempDiff).toFixed(1)}°C colder than lowest controller - increasing cooler temperature`);
       
       const newTarget = lowestTargetTemp - 10; // Set to 10 degrees below lowest controller
       
@@ -204,7 +207,8 @@ serve(async (req) => {
       const coolerMinTemp = parseFloat(coolerController.min_target_temp || '-5');
       const coolerMaxTemp = parseFloat(coolerController.max_target_temp || '25');
       
-      if (newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
+      // Only increase if newTarget is actually higher than current
+      if (newTarget > currentCoolerTarget && newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
         const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
           body: {
             controllerId: coolerController.controller_id,
@@ -232,7 +236,7 @@ serve(async (req) => {
               followed_current_temp: parseFloat(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'),
               followed_target_temp: lowestTargetTemp,
               followed_hysteresis: parseFloat(lowestTempController.cooling_hysteresis ?? '0.2'),
-              reason: `Cooler was ${tempDiff.toFixed(1)}°C colder than lowest controller - increased to maintain 10°C diff`
+              reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed - increased to maintain 10°C diff`
             });
 
           return new Response(JSON.stringify({ 
@@ -241,12 +245,14 @@ serve(async (req) => {
               cooler: coolerController.name,
               oldTarget: currentCoolerTarget,
               newTarget: newTarget,
-              reason: `Increased - diff was ${tempDiff.toFixed(1)}°C`
+              reason: `Increased - was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`
             }]
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+      } else {
+        console.log(`No increase needed: newTarget (${newTarget}°C) <= current (${currentCoolerTarget}°C) or outside limits`);
       }
     }
 
