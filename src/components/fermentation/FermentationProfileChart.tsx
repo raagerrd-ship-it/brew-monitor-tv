@@ -36,7 +36,7 @@ interface StepAnnotation {
   stepIndex: number;
   stepType: string;
   label: string;
-  temp: number | null;
+  displayTemp: number; // The actual temperature shown in the chart for this step
   isSgBased: boolean;
 }
 
@@ -176,14 +176,14 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         maxTemp = Math.max(maxTemp, tempToUse);
       }
 
-      // Add annotation
+      // Add annotation - use currentTemp which is the actual displayed temperature
       annots.push({
         startHour,
         endHour: currentHour + stepDuration,
         stepIndex: index,
         stepType: isSgBasedHold ? 'hold_sg' : step.step_type,
         label: step.notes || (isSgBasedHold ? `Håll tills SG ≤ ${step.target_sg}` : STEP_TYPE_LABELS[step.step_type]) || step.step_type,
-        temp: step.target_temp,
+        displayTemp: currentTemp, // Use the actual current temperature
         isSgBased: isSgBasedHold,
       });
 
@@ -390,11 +390,9 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
               <span className="text-muted-foreground truncate max-w-[60px] sm:max-w-[120px]">
                 {annot.label}
               </span>
-              {annot.temp !== null && (
-                <span className="text-muted-foreground/70 shrink-0">
-                  ({annot.temp}°)
-                </span>
-              )}
+              <span className="text-muted-foreground/70 shrink-0">
+                ({annot.displayTemp}°)
+              </span>
             </div>
           ))}
         </div>

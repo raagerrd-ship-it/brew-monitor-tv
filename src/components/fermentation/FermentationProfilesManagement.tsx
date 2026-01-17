@@ -416,47 +416,46 @@ export function FermentationProfilesManagement() {
               {steps.map((step, index) => (
                 <div
                   key={step.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                  className="flex items-start gap-2 p-3 rounded-lg border bg-card"
                 >
-                  <div className="flex items-center gap-3">
-                    {isAuthenticated && (
-                      <div className="flex flex-col">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => moveStep(step.id, 'up')}
-                          disabled={index === 0}
-                        >
-                          <ArrowUp className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => moveStep(step.id, 'down')}
-                          disabled={index === steps.length - 1}
-                        >
-                          <ArrowDown className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                    <div className="p-2 rounded-full bg-muted">
-                      {getStepIcon(step.step_type)}
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">{STEP_TYPE_LABELS[step.step_type]}</div>
-                      <div className="text-sm text-muted-foreground">{getStepDescription(step)}</div>
-                      {step.notes && (
-                        <div className="text-xs text-muted-foreground italic mt-1">{step.notes}</div>
-                      )}
-                    </div>
-                  </div>
                   {isAuthenticated && (
-                    <div className="flex gap-1">
+                    <div className="flex flex-col pt-1">
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-6 w-6"
+                        onClick={() => moveStep(step.id, 'up')}
+                        disabled={index === 0}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => moveStep(step.id, 'down')}
+                        disabled={index === steps.length - 1}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="p-2 rounded-full bg-muted shrink-0">
+                    {getStepIcon(step.step_type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{STEP_TYPE_LABELS[step.step_type]}</div>
+                    <div className="text-sm text-muted-foreground">{getStepDescription(step)}</div>
+                    {step.notes && (
+                      <div className="text-xs text-muted-foreground italic mt-1">{step.notes}</div>
+                    )}
+                  </div>
+                  {isAuthenticated && (
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => openEditStepEditor(step)}
                       >
                         <Edit2 className="h-4 w-4" />
@@ -464,6 +463,7 @@ export function FermentationProfilesManagement() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => setDeleteStepId(step.id)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
