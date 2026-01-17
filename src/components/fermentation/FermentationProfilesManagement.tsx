@@ -220,6 +220,8 @@ export function FermentationProfilesManagement() {
   const handleDeleteStep = async () => {
     if (!deleteStepId || !selectedProfile) return;
 
+    const deletedStep = steps.find(s => s.id === deleteStepId);
+    
     const { error } = await supabase
       .from('fermentation_profile_steps')
       .delete()
@@ -229,6 +231,29 @@ export function FermentationProfilesManagement() {
       toast({ title: "Fel", description: "Kunde inte ta bort steg", variant: "destructive" });
     } else {
       toast({ title: "Borttaget", description: "Steget har tagits bort" });
+      
+      // Re-number remaining steps to close gaps
+      if (deletedStep) {
+        const remainingSteps = steps
+          .filter(s => s.id !== deleteStepId)
+          .sort((a, b) => a.step_order - b.step_order);
+        
+        // Update step_order for all steps that come after the deleted one
+        const updates = remainingSteps.map((step, index) => {
+          if (step.step_order !== index) {
+            return supabase
+              .from('fermentation_profile_steps')
+              .update({ step_order: index })
+              .eq('id', step.id);
+          }
+          return null;
+        }).filter(Boolean);
+        
+        if (updates.length > 0) {
+          await Promise.all(updates);
+        }
+      }
+      
       loadSteps(selectedProfile.id);
     }
     setDeleteStepId(null);
