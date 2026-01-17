@@ -62,6 +62,36 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_cooling_decision_logs: {
+        Row: {
+          adjustment_made: boolean
+          created_at: string
+          decision_count: number
+          decisions: Json
+          duration_ms: number
+          final_result: string
+          id: string
+        }
+        Insert: {
+          adjustment_made?: boolean
+          created_at?: string
+          decision_count: number
+          decisions?: Json
+          duration_ms: number
+          final_result: string
+          id?: string
+        }
+        Update: {
+          adjustment_made?: boolean
+          created_at?: string
+          decision_count?: number
+          decisions?: Json
+          duration_ms?: number
+          final_result?: string
+          id?: string
+        }
+        Relationships: []
+      }
       auto_cooling_followed_controllers: {
         Row: {
           controller_id: string
