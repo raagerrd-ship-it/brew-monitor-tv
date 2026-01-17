@@ -9,6 +9,7 @@ interface FermentationSessionCompactProps {
   totalSteps: number;
   currentStep?: FermentationProfileStep;
   stepStartedAt: string;
+  stepStartTemp?: number | null;
   targetTemp: number | null;
   currentTemp?: number | null;
   isRamping: boolean;
@@ -22,6 +23,7 @@ export function FermentationSessionCompact({
   totalSteps,
   currentStep,
   stepStartedAt,
+  stepStartTemp,
   targetTemp,
   currentTemp,
   isRamping,
@@ -252,14 +254,24 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex items-center gap-2 text-xs mt-1">
-            {/* Temperature display */}
-            <span className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 text-xs mt-1">
+            {/* Temperature display - same as popup: Start → Target(delmål) → FinalTarget */}
+            <span className="flex items-center gap-1 flex-wrap">
               <Thermometer 
-                className="w-3.5 h-3.5" 
+                className="w-3.5 h-3.5 shrink-0" 
                 style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
               />
-              {currentTemp != null && (
+              
+              {/* Start temp for ramp steps */}
+              {isRamping && stepStartTemp != null && (
+                <>
+                  <span className="text-muted-foreground">{Math.round(stepStartTemp)}°C</span>
+                  <span className="text-muted-foreground/50">→</span>
+                </>
+              )}
+              
+              {/* Current target temp (intermediate for ramping) */}
+              {targetTemp != null && (
                 <span 
                   className="font-semibold"
                   style={{ 
@@ -267,11 +279,13 @@ export function FermentationSessionCompact({
                     textShadow: waitingForTemp ? '0 0 8px hsl(200 90% 50% / 0.4)' : isRamping ? '0 0 8px hsl(38 92% 50% / 0.4)' : 'none'
                   }}
                 >
-                  {currentTemp.toFixed(1)}°C
+                  {targetTemp.toFixed(1)}°C
                 </span>
               )}
-              {currentStep.target_temp && 
-               currentTemp != null && Math.abs(currentTemp - currentStep.target_temp) > 0.1 && (
+              
+              {/* Final target temp (if different from current target) */}
+              {isRamping && currentStep.target_temp && 
+               targetTemp != null && Math.abs(targetTemp - currentStep.target_temp) > 0.1 && (
                 <>
                   <span className="text-muted-foreground/50">→</span>
                   <span 
