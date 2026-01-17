@@ -51,18 +51,14 @@ export function FermentationSessionCompact({
     ? Math.abs(currentTemp - currentStep.target_temp).toFixed(1) 
     : null;
 
-  // Responsive icon size for TV readability
-  const iconSizeClass = "h-[min(1.8vh,1.6vw)] w-[min(1.8vh,1.6vw)] min-h-3 min-w-3";
-  const smallIconSizeClass = "h-[min(1.5vh,1.4vw)] w-[min(1.5vh,1.4vw)] min-h-2.5 min-w-2.5";
-
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
-      case 'ramp': return <ArrowDown className={smallIconSizeClass} />;
-      case 'hold': return <Thermometer className={smallIconSizeClass} />;
-      case 'wait_for_temp': return <Thermometer className={smallIconSizeClass} />;
-      case 'wait_for_gravity_stable': return <Activity className={smallIconSizeClass} />;
-      case 'wait_for_sg': return <Activity className={smallIconSizeClass} />;
-      default: return <Clock className={smallIconSizeClass} />;
+      case 'ramp': return <ArrowDown className="h-3 w-3" />;
+      case 'hold': return <Thermometer className="h-3 w-3" />;
+      case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
+      case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
+      case 'wait_for_sg': return <Activity className="h-3 w-3" />;
+      default: return <Clock className="h-3 w-3" />;
     }
   };
 
@@ -141,12 +137,11 @@ export function FermentationSessionCompact({
 
   return (
     <div 
-      className="relative flex items-center gap-[min(1.5vh,1.2vw)] px-[min(1.5vh,1.4vw)] py-[min(1.2vh,1.1vw)] rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+      className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
         background: getBackgroundStyle(),
         border: `1px solid ${getBorderColor()}`,
         boxShadow: getBoxShadow(),
-        minHeight: 'min(6vh, 5vw)',
       }}
     >
       {/* Animated ramp progress overlay */}
@@ -183,88 +178,72 @@ export function FermentationSessionCompact({
       {/* Status icon with glow */}
       <div className="relative z-10 shrink-0">
         {status === 'paused' ? (
-          <div className="p-[min(0.8vh,0.7vw)] rounded-full bg-muted/50">
-            <Pause className={iconSizeClass} style={{ color: 'hsl(var(--muted-foreground))' }} />
+          <div className="p-1.5 rounded-full bg-muted/50">
+            <Pause className="h-4 w-4 text-muted-foreground" />
           </div>
         ) : waitingForTemp ? (
           <div 
-            className="p-[min(0.8vh,0.7vw)] rounded-full animate-pulse"
+            className="p-1.5 rounded-full animate-pulse"
             style={{ 
               background: 'linear-gradient(135deg, hsl(200 90% 50% / 0.3) 0%, hsl(200 90% 50% / 0.15) 100%)',
               boxShadow: '0 0 12px hsl(200 90% 50% / 0.4)'
             }}
           >
-            <Timer className={iconSizeClass} style={{ color: 'hsl(200 90% 60%)' }} />
+            <Timer className="h-4 w-4" style={{ color: 'hsl(200 90% 60%)' }} />
           </div>
         ) : isRamping ? (
           <div 
-            className="p-[min(0.8vh,0.7vw)] rounded-full animate-pulse"
+            className="p-1.5 rounded-full animate-pulse"
             style={{ 
               background: 'linear-gradient(135deg, hsl(38 92% 50% / 0.3) 0%, hsl(38 92% 50% / 0.15) 100%)',
               boxShadow: '0 0 12px hsl(38 92% 50% / 0.4)'
             }}
           >
-            <ArrowDown className={iconSizeClass} style={{ color: 'hsl(38 92% 60%)' }} />
+            <ArrowDown className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
           </div>
         ) : (
           <div 
-            className="p-[min(0.8vh,0.7vw)] rounded-full"
+            className="p-1.5 rounded-full"
             style={{ 
               background: 'linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)',
               boxShadow: '0 0 8px hsl(var(--primary) / 0.3)'
             }}
           >
-            <Play className={iconSizeClass} style={{ color: 'hsl(var(--primary))' }} />
+            <Play className="h-4 w-4 text-primary" />
           </div>
         )}
       </div>
       
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
-        <div className="flex items-center gap-[min(1vh,0.8vw)]">
-          <span 
-            className="font-semibold tracking-tight truncate" 
-            style={{ 
-              fontSize: 'max(14px, min(2vh, 1.8vw))',
-              textShadow: '0 1px 2px hsl(0 0% 0% / 0.2)' 
-            }}
-          >
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-semibold tracking-tight truncate">
             {profileName}
           </span>
           <Badge 
             variant="outline"
-            className="shrink-0 font-medium border-primary/30 bg-primary/5"
-            style={{
-              fontSize: 'max(10px, min(1.4vh, 1.3vw))',
-              padding: 'min(0.4vh, 0.35vw) min(0.8vh, 0.7vw)',
-              height: 'auto',
-            }}
+            className="shrink-0 text-xs font-medium border-primary/30 bg-primary/5 px-1.5 py-0"
           >
             {currentStepIndex + 1}/{totalSteps}
           </Badge>
           {waitingForTemp && (
             <Badge 
               variant="outline"
-              className="shrink-0 font-medium animate-pulse flex items-center"
+              className="shrink-0 text-xs font-medium animate-pulse flex items-center gap-0.5 px-1.5 py-0"
               style={{
-                fontSize: 'max(10px, min(1.4vh, 1.3vw))',
-                padding: 'min(0.4vh, 0.35vw) min(0.8vh, 0.7vw)',
-                height: 'auto',
                 borderColor: 'hsl(200 90% 50% / 0.4)',
                 background: 'hsl(200 90% 50% / 0.15)',
                 color: 'hsl(200 90% 70%)',
               }}
             >
-              <Timer className={smallIconSizeClass} style={{ marginRight: 'min(0.4vh, 0.35vw)' }} />
+              <Timer className="h-3 w-3" />
               Väntar
             </Badge>
           )}
           {isRamping && !waitingForTemp && rampProgress !== null && (
             <span 
-              className="font-bold shrink-0 rounded"
+              className="text-xs font-bold shrink-0 rounded px-1"
               style={{ 
-                fontSize: 'max(11px, min(1.5vh, 1.4vw))',
-                padding: 'min(0.3vh, 0.25vw) min(0.6vh, 0.5vw)',
                 background: 'hsl(38 92% 50% / 0.2)',
                 color: 'hsl(38 92% 60%)',
               }}
@@ -275,14 +254,11 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div 
-            className="flex items-center gap-[min(0.8vh,0.7vw)] mt-[min(0.5vh,0.4vw)]"
-            style={{ fontSize: 'max(12px, min(1.6vh, 1.5vw))' }}
-          >
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs">
             {/* Temperature display - same as popup: Start → Target(delmål) → FinalTarget */}
-            <span className="flex items-center gap-[min(0.5vh,0.4vw)] flex-wrap">
+            <span className="flex items-center gap-1 flex-wrap">
               <Thermometer 
-                className={smallIconSizeClass}
+                className="h-3 w-3"
                 style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
               />
               
@@ -323,19 +299,10 @@ export function FermentationSessionCompact({
             </span>
             
             {/* Separator */}
-            <span 
-              className="rounded-full shrink-0"
-              style={{ 
-                width: 'min(0.5vh, 0.45vw)',
-                height: 'min(0.5vh, 0.45vw)',
-                minWidth: '3px',
-                minHeight: '3px',
-                background: 'hsl(var(--muted-foreground) / 0.3)' 
-              }}
-            />
+            <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
             
             {/* Next step condition */}
-            <span className="flex items-center gap-[min(0.4vh,0.35vw)] text-muted-foreground truncate">
+            <span className="flex items-center gap-1 text-muted-foreground truncate">
               {getStepIcon(currentStep.step_type)}
               <span className="truncate font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
