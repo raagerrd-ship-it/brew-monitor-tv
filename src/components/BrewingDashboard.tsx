@@ -307,7 +307,7 @@ export function BrewingDashboard() {
             
             <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
-                {brews.map((brew) => (
+                {brews.map((brew, index) => (
                   <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
                     <BrewCard
                       brew={brew}
@@ -319,6 +319,7 @@ export function BrewingDashboard() {
                       onEventsChange={loadBrewEvents}
                       onDeviceLinkOpen={handleDeviceLinkOpen}
                       isTvMode={isTvMode}
+                      cardIndex={index}
                     />
                   </div>
                 ))}
@@ -327,7 +328,7 @@ export function BrewingDashboard() {
           </div>
         ) : (
           <div className={`${gridLayout} h-full w-full p-4 py-6`}>
-            {brews.map((brew) => (
+            {brews.map((brew, index) => (
               <div key={brew.id} className={cardWidthClass}>
                 <BrewCard
                   brew={brew}
@@ -339,6 +340,7 @@ export function BrewingDashboard() {
                   onEventsChange={loadBrewEvents}
                   onDeviceLinkOpen={handleDeviceLinkOpen}
                   isTvMode={isTvMode}
+                  cardIndex={index}
                 />
               </div>
             ))}

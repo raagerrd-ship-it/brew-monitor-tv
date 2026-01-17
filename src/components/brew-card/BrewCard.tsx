@@ -1,6 +1,7 @@
 import { useMemo, memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BrewChart } from "../brew-chart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
@@ -13,6 +14,7 @@ import { AbvStat } from "./AbvStat";
 import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
+import { useStaggeredRender } from "@/hooks/use-deferred-render";
 
 function BrewCardComponent({
   brew,
@@ -24,8 +26,12 @@ function BrewCardComponent({
   onEventsChange,
   onDeviceLinkOpen,
   isTvMode = false,
+  cardIndex = 0,
 }: BrewCardProps) {
   const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
+  
+  // Staggered rendering for TV mode - each card renders with a delay
+  const shouldRenderContent = useStaggeredRender(cardIndex);
   
   // Memoize expensive calculations
   const devices = useMemo(() => 
@@ -42,6 +48,33 @@ function BrewCardComponent({
   
   // In TV mode, disable interactive features
   const showInteractiveElements = isAuthenticated && !isTvMode;
+
+  // Show skeleton card while waiting for staggered render
+  if (isTvMode && !shouldRenderContent) {
+    return (
+      <Card 
+        className="border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative backdrop-blur-xl"
+        style={{
+          background: 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
+        }}
+      >
+        <div className="h-[10%] px-3 py-2 flex-shrink-0">
+          <Skeleton className="h-6 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+        <div className="flex-1 p-2">
+          <Skeleton className="w-full h-full rounded-lg" />
+        </div>
+        <div className="h-[32%] px-3 py-1.5">
+          <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card 
