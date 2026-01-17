@@ -1,11 +1,24 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 
 function ClockComponent() {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const lastSecondRef = useRef(currentTime.getSeconds());
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    let animationId: number;
+    
+    const tick = () => {
+      const now = new Date();
+      // Only update state when the second changes to avoid unnecessary re-renders
+      if (now.getSeconds() !== lastSecondRef.current) {
+        lastSecondRef.current = now.getSeconds();
+        setCurrentTime(now);
+      }
+      animationId = requestAnimationFrame(tick);
+    };
+    
+    animationId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationId);
   }, []);
 
   return (
