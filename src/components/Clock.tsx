@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 
-export const Clock = memo(function Clock() {
+function ClockComponent() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -39,4 +39,6 @@ export const Clock = memo(function Clock() {
       </p>
     </div>
   );
-});
+}
+
+export const Clock = memo(ClockComponent);
