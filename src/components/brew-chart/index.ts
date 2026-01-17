@@ -1,4 +1,5 @@
 export { BrewChart } from "./BrewChart";
+export { LazyBrewChart } from "./LazyBrewChart";
 export type { 
   BrewChartProps, 
   BrewChartEvent, 

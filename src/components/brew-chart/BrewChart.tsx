@@ -40,6 +40,7 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
   const shouldRenderChart = useDeferredRender();
   
   // Fetch controller temperature history when controllerId is provided
+  // In TV mode, refresh every 60 seconds instead of only once
   useEffect(() => {
     if (!controllerId || !data || data.length === 0) {
       setControllerTempData([]);
@@ -72,7 +73,14 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
     };
 
     fetchControllerTemp();
-  }, [controllerId, data]);
+    
+    // In TV mode, refresh controller temp data every 60 seconds
+    // (since realtime subscriptions are disabled)
+    if (isTvMode) {
+      const intervalId = setInterval(fetchControllerTemp, 60000);
+      return () => clearInterval(intervalId);
+    }
+  }, [controllerId, data, isTvMode]);
   
   // Memoize all expensive calculations
   // In TV mode, downsample to max 80 points to reduce rendering load

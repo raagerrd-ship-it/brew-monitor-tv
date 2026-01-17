@@ -39,7 +39,13 @@ export function BrewingDashboard() {
 
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "center" });
+  const isTvMode = searchParams.get('tv') === 'true';
+  
+  // Only use carousel on mobile and not in TV mode - skip embla overhead in TV mode
+  const shouldUseCarousel = isMobile && !isTvMode;
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    shouldUseCarousel ? { loop: false, align: "center" } : undefined
+  );
 
   // Use the optimized brew data hook
   const {
@@ -55,9 +61,9 @@ export function BrewingDashboard() {
   // Check for new app versions every 60 seconds
   const { appLoadTime } = useVersionCheck(60000);
 
-  // Scroll to focused brew when URL param is present
+  // Scroll to focused brew when URL param is present (only on mobile with carousel)
   useEffect(() => {
-    if (!focusedBrewId || !emblaApi || brews.length === 0) return;
+    if (!focusedBrewId || !emblaApi || !shouldUseCarousel || brews.length === 0) return;
     
     let brewIndex = brews.findIndex(b => b.batch_id === focusedBrewId);
     
@@ -75,11 +81,11 @@ export function BrewingDashboard() {
         duration: 3000,
       });
     }
-  }, [focusedBrewId, emblaApi, brews]);
+  }, [focusedBrewId, emblaApi, brews, shouldUseCarousel]);
 
-  // Embla carousel selection handler
+  // Embla carousel selection handler (only when carousel is active)
   useEffect(() => {
-    if (!emblaApi) return;
+    if (!emblaApi || !shouldUseCarousel) return;
 
     const onSelect = () => {
       setSelectedIndex(emblaApi.selectedScrollSnap());
@@ -91,7 +97,7 @@ export function BrewingDashboard() {
     return () => {
       emblaApi.off("select", onSelect);
     };
-  }, [emblaApi]);
+  }, [emblaApi, shouldUseCarousel]);
 
   // Memoized handlers - MUST be before any conditional returns
   const handleShareBrew = useCallback(async (brew: typeof brews[0]) => {
@@ -148,9 +154,6 @@ export function BrewingDashboard() {
     }), 
     [appLoadTime]
   );
-
-  // Check for TV mode
-  const isTvMode = searchParams.get('tv') === 'true';
 
   // Loading state - AFTER all hooks
   if (loading) {
