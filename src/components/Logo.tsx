@@ -1,10 +1,16 @@
 import { memo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 function LogoComponent() {
   const isMobile = useIsMobile();
+  const { isTvMode } = useTvMode();
 
   const fontSize = isMobile ? 'min(6vh, 7vw)' : 'min(6vh, 2.8vw)';
+
+  // Different text based on TV mode
+  const firstPart = "Brygg";
+  const secondPart = isTvMode ? "övervakareTV" : "övervakare";
 
   return (
     <span 
@@ -25,9 +31,9 @@ function LogoComponent() {
           filter: 'drop-shadow(0 3px 4px hsl(30 60% 10% / 0.5))',
         }}
       >
-        Brygg
+        {firstPart}
       </span>
-      {/* övervakare - mörk bärnsten gradient */}
+      {/* övervakare / övervakareTV - mörk bärnsten gradient */}
       <span
         className="logo-shimmer"
         style={{ 
@@ -39,7 +45,7 @@ function LogoComponent() {
           animationDelay: '0.15s',
         }}
       >
-        övervakare
+        {secondPart}
       </span>
     </span>
   );
