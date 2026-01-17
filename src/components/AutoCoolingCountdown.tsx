@@ -41,9 +41,9 @@ export const AutoCoolingCountdown = ({
       return;
     }
 
-    let animationId: number;
-
-    const tick = () => {
+    // Use setInterval instead of requestAnimationFrame
+    // (setInterval works during TV casting, unlike requestAnimationFrame)
+    const intervalId = setInterval(() => {
       const now = Date.now();
       const currentSecond = Math.floor(now / 1000);
       
@@ -75,12 +75,9 @@ export const AutoCoolingCountdown = ({
           }
         }
       }
-      
-      animationId = requestAnimationFrame(tick);
-    };
+    }, 250); // Check every 250ms, only update on second change
 
-    animationId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationId);
+    return () => clearInterval(intervalId);
   }, [lastAdjustmentTime, checkIntervalMinutes, enabled, coolingActive]);
 
   if (!enabled) {

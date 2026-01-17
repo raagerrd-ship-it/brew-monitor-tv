@@ -72,25 +72,21 @@ export function ActiveFermentationSession({
     }
   }, [isAuthenticatedProp]);
 
-  // Update progress every minute using requestAnimationFrame
+  // Update progress every minute using setInterval
+  // (setInterval works during TV casting, unlike requestAnimationFrame)
   const lastMinuteRef = useRef(-1);
   
   useEffect(() => {
-    let animationId: number;
-    
-    const tick = () => {
+    const intervalId = setInterval(() => {
       const currentMinute = Math.floor(Date.now() / 60000);
       
       if (currentMinute !== lastMinuteRef.current) {
         lastMinuteRef.current = currentMinute;
         setTick(t => t + 1);
       }
-      
-      animationId = requestAnimationFrame(tick);
-    };
+    }, 5000); // Check every 5 seconds, only update on minute change
     
-    animationId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationId);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Use preloaded session if available (for compact view optimization)
