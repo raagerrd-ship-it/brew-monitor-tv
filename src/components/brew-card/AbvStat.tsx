@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { calculateAbvFillOffset } from "./utils";
 import { StatCard } from "./StatCard";
@@ -7,7 +8,7 @@ interface AbvStatProps {
   updatedFields: Record<string, Record<string, boolean>>;
 }
 
-export function AbvStat({ brew, updatedFields }: AbvStatProps) {
+function AbvStatComponent({ brew, updatedFields }: AbvStatProps) {
   const fillOffset = calculateAbvFillOffset(brew.abv);
   const color = "hsl(var(--secondary))";
 
@@ -37,3 +38,5 @@ export function AbvStat({ brew, updatedFields }: AbvStatProps) {
     />
   );
 }
+
+export const AbvStat = memo(AbvStatComponent);

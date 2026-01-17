@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
@@ -7,7 +8,7 @@ interface AttenuationStatProps {
   updatedFields: Record<string, Record<string, boolean>>;
 }
 
-export function AttenuationStat({ brew, updatedFields }: AttenuationStatProps) {
+function AttenuationStatComponent({ brew, updatedFields }: AttenuationStatProps) {
   const isInactive = isBrewInactive(brew.status);
   const color = "hsl(var(--ferment-green))";
 
@@ -36,3 +37,5 @@ export function AttenuationStat({ brew, updatedFields }: AttenuationStatProps) {
     />
   );
 }
+
+export const AttenuationStat = memo(AttenuationStatComponent);

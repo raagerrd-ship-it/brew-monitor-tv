@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 
@@ -6,7 +7,7 @@ interface GravityStatProps {
   updatedFields: Record<string, Record<string, boolean>>;
 }
 
-export function GravityStat({ brew, updatedFields }: GravityStatProps) {
+function GravityStatComponent({ brew, updatedFields }: GravityStatProps) {
   const color = brew.coldcrashAcknowledged 
     ? 'hsl(120 50% 45%)' 
     : 'hsl(var(--primary))';
@@ -46,3 +47,5 @@ export function GravityStat({ brew, updatedFields }: GravityStatProps) {
     </StatCard>
   );
 }
+
+export const GravityStat = memo(GravityStatComponent);

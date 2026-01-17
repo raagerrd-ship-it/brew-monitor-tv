@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive, calculateBatteryFillWidth } from "./utils";
@@ -9,7 +10,7 @@ interface BatteryStatProps {
   updatedFields: Record<string, Record<string, boolean>>;
 }
 
-export function BatteryStat({ brew, devices, updatedFields }: BatteryStatProps) {
+function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps) {
   const { pill } = devices;
   const batteryColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
@@ -49,3 +50,5 @@ export function BatteryStat({ brew, devices, updatedFields }: BatteryStatProps) 
     />
   );
 }
+
+export const BatteryStat = memo(BatteryStatComponent);

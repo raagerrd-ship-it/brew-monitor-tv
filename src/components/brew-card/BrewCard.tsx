@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BrewChart } from "../brew-chart";
@@ -14,7 +14,7 @@ import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 
-export function BrewCard({
+function BrewCardComponent({
   brew,
   updatedFields,
   isAuthenticated,
@@ -175,3 +175,5 @@ export function BrewCard({
     </Card>
   );
 }
+
+export const BrewCard = memo(BrewCardComponent);

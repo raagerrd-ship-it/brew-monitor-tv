@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-export const Logo = () => {
+function LogoComponent() {
   const isMobile = useIsMobile();
 
   const fontSize = isMobile ? 'min(6vh, 7vw)' : 'min(6vh, 2.8vw)';
@@ -40,20 +41,8 @@ export const Logo = () => {
       >
         övervakare
       </span>
-      
-      <style>{`
-        @keyframes logo-shimmer {
-          0%, 100% {
-            filter: drop-shadow(0 3px 4px hsl(30 60% 10% / 0.5)) brightness(1);
-          }
-          50% {
-            filter: drop-shadow(0 3px 6px hsl(38 80% 30% / 0.6)) brightness(1.15);
-          }
-        }
-        .logo-shimmer {
-          animation: logo-shimmer 4s ease-in-out infinite;
-        }
-      `}</style>
     </span>
   );
-};
+}
+
+export const Logo = memo(LogoComponent);

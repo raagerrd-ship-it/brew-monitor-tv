@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive, calculateThermometerFill } from "./utils";
@@ -11,7 +12,7 @@ interface TempStatProps {
   onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
 }
 
-export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDeviceLinkOpen }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, isAuthenticated, onDeviceLinkOpen }: TempStatProps) {
   const { pill, controller } = devices;
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
@@ -84,3 +85,5 @@ export function TempStat({ brew, devices, updatedFields, isAuthenticated, onDevi
     />
   );
 }
+
+export const TempStat = memo(TempStatComponent);
