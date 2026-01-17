@@ -977,7 +977,7 @@ export default function Settings() {
               <Cpu className="h-4 w-4" />
               <span className="hidden sm:inline">Enheter</span>
               {devicesTabStatus && (
-                <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center">
+                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
                   {devicesTabStatus.count}
                 </Badge>
               )}
@@ -986,7 +986,7 @@ export default function Settings() {
               <Beer className="h-4 w-4" />
               <span className="hidden sm:inline">Öl</span>
               {brewsTabStatus && (
-                <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center">
+                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
                   {brewsTabStatus.count}
                 </Badge>
               )}
