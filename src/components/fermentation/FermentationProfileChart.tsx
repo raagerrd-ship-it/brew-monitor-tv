@@ -145,8 +145,8 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
         minTemp = Math.min(minTemp, currentTemp);
         maxTemp = Math.max(maxTemp, currentTemp);
       } else {
-        // Waiting steps: show as dashed/different style
-        const tempToUse = targetTemp || currentTemp;
+        // Waiting steps: always use current temp from previous step (don't change temp during wait)
+        const tempToUse = currentTemp;
         
         data.push({
           hour: currentHour,
