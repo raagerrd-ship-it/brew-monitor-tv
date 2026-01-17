@@ -6,6 +6,33 @@ export interface BrewEvent {
   notes: string | null;
 }
 
+export interface FermentationSessionData {
+  id: string;
+  profile_id: string;
+  controller_id: string;
+  status: string;
+  current_step_index: number;
+  step_started_at: string;
+  started_at: string;
+  step_start_temp: number | null;
+  profile_name: string;
+  steps: FermentationStepData[];
+  controller_current_temp: number | null;
+  controller_target_temp: number | null;
+}
+
+export interface FermentationStepData {
+  id: string;
+  step_type: string;
+  target_temp: number | null;
+  duration_hours: number | null;
+  ramp_type: string | null;
+  gravity_stable_days: number | null;
+  target_sg: number | null;
+  sg_comparison: string | null;
+  step_order: number;
+}
+
 export interface BrewData {
   id: string;
   batch_id: string;
@@ -28,6 +55,7 @@ export interface BrewData {
   events: BrewEvent[];
   linked_controller_id: string | null;
   linked_pill_id: string | null;
+  fermentationSession: FermentationSessionData | null;
 }
 
 export interface PillData {

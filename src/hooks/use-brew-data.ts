@@ -92,7 +92,7 @@ export function useBrewData(): UseBrewDataReturn {
 
       const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
 
-      const [brewReadingsRes, eventsRes] = await Promise.all([
+      const [brewReadingsRes, eventsRes, sessionsRes] = await Promise.all([
         supabase
           .from('brew_readings')
           .select('*')
@@ -102,6 +102,10 @@ export function useBrewData(): UseBrewDataReturn {
           .from('brew_events')
           .select('*')
           .order('event_date'),
+        supabase
+          .from('fermentation_sessions')
+          .select('*')
+          .in('status', ['running', 'paused']),
       ]);
 
       if (brewReadingsRes.error) throw brewReadingsRes.error;
@@ -112,6 +116,65 @@ export function useBrewData(): UseBrewDataReturn {
         setLoading(false);
         return;
       }
+
+      // Fetch profiles and steps for active sessions
+      const activeSessions = sessionsRes.data || [];
+      const profileIds = [...new Set(activeSessions.map(s => s.profile_id))];
+      const controllerIds = [...new Set(activeSessions.map(s => s.controller_id))];
+      
+      const [profilesRes, stepsRes, controllersRes] = await Promise.all([
+        profileIds.length > 0 
+          ? supabase.from('fermentation_profiles').select('*').in('id', profileIds)
+          : Promise.resolve({ data: [] }),
+        profileIds.length > 0 
+          ? supabase.from('fermentation_profile_steps').select('*').in('profile_id', profileIds).order('step_order')
+          : Promise.resolve({ data: [] }),
+        controllerIds.length > 0
+          ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, target_temp').in('controller_id', controllerIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+      const stepsMap = new Map<string, any[]>();
+      (stepsRes.data || []).forEach((s: any) => {
+        if (!stepsMap.has(s.profile_id)) stepsMap.set(s.profile_id, []);
+        stepsMap.get(s.profile_id)!.push(s);
+      });
+      const controllersMap = new Map((controllersRes.data || []).map((c: any) => [c.controller_id, c]));
+
+      // Build session data by brew_id
+      const sessionsByBrewId = new Map<string, any>();
+      activeSessions.forEach(session => {
+        if (session.brew_id) {
+          const profile = profilesMap.get(session.profile_id);
+          const steps = stepsMap.get(session.profile_id) || [];
+          const controller = controllersMap.get(session.controller_id);
+          sessionsByBrewId.set(session.brew_id, {
+            id: session.id,
+            profile_id: session.profile_id,
+            controller_id: session.controller_id,
+            status: session.status,
+            current_step_index: session.current_step_index,
+            step_started_at: session.step_started_at,
+            started_at: session.started_at,
+            step_start_temp: session.step_start_temp,
+            profile_name: profile?.name || '',
+            steps: steps.map((s: any) => ({
+              id: s.id,
+              step_type: s.step_type,
+              target_temp: s.target_temp,
+              duration_hours: s.duration_hours,
+              ramp_type: s.ramp_type,
+              gravity_stable_days: s.gravity_stable_days,
+              target_sg: s.target_sg,
+              sg_comparison: s.sg_comparison,
+              step_order: s.step_order,
+            })),
+            controller_current_temp: controller?.current_temp ?? null,
+            controller_target_temp: controller?.target_temp ?? null,
+          });
+        }
+      });
 
       // Group events by brew_id
       const eventsByBrewId: Record<string, BrewEvent[]> = {};
@@ -180,6 +243,7 @@ export function useBrewData(): UseBrewDataReturn {
           events: eventsByBrewId[reading.id] || [],
           linked_controller_id: reading.linked_controller_id || null,
           linked_pill_id: reading.linked_pill_id || null,
+          fermentationSession: sessionsByBrewId.get(reading.id) || null,
         };
       });
 
@@ -427,6 +491,12 @@ export function useBrewData(): UseBrewDataReturn {
       });
       loadBrews();
     },
+  });
+
+  // Reload brews when fermentation sessions change (start/stop/update)
+  useRealtimeSubscription({
+    table: 'fermentation_sessions',
+    onPayload: loadBrews,
   });
 
   // Initial data load

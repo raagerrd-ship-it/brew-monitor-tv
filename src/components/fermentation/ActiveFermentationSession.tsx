@@ -8,6 +8,7 @@ import {
   FermentationProfile, 
   FermentationProfileStep,
 } from "@/types/fermentation";
+import { FermentationSessionData } from "@/types/brew";
 import { Play, Pause, Square, Loader2 } from "lucide-react";
 import {
   AlertDialog,
@@ -28,6 +29,7 @@ interface ActiveFermentationSessionProps {
   controllerId?: string;
   brewId?: string;
   compact?: boolean;
+  preloadedSession?: FermentationSessionData | null;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -44,11 +46,12 @@ interface ControllerData {
 export function ActiveFermentationSession({ 
   controllerId, 
   brewId,
-  compact = false 
+  compact = false,
+  preloadedSession,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preloadedSession);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -70,8 +73,64 @@ export function ActiveFermentationSession({
     return () => clearInterval(interval);
   }, []);
 
-  // Load session data
+  // Use preloaded session if available (for compact view optimization)
+  useEffect(() => {
+    if (preloadedSession && compact) {
+      // Convert preloaded session to the expected format
+      const steps = preloadedSession.steps.map(s => ({
+        id: s.id,
+        profile_id: preloadedSession.profile_id,
+        step_type: s.step_type,
+        step_order: s.step_order,
+        target_temp: s.target_temp,
+        duration_hours: s.duration_hours,
+        ramp_type: s.ramp_type,
+        gravity_stable_days: s.gravity_stable_days,
+        target_sg: s.target_sg,
+        sg_comparison: s.sg_comparison,
+        notes: null,
+        gravity_threshold: null,
+        created_at: '',
+        updated_at: '',
+      })) as FermentationProfileStep[];
+
+      setSession({
+        id: preloadedSession.id,
+        profile_id: preloadedSession.profile_id,
+        brew_id: brewId || null,
+        controller_id: preloadedSession.controller_id,
+        status: preloadedSession.status as 'running' | 'paused' | 'completed' | 'cancelled',
+        current_step_index: preloadedSession.current_step_index,
+        step_started_at: preloadedSession.step_started_at,
+        started_at: preloadedSession.started_at,
+        completed_at: null,
+        created_at: '',
+        updated_at: '',
+        step_start_temp: preloadedSession.step_start_temp,
+        profile: { 
+          id: preloadedSession.profile_id, 
+          name: preloadedSession.profile_name,
+          description: null,
+          created_at: '',
+          updated_at: '',
+        },
+        steps,
+      });
+      
+      setControllerData({
+        current_temp: preloadedSession.controller_current_temp,
+        target_temp: preloadedSession.controller_target_temp,
+        name: '',
+      });
+      
+      setLoading(false);
+    }
+  }, [preloadedSession, compact, brewId]);
+
+  // Load session data (only if not using preloaded data)
   const loadSession = useCallback(async () => {
+    // Skip loading if using preloaded session in compact mode
+    if (preloadedSession && compact) return;
     if (!controllerId && !brewId) return;
     
     setLoading(true);
@@ -123,12 +182,14 @@ export function ActiveFermentationSession({
     }
     
     setLoading(false);
-  }, [controllerId, brewId]);
+  }, [controllerId, brewId, preloadedSession, compact]);
 
-  // Initial load
+  // Initial load (only if not using preloaded data)
   useEffect(() => {
-    loadSession();
-  }, [loadSession]);
+    if (!preloadedSession || !compact) {
+      loadSession();
+    }
+  }, [loadSession, preloadedSession, compact]);
 
   // Realtime subscription for session updates
   useRealtimeSubscription({
