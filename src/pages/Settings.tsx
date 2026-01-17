@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +20,19 @@ import { User } from "@supabase/supabase-js";
 
 export default function Settings() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Get initial tab from URL or default to "sync"
+  const validTabs = ["sync", "automation", "devices", "brews"];
+  const tabFromUrl = searchParams.get("tab");
+  const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : "sync";
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value });
+  };
   const [syncInterval, setSyncInterval] = useState<string>("60");
   const [syncing, setSyncing] = useState(false);
   const [quickSyncing, setQuickSyncing] = useState(false);
@@ -943,7 +953,7 @@ export default function Settings() {
           </Button>
         </div>
         
-        <Tabs defaultValue="sync" className="w-full">
+        <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="sync" className="flex items-center gap-2 relative">
               <RefreshCw className="h-4 w-4" />
