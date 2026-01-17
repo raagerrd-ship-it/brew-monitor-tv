@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, ChevronRight, Thermometer, Clock, ArrowDown, ArrowUp, Activity } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Edit2, Trash2, Thermometer, Clock, ArrowDown, ArrowUp, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FermentationProfile, FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
@@ -329,38 +330,128 @@ export function FermentationProfilesManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Profiles list */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Fermenteringsprofiler</CardTitle>
-          {isAuthenticated && (
-            <Button onClick={openNewProfileDialog} size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Ny profil
+    <div className="space-y-4">
+      {/* Profile selector */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <Select 
+            value={selectedProfile?.id || ""} 
+            onValueChange={(value) => {
+              const profile = profiles.find(p => p.id === value);
+              setSelectedProfile(profile || null);
+            }}
+          >
+            <SelectTrigger className="w-full bg-card">
+              <SelectValue placeholder="Välj en fermenteringsprofil..." />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border z-50">
+              {profiles.map((profile) => (
+                <SelectItem key={profile.id} value={profile.id}>
+                  {profile.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {isAuthenticated && (
+          <Button onClick={openNewProfileDialog} size="icon" variant="outline">
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Selected profile actions */}
+      {selectedProfile && isAuthenticated && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            {selectedProfile.description || 'Ingen beskrivning'}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEditProfileDialog(selectedProfile)}
+            >
+              <Edit2 className="h-4 w-4 mr-1" />
+              Redigera
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteProfileId(selectedProfile.id)}
+            >
+              <Trash2 className="h-4 w-4 mr-1 text-destructive" />
+              Ta bort
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Steps for selected profile */}
+      {selectedProfile && (
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold">Steg i profilen</h3>
+            {isAuthenticated && (
+              <Button onClick={openNewStepEditor} size="sm" variant="outline">
+                <Plus className="h-4 w-4 mr-1" /> Lägg till
+              </Button>
+            )}
+          </div>
+          
+          {/* Profile Chart */}
+          {steps.length > 0 && (
+            <div className="rounded-lg border bg-card/50 p-3">
+              <FermentationProfileChart 
+                key={steps.map(s => `${s.id}-${s.step_order}`).join(',')} 
+                steps={steps} 
+              />
+            </div>
           )}
-        </CardHeader>
-        <CardContent>
-          {profiles.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">Inga profiler skapade ännu</p>
+
+          {steps.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">Inga steg tillagda ännu</p>
           ) : (
             <div className="space-y-2">
-              {profiles.map((profile) => (
+              {steps.map((step, index) => (
                 <div
-                  key={profile.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedProfile?.id === profile.id 
-                      ? 'bg-primary/10 border-primary' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                  onClick={() => setSelectedProfile(profile)}
+                  key={step.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
                 >
-                  <div className="flex items-center gap-2">
-                    <ChevronRight className={`h-4 w-4 transition-transform ${selectedProfile?.id === profile.id ? 'rotate-90' : ''}`} />
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-xs text-muted-foreground font-medium">{index + 1}</span>
+                      {isAuthenticated && (
+                        <div className="flex flex-col">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => moveStep(step.id, 'up')}
+                            disabled={index === 0}
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => moveStep(step.id, 'down')}
+                            disabled={index === steps.length - 1}
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 rounded-full bg-muted">
+                      {getStepIcon(step.step_type)}
+                    </div>
                     <div>
-                      <div className="font-medium">{profile.name}</div>
-                      {profile.description && (
-                        <div className="text-sm text-muted-foreground">{profile.description}</div>
+                      <div className="font-medium text-sm">{STEP_TYPE_LABELS[step.step_type]}</div>
+                      <div className="text-sm text-muted-foreground">{getStepDescription(step)}</div>
+                      {step.notes && (
+                        <div className="text-xs text-muted-foreground italic mt-1">{step.notes}</div>
                       )}
                     </div>
                   </div>
@@ -369,14 +460,14 @@ export function FermentationProfilesManagement() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => { e.stopPropagation(); openEditProfileDialog(profile); }}
+                        onClick={() => openEditStepEditor(step)}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => { e.stopPropagation(); setDeleteProfileId(profile.id); }}
+                        onClick={() => setDeleteStepId(step.id)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -386,101 +477,7 @@ export function FermentationProfilesManagement() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Steps for selected profile */}
-      {selectedProfile && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg">Steg i "{selectedProfile.name}"</CardTitle>
-            {isAuthenticated && (
-              <Button onClick={openNewStepEditor} size="sm">
-                <Plus className="h-4 w-4 mr-1" /> Lägg till steg
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Profile Chart */}
-            {steps.length > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <FermentationProfileChart 
-                  key={steps.map(s => `${s.id}-${s.step_order}`).join(',')} 
-                  steps={steps} 
-                />
-              </div>
-            )}
-
-            {steps.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">Inga steg tillagda ännu</p>
-            ) : (
-              <div className="space-y-2">
-                {steps.map((step, index) => (
-                  <div
-                    key={step.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs text-muted-foreground font-medium">{index + 1}</span>
-                        {isAuthenticated && (
-                          <div className="flex flex-col">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => moveStep(step.id, 'up')}
-                              disabled={index === 0}
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => moveStep(step.id, 'down')}
-                              disabled={index === steps.length - 1}
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-2 rounded-full bg-muted">
-                        {getStepIcon(step.step_type)}
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm">{STEP_TYPE_LABELS[step.step_type]}</div>
-                        <div className="text-sm text-muted-foreground">{getStepDescription(step)}</div>
-                        {step.notes && (
-                          <div className="text-xs text-muted-foreground italic mt-1">{step.notes}</div>
-                        )}
-                      </div>
-                    </div>
-                    {isAuthenticated && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditStepEditor(step)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteStepId(step.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* Profile dialog */}
