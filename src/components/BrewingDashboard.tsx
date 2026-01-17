@@ -6,7 +6,7 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -365,7 +365,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
 }
 
-function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: RaptControllerBarProps) {
+const RaptControllerBar = memo(function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: RaptControllerBarProps) {
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div 
@@ -464,4 +464,4 @@ function RaptControllerBar({ controllers, pills, onControllerClick, isMobile }: 
       </div>
     </div>
   );
-}
+});

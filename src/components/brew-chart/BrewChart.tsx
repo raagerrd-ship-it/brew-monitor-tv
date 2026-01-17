@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import {
   Area,
   CartesianGrid,
@@ -27,7 +27,7 @@ import {
 } from "./utils";
 import { supabase } from "@/integrations/supabase/client";
 
-export function BrewChart({ data, og, fg, singleView = false, events = [], controllerId }: BrewChartProps) {
+function BrewChartComponent({ data, og, fg, singleView = false, events = [], controllerId }: BrewChartProps) {
   const [smoothLines, setSmoothLines] = useState(true);
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   
@@ -66,6 +66,31 @@ export function BrewChart({ data, og, fg, singleView = false, events = [], contr
     fetchControllerTemp();
   }, [controllerId, data]);
   
+  // Memoize all expensive calculations
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    const dataWithControllerTemp = mergeWithControllerTemp(data, controllerTempData);
+    const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
+    const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
+    return addTimestamps(smoothedData);
+  }, [data, controllerTempData, smoothLines]);
+
+  const dayBoundaries = useMemo(() => 
+    generateDayBoundaries(chartData), 
+    [chartData]
+  );
+
+  const dayTicks = useMemo(() => 
+    generateDayTicks(chartData), 
+    [chartData]
+  );
+
+  const sortedEvents = useMemo(() => 
+    getEventsPerDay(events), 
+    [events]
+  );
+
   // Check if data is empty or has no values
   if (!data || data.length === 0) {
     return (
@@ -77,19 +102,6 @@ export function BrewChart({ data, og, fg, singleView = false, events = [], contr
 
   const lineType = smoothLines ? "monotoneX" : "linear";
   const areaType = smoothLines ? "monotoneX" : "linear";
-
-  // Merge SG data with controller temperature if available
-  const dataWithControllerTemp = mergeWithControllerTemp(data, controllerTempData);
-
-  // Calculate smoothed data with moving average
-  const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
-  const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
-  const chartData = addTimestamps(smoothedData);
-
-  // Generate axis ticks and reference lines
-  const dayBoundaries = generateDayBoundaries(chartData);
-  const dayTicks = generateDayTicks(chartData);
-  const sortedEvents = getEventsPerDay(events);
 
   return (
     <div className="h-full relative group">
@@ -227,3 +239,5 @@ export function BrewChart({ data, og, fg, singleView = false, events = [], contr
     </div>
   );
 }
+
+export const BrewChart = memo(BrewChartComponent);
