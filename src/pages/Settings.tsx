@@ -11,8 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
@@ -86,6 +87,42 @@ export default function Settings() {
     completed: boolean;
     inProgress: boolean;
   }>>([]);
+  const [visiblePillsCount, setVisiblePillsCount] = useState(0);
+  const [visibleControllersCount, setVisibleControllersCount] = useState(0);
+  const [visibleBrewsCount, setVisibleBrewsCount] = useState(0);
+
+  // Tab status indicators
+  const syncTabStatus = useMemo(() => {
+    if (!apiSettings) return null;
+    const brewfatherMissing = !apiSettings.brewfather.configured;
+    const raptMissing = !apiSettings.rapt.configured;
+    if (brewfatherMissing || raptMissing) {
+      return { type: 'warning' as const, count: (brewfatherMissing ? 1 : 0) + (raptMissing ? 1 : 0) };
+    }
+    return null;
+  }, [apiSettings]);
+
+  const automationTabStatus = useMemo(() => {
+    if (!autoCoolingEnabled) return null;
+    const issues: string[] = [];
+    if (!coolerControllerId) issues.push('no-cooler');
+    if (followedControllerIds.length === 0) issues.push('no-followed');
+    if (issues.length > 0) {
+      return { type: 'warning' as const, count: issues.length };
+    }
+    return null;
+  }, [autoCoolingEnabled, coolerControllerId, followedControllerIds]);
+
+  const devicesTabStatus = useMemo(() => {
+    const total = visiblePillsCount + visibleControllersCount;
+    if (total === 0) return null;
+    return { type: 'info' as const, count: total };
+  }, [visiblePillsCount, visibleControllersCount]);
+
+  const brewsTabStatus = useMemo(() => {
+    if (visibleBrewsCount === 0) return null;
+    return { type: 'info' as const, count: visibleBrewsCount };
+  }, [visibleBrewsCount]);
 
   // Check authentication
   useEffect(() => {
@@ -117,6 +154,8 @@ export default function Settings() {
     loadAutoCoolingSettings();
     loadAvailableControllers();
     loadAdjustmentLogs();
+    loadDeviceCounts();
+    loadBrewCounts();
     
     // Subscribe to sync_settings changes for real-time updates
     const channel = supabase
@@ -390,6 +429,38 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error loading adjustment logs:', error);
+    }
+  };
+
+  const loadDeviceCounts = async () => {
+    try {
+      const { count: pillsCount } = await supabase
+        .from('selected_rapt_pills')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_visible', true);
+      
+      const { count: controllersCount } = await supabase
+        .from('selected_rapt_temp_controllers')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_visible', true);
+      
+      setVisiblePillsCount(pillsCount ?? 0);
+      setVisibleControllersCount(controllersCount ?? 0);
+    } catch (error) {
+      console.error('Error loading device counts:', error);
+    }
+  };
+
+  const loadBrewCounts = async () => {
+    try {
+      const { count } = await supabase
+        .from('selected_brews')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_visible', true);
+      
+      setVisibleBrewsCount(count ?? 0);
+    } catch (error) {
+      console.error('Error loading brew counts:', error);
     }
   };
 
@@ -874,21 +945,41 @@ export default function Settings() {
         
         <Tabs defaultValue="sync" className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="sync" className="flex items-center gap-2">
+            <TabsTrigger value="sync" className="flex items-center gap-2 relative">
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Synk</span>
+              {syncTabStatus && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
+                  <AlertCircle className="h-3 w-3" />
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="automation" className="flex items-center gap-2">
+            <TabsTrigger value="automation" className="flex items-center gap-2 relative">
               <Thermometer className="h-4 w-4" />
               <span className="hidden sm:inline">Automatik</span>
+              {automationTabStatus && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
+                  <AlertCircle className="h-3 w-3" />
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="devices" className="flex items-center gap-2">
+            <TabsTrigger value="devices" className="flex items-center gap-2 relative">
               <Cpu className="h-4 w-4" />
               <span className="hidden sm:inline">Enheter</span>
+              {devicesTabStatus && (
+                <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center">
+                  {devicesTabStatus.count}
+                </Badge>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="brews" className="flex items-center gap-2">
+            <TabsTrigger value="brews" className="flex items-center gap-2 relative">
               <Beer className="h-4 w-4" />
               <span className="hidden sm:inline">Öl</span>
+              {brewsTabStatus && (
+                <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center">
+                  {brewsTabStatus.count}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
