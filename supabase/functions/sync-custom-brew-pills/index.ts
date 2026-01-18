@@ -82,9 +82,15 @@ serve(async (req) => {
         const hasNoData = existingSgData.length === 0;
         
         if (hasNoData) {
-          // No data yet - fetch from when the brew was created (fermentation start)
-          startDate = new Date(brew.created_at);
-          console.log(`No existing data for ${brew.name}, fetching from brew creation date: ${startDate.toISOString()}`);
+          // No data yet - fetch from when the brew was created OR 30 days ago (whichever is earlier)
+          // This ensures we get historical data even if the pill was used before the brew was created in the system
+          const brewCreatedDate = new Date(brew.created_at);
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          // Use the earlier of the two dates
+          startDate = brewCreatedDate < thirtyDaysAgo ? thirtyDaysAgo : thirtyDaysAgo;
+          console.log(`No existing data for ${brew.name}, fetching from 30 days ago: ${startDate.toISOString()}`);
         } else if (brew.last_update) {
           // Has data and last_update - start from there with buffer
           startDate = new Date(brew.last_update);
@@ -120,11 +126,17 @@ serve(async (req) => {
         console.log(`Received ${telemetryData.length} telemetry records`);
 
         // Convert telemetry to sg_data format
-        const newSgData: SgDataPoint[] = telemetryData.map((t: TelemetryRecord) => ({
-          date: new Date(t.createdOn).toISOString(),
-          value: t.gravity,
-          temp: t.temperature
-        }));
+        // RAPT API returns gravity as SG * 1000 (e.g., 1047.77 = SG 1.04777)
+        // Filter out invalid readings (SG should be between 0.990 and 1.200 for beer)
+        const newSgData: SgDataPoint[] = telemetryData
+          .map((t: TelemetryRecord) => ({
+            date: new Date(t.createdOn).toISOString(),
+            value: t.gravity / 1000, // Convert from RAPT format to standard SG
+            temp: t.temperature
+          }))
+          .filter((d: SgDataPoint) => d.value >= 0.990 && d.value <= 1.200);
+
+        console.log(`Filtered to ${newSgData.length} valid SG readings (0.990-1.200 range)`);
 
         // Create a Set of existing dates for deduplication
         const existingDates = new Set(existingSgData.map(d => d.date));
