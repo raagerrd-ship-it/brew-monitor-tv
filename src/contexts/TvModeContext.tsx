@@ -94,9 +94,21 @@ export function TvModeProvider({ children }: { children: ReactNode }) {
     return { isTvMode: false, detectionReason: null };
   }, [searchParams]);
 
+  // Log TV mode status for debugging
+  if (typeof window !== 'undefined') {
+    console.log(`📺 TV Mode: ${isTvMode ? 'ON' : 'OFF'}${detectionReason ? ` (${detectionReason})` : ''}`);
+    console.log(`📺 User Agent: ${navigator.userAgent}`);
+  }
+
   return (
     <TvModeContext.Provider value={{ isTvMode, detectionReason }}>
       {children}
+      {/* Debug indicator - shows TV mode status */}
+      {process.env.NODE_ENV === 'development' || searchParams.get('debug') === 'true' ? (
+        <div className="fixed top-2 right-2 z-[200] px-2 py-1 rounded text-xs font-mono bg-black/80 text-white">
+          TV: {isTvMode ? `✅ ${detectionReason}` : '❌ OFF'}
+        </div>
+      ) : null}
     </TvModeContext.Provider>
   );
 }
