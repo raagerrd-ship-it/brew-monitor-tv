@@ -253,6 +253,30 @@ export type Database = {
         }
         Relationships: []
       }
+      external_user_settings: {
+        Row: {
+          created_at: string
+          external_user_id: string
+          id: string
+          timer_tv_mode_only: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_user_id: string
+          id?: string
+          timer_tv_mode_only?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_user_id?: string
+          id?: string
+          timer_tv_mode_only?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fermentation_profile_steps: {
         Row: {
           created_at: string

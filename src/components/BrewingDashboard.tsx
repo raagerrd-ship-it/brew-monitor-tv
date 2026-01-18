@@ -15,6 +15,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
+import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 
@@ -62,22 +63,8 @@ export function BrewingDashboard() {
   // External timer for footer padding
   const externalTimer = useExternalTimer();
   
-  // Read timer TV mode setting
-  const [timerTvModeOnly, setTimerTvModeOnly] = useState(() => {
-    const saved = localStorage.getItem('timer-tv-mode-only');
-    return saved !== null ? saved === 'true' : true;
-  });
-  
-  // Listen for storage changes
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'timer-tv-mode-only') {
-        setTimerTvModeOnly(e.newValue !== null ? e.newValue === 'true' : true);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  // External user settings (stored in database per user)
+  const { timerTvModeOnly } = useExternalUserSettings();
   
   // Check for new app versions every 60 seconds
   const { appLoadTime } = useVersionCheck(60000);

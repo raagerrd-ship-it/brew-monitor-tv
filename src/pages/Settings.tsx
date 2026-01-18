@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
+import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -105,13 +106,12 @@ export default function Settings() {
   const [visibleControllersCount, setVisibleControllersCount] = useState(0);
   const [visibleBrewsCount, setVisibleBrewsCount] = useState(0);
   const [externalLoginDialogOpen, setExternalLoginDialogOpen] = useState(false);
-  const [timerTvModeOnly, setTimerTvModeOnly] = useState(() => {
-    const saved = localStorage.getItem('timer-tv-mode-only');
-    return saved !== null ? saved === 'true' : true; // Default to true (TV mode only)
-  });
   
   // External auth for brew timer
   const { isAuthenticated: isExternalAuthenticated, user: externalUser, signOut: externalSignOut, isLoading: externalLoading } = useExternalAuth();
+  
+  // External user settings (stored in database per user)
+  const { timerTvModeOnly, setTimerTvModeOnly, isLoading: settingsLoading } = useExternalUserSettings();
 
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
@@ -1782,9 +1782,9 @@ export default function Settings() {
                     </div>
                     <Switch
                       checked={timerTvModeOnly}
+                      disabled={settingsLoading}
                       onCheckedChange={(checked) => {
                         setTimerTvModeOnly(checked);
-                        localStorage.setItem('timer-tv-mode-only', String(checked));
                       }}
                     />
                   </div>
