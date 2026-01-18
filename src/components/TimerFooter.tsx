@@ -274,9 +274,6 @@ export const TimerFooter = memo(function TimerFooter() {
           >
             {formatTime(timer.remainingSeconds)}
           </div>
-          <span className="text-xs text-muted-foreground">
-            Tot: {formatTime(timer.totalSeconds)}
-          </span>
         </div>
       </div>
 
