@@ -281,23 +281,35 @@ export const TimerFooter = memo(function TimerFooter() {
                       : "text-primary"
                 )} />
                 <div className="overflow-hidden max-w-[200px]">
-                  <span 
-                    className={cn(
-                      "text-lg font-semibold inline-block whitespace-nowrap",
+                  <div 
+                    className="flex whitespace-nowrap"
+                    style={{
+                      animation: 'marquee-seamless 10s linear infinite',
+                    }}
+                  >
+                    <span className={cn(
+                      "text-lg font-semibold",
                       isNextMilestoneImminent 
                         ? "text-yellow-300" 
                         : isMash 
                           ? "text-orange-100" 
-                          : "text-foreground",
-                      "animate-marquee"
-                    )}
-                    style={{
-                      animation: 'marquee 8s linear infinite',
-                      paddingRight: '2rem',
-                    }}
-                  >
-                    {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                  </span>
+                          : "text-foreground"
+                    )}>
+                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                    </span>
+                    <span className="px-8 text-lg opacity-40">•</span>
+                    <span className={cn(
+                      "text-lg font-semibold",
+                      isNextMilestoneImminent 
+                        ? "text-yellow-300" 
+                        : isMash 
+                          ? "text-orange-100" 
+                          : "text-foreground"
+                    )}>
+                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                    </span>
+                    <span className="px-8 text-lg opacity-40">•</span>
+                  </div>
                 </div>
               </div>
             ) : (

@@ -2,18 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-@keyframes marquee {
+@keyframes marquee-seamless {
   0% {
     transform: translateX(0%);
   }
-  20% {
-    transform: translateX(0%);
-  }
-  80% {
-    transform: translateX(-100%);
-  }
   100% {
-    transform: translateX(-100%);
+    transform: translateX(-50%);
   }
 }
 
