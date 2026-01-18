@@ -233,9 +233,13 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             labelFormatter={formatTooltipLabel}
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
-              if (name === "temp") return [
-                <span style={{ color: "hsl(var(--temp-blue) / 0.6)" }}>{value.toFixed(1)}°C</span>,
-                <span style={{ color: "hsl(var(--temp-blue) / 0.6)" }}>Pill temp</span>
+              if (name === "controllerTemp") return [
+                <span style={{ color: "hsl(var(--temp-blue))" }}>{value.toFixed(1)}°C</span>,
+                <span style={{ color: "hsl(var(--temp-blue))" }}>Controller</span>
+              ];
+              if (name === "pillTemp") return [
+                <span style={{ color: "hsl(var(--temp-blue) / 0.5)" }}>{value.toFixed(1)}°C</span>,
+                <span style={{ color: "hsl(var(--temp-blue) / 0.5)" }}>Pill</span>
               ];
               return [value, name];
             }}
@@ -256,15 +260,30 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             }}
           />
           
+          {/* Controller temp - main temperature line */}
           <Line
             yAxisId="temp"
             type={areaType}
-            dataKey="temp"
-            stroke="hsl(var(--temp-blue) / 0.35)"
+            dataKey="controllerTemp"
+            stroke="hsl(var(--temp-blue))"
+            strokeWidth={1.5}
+            dot={false}
+            activeDot={{ r: 4, fill: "hsl(var(--temp-blue))" }}
+            name="controllerTemp"
+            isAnimationActive={!isTvMode}
+            connectNulls={false}
+          />
+          
+          {/* Pill temp - faint secondary line */}
+          <Line
+            yAxisId="temp"
+            type={areaType}
+            dataKey="pillTemp"
+            stroke="hsl(var(--temp-blue) / 0.3)"
             strokeWidth={1}
             dot={false}
             activeDot={{ r: 3, fill: "hsl(var(--temp-blue) / 0.5)" }}
-            name="temp"
+            name="pillTemp"
             isAnimationActive={!isTvMode}
           />
         </ComposedChart>

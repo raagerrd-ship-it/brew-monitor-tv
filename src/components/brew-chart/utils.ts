@@ -52,23 +52,22 @@ export function interpolateControllerTemp(
 
 /**
  * Merge SG data with controller temperature data
- * Replaces pill temp with interpolated controller temp where available
+ * Keeps pill temp and adds controller temp as separate field
  */
 export function mergeWithControllerTemp(
   sgData: ChartDataPoint[],
   controllerData: ControllerTempPoint[]
 ): ChartDataPoint[] {
-  if (!controllerData || controllerData.length === 0) {
-    return sgData;
-  }
-
   return sgData.map(point => {
     const timestamp = new Date(point.date).getTime();
-    const controllerTemp = interpolateControllerTemp(timestamp, controllerData);
+    const controllerTemp = controllerData && controllerData.length > 0 
+      ? interpolateControllerTemp(timestamp, controllerData) 
+      : null;
     
     return {
       ...point,
-      temp: controllerTemp !== null ? controllerTemp : point.temp
+      pillTemp: point.temp,
+      controllerTemp: controllerTemp
     };
   });
 }
@@ -90,12 +89,17 @@ export function calculateMovingAverage(
     const window = data.slice(start, end);
     
     const avgValue = window.reduce((sum, d) => sum + d.value, 0) / window.length;
-    const avgTemp = window.reduce((sum, d) => sum + d.temp, 0) / window.length;
+    const avgPillTemp = window.reduce((sum, d) => sum + (d.pillTemp ?? d.temp), 0) / window.length;
+    const controllerTemps = window.filter(d => d.controllerTemp != null);
+    const avgControllerTemp = controllerTemps.length > 0 
+      ? controllerTemps.reduce((sum, d) => sum + d.controllerTemp!, 0) / controllerTemps.length 
+      : null;
     
     result.push({
       ...data[i],
       value: avgValue,
-      temp: avgTemp
+      pillTemp: avgPillTemp,
+      controllerTemp: avgControllerTemp
     });
   }
   return result;
