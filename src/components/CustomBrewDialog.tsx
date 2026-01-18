@@ -87,10 +87,13 @@ export function CustomBrewDialog({
         setSelectedControllerId(editBrew.linked_controller_id || "");
         setSelectedPillId(editBrew.linked_pill_id || "");
         setStatus(editBrew.status || "Fermenting");
-        // Format date for input (YYYY-MM-DD)
+        // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
-          setFermentationStart(date.toISOString().split('T')[0]);
+          const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+          setFermentationStart(localDateTime);
         } else {
           setFermentationStart("");
         }
@@ -103,8 +106,12 @@ export function CustomBrewDialog({
         setSelectedControllerId("");
         setSelectedPillId("");
         setStatus("Fermenting");
-        // Default to today for new brews
-        setFermentationStart(new Date().toISOString().split('T')[0]);
+        // Default to now for new brews
+        const now = new Date();
+        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16);
+        setFermentationStart(localDateTime);
       }
     }
   }, [open, editBrew]);
@@ -312,7 +319,7 @@ export function CustomBrewDialog({
             <Label htmlFor="fermentationStart">Jäsningsstart</Label>
             <Input
               id="fermentationStart"
-              type="date"
+              type="datetime-local"
               value={fermentationStart}
               onChange={(e) => setFermentationStart(e.target.value)}
             />
