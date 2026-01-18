@@ -78,9 +78,9 @@ export const TimerFooter = memo(function TimerFooter() {
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
 
   // Check if we should show based on TV mode setting
-  // While loading settings, default to TV mode only (true)
-  const effectiveTvModeOnly = settingsLoading ? true : timerTvModeOnly;
-  const shouldShow = effectiveTvModeOnly ? isTvMode : true;
+  // While loading settings, show the timer (don't hide it)
+  // Only apply TV mode restriction after settings are loaded
+  const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
   
   if (!shouldShow || !timer.isActive) {
     return null;
