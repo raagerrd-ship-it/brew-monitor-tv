@@ -1,7 +1,8 @@
-import { memo, useMemo, useState, useEffect } from 'react';
+import { memo, useMemo } from 'react';
 import { ChefHat, Flame, Pause } from 'lucide-react';
 import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
 import { useTvMode } from '@/contexts/TvModeContext';
+import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { cn } from '@/lib/utils';
 
 function formatTime(seconds: number): string {
@@ -71,29 +72,15 @@ const ProgressBar = memo(function ProgressBar({ progress, milestones, totalSecon
 export const TimerFooter = memo(function TimerFooter() {
   const { isTvMode } = useTvMode();
   const timer = useExternalTimer();
-  
-  // Read setting from localStorage
-  const [tvModeOnly, setTvModeOnly] = useState(true);
-  
-  useEffect(() => {
-    const saved = localStorage.getItem('timer-tv-mode-only');
-    setTvModeOnly(saved !== null ? saved === 'true' : true);
-    
-    // Listen for storage changes (in case settings change in another tab/component)
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'timer-tv-mode-only') {
-        setTvModeOnly(e.newValue !== null ? e.newValue === 'true' : true);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  const { timerTvModeOnly, isLoading: settingsLoading } = useExternalUserSettings();
 
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
 
   // Check if we should show based on TV mode setting
-  const shouldShow = tvModeOnly ? isTvMode : true;
+  // While loading settings, default to TV mode only (true)
+  const effectiveTvModeOnly = settingsLoading ? true : timerTvModeOnly;
+  const shouldShow = effectiveTvModeOnly ? isTvMode : true;
   
   if (!shouldShow || !timer.isActive) {
     return null;
