@@ -121,4 +121,33 @@ All colors MUST be HSL.
   .logo-shimmer {
     animation: logo-shimmer 4s ease-in-out infinite;
   }
+
+  /* Milestone alert animations */
+  @keyframes pulse-bg {
+    0% { opacity: 0.8; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes scale-pulse {
+    0% { 
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% { 
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes glow {
+    0% {
+      box-shadow: 0 0 100px 20px rgba(234, 88, 12, 0.5), 0 0 200px 40px rgba(234, 88, 12, 0.3);
+    }
+    100% {
+      box-shadow: 0 0 120px 30px rgba(234, 88, 12, 0.7), 0 0 250px 60px rgba(234, 88, 12, 0.4);
+    }
+  }
 }
