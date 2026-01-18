@@ -6,7 +6,7 @@ import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { cn } from '@/lib/utils';
 
 // Export constant for use in layout calculations
-export const TIMER_FOOTER_HEIGHT = 140; // pixels
+export const TIMER_FOOTER_HEIGHT = 120; // pixels
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -317,7 +317,7 @@ export const TimerFooter = memo(function TimerFooter() {
           )}
         </div>
 
-        {/* Right: Time to next + Total timer */}
+        {/* Right: Time to next (large) + Total time (small) */}
         <div className="flex items-center gap-4 flex-shrink-0">
           {timer.isPaused && (
             <div className={cn(
@@ -331,23 +331,23 @@ export const TimerFooter = memo(function TimerFooter() {
             </div>
           )}
           
-          {/* Time to next milestone */}
+          {/* Time to next milestone - PRIMARY */}
           {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
-            <div className="flex flex-col items-end">
+            <div className="flex items-baseline gap-2">
               <span className={cn(
-                "text-[10px] uppercase tracking-wider",
-                isMash ? "text-orange-400/60" : "text-muted-foreground/60"
+                "text-xs",
+                isMash ? "text-orange-400/70" : "text-muted-foreground"
               )}>
-                Till nästa
+                om
               </span>
               <span 
                 className={cn(
-                  "font-mono font-bold tabular-nums text-lg",
+                  "font-mono font-bold tabular-nums text-3xl",
                   isNextMilestoneImminent 
                     ? "text-yellow-300 animate-pulse" 
                     : isMash 
                       ? "text-orange-200" 
-                      : "text-foreground/80"
+                      : "text-foreground"
                 )}
               >
                 {formatTime(timer.timeToNextMilestone)}
@@ -355,30 +355,28 @@ export const TimerFooter = memo(function TimerFooter() {
             </div>
           )}
           
-          {/* Total remaining time */}
-          <div className="flex flex-col items-end">
-            <span className={cn(
-              "text-[10px] uppercase tracking-wider",
-              isMash ? "text-orange-400/60" : "text-muted-foreground/60"
-            )}>
-              Totalt
-            </span>
-            <div 
-              className={cn(
-                "font-mono font-bold tabular-nums text-2xl",
-                isLowTime && "animate-pulse text-red-500",
-                !isLowTime && (isMash ? "text-orange-300" : "text-foreground")
-              )}
-            >
-              {formatTime(timer.remainingSeconds)}
-            </div>
+          {/* Separator */}
+          <div className={cn(
+            "h-6 w-px",
+            isMash ? "bg-orange-700/50" : "bg-border"
+          )} />
+          
+          {/* Total remaining time - secondary */}
+          <div 
+            className={cn(
+              "font-mono tabular-nums text-lg",
+              isLowTime && "animate-pulse text-red-500",
+              !isLowTime && (isMash ? "text-orange-400/70" : "text-muted-foreground")
+            )}
+          >
+            {formatTime(timer.remainingSeconds)}
           </div>
         </div>
       </div>
 
       {/* Middle row: Visual Timeline */}
       {timer.milestones.length > 0 && (
-        <div className="px-4 py-1">
+        <div className="px-4 py-0.5">
           <VisualTimeline 
             milestones={timer.milestones}
             totalSeconds={timer.totalSeconds}
@@ -391,7 +389,7 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Bottom row: Scrollable milestones with arrows */}
       {timer.milestones.length > 0 && (
         <div className={cn(
-          "px-2 py-1.5 border-t",
+          "px-2 py-1 border-t",
           isMash ? "border-orange-800/30" : "border-border/50"
         )}>
           <MilestoneScrollRow 
