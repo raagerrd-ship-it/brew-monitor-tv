@@ -345,8 +345,8 @@ export function FermentationSessionCompact({
               )}
             </span>
             
-            {/* SG Progress indicator - show when step has SG condition and we have current SG */}
-            {targetSg != null && currentSg != null && (
+            {/* SG target indicator - show when step has SG condition */}
+            {targetSg != null && (
               <>
                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
                 <span className="flex items-center gap-1">
@@ -354,13 +354,6 @@ export function FermentationSessionCompact({
                     className="h-3 w-3" 
                     style={{ color: 'hsl(142 70% 50%)' }}
                   />
-                  <span 
-                    className="font-semibold"
-                    style={{ color: 'hsl(142 70% 50%)' }}
-                  >
-                    {currentSg.toFixed(3)}
-                  </span>
-                  <span className="text-muted-foreground/50">→</span>
                   <span className="text-muted-foreground font-medium">
                     Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(3)}
                   </span>
