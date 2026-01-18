@@ -2,6 +2,8 @@ export interface ChartDataPoint {
   date: string;
   value: number;
   temp: number;
+  pillTemp?: number;
+  controllerTemp?: number | null;
 }
 
 export interface ChartDataPointWithTimestamp extends ChartDataPoint {
