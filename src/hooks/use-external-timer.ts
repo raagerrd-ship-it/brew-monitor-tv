@@ -315,55 +315,32 @@ export function useExternalTimer() {
   }, [user, session, cacheTimerData]);
 
   // Initial fetch and subscribe to updates
+  // Always use cache for consistent behavior - edge function handles syncing
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Authenticated: fetch from external API
-      fetchFromExternal();
+    // Always fetch from local cache - the edge function sync-external-timer 
+    // handles syncing from external API to cache every 10 seconds
+    fetchFromCache();
 
-      const channel = externalSupabase
-        .channel(`timer-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'shared_brewing_session',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetchFromExternal();
-          }
-        )
-        .subscribe();
+    // Subscribe to cache updates via realtime
+    const channel = supabase
+      .channel('cached-timer-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cached_external_timer',
+        },
+        () => {
+          fetchFromCache();
+        }
+      )
+      .subscribe();
 
-      return () => {
-        externalSupabase.removeChannel(channel);
-      };
-    } else {
-      // Not authenticated: fetch from local cache
-      fetchFromCache();
-
-      // Subscribe to cache updates via realtime
-      const channel = supabase
-        .channel('cached-timer-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'cached_external_timer',
-          },
-          () => {
-            fetchFromCache();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [isAuthenticated, user, fetchFromExternal, fetchFromCache]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchFromCache]);
 
   // Update remaining seconds every second when timer is active
   useEffect(() => {
