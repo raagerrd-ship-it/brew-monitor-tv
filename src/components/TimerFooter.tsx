@@ -216,18 +216,26 @@ export const TimerFooter = memo(function TimerFooter() {
   // Check if next milestone is imminent (less than 30 seconds)
   const isNextMilestoneImminent = timer.timeToNextMilestone !== null && timer.timeToNextMilestone <= 30 && timer.timeToNextMilestone > 0;
 
+  // Fixed footer height for layout calculations
+  const FOOTER_HEIGHT = 140; // pixels
+
   return (
-    <div 
-      className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 border-t backdrop-blur-md",
-        isMash 
-          ? "bg-orange-950/95 border-orange-800/50" 
-          : "bg-background/95 border-border"
-      )}
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
-    >
+    <>
+      {/* Spacer to push content up */}
+      <div style={{ height: `${FOOTER_HEIGHT}px` }} />
+      
+      <div 
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 border-t backdrop-blur-md",
+          isMash 
+            ? "bg-orange-950/95 border-orange-800/50" 
+            : "bg-background/95 border-border"
+        )}
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          height: `${FOOTER_HEIGHT}px`,
+        }}
+      >
       {/* Top row: Next step + Timer */}
       <div className="flex items-center justify-between gap-4 px-4 py-2 border-b border-orange-800/30">
         {/* Left: Next step */}
@@ -310,5 +318,6 @@ export const TimerFooter = memo(function TimerFooter() {
         </div>
       )}
     </div>
+    </>
   );
 });
