@@ -6,7 +6,7 @@ import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { cn } from '@/lib/utils';
 
 // Export constant for use in layout calculations
-export const TIMER_FOOTER_HEIGHT = 130; // pixels
+export const TIMER_FOOTER_HEIGHT = 145; // pixels
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
