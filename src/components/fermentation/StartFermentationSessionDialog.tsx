@@ -91,10 +91,11 @@ export function StartFermentationSessionDialog({
     setLoading(true);
     
     // Load profiles, controllers, and brews in parallel
+    // Include both Swedish 'Jäsning' and English 'Fermenting' statuses for custom brews
     const [profilesRes, controllersRes, brewsRes] = await Promise.all([
       supabase.from('fermentation_profiles').select('*').order('name'),
       supabase.from('rapt_temp_controllers').select('controller_id, name, current_temp, target_temp'),
-      supabase.from('brew_readings').select('id, batch_id, name').eq('status', 'Jäsning'),
+      supabase.from('brew_readings').select('id, batch_id, name').in('status', ['Jäsning', 'Fermenting']),
     ]);
 
     if (profilesRes.data) {
