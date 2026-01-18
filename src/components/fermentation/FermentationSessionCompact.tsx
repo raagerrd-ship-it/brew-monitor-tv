@@ -354,7 +354,6 @@ export function FermentationSessionCompact({
                     className="h-3 w-3" 
                     style={{ color: 'hsl(142 70% 50%)' }}
                   />
-                  <span className="text-muted-foreground text-xs">SG:</span>
                   <span 
                     className="font-semibold"
                     style={{ color: 'hsl(142 70% 50%)' }}
@@ -365,17 +364,6 @@ export function FermentationSessionCompact({
                   <span className="text-muted-foreground font-medium">
                     Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(3)}
                   </span>
-                  {sgProgress !== null && (
-                    <span 
-                      className="text-xs font-bold rounded px-1 ml-0.5"
-                      style={{ 
-                        background: 'hsl(142 70% 45% / 0.2)',
-                        color: 'hsl(142 70% 55%)',
-                      }}
-                    >
-                      {Math.round(sgProgress * 100)}%
-                    </span>
-                  )}
                 </span>
               </>
             )}
