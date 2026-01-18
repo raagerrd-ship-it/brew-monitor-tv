@@ -5,8 +5,8 @@ import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2 } from "lucide-react";
-import { CustomBrewDialog } from "./CustomBrewDialog";
+import { Loader2, Plus, Trash2, Pencil } from "lucide-react";
+import { CustomBrewDialog, type CustomBrewData } from "./CustomBrewDialog";
 import type { PillData, TempController } from "@/types/brew";
 interface BrewfatherBatch {
   _id: string;
@@ -31,13 +31,14 @@ interface SelectedBrew {
 export function BrewManagement() {
   const navigate = useNavigate();
   const [batches, setBatches] = useState<BrewfatherBatch[]>([]);
-  const [customBrews, setCustomBrews] = useState<{ id: string; batch_id: string; name: string; style: string }[]>([]);
+  const [customBrews, setCustomBrews] = useState<CustomBrewData[]>([]);
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCustomBrewDialog, setShowCustomBrewDialog] = useState(false);
+  const [editingBrew, setEditingBrew] = useState<CustomBrewData | null>(null);
   const { toast } = useToast();
   const isLocalChange = useRef(false);
 
@@ -84,7 +85,7 @@ export function BrewManagement() {
           .select('batch_id')
           .eq('is_visible', true),
         supabase.from('brew_readings')
-          .select('id, batch_id, name, style')
+          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id')
           .like('batch_id', 'custom_%'),
         supabase.from('rapt_pills')
           .select('id, pill_id, name, color, battery_level, last_update'),
@@ -293,14 +294,26 @@ export function BrewManagement() {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteCustomBrew(brew.id, brew.batch_id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setEditingBrew(brew);
+                        setShowCustomBrewDialog(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteCustomBrew(brew.id, brew.batch_id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -366,10 +379,14 @@ export function BrewManagement() {
 
       <CustomBrewDialog
         open={showCustomBrewDialog}
-        onOpenChange={setShowCustomBrewDialog}
+        onOpenChange={(open) => {
+          setShowCustomBrewDialog(open);
+          if (!open) setEditingBrew(null);
+        }}
         pills={pills}
         controllers={controllers}
-        onBrewCreated={loadData}
+        onBrewSaved={loadData}
+        editBrew={editingBrew}
       />
     </div>
   );
