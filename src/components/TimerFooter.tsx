@@ -280,16 +280,25 @@ export const TimerFooter = memo(function TimerFooter() {
                       ? "text-orange-400" 
                       : "text-primary"
                 )} />
-                <span className={cn(
-                  "text-lg font-semibold truncate",
-                  isNextMilestoneImminent 
-                    ? "text-yellow-300" 
-                    : isMash 
-                      ? "text-orange-100" 
-                      : "text-foreground"
-                )}>
-                  {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                </span>
+                <div className="overflow-hidden max-w-[200px]">
+                  <span 
+                    className={cn(
+                      "text-lg font-semibold inline-block whitespace-nowrap",
+                      isNextMilestoneImminent 
+                        ? "text-yellow-300" 
+                        : isMash 
+                          ? "text-orange-100" 
+                          : "text-foreground",
+                      "animate-marquee"
+                    )}
+                    style={{
+                      animation: 'marquee 8s linear infinite',
+                      paddingRight: '2rem',
+                    }}
+                  >
+                    {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                  </span>
+                </div>
               </div>
             ) : (
               <span className={cn(
