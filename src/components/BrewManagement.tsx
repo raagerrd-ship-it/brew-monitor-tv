@@ -5,8 +5,9 @@ import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
-
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { CustomBrewDialog } from "./CustomBrewDialog";
+import type { PillData, TempController } from "@/types/brew";
 interface BrewfatherBatch {
   _id: string;
   name: string;
@@ -30,9 +31,13 @@ interface SelectedBrew {
 export function BrewManagement() {
   const navigate = useNavigate();
   const [batches, setBatches] = useState<BrewfatherBatch[]>([]);
+  const [customBrews, setCustomBrews] = useState<{ id: string; batch_id: string; name: string; style: string }[]>([]);
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
+  const [pills, setPills] = useState<PillData[]>([]);
+  const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showCustomBrewDialog, setShowCustomBrewDialog] = useState(false);
   const { toast } = useToast();
   const isLocalChange = useRef(false);
 
@@ -72,12 +77,19 @@ export function BrewManagement() {
     try {
       setLoading(true);
 
-      // Fetch batches and selected brews in parallel for faster loading
-      const [batchesResponse, selectedResponse] = await Promise.all([
+      // Fetch batches, selected brews, custom brews, pills, and controllers in parallel
+      const [batchesResponse, selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.functions.invoke('brewfather-batches', { body: { limit: 10 } }),
         supabase.from('selected_brews')
           .select('batch_id')
-          .eq('is_visible', true)
+          .eq('is_visible', true),
+        supabase.from('brew_readings')
+          .select('id, batch_id, name, style')
+          .like('batch_id', 'custom_%'),
+        supabase.from('rapt_pills')
+          .select('id, pill_id, name, color, battery_level, last_update'),
+        supabase.from('rapt_temp_controllers')
+          .select('id, controller_id, name, current_temp, pill_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id')
       ]);
 
       if (batchesResponse.error) throw batchesResponse.error;
@@ -85,6 +97,9 @@ export function BrewManagement() {
       
       // API returns batches already sorted by batchNo descending
       setBatches(batchesResponse.data || []);
+      setCustomBrews(customBrewsResponse.data || []);
+      setPills(pillsResponse.data || []);
+      setControllers(controllersResponse.data || []);
       
       // Convert selected brews to internal format
       setSelectedBrews((selectedResponse.data || []).map((b, index) => ({
@@ -97,7 +112,7 @@ export function BrewManagement() {
       console.error('Error loading data:', error);
       toast({
         title: "Fel",
-        description: "Kunde inte ladda data från Brewfather",
+        description: "Kunde inte ladda data",
         variant: "destructive",
       });
     } finally {
@@ -137,6 +152,40 @@ export function BrewManagement() {
       ]);
     }
   }, [selectedBrews.length, isSelected, toast]);
+
+  const deleteCustomBrew = async (brewId: string, batchId: string) => {
+    try {
+      // Delete from selected_brews first
+      await supabase
+        .from('selected_brews')
+        .delete()
+        .eq('batch_id', batchId);
+
+      // Delete from brew_readings
+      const { error } = await supabase
+        .from('brew_readings')
+        .delete()
+        .eq('id', brewId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Borttagen",
+        description: "Egen öl har tagits bort",
+      });
+
+      // Remove from local state
+      setCustomBrews(prev => prev.filter(b => b.id !== brewId));
+      setSelectedBrews(prev => prev.filter(b => b.batch_id !== batchId));
+    } catch (error) {
+      console.error('Error deleting custom brew:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte ta bort ölen",
+        variant: "destructive",
+      });
+    }
+  };
 
   const saveSelection = async () => {
     try {
@@ -211,39 +260,84 @@ export function BrewManagement() {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Hantera Öl</h2>
-        <p className="text-muted-foreground">
-          Välj upp till 3 öl att visa på dashboarden (visar upp till 10 senaste ölen)
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Hantera Öl</h2>
+          <p className="text-muted-foreground">
+            Välj upp till 3 öl att visa på dashboarden
+          </p>
+        </div>
+        <Button onClick={() => setShowCustomBrewDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Skapa egen öl
+        </Button>
       </div>
 
-      <div className="grid gap-4">
-        {batches.map((batch) => (
-          <Card key={batch._id} className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <Checkbox
-                  checked={isSelected(batch._id)}
-                  onCheckedChange={() => toggleBrew(batch._id)}
-                />
-                <div>
-                  <h3 className="font-semibold">
-                    {batch.recipe?.name || batch.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Batch #{batch.batchNo} - {batch.status}
-                  </p>
-                  {batch.recipe?.style?.name && (
-                    <p className="text-xs text-muted-foreground">
-                      {batch.recipe.style.name}
+      {/* Custom brews section */}
+      {customBrews.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-muted-foreground">Egna bryggningar</h3>
+          <div className="grid gap-4">
+            {customBrews.map((brew) => (
+              <Card key={brew.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <Checkbox
+                      checked={isSelected(brew.batch_id)}
+                      onCheckedChange={() => toggleBrew(brew.batch_id)}
+                    />
+                    <div>
+                      <h3 className="font-semibold">{brew.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {brew.style || 'Custom'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteCustomBrew(brew.id, brew.batch_id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Brewfather batches section */}
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold text-muted-foreground">Brewfather (10 senaste)</h3>
+        <div className="grid gap-4">
+          {batches.map((batch) => (
+            <Card key={batch._id} className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Checkbox
+                    checked={isSelected(batch._id)}
+                    onCheckedChange={() => toggleBrew(batch._id)}
+                  />
+                  <div>
+                    <h3 className="font-semibold">
+                      {batch.recipe?.name || batch.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Batch #{batch.batchNo} - {batch.status}
                     </p>
-                  )}
+                    {batch.recipe?.style?.name && (
+                      <p className="text-xs text-muted-foreground">
+                        {batch.recipe.style.name}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 pt-4 border-t">
@@ -269,6 +363,14 @@ export function BrewManagement() {
           När du sparar ditt val görs en full synkronisering av de valda ölen
         </p>
       </div>
+
+      <CustomBrewDialog
+        open={showCustomBrewDialog}
+        onOpenChange={setShowCustomBrewDialog}
+        pills={pills}
+        controllers={controllers}
+        onBrewCreated={loadData}
+      />
     </div>
   );
 }
