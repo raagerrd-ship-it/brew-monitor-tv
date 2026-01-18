@@ -169,7 +169,7 @@ export function BrewingDashboard() {
       
 
       {/* Header Bar */}
-      <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[11%] flex items-center justify-between px-6 gap-6'}`} style={{
+      <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[8%] flex items-center justify-between px-6 gap-6'}`} style={{
       containerType: 'size',
       ...(isMobile ? {} : {
         background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
@@ -252,7 +252,7 @@ export function BrewingDashboard() {
                   </div>)}
               </div>
             </div>
-          </div> : <div className={`${gridLayout} h-full w-full p-4 py-6`}>
+          </div> : <div className={`${gridLayout} h-full w-full px-4 py-2`}>
             {brews.map((brew, index) => <div key={brew.id} className={cardWidthClass}>
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
               </div>)}

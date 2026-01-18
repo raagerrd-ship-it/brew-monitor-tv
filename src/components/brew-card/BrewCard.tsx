@@ -59,14 +59,14 @@ function BrewCardComponent({
           background: 'hsl(222 18% 15%)',
         }}
       >
-        <div className="h-[8%] px-3 py-1 flex-shrink-0">
-          <Skeleton className="h-5 w-3/4 mb-1" />
-          <Skeleton className="h-3 w-1/2" />
+        <div className="h-[10%] px-3 py-2 flex-shrink-0">
+          <Skeleton className="h-6 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
         </div>
         <div className="flex-1 p-2">
           <Skeleton className="w-full h-full rounded-lg" />
         </div>
-        <div className="h-[28%] px-3 py-1">
+        <div className="h-[32%] px-3 py-1.5">
           <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="rounded-lg" />
@@ -108,8 +108,8 @@ function BrewCardComponent({
         />
       )}
       
-      {/* Header - 8% */}
-      <div className="h-[8%] px-3 py-1 flex-shrink-0 relative" style={{ containerType: 'size' }}>
+      {/* Header - 10% */}
+      <div className="h-[10%] px-3 py-2 flex-shrink-0 relative" style={{ containerType: 'size' }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
@@ -203,8 +203,8 @@ function BrewCardComponent({
         </div>
       </div>
 
-      {/* Stats Grid - 28% */}
-      <div className="h-[28%] px-3 py-1 flex-shrink-0">
+      {/* Stats Grid - 32% */}
+      <div className="h-[32%] px-3 py-1.5 flex-shrink-0">
         <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
           <GravityStat brew={brew} updatedFields={updatedFields} />
           <AbvStat brew={brew} updatedFields={updatedFields} />
