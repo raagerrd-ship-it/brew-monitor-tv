@@ -16,6 +16,7 @@ import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
+import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 
@@ -176,7 +177,12 @@ export function BrewingDashboard() {
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
 
   return (
-    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden relative">
+    <div 
+      className="w-screen bg-background flex flex-col overflow-hidden relative"
+      style={{ 
+        height: showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh' 
+      }}
+    >
       {/* Version indicator */}
       <div 
         className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
