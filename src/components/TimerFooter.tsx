@@ -212,21 +212,6 @@ export const TimerFooter = memo(function TimerFooter() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {/* Timeline row */}
-      {timer.milestones.length > 0 && (
-        <div className={cn(
-          "border-b px-2",
-          isMash ? "border-orange-800/30" : "border-border/50"
-        )}>
-          <VisualTimeline 
-            milestones={timer.milestones}
-            totalSeconds={timer.totalSeconds}
-            remainingSeconds={timer.remainingSeconds}
-            isMash={isMash}
-          />
-        </div>
-      )}
-
       {/* Main timer row */}
       <div className="flex items-center gap-4 px-4 py-3">
         {/* Left: Icon + Label */}
@@ -245,49 +230,12 @@ export const TimerFooter = memo(function TimerFooter() {
           </span>
         </div>
 
-        {/* Center: Next step info + Progress bar */}
-        <div className="flex-1 flex flex-col gap-1 mx-4">
-          {timer.nextMilestone && (
-            <div className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-lg",
-              isNextMilestoneImminent 
-                ? "bg-yellow-500/20 border border-yellow-500/30 animate-pulse" 
-                : isMash 
-                  ? "bg-orange-900/50" 
-                  : "bg-muted/50"
-            )}>
-              <Flame className={cn(
-                "w-4 h-4 flex-shrink-0",
-                isNextMilestoneImminent ? "text-yellow-400" : isMash ? "text-orange-400" : "text-primary"
-              )} />
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className={cn(
-                  "font-medium truncate",
-                  isNextMilestoneImminent 
-                    ? "text-yellow-200" 
-                    : isMash 
-                      ? "text-orange-100" 
-                      : "text-foreground"
-                )}>
-                  {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                </span>
-                {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
-                  <span className={cn(
-                    "text-sm tabular-nums",
-                    isNextMilestoneImminent ? "text-yellow-300" : "text-muted-foreground"
-                  )}>
-                    om {formatTime(timer.timeToNextMilestone)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-          
-          {/* Progress bar */}
-          <ProgressBar 
-            progress={timer.progress}
+        {/* Center: Visual Timeline */}
+        <div className="flex-1 mx-4">
+          <VisualTimeline 
             milestones={timer.milestones}
             totalSeconds={timer.totalSeconds}
+            remainingSeconds={timer.remainingSeconds}
             isMash={isMash}
           />
         </div>
