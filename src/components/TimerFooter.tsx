@@ -54,11 +54,18 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
               : 0;
           const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
           
+          // First label at left edge, last at right edge, others clamped
+          const isFirst = index === 0;
+          const isLast = index === sortedMilestones.length - 1;
+          
           return (
             <div
               key={`label-${index}`}
-              className="absolute top-0 -translate-x-1/2"
-              style={{ left: `${Math.max(5, Math.min(95, position))}%` }}
+              className={cn(
+                "absolute top-0",
+                isFirst ? "translate-x-0" : isLast ? "-translate-x-full" : "-translate-x-1/2"
+              )}
+              style={{ left: `${isFirst ? 0 : isLast ? 100 : Math.max(10, Math.min(90, position))}%` }}
             >
               <span className={cn(
                 "text-xs font-medium tabular-nums",
