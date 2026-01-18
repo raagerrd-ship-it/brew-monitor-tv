@@ -234,8 +234,8 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             formatter={(value: number, name: string) => {
               if (name === "value") return [value.toFixed(3), "SG"];
               if (name === "temp") return [
-                <span style={{ color: "hsl(var(--temp-blue) / 0.9)" }}>{value.toFixed(1)}°C</span>,
-                <span style={{ color: "hsl(var(--temp-blue) / 0.9)" }}>Temp</span>
+                <span style={{ color: "hsl(var(--temp-blue) / 0.6)" }}>{value.toFixed(1)}°C</span>,
+                <span style={{ color: "hsl(var(--temp-blue) / 0.6)" }}>Pill temp</span>
               ];
               return [value, name];
             }}
@@ -256,15 +256,14 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             }}
           />
           
-          <Area
+          <Line
             yAxisId="temp"
             type={areaType}
             dataKey="temp"
-            stroke="hsl(var(--temp-blue) / 0.4)"
+            stroke="hsl(var(--temp-blue) / 0.35)"
             strokeWidth={1}
-            fill="hsl(var(--temp-blue) / 0.1)"
             dot={false}
-            activeDot={{ r: 4, fill: "hsl(var(--temp-blue) / 0.6)" }}
+            activeDot={{ r: 3, fill: "hsl(var(--temp-blue) / 0.5)" }}
             name="temp"
             isAnimationActive={!isTvMode}
           />
