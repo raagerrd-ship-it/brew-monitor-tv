@@ -140,6 +140,24 @@ export function useBrewData(): UseBrewDataReturn {
       return [];
     }
 
+    // Get linked pill IDs for custom brews to fetch their last_update
+    const linkedPillIds = brewReadings
+      .filter((r: any) => r.linked_pill_id)
+      .map((r: any) => r.linked_pill_id);
+    
+    // Fetch pill data for linked pills (to get last_update for custom brews)
+    const pillsMap = new Map<string, { last_update: string | null }>();
+    if (linkedPillIds.length > 0) {
+      const { data: pillsData } = await supabase
+        .from('rapt_pills')
+        .select('pill_id, last_update')
+        .in('pill_id', linkedPillIds);
+      
+      (pillsData || []).forEach((pill: any) => {
+        pillsMap.set(pill.pill_id, { last_update: pill.last_update });
+      });
+    }
+
     // Fetch profiles and steps for active sessions
     const activeSessions = sessionsRes.data || [];
     const profileIds = [...new Set(activeSessions.map(s => s.profile_id))];
@@ -233,6 +251,15 @@ export function useBrewData(): UseBrewDataReturn {
 
       const fermentationRate = calculateFermentationRate(originalSgData);
 
+      // For custom brews (with linked_pill_id), use pill's last_update if brew has no last_update
+      let effectiveLastUpdate = reading.last_update;
+      if (!effectiveLastUpdate && reading.linked_pill_id) {
+        const linkedPill = pillsMap.get(reading.linked_pill_id);
+        if (linkedPill?.last_update) {
+          effectiveLastUpdate = linkedPill.last_update;
+        }
+      }
+
       return {
         id: reading.id,
         batch_id: reading.batch_id,
@@ -246,8 +273,8 @@ export function useBrewData(): UseBrewDataReturn {
         abv: reading.abv,
         originalGravity: reading.original_gravity,
         finalGravity: reading.final_gravity,
-        lastUpdate: reading.last_update
-          ? new Date(reading.last_update).toLocaleString('sv-SE', {
+        lastUpdate: effectiveLastUpdate
+          ? new Date(effectiveLastUpdate).toLocaleString('sv-SE', {
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -255,7 +282,7 @@ export function useBrewData(): UseBrewDataReturn {
               minute: '2-digit',
             })
           : 'Ingen data',
-        lastUpdateRaw: reading.last_update,
+        lastUpdateRaw: effectiveLastUpdate,
         battery: reading.battery,
         sgData: sgData,
         fermentationRate:
