@@ -113,8 +113,10 @@ export function findDevicesForBrew(
   controllers: TempController[]
 ): DeviceMatch {
   // First, check for manual connections
-  if (brew.linked_controller_id) {
-    const manualController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
+  if (brew.linked_controller_id || brew.linked_pill_id) {
+    const manualController = brew.linked_controller_id 
+      ? controllers.find(c => c.controller_id === brew.linked_controller_id) || null
+      : null;
     const manualPill = brew.linked_pill_id 
       ? pills.find(p => p.pill_id === brew.linked_pill_id) || null
       : null;
