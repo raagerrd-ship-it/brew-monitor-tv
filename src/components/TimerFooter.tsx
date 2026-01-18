@@ -258,7 +258,7 @@ export const TimerFooter = memo(function TimerFooter() {
           
           {/* LEFT COLUMN: Next Step */}
           <div className={cn(
-            "flex flex-col justify-center px-4 border-r",
+            "flex flex-col justify-center px-4 border-r -translate-y-1",
             isMash ? "border-orange-700/40" : "border-border/50"
           )}>
             <span className={cn(
