@@ -102,7 +102,11 @@ export function FermentationSessionCompact({
     switch (step.step_type) {
       case 'hold': {
         // Check if this is a SG-conditioned hold (no duration but has target_sg)
+        // If we have currentSg, the SG indicator is already showing this - just show step type
         if (step.target_sg != null && !step.duration_hours) {
+          if (currentSg != null) {
+            return 'Väntar på SG';
+          }
           return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg.toFixed(3)}`;
         }
         if (!step.duration_hours) return 'Okänd tid';
