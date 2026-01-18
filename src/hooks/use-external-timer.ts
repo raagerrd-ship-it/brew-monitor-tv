@@ -44,6 +44,8 @@ export function useExternalTimer() {
     totalSeconds: number;
     isPaused: boolean;
     milestones: TimerMilestone[];
+    nextMilestone: TimerMilestone | null;
+    timeToNextMilestoneAtStart: number | null;
   } | null>(null);
 
   const calculateRemainingSeconds = useCallback(() => {
@@ -61,18 +63,19 @@ export function useExternalTimer() {
     return remaining;
   }, []);
 
-  const calculateMilestoneInfo = useCallback((remainingSeconds: number, milestones: TimerMilestone[]) => {
-    // Find next untriggered milestone
-    // Milestones have 'time' as remaining seconds when they trigger
-    // So next milestone is one where time < remainingSeconds (will be reached as time counts down)
-    // Sort ascending by time to get the closest upcoming milestone first
-    const sortedMilestones = [...milestones].sort((a, b) => b.time - a.time);
-    const nextMilestone = sortedMilestones.find(m => !m.triggered && m.time < remainingSeconds) || null;
-    
-    // Time to next milestone = current remaining - milestone trigger time
-    const timeToNextMilestone = nextMilestone ? remainingSeconds - nextMilestone.time : null;
+  const calculateTimeToNextMilestone = useCallback(() => {
+    const data = timerDataRef.current;
+    if (!data || data.timeToNextMilestoneAtStart === null) return null;
 
-    return { nextMilestone, timeToNextMilestone };
+    if (data.isPaused) {
+      return data.timeToNextMilestoneAtStart;
+    }
+
+    const startedAt = new Date(data.startedAt!).getTime();
+    const now = Date.now();
+    const elapsed = Math.floor((now - startedAt) / 1000);
+    const remaining = Math.max(0, data.timeToNextMilestoneAtStart - elapsed);
+    return remaining;
   }, []);
 
   const updateTimerState = useCallback(() => {
@@ -83,17 +86,17 @@ export function useExternalTimer() {
     }
 
     const remainingSeconds = calculateRemainingSeconds();
-    const { nextMilestone, timeToNextMilestone } = calculateMilestoneInfo(remainingSeconds, data.milestones);
+    const timeToNextMilestone = calculateTimeToNextMilestone();
     const progress = data.totalSeconds > 0 ? 1 - (remainingSeconds / data.totalSeconds) : 0;
 
     setTimerState(prev => ({
       ...prev,
       remainingSeconds,
-      nextMilestone,
+      nextMilestone: data.nextMilestone,
       timeToNextMilestone,
       progress: Math.min(1, Math.max(0, progress)),
     }));
-  }, [calculateRemainingSeconds, calculateMilestoneInfo]);
+  }, [calculateRemainingSeconds, calculateTimeToNextMilestone]);
 
   const fetchTimerData = useCallback(async () => {
     if (!user || !session) return;
@@ -135,6 +138,8 @@ export function useExternalTimer() {
         totalSeconds: data.totalSeconds || 0,
         isPaused: data.isPaused || false,
         milestones,
+        nextMilestone: data.nextMilestone || null,
+        timeToNextMilestoneAtStart: data.timeToNextMilestone ?? null,
       };
 
       setTimerState({
