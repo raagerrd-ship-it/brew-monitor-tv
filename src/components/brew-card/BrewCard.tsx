@@ -246,6 +246,7 @@ function BrewCardComponent({
           onOpenChange={setSyncedDataOpen}
           brewName={brew.name}
           sgData={brew.sgData}
+          controllerId={brew.linked_controller_id}
         />
       )}
     </Card>
