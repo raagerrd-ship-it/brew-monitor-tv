@@ -4,15 +4,15 @@
 
 @keyframes marquee-seamless {
   0% {
-    transform: translateX(0);
+    transform: translateX(0%);
   }
   100% {
-    transform: translateX(-25%);
+    transform: translateX(-50%);
   }
 }
 
 .animate-marquee-seamless {
-  animation: marquee-seamless 8s linear infinite;
+  animation: marquee-seamless 6s linear infinite;
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 

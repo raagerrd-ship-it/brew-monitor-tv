@@ -280,26 +280,28 @@ export const TimerFooter = memo(function TimerFooter() {
                       ? "text-orange-400" 
                       : "text-primary"
                 )} />
-                <div className="overflow-hidden max-w-[200px] relative [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
-                  <div className="flex animate-marquee-seamless">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="flex shrink-0 items-center">
-                        <span className={cn(
-                          "text-lg font-semibold whitespace-nowrap",
-                          isNextMilestoneImminent 
-                            ? "text-yellow-300" 
-                            : isMash 
-                              ? "text-orange-100" 
-                              : "text-foreground"
-                        )}>
-                          {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                        </span>
-                        <span className={cn(
-                          "px-4 text-lg opacity-40",
-                          isMash ? "text-orange-400" : "text-muted-foreground"
-                        )}>•</span>
-                      </div>
-                    ))}
+                <div className="overflow-hidden max-w-[250px] relative">
+                  <div className="inline-flex animate-marquee-seamless whitespace-nowrap">
+                    <span className={cn(
+                      "text-lg font-semibold px-8",
+                      isNextMilestoneImminent 
+                        ? "text-yellow-300" 
+                        : isMash 
+                          ? "text-orange-100" 
+                          : "text-foreground"
+                    )}>
+                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                    </span>
+                    <span className={cn(
+                      "text-lg font-semibold px-8",
+                      isNextMilestoneImminent 
+                        ? "text-yellow-300" 
+                        : isMash 
+                          ? "text-orange-100" 
+                          : "text-foreground"
+                    )}>
+                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                    </span>
                   </div>
                 </div>
               </div>
