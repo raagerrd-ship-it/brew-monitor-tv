@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     // Initialize external Supabase client
     const externalSupabaseUrl = 'https://zmvkvpmwpyxdpbysomxl.supabase.co';
-    const externalSupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inptdmt2cG13cHl4ZHBieXNvbXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE5NTY5MTQsImV4cCI6MjA0NzUzMjkxNH0.56BpImKxp-D_x7l8x5J5d_7mMxGJvSY3L5S5CyVBNjE';
+    const externalSupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inptdmt2cG13cHl4ZHBieXNvbXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0OTQ2NTMsImV4cCI6MjA3OTA3MDY1M30.IC1xZyB_mphskudaRgMKNPQYvkwkNMsiXlsuYmlsiMY';
     
     const externalSupabase = createClient(externalSupabaseUrl, externalSupabaseKey);
 
