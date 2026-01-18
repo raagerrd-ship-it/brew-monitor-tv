@@ -358,9 +358,14 @@ export const TimerFooter = memo(function TimerFooter() {
             {/* Total remaining time - secondary (clickable for test) */}
             <div 
               onClick={() => {
+                console.log('Test trigger clicked!');
                 const testLabel = timer.nextMilestone?.label || 'Test Milestone';
+                console.log('Setting alert with label:', testLabel);
                 setTriggeredAlert({ label: testLabel, time: Date.now() });
-                setTimeout(() => setTriggeredAlert(null), 5000);
+                setTimeout(() => {
+                  console.log('Clearing alert');
+                  setTriggeredAlert(null);
+                }, 5000);
               }}
               className={cn(
                 "font-mono tabular-nums text-base cursor-pointer hover:opacity-80 transition-opacity",
