@@ -38,7 +38,7 @@ serve(async (req) => {
       .select('*')
       .not('linked_pill_id', 'is', null)
       .like('batch_id', 'custom\\_%')
-      .in('status', ['Fermenting', 'Conditioning', 'Brewing']);
+      .in('status', ['Jäsning', 'Konditionering', 'Bryggning', 'Fermenting', 'Conditioning', 'Brewing']);
 
     if (brewsError) {
       throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);

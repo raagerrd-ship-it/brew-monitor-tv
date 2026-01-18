@@ -60,17 +60,19 @@ export function CustomBrewDialog({
   const [finalGravity, setFinalGravity] = useState("");
   const [selectedControllerId, setSelectedControllerId] = useState<string>("");
   const [selectedPillId, setSelectedPillId] = useState<string>("");
-  const [status, setStatus] = useState("Fermenting");
+  const [status, setStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Use Swedish status values to match Brewfather sync
   const statusOptions = [
-    { value: "Brewing", label: "Bryggning" },
-    { value: "Fermenting", label: "Jäser" },
-    { value: "Conditioning", label: "Konditionering" },
-    { value: "Completed", label: "Klar" },
-    { value: "Archived", label: "Arkiverad" },
+    { value: "Planering", label: "Planering" },
+    { value: "Bryggning", label: "Bryggning" },
+    { value: "Jäsning", label: "Jäsning" },
+    { value: "Konditionering", label: "Konditionering" },
+    { value: "Klar", label: "Klar" },
+    { value: "Arkiverad", label: "Arkiverad" },
   ];
 
   const isEditMode = !!editBrew;
@@ -86,7 +88,7 @@ export function CustomBrewDialog({
         setFinalGravity(editBrew.final_gravity?.toString() || "1.010");
         setSelectedControllerId(editBrew.linked_controller_id || "");
         setSelectedPillId(editBrew.linked_pill_id || "");
-        setStatus(editBrew.status || "Fermenting");
+        setStatus(editBrew.status || "Jäsning");
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -105,7 +107,7 @@ export function CustomBrewDialog({
         setFinalGravity("1.010");
         setSelectedControllerId("");
         setSelectedPillId("");
-        setStatus("Fermenting");
+        setStatus("Jäsning");
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -196,7 +198,7 @@ export function CustomBrewDialog({
             name: name.trim(),
             style: style.trim() || "Custom",
             batch_number: batchNumber.trim() || "1",
-            status: "Fermenting",
+            status: "Jäsning",
             original_gravity: og,
             final_gravity: fg,
             current_sg: og, // Start at OG
