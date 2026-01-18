@@ -54,7 +54,7 @@ export function SyncedDataDialog({
                   <tr className="border-b">
                     <th className="text-left py-2 font-medium">Datum</th>
                     <th className="text-right py-2 font-medium">SG</th>
-                    <th className="text-right py-2 font-medium">Temp</th>
+                    <th className="text-right py-2 font-medium">Pill temp</th>
                   </tr>
                 </thead>
                 <tbody>
