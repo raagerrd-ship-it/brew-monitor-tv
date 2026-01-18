@@ -281,40 +281,41 @@ export const TimerFooter = memo(function TimerFooter() {
                       : "text-primary"
                 )} />
                 <div className="overflow-hidden max-w-[200px] relative">
-                  <div 
-                    className={cn(
-                      "flex whitespace-nowrap",
-                      "animate-[marquee-seamless_12s_linear_infinite]"
-                    )}
-                  >
-                    <span className={cn(
-                      "text-lg font-semibold shrink-0",
-                      isNextMilestoneImminent 
-                        ? "text-yellow-300" 
-                        : isMash 
-                          ? "text-orange-100" 
-                          : "text-foreground"
-                    )}>
-                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                    </span>
-                    <span className={cn(
-                      "px-6 text-lg opacity-40 shrink-0",
-                      isMash ? "text-orange-400" : "text-muted-foreground"
-                    )}>•</span>
-                    <span className={cn(
-                      "text-lg font-semibold shrink-0",
-                      isNextMilestoneImminent 
-                        ? "text-yellow-300" 
-                        : isMash 
-                          ? "text-orange-100" 
-                          : "text-foreground"
-                    )}>
-                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                    </span>
-                    <span className={cn(
-                      "px-6 text-lg opacity-40 shrink-0",
-                      isMash ? "text-orange-400" : "text-muted-foreground"
-                    )}>•</span>
+                  <div className="flex animate-marquee-seamless">
+                    {/* First copy */}
+                    <div className="flex shrink-0 items-center">
+                      <span className={cn(
+                        "text-lg font-semibold whitespace-nowrap",
+                        isNextMilestoneImminent 
+                          ? "text-yellow-300" 
+                          : isMash 
+                            ? "text-orange-100" 
+                            : "text-foreground"
+                      )}>
+                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                      </span>
+                      <span className={cn(
+                        "px-4 text-lg opacity-40",
+                        isMash ? "text-orange-400" : "text-muted-foreground"
+                      )}>•</span>
+                    </div>
+                    {/* Second copy (identical for seamless loop) */}
+                    <div className="flex shrink-0 items-center">
+                      <span className={cn(
+                        "text-lg font-semibold whitespace-nowrap",
+                        isNextMilestoneImminent 
+                          ? "text-yellow-300" 
+                          : isMash 
+                            ? "text-orange-100" 
+                            : "text-foreground"
+                      )}>
+                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                      </span>
+                      <span className={cn(
+                        "px-4 text-lg opacity-40",
+                        isMash ? "text-orange-400" : "text-muted-foreground"
+                      )}>•</span>
+                    </div>
                   </div>
                 </div>
               </div>
