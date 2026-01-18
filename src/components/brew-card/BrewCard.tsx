@@ -219,6 +219,7 @@ function BrewCardComponent({
             preloadedSession={brew.fermentationSession}
             isAuthenticated={isAuthenticated}
             currentSg={brew.currentSG}
+            originalGravity={brew.originalGravity}
           />
         </div>
       </div>
