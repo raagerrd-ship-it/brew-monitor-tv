@@ -32,6 +32,7 @@ export interface CustomBrewData {
   final_gravity: number;
   linked_controller_id: string | null;
   linked_pill_id: string | null;
+  status: string;
 }
 
 interface CustomBrewDialogProps {
@@ -58,8 +59,17 @@ export function CustomBrewDialog({
   const [finalGravity, setFinalGravity] = useState("");
   const [selectedControllerId, setSelectedControllerId] = useState<string>("");
   const [selectedPillId, setSelectedPillId] = useState<string>("");
+  const [status, setStatus] = useState("Fermenting");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  const statusOptions = [
+    { value: "Brewing", label: "Bryggning" },
+    { value: "Fermenting", label: "Jäser" },
+    { value: "Conditioning", label: "Konditionering" },
+    { value: "Completed", label: "Klar" },
+    { value: "Archived", label: "Arkiverad" },
+  ];
 
   const isEditMode = !!editBrew;
 
@@ -74,6 +84,7 @@ export function CustomBrewDialog({
         setFinalGravity(editBrew.final_gravity?.toString() || "1.010");
         setSelectedControllerId(editBrew.linked_controller_id || "");
         setSelectedPillId(editBrew.linked_pill_id || "");
+        setStatus(editBrew.status || "Fermenting");
       } else {
         setName("");
         setStyle("");
@@ -82,6 +93,7 @@ export function CustomBrewDialog({
         setFinalGravity("1.010");
         setSelectedControllerId("");
         setSelectedPillId("");
+        setStatus("Fermenting");
       }
     }
   }, [open, editBrew]);
@@ -140,6 +152,7 @@ export function CustomBrewDialog({
             abv: abv,
             linked_controller_id: selectedControllerId || null,
             linked_pill_id: selectedPillId || null,
+            status: status,
           })
           .eq("id", editBrew.id);
 
@@ -278,6 +291,24 @@ export function CustomBrewDialog({
               />
             </div>
           </div>
+
+          {isEditMode && (
+            <div className="grid gap-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label>RAPT Controller</Label>
