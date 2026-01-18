@@ -28,9 +28,10 @@ interface TimelineProps {
   totalSeconds: number;
   remainingSeconds: number;
   isMash: boolean;
+  isTvMode: boolean;
 }
 
-const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash }: TimelineProps) {
+const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isTvMode }: TimelineProps) {
   if (!milestones.length || totalSeconds <= 0) return null;
 
   // Sort milestones by time descending (highest time = earliest in process)
@@ -117,8 +118,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
                   ? "bg-green-500 border-green-300 shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
                   : isNext
                     ? isMash 
-                      ? "bg-orange-400 border-orange-200 ring-2 ring-orange-400/60 animate-pulse shadow-[0_0_12px_rgba(251,146,60,0.7)]" 
-                      : "bg-primary border-primary-foreground ring-2 ring-primary/60 animate-pulse shadow-[0_0_12px_rgba(var(--primary),0.7)]"
+                      ? cn("bg-orange-400 border-orange-200 ring-2 ring-orange-400/60 shadow-[0_0_12px_rgba(251,146,60,0.7)]", !isTvMode && "animate-pulse")
+                      : cn("bg-primary border-primary-foreground ring-2 ring-primary/60 shadow-[0_0_12px_rgba(var(--primary),0.7)]", !isTvMode && "animate-pulse")
                     : isMash
                       ? "bg-orange-800 border-orange-600"
                       : "bg-muted-foreground/50 border-muted-foreground/30"
@@ -320,6 +321,7 @@ export const TimerFooter = memo(function TimerFooter() {
                 totalSeconds={timer.totalSeconds}
                 remainingSeconds={timer.remainingSeconds}
                 isMash={isMash}
+                isTvMode={isTvMode}
               />
             ) : (
               <div className={cn(
