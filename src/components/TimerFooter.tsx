@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { ChefHat, Flame, Pause } from 'lucide-react';
+import { ChefHat, Flame, Pause, Check } from 'lucide-react';
 import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
@@ -11,15 +11,77 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function formatTimeToMilestone(seconds: number): string {
-  if (seconds <= 0) return 'nu';
+function formatTimeShort(seconds: number): string {
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins > 0) {
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  if (mins >= 60) {
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return remainingMins > 0 ? `${hours}h${remainingMins}'` : `${hours}h`;
   }
-  return `${secs}s`;
+  return `${mins}'`;
 }
+
+interface TimelineProps {
+  milestones: TimerMilestone[];
+  totalSeconds: number;
+  remainingSeconds: number;
+  isMash: boolean;
+}
+
+const Timeline = memo(function Timeline({ milestones, totalSeconds, remainingSeconds, isMash }: TimelineProps) {
+  if (!milestones.length || totalSeconds <= 0) return null;
+
+  // Sort milestones by time descending (highest time = earliest in process)
+  const sortedMilestones = [...milestones].sort((a, b) => b.time - a.time);
+
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto py-1 px-2 scrollbar-hide">
+      {sortedMilestones.map((milestone, index) => {
+        const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
+        const isNext = !isTriggered && (index === 0 || sortedMilestones[index - 1].triggered || sortedMilestones[index - 1].time >= remainingSeconds);
+        const isCurrent = isTriggered && (index === sortedMilestones.length - 1 || !sortedMilestones[index + 1]?.triggered);
+        
+        // Calculate position as percentage
+        const position = totalSeconds > 0 ? ((totalSeconds - milestone.time) / totalSeconds) * 100 : 0;
+        
+        return (
+          <div 
+            key={index} 
+            className={cn(
+              "flex items-center gap-1 flex-shrink-0 px-2 py-1 rounded-md text-xs transition-all",
+              isTriggered 
+                ? "bg-muted/30 text-muted-foreground" 
+                : isNext
+                  ? isMash 
+                    ? "bg-orange-500/30 text-orange-200 ring-1 ring-orange-500/50" 
+                    : "bg-primary/30 text-primary-foreground ring-1 ring-primary/50"
+                  : "bg-muted/20 text-muted-foreground/70"
+            )}
+          >
+            {isTriggered ? (
+              <Check className="w-3 h-3 text-green-500" />
+            ) : (
+              <span className={cn(
+                "w-2 h-2 rounded-full",
+                isNext 
+                  ? isMash ? "bg-orange-400 animate-pulse" : "bg-primary animate-pulse"
+                  : "bg-muted-foreground/50"
+              )} />
+            )}
+            <span className="truncate max-w-[120px]" title={milestone.label}>
+              {milestone.label.replace(/🔥\s*/g, '')}
+            </span>
+            {milestone.time > 0 && (
+              <span className="text-muted-foreground/70 text-[10px]">
+                @{formatTimeShort(milestone.time)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 interface ProgressBarProps {
   progress: number;
@@ -101,6 +163,22 @@ export const TimerFooter = memo(function TimerFooter() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
+      {/* Timeline row */}
+      {timer.milestones.length > 0 && (
+        <div className={cn(
+          "border-b px-2",
+          isMash ? "border-orange-800/30" : "border-border/50"
+        )}>
+          <Timeline 
+            milestones={timer.milestones}
+            totalSeconds={timer.totalSeconds}
+            remainingSeconds={timer.remainingSeconds}
+            isMash={isMash}
+          />
+        </div>
+      )}
+
+      {/* Main timer row */}
       <div className="flex items-center gap-4 px-4 py-3">
         {/* Left: Icon + Label */}
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -118,26 +196,22 @@ export const TimerFooter = memo(function TimerFooter() {
           </span>
         </div>
 
-        {/* Center: Next step info */}
+        {/* Center: Next step info + Progress bar */}
         <div className="flex-1 flex flex-col gap-1 mx-4">
           {timer.nextMilestone && (
             <div className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg",
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg",
               isNextMilestoneImminent 
                 ? "bg-yellow-500/20 border border-yellow-500/30 animate-pulse" 
                 : isMash 
                   ? "bg-orange-900/50" 
                   : "bg-muted/50"
             )}>
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className={cn(
-                  "text-xs uppercase tracking-wide",
-                  isNextMilestoneImminent ? "text-yellow-400" : "text-muted-foreground"
-                )}>
-                  Nästa steg {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
-                    <span className="ml-1">om {formatTimeToMilestone(timer.timeToNextMilestone)}</span>
-                  )}
-                </span>
+              <Flame className={cn(
+                "w-4 h-4 flex-shrink-0",
+                isNextMilestoneImminent ? "text-yellow-400" : isMash ? "text-orange-400" : "text-primary"
+              )} />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 <span className={cn(
                   "font-medium truncate",
                   isNextMilestoneImminent 
@@ -146,8 +220,16 @@ export const TimerFooter = memo(function TimerFooter() {
                       ? "text-orange-100" 
                       : "text-foreground"
                 )}>
-                  {timer.nextMilestone.label}
+                  {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
                 </span>
+                {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+                  <span className={cn(
+                    "text-sm tabular-nums",
+                    isNextMilestoneImminent ? "text-yellow-300" : "text-muted-foreground"
+                  )}>
+                    om {formatTime(timer.timeToNextMilestone)}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -175,14 +257,19 @@ export const TimerFooter = memo(function TimerFooter() {
             </div>
           )}
 
-          <div 
-            className={cn(
-              "font-mono font-bold tabular-nums text-4xl",
-              isLowTime && "animate-pulse text-red-500",
-              !isLowTime && (isMash ? "text-orange-200" : "text-foreground")
-            )}
-          >
-            {formatTime(timer.remainingSeconds)}
+          <div className="flex flex-col items-end">
+            <div 
+              className={cn(
+                "font-mono font-bold tabular-nums text-3xl",
+                isLowTime && "animate-pulse text-red-500",
+                !isLowTime && (isMash ? "text-orange-200" : "text-foreground")
+              )}
+            >
+              {formatTime(timer.remainingSeconds)}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Tot: {formatTime(timer.totalSeconds)}
+            </span>
           </div>
         </div>
       </div>
