@@ -1,5 +1,5 @@
-import { memo, useMemo, useRef } from 'react';
-import { ChefHat, Flame, Pause, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { memo, useMemo, useRef, useState, useEffect } from 'react';
+import { ChefHat, Flame, Pause, Check, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
@@ -202,6 +202,10 @@ export const TimerFooter = memo(function TimerFooter() {
   const { isTvMode } = useTvMode();
   const timer = useExternalTimer();
   const { timerTvModeOnly, isLoading: settingsLoading } = useExternalUserSettings();
+  
+  // Track triggered milestones for attention notification
+  const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
+  const lastTriggeredRef = useRef<string | null>(null);
 
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
@@ -209,6 +213,26 @@ export const TimerFooter = memo(function TimerFooter() {
   // Check if we should show based on TV mode setting
   const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
   
+  // Detect when a milestone just triggered (within 2 seconds of its time)
+  useEffect(() => {
+    if (!timer.milestones.length) return;
+    
+    const justTriggered = timer.milestones.find(m => {
+      const diff = Math.abs(timer.remainingSeconds - m.time);
+      return diff <= 2 && !m.triggered && m.label !== lastTriggeredRef.current;
+    });
+    
+    if (justTriggered) {
+      lastTriggeredRef.current = justTriggered.label;
+      setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
+      
+      // Auto-dismiss after 10 seconds
+      setTimeout(() => {
+        setTriggeredAlert(null);
+      }, 10000);
+    }
+  }, [timer.remainingSeconds, timer.milestones]);
+
   if (!shouldShow || !timer.isActive) {
     return null;
   }
@@ -221,6 +245,37 @@ export const TimerFooter = memo(function TimerFooter() {
 
   return (
     <>
+      {/* Attention-grabbing alert overlay when milestone triggers */}
+      {triggeredAlert && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.3) 0%, rgba(0,0,0,0.8) 100%)',
+            animation: 'pulse-bg 1s ease-in-out infinite alternate',
+          }}
+        >
+          <div 
+            className="flex flex-col items-center gap-6 p-12 rounded-3xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(194, 65, 12, 0.95) 100%)',
+              boxShadow: '0 0 100px 20px rgba(234, 88, 12, 0.5), 0 0 200px 40px rgba(234, 88, 12, 0.3)',
+              animation: 'scale-pulse 0.5s ease-out, glow 1.5s ease-in-out infinite alternate',
+            }}
+          >
+            <div className="flex items-center gap-4">
+              <AlertTriangle className="w-16 h-16 text-white animate-bounce" />
+              <span className="text-white text-2xl font-bold uppercase tracking-wider">Nu!</span>
+            </div>
+            <div className="text-white text-4xl md:text-6xl font-bold text-center max-w-4xl">
+              {triggeredAlert.label.replace(/🔥\s*/g, '')}
+            </div>
+            <div className="text-orange-200 text-xl">
+              Utför detta steg nu
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Spacer to push content up */}
       <div style={{ height: `${FOOTER_HEIGHT}px` }} />
       
