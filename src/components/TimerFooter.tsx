@@ -215,9 +215,15 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Steps list row */}
       {timer.milestones.length > 0 && (
         <div className={cn(
-          "flex items-center gap-2 px-4 py-2 border-b overflow-x-auto",
+          "flex items-center gap-3 px-4 py-1.5 border-b overflow-x-auto scrollbar-none",
           isMash ? "border-orange-800/30" : "border-border/50"
         )}>
+          <span className={cn(
+            "text-xs font-medium flex-shrink-0",
+            isMash ? "text-orange-400/70" : "text-muted-foreground"
+          )}>
+            Steg:
+          </span>
           {[...timer.milestones]
             .sort((a, b) => b.time - a.time)
             .map((milestone, index, arr) => {
@@ -229,25 +235,34 @@ export const TimerFooter = memo(function TimerFooter() {
                 <div
                   key={index}
                   className={cn(
-                    "flex items-center gap-1.5 px-2 py-1 rounded-md text-sm whitespace-nowrap flex-shrink-0",
+                    "flex items-center gap-1 whitespace-nowrap flex-shrink-0",
                     isTriggered 
-                      ? "bg-green-500/20 text-green-400" 
+                      ? "text-green-500" 
                       : isNext
                         ? isMash 
-                          ? "bg-orange-500/30 text-orange-200 ring-1 ring-orange-500/50" 
-                          : "bg-primary/20 text-primary ring-1 ring-primary/50"
+                          ? "text-orange-200" 
+                          : "text-primary"
                         : isMash
-                          ? "bg-orange-900/30 text-orange-300/60"
-                          : "bg-muted/30 text-muted-foreground/60"
+                          ? "text-orange-400/50"
+                          : "text-muted-foreground/50"
                   )}
                 >
-                  {isTriggered && <Check className="w-3.5 h-3.5" />}
-                  <span className="font-medium">
-                    {milestone.label.replace(/🔥\s*/g, '').split(' – ')[0]}
+                  {isTriggered && <Check className="w-3 h-3" />}
+                  <span className={cn(
+                    "text-xs",
+                    isNext && "font-medium"
+                  )}>
+                    {milestone.label.replace(/🔥\s*/g, '')}
                   </span>
-                  <span className="text-xs opacity-70">
-                    ({formatTimeShort(milestone.time)})
+                  <span className="text-[10px] opacity-60">
+                    {formatTimeShort(milestone.time)}
                   </span>
+                  {index < arr.length - 1 && (
+                    <span className={cn(
+                      "ml-2",
+                      isMash ? "text-orange-700" : "text-muted-foreground/30"
+                    )}>→</span>
+                  )}
                 </div>
               );
             })}
