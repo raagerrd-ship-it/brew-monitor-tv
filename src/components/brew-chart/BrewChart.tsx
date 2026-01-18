@@ -260,13 +260,14 @@ function BrewChartComponent({ data, og, fg, singleView = false, events = [], con
             }}
           />
           
-          {/* Controller temp - main temperature line */}
-          <Line
+          {/* Controller temp - main temperature with subtle background */}
+          <Area
             yAxisId="temp"
             type={areaType}
             dataKey="controllerTemp"
             stroke="hsl(var(--temp-blue))"
             strokeWidth={1.5}
+            fill="hsl(var(--temp-blue) / 0.08)"
             dot={false}
             activeDot={{ r: 4, fill: "hsl(var(--temp-blue))" }}
             name="controllerTemp"
