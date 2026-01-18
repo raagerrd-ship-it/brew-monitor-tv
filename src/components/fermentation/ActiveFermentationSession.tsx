@@ -34,6 +34,7 @@ interface ActiveFermentationSessionProps {
   compact?: boolean;
   preloadedSession?: FermentationSessionData | null;
   isAuthenticated?: boolean;
+  currentSg?: number | null;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -53,6 +54,7 @@ export function ActiveFermentationSession({
   compact = false,
   preloadedSession,
   isAuthenticated: isAuthenticatedProp,
+  currentSg,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
@@ -379,6 +381,10 @@ export function ActiveFermentationSession({
 
   // Compact view uses the dedicated component
   if (compact) {
+    // Get SG target from current step if it's SG-conditioned
+    const stepTargetSg = currentStep?.target_sg ?? null;
+    const stepSgComparison = currentStep?.sg_comparison ?? null;
+    
     return (
       <FermentationSessionCompact
         profileName={session.profile?.name || ''}
@@ -392,6 +398,9 @@ export function ActiveFermentationSession({
         currentTemp={controllerData?.current_temp ?? null}
         isRamping={isRamping}
         rampProgress={rampProgress}
+        currentSg={currentSg}
+        targetSg={stepTargetSg}
+        sgComparison={stepSgComparison}
       />
     );
   }

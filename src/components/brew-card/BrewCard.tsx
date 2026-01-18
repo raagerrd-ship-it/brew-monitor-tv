@@ -218,6 +218,7 @@ function BrewCardComponent({
             compact 
             preloadedSession={brew.fermentationSession}
             isAuthenticated={isAuthenticated}
+            currentSg={brew.currentSG}
           />
         </div>
       </div>

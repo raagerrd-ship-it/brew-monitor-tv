@@ -15,6 +15,9 @@ interface FermentationSessionCompactProps {
   currentTemp?: number | null;
   isRamping: boolean;
   rampProgress: number | null;
+  currentSg?: number | null;
+  targetSg?: number | null;
+  sgComparison?: string | null;
 }
 
 export function FermentationSessionCompact({
@@ -29,9 +32,11 @@ export function FermentationSessionCompact({
   currentTemp,
   isRamping,
   rampProgress,
+  currentSg,
+  targetSg,
+  sgComparison,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
-  
   // Check if ramp step time is complete but temp not reached
   const isRampTimeComplete = () => {
     if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
@@ -304,6 +309,29 @@ export function FermentationSessionCompact({
                 </>
               )}
             </span>
+            
+            {/* SG Progress indicator - show when step has SG condition and we have current SG */}
+            {targetSg != null && currentSg != null && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                <span className="flex items-center gap-1">
+                  <Activity 
+                    className="h-3 w-3" 
+                    style={{ color: 'hsl(142 70% 50%)' }}
+                  />
+                  <span 
+                    className="font-semibold"
+                    style={{ color: 'hsl(142 70% 50%)' }}
+                  >
+                    {currentSg.toFixed(3)}
+                  </span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="text-muted-foreground font-medium">
+                    {sgComparison === 'at_or_below' ? '≤' : '≥'}{targetSg}
+                  </span>
+                </span>
+              </>
+            )}
             
             {/* Separator */}
             <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
