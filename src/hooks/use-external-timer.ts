@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { externalSupabase } from '@/integrations/external-supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { useExternalAuth } from '@/contexts/ExternalAuthContext';
 
 export interface TimerMilestone {
@@ -98,7 +99,132 @@ export function useExternalTimer() {
     }));
   }, [calculateRemainingSeconds, calculateTimeToNextMilestone]);
 
-  const fetchTimerData = useCallback(async () => {
+  // Save timer data to local cache for public access
+  const cacheTimerData = useCallback(async (data: ExternalTimerState & { externalUserId: string }) => {
+    try {
+      // First check if record exists
+      const { data: existing } = await supabase
+        .from('cached_external_timer')
+        .select('id')
+        .eq('external_user_id', data.externalUserId)
+        .maybeSingle();
+
+      const timerRecord = {
+        is_active: data.isActive,
+        label: data.label,
+        remaining_seconds: data.remainingSeconds,
+        total_seconds: data.totalSeconds,
+        is_paused: data.isPaused,
+        paused_by_milestone: data.pausedByMilestone,
+        milestones: JSON.parse(JSON.stringify(data.milestones)),
+        next_milestone: data.nextMilestone ? JSON.parse(JSON.stringify(data.nextMilestone)) : null,
+        time_to_next_milestone: data.timeToNextMilestone,
+        progress: data.progress,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existing) {
+        await supabase
+          .from('cached_external_timer')
+          .update(timerRecord)
+          .eq('external_user_id', data.externalUserId);
+      } else {
+        await supabase
+          .from('cached_external_timer')
+          .insert([{
+            external_user_id: data.externalUserId,
+            ...timerRecord,
+          }]);
+      }
+    } catch (error) {
+      console.error('Error caching timer data:', error);
+    }
+  }, []);
+
+  // Fetch from local cache (for non-authenticated users)
+  const fetchFromCache = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cached_external_timer')
+        .select('*')
+        .eq('is_active', true)
+        .order('last_synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching cached timer:', error);
+        return;
+      }
+
+      if (!data) {
+        timerDataRef.current = null;
+        setTimerState(initialState);
+        return;
+      }
+
+      const rawMilestones = Array.isArray(data.milestones) ? data.milestones : [];
+      const milestones: TimerMilestone[] = rawMilestones.map((m: unknown) => {
+        const milestone = m as Record<string, unknown>;
+        return {
+          time: typeof milestone.time === 'number' ? milestone.time : 0,
+          label: typeof milestone.label === 'string' ? milestone.label : '',
+          triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
+        };
+      });
+
+      // Calculate elapsed time since last sync
+      const lastSynced = new Date(data.last_synced_at).getTime();
+      const now = Date.now();
+      const elapsedSinceSync = Math.floor((now - lastSynced) / 1000);
+      
+      // Adjust remaining seconds based on elapsed time (if not paused)
+      const adjustedRemaining = data.is_paused 
+        ? data.remaining_seconds 
+        : Math.max(0, data.remaining_seconds - elapsedSinceSync);
+      
+      const adjustedTimeToNext = data.is_paused || data.time_to_next_milestone === null
+        ? data.time_to_next_milestone
+        : Math.max(0, data.time_to_next_milestone - elapsedSinceSync);
+
+      // Parse next_milestone
+      const rawNextMilestone = data.next_milestone as Record<string, unknown> | null;
+      const nextMilestone: TimerMilestone | null = rawNextMilestone ? {
+        time: typeof rawNextMilestone.time === 'number' ? rawNextMilestone.time : 0,
+        label: typeof rawNextMilestone.label === 'string' ? rawNextMilestone.label : '',
+        triggered: typeof rawNextMilestone.triggered === 'boolean' ? rawNextMilestone.triggered : undefined,
+      } : null;
+
+      timerDataRef.current = {
+        startedAt: new Date().toISOString(),
+        remainingAtStart: adjustedRemaining,
+        totalSeconds: data.total_seconds,
+        isPaused: data.is_paused,
+        milestones,
+        nextMilestone,
+        timeToNextMilestoneAtStart: adjustedTimeToNext,
+      };
+
+      setTimerState({
+        isActive: data.is_active && adjustedRemaining > 0,
+        label: data.label || '',
+        remainingSeconds: adjustedRemaining,
+        totalSeconds: data.total_seconds,
+        isPaused: data.is_paused,
+        pausedByMilestone: data.paused_by_milestone,
+        milestones,
+        nextMilestone,
+        timeToNextMilestone: adjustedTimeToNext,
+        progress: data.total_seconds > 0 ? 1 - (adjustedRemaining / data.total_seconds) : 0,
+      });
+    } catch (error) {
+      console.error('Error fetching cached timer:', error);
+    }
+  }, []);
+
+  // Fetch from external API (for authenticated users)
+  const fetchFromExternal = useCallback(async () => {
     if (!user || !session) return;
 
     try {
@@ -124,6 +250,11 @@ export function useExternalTimer() {
       if (!data || !data.isActive) {
         timerDataRef.current = null;
         setTimerState(initialState);
+        // Also update cache to mark as inactive
+        await cacheTimerData({
+          externalUserId: user.id,
+          ...initialState,
+        });
         return;
       }
 
@@ -142,7 +273,7 @@ export function useExternalTimer() {
         timeToNextMilestoneAtStart: data.timeToNextMilestone ?? null,
       };
 
-      setTimerState({
+      const newState: ExternalTimerState = {
         isActive: data.isActive,
         label: data.label || '',
         remainingSeconds: data.remainingSeconds || 0,
@@ -153,41 +284,70 @@ export function useExternalTimer() {
         nextMilestone: data.nextMilestone || null,
         timeToNextMilestone: data.timeToNextMilestone || null,
         progress: Math.min(1, Math.max(0, data.progress || 0)),
+      };
+
+      setTimerState(newState);
+
+      // Cache the timer data for public access
+      await cacheTimerData({
+        externalUserId: user.id,
+        ...newState,
       });
     } catch (error) {
       console.error('Error fetching timer data:', error);
     }
-  }, [user, session]);
+  }, [user, session, cacheTimerData]);
 
-  // Initial fetch and subscribe to realtime updates
+  // Initial fetch and subscribe to updates
   useEffect(() => {
-    if (!isAuthenticated || !user) {
-      setTimerState(initialState);
-      return;
+    if (isAuthenticated && user) {
+      // Authenticated: fetch from external API
+      fetchFromExternal();
+
+      const channel = externalSupabase
+        .channel(`timer-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'shared_brewing_session',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchFromExternal();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        externalSupabase.removeChannel(channel);
+      };
+    } else {
+      // Not authenticated: fetch from local cache
+      fetchFromCache();
+
+      // Subscribe to cache updates via realtime
+      const channel = supabase
+        .channel('cached-timer-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'cached_external_timer',
+          },
+          () => {
+            fetchFromCache();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-
-    fetchTimerData();
-
-    const channel = externalSupabase
-      .channel(`timer-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'shared_brewing_session',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          fetchTimerData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      externalSupabase.removeChannel(channel);
-    };
-  }, [isAuthenticated, user, fetchTimerData]);
+  }, [isAuthenticated, user, fetchFromExternal, fetchFromCache]);
 
   // Update remaining seconds every second when timer is active
   useEffect(() => {

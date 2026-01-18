@@ -253,6 +253,60 @@ export type Database = {
         }
         Relationships: []
       }
+      cached_external_timer: {
+        Row: {
+          created_at: string
+          external_user_id: string
+          id: string
+          is_active: boolean
+          is_paused: boolean
+          label: string | null
+          last_synced_at: string
+          milestones: Json
+          next_milestone: Json | null
+          paused_by_milestone: boolean
+          progress: number
+          remaining_seconds: number
+          time_to_next_milestone: number | null
+          total_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_user_id: string
+          id?: string
+          is_active?: boolean
+          is_paused?: boolean
+          label?: string | null
+          last_synced_at?: string
+          milestones?: Json
+          next_milestone?: Json | null
+          paused_by_milestone?: boolean
+          progress?: number
+          remaining_seconds?: number
+          time_to_next_milestone?: number | null
+          total_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_user_id?: string
+          id?: string
+          is_active?: boolean
+          is_paused?: boolean
+          label?: string | null
+          last_synced_at?: string
+          milestones?: Json
+          next_milestone?: Json | null
+          paused_by_milestone?: boolean
+          progress?: number
+          remaining_seconds?: number
+          time_to_next_milestone?: number | null
+          total_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       external_user_settings: {
         Row: {
           created_at: string
