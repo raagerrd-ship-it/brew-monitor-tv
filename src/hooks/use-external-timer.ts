@@ -35,7 +35,7 @@ const initialState: ExternalTimerState = {
 };
 
 export function useExternalTimer() {
-  const { user, isAuthenticated } = useExternalAuth();
+  const { user, session, isAuthenticated } = useExternalAuth();
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerDataRef = useRef<{
@@ -92,19 +92,26 @@ export function useExternalTimer() {
   }, [calculateRemainingSeconds, calculateMilestoneInfo]);
 
   const fetchTimerData = useCallback(async () => {
-    if (!user) return;
+    if (!user || !session) return;
 
     try {
-      const { data, error } = await externalSupabase
-        .from('shared_brewing_session')
-        .select('active_timer_label, active_timer_total_seconds, active_timer_started_at, active_timer_remaining_at_start, active_timer_is_paused, active_timer_milestones')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const response = await fetch(
+        'https://zmvkvpmwpyxdpbysomxl.supabase.co/functions/v1/get-active-timer',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-      if (error) {
-        console.error('Error fetching timer data:', error);
+      if (!response.ok) {
+        console.error('Error fetching timer data:', response.statusText);
         return;
       }
+
+      const data = await response.json();
 
       if (!data || !data.active_timer_label || !data.active_timer_started_at) {
         timerDataRef.current = null;
@@ -150,7 +157,7 @@ export function useExternalTimer() {
     } catch (error) {
       console.error('Error fetching timer data:', error);
     }
-  }, [user, calculateRemainingSeconds, calculateMilestoneInfo]);
+  }, [user, session, calculateRemainingSeconds, calculateMilestoneInfo]);
 
   // Initial fetch and subscribe to realtime updates
   useEffect(() => {
