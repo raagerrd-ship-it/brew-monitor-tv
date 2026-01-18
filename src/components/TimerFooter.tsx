@@ -43,7 +43,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   const allSameTime = sortedMilestones.every(m => m.time === sortedMilestones[0]?.time);
 
   return (
-    <div className="relative w-full h-full flex flex-col justify-center -translate-y-1">
+    <div className="relative w-full h-full flex flex-col justify-center -translate-y-2">
       {/* Time labels row */}
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
