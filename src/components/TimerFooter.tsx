@@ -168,12 +168,12 @@ export const TimerFooter = memo(function TimerFooter() {
       lastTriggeredRef.current = justTriggered.label;
       setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
       
-      // For kok (not mash): Auto-dismiss after 10 seconds
+      // For kok (not mash): Auto-dismiss after 30 seconds
       // For mash: Keep alert visible until pausedByMilestone becomes false
       if (!isMash) {
         setTimeout(() => {
           setTriggeredAlert(null);
-        }, 10000);
+        }, 30000);
       }
     }
   }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
