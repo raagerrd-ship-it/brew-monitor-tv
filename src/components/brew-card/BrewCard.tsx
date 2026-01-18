@@ -1,4 +1,4 @@
-import { useMemo, memo } from "react";
+import { useMemo, memo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
+import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
 const CARD_HEADER_HEIGHT = 52;
@@ -33,7 +34,7 @@ function BrewCardComponent({
   cardIndex = 0,
 }: BrewCardProps) {
   const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
-  
+  const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   // Staggered rendering for TV mode - each card renders with a delay
   const shouldRenderContent = useStaggeredRender(cardIndex);
   
@@ -138,16 +139,18 @@ function BrewCardComponent({
               style={{ fontSize: 'max(14px, min(1.6vh, 1.8vw))', letterSpacing: '0.02em' }}
             >
               {brew.batch_id.startsWith('custom_') && (
-                <span 
-                  className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                <button
+                  onClick={() => setSyncedDataOpen(true)}
+                  className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity"
                   style={{
                     background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
                     color: 'hsl(var(--accent-foreground) / 0.9)',
                     border: '1px solid hsl(var(--accent) / 0.4)',
                   }}
+                  title="Visa synkad data"
                 >
                   Egen
-                </span>
+                </button>
               )}
               {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
             </p>
@@ -235,6 +238,16 @@ function BrewCardComponent({
           <BatteryStat brew={brew} devices={devices} updatedFields={updatedFields} />
         </div>
       </div>
+      
+      {/* Synced Data Dialog for custom brews */}
+      {brew.batch_id.startsWith('custom_') && (
+        <SyncedDataDialog
+          open={syncedDataOpen}
+          onOpenChange={setSyncedDataOpen}
+          brewName={brew.name}
+          sgData={brew.sgData}
+        />
+      )}
     </Card>
   );
 }
