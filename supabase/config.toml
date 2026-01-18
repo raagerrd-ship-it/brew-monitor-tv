@@ -39,3 +39,9 @@ verify_jwt = false
 
 [functions.external-auth]
 verify_jwt = false
+
+[functions.rapt-pill-telemetry]
+verify_jwt = false
+
+[functions.sync-custom-brew-pills]
+verify_jwt = false

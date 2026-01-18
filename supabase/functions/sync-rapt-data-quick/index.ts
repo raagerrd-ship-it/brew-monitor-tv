@@ -188,11 +188,29 @@ serve(async (req) => {
       // Don't fail the main sync if history recording fails
     }
 
+    // Sync custom brews with linked RAPT Pills
+    let customBrewsUpdated = 0;
+    try {
+      console.log('Syncing custom brews with linked RAPT Pills...');
+      const { data: customBrewResult, error: customBrewError } = await supabase.functions.invoke('sync-custom-brew-pills');
+      
+      if (customBrewError) {
+        console.error('Error syncing custom brews:', customBrewError);
+      } else {
+        customBrewsUpdated = customBrewResult?.brewsUpdated || 0;
+        console.log(`Custom brew sync complete: ${customBrewsUpdated} brews updated`);
+      }
+    } catch (customBrewSyncError) {
+      console.error('Error syncing custom brews:', customBrewSyncError);
+      // Don't fail the main sync if custom brew sync fails
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         pillsUpdated,
-        controllersUpdated
+        controllersUpdated,
+        customBrewsUpdated
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
