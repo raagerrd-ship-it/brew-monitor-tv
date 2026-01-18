@@ -22,12 +22,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import type { PillData, TempController } from "@/types/brew";
 
+export interface CustomBrewData {
+  id: string;
+  batch_id: string;
+  name: string;
+  style: string;
+  batch_number: string;
+  original_gravity: number;
+  final_gravity: number;
+  linked_controller_id: string | null;
+  linked_pill_id: string | null;
+}
+
 interface CustomBrewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pills: PillData[];
   controllers: TempController[];
-  onBrewCreated: () => void;
+  onBrewSaved: () => void;
+  editBrew?: CustomBrewData | null;
 }
 
 export function CustomBrewDialog({
@@ -35,7 +48,8 @@ export function CustomBrewDialog({
   onOpenChange,
   pills,
   controllers,
-  onBrewCreated,
+  onBrewSaved,
+  editBrew,
 }: CustomBrewDialogProps) {
   const [name, setName] = useState("");
   const [style, setStyle] = useState("");
@@ -47,18 +61,30 @@ export function CustomBrewDialog({
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  // Reset form when dialog opens
+  const isEditMode = !!editBrew;
+
+  // Reset/populate form when dialog opens
   useEffect(() => {
     if (open) {
-      setName("");
-      setStyle("");
-      setBatchNumber("");
-      setOriginalGravity("1.050");
-      setFinalGravity("1.010");
-      setSelectedControllerId("");
-      setSelectedPillId("");
+      if (editBrew) {
+        setName(editBrew.name);
+        setStyle(editBrew.style || "");
+        setBatchNumber(editBrew.batch_number || "");
+        setOriginalGravity(editBrew.original_gravity?.toString() || "1.050");
+        setFinalGravity(editBrew.final_gravity?.toString() || "1.010");
+        setSelectedControllerId(editBrew.linked_controller_id || "");
+        setSelectedPillId(editBrew.linked_pill_id || "");
+      } else {
+        setName("");
+        setStyle("");
+        setBatchNumber("");
+        setOriginalGravity("1.050");
+        setFinalGravity("1.010");
+        setSelectedControllerId("");
+        setSelectedPillId("");
+      }
     }
-  }, [open]);
+  }, [open, editBrew]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -94,63 +120,88 @@ export function CustomBrewDialog({
     try {
       setSaving(true);
 
-      // Generate a unique batch_id for custom brews
-      const customBatchId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
       // Calculate ABV: (OG - FG) * 131.25
       const abv = Math.round((og - fg) * 131.25 * 10) / 10;
 
       // Calculate attenuation: ((OG - FG) / (OG - 1)) * 100
       const attenuation = Math.round(((og - fg) / (og - 1)) * 100);
 
-      // Insert into brew_readings
-      const { error: insertError } = await supabase
-        .from("brew_readings")
-        .insert({
-          batch_id: customBatchId,
-          name: name.trim(),
-          style: style.trim() || "Custom",
-          batch_number: batchNumber.trim() || "1",
-          status: "Fermenting",
-          original_gravity: og,
-          final_gravity: fg,
-          current_sg: og, // Start at OG
-          current_temp: 20, // Default temp
-          attenuation: attenuation,
-          abv: abv,
-          sg_data: [],
-          linked_controller_id: selectedControllerId || null,
-          linked_pill_id: selectedPillId || null,
+      if (isEditMode && editBrew) {
+        // Update existing brew
+        const { error: updateError } = await supabase
+          .from("brew_readings")
+          .update({
+            name: name.trim(),
+            style: style.trim() || "Custom",
+            batch_number: batchNumber.trim() || "1",
+            original_gravity: og,
+            final_gravity: fg,
+            attenuation: attenuation,
+            abv: abv,
+            linked_controller_id: selectedControllerId || null,
+            linked_pill_id: selectedPillId || null,
+          })
+          .eq("id", editBrew.id);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: "Öl uppdaterad!",
+          description: `${name} har sparats`,
         });
+      } else {
+        // Generate a unique batch_id for custom brews
+        const customBatchId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-      if (insertError) throw insertError;
+        // Insert into brew_readings
+        const { error: insertError } = await supabase
+          .from("brew_readings")
+          .insert({
+            batch_id: customBatchId,
+            name: name.trim(),
+            style: style.trim() || "Custom",
+            batch_number: batchNumber.trim() || "1",
+            status: "Fermenting",
+            original_gravity: og,
+            final_gravity: fg,
+            current_sg: og, // Start at OG
+            current_temp: 20, // Default temp
+            attenuation: attenuation,
+            abv: abv,
+            sg_data: [],
+            linked_controller_id: selectedControllerId || null,
+            linked_pill_id: selectedPillId || null,
+          });
 
-      // Add to selected_brews to show on dashboard
-      const { error: selectError } = await supabase
-        .from("selected_brews")
-        .insert({
-          batch_id: customBatchId,
-          display_order: 0, // Will be at top
-          is_visible: true,
+        if (insertError) throw insertError;
+
+        // Add to selected_brews to show on dashboard
+        const { error: selectError } = await supabase
+          .from("selected_brews")
+          .insert({
+            batch_id: customBatchId,
+            display_order: 0, // Will be at top
+            is_visible: true,
+          });
+
+        if (selectError) {
+          console.error("Error adding to selected_brews:", selectError);
+          // Don't throw, the brew was created
+        }
+
+        toast({
+          title: "Öl skapad!",
+          description: `${name} har lagts till`,
         });
-
-      if (selectError) {
-        console.error("Error adding to selected_brews:", selectError);
-        // Don't throw, the brew was created
       }
 
-      toast({
-        title: "Öl skapad!",
-        description: `${name} har lagts till`,
-      });
-
-      onBrewCreated();
+      onBrewSaved();
       onOpenChange(false);
     } catch (error) {
-      console.error("Error creating custom brew:", error);
+      console.error("Error saving custom brew:", error);
       toast({
         title: "Fel",
-        description: "Kunde inte skapa ölen",
+        description: isEditMode ? "Kunde inte uppdatera ölen" : "Kunde inte skapa ölen",
         variant: "destructive",
       });
     } finally {
@@ -162,9 +213,11 @@ export function CustomBrewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Skapa egen öl</DialogTitle>
+          <DialogTitle>{isEditMode ? "Redigera öl" : "Skapa egen öl"}</DialogTitle>
           <DialogDescription>
-            Lägg till en bryggning utan Brewfather
+            {isEditMode
+              ? "Ändra uppgifter för din bryggning"
+              : "Lägg till en bryggning utan Brewfather"}
           </DialogDescription>
         </DialogHeader>
 
@@ -275,8 +328,10 @@ export function CustomBrewDialog({
             {saving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Skapar...
+                {isEditMode ? "Sparar..." : "Skapar..."}
               </>
+            ) : isEditMode ? (
+              "Spara ändringar"
             ) : (
               "Skapa öl"
             )}
