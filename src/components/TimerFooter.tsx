@@ -179,10 +179,14 @@ export const TimerFooter = memo(function TimerFooter() {
   }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
 
   // For mash: Dismiss alert when pausedByMilestone becomes false (acknowledged)
+  // But don't dismiss if it was just triggered (within 500ms) - allows test trigger to work
   useEffect(() => {
     if (isMash && triggeredAlert && !timer.pausedByMilestone && !timer.isPaused) {
-      // Timer resumed, dismiss the alert
-      setTriggeredAlert(null);
+      const timeSinceTriggered = Date.now() - triggeredAlert.time;
+      if (timeSinceTriggered > 500) {
+        // Timer resumed, dismiss the alert
+        setTriggeredAlert(null);
+      }
     }
   }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused]);
 
