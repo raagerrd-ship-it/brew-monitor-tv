@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +105,10 @@ export default function Settings() {
   const [visibleControllersCount, setVisibleControllersCount] = useState(0);
   const [visibleBrewsCount, setVisibleBrewsCount] = useState(0);
   const [externalLoginDialogOpen, setExternalLoginDialogOpen] = useState(false);
+  const [timerTvModeOnly, setTimerTvModeOnly] = useState(() => {
+    const saved = localStorage.getItem('timer-tv-mode-only');
+    return saved !== null ? saved === 'true' : true; // Default to true (TV mode only)
+  });
   
   // External auth for brew timer
   const { isAuthenticated: isExternalAuthenticated, user: externalUser, signOut: externalSignOut, isLoading: externalLoading } = useExternalAuth();
@@ -1762,6 +1767,29 @@ export default function Settings() {
                   </div>
                 )}
               </Card>
+              
+              {isExternalAuthenticated && (
+                <Card className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Tv className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Endast TV-läge</p>
+                        <p className="text-sm text-muted-foreground">
+                          Visa timern bara när ?tv=true är i URL:en
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={timerTvModeOnly}
+                      onCheckedChange={(checked) => {
+                        setTimerTvModeOnly(checked);
+                        localStorage.setItem('timer-tv-mode-only', String(checked));
+                      }}
+                    />
+                  </div>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
