@@ -168,14 +168,17 @@ export function BrewingDashboard() {
     );
   }
 
+  // Show timer footer only in TV mode
+  const showTimerFooter = isTvMode && externalTimer.isActive;
+
   return (
-    <div className={`h-screen w-screen bg-background flex flex-col overflow-hidden relative ${externalTimer.isActive ? 'pb-20' : ''}`}>
+    <div className={`h-screen w-screen bg-background flex flex-col overflow-hidden relative ${showTimerFooter ? 'pb-20' : ''}`}>
       {/* Version indicator */}
       <div 
         className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
         style={{ 
           fontSize: 'min(1.5vh, 0.7vw)',
-          bottom: externalTimer.isActive ? '5rem' : '0.5rem',
+          bottom: showTimerFooter ? '5rem' : '0.5rem',
         }}
       >
         Laddad: {formattedLoadTime}
