@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.get-public-rapt-data]
 verify_jwt = false
+
+[functions.sync-external-timer]
+verify_jwt = false
