@@ -62,11 +62,15 @@ export function useExternalTimer() {
   }, []);
 
   const calculateMilestoneInfo = useCallback((remainingSeconds: number, milestones: TimerMilestone[]) => {
-    // Find next untriggered milestone (milestones are in descending order of time)
+    // Find next untriggered milestone
+    // Milestones have 'time' as remaining seconds when they trigger
+    // So next milestone is one where time < remainingSeconds (will be reached as time counts down)
+    // Sort ascending by time to get the closest upcoming milestone first
     const sortedMilestones = [...milestones].sort((a, b) => b.time - a.time);
-    const nextMilestone = sortedMilestones.find(m => !m.triggered && m.time >= remainingSeconds) || null;
+    const nextMilestone = sortedMilestones.find(m => !m.triggered && m.time < remainingSeconds) || null;
     
-    const timeToNextMilestone = nextMilestone ? nextMilestone.time - remainingSeconds : null;
+    // Time to next milestone = current remaining - milestone trigger time
+    const timeToNextMilestone = nextMilestone ? remainingSeconds - nextMilestone.time : null;
 
     return { nextMilestone, timeToNextMilestone };
   }, []);
