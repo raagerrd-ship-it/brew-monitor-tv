@@ -36,7 +36,7 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
     </svg>
   );
 
-  const displayValue = isInactive ? "--" : (brew.battery !== null ? `${brew.battery}%` : "--");
+  const displayValue = isInactive ? "--" : (brew.battery !== null ? `${Math.round(brew.battery)}%` : "--");
 
   return (
     <StatCard
