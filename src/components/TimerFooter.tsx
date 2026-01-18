@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { ChefHat, Flame, Pause } from 'lucide-react';
 import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useTvMode } from '@/contexts/TvModeContext';
 import { cn } from '@/lib/utils';
 
 function formatTime(seconds: number): string {
@@ -69,13 +69,14 @@ const ProgressBar = memo(function ProgressBar({ progress, milestones, totalSecon
 });
 
 export const TimerFooter = memo(function TimerFooter() {
+  const { isTvMode } = useTvMode();
   const timer = useExternalTimer();
-  const isMobile = useIsMobile();
 
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
 
-  if (!timer.isActive) {
+  // Only show in TV mode
+  if (!isTvMode || !timer.isActive) {
     return null;
   }
 
@@ -91,54 +92,39 @@ export const TimerFooter = memo(function TimerFooter() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      <div className={cn(
-        "flex items-center gap-4 px-4",
-        isMobile ? "py-3" : "py-4"
-      )}>
+      <div className="flex items-center gap-4 px-4 py-4">
         {/* Left: Icon + Label + Next milestone */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {isMash ? (
-            <ChefHat className={cn(
-              "text-orange-400",
-              isMobile ? "w-5 h-5" : "w-7 h-7"
-            )} />
+            <ChefHat className="w-7 h-7 text-orange-400" />
           ) : (
-            <Flame className={cn(
-              "text-primary",
-              isMobile ? "w-5 h-5" : "w-7 h-7"
-            )} />
+            <Flame className="w-7 h-7 text-primary" />
           )}
           
           <div className="flex flex-col">
             <span className={cn(
-              "font-semibold",
-              isMobile ? "text-sm" : "text-base",
+              "font-semibold text-base",
               isMash ? "text-orange-200" : "text-foreground"
             )}>
               {timer.label}
             </span>
             {timer.nextMilestone && (
-              <span className={cn(
-                "text-muted-foreground",
-                isMobile ? "text-xs" : "text-sm"
-              )}>
+              <span className="text-muted-foreground text-sm">
                 Nästa: {timer.nextMilestone.label}
               </span>
             )}
           </div>
         </div>
 
-        {/* Center: Progress bar (hidden on mobile) */}
-        {!isMobile && (
-          <div className="flex-1 mx-4">
-            <ProgressBar 
-              progress={timer.progress}
-              milestones={timer.milestones}
-              totalSeconds={timer.totalSeconds}
-              isMash={isMash}
-            />
-          </div>
-        )}
+        {/* Center: Progress bar */}
+        <div className="flex-1 mx-4">
+          <ProgressBar 
+            progress={timer.progress}
+            milestones={timer.milestones}
+            totalSeconds={timer.totalSeconds}
+            isMash={isMash}
+          />
+        </div>
 
         {/* Right: Paused badge, time to next milestone, main clock */}
         <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
@@ -150,25 +136,19 @@ export const TimerFooter = memo(function TimerFooter() {
                 : "bg-muted text-muted-foreground"
             )}>
               <Pause className="w-3 h-3" />
-              <span className={cn(isMobile ? "text-xs" : "text-sm")}>
-                PAUSAD
-              </span>
+              <span className="text-sm">PAUSAD</span>
             </div>
           )}
 
-          {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && !isMobile && (
-            <div className={cn(
-              "text-muted-foreground",
-              isMobile ? "text-xs" : "text-sm"
-            )}>
+          {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+            <div className="text-muted-foreground text-sm">
               Nästa om: {formatTimeToMilestone(timer.timeToNextMilestone)}
             </div>
           )}
 
           <div 
             className={cn(
-              "font-mono font-bold tabular-nums",
-              isMobile ? "text-2xl" : "text-4xl",
+              "font-mono font-bold tabular-nums text-4xl",
               isLowTime && "animate-pulse text-red-500",
               !isLowTime && (isMash ? "text-orange-200" : "text-foreground")
             )}
