@@ -62,6 +62,23 @@ export function BrewingDashboard() {
   // External timer for footer padding
   const externalTimer = useExternalTimer();
   
+  // Read timer TV mode setting
+  const [timerTvModeOnly, setTimerTvModeOnly] = useState(() => {
+    const saved = localStorage.getItem('timer-tv-mode-only');
+    return saved !== null ? saved === 'true' : true;
+  });
+  
+  // Listen for storage changes
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'timer-tv-mode-only') {
+        setTimerTvModeOnly(e.newValue !== null ? e.newValue === 'true' : true);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+  
   // Check for new app versions every 60 seconds
   const { appLoadTime } = useVersionCheck(60000);
 
@@ -168,8 +185,8 @@ export function BrewingDashboard() {
     );
   }
 
-  // Show timer footer only in TV mode
-  const showTimerFooter = isTvMode && externalTimer.isActive;
+  // Show timer footer based on setting
+  const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
 
   return (
     <div className={`h-screen w-screen bg-background flex flex-col overflow-hidden relative ${showTimerFooter ? 'pb-20' : ''}`}>
