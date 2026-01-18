@@ -7,12 +7,12 @@
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translateX(-25%);
   }
 }
 
 .animate-marquee-seamless {
-  animation: marquee-seamless 10s linear infinite;
+  animation: marquee-seamless 8s linear infinite;
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
