@@ -64,19 +64,26 @@ export function useExternalTimer() {
     return remaining;
   }, []);
 
-  const calculateTimeToNextMilestone = useCallback(() => {
+  // Calculate next milestone based on current remaining seconds
+  const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
     const data = timerDataRef.current;
-    if (!data || data.timeToNextMilestoneAtStart === null) return null;
+    if (!data || !data.milestones.length) return null;
 
-    if (data.isPaused) {
-      return data.timeToNextMilestoneAtStart;
-    }
+    // Sort milestones by time descending (highest time = earliest in process)
+    const sortedMilestones = [...data.milestones].sort((a, b) => b.time - a.time);
+    
+    // Find the next upcoming milestone (one where time < remainingSeconds)
+    // A milestone is "next" if we haven't passed it yet
+    const nextMilestone = sortedMilestones.find(m => m.time < remainingSeconds);
+    
+    return nextMilestone || null;
+  }, []);
 
-    const startedAt = new Date(data.startedAt!).getTime();
-    const now = Date.now();
-    const elapsed = Math.floor((now - startedAt) / 1000);
-    const remaining = Math.max(0, data.timeToNextMilestoneAtStart - elapsed);
-    return remaining;
+  const calculateTimeToNextMilestone = useCallback((remainingSeconds: number, nextMilestone: TimerMilestone | null): number | null => {
+    if (!nextMilestone) return null;
+    
+    // Time to next milestone is the difference between current remaining and milestone time
+    return Math.max(0, remainingSeconds - nextMilestone.time);
   }, []);
 
   const updateTimerState = useCallback(() => {
@@ -87,17 +94,18 @@ export function useExternalTimer() {
     }
 
     const remainingSeconds = calculateRemainingSeconds();
-    const timeToNextMilestone = calculateTimeToNextMilestone();
+    const nextMilestone = calculateNextMilestone(remainingSeconds);
+    const timeToNextMilestone = calculateTimeToNextMilestone(remainingSeconds, nextMilestone);
     const progress = data.totalSeconds > 0 ? 1 - (remainingSeconds / data.totalSeconds) : 0;
 
     setTimerState(prev => ({
       ...prev,
       remainingSeconds,
-      nextMilestone: data.nextMilestone,
+      nextMilestone,
       timeToNextMilestone,
       progress: Math.min(1, Math.max(0, progress)),
     }));
-  }, [calculateRemainingSeconds, calculateTimeToNextMilestone]);
+  }, [calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
   // Save timer data to local cache for public access
   const cacheTimerData = useCallback(async (data: ExternalTimerState & { externalUserId: string }) => {
