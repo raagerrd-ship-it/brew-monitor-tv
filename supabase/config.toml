@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.sync-external-timer]
 verify_jwt = false
+
+[functions.external-auth]
+verify_jwt = false
