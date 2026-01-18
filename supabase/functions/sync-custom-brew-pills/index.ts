@@ -174,12 +174,23 @@ serve(async (req) => {
           continue;
         }
 
-        // Get the latest data point
+        // Get the first and latest data points
+        const firstData = mergedSgData[0];
         const latestData = mergedSgData[mergedSgData.length - 1];
         const latestTelemetry = telemetryData[telemetryData.length - 1] as TelemetryRecord;
         
-        // Calculate attenuation and ABV
-        const og = brew.original_gravity;
+        // Auto-update OG to first SG value if this is initial sync or if OG is still default
+        // Only update if the first SG is reasonable (between 1.030 and 1.150)
+        let og = brew.original_gravity;
+        const isDefaultOg = og === 1.05 || og === 1.050;
+        const firstSgIsReasonableOg = firstData.value >= 1.030 && firstData.value <= 1.150;
+        
+        if ((hasNoData || isDefaultOg) && firstSgIsReasonableOg) {
+          og = firstData.value;
+          console.log(`Auto-updating OG for ${brew.name} from ${brew.original_gravity} to ${og}`);
+        }
+        
+        // Calculate attenuation and ABV using (potentially updated) OG
         const currentSg = latestData.value;
         const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
         const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
@@ -191,6 +202,7 @@ serve(async (req) => {
             sg_data: mergedSgData,
             current_sg: currentSg,
             current_temp: latestData.temp,
+            original_gravity: og, // Update OG if changed
             attenuation: Math.max(0, Math.min(100, attenuation)),
             abv: Math.max(0, abv),
             battery: latestTelemetry.battery,
