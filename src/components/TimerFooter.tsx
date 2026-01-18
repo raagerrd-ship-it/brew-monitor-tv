@@ -38,14 +38,17 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
   return (
-    <div className="relative w-full py-3 px-4">
+    <div className="relative w-full py-2">
       {/* Timeline track */}
-      <div className="relative h-1 bg-muted/30 rounded-full">
+      <div className={cn(
+        "relative h-2 rounded-full",
+        isMash ? "bg-orange-900/50" : "bg-muted/50"
+      )}>
         {/* Progress fill */}
         <div 
           className={cn(
             "absolute inset-y-0 left-0 rounded-full transition-all duration-300",
-            isMash ? "bg-orange-500/50" : "bg-primary/50"
+            isMash ? "bg-orange-500" : "bg-primary"
           )}
           style={{ width: `${Math.min(100, progressPercent)}%` }}
         />
@@ -65,65 +68,17 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
             >
               {/* Marker dot */}
               <div className={cn(
-                "w-3 h-3 rounded-full border-2 transition-all",
+                "w-4 h-4 rounded-full border-2 transition-all shadow-md",
                 isTriggered 
-                  ? "bg-green-500 border-green-400" 
+                  ? "bg-green-500 border-green-300" 
                   : isNext
                     ? isMash 
-                      ? "bg-orange-500 border-orange-400 animate-pulse ring-2 ring-orange-500/30" 
-                      : "bg-primary border-primary animate-pulse ring-2 ring-primary/30"
-                    : "bg-muted border-muted-foreground/30"
+                      ? "bg-orange-500 border-orange-300 animate-pulse ring-2 ring-orange-500/50" 
+                      : "bg-primary border-primary-foreground animate-pulse ring-2 ring-primary/50"
+                    : isMash
+                      ? "bg-orange-800 border-orange-600"
+                      : "bg-muted border-muted-foreground/50"
               )} />
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Labels below track */}
-      <div className="relative mt-2 h-10">
-        {sortedMilestones.map((milestone, index) => {
-          const position = totalSeconds > 0 ? ((totalSeconds - milestone.time) / totalSeconds) * 100 : 0;
-          const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
-          const isNext = !isTriggered && 
-            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
-          
-          // Alternate label positions to avoid overlap
-          const isEven = index % 2 === 0;
-          
-          return (
-            <div
-              key={index}
-              className={cn(
-                "absolute flex flex-col items-center",
-                isEven ? "top-0" : "top-0"
-              )}
-              style={{ 
-                left: `${position}%`,
-                transform: 'translateX(-50%)',
-                maxWidth: '100px'
-              }}
-            >
-              {isTriggered && (
-                <Check className="w-3 h-3 text-green-500 mb-0.5" />
-              )}
-              <span className={cn(
-                "text-[10px] text-center leading-tight truncate max-w-[80px]",
-                isTriggered 
-                  ? "text-muted-foreground" 
-                  : isNext
-                    ? isMash ? "text-orange-300 font-medium" : "text-primary font-medium"
-                    : "text-muted-foreground/70"
-              )} title={milestone.label}>
-                {milestone.label.replace(/🔥\s*/g, '').split(' – ')[0]}
-              </span>
-              <span className={cn(
-                "text-[9px]",
-                isNext 
-                  ? isMash ? "text-orange-400" : "text-primary"
-                  : "text-muted-foreground/50"
-              )}>
-                {formatTimeShort(milestone.time)}
-              </span>
             </div>
           );
         })}
