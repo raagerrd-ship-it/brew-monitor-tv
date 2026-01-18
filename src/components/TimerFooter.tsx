@@ -212,7 +212,49 @@ export const TimerFooter = memo(function TimerFooter() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {/* Main timer row */}
+      {/* Steps list row */}
+      {timer.milestones.length > 0 && (
+        <div className={cn(
+          "flex items-center gap-2 px-4 py-2 border-b overflow-x-auto",
+          isMash ? "border-orange-800/30" : "border-border/50"
+        )}>
+          {[...timer.milestones]
+            .sort((a, b) => b.time - a.time)
+            .map((milestone, index, arr) => {
+              const isTriggered = milestone.triggered || milestone.time >= timer.remainingSeconds;
+              const isNext = !isTriggered && 
+                (index === 0 || arr.slice(0, index).every(m => m.triggered || m.time >= timer.remainingSeconds));
+              
+              return (
+                <div
+                  key={index}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2 py-1 rounded-md text-sm whitespace-nowrap flex-shrink-0",
+                    isTriggered 
+                      ? "bg-green-500/20 text-green-400" 
+                      : isNext
+                        ? isMash 
+                          ? "bg-orange-500/30 text-orange-200 ring-1 ring-orange-500/50" 
+                          : "bg-primary/20 text-primary ring-1 ring-primary/50"
+                        : isMash
+                          ? "bg-orange-900/30 text-orange-300/60"
+                          : "bg-muted/30 text-muted-foreground/60"
+                  )}
+                >
+                  {isTriggered && <Check className="w-3.5 h-3.5" />}
+                  <span className="font-medium">
+                    {milestone.label.replace(/🔥\s*/g, '').split(' – ')[0]}
+                  </span>
+                  <span className="text-xs opacity-70">
+                    ({formatTimeShort(milestone.time)})
+                  </span>
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Main timer row with visual timeline */}
       <div className="flex items-center gap-4 px-4 py-3">
         {/* Left: Icon + Label */}
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -231,7 +273,7 @@ export const TimerFooter = memo(function TimerFooter() {
         </div>
 
         {/* Center: Visual Timeline */}
-        <div className="flex-1 mx-4">
+        <div className="flex-1 mx-4 min-w-0">
           <VisualTimeline 
             milestones={timer.milestones}
             totalSeconds={timer.totalSeconds}
