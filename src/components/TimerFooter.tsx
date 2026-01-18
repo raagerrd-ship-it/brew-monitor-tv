@@ -317,8 +317,8 @@ export const TimerFooter = memo(function TimerFooter() {
           )}
         </div>
 
-        {/* Right: Timer display */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        {/* Right: Time to next + Total timer */}
+        <div className="flex items-center gap-4 flex-shrink-0">
           {timer.isPaused && (
             <div className={cn(
               "flex items-center gap-1 px-2 py-0.5 rounded text-xs",
@@ -331,14 +331,47 @@ export const TimerFooter = memo(function TimerFooter() {
             </div>
           )}
           
-          <div 
-            className={cn(
-              "font-mono font-bold tabular-nums text-2xl",
-              isLowTime && "animate-pulse text-red-500",
-              !isLowTime && (isMash ? "text-orange-300" : "text-foreground")
-            )}
-          >
-            {formatTime(timer.remainingSeconds)}
+          {/* Time to next milestone */}
+          {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+            <div className="flex flex-col items-end">
+              <span className={cn(
+                "text-[10px] uppercase tracking-wider",
+                isMash ? "text-orange-400/60" : "text-muted-foreground/60"
+              )}>
+                Till nästa
+              </span>
+              <span 
+                className={cn(
+                  "font-mono font-bold tabular-nums text-lg",
+                  isNextMilestoneImminent 
+                    ? "text-yellow-300 animate-pulse" 
+                    : isMash 
+                      ? "text-orange-200" 
+                      : "text-foreground/80"
+                )}
+              >
+                {formatTime(timer.timeToNextMilestone)}
+              </span>
+            </div>
+          )}
+          
+          {/* Total remaining time */}
+          <div className="flex flex-col items-end">
+            <span className={cn(
+              "text-[10px] uppercase tracking-wider",
+              isMash ? "text-orange-400/60" : "text-muted-foreground/60"
+            )}>
+              Totalt
+            </span>
+            <div 
+              className={cn(
+                "font-mono font-bold tabular-nums text-2xl",
+                isLowTime && "animate-pulse text-red-500",
+                !isLowTime && (isMash ? "text-orange-300" : "text-foreground")
+              )}
+            >
+              {formatTime(timer.remainingSeconds)}
+            </div>
           </div>
         </div>
       </div>
