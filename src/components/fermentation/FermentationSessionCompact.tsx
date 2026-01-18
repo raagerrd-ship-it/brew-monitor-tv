@@ -82,6 +82,10 @@ export function FermentationSessionCompact({
 
     switch (step.step_type) {
       case 'hold': {
+        // Check if this is a SG-conditioned hold (no duration but has target_sg)
+        if (step.target_sg != null && !step.duration_hours) {
+          return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+        }
         if (!step.duration_hours) return 'Okänd tid';
         const stepStarted = new Date(stepStartedAt);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
