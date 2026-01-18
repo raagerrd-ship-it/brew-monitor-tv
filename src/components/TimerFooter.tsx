@@ -37,27 +37,35 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   // Calculate current progress position
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
+  // Distribute markers evenly if all have same time (API issue workaround)
+  const allSameTime = sortedMilestones.every(m => m.time === sortedMilestones[0]?.time);
+
   return (
-    <div className="relative w-full">
+    <div className="relative w-full py-1">
       {/* Timeline track with time labels */}
-      <div className="relative pt-5 pb-1">
+      <div className="relative pt-6 pb-2">
         {/* Time labels above track */}
         {sortedMilestones.map((milestone, index) => {
-          const position = totalSeconds > 0 ? ((totalSeconds - milestone.time) / totalSeconds) * 100 : 0;
+          // If all same time, distribute evenly; otherwise use actual position
+          const position = allSameTime 
+            ? (index / Math.max(1, sortedMilestones.length - 1)) * 100
+            : totalSeconds > 0 
+              ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
+              : 0;
           const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
           
           return (
             <div
               key={`label-${index}`}
-              className="absolute -top-0.5 -translate-x-1/2"
-              style={{ left: `${Math.max(3, Math.min(97, position))}%` }}
+              className="absolute top-0 -translate-x-1/2"
+              style={{ left: `${Math.max(5, Math.min(95, position))}%` }}
             >
               <span className={cn(
-                "text-[10px] font-medium tabular-nums",
+                "text-xs font-medium tabular-nums",
                 isTriggered 
                   ? "text-green-400" 
                   : isMash 
-                    ? "text-orange-400" 
+                    ? "text-orange-300" 
                     : "text-muted-foreground"
               )}>
                 {formatTimeShort(milestone.time)}
@@ -68,8 +76,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
         {/* Track */}
         <div className={cn(
-          "relative h-1.5 rounded-full",
-          isMash ? "bg-orange-900/60" : "bg-muted/50"
+          "relative h-2.5 rounded-full",
+          isMash ? "bg-orange-900/70" : "bg-muted/60"
         )}>
           {/* Progress fill */}
           <div 
@@ -84,7 +92,12 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
           
           {/* Milestone markers on track */}
           {sortedMilestones.map((milestone, index) => {
-            const position = totalSeconds > 0 ? ((totalSeconds - milestone.time) / totalSeconds) * 100 : 0;
+            // If all same time, distribute evenly
+            const position = allSameTime 
+              ? (index / Math.max(1, sortedMilestones.length - 1)) * 100
+              : totalSeconds > 0 
+                ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
+                : 0;
             const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
             const isNext = !isTriggered && 
               (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
@@ -92,21 +105,21 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
             return (
               <div
                 key={index}
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
                 style={{ left: `${position}%` }}
               >
                 {/* Marker dot */}
                 <div className={cn(
-                  "w-2.5 h-2.5 rounded-full transition-all",
+                  "w-4 h-4 rounded-full border-2 transition-all shadow-sm",
                   isTriggered 
-                    ? "bg-green-500" 
+                    ? "bg-green-500 border-green-400" 
                     : isNext
                       ? isMash 
-                        ? "bg-orange-400 ring-2 ring-orange-400/40" 
-                        : "bg-primary ring-2 ring-primary/40"
+                        ? "bg-orange-500 border-orange-300 ring-2 ring-orange-400/50 animate-pulse" 
+                        : "bg-primary border-primary-foreground ring-2 ring-primary/50 animate-pulse"
                       : isMash
-                        ? "bg-orange-700"
-                        : "bg-muted-foreground/40"
+                        ? "bg-orange-800 border-orange-600"
+                        : "bg-muted-foreground/60 border-muted-foreground/40"
                 )} />
               </div>
             );
@@ -124,96 +137,56 @@ interface MilestoneScrollRowProps {
 }
 
 const MilestoneScrollRow = memo(function MilestoneScrollRow({ milestones, remainingSeconds, isMash }: MilestoneScrollRowProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  
   const sortedMilestones = useMemo(() => 
     [...milestones].sort((a, b) => b.time - a.time),
     [milestones]
   );
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      const scrollAmount = 200;
-      scrollRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   if (!milestones.length) return null;
 
   return (
-    <div className="flex items-center gap-1">
-      {/* Left arrow */}
-      <button
-        onClick={() => scroll('left')}
-        className={cn(
-          "flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors",
-          isMash ? "text-orange-400" : "text-muted-foreground"
-        )}
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-
-      {/* Scrollable milestones */}
-      <div 
-        ref={scrollRef}
-        className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none"
-      >
-        {sortedMilestones.map((milestone, index, arr) => {
-          const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
-          const isNext = !isTriggered && 
-            (index === 0 || arr.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
-          
-          return (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded whitespace-nowrap flex-shrink-0 text-xs",
-                isTriggered 
-                  ? "text-green-400" 
-                  : isNext
-                    ? isMash 
-                      ? "bg-orange-500/20 text-orange-200 font-medium" 
-                      : "bg-primary/20 text-primary font-medium"
-                    : isMash
-                      ? "text-orange-400/60"
-                      : "text-muted-foreground/60"
-              )}
-            >
-              {isTriggered ? (
-                <Check className="w-3 h-3 flex-shrink-0" />
-              ) : (
-                <Flame className={cn(
-                  "w-3 h-3 flex-shrink-0",
-                  isNext 
-                    ? isMash ? "text-orange-400" : "text-primary"
-                    : "opacity-50"
-                )} />
-              )}
-              <span>{milestone.label.replace(/🔥\s*/g, '')}</span>
-              <span className={cn(
-                "text-[10px] opacity-60",
-                isNext && "opacity-80"
-              )}>
-                {isTriggered ? '' : `@ ${formatTimeShort(milestone.time)}`}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Right arrow */}
-      <button
-        onClick={() => scroll('right')}
-        className={cn(
-          "flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors",
-          isMash ? "text-orange-400" : "text-muted-foreground"
-        )}
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
+    <div className="flex items-center gap-3 overflow-x-auto scrollbar-none px-2">
+      {sortedMilestones.map((milestone, index, arr) => {
+        const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
+        const isNext = !isTriggered && 
+          (index === 0 || arr.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
+        
+        return (
+          <div
+            key={index}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded whitespace-nowrap flex-shrink-0 text-xs",
+              isTriggered 
+                ? "text-green-400" 
+                : isNext
+                  ? isMash 
+                    ? "bg-orange-500/20 text-orange-200 font-medium" 
+                    : "bg-primary/20 text-primary font-medium"
+                  : isMash
+                    ? "text-orange-400/60"
+                    : "text-muted-foreground/60"
+            )}
+          >
+            {isTriggered ? (
+              <Check className="w-3 h-3 flex-shrink-0" />
+            ) : (
+              <Flame className={cn(
+                "w-3 h-3 flex-shrink-0",
+                isNext 
+                  ? isMash ? "text-orange-400" : "text-primary"
+                  : "opacity-50"
+              )} />
+            )}
+            <span>{milestone.label.replace(/🔥\s*/g, '')}</span>
+            <span className={cn(
+              "text-[10px] opacity-60",
+              isNext && "opacity-80"
+            )}>
+              {isTriggered ? '' : `@ ${formatTimeShort(milestone.time)}`}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 });
