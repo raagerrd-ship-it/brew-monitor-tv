@@ -101,15 +101,19 @@ export function FermentationSessionCompact({
 
     switch (step.step_type) {
       case 'hold': {
-        // Check if this is a SG-conditioned hold (no duration but has target_sg)
-        // If we have currentSg, the SG indicator is already showing this - just show step type
-        if (step.target_sg != null && !step.duration_hours) {
+        // Check if this is a SG-conditioned hold (no duration but has target_sg from step OR session props)
+        const stepTargetSg = step.target_sg ?? targetSg;
+        const stepSgComparison = step.sg_comparison ?? sgComparison;
+        
+        if (stepTargetSg != null && !step.duration_hours) {
           if (currentSg != null) {
-            return 'Väntar på SG';
+            // Show progress text since SG indicator already shows the values
+            const progress = sgProgress != null ? ` (${Math.round(sgProgress * 100)}%)` : '';
+            return `Väntar på mål-SG${progress}`;
           }
-          return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg.toFixed(3)}`;
+          return `Mål-SG ${stepSgComparison === 'at_or_below' ? '≤' : '≥'} ${stepTargetSg.toFixed(3)}`;
         }
-        if (!step.duration_hours) return 'Okänd tid';
+        if (!step.duration_hours) return 'Tidsstyrt steg saknar tid';
         const stepStarted = new Date(stepStartedAt);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
         const remaining = Math.max(0, step.duration_hours - elapsed);
