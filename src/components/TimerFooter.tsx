@@ -59,11 +59,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
           return (
             <div
               key={`label-${index}`}
-              className={cn(
-                "absolute",
-                isFirst ? "translate-x-0" : isLast ? "-translate-x-full" : "-translate-x-1/2"
-              )}
-              style={{ left: `${isFirst ? 0 : isLast ? 100 : Math.max(8, Math.min(92, position))}%` }}
+              className="absolute -translate-x-1/2"
+              style={{ left: `${position}%` }}
             >
               <span className={cn(
                 "text-sm font-semibold tabular-nums",
