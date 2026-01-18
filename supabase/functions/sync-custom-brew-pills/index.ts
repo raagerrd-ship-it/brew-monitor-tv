@@ -73,16 +73,24 @@ serve(async (req) => {
       try {
         console.log(`Processing brew: ${brew.name} (pill: ${brew.linked_pill_id})`);
 
-        // Calculate date range - from last update or 7 days ago
+        // Calculate date range
         const endDate = new Date();
         let startDate: Date;
         
-        if (brew.last_update) {
-          // Start from last update, minus a small buffer to ensure overlap
+        // Check if sg_data is empty (no previous sync has succeeded)
+        const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
+        const hasNoData = existingSgData.length === 0;
+        
+        if (hasNoData) {
+          // No data yet - fetch from when the brew was created (fermentation start)
+          startDate = new Date(brew.created_at);
+          console.log(`No existing data for ${brew.name}, fetching from brew creation date: ${startDate.toISOString()}`);
+        } else if (brew.last_update) {
+          // Has data and last_update - start from there with buffer
           startDate = new Date(brew.last_update);
           startDate.setMinutes(startDate.getMinutes() - 5);
         } else {
-          // No previous data, fetch last 7 days
+          // Has data but no last_update (shouldn't happen, but fallback)
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 7);
         }
@@ -118,9 +126,6 @@ serve(async (req) => {
           temp: t.temperature
         }));
 
-        // Get existing sg_data and merge
-        const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
-        
         // Create a Set of existing dates for deduplication
         const existingDates = new Set(existingSgData.map(d => d.date));
         
