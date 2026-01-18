@@ -280,15 +280,15 @@ export const TimerFooter = memo(function TimerFooter() {
                       ? "text-orange-400" 
                       : "text-primary"
                 )} />
-                <div className="overflow-hidden max-w-[200px]">
+                <div className="overflow-hidden max-w-[200px] relative">
                   <div 
-                    className="flex whitespace-nowrap"
-                    style={{
-                      animation: 'marquee-seamless 10s linear infinite',
-                    }}
+                    className={cn(
+                      "flex whitespace-nowrap",
+                      "animate-[marquee-seamless_12s_linear_infinite]"
+                    )}
                   >
                     <span className={cn(
-                      "text-lg font-semibold",
+                      "text-lg font-semibold shrink-0",
                       isNextMilestoneImminent 
                         ? "text-yellow-300" 
                         : isMash 
@@ -297,9 +297,12 @@ export const TimerFooter = memo(function TimerFooter() {
                     )}>
                       {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
                     </span>
-                    <span className="px-8 text-lg opacity-40">•</span>
                     <span className={cn(
-                      "text-lg font-semibold",
+                      "px-6 text-lg opacity-40 shrink-0",
+                      isMash ? "text-orange-400" : "text-muted-foreground"
+                    )}>•</span>
+                    <span className={cn(
+                      "text-lg font-semibold shrink-0",
                       isNextMilestoneImminent 
                         ? "text-yellow-300" 
                         : isMash 
@@ -308,7 +311,10 @@ export const TimerFooter = memo(function TimerFooter() {
                     )}>
                       {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
                     </span>
-                    <span className="px-8 text-lg opacity-40">•</span>
+                    <span className={cn(
+                      "px-6 text-lg opacity-40 shrink-0",
+                      isMash ? "text-orange-400" : "text-muted-foreground"
+                    )}>•</span>
                   </div>
                 </div>
               </div>
