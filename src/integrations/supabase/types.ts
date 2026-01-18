@@ -195,6 +195,7 @@ export type Database = {
           created_at: string
           current_sg: number
           current_temp: number
+          fermentation_start: string | null
           final_gravity: number
           id: string
           last_update: string | null
@@ -217,6 +218,7 @@ export type Database = {
           created_at?: string
           current_sg: number
           current_temp: number
+          fermentation_start?: string | null
           final_gravity: number
           id?: string
           last_update?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           created_at?: string
           current_sg?: number
           current_temp?: number
+          fermentation_start?: string | null
           final_gravity?: number
           id?: string
           last_update?: string | null

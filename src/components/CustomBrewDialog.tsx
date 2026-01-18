@@ -33,6 +33,7 @@ export interface CustomBrewData {
   linked_controller_id: string | null;
   linked_pill_id: string | null;
   status: string;
+  fermentation_start: string | null;
 }
 
 interface CustomBrewDialogProps {
@@ -60,6 +61,7 @@ export function CustomBrewDialog({
   const [selectedControllerId, setSelectedControllerId] = useState<string>("");
   const [selectedPillId, setSelectedPillId] = useState<string>("");
   const [status, setStatus] = useState("Fermenting");
+  const [fermentationStart, setFermentationStart] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -85,6 +87,13 @@ export function CustomBrewDialog({
         setSelectedControllerId(editBrew.linked_controller_id || "");
         setSelectedPillId(editBrew.linked_pill_id || "");
         setStatus(editBrew.status || "Fermenting");
+        // Format date for input (YYYY-MM-DD)
+        if (editBrew.fermentation_start) {
+          const date = new Date(editBrew.fermentation_start);
+          setFermentationStart(date.toISOString().split('T')[0]);
+        } else {
+          setFermentationStart("");
+        }
       } else {
         setName("");
         setStyle("");
@@ -94,6 +103,8 @@ export function CustomBrewDialog({
         setSelectedControllerId("");
         setSelectedPillId("");
         setStatus("Fermenting");
+        // Default to today for new brews
+        setFermentationStart(new Date().toISOString().split('T')[0]);
       }
     }
   }, [open, editBrew]);
@@ -138,6 +149,9 @@ export function CustomBrewDialog({
       // Calculate attenuation: ((OG - FG) / (OG - 1)) * 100
       const attenuation = Math.round(((og - fg) / (og - 1)) * 100);
 
+      // Parse fermentation start date
+      const fermStart = fermentationStart ? new Date(fermentationStart).toISOString() : null;
+
       if (isEditMode && editBrew) {
         // Update existing brew
         const { error: updateError } = await supabase
@@ -153,6 +167,7 @@ export function CustomBrewDialog({
             linked_controller_id: selectedControllerId || null,
             linked_pill_id: selectedPillId || null,
             status: status,
+            fermentation_start: fermStart,
           })
           .eq("id", editBrew.id);
 
@@ -184,6 +199,7 @@ export function CustomBrewDialog({
             sg_data: [],
             linked_controller_id: selectedControllerId || null,
             linked_pill_id: selectedPillId || null,
+            fermentation_start: fermStart,
           });
 
         if (insertError) throw insertError;
@@ -290,6 +306,16 @@ export function CustomBrewDialog({
                 onChange={(e) => setFinalGravity(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="fermentationStart">Jäsningsstart</Label>
+            <Input
+              id="fermentationStart"
+              type="date"
+              value={fermentationStart}
+              onChange={(e) => setFermentationStart(e.target.value)}
+            />
           </div>
 
           {isEditMode && (

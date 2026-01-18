@@ -82,15 +82,25 @@ serve(async (req) => {
         const hasNoData = existingSgData.length === 0;
         
         if (hasNoData) {
-          // No data yet - fetch from when the brew was created OR 30 days ago (whichever is earlier)
-          // This ensures we get historical data even if the pill was used before the brew was created in the system
-          const brewCreatedDate = new Date(brew.created_at);
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
-          // Use the earlier of the two dates
-          startDate = brewCreatedDate < thirtyDaysAgo ? thirtyDaysAgo : thirtyDaysAgo;
-          console.log(`No existing data for ${brew.name}, fetching from 30 days ago: ${startDate.toISOString()}`);
+          // No data yet - use fermentation_start if set, otherwise use created_at or 30 days ago
+          if (brew.fermentation_start) {
+            startDate = new Date(brew.fermentation_start);
+            console.log(`No existing data for ${brew.name}, fetching from fermentation start: ${startDate.toISOString()}`);
+          } else {
+            const brewCreatedDate = new Date(brew.created_at);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            startDate = brewCreatedDate < thirtyDaysAgo ? thirtyDaysAgo : brewCreatedDate;
+            console.log(`No existing data for ${brew.name}, fetching from ${startDate.toISOString()}`);
+          }
+        } else if (brew.fermentation_start) {
+          // Has data, filter by fermentation_start first, then fetch from last_update
+          if (brew.last_update) {
+            startDate = new Date(brew.last_update);
+            startDate.setMinutes(startDate.getMinutes() - 5);
+          } else {
+            startDate = new Date(brew.fermentation_start);
+          }
         } else if (brew.last_update) {
           // Has data and last_update - start from there with buffer
           startDate = new Date(brew.last_update);
@@ -128,13 +138,22 @@ serve(async (req) => {
         // Convert telemetry to sg_data format
         // RAPT API returns gravity as SG * 1000 (e.g., 1047.77 = SG 1.04777)
         // Filter out invalid readings (SG should be between 0.990 and 1.200 for beer)
+        // Also filter out readings before fermentation_start if set
+        const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
+        
         const newSgData: SgDataPoint[] = telemetryData
           .map((t: TelemetryRecord) => ({
             date: new Date(t.createdOn).toISOString(),
             value: t.gravity / 1000, // Convert from RAPT format to standard SG
             temp: t.temperature
           }))
-          .filter((d: SgDataPoint) => d.value >= 0.990 && d.value <= 1.200);
+          .filter((d: SgDataPoint) => {
+            // Filter by SG range
+            if (d.value < 0.990 || d.value > 1.200) return false;
+            // Filter by fermentation start date
+            if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;
+            return true;
+          });
 
         console.log(`Filtered to ${newSgData.length} valid SG readings (0.990-1.200 range)`);
 

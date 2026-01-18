@@ -85,7 +85,7 @@ export function BrewManagement() {
           .select('batch_id')
           .eq('is_visible', true),
         supabase.from('brew_readings')
-          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status')
+          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start')
           .like('batch_id', 'custom_%'),
         supabase.from('rapt_pills')
           .select('id, pill_id, name, color, battery_level, last_update'),
