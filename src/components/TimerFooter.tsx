@@ -86,6 +86,9 @@ export const TimerFooter = memo(function TimerFooter() {
     return null;
   }
 
+  // Check if next milestone is imminent (less than 30 seconds)
+  const isNextMilestoneImminent = timer.timeToNextMilestone !== null && timer.timeToNextMilestone <= 30 && timer.timeToNextMilestone > 0;
+
   return (
     <div 
       className={cn(
@@ -98,8 +101,8 @@ export const TimerFooter = memo(function TimerFooter() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      <div className="flex items-center gap-4 px-4 py-4">
-        {/* Left: Icon + Label + Next milestone */}
+      <div className="flex items-center gap-4 px-4 py-3">
+        {/* Left: Icon + Label */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {isMash ? (
             <ChefHat className="w-7 h-7 text-orange-400" />
@@ -107,23 +110,49 @@ export const TimerFooter = memo(function TimerFooter() {
             <Flame className="w-7 h-7 text-primary" />
           )}
           
-          <div className="flex flex-col">
-            <span className={cn(
-              "font-semibold text-base",
-              isMash ? "text-orange-200" : "text-foreground"
-            )}>
-              {timer.label}
-            </span>
-            {timer.nextMilestone && (
-              <span className="text-muted-foreground text-sm">
-                Nästa: {timer.nextMilestone.label}
-              </span>
-            )}
-          </div>
+          <span className={cn(
+            "font-semibold text-base",
+            isMash ? "text-orange-200" : "text-foreground"
+          )}>
+            {timer.label}
+          </span>
         </div>
 
-        {/* Center: Progress bar */}
-        <div className="flex-1 mx-4">
+        {/* Center: Next step info */}
+        <div className="flex-1 flex flex-col gap-1 mx-4">
+          {timer.nextMilestone && (
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg",
+              isNextMilestoneImminent 
+                ? "bg-yellow-500/20 border border-yellow-500/30 animate-pulse" 
+                : isMash 
+                  ? "bg-orange-900/50" 
+                  : "bg-muted/50"
+            )}>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className={cn(
+                  "text-xs uppercase tracking-wide",
+                  isNextMilestoneImminent ? "text-yellow-400" : "text-muted-foreground"
+                )}>
+                  Nästa steg {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+                    <span className="ml-1">om {formatTimeToMilestone(timer.timeToNextMilestone)}</span>
+                  )}
+                </span>
+                <span className={cn(
+                  "font-medium truncate",
+                  isNextMilestoneImminent 
+                    ? "text-yellow-200" 
+                    : isMash 
+                      ? "text-orange-100" 
+                      : "text-foreground"
+                )}>
+                  {timer.nextMilestone.label}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* Progress bar */}
           <ProgressBar 
             progress={timer.progress}
             milestones={timer.milestones}
@@ -132,7 +161,7 @@ export const TimerFooter = memo(function TimerFooter() {
           />
         </div>
 
-        {/* Right: Paused badge, time to next milestone, main clock */}
+        {/* Right: Paused badge + main clock */}
         <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
           {timer.isPaused && (
             <div className={cn(
@@ -143,12 +172,6 @@ export const TimerFooter = memo(function TimerFooter() {
             )}>
               <Pause className="w-3 h-3" />
               <span className="text-sm">PAUSAD</span>
-            </div>
-          )}
-
-          {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
-            <div className="text-muted-foreground text-sm">
-              Nästa om: {formatTimeToMilestone(timer.timeToNextMilestone)}
             </div>
           )}
 
