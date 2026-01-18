@@ -113,51 +113,42 @@ export function useExternalTimer() {
 
       const data = await response.json();
 
-      if (!data || !data.active_timer_label || !data.active_timer_started_at) {
+      // Edge function returns pre-calculated values
+      if (!data || !data.isActive) {
         timerDataRef.current = null;
         setTimerState(initialState);
         return;
       }
 
-      const milestones: TimerMilestone[] = Array.isArray(data.active_timer_milestones) 
-        ? data.active_timer_milestones as TimerMilestone[]
+      const milestones: TimerMilestone[] = Array.isArray(data.milestones) 
+        ? data.milestones as TimerMilestone[]
         : [];
 
+      // Store ref data for local countdown
       timerDataRef.current = {
-        startedAt: data.active_timer_started_at,
-        remainingAtStart: data.active_timer_remaining_at_start || 0,
-        totalSeconds: data.active_timer_total_seconds || 0,
-        isPaused: data.active_timer_is_paused || false,
+        startedAt: new Date().toISOString(), // Use current time as reference
+        remainingAtStart: data.remainingSeconds || 0,
+        totalSeconds: data.totalSeconds || 0,
+        isPaused: data.isPaused || false,
         milestones,
       };
 
-      const remainingSeconds = calculateRemainingSeconds();
-      const { nextMilestone, timeToNextMilestone } = calculateMilestoneInfo(remainingSeconds, milestones);
-      const progress = (data.active_timer_total_seconds || 0) > 0 
-        ? 1 - (remainingSeconds / data.active_timer_total_seconds) 
-        : 0;
-
-      // Check if paused by milestone
-      const pausedByMilestone = data.active_timer_is_paused && milestones.some(m => 
-        m.triggered && m.time === remainingSeconds
-      );
-
       setTimerState({
-        isActive: true,
-        label: data.active_timer_label,
-        remainingSeconds,
-        totalSeconds: data.active_timer_total_seconds || 0,
-        isPaused: data.active_timer_is_paused || false,
-        pausedByMilestone,
+        isActive: data.isActive,
+        label: data.label || '',
+        remainingSeconds: data.remainingSeconds || 0,
+        totalSeconds: data.totalSeconds || 0,
+        isPaused: data.isPaused || false,
+        pausedByMilestone: data.pausedByMilestone || false,
         milestones,
-        nextMilestone,
-        timeToNextMilestone,
-        progress: Math.min(1, Math.max(0, progress)),
+        nextMilestone: data.nextMilestone || null,
+        timeToNextMilestone: data.timeToNextMilestone || null,
+        progress: Math.min(1, Math.max(0, data.progress || 0)),
       });
     } catch (error) {
       console.error('Error fetching timer data:', error);
     }
-  }, [user, session, calculateRemainingSeconds, calculateMilestoneInfo]);
+  }, [user, session]);
 
   // Initial fetch and subscribe to realtime updates
   useEffect(() => {
