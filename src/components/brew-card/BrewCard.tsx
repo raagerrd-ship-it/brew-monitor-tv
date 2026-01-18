@@ -16,6 +16,10 @@ import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 
+// Fixed heights in pixels for consistent layout
+const CARD_HEADER_HEIGHT = 56;
+const CARD_STATS_HEIGHT = 160;
+
 function BrewCardComponent({
   brew,
   updatedFields,
@@ -59,14 +63,14 @@ function BrewCardComponent({
           background: 'hsl(222 18% 15%)',
         }}
       >
-        <div className="h-[10%] px-3 py-2 flex-shrink-0">
+        <div className="px-3 py-2 flex-shrink-0" style={{ height: `${CARD_HEADER_HEIGHT}px` }}>
           <Skeleton className="h-6 w-3/4 mb-2" />
           <Skeleton className="h-4 w-1/2" />
         </div>
-        <div className="flex-1 p-2">
+        <div className="flex-1 p-2 min-h-0">
           <Skeleton className="w-full h-full rounded-lg" />
         </div>
-        <div className="h-[32%] px-3 py-1.5">
+        <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
           <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="rounded-lg" />
@@ -108,8 +112,8 @@ function BrewCardComponent({
         />
       )}
       
-      {/* Header - 10% */}
-      <div className="h-[10%] px-3 py-2 flex-shrink-0 relative" style={{ containerType: 'size' }}>
+      {/* Header - fixed height */}
+      <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
@@ -179,8 +183,8 @@ function BrewCardComponent({
         </div>
       </div>
       
-      {/* Chart Area - adjusts based on active session */}
-      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
+      {/* Chart Area - flexible, fills remaining space */}
+      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0">
           <BrewChart 
             data={brew.sgData} 
@@ -203,8 +207,8 @@ function BrewCardComponent({
         </div>
       </div>
 
-      {/* Stats Grid - 32% */}
-      <div className="h-[32%] px-3 py-1.5 flex-shrink-0">
+      {/* Stats Grid - fixed height */}
+      <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
         <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
           <GravityStat brew={brew} updatedFields={updatedFields} />
           <AbvStat brew={brew} updatedFields={updatedFields} />

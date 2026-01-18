@@ -18,6 +18,9 @@ import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
+
+// Fixed header height in pixels
+const HEADER_HEIGHT = 72;
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
   const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
@@ -169,7 +172,8 @@ export function BrewingDashboard() {
       
 
       {/* Header Bar */}
-      <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'h-[8%] flex items-center justify-between px-6 gap-6'}`} style={{
+      <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'flex items-center justify-between px-6 gap-6'}`} style={{
+        height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
       containerType: 'size',
       ...(isMobile ? {} : {
         background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
