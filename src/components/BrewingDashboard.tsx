@@ -176,7 +176,7 @@ export function BrewingDashboard() {
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
 
   return (
-    <div className={`h-screen w-screen bg-background flex flex-col overflow-hidden relative ${showTimerFooter ? 'pb-20' : ''}`}>
+    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden relative">
       {/* Version indicator */}
       <div 
         className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
