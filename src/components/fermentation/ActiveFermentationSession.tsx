@@ -35,6 +35,7 @@ interface ActiveFermentationSessionProps {
   preloadedSession?: FermentationSessionData | null;
   isAuthenticated?: boolean;
   currentSg?: number | null;
+  originalGravity?: number | null;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -55,6 +56,7 @@ export function ActiveFermentationSession({
   preloadedSession,
   isAuthenticated: isAuthenticatedProp,
   currentSg,
+  originalGravity,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
@@ -401,6 +403,7 @@ export function ActiveFermentationSession({
         currentSg={currentSg}
         targetSg={stepTargetSg}
         sgComparison={stepSgComparison}
+        originalGravity={originalGravity}
       />
     );
   }

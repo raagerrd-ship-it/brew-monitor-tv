@@ -18,6 +18,7 @@ interface FermentationSessionCompactProps {
   currentSg?: number | null;
   targetSg?: number | null;
   sgComparison?: string | null;
+  originalGravity?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -35,8 +36,21 @@ export function FermentationSessionCompact({
   currentSg,
   targetSg,
   sgComparison,
+  originalGravity,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
+
+  // Calculate SG progress (0-1) based on how far we've fermented toward the target
+  const sgProgress = (() => {
+    if (targetSg == null || currentSg == null || originalGravity == null) return null;
+    if (originalGravity <= targetSg) return null; // Invalid: OG should be higher than target
+    
+    // Progress = how much we've dropped from OG toward target
+    const totalDrop = originalGravity - targetSg;
+    const currentDrop = originalGravity - currentSg;
+    const progress = Math.max(0, Math.min(1, currentDrop / totalDrop));
+    return progress;
+  })();
   // Check if ramp step time is complete but temp not reached
   const isRampTimeComplete = () => {
     if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
@@ -156,6 +170,19 @@ export function FermentationSessionCompact({
         boxShadow: getBoxShadow(),
       }}
     >
+      {/* SG Progress background overlay - green gradient showing fermentation progress */}
+      {sgProgress !== null && sgProgress > 0 && (
+        <div 
+          className="absolute inset-0 pointer-events-none transition-all duration-1000"
+          style={{
+            background: `linear-gradient(90deg, 
+              hsl(142 70% 45% / 0.25) 0%, 
+              hsl(142 70% 50% / 0.15) ${sgProgress * 100}%, 
+              transparent ${sgProgress * 100}%)`,
+          }}
+        />
+      )}
+      
       {/* Animated ramp progress overlay */}
       {isRamping && !waitingForTemp && rampProgress !== null && (
         <div 
