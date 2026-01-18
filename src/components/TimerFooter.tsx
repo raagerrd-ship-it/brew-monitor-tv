@@ -5,6 +5,8 @@ import { useTvMode } from '@/contexts/TvModeContext';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { cn } from '@/lib/utils';
 
+// Export constant for use in layout calculations
+export const TIMER_FOOTER_HEIGHT = 140; // pixels
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -240,9 +242,6 @@ export const TimerFooter = memo(function TimerFooter() {
   // Check if next milestone is imminent (less than 30 seconds)
   const isNextMilestoneImminent = timer.timeToNextMilestone !== null && timer.timeToNextMilestone <= 30 && timer.timeToNextMilestone > 0;
 
-  // Fixed footer height for layout calculations
-  const FOOTER_HEIGHT = 140; // pixels
-
   return (
     <>
       {/* Attention-grabbing alert overlay when milestone triggers */}
@@ -276,9 +275,6 @@ export const TimerFooter = memo(function TimerFooter() {
         </div>
       )}
 
-      {/* Spacer to push content up */}
-      <div style={{ height: `${FOOTER_HEIGHT}px` }} />
-      
       <div 
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 border-t backdrop-blur-md",
@@ -288,7 +284,7 @@ export const TimerFooter = memo(function TimerFooter() {
         )}
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-          height: `${FOOTER_HEIGHT}px`,
+          height: `${TIMER_FOOTER_HEIGHT}px`,
         }}
       >
       {/* Top row: Next step + Timer */}
