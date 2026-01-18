@@ -134,9 +134,21 @@ function BrewCardComponent({
               {brew.name}
             </h2>
             <p 
-              className="text-muted-foreground/60 truncate font-medium" 
+              className="text-muted-foreground/60 truncate font-medium flex items-center gap-1.5" 
               style={{ fontSize: 'max(14px, min(1.6vh, 1.8vw))', letterSpacing: '0.02em' }}
             >
+              {brew.batch_id.startsWith('custom_') && (
+                <span 
+                  className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
+                    color: 'hsl(var(--accent-foreground) / 0.9)',
+                    border: '1px solid hsl(var(--accent) / 0.4)',
+                  }}
+                >
+                  Egen
+                </span>
+              )}
               {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
             </p>
           </div>
