@@ -165,14 +165,17 @@ export function BrewingDashboard() {
 
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
-  return <div className="w-screen bg-background flex flex-col overflow-hidden relative" style={{
+  // Mobile header height - logo row (~44px) + controller bar (~44px) + padding (24px) + gap (12px)
+  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 124 : 68;
+  
+  return <div className={`w-screen bg-background relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh'
   }}>
       {/* Version indicator */}
       
 
       {/* Header Bar */}
-      <div className={`flex-shrink-0 overflow-visible z-20 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 sticky top-0' : 'flex items-center justify-between px-6 gap-6 relative'}`} style={{
+      <div className={`overflow-visible z-20 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
         containerType: 'size',
         background: isMobile 
@@ -230,7 +233,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Main Display Area */}
-      <div className="flex-1 overflow-hidden relative flex flex-col z-0">
+      <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-hidden'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
         {brews.length === 0 ? <div className="flex items-center justify-center h-full p-4">
             <Card className="max-w-2xl w-full p-8 text-center">
               <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
