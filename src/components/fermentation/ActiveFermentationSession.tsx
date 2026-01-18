@@ -441,6 +441,10 @@ export function ActiveFermentationSession({
             isRamping={isRamping}
             rampProgress={rampProgress}
             stepProgress={stepProgress}
+            currentSg={currentSg}
+            targetSg={currentStep.target_sg ?? null}
+            sgComparison={currentStep.sg_comparison ?? null}
+            originalGravity={originalGravity}
           />
         )}
 

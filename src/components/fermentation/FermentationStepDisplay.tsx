@@ -13,6 +13,10 @@ interface FermentationStepDisplayProps {
   rampProgress: number | null;
   stepProgress: number;
   isProcessing?: boolean;
+  currentSg?: number | null;
+  targetSg?: number | null;
+  sgComparison?: string | null;
+  originalGravity?: number | null;
 }
 
 export function FermentationStepDisplay({
@@ -27,6 +31,10 @@ export function FermentationStepDisplay({
   rampProgress,
   stepProgress,
   isProcessing = false,
+  currentSg,
+  targetSg,
+  sgComparison,
+  originalGravity,
 }: FermentationStepDisplayProps) {
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
@@ -84,10 +92,31 @@ export function FermentationStepDisplay({
   const tempReached = isTargetTempReached();
   const waitingForTemp = rampTimeComplete && !tempReached;
 
+  // Calculate SG progress for display
+  const sgProgress = (() => {
+    const stepTargetSg = currentStep.target_sg ?? targetSg;
+    if (stepTargetSg == null || currentSg == null || originalGravity == null) return null;
+    if (originalGravity <= stepTargetSg) return null;
+    const totalDrop = originalGravity - stepTargetSg;
+    const currentDrop = originalGravity - currentSg;
+    return Math.max(0, Math.min(1, currentDrop / totalDrop));
+  })();
+
   const getNextStepCondition = (step: FermentationProfileStep) => {
     switch (step.step_type) {
       case 'hold': {
-        if (!step.duration_hours) return 'Okänd tid';
+        // Check if this is a SG-conditioned hold (no duration but has target_sg from step OR session props)
+        const stepTargetSg = step.target_sg ?? targetSg;
+        const stepSgComparison = step.sg_comparison ?? sgComparison;
+        
+        if (stepTargetSg != null && !step.duration_hours) {
+          if (currentSg != null) {
+            const progress = sgProgress != null ? ` (${Math.round(sgProgress * 100)}%)` : '';
+            return `Väntar på mål-SG${progress}`;
+          }
+          return `Mål-SG ${stepSgComparison === 'at_or_below' ? '≤' : '≥'} ${stepTargetSg.toFixed(3)}`;
+        }
+        if (!step.duration_hours) return 'Tidsstyrt steg saknar tid';
         const stepStarted = new Date(stepStartedAt);
         const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
         const remaining = Math.max(0, step.duration_hours - elapsed);
