@@ -200,27 +200,40 @@ export const TimerFooter = memo(function TimerFooter() {
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
           style={{
-            background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.3) 0%, rgba(0,0,0,0.8) 100%)',
-            animation: 'pulse-bg 1s ease-in-out infinite alternate',
+            background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
+            animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
           }}
         >
+          {/* Card with improved layout */}
           <div 
-            className="flex flex-col items-center gap-6 p-12 rounded-3xl"
+            className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
             style={{
-              background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(194, 65, 12, 0.95) 100%)',
-              boxShadow: '0 0 100px 20px rgba(234, 88, 12, 0.5), 0 0 200px 40px rgba(234, 88, 12, 0.3)',
-              animation: 'scale-pulse 0.5s ease-out, glow 1.5s ease-in-out infinite alternate',
+              background: 'linear-gradient(145deg, hsl(24 90% 20%) 0%, hsl(20 95% 15%) 100%)',
+              border: '2px solid hsl(24 90% 40% / 0.6)',
+              boxShadow: '0 0 60px 10px rgba(234, 88, 12, 0.4), 0 0 120px 30px rgba(234, 88, 12, 0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
+              animation: 'scale-pulse 0.4s ease-out',
             }}
           >
-            <div className="flex items-center gap-4">
-              <AlertTriangle className="w-16 h-16 text-white animate-bounce" />
-              <span className="text-white text-2xl font-bold uppercase tracking-wider">Nu!</span>
+            {/* Top badge */}
+            <div 
+              className="flex items-center gap-3 px-6 py-2 rounded-full mb-6"
+              style={{
+                background: 'linear-gradient(135deg, hsl(24 95% 50%) 0%, hsl(30 100% 45%) 100%)',
+                boxShadow: '0 0 20px rgba(251, 146, 60, 0.5)',
+              }}
+            >
+              <AlertTriangle className="w-6 h-6 text-white" />
+              <span className="text-white text-lg font-bold uppercase tracking-widest">Dags nu!</span>
             </div>
-            <div className="text-white text-4xl md:text-6xl font-bold text-center max-w-4xl">
+            
+            {/* Main action text */}
+            <div className="text-orange-100 text-5xl md:text-7xl font-bold text-center leading-tight">
               {triggeredAlert.label.replace(/🔥\s*/g, '')}
             </div>
-            <div className="text-orange-200 text-xl">
-              Utför detta steg nu
+            
+            {/* Subtle instruction */}
+            <div className="text-orange-300/80 text-lg mt-4 font-medium">
+              Utför detta steg
             </div>
           </div>
         </div>
@@ -342,10 +355,15 @@ export const TimerFooter = memo(function TimerFooter() {
               </div>
             )}
             
-            {/* Total remaining time - secondary */}
+            {/* Total remaining time - secondary (clickable for test) */}
             <div 
+              onClick={() => {
+                const testLabel = timer.nextMilestone?.label || 'Test Milestone';
+                setTriggeredAlert({ label: testLabel, time: Date.now() });
+                setTimeout(() => setTriggeredAlert(null), 5000);
+              }}
               className={cn(
-                "font-mono tabular-nums text-base",
+                "font-mono tabular-nums text-base cursor-pointer hover:opacity-80 transition-opacity",
                 isLowTime && "animate-pulse text-red-400",
                 !isLowTime && (isMash ? "text-orange-400/70" : "text-muted-foreground")
               )}
