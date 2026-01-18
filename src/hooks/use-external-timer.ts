@@ -53,6 +53,7 @@ export function useExternalTimer() {
     const data = timerDataRef.current;
     if (!data || !data.startedAt) return 0;
 
+    // Don't count down if paused (either manually or by milestone)
     if (data.isPaused) {
       return data.remainingAtStart;
     }
@@ -348,9 +349,12 @@ export function useExternalTimer() {
     };
   }, [fetchFromCache]);
 
-  // Update remaining seconds every second when timer is active
+  // Update remaining seconds every second when timer is active and not paused
+  // pausedByMilestone should also stop the countdown
   useEffect(() => {
-    if (timerState.isActive && !timerState.isPaused) {
+    const shouldCount = timerState.isActive && !timerState.isPaused && !timerState.pausedByMilestone;
+    
+    if (shouldCount) {
       intervalRef.current = setInterval(() => {
         updateTimerState();
       }, 1000);
@@ -367,7 +371,7 @@ export function useExternalTimer() {
         intervalRef.current = null;
       }
     };
-  }, [timerState.isActive, timerState.isPaused, updateTimerState]);
+  }, [timerState.isActive, timerState.isPaused, timerState.pausedByMilestone, updateTimerState]);
 
   return timerState;
 }
