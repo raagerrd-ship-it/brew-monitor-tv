@@ -14,6 +14,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
+import { useExternalTimer } from "@/hooks/use-external-timer";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 
@@ -58,6 +59,9 @@ export function BrewingDashboard() {
     loadBrewEvents,
   } = useBrewData();
 
+  // External timer for footer padding
+  const externalTimer = useExternalTimer();
+  
   // Check for new app versions every 60 seconds
   const { appLoadTime } = useVersionCheck(60000);
 
@@ -165,11 +169,14 @@ export function BrewingDashboard() {
   }
 
   return (
-    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden relative">
+    <div className={`h-screen w-screen bg-background flex flex-col overflow-hidden relative ${externalTimer.isActive ? 'pb-20' : ''}`}>
       {/* Version indicator */}
       <div 
         className="absolute bottom-2 right-3 z-50 text-muted-foreground/30 font-mono"
-        style={{ fontSize: 'min(1.5vh, 0.7vw)' }}
+        style={{ 
+          fontSize: 'min(1.5vh, 0.7vw)',
+          bottom: externalTimer.isActive ? '5rem' : '0.5rem',
+        }}
       >
         Laddad: {formattedLoadTime}
       </div>

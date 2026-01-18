@@ -5,6 +5,7 @@ import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { FermentationProfilesManagement } from "@/components/fermentation";
+import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,12 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
+import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -101,6 +103,10 @@ export default function Settings() {
   const [visiblePillsCount, setVisiblePillsCount] = useState(0);
   const [visibleControllersCount, setVisibleControllersCount] = useState(0);
   const [visibleBrewsCount, setVisibleBrewsCount] = useState(0);
+  const [externalLoginDialogOpen, setExternalLoginDialogOpen] = useState(false);
+  
+  // External auth for brew timer
+  const { isAuthenticated: isExternalAuthenticated, user: externalUser, signOut: externalSignOut, isLoading: externalLoading } = useExternalAuth();
 
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
@@ -1705,6 +1711,58 @@ export default function Settings() {
               </div>
               <FermentationProfilesManagement />
             </div>
+            {/* Brew Timer Section */}
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Timer className="h-5 w-5" />
+                  Brygg-timer synkronisering
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Visa aktiv timer från brygg-appen i sidfoten
+                </p>
+              </div>
+              
+              <Card className="p-4">
+                {externalLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Laddar...
+                  </div>
+                ) : isExternalAuthenticated ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                        <Check className="h-4 w-4 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Ansluten</p>
+                        <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => externalSignOut()}
+                    >
+                      Koppla från
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Inte ansluten</p>
+                      <p className="text-sm text-muted-foreground">
+                        Anslut för att visa aktiva timers från brygg-appen
+                      </p>
+                    </div>
+                    <Button onClick={() => setExternalLoginDialogOpen(true)}>
+                      Anslut
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
           </TabsContent>
 
           {/* DEVICES TAB */}
@@ -1736,6 +1794,11 @@ export default function Settings() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      <ExternalLoginDialog 
+        open={externalLoginDialogOpen} 
+        onOpenChange={setExternalLoginDialogOpen} 
+      />
     </div>
   );
 }
