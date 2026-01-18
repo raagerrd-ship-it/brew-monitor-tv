@@ -282,14 +282,14 @@ export function CustomBrewDialog({
           <div className="grid gap-2">
             <Label>RAPT Controller</Label>
             <Select
-              value={selectedControllerId}
-              onValueChange={setSelectedControllerId}
+              value={selectedControllerId || "none"}
+              onValueChange={(val) => setSelectedControllerId(val === "none" ? "" : val)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Välj controller (valfritt)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Ingen</SelectItem>
+                <SelectItem value="none">Ingen</SelectItem>
                 {controllers.map((controller) => (
                   <SelectItem
                     key={controller.id}
@@ -304,12 +304,15 @@ export function CustomBrewDialog({
 
           <div className="grid gap-2">
             <Label>RAPT Pill</Label>
-            <Select value={selectedPillId} onValueChange={setSelectedPillId}>
+            <Select 
+              value={selectedPillId || "none"} 
+              onValueChange={(val) => setSelectedPillId(val === "none" ? "" : val)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Välj pill (valfritt)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Ingen</SelectItem>
+                <SelectItem value="none">Ingen</SelectItem>
                 {pills.map((pill) => (
                   <SelectItem key={pill.id} value={pill.pill_id}>
                     {pill.name}
