@@ -256,8 +256,8 @@ export function BrewingDashboard() {
                   </div>)}
               </div>
             </div>
-          </div> : <div className={`${gridLayout} h-full w-full px-4 py-2`}>
-            {brews.map((brew, index) => <div key={brew.id} className={cardWidthClass}>
+          </div> : <div className={`${gridLayout} w-full px-4 py-2`} style={{ height: `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})` }}>
+            {brews.map((brew, index) => <div key={brew.id} className={`${cardWidthClass} h-full`}>
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
               </div>)}
           </div>}

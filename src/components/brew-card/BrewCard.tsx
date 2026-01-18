@@ -17,8 +17,8 @@ import { BatteryStat } from "./BatteryStat";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 
 // Fixed heights in pixels for consistent layout
-const CARD_HEADER_HEIGHT = 56;
-const CARD_STATS_HEIGHT = 160;
+const CARD_HEADER_HEIGHT = 52;
+const CARD_STATS_HEIGHT = 140;
 
 function BrewCardComponent({
   brew,
