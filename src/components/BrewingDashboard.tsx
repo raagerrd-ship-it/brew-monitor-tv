@@ -242,7 +242,7 @@ export function BrewingDashboard() {
                 Öppna Inställningar
               </Button>
             </Card>
-          </div> : isMobile ? <div className="flex flex-col flex-1 pt-[90px]">
+          </div> : isMobile ? <div className="flex flex-col flex-1">
             {brews.length > 1 && <div className="relative py-3 flex-shrink-0">
                 <div className="flex justify-center gap-2">
                   {brews.map((_, index) => <button key={index} onClick={() => emblaApi?.scrollTo(index)} className={`h-2 rounded-full transition-all duration-300 ${index === selectedIndex ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30'}`} aria-label={`Gå till öl ${index + 1}`} />)}
