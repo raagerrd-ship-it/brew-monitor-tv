@@ -239,8 +239,8 @@ export const TimerFooter = memo(function TimerFooter() {
           height: `${TIMER_FOOTER_HEIGHT}px`,
         }}
       >
-        {/* 3-column grid: Next Step | Timeline | Time */}
-        <div className="grid grid-cols-[1fr_2fr_1fr] h-full">
+        {/* 3-column grid: Next Step | Timeline | Time (auto-width) */}
+        <div className="grid grid-cols-[minmax(180px,1fr)_3fr_auto] h-full">
           
           {/* LEFT COLUMN: Next Step */}
           <div className={cn(
