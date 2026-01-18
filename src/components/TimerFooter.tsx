@@ -215,13 +215,17 @@ export const TimerFooter = memo(function TimerFooter() {
   // Check if we should show based on TV mode setting
   const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
   
-  // Detect when a milestone just triggered (within 2 seconds of its time)
+  // Detect when a milestone just triggered (within 3 seconds of its time)
   useEffect(() => {
-    if (!timer.milestones.length) return;
+    if (!timer.milestones.length || !timer.isActive) return;
     
+    // A milestone triggers when remainingSeconds passes below its time value
     const justTriggered = timer.milestones.find(m => {
-      const diff = Math.abs(timer.remainingSeconds - m.time);
-      return diff <= 2 && !m.triggered && m.label !== lastTriggeredRef.current;
+      // Check if we're within 3 seconds AFTER passing the milestone time
+      const passed = timer.remainingSeconds < m.time;
+      const justPassed = timer.remainingSeconds >= m.time - 3;
+      const notAlreadyTriggered = m.label !== lastTriggeredRef.current;
+      return passed && justPassed && notAlreadyTriggered;
     });
     
     if (justTriggered) {
@@ -236,7 +240,7 @@ export const TimerFooter = memo(function TimerFooter() {
         }, 10000);
       }
     }
-  }, [timer.remainingSeconds, timer.milestones, isMash]);
+  }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
 
   // For mash: Dismiss alert when pausedByMilestone becomes false (acknowledged)
   useEffect(() => {

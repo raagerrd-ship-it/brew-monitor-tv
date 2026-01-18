@@ -69,14 +69,16 @@ export function useExternalTimer() {
     const data = timerDataRef.current;
     if (!data || !data.milestones.length) return null;
 
-    // Sort milestones by time descending (highest time = earliest in process)
-    const sortedMilestones = [...data.milestones].sort((a, b) => b.time - a.time);
+    // Sort milestones by time ascending (lowest time = will be reached last)
+    const sortedMilestones = [...data.milestones].sort((a, b) => a.time - b.time);
     
-    // Find the next upcoming milestone (one where time < remainingSeconds)
-    // A milestone is "next" if we haven't passed it yet
-    const nextMilestone = sortedMilestones.find(m => m.time < remainingSeconds);
+    // Find the next upcoming milestone (highest time that is still less than remaining)
+    // A milestone triggers when remainingSeconds reaches its time value
+    // So we want the milestone with the highest time that is still <= remainingSeconds
+    const upcomingMilestones = sortedMilestones.filter(m => m.time < remainingSeconds && !m.triggered);
     
-    return nextMilestone || null;
+    // The next milestone is the one with the highest time (will be reached soonest)
+    return upcomingMilestones.length > 0 ? upcomingMilestones[upcomingMilestones.length - 1] : null;
   }, []);
 
   const calculateTimeToNextMilestone = useCallback((remainingSeconds: number, nextMilestone: TimerMilestone | null): number | null => {
@@ -153,10 +155,10 @@ export function useExternalTimer() {
   // Fetch from local cache (for non-authenticated users)
   const fetchFromCache = useCallback(async () => {
     try {
+      // Get the most recent timer data (don't filter by is_active to properly handle stopped timers)
       const { data, error } = await supabase
         .from('cached_external_timer')
         .select('*')
-        .eq('is_active', true)
         .order('last_synced_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -213,6 +215,12 @@ export function useExternalTimer() {
         nextMilestone,
         timeToNextMilestoneAtStart: adjustedTimeToNext,
       };
+
+      // If timer is not active, reset to initial state
+      if (!data.is_active) {
+        setTimerState(initialState);
+        return;
+      }
 
       setTimerState({
         isActive: data.is_active && adjustedRemaining > 0,
