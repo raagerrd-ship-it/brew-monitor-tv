@@ -172,7 +172,7 @@ export function BrewingDashboard() {
       
 
       {/* Header Bar */}
-      <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'flex items-center justify-between px-6 gap-6'}`} style={{
+      <div className={`flex-shrink-0 overflow-visible z-20 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 sticky top-0' : 'flex items-center justify-between px-6 gap-6 relative'}`} style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
         containerType: 'size',
         background: isMobile 
