@@ -174,12 +174,12 @@ export function BrewingDashboard() {
       {/* Header Bar */}
       <div className={`flex-shrink-0 overflow-visible relative z-10 ${isMobile ? 'flex flex-col py-3 px-3 gap-3' : 'flex items-center justify-between px-6 gap-6'}`} style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
-      containerType: 'size',
-      ...(isMobile ? {} : {
-        background: 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
+        containerType: 'size',
+        background: isMobile 
+          ? 'hsl(222 20% 9%)' 
+          : 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
         borderBottom: '1px solid hsl(222 15% 16%)'
-      })
-    }}>
+      }}>
         {/* Subtle top highlight - desktop only */}
         {!isMobile && <div className="absolute inset-x-0 top-0 h-px" style={{
         background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)'
@@ -243,7 +243,7 @@ export function BrewingDashboard() {
               </Button>
             </Card>
           </div> : isMobile ? <div className="flex flex-col flex-1">
-            {brews.length > 1 && <div className="relative py-3 flex-shrink-0">
+            {brews.length > 1 && <div className="relative py-2 flex-shrink-0">
                 <div className="flex justify-center gap-2">
                   {brews.map((_, index) => <button key={index} onClick={() => emblaApi?.scrollTo(index)} className={`h-2 rounded-full transition-all duration-300 ${index === selectedIndex ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30'}`} aria-label={`Gå till öl ${index + 1}`} />)}
                 </div>
