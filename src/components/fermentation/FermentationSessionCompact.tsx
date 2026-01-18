@@ -301,47 +301,24 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-            {/* Temperature display - same as popup: Start → Target(delmål) → FinalTarget */}
-            <span className="flex items-center gap-1 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs overflow-hidden">
+            {/* Temperature display */}
+            <span className="flex items-center gap-1 shrink-0">
               <Thermometer 
-                className="h-3 w-3"
+                className="h-3 w-3 shrink-0"
                 style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
               />
               
-              {/* Start temp for ramp steps */}
-              {isRamping && stepStartTemp != null && (
-                <>
-                  <span className="text-muted-foreground">{Math.round(stepStartTemp)}°C</span>
-                  <span className="text-muted-foreground/50">→</span>
-                </>
-              )}
-              
-              {/* Current target temp (intermediate for ramping) */}
+              {/* Current target temp */}
               {targetTemp != null && (
                 <span 
                   className="font-semibold"
                   style={{ 
                     color: waitingForTemp ? 'hsl(200 90% 60%)' : isRamping ? 'hsl(38 92% 60%)' : 'hsl(var(--primary))',
-                    textShadow: waitingForTemp ? '0 0 8px hsl(200 90% 50% / 0.4)' : isRamping ? '0 0 8px hsl(38 92% 50% / 0.4)' : 'none'
                   }}
                 >
                   {targetTemp.toFixed(1)}°C
                 </span>
-              )}
-              
-              {/* Final target temp (if different from current target) */}
-              {isRamping && currentStep.target_temp && 
-               targetTemp != null && Math.abs(targetTemp - currentStep.target_temp) > 0.1 && (
-                <>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span 
-                    className="font-medium"
-                    style={{ color: waitingForTemp ? 'hsl(200 90% 70%)' : 'hsl(var(--primary) / 0.8)' }}
-                  >
-                    {currentStep.target_temp}°C
-                  </span>
-                </>
               )}
             </span>
             
@@ -349,12 +326,12 @@ export function FermentationSessionCompact({
             {targetSg != null && (
               <>
                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 shrink-0">
                   <Activity 
-                    className="h-3 w-3" 
+                    className="h-3 w-3 shrink-0" 
                     style={{ color: 'hsl(142 70% 50%)' }}
                   />
-                  <span className="text-muted-foreground font-medium">
+                  <span className="text-muted-foreground font-medium whitespace-nowrap">
                     Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(3)}
                   </span>
                 </span>
@@ -365,7 +342,7 @@ export function FermentationSessionCompact({
             <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
             
             {/* Next step condition */}
-            <span className="flex items-center gap-1 text-muted-foreground truncate">
+            <span className="flex items-center gap-1 text-muted-foreground min-w-0">
               {getStepIcon(currentStep.step_type)}
               <span className="truncate font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
