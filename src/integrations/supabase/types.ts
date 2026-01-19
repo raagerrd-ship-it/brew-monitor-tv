@@ -812,6 +812,7 @@ export type Database = {
       }
       trigger_auto_cooling_adjustment: { Args: never; Returns: undefined }
       trigger_brew_sync: { Args: never; Returns: undefined }
+      trigger_custom_brew_sync: { Args: never; Returns: undefined }
       trigger_external_timer_sync: { Args: never; Returns: undefined }
       trigger_fermentation_profile_processing: {
         Args: never
