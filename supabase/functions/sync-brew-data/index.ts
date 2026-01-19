@@ -34,11 +34,12 @@ Deno.serve(async (req) => {
         .eq('id', settingsData.id)
     }
 
-    // Get currently visible brews for syncing data
+    // Get currently visible brews for syncing data (exclude custom brews which have their own sync)
     const { data: selectedBrews, error: selectedError } = await supabase
       .from('selected_brews')
       .select('batch_id')
       .eq('is_visible', true)
+      .not('batch_id', 'like', 'custom\\_%')
 
     if (selectedError) {
       console.error('Error fetching selected brews:', selectedError)
@@ -46,9 +47,9 @@ Deno.serve(async (req) => {
     }
 
     if (!selectedBrews || selectedBrews.length === 0) {
-      console.log('No visible brews to sync')
+      console.log('No visible Brewfather brews to sync (custom brews have separate sync)')
       return new Response(
-        JSON.stringify({ message: 'No visible brews' }),
+        JSON.stringify({ message: 'No visible Brewfather brews' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
