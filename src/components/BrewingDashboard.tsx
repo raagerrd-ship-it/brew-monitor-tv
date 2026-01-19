@@ -165,8 +165,8 @@ export function BrewingDashboard() {
 
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
-  // Mobile header height - logo row (~44px) + controller bar (~44px) + padding (24px) + gap (12px)
-  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 124 : 68;
+  // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
+  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
   
   return <div className={`w-screen bg-background relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh'
