@@ -41,7 +41,6 @@ export function StatCard({
   valueSize = 'max(28px, min(5vh, 2.5vw))',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
-    containerType: 'size',
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.2),
     borderWidth: '1px',
     borderStyle: 'solid',
