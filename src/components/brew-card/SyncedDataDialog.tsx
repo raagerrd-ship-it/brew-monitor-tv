@@ -163,7 +163,7 @@ export function SyncedDataDialog({
                         })}
                       </td>
                       <td className="py-1.5 text-right font-mono text-beer-amber">
-                        {point.sg.toFixed(3)}
+                        {point.sg.toFixed(4)}
                       </td>
                       <td className="py-1.5 text-right font-mono text-temp-blue">
                         {point.pillTemp.toFixed(1)}°
