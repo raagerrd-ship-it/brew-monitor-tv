@@ -249,14 +249,25 @@ export function FermentationSessionCompact({
             <ArrowDown className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
           </div>
         ) : (
-          <div 
-            className="p-1.5 rounded-full"
-            style={{ 
-              background: 'linear-gradient(135deg, hsl(142 70% 45% / 0.35) 0%, hsl(142 70% 45% / 0.15) 100%)',
-              boxShadow: '0 0 10px hsl(142 70% 45% / 0.4)'
-            }}
-          >
-            <Play className="h-4 w-4" style={{ color: 'hsl(142 70% 55%)' }} />
+          <div className="relative flex items-center justify-center w-7 h-7">
+            {/* Pulsing ring - disabled in TV mode */}
+            {!isTvMode && (
+              <div 
+                className="absolute inset-0 rounded-full animate-ping"
+                style={{ 
+                  background: 'hsl(142 70% 45% / 0.3)',
+                  animationDuration: '2s',
+                }}
+              />
+            )}
+            {/* Solid indicator */}
+            <div 
+              className="relative w-3 h-3 rounded-full"
+              style={{ 
+                background: 'linear-gradient(135deg, hsl(142 70% 55%) 0%, hsl(142 70% 40%) 100%)',
+                boxShadow: '0 0 8px hsl(142 70% 50% / 0.6)'
+              }}
+            />
           </div>
         )}
       </div>
