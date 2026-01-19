@@ -301,7 +301,7 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs overflow-hidden">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5 text-xs">
             {/* Temperature display */}
             <span className="flex items-center gap-1 shrink-0">
               <Thermometer 
@@ -342,9 +342,9 @@ export function FermentationSessionCompact({
             <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
             
             {/* Next step condition */}
-            <span className="flex items-center gap-1 text-muted-foreground min-w-0">
+            <span className="flex items-center gap-1 text-muted-foreground">
               {getStepIcon(currentStep.step_type)}
-              <span className="truncate font-medium">{getNextStepCondition(currentStep)}</span>
+              <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
           </div>
         )}
