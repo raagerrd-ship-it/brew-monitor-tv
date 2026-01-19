@@ -177,10 +177,7 @@ export function BrewingDashboard() {
       {/* Header Bar */}
       <div className={`overflow-visible z-20 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
-        containerType: 'size',
-        background: isMobile 
-          ? 'hsl(222 20% 9%)' 
-          : 'linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 20% 9%) 100%)',
+        background: 'hsl(222 20% 9%)',
         borderBottom: '1px solid hsl(222 15% 16%)'
       }}>
         {/* Subtle top highlight - desktop only */}
