@@ -252,11 +252,11 @@ export function FermentationSessionCompact({
           <div 
             className="p-1.5 rounded-full"
             style={{ 
-              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)',
-              boxShadow: '0 0 8px hsl(var(--primary) / 0.3)'
+              background: 'linear-gradient(135deg, hsl(142 70% 45% / 0.35) 0%, hsl(142 70% 45% / 0.15) 100%)',
+              boxShadow: '0 0 10px hsl(142 70% 45% / 0.4)'
             }}
           >
-            <Play className="h-4 w-4 text-primary" />
+            <Play className="h-4 w-4" style={{ color: 'hsl(142 70% 55%)' }} />
           </div>
         )}
       </div>
