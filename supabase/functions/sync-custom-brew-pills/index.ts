@@ -169,8 +169,10 @@ serve(async (req) => {
 
         console.log(`Merged sg_data: ${existingSgData.length} existing + ${uniqueNewData.length} new = ${mergedSgData.length} total`);
 
-        if (uniqueNewData.length === 0) {
-          console.log(`No new data points for brew ${brew.name}`);
+        // Even if no new data points, we should still update current values
+        // Only skip if mergedSgData is empty (nothing to update from)
+        if (mergedSgData.length === 0) {
+          console.log(`No data for brew ${brew.name}`);
           continue;
         }
 
@@ -194,6 +196,18 @@ serve(async (req) => {
         const currentSg = latestData.value;
         const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
         const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
+
+        // Log values being updated
+        console.log(`Updating ${brew.name} with values:`, {
+          current_sg: currentSg,
+          current_temp: latestData.temp,
+          battery: latestTelemetry.battery,
+          last_update: latestData.date,
+          og,
+          attenuation,
+          abv,
+          sg_data_length: mergedSgData.length
+        });
 
         // Update brew_readings
         const { error: updateError } = await supabase
