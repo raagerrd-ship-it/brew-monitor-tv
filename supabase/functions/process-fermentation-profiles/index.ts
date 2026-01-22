@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
 
       switch (currentStep.step_type) {
         case 'hold': {
-          // Hold temperature for duration
+          // Hold temperature for duration or until SG target is met
           if (currentStep.target_temp !== null && controller) {
             // Check if we need to adjust temperature
             if (Math.abs(controller.target_temp - currentStep.target_temp) > 0.1) {
@@ -254,10 +254,50 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Check if duration has passed
+          // Check completion conditions - either duration OR SG target
+          let durationComplete = false
+          let sgTargetMet = false
+          
+          // Check if duration has passed (if set)
           if (currentStep.duration_hours && elapsedHours >= currentStep.duration_hours) {
-            stepCompleted = true
+            durationComplete = true
           }
+          
+          // Check if SG target is met (if set)
+          if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
+            sgTargetMet = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
+            if (sgTargetMet) {
+              const sortedData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              actionDetails = { 
+                ...actionDetails,
+                condition: 'sg_reached', 
+                target_sg: currentStep.target_sg, 
+                current_sg: sortedData[0]?.value,
+                comparison: currentStep.sg_comparison 
+              }
+              console.log(`Hold step: SG target met - current ${sortedData[0]?.value} ${currentStep.sg_comparison} ${currentStep.target_sg}`)
+            }
+          }
+          
+          // Complete if EITHER condition is met (whichever comes first)
+          // If only duration is set, complete when duration passes
+          // If only SG is set, complete when SG is met
+          // If both are set, complete when EITHER is met
+          if (currentStep.duration_hours && currentStep.target_sg !== null) {
+            // Both conditions set - either one can trigger completion
+            stepCompleted = durationComplete || sgTargetMet
+          } else if (currentStep.duration_hours) {
+            // Only duration set
+            stepCompleted = durationComplete
+          } else if (currentStep.target_sg !== null) {
+            // Only SG set
+            stepCompleted = sgTargetMet
+          }
+          
+          if (stepCompleted && sgTargetMet) {
+            actionTaken = 'condition_met'
+          }
+          
           break
         }
 
