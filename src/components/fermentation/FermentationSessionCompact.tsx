@@ -330,27 +330,46 @@ export function FermentationSessionCompact({
                 style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
               />
               
-              {/* Current target temp */}
-              {targetTemp != null && (
-                <span 
-                  className="font-semibold"
-                  style={{ 
-                    color: waitingForTemp ? 'hsl(200 90% 60%)' : isRamping ? 'hsl(38 92% 60%)' : 'hsl(var(--primary))',
-                  }}
-                >
-                  {targetTemp.toFixed(1)}°C
-                </span>
-              )}
-              
-              {/* Show final target temp for ramp steps */}
-              {isRamping && currentStep?.target_temp != null && targetTemp != null && 
-               Math.abs(currentStep.target_temp - targetTemp) > 0.1 && (
+              {/* For ramp steps: show Start → Aktuellt → Slutmål */}
+              {isRamping && stepStartTemp != null && currentStep?.target_temp != null ? (
                 <>
-                  <span className="text-muted-foreground/50">→</span>
+                  {/* Start temp */}
+                  <span className="text-muted-foreground/70">
+                    {stepStartTemp.toFixed(0)}°
+                  </span>
+                  <span className="text-muted-foreground/40">→</span>
+                  
+                  {/* Current target temp */}
+                  {targetTemp != null && (
+                    <span 
+                      className="font-semibold"
+                      style={{ 
+                        color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)',
+                      }}
+                    >
+                      {targetTemp.toFixed(1)}°C
+                    </span>
+                  )}
+                  
+                  <span className="text-muted-foreground/40">→</span>
+                  
+                  {/* Final target temp */}
                   <span className="font-medium text-muted-foreground">
-                    {currentStep.target_temp.toFixed(0)}°C
+                    {currentStep.target_temp.toFixed(0)}°
                   </span>
                 </>
+              ) : (
+                /* Non-ramp steps: just show target temp */
+                targetTemp != null && (
+                  <span 
+                    className="font-semibold"
+                    style={{ 
+                      color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))',
+                    }}
+                  >
+                    {targetTemp.toFixed(1)}°C
+                  </span>
+                )
               )}
             </span>
             
