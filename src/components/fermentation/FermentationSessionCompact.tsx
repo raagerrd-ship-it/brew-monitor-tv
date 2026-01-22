@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Play, Pause, ArrowDown, Thermometer, Clock, Activity, Timer } from "lucide-react";
+import { Play, Pause, ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
 
@@ -73,9 +73,15 @@ export function FermentationSessionCompact({
     ? Math.abs(currentTemp - currentStep.target_temp).toFixed(1) 
     : null;
 
+  // Determine if ramping up or down based on start temp vs target temp
+  const isRampingUp = currentStep?.step_type === 'ramp' && 
+    currentStep.target_temp != null && 
+    stepStartTemp != null && 
+    currentStep.target_temp > stepStartTemp;
+
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
-      case 'ramp': return <ArrowDown className="h-3 w-3" />;
+      case 'ramp': return isRampingUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
       case 'hold': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
@@ -246,7 +252,11 @@ export function FermentationSessionCompact({
               boxShadow: '0 0 12px hsl(38 92% 50% / 0.4)'
             }}
           >
-            <ArrowDown className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
+            {isRampingUp ? (
+              <ArrowUp className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
+            ) : (
+              <ArrowDown className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
+            )}
           </div>
         ) : (
           <div className="relative flex items-center justify-center w-7 h-7">
