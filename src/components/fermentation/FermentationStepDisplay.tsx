@@ -1,4 +1,4 @@
-import { Thermometer, Clock, Activity, ArrowDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Thermometer, Clock, Activity, ArrowDown, ArrowUp, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 
 interface FermentationStepDisplayProps {
@@ -36,9 +36,15 @@ export function FermentationStepDisplay({
   sgComparison,
   originalGravity,
 }: FermentationStepDisplayProps) {
+  // Determine if ramping up or down based on start temp vs target temp
+  const isRampingUp = currentStep?.step_type === 'ramp' && 
+    currentStep.target_temp != null && 
+    stepStartTemp != null && 
+    currentStep.target_temp > stepStartTemp;
+
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
-      case 'ramp': return <ArrowDown className="h-3 w-3" />;
+      case 'ramp': return isRampingUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
       case 'hold': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
@@ -48,11 +54,16 @@ export function FermentationStepDisplay({
   };
 
   const getStepDescription = (step: FermentationProfileStep) => {
+    // For current ramp step, show the correct arrow direction
+    const rampArrow = step.step_type === 'ramp' && step === currentStep 
+      ? (isRampingUp ? '↗' : '↘')
+      : (step.step_type === 'ramp' ? '↘' : '');
+    
     switch (step.step_type) {
       case 'hold':
         return `${step.target_temp}°C i ${step.duration_hours}h`;
       case 'ramp':
-        return `${step.ramp_type === 'immediate' ? '→' : '↘'} ${step.target_temp}°C`;
+        return `${step.ramp_type === 'immediate' ? '→' : rampArrow} ${step.target_temp}°C`;
       case 'wait_for_temp':
         return `Vänta tills ${step.target_temp}°C`;
       case 'wait_for_gravity_stable':
