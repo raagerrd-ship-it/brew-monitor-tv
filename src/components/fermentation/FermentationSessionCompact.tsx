@@ -341,6 +341,17 @@ export function FermentationSessionCompact({
                   {targetTemp.toFixed(1)}°C
                 </span>
               )}
+              
+              {/* Show final target temp for ramp steps */}
+              {isRamping && currentStep?.target_temp != null && targetTemp != null && 
+               Math.abs(currentStep.target_temp - targetTemp) > 0.1 && (
+                <>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="font-medium text-muted-foreground">
+                    {currentStep.target_temp.toFixed(0)}°C
+                  </span>
+                </>
+              )}
             </span>
             
             {/* SG target indicator - show when step has SG condition */}
