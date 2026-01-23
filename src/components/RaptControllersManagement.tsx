@@ -4,7 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AirVent, Check, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -35,6 +36,7 @@ export function RaptControllersManagement() {
   const [controllers, setControllers] = useState<ControllerData[]>([]);
   const [selectedControllers, setSelectedControllers] = useState<Record<string, boolean>>({});
   const [selectedControllersData, setSelectedControllersData] = useState<SelectedController[]>([]);
+  const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingLimitsId, setEditingLimitsId] = useState<string | null>(null);
   const [tempMinTemp, setTempMinTemp] = useState<string>("");
@@ -166,6 +168,19 @@ export function RaptControllersManagement() {
         console.error('Error loading sync settings:', syncError);
       } else if (syncData) {
         setSyncInterval(syncData.rapt_sync_interval);
+      }
+
+      // Load auto cooling settings to identify cooler controller
+      const { data: coolingData, error: coolingError } = await supabase
+        .from('auto_cooling_settings')
+        .select('cooler_controller_id')
+        .limit(1)
+        .maybeSingle();
+
+      if (coolingError) {
+        console.error('Error loading cooling settings:', coolingError);
+      } else if (coolingData?.cooler_controller_id) {
+        setCoolerControllerId(coolingData.cooler_controller_id);
       }
 
       // Create a map of selected controllers
@@ -394,183 +409,237 @@ export function RaptControllersManagement() {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-        💡 <strong>Tips:</strong> Endast controllers som är markerade som "Visa" synkas automatiskt {getSyncIntervalText()}. Dolda controllers visas här men uppdateras inte.
+    <div className="space-y-4">
+      <div className="text-sm text-muted-foreground bg-muted/30 backdrop-blur-sm border border-border/50 p-4 rounded-lg flex items-start gap-3">
+        <div className="p-1.5 rounded-md bg-primary/10 text-primary flex-shrink-0">
+          <Clock className="h-4 w-4" />
+        </div>
+        <div>
+          <span className="font-medium text-foreground">Automatisk synkronisering</span>
+          <p className="text-muted-foreground mt-0.5">
+            Controllers markerade som synliga uppdateras {getSyncIntervalText()}.
+          </p>
+        </div>
       </div>
-      {controllers.map((controller) => {
-        const controllerIndex = selectedControllersData.findIndex(c => c.controller_id === controller.controller_id);
-        const isFirst = controllerIndex === 0;
-        const isLast = controllerIndex === selectedControllersData.length - 1;
-        const isSelected = selectedControllers[controller.controller_id];
-        
-        return (
-        <Card key={controller.id} className="p-4">
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <AirVent size={24} className="text-primary flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{controller.name}</p>
-                  <div className="space-y-1">
-                    {(() => {
-                      const displayTemp = controller.pill_temp ?? controller.current_temp;
-                      return displayTemp !== null ? (
-                        <p className="text-sm text-muted-foreground">
-                          Aktuell: {displayTemp.toFixed(1)}°C
-                        </p>
-                      ) : null;
-                    })()}
-                    {controller.target_temp !== null && (
-                      <p className="text-sm text-muted-foreground">
-                        Inställning: {controller.target_temp.toFixed(1)}°C
-                      </p>
-                    )}
-                    {(() => {
-                      const displayTemp = controller.pill_temp ?? controller.current_temp;
-                      return displayTemp === null && controller.target_temp === null ? (
-                        <p className="text-sm text-muted-foreground">Ingen data</p>
-                      ) : null;
-                    })()}
-                    <div className="flex flex-wrap gap-2">
-                      {controller.heating_enabled && (
-                        <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
-                          controller.heating_utilisation > 0 
-                            ? 'bg-orange-500 text-white shadow-md' 
-                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                        }`}>
-                          🔥 Värme {controller.heating_utilisation > 0 ? 'på' : 'av'}
-                        </span>
-                      )}
-                      {controller.cooling_enabled && (() => {
-                        const displayTemp = controller.pill_temp ?? controller.current_temp;
-                        const isActivelyCooling = controller.heating_utilisation === 0 && displayTemp > (controller.target_temp + 0.1);
-                        return (
-                          <span className={`text-xs px-2 py-1 rounded-md font-medium transition-all ${
-                            isActivelyCooling
-                              ? 'bg-blue-500 text-white shadow-md'
-                              : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                          }`}>
-                            ❄️ Kyla {isActivelyCooling ? 'på' : 'av'}
-                          </span>
-                        );
-                      })()}
+      
+      <div className="grid gap-4">
+        {controllers.map((controller) => {
+          const controllerIndex = selectedControllersData.findIndex(c => c.controller_id === controller.controller_id);
+          const isFirst = controllerIndex === 0;
+          const isLast = controllerIndex === selectedControllersData.length - 1;
+          const isSelected = selectedControllers[controller.controller_id];
+          const isCooler = coolerControllerId === controller.controller_id;
+          const displayTemp = controller.pill_temp ?? controller.current_temp;
+          const isActivelyCooling = controller.cooling_enabled && controller.heating_utilisation === 0 && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + 0.1);
+          const isActivelyHeating = controller.heating_enabled && controller.heating_utilisation > 0;
+          
+          return (
+            <Card 
+              key={controller.id} 
+              className={`overflow-hidden transition-all ${
+                isCooler 
+                  ? 'border-blue-500/50 bg-gradient-to-br from-blue-500/5 to-transparent' 
+                  : 'hover:border-primary/30'
+              } ${!isSelected ? 'opacity-60' : ''}`}
+            >
+              {/* Header with name and badges */}
+              <div className={`px-4 py-3 border-b border-border/50 ${isCooler ? 'bg-blue-500/10' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg ${isCooler ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                      {isCooler ? <Snowflake className="h-5 w-5" /> : <Thermometer className="h-5 w-5" />}
                     </div>
-                    {controller.last_update && (
-                      <p className="text-xs text-muted-foreground">
-                        Senast synlig: {formatDistanceToNow(new Date(controller.last_update), { 
-                          addSuffix: true, 
-                          locale: sv 
-                        })}
-                      </p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-semibold truncate">{controller.name}</h4>
+                        {isCooler && (
+                          <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
+                            <Snowflake className="h-3 w-3 mr-1" />
+                            Glykolkylare
+                          </Badge>
+                        )}
+                      </div>
+                      {controller.last_update && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Uppdaterad {formatDistanceToNow(new Date(controller.last_update), { 
+                            addSuffix: true, 
+                            locale: sv 
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Visibility toggle and reorder */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center space-x-2 bg-background/50 px-2 py-1 rounded-md border border-border/50">
+                      <Checkbox
+                        id={`controller-${controller.controller_id}`}
+                        checked={selectedControllers[controller.controller_id] || false}
+                        onCheckedChange={(checked) =>
+                          handleToggleController(controller.controller_id, !!checked)
+                        }
+                      />
+                      <label
+                        htmlFor={`controller-${controller.controller_id}`}
+                        className="text-xs cursor-pointer leading-none whitespace-nowrap font-medium"
+                      >
+                        Synlig
+                      </label>
+                    </div>
+                    
+                    {isSelected && controllerIndex >= 0 && (
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMoveUp(controller.controller_id)}
+                          disabled={isFirst}
+                          className="h-7 w-7 p-0"
+                          title="Flytta upp"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMoveDown(controller.controller_id)}
+                          disabled={isLast}
+                          className="h-7 w-7 p-0"
+                          title="Flytta ner"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`controller-${controller.controller_id}`}
-                    checked={selectedControllers[controller.controller_id] || false}
-                    onCheckedChange={(checked) =>
-                      handleToggleController(controller.controller_id, !!checked)
-                    }
-                  />
-                  <label
-                    htmlFor={`controller-${controller.controller_id}`}
-                    className="text-sm cursor-pointer leading-none whitespace-nowrap"
-                  >
-                    Visa
-                  </label>
+              {/* Temperature data */}
+              <div className="px-4 py-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {/* Current temp */}
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '—'}
+                    </p>
+                  </div>
+                  
+                  {/* Target temp */}
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Mål</p>
+                    <p className="text-xl font-bold tabular-nums text-primary">
+                      {controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
+                    </p>
+                  </div>
+                  
+                  {/* Heating status */}
+                  <div className={`rounded-lg p-3 text-center transition-all ${
+                    isActivelyHeating 
+                      ? 'bg-orange-500/20 border border-orange-500/30' 
+                      : 'bg-muted/30'
+                  }`}>
+                    <p className="text-xs text-muted-foreground mb-1">Värme</p>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Flame className={`h-4 w-4 ${isActivelyHeating ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                      <span className={`text-sm font-medium ${isActivelyHeating ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                        {controller.heating_enabled ? (isActivelyHeating ? 'PÅ' : 'Av') : 'Ej aktiv'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Cooling status */}
+                  <div className={`rounded-lg p-3 text-center transition-all ${
+                    isActivelyCooling 
+                      ? 'bg-blue-500/20 border border-blue-500/30' 
+                      : 'bg-muted/30'
+                  }`}>
+                    <p className="text-xs text-muted-foreground mb-1">Kyla</p>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Snowflake className={`h-4 w-4 ${isActivelyCooling ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                      <span className={`text-sm font-medium ${isActivelyCooling ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>
+                        {controller.cooling_enabled ? (isActivelyCooling ? 'PÅ' : 'Av') : 'Ej aktiv'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
-                {isSelected && controllerIndex >= 0 && (
-                  <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleMoveUp(controller.controller_id)}
-                      disabled={isFirst}
-                      className="h-8 w-8 p-0"
-                      title="Flytta upp"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleMoveDown(controller.controller_id)}
-                      disabled={isLast}
-                      className="h-8 w-8 p-0"
-                      title="Flytta ner"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
+                {/* Cooler notice */}
+                {isCooler && (
+                  <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                      <Snowflake className="h-3 w-3" />
+                      Denna controller styr glykolkylaren och kan inte köra fermenteringsprofiler
+                    </p>
                   </div>
                 )}
-              </div>
-            </div>
-            
-            {editingLimitsId === controller.controller_id ? (
-              <div className="space-y-2 pl-9">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm text-muted-foreground w-12">Min:</span>
-                    <Input
-                      type="number"
-                      value={tempMinTemp}
-                      onChange={(e) => setTempMinTemp(e.target.value)}
-                      placeholder="°C"
-                      className="w-20 h-8"
-                      disabled={updating}
-                    />
-                    <span className="text-sm text-muted-foreground w-12">Max:</span>
-                    <Input
-                      type="number"
-                      value={tempMaxTemp}
-                      onChange={(e) => setTempMaxTemp(e.target.value)}
-                      placeholder="°C"
-                      className="w-20 h-8"
-                      disabled={updating}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleUpdateLimits(controller.controller_id)}
-                      disabled={updating}
+                
+                {/* Temperature limits */}
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  {editingLimitsId === controller.controller_id ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Settings2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Min:</span>
+                        <Input
+                          type="number"
+                          value={tempMinTemp}
+                          onChange={(e) => setTempMinTemp(e.target.value)}
+                          placeholder="°C"
+                          className="w-20 h-8"
+                          disabled={updating}
+                        />
+                        <span className="text-sm text-muted-foreground">Max:</span>
+                        <Input
+                          type="number"
+                          value={tempMaxTemp}
+                          onChange={(e) => setTempMaxTemp(e.target.value)}
+                          placeholder="°C"
+                          className="w-20 h-8"
+                          disabled={updating}
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleUpdateLimits(controller.controller_id)}
+                          disabled={updating}
+                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleCancelEditLimits}
+                          disabled={updating}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleStartEditLimits(controller)}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group w-full"
                     >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleCancelEditLimits}
-                      disabled={updating}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      <Settings2 className="h-4 w-4 group-hover:text-primary transition-colors" />
+                      <span>Temperaturintervall:</span>
+                      <span className="font-medium text-foreground">
+                        {controller.min_target_temp ?? -5}°C — {controller.max_target_temp ?? 25}°C
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col gap-2 pl-9">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleStartEditLimits(controller)}
-                  className="h-8 px-3 w-fit"
-                >
-                  Min/Max ({controller.min_target_temp ?? -5}°C / {controller.max_target_temp ?? 25}°C)
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
-        );
-      })}
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
