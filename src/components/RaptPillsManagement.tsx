@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pill, ChevronUp, ChevronDown } from "lucide-react";
+import { Pill, ChevronUp, ChevronDown, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -26,6 +26,7 @@ interface SelectedPill {
 
 export function RaptPillsManagement() {
   const [pills, setPills] = useState<PillData[]>([]);
+  const [linkedPillIds, setLinkedPillIds] = useState<string[]>([]);
   const [selectedPills, setSelectedPills] = useState<Record<string, boolean>>({});
   const [selectedPillsData, setSelectedPillsData] = useState<SelectedPill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +77,18 @@ export function RaptPillsManagement() {
           loadData();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rapt_temp_controllers'
+        },
+        () => {
+          // Reload when controllers change (pill linking)
+          loadData();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -111,6 +124,19 @@ export function RaptPillsManagement() {
         .in('pill_id', selectedPillIds);
 
       if (pillsError) throw pillsError;
+
+      // Load linked pill IDs from controllers
+      const { data: controllersData, error: controllersError } = await supabase
+        .from('rapt_temp_controllers')
+        .select('linked_pill_id')
+        .not('linked_pill_id', 'is', null);
+
+      if (controllersError) {
+        console.error('Error loading controllers:', controllersError);
+      } else {
+        const linked = controllersData?.map(c => c.linked_pill_id).filter(Boolean) as string[];
+        setLinkedPillIds(linked);
+      }
 
       // Sort pills by display_order
       const sortedPills = (pillsData || []).sort((a, b) => {
@@ -253,6 +279,9 @@ export function RaptPillsManagement() {
     return <div className="text-sm text-muted-foreground">Laddar Pills...</div>;
   }
 
+  // Filter out pills that are linked to controllers
+  const unlinkedPills = pills.filter(pill => !linkedPillIds.includes(pill.pill_id));
+
   if (pills.length === 0) {
     return (
       <div className="text-sm text-muted-foreground">
@@ -261,9 +290,24 @@ export function RaptPillsManagement() {
     );
   }
 
+  if (unlinkedPills.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg flex items-center gap-3">
+        <Link2 className="h-5 w-5 text-primary" />
+        <div>
+          <p className="font-medium text-foreground">Alla pills är kopplade</p>
+          <p className="text-muted-foreground">Alla dina pills är kopplade till Temperature Controllers ovan.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {pills.map((pill) => {
+      <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
+        💡 Pills som inte är kopplade till någon Temperature Controller visas här.
+      </div>
+      {unlinkedPills.map((pill) => {
         const pillIndex = selectedPillsData.findIndex(p => p.pill_id === pill.pill_id);
         const isFirst = pillIndex === 0;
         const isLast = pillIndex === selectedPillsData.length - 1;
