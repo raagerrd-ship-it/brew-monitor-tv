@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { Play, Pause, ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Play, Pause, ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2 } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
 
@@ -19,6 +20,8 @@ interface FermentationSessionCompactProps {
   targetSg?: number | null;
   sgComparison?: string | null;
   originalGravity?: number | null;
+  onSkipStep?: () => void;
+  skipLoading?: boolean;
 }
 
 export function FermentationSessionCompact({
@@ -37,6 +40,8 @@ export function FermentationSessionCompact({
   targetSg,
   sgComparison,
   originalGravity,
+  onSkipStep,
+  skipLoading,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
 
@@ -397,6 +402,36 @@ export function FermentationSessionCompact({
               {getStepIcon(currentStep.step_type)}
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
+            
+            {/* Manual skip button for waiting steps */}
+            {waitingForTemp && onSkipStep && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSkipStep();
+                  }}
+                  disabled={skipLoading}
+                  className="h-5 px-1.5 text-xs font-medium gap-1"
+                  style={{
+                    color: 'hsl(200 90% 70%)',
+                    background: 'hsl(200 90% 50% / 0.1)',
+                  }}
+                >
+                  {skipLoading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <>
+                      <SkipForward className="h-3 w-3" />
+                      Hoppa
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
