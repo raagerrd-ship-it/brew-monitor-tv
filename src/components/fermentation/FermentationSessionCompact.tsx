@@ -39,6 +39,7 @@ interface FermentationSessionCompactProps {
   onSkipStep?: () => void;
   skipLoading?: boolean;
   sgData?: SgDataPoint[];
+  isWaitingForGravityStable?: boolean;
 }
 
 export function FermentationSessionCompact({
@@ -60,6 +61,7 @@ export function FermentationSessionCompact({
   onSkipStep,
   skipLoading,
   sgData,
+  isWaitingForGravityStable = false,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
 
@@ -253,8 +255,8 @@ export function FermentationSessionCompact({
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
             
-            {/* Manual skip button */}
-            {waitingForTemp && onSkipStep && (
+            {/* Manual skip button - for waiting for temp or gravity stable steps */}
+            {(waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
               <>
                 <Separator />
                 <Button
@@ -267,8 +269,8 @@ export function FermentationSessionCompact({
                   disabled={skipLoading}
                   className="h-5 px-1.5 text-xs font-medium gap-1"
                   style={{
-                    color: 'hsl(200 90% 70%)',
-                    background: 'hsl(200 90% 50% / 0.1)',
+                    color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
+                    background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
                   }}
                 >
                   {skipLoading ? (

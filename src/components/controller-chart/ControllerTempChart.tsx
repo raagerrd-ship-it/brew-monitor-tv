@@ -1,80 +1,15 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { useControllerTempData } from './hooks/useControllerTempData';
+import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from './chartConfig';
 
 interface ControllerTempChartProps {
   controllerId: string;
   controllerColor?: string;
 }
 
-interface SampledRecord {
-  recorded_at: string;
-  current_temp: number;
-  target_temp: number;
-  cooling_enabled: boolean;
-}
-
-interface ChartDataPoint {
-  time: string;
-  timestamp: number;
-  currentTemp: number;
-  targetTemp: number;
-}
-
-
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
-  const [data, setData] = useState<ChartDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<'24h' | '7d'>('24h');
-
-  useEffect(() => {
-    const fetchHistory = async () => {
-      setLoading(true);
-      
-      // Calculate time range
-      const now = new Date();
-      const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
-      const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
-      
-      // Use different sample intervals: 5 min for 24h, 30 min for 7d
-      const sampleInterval = timeRange === '24h' ? 5 : 30;
-      
-      const { data: history, error } = await supabase
-        .rpc('get_temp_history_sampled', {
-          p_controller_id: controllerId,
-          p_start_time: startTime.toISOString(),
-          p_end_time: now.toISOString(),
-          p_sample_interval_minutes: sampleInterval
-        });
-
-      if (error) {
-        console.error('Error fetching temperature history:', error);
-        setLoading(false);
-        return;
-      }
-
-      if (!history || history.length === 0) {
-        setData([]);
-        setLoading(false);
-        return;
-      }
-
-      const chartData: ChartDataPoint[] = history.map((record: SampledRecord) => ({
-        time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
-        timestamp: new Date(record.recorded_at).getTime(),
-        currentTemp: Number(record.current_temp),
-        targetTemp: Number(record.target_temp),
-      }));
-
-      setData(chartData);
-      setLoading(false);
-    };
-
-    fetchHistory();
-  }, [controllerId, timeRange]);
+  const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
 
   if (loading) {
     return (
@@ -91,11 +26,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       </div>
     );
   }
-
-  // Calculate min/max for Y axis with some padding
-  const temps = data.flatMap(d => [d.currentTemp, d.targetTemp]);
-  const minTemp = Math.floor(Math.min(...temps)) - 1;
-  const maxTemp = Math.ceil(Math.max(...temps)) + 1;
 
   return (
     <div className="space-y-2">
@@ -127,28 +57,23 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+          <LineChart data={data} margin={CHART_MARGINS}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis 
               dataKey="time" 
-              tick={{ fontSize: 10 }}
+              tick={AXIS_CONFIG.tick}
               className="text-muted-foreground"
               interval="preserveStartEnd"
-              minTickGap={40}
+              minTickGap={AXIS_CONFIG.minTickGap}
             />
             <YAxis 
               domain={[minTemp, maxTemp]}
-              tick={{ fontSize: 10 }}
+              tick={AXIS_CONFIG.tick}
               className="text-muted-foreground"
               tickFormatter={(value) => `${value}°`}
             />
             <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'hsl(var(--background))', 
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '6px',
-                fontSize: '12px'
-              }}
+              contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => [
                 `${value.toFixed(1)}°C`, 
                 name === 'currentTemp' ? 'Aktuell' : 'Mål'
@@ -160,20 +85,20 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               wrapperStyle={{ fontSize: '11px' }}
             />
             <Line 
-              type="natural" 
+              type={LINE_CONFIG.current.type}
               dataKey="currentTemp" 
               stroke={controllerColor}
-              strokeWidth={2}
-              dot={false}
+              strokeWidth={LINE_CONFIG.current.strokeWidth}
+              dot={LINE_CONFIG.current.dot}
               name="currentTemp"
             />
             <Line 
-              type="stepAfter" 
+              type={LINE_CONFIG.target.type}
               dataKey="targetTemp" 
-              stroke="#f59e0b"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={false}
+              stroke={COLORS.target}
+              strokeWidth={LINE_CONFIG.target.strokeWidth}
+              strokeDasharray={LINE_CONFIG.target.strokeDasharray}
+              dot={LINE_CONFIG.target.dot}
               name="targetTemp"
             />
           </LineChart>
