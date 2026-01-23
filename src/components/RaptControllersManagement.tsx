@@ -479,17 +479,10 @@ export function RaptControllersManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-muted-foreground bg-muted/30 backdrop-blur-sm border border-border/50 p-4 rounded-lg flex items-start gap-3">
-        <div className="p-1.5 rounded-md bg-primary/10 text-primary flex-shrink-0">
-          <Clock className="h-4 w-4" />
-        </div>
-        <div>
-          <span className="font-medium text-foreground">Automatisk synkronisering</span>
-          <p className="text-muted-foreground mt-0.5">
-            Controllers markerade som synliga uppdateras {getSyncIntervalText()}.
-          </p>
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <Clock className="h-3 w-3" />
+        Synkroniseras {getSyncIntervalText()}
+      </p>
       
       <div className="grid gap-4">
         {controllers.map((controller) => {
