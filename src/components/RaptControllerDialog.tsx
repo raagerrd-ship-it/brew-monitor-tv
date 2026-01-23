@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Plus } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Plus, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
@@ -288,7 +288,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 }
               }}
             >
-              <p className="text-xs text-muted-foreground mb-1">Måltemperatur</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-muted-foreground">Måltemperatur</p>
+                {isAuthenticated && !hasActiveSession && (
+                  <Pencil className="w-3 h-3 text-muted-foreground/50" />
+                )}
+              </div>
               <p className="text-2xl font-bold tabular-nums text-primary">
                 {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°` : '—'}
               </p>
