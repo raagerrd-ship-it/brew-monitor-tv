@@ -15,6 +15,7 @@ import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
+import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
@@ -45,6 +46,9 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTvMode = searchParams.get('tv') === 'true';
+  
+  // Get aspect ratio context to determine sizing strategy
+  const { isLocked: isAspectRatioLocked, height: containerHeight } = useAspectRatio();
 
   // Only use carousel on mobile and not in TV mode - skip embla overhead in TV mode
   const shouldUseCarousel = isMobile && !isTvMode;
@@ -190,8 +194,25 @@ export function BrewingDashboard() {
   // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
   
-  return <div className={`w-screen bg-background relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
-    height: showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh'
+  // Calculate container height - use container height when aspect ratio locked, otherwise viewport
+  const getContainerHeight = () => {
+    if (isAspectRatioLocked && containerHeight > 0) {
+      return showTimerFooter ? `${containerHeight - TIMER_FOOTER_HEIGHT}px` : `${containerHeight}px`;
+    }
+    return showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh';
+  };
+  
+  // Calculate content area height for brew cards
+  const getContentHeight = () => {
+    if (isAspectRatioLocked && containerHeight > 0) {
+      const baseHeight = showTimerFooter ? containerHeight - TIMER_FOOTER_HEIGHT : containerHeight;
+      return `${baseHeight - HEADER_HEIGHT}px`;
+    }
+    return `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`;
+  };
+  
+  return <div className={`w-full bg-background relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
+    height: getContainerHeight()
   }}>
       {/* Version indicator */}
       
@@ -278,7 +299,7 @@ export function BrewingDashboard() {
                   </div>)}
               </div>
             </div>
-          </div> : <div className={`${gridLayout} w-full px-4 py-2`} style={{ height: `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})` }}>
+          </div> : <div className={`${gridLayout} w-full px-4 py-2`} style={{ height: getContentHeight() }}>
             {brews.map((brew, index) => <div key={brew.id} className={`${cardWidthClass} h-full`}>
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
               </div>)}
