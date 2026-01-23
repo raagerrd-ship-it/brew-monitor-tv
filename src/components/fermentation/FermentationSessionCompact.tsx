@@ -1,8 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2 } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
+import { useFermentationProgress } from "./hooks/useFermentationProgress";
+import { ProgressOverlay, PulseOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
+import { SessionStatusIcon } from "./SessionStatusIcon";
+import { 
+  getBackgroundStyle, 
+  getBorderColor, 
+  getBoxShadow, 
+  formatRemainingTime,
+  type VisualState 
+} from "./sessionStyles";
 
 interface SgDataPoint {
   date: string;
@@ -41,8 +51,8 @@ export function FermentationSessionCompact({
   stepStartTemp,
   targetTemp,
   currentTemp,
-  isRamping,
-  rampProgress,
+  isRamping: isRampingProp,
+  rampProgress: rampProgressProp,
   currentSg,
   targetSg,
   sgComparison,
@@ -53,90 +63,30 @@ export function FermentationSessionCompact({
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
 
-  // Calculate how long gravity has been stable (for wait_for_gravity_stable steps)
-  const calculateStabilityDuration = (): { days: number; hours: number } | null => {
-    if (!currentStep || currentStep.step_type !== 'wait_for_gravity_stable') return null;
-    if (!sgData || sgData.length < 2) return null;
-    
-    const threshold = currentStep.gravity_threshold ?? 0.001;
-    const sortedData = [...sgData].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    if (sortedData.length < 2) return null;
-    
-    const latestSg = sortedData[0].value;
-    let stableFromDate = new Date(sortedData[0].date);
-    
-    // Walk backwards through readings to find when stability began
-    for (let i = 1; i < sortedData.length; i++) {
-      const reading = sortedData[i];
-      const diff = Math.abs(reading.value - latestSg);
-      
-      if (diff <= threshold) {
-        // Still stable, update the stable-from date
-        stableFromDate = new Date(reading.date);
-      } else {
-        // Found instability, stop here
-        break;
-      }
-    }
-    
-    const now = new Date();
-    const diffMs = now.getTime() - stableFromDate.getTime();
-    const totalHours = diffMs / (1000 * 60 * 60);
-    const days = Math.floor(totalHours / 24);
-    const hours = Math.floor(totalHours % 24);
-    
-    return { days, hours };
-  };
+  const progress = useFermentationProgress({
+    currentStep,
+    stepStartedAt,
+    stepStartTemp,
+    targetTemp,
+    currentTemp,
+    currentSg,
+    targetSg,
+    originalGravity,
+    sgData,
+  });
 
-  const stabilityDuration = calculateStabilityDuration();
-  
-  // Calculate stability progress (0-1) for visual indicator
-  const stabilityProgress = (() => {
-    if (!stabilityDuration || !currentStep?.gravity_stable_days) return null;
-    const targetHours = currentStep.gravity_stable_days * 24;
-    const currentHours = stabilityDuration.days * 24 + stabilityDuration.hours;
-    return Math.min(currentHours / targetHours, 1);
-  })();
-  const sgProgress = (() => {
-    if (targetSg == null || currentSg == null || originalGravity == null) return null;
-    if (originalGravity <= targetSg) return null; // Invalid: OG should be higher than target
-    
-    // Progress = how much we've dropped from OG toward target
-    const totalDrop = originalGravity - targetSg;
-    const currentDrop = originalGravity - currentSg;
-    const progress = Math.max(0, Math.min(1, currentDrop / totalDrop));
-    return progress;
-  })();
-  // Check if ramp step time is complete but temp not reached
-  const isRampTimeComplete = () => {
-    if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
-      return false;
-    }
-    const stepStarted = new Date(stepStartedAt);
-    const elapsedHours = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
-    return elapsedHours >= currentStep.duration_hours;
-  };
+  const {
+    stabilityDuration,
+    stabilityProgress,
+    sgProgress,
+    waitingForTemp,
+    tempDifference,
+    isRampingUp,
+  } = progress;
 
-  const isTargetTempReached = () => {
-    if (!currentStep || currentStep.target_temp == null || currentTemp == null) {
-      return false;
-    }
-    return Math.abs(currentTemp - currentStep.target_temp) <= 0.5;
-  };
-
-  const waitingForTemp = currentStep?.step_type === 'ramp' && isRampTimeComplete() && !isTargetTempReached();
-  const tempDifference = currentStep?.target_temp != null && currentTemp != null 
-    ? Math.abs(currentTemp - currentStep.target_temp).toFixed(1) 
-    : null;
-
-  // Determine if ramping up or down based on start temp vs target temp
-  const isRampingUp = currentStep?.step_type === 'ramp' && 
-    currentStep.target_temp != null && 
-    stepStartTemp != null && 
-    currentStep.target_temp > stepStartTemp;
+  // Use props for ramping state (passed from parent) or fall back to calculated
+  const isRamping = isRampingProp;
+  const rampProgress = rampProgressProp;
 
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
@@ -149,32 +99,20 @@ export function FermentationSessionCompact({
     }
   };
 
-  const formatRemainingTime = (remainingHours: number) => {
-    const hours = Math.floor(remainingHours);
-    const minutes = Math.round((remainingHours - hours) * 60);
-    if (hours === 0) {
-      return `${minutes}min kvar`;
-    }
-    return `${hours}h ${minutes}min kvar`;
-  };
-
   const getNextStepCondition = (step: FermentationProfileStep) => {
-    // If waiting for temp on ramp step, show that status
     if (waitingForTemp && tempDifference) {
       return `Väntar på temp (${tempDifference}° kvar)`;
     }
 
     switch (step.step_type) {
       case 'hold': {
-        // Check if this is a SG-conditioned hold (no duration but has target_sg from step OR session props)
         const stepTargetSg = step.target_sg ?? targetSg;
         const stepSgComparison = step.sg_comparison ?? sgComparison;
         
         if (stepTargetSg != null && !step.duration_hours) {
           if (currentSg != null) {
-            // Show progress text since SG indicator already shows the values
-            const progress = sgProgress != null ? ` (${Math.round(sgProgress * 100)}%)` : '';
-            return `Väntar på mål-SG${progress}`;
+            const progressPercent = sgProgress != null ? ` (${Math.round(sgProgress * 100)}%)` : '';
+            return `Väntar på mål-SG${progressPercent}`;
           }
           return `Mål-SG ${stepSgComparison === 'at_or_below' ? '≤' : '≥'} ${stepTargetSg.toFixed(3)}`;
         }
@@ -197,7 +135,6 @@ export function FermentationSessionCompact({
       case 'wait_for_temp':
         return `Nå ${step.target_temp}°C`;
       case 'wait_for_gravity_stable': {
-        // Show actual stability duration if we have data, otherwise show requirement
         if (stabilityDuration) {
           const { days, hours } = stabilityDuration;
           const required = step.gravity_stable_days ?? 0;
@@ -216,153 +153,35 @@ export function FermentationSessionCompact({
     }
   };
 
-  // Determine the visual state
-  const visualState = waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
-
-  const getBackgroundStyle = () => {
-    if (waitingForTemp) {
-      return 'linear-gradient(135deg, hsl(200 90% 50% / 0.15) 0%, hsl(200 90% 50% / 0.08) 100%)';
-    }
-    if (isRamping) {
-      return 'linear-gradient(135deg, hsl(38 92% 50% / 0.12) 0%, hsl(var(--primary) / 0.08) 100%)';
-    }
-    return 'linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, hsl(var(--primary) / 0.05) 100%)';
-  };
-
-  const getBorderColor = () => {
-    if (waitingForTemp) return 'hsl(200 90% 50% / 0.3)';
-    if (isRamping) return 'hsl(38 92% 50% / 0.25)';
-    return 'hsl(var(--primary) / 0.2)';
-  };
-
-  const getBoxShadow = () => {
-    if (waitingForTemp) {
-      return '0 4px 20px hsl(200 90% 50% / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.1)';
-    }
-    if (isRamping) {
-      return '0 4px 20px hsl(38 92% 50% / 0.15), inset 0 1px 0 hsl(0 0% 100% / 0.1)';
-    }
-    return '0 4px 16px hsl(var(--primary) / 0.1), inset 0 1px 0 hsl(0 0% 100% / 0.08)';
-  };
+  const visualState: VisualState = waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
 
   return (
     <div 
       className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
-        background: getBackgroundStyle(),
-        border: `1px solid ${getBorderColor()}`,
-        boxShadow: getBoxShadow(),
+        background: getBackgroundStyle(visualState),
+        border: `1px solid ${getBorderColor(visualState)}`,
+        boxShadow: getBoxShadow(visualState),
       }}
     >
-      {/* SG Progress background overlay - green gradient showing fermentation progress */}
-      {sgProgress !== null && sgProgress > 0 && (
-        <div 
-          className="absolute inset-0 pointer-events-none transition-all duration-1000"
-          style={{
-            background: `linear-gradient(90deg, 
-              hsl(142 70% 45% / 0.25) 0%, 
-              hsl(142 70% 50% / 0.15) ${sgProgress * 100}%, 
-              transparent ${sgProgress * 100}%)`,
-          }}
-        />
+      {/* Progress overlays */}
+      <ProgressOverlay progress={sgProgress} color="green" />
+      {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
+      {currentStep?.step_type === 'wait_for_gravity_stable' && (
+        <ProgressOverlay progress={stabilityProgress} color="purple" />
       )}
+      {!isTvMode && <PulseOverlay active={waitingForTemp} color="blue" />}
+      <ShimmerOverlay />
       
-      {/* Animated ramp progress overlay */}
-      {isRamping && !waitingForTemp && rampProgress !== null && (
-        <div 
-          className="absolute inset-0 pointer-events-none transition-all duration-500"
-          style={{
-            background: `linear-gradient(90deg, 
-              hsl(38 92% 50% / 0.2) 0%, 
-              hsl(38 92% 50% / 0.08) ${rampProgress * 100}%, 
-              transparent ${rampProgress * 100}%)`,
-          }}
-        />
-      )}
-      
-      {/* Stability progress overlay - purple gradient for wait_for_gravity_stable */}
-      {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && stabilityProgress > 0 && (
-        <div 
-          className="absolute inset-0 pointer-events-none transition-all duration-1000"
-          style={{
-            background: `linear-gradient(90deg, 
-              hsl(280 70% 50% / 0.25) 0%, 
-              hsl(280 70% 55% / 0.15) ${stabilityProgress * 100}%, 
-              transparent ${stabilityProgress * 100}%)`,
-          }}
-        />
-      )}
-      
-      {/* Waiting for temp pulse overlay - disabled in TV mode */}
-      {waitingForTemp && !isTvMode && (
-        <div 
-          className="absolute inset-0 pointer-events-none animate-pulse"
-          style={{
-            background: 'linear-gradient(90deg, hsl(200 90% 50% / 0.1) 0%, hsl(200 90% 50% / 0.05) 100%)',
-          }}
-        />
-      )}
-      
-      {/* Subtle shimmer effect on top edge */}
-      <div 
-        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
-        style={{
-          background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.15) 50%, transparent 90%)'
-        }}
-      />
-      
-      {/* Status icon with glow */}
+      {/* Status icon */}
       <div className="relative z-10 shrink-0">
-        {status === 'paused' ? (
-          <div className="p-1.5 rounded-full bg-muted/50">
-            <Pause className="h-4 w-4 text-muted-foreground" />
-          </div>
-        ) : waitingForTemp ? (
-          <div 
-            className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
-            style={{ 
-              background: 'linear-gradient(135deg, hsl(200 90% 50% / 0.3) 0%, hsl(200 90% 50% / 0.15) 100%)',
-              boxShadow: '0 0 12px hsl(200 90% 50% / 0.4)'
-            }}
-          >
-            <Timer className="h-4 w-4" style={{ color: 'hsl(200 90% 60%)' }} />
-          </div>
-        ) : isRamping ? (
-          <div 
-            className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
-            style={{ 
-              background: 'linear-gradient(135deg, hsl(38 92% 50% / 0.3) 0%, hsl(38 92% 50% / 0.15) 100%)',
-              boxShadow: '0 0 12px hsl(38 92% 50% / 0.4)'
-            }}
-          >
-            {isRampingUp ? (
-              <ArrowUp className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
-            ) : (
-              <ArrowDown className="h-4 w-4" style={{ color: 'hsl(38 92% 60%)' }} />
-            )}
-          </div>
-        ) : (
-          <div className="relative flex items-center justify-center w-7 h-7">
-            {/* Pulsing ring - disabled in TV mode */}
-            {!isTvMode && (
-              <div 
-                className="absolute inset-0 rounded-full animate-ping"
-                style={{ 
-                  background: 'hsl(142 70% 45% / 0.3)',
-                  animationDuration: '2s',
-                }}
-              />
-            )}
-            {/* Solid indicator */}
-            <div 
-              className="relative w-3 h-3 rounded-full"
-              style={{ 
-                background: 'linear-gradient(135deg, hsl(142 70% 55%) 0%, hsl(142 70% 40%) 100%)',
-                boxShadow: '0 0 8px hsl(142 70% 50% / 0.6)'
-              }}
-            />
-          </div>
-        )}
+        <SessionStatusIcon
+          status={status}
+          waitingForTemp={waitingForTemp}
+          isRamping={isRamping}
+          isRampingUp={isRampingUp}
+          isTvMode={isTvMode}
+        />
       </div>
       
       {/* Content */}
@@ -392,85 +211,28 @@ export function FermentationSessionCompact({
             </Badge>
           )}
           {isRamping && !waitingForTemp && rampProgress !== null && (
-            <span 
-              className="text-xs font-bold shrink-0 rounded px-1"
-              style={{ 
-                background: 'hsl(38 92% 50% / 0.2)',
-                color: 'hsl(38 92% 60%)',
-              }}
-            >
-              {Math.round(rampProgress * 100)}%
-            </span>
+            <ProgressBadge progress={rampProgress} color="amber" />
           )}
           {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
-            <span 
-              className="text-xs font-bold shrink-0 rounded px-1"
-              style={{ 
-                background: 'hsl(280 70% 50% / 0.2)',
-                color: 'hsl(280 70% 70%)',
-              }}
-            >
-              {Math.round(stabilityProgress * 100)}%
-            </span>
+            <ProgressBadge progress={stabilityProgress} color="purple" />
           )}
         </div>
         
         {currentStep && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5 text-xs">
             {/* Temperature display */}
-            <span className="flex items-center gap-1 shrink-0">
-              <Thermometer 
-                className="h-3 w-3 shrink-0"
-                style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
-              />
-              
-              {/* For ramp steps: show Start → Aktuellt → Slutmål */}
-              {isRamping && stepStartTemp != null && currentStep?.target_temp != null ? (
-                <>
-                  {/* Start temp */}
-                  <span className="text-muted-foreground/70">
-                    {stepStartTemp.toFixed(0)}°
-                  </span>
-                  <span className="text-muted-foreground/40">→</span>
-                  
-                  {/* Current target temp */}
-                  {targetTemp != null && (
-                    <span 
-                      className="font-semibold"
-                      style={{ 
-                        color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)',
-                      }}
-                    >
-                      {targetTemp.toFixed(1)}°C
-                    </span>
-                  )}
-                  
-                  <span className="text-muted-foreground/40">→</span>
-                  
-                  {/* Final target temp */}
-                  <span className="font-medium text-muted-foreground">
-                    {currentStep.target_temp.toFixed(0)}°
-                  </span>
-                </>
-              ) : (
-                /* Non-ramp steps: just show target temp */
-                targetTemp != null && (
-                  <span 
-                    className="font-semibold"
-                    style={{ 
-                      color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))',
-                    }}
-                  >
-                    {targetTemp.toFixed(1)}°C
-                  </span>
-                )
-              )}
-            </span>
+            <TemperatureDisplay
+              currentStep={currentStep}
+              isRamping={isRamping}
+              stepStartTemp={stepStartTemp}
+              targetTemp={targetTemp}
+              waitingForTemp={waitingForTemp}
+            />
             
-            {/* SG target indicator - show when step has SG condition */}
+            {/* SG target indicator */}
             {targetSg != null && (
               <>
-                <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                <Separator />
                 <span className="flex items-center gap-1 shrink-0">
                   <Activity 
                     className="h-3 w-3 shrink-0" 
@@ -483,8 +245,7 @@ export function FermentationSessionCompact({
               </>
             )}
             
-            {/* Separator */}
-            <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+            <Separator />
             
             {/* Next step condition */}
             <span className="flex items-center gap-1 text-muted-foreground">
@@ -492,10 +253,10 @@ export function FermentationSessionCompact({
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
             
-            {/* Manual skip button for waiting steps */}
+            {/* Manual skip button */}
             {waitingForTemp && onSkipStep && (
               <>
-                <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                <Separator />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -525,5 +286,94 @@ export function FermentationSessionCompact({
         )}
       </div>
     </div>
+  );
+}
+
+// Small sub-components to reduce main component size
+function Separator() {
+  return <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />;
+}
+
+interface ProgressBadgeProps {
+  progress: number;
+  color: 'amber' | 'purple';
+}
+
+function ProgressBadge({ progress, color }: ProgressBadgeProps) {
+  const styles = {
+    amber: { bg: 'hsl(38 92% 50% / 0.2)', text: 'hsl(38 92% 60%)' },
+    purple: { bg: 'hsl(280 70% 50% / 0.2)', text: 'hsl(280 70% 70%)' },
+  };
+  
+  return (
+    <span 
+      className="text-xs font-bold shrink-0 rounded px-1"
+      style={{ background: styles[color].bg, color: styles[color].text }}
+    >
+      {Math.round(progress * 100)}%
+    </span>
+  );
+}
+
+interface TemperatureDisplayProps {
+  currentStep: FermentationProfileStep;
+  isRamping: boolean;
+  stepStartTemp?: number | null;
+  targetTemp: number | null;
+  waitingForTemp: boolean;
+}
+
+function TemperatureDisplay({ 
+  currentStep, 
+  isRamping, 
+  stepStartTemp, 
+  targetTemp,
+  waitingForTemp 
+}: TemperatureDisplayProps) {
+  const isRampingUp = currentStep?.step_type === 'ramp' && 
+    currentStep.target_temp != null && 
+    stepStartTemp != null && 
+    currentStep.target_temp > stepStartTemp;
+
+  return (
+    <span className="flex items-center gap-1 shrink-0">
+      <Thermometer 
+        className="h-3 w-3 shrink-0"
+        style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--muted-foreground) / 0.7)' }}
+      />
+      
+      {isRamping && stepStartTemp != null && currentStep?.target_temp != null ? (
+        <>
+          <span className="text-muted-foreground/70">
+            {stepStartTemp.toFixed(0)}°
+          </span>
+          <span className="text-muted-foreground/40">→</span>
+          
+          {targetTemp != null && (
+            <span 
+              className="font-semibold"
+              style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
+            >
+              {targetTemp.toFixed(1)}°C
+            </span>
+          )}
+          
+          <span className="text-muted-foreground/40">→</span>
+          
+          <span className="font-medium text-muted-foreground">
+            {currentStep.target_temp.toFixed(0)}°
+          </span>
+        </>
+      ) : (
+        targetTemp != null && (
+          <span 
+            className="font-semibold"
+            style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))' }}
+          >
+            {targetTemp.toFixed(1)}°C
+          </span>
+        )
+      )}
+    </span>
   );
 }
