@@ -103,26 +103,28 @@ interface DeviceMatch {
 
 /**
  * Find matching pill and controller for a brew based on:
- * 1. Manual connections (linked_controller_id, linked_pill_id)
+ * 1. Manual controller connection (linked_controller_id) - pill is automatically derived from controller
  * 2. Color name matching
  * 3. Temperature matching (±3°C tolerance)
+ * 
+ * Note: linked_pill_id on brew is deprecated - pill is now derived from controller's linked_pill_id
  */
 export function findDevicesForBrew(
   brew: BrewData,
   pills: PillData[],
   controllers: TempController[]
 ): DeviceMatch {
-  // First, check for manual connections
-  if (brew.linked_controller_id || brew.linked_pill_id) {
-    const manualController = brew.linked_controller_id 
-      ? controllers.find(c => c.controller_id === brew.linked_controller_id) || null
-      : null;
-    const manualPill = brew.linked_pill_id 
-      ? pills.find(p => p.pill_id === brew.linked_pill_id) || null
-      : null;
+  // First, check for manual controller connection
+  if (brew.linked_controller_id) {
+    const manualController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
     
-    if (manualController || manualPill) {
-      return { pill: manualPill, controller: manualController };
+    if (manualController) {
+      // Get pill from controller's linked_pill_id (not from brew)
+      const linkedPill = manualController.linked_pill_id 
+        ? pills.find(p => p.pill_id === manualController.linked_pill_id) || null
+        : null;
+      
+      return { pill: linkedPill, controller: manualController };
     }
   }
 
@@ -136,20 +138,17 @@ export function findDevicesForBrew(
   // Find color keywords in brew name
   const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
 
-  // Try to match pill by color
-  if (brewColors.length > 0) {
-    matchingPill = pills.find(pill => {
-      const pillNameLower = pill.name.toLowerCase();
-      return brewColors.some(color => pillNameLower.includes(color));
-    }) || null;
-  }
-
-  // Try to match controller by color  
+  // Try to match controller by color first
   if (brewColors.length > 0) {
     matchingController = controllers.find(ctrl => {
       const ctrlNameLower = ctrl.name.toLowerCase();
       return brewColors.some(color => ctrlNameLower.includes(color));
     }) || null;
+  }
+
+  // If we found a controller, get its linked pill
+  if (matchingController && matchingController.linked_pill_id) {
+    matchingPill = pills.find(p => p.pill_id === matchingController!.linked_pill_id) || null;
   }
 
   // If no color match, try temperature matching (±3°C tolerance)
@@ -171,11 +170,6 @@ export function findDevicesForBrew(
     if (matchingController && matchingController.linked_pill_id) {
       matchingPill = pills.find(p => p.pill_id === matchingController!.linked_pill_id) || null;
     }
-  }
-
-  // If we found a controller but no pill, check if controller has a linked pill
-  if (matchingController && !matchingPill && matchingController.linked_pill_id) {
-    matchingPill = pills.find(p => p.pill_id === matchingController!.linked_pill_id) || null;
   }
 
   return { pill: matchingPill, controller: matchingController };
