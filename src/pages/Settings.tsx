@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -976,7 +976,10 @@ export default function Settings() {
           <TabsContent value="sync" className="space-y-8">
             {/* Brewfather Section */}
             <div className="space-y-6">
-              <h2 className="text-xl font-bold">Brewfather</h2>
+              <SectionHeader 
+                icon={Beer}
+                title="Brewfather"
+              />
               
               <div className="space-y-4 pb-4 border-b border-border">
                 <h3 className="text-base font-semibold">API-uppgifter</h3>
@@ -1179,8 +1182,11 @@ export default function Settings() {
             </div>
 
             {/* RAPT Section */}
-            <div className="space-y-6 pt-4 border-t border-border">
-              <h2 className="text-xl font-bold">RAPT</h2>
+            <div className="space-y-6">
+              <SectionHeader 
+                icon={Cloud}
+                title="RAPT"
+              />
               
               <div className="space-y-4 pb-4 border-b border-border">
                 <h3 className="text-base font-semibold">API-uppgifter</h3>
@@ -1695,22 +1701,20 @@ export default function Settings() {
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
             <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold">RAPT Pills</h2>
-                <p className="text-sm text-muted-foreground">
-                  Välj vilka Pills som ska visas på dashboarden
-                </p>
-              </div>
+              <SectionHeader 
+                icon={Pill}
+                title="RAPT Pills"
+                description="Välj vilka Pills som ska visas på dashboarden"
+              />
               <RaptPillsManagement />
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-border">
-              <div>
-                <h2 className="text-xl font-bold">Temperature Controllers</h2>
-                <p className="text-sm text-muted-foreground">
-                  Välj vilka Temperature Controllers som ska visas på dashboarden
-                </p>
-              </div>
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Thermometer}
+                title="Temperature Controllers"
+                description="Välj vilka Temperature Controllers som ska visas på dashboarden"
+              />
               <RaptControllersManagement />
             </div>
           </TabsContent>
