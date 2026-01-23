@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill, Link2, Unlink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -23,6 +24,7 @@ interface ControllerData {
   heating_utilisation: number;
   min_target_temp: number | null;
   max_target_temp: number | null;
+  linked_pill_id: string | null;
 }
 
 interface SelectedController {
@@ -32,8 +34,15 @@ interface SelectedController {
   display_order: number;
 }
 
+interface PillData {
+  pill_id: string;
+  name: string;
+  color: string;
+}
+
 export function RaptControllersManagement() {
   const [controllers, setControllers] = useState<ControllerData[]>([]);
+  const [pills, setPills] = useState<PillData[]>([]);
   const [selectedControllers, setSelectedControllers] = useState<Record<string, boolean>>({});
   const [selectedControllersData, setSelectedControllersData] = useState<SelectedController[]>([]);
   const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
@@ -156,6 +165,17 @@ export function RaptControllersManagement() {
       });
 
       setControllers(sortedControllers);
+
+      // Load all pills for linking
+      const { data: pillsData, error: pillsError } = await supabase
+        .from('rapt_pills')
+        .select('pill_id, name, color');
+
+      if (pillsError) {
+        console.error('Error loading pills:', pillsError);
+      } else {
+        setPills(pillsData || []);
+      }
 
       // Load sync settings to get the interval
       const { data: syncData, error: syncError } = await supabase
@@ -388,6 +408,54 @@ export function RaptControllersManagement() {
     }
   };
 
+  const handleLinkPill = async (controllerId: string, pillId: string | null) => {
+    const controller = controllers.find(c => c.controller_id === controllerId);
+    if (!controller) return;
+
+    setUpdating(true);
+    try {
+      isLocalChange.current = true;
+      const { error } = await supabase
+        .from('rapt_temp_controllers')
+        .update({ linked_pill_id: pillId })
+        .eq('controller_id', controllerId);
+
+      if (error) throw error;
+
+      // Update local state
+      setControllers(prev => prev.map(c => 
+        c.controller_id === controllerId 
+          ? { ...c, linked_pill_id: pillId }
+          : c
+      ));
+
+      const pillName = pillId ? pills.find(p => p.pill_id === pillId)?.name : null;
+
+      toast({
+        title: pillId ? "Pill kopplad" : "Pill bortkopplad",
+        description: pillId 
+          ? `${controller.name} är nu kopplad till ${pillName}`
+          : `${controller.name} har ingen kopplad pill`,
+      });
+    } catch (error) {
+      console.error('Error linking pill:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera pill-koppling",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Get pills that are already linked to other controllers
+  const getLinkedPillIds = (excludeControllerId: string): string[] => {
+    return controllers
+      .filter(c => c.controller_id !== excludeControllerId && c.linked_pill_id)
+      .map(c => c.linked_pill_id as string);
+  };
+
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;
   }
@@ -573,6 +641,58 @@ export function RaptControllersManagement() {
                       <Snowflake className="h-3 w-3" />
                       Denna controller styr glykolkylaren och kan inte köra fermenteringsprofiler
                     </p>
+                  </div>
+                )}
+                
+                {/* Pill linking - only show for non-cooler controllers */}
+                {!isCooler && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Pill className="h-4 w-4" />
+                        <span>Kopplad Pill:</span>
+                      </div>
+                      <Select
+                        value={controller.linked_pill_id || "none"}
+                        onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)}
+                        disabled={updating}
+                      >
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue placeholder="Välj pill..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <div className="flex items-center gap-2">
+                              <Unlink className="h-3 w-3 text-muted-foreground" />
+                              <span>Ingen koppling</span>
+                            </div>
+                          </SelectItem>
+                          {pills.map((pill) => {
+                            const linkedPillIds = getLinkedPillIds(controller.controller_id);
+                            const isAlreadyLinked = linkedPillIds.includes(pill.pill_id);
+                            return (
+                              <SelectItem 
+                                key={pill.pill_id} 
+                                value={pill.pill_id}
+                                disabled={isAlreadyLinked}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Pill className="h-3 w-3" style={{ color: pill.color }} />
+                                  <span>{pill.name}</span>
+                                  {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {controller.linked_pill_id && (
+                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                          <Link2 className="h-3 w-3 mr-1" />
+                          Kopplad
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 )}
                 
