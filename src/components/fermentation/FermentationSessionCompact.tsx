@@ -116,7 +116,7 @@ export function FermentationSessionCompact({
             const progressPercent = sgProgress != null ? ` (${Math.round(sgProgress * 100)}%)` : '';
             return `Väntar på mål-SG${progressPercent}`;
           }
-          return `Mål-SG ${stepSgComparison === 'at_or_below' ? '≤' : '≥'} ${stepTargetSg.toFixed(3)}`;
+          return `Mål-SG ${stepSgComparison === 'at_or_below' ? '≤' : '≥'} ${stepTargetSg.toFixed(4)}`;
         }
         if (!step.duration_hours) return 'Tidsstyrt steg saknar tid';
         const stepStarted = new Date(stepStartedAt);
@@ -149,7 +149,7 @@ export function FermentationSessionCompact({
         return `Stabil i ${step.gravity_stable_days}d`;
       }
       case 'wait_for_sg':
-        return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(3) ?? ''}`;
+        return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(4) ?? ''}`;
       default:
         return '';
     }
@@ -268,7 +268,7 @@ export function FermentationSessionCompact({
                     style={{ color: 'hsl(142 70% 50%)' }}
                   />
                   <span className="text-muted-foreground font-medium whitespace-nowrap">
-                    Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(3)}
+                    Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(4)}
                   </span>
                 </span>
               </>
