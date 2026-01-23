@@ -1711,20 +1711,20 @@ export default function Settings() {
           <TabsContent value="devices" className="space-y-6">
             <div className="space-y-4">
               <SectionHeader 
-                icon={Pill}
-                title="RAPT Pills"
-                description="Välj vilka Pills som ska visas på dashboarden"
-              />
-              <RaptPillsManagement />
-            </div>
-
-            <div className="space-y-4">
-              <SectionHeader 
                 icon={Thermometer}
                 title="Temperature Controllers"
                 description="Välj vilka Temperature Controllers som ska visas på dashboarden"
               />
               <RaptControllersManagement />
+            </div>
+
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Pill}
+                title="RAPT Pills"
+                description="Ej kopplade pills som kan visas separat på dashboarden"
+              />
+              <RaptPillsManagement />
             </div>
           </TabsContent>
 
