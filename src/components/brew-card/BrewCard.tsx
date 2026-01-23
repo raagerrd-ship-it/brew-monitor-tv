@@ -220,6 +220,7 @@ function BrewCardComponent({
             isAuthenticated={isAuthenticated}
             currentSg={brew.currentSG}
             originalGravity={brew.originalGravity}
+            sgData={brew.sgData}
           />
         </div>
       </div>

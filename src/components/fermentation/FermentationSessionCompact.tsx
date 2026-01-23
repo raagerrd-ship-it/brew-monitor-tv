@@ -4,6 +4,12 @@ import { Play, Pause, ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, S
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
 
+interface SgDataPoint {
+  date: string;
+  value: number;
+  temp: number;
+}
+
 interface FermentationSessionCompactProps {
   profileName: string;
   status: string;
@@ -22,6 +28,7 @@ interface FermentationSessionCompactProps {
   originalGravity?: number | null;
   onSkipStep?: () => void;
   skipLoading?: boolean;
+  sgData?: SgDataPoint[];
 }
 
 export function FermentationSessionCompact({
@@ -42,8 +49,49 @@ export function FermentationSessionCompact({
   originalGravity,
   onSkipStep,
   skipLoading,
+  sgData,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
+
+  // Calculate how long gravity has been stable (for wait_for_gravity_stable steps)
+  const calculateStabilityDuration = (): { days: number; hours: number } | null => {
+    if (!currentStep || currentStep.step_type !== 'wait_for_gravity_stable') return null;
+    if (!sgData || sgData.length < 2) return null;
+    
+    const threshold = currentStep.gravity_threshold ?? 0.001;
+    const sortedData = [...sgData].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    if (sortedData.length < 2) return null;
+    
+    const latestSg = sortedData[0].value;
+    let stableFromDate = new Date(sortedData[0].date);
+    
+    // Walk backwards through readings to find when stability began
+    for (let i = 1; i < sortedData.length; i++) {
+      const reading = sortedData[i];
+      const diff = Math.abs(reading.value - latestSg);
+      
+      if (diff <= threshold) {
+        // Still stable, update the stable-from date
+        stableFromDate = new Date(reading.date);
+      } else {
+        // Found instability, stop here
+        break;
+      }
+    }
+    
+    const now = new Date();
+    const diffMs = now.getTime() - stableFromDate.getTime();
+    const totalHours = diffMs / (1000 * 60 * 60);
+    const days = Math.floor(totalHours / 24);
+    const hours = Math.floor(totalHours % 24);
+    
+    return { days, hours };
+  };
+
+  const stabilityDuration = calculateStabilityDuration();
 
   // Calculate SG progress (0-1) based on how far we've fermented toward the target
   const sgProgress = (() => {
@@ -142,8 +190,19 @@ export function FermentationSessionCompact({
       }
       case 'wait_for_temp':
         return `Nå ${step.target_temp}°C`;
-      case 'wait_for_gravity_stable':
+      case 'wait_for_gravity_stable': {
+        // Show actual stability duration if we have data, otherwise show requirement
+        if (stabilityDuration) {
+          const { days, hours } = stabilityDuration;
+          const required = step.gravity_stable_days ?? 0;
+          if (days >= 1) {
+            return `Stabil ${days}d ${hours}h / ${required}d`;
+          } else {
+            return `Stabil ${hours}h / ${required}d`;
+          }
+        }
         return `Stabil i ${step.gravity_stable_days}d`;
+      }
       case 'wait_for_sg':
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(3) ?? ''}`;
       default:

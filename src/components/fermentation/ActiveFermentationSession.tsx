@@ -36,6 +36,7 @@ interface ActiveFermentationSessionProps {
   isAuthenticated?: boolean;
   currentSg?: number | null;
   originalGravity?: number | null;
+  sgData?: Array<{ date: string; value: number; temp: number }>;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -57,6 +58,7 @@ export function ActiveFermentationSession({
   isAuthenticated: isAuthenticatedProp,
   currentSg,
   originalGravity,
+  sgData,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
@@ -483,6 +485,7 @@ export function ActiveFermentationSession({
         originalGravity={originalGravity}
         onSkipStep={isWaitingForTemp && isAuthenticated ? handleSkipStep : undefined}
         skipLoading={skipLoading}
+        sgData={sgData}
       />
     );
   }
