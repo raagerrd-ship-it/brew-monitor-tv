@@ -62,6 +62,7 @@ export function ActiveFermentationSession({
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
   const [loading, setLoading] = useState(!preloadedSession);
   const [actionLoading, setActionLoading] = useState(false);
+  const [skipLoading, setSkipLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
@@ -313,7 +314,70 @@ export function ActiveFermentationSession({
     setShowCancelDialog(false);
   }, [session, toast]);
 
-  // Calculate progress values
+  // Skip to next step manually
+  const handleSkipStep = useCallback(async () => {
+    if (!session || !session.steps) return;
+    
+    setSkipLoading(true);
+    const nextStepIndex = session.current_step_index + 1;
+    
+    if (nextStepIndex >= session.steps.length) {
+      // Complete the profile
+      const { error } = await supabase
+        .from('fermentation_sessions')
+        .update({ 
+          status: 'completed', 
+          completed_at: new Date().toISOString() 
+        })
+        .eq('id', session.id);
+
+      if (error) {
+        toast({ title: "Fel", description: "Kunde inte slutföra profilen", variant: "destructive" });
+      } else {
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: 'skipped',
+          details: { reason: 'manual_skip', message: 'Manuellt hoppat till nästa steg - profil slutförd' }
+        });
+        
+        toast({ 
+          title: "Profil slutförd", 
+          description: "Fermenteringsprofilen har slutförts manuellt" 
+        });
+        setSession(null);
+      }
+    } else {
+      // Move to next step
+      const { error } = await supabase
+        .from('fermentation_sessions')
+        .update({ 
+          current_step_index: nextStepIndex,
+          step_started_at: new Date().toISOString(),
+          step_start_temp: controllerData?.target_temp ?? null
+        })
+        .eq('id', session.id);
+
+      if (error) {
+        toast({ title: "Fel", description: "Kunde inte gå vidare till nästa steg", variant: "destructive" });
+      } else {
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: 'skipped',
+          details: { reason: 'manual_skip', message: 'Manuellt hoppat till nästa steg' }
+        });
+        
+        toast({ 
+          title: "Steg hoppat", 
+          description: `Gått vidare till steg ${nextStepIndex + 1}` 
+        });
+        loadSession();
+      }
+    }
+    
+    setSkipLoading(false);
+  }, [session, controllerData, toast, loadSession]);
   const calculateProgress = useCallback(() => {
     if (!session?.steps?.length) return 0;
     const totalSteps = session.steps.length;
@@ -381,6 +445,19 @@ export function ActiveFermentationSession({
   const rampProgress = getRampProgress();
   const isRamping = rampProgress !== null && rampProgress < 1;
 
+  // Detect if we're in a "waiting" state that allows manual skip
+  const isWaitingForTemp = (() => {
+    if (!currentStep || currentStep.step_type !== 'ramp' || !currentStep.duration_hours) {
+      return false;
+    }
+    const stepStarted = new Date(session.step_started_at);
+    const elapsedHours = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+    const timeComplete = elapsedHours >= currentStep.duration_hours;
+    const tempReached = currentStep.target_temp != null && controllerData?.current_temp != null &&
+      Math.abs(controllerData.current_temp - currentStep.target_temp) <= 0.5;
+    return timeComplete && !tempReached;
+  })();
+
   // Compact view uses the dedicated component
   if (compact) {
     // Get SG target from current step if it's SG-conditioned
@@ -404,6 +481,8 @@ export function ActiveFermentationSession({
         targetSg={stepTargetSg}
         sgComparison={stepSgComparison}
         originalGravity={originalGravity}
+        onSkipStep={isWaitingForTemp && isAuthenticated ? handleSkipStep : undefined}
+        skipLoading={skipLoading}
       />
     );
   }
