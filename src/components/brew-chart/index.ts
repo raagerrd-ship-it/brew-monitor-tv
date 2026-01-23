@@ -1,10 +1,6 @@
 // Components
 export { BrewChart } from "./BrewChart";
 export { LazyBrewChart } from "./LazyBrewChart";
-export { DayBoundaryLines, EventMarkerLines } from "./ChartReferenceLines";
-export { ChartXAxis, SGYAxis, TempYAxis } from "./ChartAxes";
-export { SGLine, ControllerTempArea, PillTempLine } from "./ChartDataSeries";
-export { ChartTooltip } from "./ChartTooltipContent";
 
 // Hooks
 export { useBrewChartData } from "./hooks/useBrewChartData";
