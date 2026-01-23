@@ -13,7 +13,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-44">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -21,7 +21,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center h-44 text-sm text-muted-foreground">
         Ingen historik tillgänglig
       </div>
     );
@@ -55,7 +55,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
         </div>
       </div>
       
-      <div className="h-64">
+      <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={CHART_MARGINS}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
