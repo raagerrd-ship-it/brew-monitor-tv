@@ -22,6 +22,7 @@ interface FermentationProgressInput {
 interface StabilityDuration {
   days: number;
   hours: number;
+  stableSince: Date | null;
 }
 
 export interface FermentationProgressResult {
@@ -84,7 +85,7 @@ export function useFermentationProgress({
       const days = Math.floor(totalHours / 24);
       const hours = Math.floor(totalHours % 24);
       
-      return { days, hours };
+      return { days, hours, stableSince: stableFromDate };
     };
 
     const stabilityDuration = calculateStabilityDuration();
