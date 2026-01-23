@@ -53,6 +53,7 @@ export function AutoCoolingDecisionLogs() {
       const { data, error } = await supabase
         .from('auto_cooling_decision_logs')
         .select('*')
+        .eq('adjustment_made', true)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -92,7 +93,7 @@ export function AutoCoolingDecisionLogs() {
   if (logs.length === 0) {
     return (
       <p className="text-sm text-muted-foreground italic">
-        Inga beslut loggade ännu. Beslut loggas automatiskt vid varje kontroll.
+        Inga justeringar har gjorts ännu.
       </p>
     );
   }
@@ -103,15 +104,9 @@ export function AutoCoolingDecisionLogs() {
         <Collapsible key={log.id}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-2 text-xs">
-              {log.adjustment_made ? (
-                <Badge variant="default" className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px] px-1.5">
-                  Justering
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] px-1.5">
-                  Ingen ändring
-                </Badge>
-              )}
+              <Badge variant="default" className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px] px-1.5">
+                Justering
+              </Badge>
               <span className="text-muted-foreground">
                 {new Date(log.created_at).toLocaleString('sv-SE', {
                   month: 'short',
