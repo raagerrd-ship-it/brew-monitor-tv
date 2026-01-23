@@ -1,5 +1,16 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2 } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
@@ -64,6 +75,7 @@ export function FermentationSessionCompact({
   isWaitingForGravityStable = false,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
   const progress = useFermentationProgress({
     currentStep,
@@ -231,29 +243,53 @@ export function FermentationSessionCompact({
           
           {/* Skip button - right aligned, hidden in TV mode */}
           {!isTvMode && (waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSkipStep();
-              }}
-              disabled={skipLoading}
-              className="h-5 px-1.5 text-xs font-medium gap-1 ml-auto"
-              style={{
-                color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
-                background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
-              }}
-            >
-              {skipLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <>
-                  <SkipForward className="h-3 w-3" />
-                  Hoppa
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSkipConfirm(true);
+                }}
+                disabled={skipLoading}
+                className="h-5 px-1.5 text-xs font-medium gap-1 ml-auto"
+                style={{
+                  color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
+                  background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
+                }}
+              >
+                {skipLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <SkipForward className="h-3 w-3" />
+                    Hoppa
+                  </>
+                )}
+              </Button>
+              <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Hoppa över steg?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Är du säker på att du vill hoppa över detta steg? 
+                      Steget kommer markeras som överhoppat och kan inte ångras.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        setShowSkipConfirm(false);
+                        onSkipStep();
+                      }}
+                    >
+                      Hoppa över
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           )}
         </div>
         
