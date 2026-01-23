@@ -1,6 +1,23 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, createContext, useContext } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTvMode } from "@/contexts/TvModeContext";
+
+// Context to signal children that they're inside an aspect ratio container
+interface AspectRatioContextType {
+  isLocked: boolean;
+  width: number;
+  height: number;
+}
+
+const AspectRatioContext = createContext<AspectRatioContextType>({
+  isLocked: false,
+  width: 0,
+  height: 0,
+});
+
+export function useAspectRatio() {
+  return useContext(AspectRatioContext);
+}
 
 interface AspectRatioContainerProps {
   children: ReactNode;
@@ -49,20 +66,26 @@ export function AspectRatioContainer({
 
   // Mobile: render children without aspect ratio lock
   if (!shouldLockAspectRatio) {
-    return <>{children}</>;
+    return (
+      <AspectRatioContext.Provider value={{ isLocked: false, width: 0, height: 0 }}>
+        {children}
+      </AspectRatioContext.Provider>
+    );
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
-      <div
-        style={{
-          width: dimensions.width,
-          height: dimensions.height,
-        }}
-        className="relative overflow-hidden"
-      >
-        {children}
+    <AspectRatioContext.Provider value={{ isLocked: true, width: dimensions.width, height: dimensions.height }}>
+      <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
+        <div
+          style={{
+            width: dimensions.width,
+            height: dimensions.height,
+          }}
+          className="relative overflow-hidden bg-background"
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </AspectRatioContext.Provider>
   );
 }
