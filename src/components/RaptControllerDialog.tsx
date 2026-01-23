@@ -45,6 +45,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   const [currentController, setCurrentController] = useState(controller);
   const [showStartSessionDialog, setShowStartSessionDialog] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
+  const [showTempAdjust, setShowTempAdjust] = useState(false);
 
   const controllerColor = getControllerColor(controller.name);
 
@@ -273,8 +274,17 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-[10px] text-muted-foreground/70 mt-1">Inbyggd sensor</p>
             </div>
             
-            {/* Target temp */}
-            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
+            {/* Target temp - clickable when authenticated */}
+            <div 
+              className={`bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30 transition-all ${
+                isAuthenticated && !hasActiveSession ? 'cursor-pointer hover:bg-muted/50 hover:border-primary/30' : ''
+              }`}
+              onClick={() => {
+                if (isAuthenticated && !hasActiveSession) {
+                  setShowTempAdjust(!showTempAdjust);
+                }
+              }}
+            >
               <p className="text-xs text-muted-foreground mb-1">Måltemperatur</p>
               <p className="text-2xl font-bold tabular-nums text-primary">
                 {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°` : '—'}
@@ -343,65 +353,64 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           </div>
         </div>
 
-        {isAuthenticated && (
-          <div className="space-y-4 pt-4 border-t border-border/30">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="target-temp" className="text-sm font-medium">
-                  Ändra måltemperatur
-                </Label>
-                <span className="text-xl font-bold text-primary tabular-nums">
-                  {targetTemp}°C
-                </span>
-              </div>
-              
-              {/* Warning when session is active */}
-              {hasActiveSession && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                  <Lock className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    Temperaturen styrs av den aktiva fermenteringsprofilen
-                  </span>
-                </div>
-              )}
-              
-              <Slider
-                id="target-temp"
-                min={currentController.min_target_temp ?? -5}
-                max={currentController.max_target_temp ?? 25}
-                step={1}
-                value={[targetTemp]}
-                onValueChange={(value) => setTargetTemp(value[0])}
-                disabled={loading || hasActiveSession}
-                className={`py-2 ${hasActiveSession ? 'opacity-50' : ''}`}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{currentController.min_target_temp ?? -5}°C</span>
-                <span>{currentController.max_target_temp ?? 25}°C</span>
-              </div>
-              <Button 
-                onClick={handleSetTargetTemperature} 
-                disabled={loading || hasActiveSession}
-                className="w-full"
-                size="sm"
-              >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
-              </Button>
+        {/* Temperature adjustment - shown when clicking target temp */}
+        {isAuthenticated && showTempAdjust && !hasActiveSession && (
+          <div className="space-y-3 pt-4 border-t border-border/30 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="target-temp" className="text-sm font-medium">
+                Ändra måltemperatur
+              </Label>
+              <span className="text-xl font-bold text-primary tabular-nums">
+                {targetTemp}°C
+              </span>
             </div>
             
-            {/* Start Profile Button - only show for non-cooler controllers */}
-            {!isCooler && !hasActiveSession && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setShowStartSessionDialog(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Starta fermenteringsprofil
-              </Button>
-            )}
+            <Slider
+              id="target-temp"
+              min={currentController.min_target_temp ?? -5}
+              max={currentController.max_target_temp ?? 25}
+              step={1}
+              value={[targetTemp]}
+              onValueChange={(value) => setTargetTemp(value[0])}
+              disabled={loading}
+              className="py-2"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{currentController.min_target_temp ?? -5}°C</span>
+              <span>{currentController.max_target_temp ?? 25}°C</span>
+            </div>
+            <Button 
+              onClick={handleSetTargetTemperature} 
+              disabled={loading}
+              className="w-full"
+              size="sm"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
+            </Button>
           </div>
+        )}
+
+        {/* Warning when session is active */}
+        {isAuthenticated && hasActiveSession && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20 mt-4">
+            <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              Temperaturen styrs av den aktiva fermenteringsprofilen
+            </span>
+          </div>
+        )}
+            
+        {/* Start Profile Button - only show for non-cooler controllers */}
+        {isAuthenticated && !isCooler && !hasActiveSession && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-4"
+            onClick={() => setShowStartSessionDialog(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Starta fermenteringsprofil
+          </Button>
         )}
 
         {!isAuthenticated && (
