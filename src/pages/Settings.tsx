@@ -975,353 +975,362 @@ export default function Settings() {
           {/* SYNC TAB */}
           <TabsContent value="sync" className="space-y-8">
             {/* Brewfather Section */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               <SectionHeader 
                 icon={Beer}
                 title="Brewfather"
+                description="Synkronisera bryggar-data från Brewfather"
               />
               
-              <div className="space-y-4 pb-4 border-b border-border">
-                <h3 className="text-base font-semibold">API-uppgifter</h3>
-                <p className="text-sm text-muted-foreground">
-                  Be AI-assistenten uppdatera dina Brewfather-inloggningsuppgifter i chatten
-                </p>
-                
-                {apiSettings?.brewfather && (
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">User ID:</span>
-                      <span className="font-mono">{apiSettings.brewfather.userId}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">API-nyckel:</span>
-                      <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
-                    </div>
+              {/* API Credentials Card */}
+              <Card className="p-4 bg-muted/30 border-primary/10">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                    {apiSettings?.brewfather?.configured ? (
+                      <span className="flex items-center gap-1 text-[10px] text-green-500">
+                        <Check className="h-3 w-3" /> Konfigurerad
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] text-amber-500">
+                        <AlertCircle className="h-3 w-3" /> Saknas
+                      </span>
+                    )}
                   </div>
-                )}
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera Brewfather-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
-                      });
-                    }}
-                    className="flex-1"
-                  >
-                    Uppdatera User ID
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera Brewfather-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
-                      });
-                    }}
-                    className="flex-1"
-                  >
-                    Uppdatera API-nyckel
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-4 pb-4 border-b border-border">
-                <div>
-                  <h3 className="text-base font-semibold">Snabb synkronisering</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Uppdaterar löpande data för synliga öl
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
-                  <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
-                    <SelectTrigger className="w-full bg-card">
-                      <SelectValue placeholder="Välj frekvens" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="60">Varje minut</SelectItem>
-                      <SelectItem value="300">Var 5:e minut</SelectItem>
-                      <SelectItem value="600">Var 10:e minut</SelectItem>
-                      <SelectItem value="900">Var 15:e minut</SelectItem>
-                      <SelectItem value="3600">Varje timme</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {lastBrewfatherQuickSync && (
-                  <p className="text-sm text-muted-foreground">
-                    Senast: <span className="font-medium text-foreground">
-                      {new Date(lastBrewfatherQuickSync).toLocaleString("sv-SE", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleQuickSync} 
-                  disabled={quickSyncing}
-                  className="w-full"
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${quickSyncing ? 'animate-spin' : ''}`} />
-                  {quickSyncing ? 'Synkroniserar...' : 'Kör snabb synkronisering'}
-                </Button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold">Full synkronisering</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Hämtar komplett data och hanterar automatisk synlighet
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Frekvens</label>
-                  <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
-                    <SelectTrigger className="w-full bg-card">
-                      <SelectValue placeholder="Välj frekvens" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="3600">Varje timme</SelectItem>
-                      <SelectItem value="21600">Var 6:e timme</SelectItem>
-                      <SelectItem value="43200">Var 12:e timme</SelectItem>
-                      <SelectItem value="86400">Varje dag</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Automatisk hantering</h4>
                   
-                  <div className="flex items-center space-x-2">
+                  {apiSettings?.brewfather && (
+                    <div className="text-xs space-y-1 p-2 rounded bg-background/50">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">User ID:</span>
+                        <span className="font-mono">{apiSettings.brewfather.userId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">API-nyckel:</span>
+                        <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera Brewfather-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
+                        });
+                      }}
+                      className="flex-1 h-8 text-xs"
+                    >
+                      Uppdatera User ID
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera Brewfather-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
+                        });
+                      }}
+                      className="flex-1 h-8 text-xs"
+                    >
+                      Uppdatera API-nyckel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Sync Options Grid */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Quick Sync Card */}
+                <Card className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Snabb synk</h3>
+                    <p className="text-xs text-muted-foreground">Löpande data för synliga öl</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Frekvens</label>
+                    <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
+                      <SelectTrigger className="w-full bg-background h-9">
+                        <SelectValue placeholder="Välj frekvens" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="60">Varje minut</SelectItem>
+                        <SelectItem value="300">Var 5:e minut</SelectItem>
+                        <SelectItem value="600">Var 10:e minut</SelectItem>
+                        <SelectItem value="900">Var 15:e minut</SelectItem>
+                        <SelectItem value="3600">Varje timme</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {lastBrewfatherQuickSync && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Senast: {new Date(lastBrewfatherQuickSync).toLocaleString("sv-SE", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={handleQuickSync} 
+                    disabled={quickSyncing}
+                    className="w-full"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <RefreshCw className={`mr-2 h-3 w-3 ${quickSyncing ? 'animate-spin' : ''}`} />
+                    {quickSyncing ? 'Synkar...' : 'Kör nu'}
+                  </Button>
+                </Card>
+
+                {/* Full Sync Card */}
+                <Card className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Full synk</h3>
+                    <p className="text-xs text-muted-foreground">Komplett data + auto-synlighet</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Frekvens</label>
+                    <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
+                      <SelectTrigger className="w-full bg-background h-9">
+                        <SelectValue placeholder="Välj frekvens" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="3600">Varje timme</SelectItem>
+                        <SelectItem value="21600">Var 6:e timme</SelectItem>
+                        <SelectItem value="43200">Var 12:e timme</SelectItem>
+                        <SelectItem value="86400">Varje dag</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {lastFullSync && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Senast: {new Date(lastFullSync).toLocaleString("sv-SE", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+
+                  <Button 
+                    onClick={handleFullSync} 
+                    disabled={syncing}
+                    className="w-full"
+                    size="sm"
+                  >
+                    <RefreshCw className={`mr-2 h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+                    {syncing ? 'Synkar...' : 'Kör nu'}
+                  </Button>
+
+                  {syncing && syncSteps.length > 0 && (
+                    <SyncChecklist steps={syncSteps} />
+                  )}
+                </Card>
+              </div>
+
+              {/* Auto Settings */}
+              <Card className="p-4 space-y-3">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Automatisk hantering</span>
+                
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
                     <Checkbox 
                       id="auto-activate-fermenting"
                       checked={autoActivateFermenting}
                       onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)}
                     />
-                    <label htmlFor="auto-activate-fermenting" className="text-sm cursor-pointer">
-                      Visa nya öl med status Jäsning
+                    <label htmlFor="auto-activate-fermenting" className="text-xs cursor-pointer">
+                      Visa nya jäsande öl
                     </label>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
                     <Checkbox 
                       id="auto-hide-completed"
                       checked={autoHideCompleted}
                       onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_completed', !!checked)}
                     />
-                    <label htmlFor="auto-hide-completed" className="text-sm cursor-pointer">
+                    <label htmlFor="auto-hide-completed" className="text-xs cursor-pointer">
                       Dölj klara öl
                     </label>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
                     <Checkbox 
                       id="auto-hide-conditioning"
                       checked={autoHideConditioning}
                       onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_conditioning', !!checked)}
                     />
-                    <label htmlFor="auto-hide-conditioning" className="text-sm cursor-pointer">
+                    <label htmlFor="auto-hide-conditioning" className="text-xs cursor-pointer">
                       Dölj konditionerade öl
                     </label>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
                     <Checkbox 
                       id="auto-hide-archived"
                       checked={autoHideArchived}
                       onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_archived', !!checked)}
                     />
-                    <label htmlFor="auto-hide-archived" className="text-sm cursor-pointer">
+                    <label htmlFor="auto-hide-archived" className="text-xs cursor-pointer">
                       Dölj arkiverade öl
                     </label>
                   </div>
                 </div>
-                
-                {lastFullSync && (
-                  <p className="text-sm text-muted-foreground">
-                    Senast: <span className="font-medium text-foreground">
-                      {new Date(lastFullSync).toLocaleString("sv-SE", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </p>
-                )}
-
-                <Button 
-                  onClick={handleFullSync} 
-                  disabled={syncing}
-                  className="w-full"
-                  size="sm"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Synkroniserar...' : 'Kör full synkronisering'}
-                </Button>
-
-                {syncing && syncSteps.length > 0 && (
-                  <SyncChecklist steps={syncSteps} />
-                )}
-              </div>
+              </Card>
             </div>
 
             {/* RAPT Section */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               <SectionHeader 
                 icon={Cloud}
                 title="RAPT"
+                description="Synkronisera enheter från RAPT Portal"
               />
               
-              <div className="space-y-4 pb-4 border-b border-border">
-                <h3 className="text-base font-semibold">API-uppgifter</h3>
-                <p className="text-sm text-muted-foreground">
-                  Be AI-assistenten uppdatera dina RAPT Portal-inloggningsuppgifter i chatten
-                </p>
-                
-                {apiSettings?.rapt && (
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Användarnamn:</span>
-                      <span className="font-mono">{apiSettings.rapt.username}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">API-nyckel:</span>
-                      <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
-                    </div>
+              {/* API Credentials Card */}
+              <Card className="p-4 bg-muted/30 border-primary/10">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                    {apiSettings?.rapt?.configured ? (
+                      <span className="flex items-center gap-1 text-[10px] text-green-500">
+                        <Check className="h-3 w-3" /> Konfigurerad
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] text-amber-500">
+                        <AlertCircle className="h-3 w-3" /> Saknas
+                      </span>
+                    )}
                   </div>
-                )}
-                
-                <div className="flex flex-col sm:flex-row gap-2">
+                  
+                  {apiSettings?.rapt && (
+                    <div className="text-xs space-y-1 p-2 rounded bg-background/50">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Användarnamn:</span>
+                        <span className="font-mono">{apiSettings.rapt.username}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">API-nyckel:</span>
+                        <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera RAPT-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
+                        });
+                      }}
+                      className="flex-1 h-8 text-xs"
+                    >
+                      Uppdatera användarnamn
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Uppdatera RAPT-uppgifter",
+                          description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
+                        });
+                      }}
+                      className="flex-1 h-8 text-xs"
+                    >
+                      Uppdatera API-nyckel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Sync Options Grid */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Quick Sync Card */}
+                <Card className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Snabb synk</h3>
+                    <p className="text-xs text-muted-foreground">Data för valda enheter</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Frekvens</label>
+                    <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
+                      <SelectTrigger className="w-full bg-background h-9">
+                        <SelectValue placeholder="Välj frekvens" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="60">Varje minut</SelectItem>
+                        <SelectItem value="300">Var 5:e minut</SelectItem>
+                        <SelectItem value="600">Var 10:e minut</SelectItem>
+                        <SelectItem value="900">Var 15:e minut</SelectItem>
+                        <SelectItem value="1800">Var 30:e minut</SelectItem>
+                        <SelectItem value="3600">Varje timme</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {lastRaptQuickSync && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Senast: {new Date(lastRaptQuickSync).toLocaleString("sv-SE", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+
                   <Button
+                    onClick={handleRaptQuickSync} 
+                    disabled={raptQuickSyncing}
+                    className="w-full"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera RAPT-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
-                      });
-                    }}
-                    className="flex-1"
                   >
-                    Uppdatera användarnamn
+                    <RefreshCw className={`mr-2 h-3 w-3 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
+                    {raptQuickSyncing ? 'Synkar...' : 'Kör nu'}
                   </Button>
+                </Card>
+
+                {/* Full Sync Card */}
+                <Card className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Full synk</h3>
+                    <p className="text-xs text-muted-foreground">Hämtar alla enheter</p>
+                  </div>
+                  
+                  {lastRaptSync && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Senast: {new Date(lastRaptSync).toLocaleString("sv-SE", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+
                   <Button
-                    variant="outline"
+                    onClick={handleRaptFullSync} 
+                    disabled={raptSyncing}
+                    className="w-full"
                     size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera RAPT-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
-                      });
-                    }}
-                    className="flex-1"
                   >
-                    Uppdatera API-nyckel
+                    <RefreshCw className={`mr-2 h-3 w-3 ${raptSyncing ? 'animate-spin' : ''}`} />
+                    {raptSyncing ? 'Synkar...' : 'Kör nu'}
                   </Button>
-                </div>
-              </div>
 
-              <div className="space-y-4 pb-4 border-b border-border">
-                <div>
-                  <h3 className="text-base font-semibold">Snabb datasynkning</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Uppdaterar endast data för valda enheter
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Synkroniseringsfrekvens</label>
-                  <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
-                    <SelectTrigger className="w-full bg-card">
-                      <SelectValue placeholder="Välj frekvens" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="60">Varje minut</SelectItem>
-                      <SelectItem value="300">Var 5:e minut</SelectItem>
-                      <SelectItem value="600">Var 10:e minut</SelectItem>
-                      <SelectItem value="900">Var 15:e minut</SelectItem>
-                      <SelectItem value="1800">Var 30:e minut</SelectItem>
-                      <SelectItem value="3600">Varje timme</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {lastRaptQuickSync && (
-                  <p className="text-sm text-muted-foreground">
-                    Senast: <span className="font-medium text-foreground">
-                      {new Date(lastRaptQuickSync).toLocaleString("sv-SE", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleRaptQuickSync} 
-                  disabled={raptQuickSyncing}
-                  className="w-full"
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
-                  {raptQuickSyncing ? 'Synkroniserar...' : 'Kör snabbsynkning'}
-                </Button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold">Full enhetssynkning</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Hämtar alla enheter från RAPT
-                  </p>
-                </div>
-                
-                {lastRaptSync && (
-                  <p className="text-sm text-muted-foreground">
-                    Senast: <span className="font-medium text-foreground">
-                      {new Date(lastRaptSync).toLocaleString("sv-SE", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleRaptFullSync} 
-                  disabled={raptSyncing}
-                  className="w-full"
-                  size="sm"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${raptSyncing ? 'animate-spin' : ''}`} />
-                  {raptSyncing ? 'Synkroniserar...' : 'Kör fullsynkning'}
-                </Button>
-
-                {raptSyncing && raptSyncSteps.length > 0 && (
-                  <SyncChecklist steps={raptSyncSteps} />
-                )}
+                  {raptSyncing && raptSyncSteps.length > 0 && (
+                    <SyncChecklist steps={raptSyncSteps} />
+                  )}
+                </Card>
               </div>
             </div>
           </TabsContent>
