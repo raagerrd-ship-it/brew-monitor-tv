@@ -138,12 +138,15 @@ export function FermentationSessionCompact({
         return `Nå ${step.target_temp}°C`;
       case 'wait_for_gravity_stable': {
         if (stabilityDuration) {
-          const { days, hours } = stabilityDuration;
+          const { days, hours, stableSince } = stabilityDuration;
           const required = step.gravity_stable_days ?? 0;
+          const sinceStr = stableSince 
+            ? ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`
+            : '';
           if (days >= 1) {
-            return `Stabil ${days}d ${hours}h / ${required}d`;
+            return `Stabil ${days}d ${hours}h / ${required}d${sinceStr}`;
           } else {
-            return `Stabil ${hours}h / ${required}d`;
+            return `Stabil ${hours}h / ${required}d${sinceStr}`;
           }
         }
         return `Stabil i ${step.gravity_stable_days}d`;
