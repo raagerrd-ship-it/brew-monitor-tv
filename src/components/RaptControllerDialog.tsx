@@ -6,10 +6,9 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, AirVent, Flame, Snowflake, PlayCircle, Plus } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Badge } from '@/components/ui/badge';
 import { ControllerTempChart } from './controller-chart';
 import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
 import { getControllerColor } from '@/lib/brew-utils';
@@ -33,9 +32,10 @@ interface RaptControllerDialogProps {
   controller: TempController;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isCooler?: boolean;
 }
 
-export function RaptControllerDialog({ controller, open, onOpenChange }: RaptControllerDialogProps) {
+export function RaptControllerDialog({ controller, open, onOpenChange, isCooler = false }: RaptControllerDialogProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -230,126 +230,112 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
     }
   };
 
+  // Determine if currently cooling or heating
+  const isActivelyCooling = currentController.cooling_enabled && 
+    currentController.heating_utilisation === 0 && 
+    currentController.current_temp !== null &&
+    currentController.target_temp !== null &&
+    currentController.current_temp > currentController.target_temp;
+  
+  const isActivelyHeating = currentController.heating_utilisation !== null && currentController.heating_utilisation > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px] bg-background border-border max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AirVent className="w-5 h-5" style={{ color: controllerColor }} />
-            {controller.name}
+      <DialogContent className="sm:max-w-[480px] bg-background/95 backdrop-blur-xl border-border/50 max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="flex items-center gap-3">
+            <div 
+              className="p-2 rounded-lg" 
+              style={{ backgroundColor: `${controllerColor}20` }}
+            >
+              {isCooler ? (
+                <Snowflake className="w-5 h-5" style={{ color: controllerColor }} />
+              ) : (
+                <Thermometer className="w-5 h-5" style={{ color: controllerColor }} />
+              )}
+            </div>
+            <span>{controller.name}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-1.5 py-1">
+        <div className="space-y-4">
           {/* Active Fermentation Session */}
-          <ActiveFermentationSession controllerId={controller.controller_id} />
+          {!isCooler && <ActiveFermentationSession controllerId={controller.controller_id} />}
 
-          {/* Built-in Temperature (primary) */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Thermometer className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs text-muted-foreground">Inbyggd sensor</span>
+          {/* Temperature Stats Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Current temp */}
+            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Aktuell temp</p>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
+                {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°` : '—'}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 mt-1">Inbyggd sensor</p>
             </div>
-            <span className="text-sm font-semibold text-primary">
-              {currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°C` : 'Okänd'}
-            </span>
-          </div>
-
-          {/* Pill Temperature (secondary, if available) */}
-          {currentController.pill_temp !== null && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Pill-temperatur</span>
-              </div>
-              <span className="text-sm font-semibold text-muted-foreground">
-                {currentController.pill_temp.toFixed(1)}°C
-              </span>
+            
+            {/* Target temp */}
+            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Måltemperatur</p>
+              <p className="text-2xl font-bold tabular-nums text-primary">
+                {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°` : '—'}
+              </p>
+              {currentController.pill_temp !== null && (
+                <p className="text-[10px] text-muted-foreground/70 mt-1">
+                  Pill: {currentController.pill_temp.toFixed(1)}°C
+                </p>
+              )}
             </div>
-          )}
-
-          {/* Target Temperature Display */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Thermometer className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Måltemperatur</span>
-            </div>
-            <span className="text-sm font-semibold">
-              {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°C` : 'Ej satt'}
-            </span>
           </div>
 
           {/* Heating/Cooling Status */}
-          <div className="space-y-2 py-2 border-t">
-            <div className="text-xs font-medium text-muted-foreground">Inställningar</div>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-1.5">
-                <Flame className={`w-4 h-4 ${currentController.heating_enabled ? 'text-orange-500' : 'text-muted-foreground/40'}`} />
-                <span className={`text-xs ${currentController.heating_enabled ? 'font-medium text-foreground' : 'text-muted-foreground/60'}`}>
-                  Värme {currentController.heating_enabled ? 'aktiverad' : 'inaktiverad'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Snowflake className={`w-4 h-4 ${currentController.cooling_enabled ? 'text-blue-500' : 'text-muted-foreground/40'}`} />
-                <span className={`text-xs ${currentController.cooling_enabled ? 'font-medium text-foreground' : 'text-muted-foreground/60'}`}>
-                  Kyla {currentController.cooling_enabled ? 'aktiverad' : 'inaktiverad'}
-                </span>
-              </div>
+          <div className="flex gap-2">
+            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+              isActivelyHeating 
+                ? 'bg-orange-500/15 border border-orange-500/30' 
+                : 'bg-muted/20 border border-border/20'
+            }`}>
+              <Flame className={`w-4 h-4 ${isActivelyHeating ? 'text-orange-500' : 'text-muted-foreground/40'}`} />
+              {isActivelyHeating && <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />}
+              <span className={`text-xs font-medium ${
+                isActivelyHeating ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground/60'
+              }`}>
+                {!currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
+              </span>
             </div>
             
-            {(currentController.heating_utilisation !== null && currentController.heating_utilisation > 0) && (
-              <div className="flex items-center gap-2 pt-1 px-2 py-1.5 bg-orange-500/10 rounded-md border border-orange-500/20">
-                <Flame className="w-3.5 h-3.5 text-orange-500" />
-                <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                <span className="text-xs font-semibold text-orange-600">
-                  Värmer just nu ({currentController.heating_utilisation.toFixed(0)}%)
-                </span>
-              </div>
-            )}
-            
-            {currentController.cooling_enabled && 
-             currentController.heating_utilisation === 0 && 
-             currentController.current_temp !== null &&
-             currentController.target_temp !== null &&
-             currentController.current_temp > currentController.target_temp && (
-              <div className="flex items-center gap-2 pt-1 px-2 py-1.5 bg-blue-500/10 rounded-md border border-blue-500/20">
-                <Snowflake className="w-3.5 h-3.5 text-blue-500" />
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <span className="text-xs font-semibold text-blue-600">
-                  Kyler just nu
-                </span>
-              </div>
-            )}
+            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+              isActivelyCooling 
+                ? 'bg-blue-500/15 border border-blue-500/30' 
+                : 'bg-muted/20 border border-border/20'
+            }`}>
+              <Snowflake className={`w-4 h-4 ${isActivelyCooling ? 'text-blue-500' : 'text-muted-foreground/40'}`} />
+              {isActivelyCooling && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
+              <span className={`text-xs font-medium ${
+                isActivelyCooling ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground/60'
+              }`}>
+                {!currentController.cooling_enabled ? 'Inaktiv' : isActivelyCooling ? 'Kyler' : 'Standby'}
+              </span>
+            </div>
           </div>
 
-          {/* Last Update */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Senaste data</span>
-            </div>
-            <span className="text-xs">
-              {currentController.last_update 
+          {/* Timestamps */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3" />
+              <span>Data: {currentController.last_update 
                 ? formatDistanceToNow(new Date(currentController.last_update), { addSuffix: true, locale: sv })
-                : 'Okänd'}
-            </span>
-          </div>
-
-          {/* Last Sync */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Senaste synkronisering</span>
+                : '—'}</span>
             </div>
-            <span className="text-xs">
-              {lastSync 
+            <div className="flex items-center gap-1.5">
+              <RefreshCw className="w-3 h-3" />
+              <span>Synk: {lastSync 
                 ? formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: sv })
-                : 'Okänd'}
-            </span>
+                : '—'}</span>
+            </div>
           </div>
 
           {/* Temperature Chart */}
-          <div className="pt-3 border-t">
+          <div className="bg-muted/20 backdrop-blur-sm rounded-xl p-4 border border-border/30">
             <ControllerTempChart 
               controllerId={controller.controller_id} 
               controllerColor={controllerColor}
@@ -357,54 +343,69 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
           </div>
         </div>
 
-        {isAuthenticated && <div className="space-y-3 py-3 border-t">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="target-temp" className="text-sm font-semibold">
-                Ändra måltemperatur
-              </Label>
-              <span className="text-xl font-bold text-primary">
-                {targetTemp}°C
-              </span>
-            </div>
-            
-            {/* Warning when session is active */}
-            {hasActiveSession && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-md border border-amber-500/20">
-                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="text-xs text-amber-600">
-                  Temperaturen styrs av den aktiva fermenteringsprofilen
+        {isAuthenticated && (
+          <div className="space-y-4 pt-4 border-t border-border/30">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="target-temp" className="text-sm font-medium">
+                  Ändra måltemperatur
+                </Label>
+                <span className="text-xl font-bold text-primary tabular-nums">
+                  {targetTemp}°C
                 </span>
               </div>
-            )}
-            
-            <Slider
-              id="target-temp"
-              min={currentController.min_target_temp ?? -5}
-              max={currentController.max_target_temp ?? 25}
-              step={1}
-              value={[targetTemp]}
-              onValueChange={(value) => setTargetTemp(value[0])}
-              disabled={loading || hasActiveSession}
-              className={`py-2 ${hasActiveSession ? 'opacity-50' : ''}`}
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{currentController.min_target_temp ?? -5}°C</span>
-              <span>{currentController.max_target_temp ?? 25}°C</span>
+              
+              {/* Warning when session is active */}
+              {hasActiveSession && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    Temperaturen styrs av den aktiva fermenteringsprofilen
+                  </span>
+                </div>
+              )}
+              
+              <Slider
+                id="target-temp"
+                min={currentController.min_target_temp ?? -5}
+                max={currentController.max_target_temp ?? 25}
+                step={1}
+                value={[targetTemp]}
+                onValueChange={(value) => setTargetTemp(value[0])}
+                disabled={loading || hasActiveSession}
+                className={`py-2 ${hasActiveSession ? 'opacity-50' : ''}`}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{currentController.min_target_temp ?? -5}°C</span>
+                <span>{currentController.max_target_temp ?? 25}°C</span>
+              </div>
+              <Button 
+                onClick={handleSetTargetTemperature} 
+                disabled={loading || hasActiveSession}
+                className="w-full"
+                size="sm"
+              >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
+              </Button>
             </div>
-            <Button 
-              onClick={handleSetTargetTemperature} 
-              disabled={loading || hasActiveSession}
-              className="w-full"
-              size="sm"
-            >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt måltemperatur'}
-            </Button>
+            
+            {/* Start Profile Button - only show for non-cooler controllers */}
+            {!isCooler && !hasActiveSession && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setShowStartSessionDialog(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Starta fermenteringsprofil
+              </Button>
+            )}
           </div>
-        </div>}
+        )}
 
         {!isAuthenticated && (
-          <div className="bg-muted/50 p-3 rounded-lg flex items-center gap-2 border-t">
+          <div className="bg-muted/30 backdrop-blur-sm p-4 rounded-xl flex items-center gap-3 border border-border/30 mt-4">
             <Lock className="w-4 h-4 text-muted-foreground" />
             <div className="flex-1">
               <p className="text-xs font-medium">Logga in för att ändra temperatur</p>
@@ -421,29 +422,16 @@ export function RaptControllerDialog({ controller, open, onOpenChange }: RaptCon
             </Button>
           </div>
         )}
-
-        {/* Start Profile Button */}
-        {isAuthenticated && !hasActiveSession && (
-          <div className="border-t pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => setShowStartSessionDialog(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Starta fermenteringsprofil
-            </Button>
-          </div>
-        )}
       </DialogContent>
 
       {/* Start Session Dialog */}
-      <StartFermentationSessionDialog
-        open={showStartSessionDialog}
-        onOpenChange={setShowStartSessionDialog}
-        preselectedControllerId={controller.controller_id}
-      />
+      {!isCooler && (
+        <StartFermentationSessionDialog
+          open={showStartSessionDialog}
+          onOpenChange={setShowStartSessionDialog}
+          preselectedControllerId={controller.controller_id}
+        />
+      )}
     </Dialog>
   );
 }

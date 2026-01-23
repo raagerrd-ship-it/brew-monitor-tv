@@ -18,11 +18,13 @@ import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
+import { supabase } from "@/integrations/supabase/client";
 
 // Fixed header height in pixels
 const HEADER_HEIGHT = 72;
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
+  const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
   const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchParams] = useSearchParams();
@@ -69,6 +71,25 @@ export function BrewingDashboard() {
   const {
     timerTvModeOnly
   } = useExternalUserSettings();
+
+  // Track cooler controller ID
+  const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const loadCoolerController = async () => {
+      const { data } = await supabase
+        .from('auto_cooling_settings')
+        .select('cooler_controller_id')
+        .limit(1)
+        .maybeSingle();
+      
+      if (data?.cooler_controller_id) {
+        setCoolerControllerId(data.cooler_controller_id);
+      }
+    };
+    
+    loadCoolerController();
+  }, []);
 
   // Check for new app versions every 60 seconds
   const {
@@ -132,8 +153,9 @@ export function BrewingDashboard() {
   }, []);
   const handleControllerClick = useCallback((controller: TempController) => {
     setSelectedController(controller);
+    setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
     setControllerDialogOpen(true);
-  }, []);
+  }, [coolerControllerId]);
 
   // Memoized grid layout helpers - MUST be before any conditional returns
   const gridLayout = useMemo(() => {
@@ -264,7 +286,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Dialogs */}
-      {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} />}
+      {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
 
       <BrewDeviceLinkDialog open={deviceLinkDialog.open} onOpenChange={open => setDeviceLinkDialog(prev => ({
       ...prev,
