@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
+import { SectionHeader } from "@/components/ui/section-header";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -1322,12 +1323,11 @@ export default function Settings() {
           {/* AUTOMATION TAB */}
           <TabsContent value="automation" className="space-y-6">
             <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold">Automatisk Kylreglering</h2>
-                <p className="text-sm text-muted-foreground">
-                  Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen
-                </p>
-              </div>
+              <SectionHeader 
+                icon={Snowflake}
+                title="Automatisk Kylreglering"
+                description="Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen"
+              />
               
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -1612,25 +1612,20 @@ export default function Settings() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold">Fermenteringsprofiler</h2>
-                <p className="text-sm text-muted-foreground">
-                  Skapa och hantera temperaturschemat för fermenteringen.
-                </p>
-              </div>
+              <SectionHeader 
+                icon={FlaskConical}
+                title="Fermenteringsprofiler"
+                description="Skapa och hantera temperaturschemat för fermenteringen"
+              />
               <FermentationProfilesManagement />
             </div>
             {/* Brew Timer Section */}
-            <div className="space-y-4 pt-4 border-t border-border">
-              <div>
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Timer className="h-5 w-5" />
-                  Brygg-timer synkronisering
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Visa aktiv timer från brygg-appen i sidfoten
-                </p>
-              </div>
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Timer}
+                title="Brygg-timer synkronisering"
+                description="Visa aktiv timer från brygg-appen i sidfoten"
+              />
               
               <Card className="p-4">
                 {externalLoading ? (
