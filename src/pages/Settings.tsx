@@ -75,20 +75,6 @@ export default function Settings() {
     cooling_enabled: boolean | null,
     cooling_hysteresis: number | null
   }>>([]);
-  const [adjustmentLogs, setAdjustmentLogs] = useState<Array<{
-    id: string;
-    created_at: string;
-    cooler_controller_name: string;
-    old_target_temp: number;
-    new_target_temp: number;
-    lowest_followed_temp: number;
-    followed_controller_id: string | null;
-    followed_controller_name: string | null;
-    followed_current_temp: number | null;
-    followed_target_temp: number | null;
-    followed_hysteresis: number | null;
-    reason: string;
-  }>>([]);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [syncSteps, setSyncSteps] = useState<Array<{
     id: string;
@@ -175,7 +161,6 @@ export default function Settings() {
     loadApiSettings();
     loadAutoCoolingSettings();
     loadAvailableControllers();
-    loadAdjustmentLogs();
     loadDeviceCounts();
     loadBrewCounts();
     
@@ -207,9 +192,7 @@ export default function Settings() {
           schema: 'public',
           table: 'auto_cooling_adjustments'
         },
-        (payload) => {
-          console.log('New adjustment log:', payload);
-          loadAdjustmentLogs();
+        () => {
           // Update last_check_at to restart countdown immediately
           setLastAutoCoolingCheck(new Date().toISOString());
         }
@@ -436,23 +419,6 @@ export default function Settings() {
     }
   };
 
-  const loadAdjustmentLogs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      if (data) {
-        setAdjustmentLogs(data);
-      }
-    } catch (error) {
-      console.error('Error loading adjustment logs:', error);
-    }
-  };
 
   const loadDeviceCounts = async () => {
     try {
@@ -1525,57 +1491,9 @@ export default function Settings() {
                     />
                   </div>
 
-                  {adjustmentLogs.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors">
-                        <span className="text-sm font-medium">Justeringshistorik ({adjustmentLogs.length})</span>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="max-h-60 overflow-y-auto space-y-2 py-2">
-                          {adjustmentLogs.map(log => (
-                            <div 
-                              key={log.id} 
-                              className="border-l-2 border-border pl-3 py-1 text-xs space-y-1"
-                            >
-                              <div className="flex justify-between items-start">
-                                <span className="font-medium text-primary">
-                                  {log.cooler_controller_name}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  {new Date(log.created_at).toLocaleString('sv-SE', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
-                              
-                              {log.followed_controller_name && (
-                                <p className="text-muted-foreground">
-                                  {log.followed_controller_name}: <span className="text-destructive">{log.followed_current_temp?.toFixed(1)}°C</span> / Mål: {log.followed_target_temp?.toFixed(1)}°C
-                                </p>
-                              )}
-                              
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <span>Kylare:</span>
-                                <span>{log.old_target_temp.toFixed(1)}°C</span>
-                                <span>→</span>
-                                <span className="text-foreground font-medium">
-                                  {log.new_target_temp.toFixed(1)}°C
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-
                   <Collapsible>
                     <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors">
-                      <span className="text-sm font-medium">Beslutslogg (senaste kontroller)</span>
+                      <span className="text-sm font-medium">Justeringshistorik</span>
                       <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="py-2">
