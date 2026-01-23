@@ -39,24 +39,39 @@ interface SgDataPoint {
 }
 
 // Check if gravity has been stable for the required number of days
+// Stability means SG hasn't been more than threshold ABOVE current SG
+// (During fermentation SG drops, so we check when it was last higher than current + threshold)
 function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
   if (!sgData || sgData.length < 2) return false
   
+  // Sort by date descending (newest first)
+  const sortedData = [...sgData].sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
+  
+  const currentSg = sortedData[0].value
+  let stableFromDate = new Date(sortedData[0].date)
+  
+  // Walk backward to find when SG was last more than threshold ABOVE current
+  for (let i = 1; i < sortedData.length; i++) {
+    const reading = sortedData[i]
+    // Check if reading was more than threshold above current SG
+    if (reading.value > currentSg + threshold) {
+      // This reading was too high, so stability started after this point
+      break
+    }
+    // Reading is within threshold of current (not more than threshold higher), so stable since this point
+    stableFromDate = new Date(reading.date)
+  }
+  
+  // Calculate how long it's been stable
   const now = new Date()
-  const cutoffDate = new Date(now.getTime() - stableDays * 24 * 60 * 60 * 1000)
+  const stableHours = (now.getTime() - stableFromDate.getTime()) / (1000 * 60 * 60)
+  const stableDaysActual = stableHours / 24
   
-  // Get readings from the stability period
-  const recentReadings = sgData.filter(r => new Date(r.date) >= cutoffDate)
+  console.log(`Gravity stability: current SG ${currentSg.toFixed(4)}, stable since ${stableFromDate.toISOString()}, ${stableDaysActual.toFixed(2)} days (need ${stableDays} days)`)
   
-  if (recentReadings.length < 2) return false
-  
-  // Calculate min and max SG in the period
-  const sgValues = recentReadings.map(r => r.value)
-  const minSg = Math.min(...sgValues)
-  const maxSg = Math.max(...sgValues)
-  
-  // Check if the variation is within threshold
-  return (maxSg - minSg) <= threshold
+  return stableDaysActual >= stableDays
 }
 
 // Check if SG condition is met
