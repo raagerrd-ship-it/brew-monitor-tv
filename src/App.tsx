@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
+import { AspectRatioContainer } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
@@ -22,15 +23,17 @@ const App = () => (
       <BrowserRouter>
         <TvModeProvider>
           <ExternalAuthProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/install" element={<Install />} />
-              <Route path="/login" element={<Login />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <TimerFooter />
+            <AspectRatioContainer>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/install" element={<Install />} />
+                <Route path="/login" element={<Login />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <TimerFooter />
+            </AspectRatioContainer>
           </ExternalAuthProvider>
         </TvModeProvider>
       </BrowserRouter>
