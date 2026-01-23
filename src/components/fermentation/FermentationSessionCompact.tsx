@@ -140,9 +140,16 @@ export function FermentationSessionCompact({
         if (stabilityDuration) {
           const { days, hours, stableSince } = stabilityDuration;
           const required = step.gravity_stable_days ?? 0;
-          const sinceStr = stableSince 
-            ? ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`
-            : '';
+          let sinceStr = '';
+          if (stableSince) {
+            const today = new Date();
+            const isToday = stableSince.toDateString() === today.toDateString();
+            if (isToday) {
+              sinceStr = ` (sedan ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
+            } else {
+              sinceStr = ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
+            }
+          }
           if (days >= 1) {
             return `Stabil ${days}d ${hours}h / ${required}d${sinceStr}`;
           } else {
