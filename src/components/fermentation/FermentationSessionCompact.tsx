@@ -218,6 +218,33 @@ export function FermentationSessionCompact({
           {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
             <ProgressBadge progress={stabilityProgress} color="purple" />
           )}
+          
+          {/* Skip button - right aligned, hidden in TV mode */}
+          {!isTvMode && (waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSkipStep();
+              }}
+              disabled={skipLoading}
+              className="h-5 px-1.5 text-xs font-medium gap-1 ml-auto"
+              style={{
+                color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
+                background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
+              }}
+            >
+              {skipLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <SkipForward className="h-3 w-3" />
+                  Hoppa
+                </>
+              )}
+            </Button>
+          )}
         </div>
         
         {currentStep && (
@@ -255,35 +282,6 @@ export function FermentationSessionCompact({
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
             
-            {/* Manual skip button - for waiting for temp or gravity stable steps */}
-            {(waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
-              <>
-                <Separator />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSkipStep();
-                  }}
-                  disabled={skipLoading}
-                  className="h-5 px-1.5 text-xs font-medium gap-1"
-                  style={{
-                    color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
-                    background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
-                  }}
-                >
-                  {skipLoading ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <>
-                      <SkipForward className="h-3 w-3" />
-                      Hoppa
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
           </div>
         )}
       </div>
