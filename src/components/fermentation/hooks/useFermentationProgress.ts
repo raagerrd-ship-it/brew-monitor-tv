@@ -62,18 +62,20 @@ export function useFermentationProgress({
       
       if (sortedData.length < 2) return null;
       
-      const latestSg = sortedData[0].value;
+      const currentSgValue = sortedData[0].value;
       let stableFromDate = new Date(sortedData[0].date);
       
+      // Walk backward to find when SG was last more than threshold ABOVE current
+      // During fermentation SG drops, so stability means it hasn't been higher than current + threshold
       for (let i = 1; i < sortedData.length; i++) {
         const reading = sortedData[i];
-        const diff = Math.abs(reading.value - latestSg);
-        
-        if (diff <= threshold) {
-          stableFromDate = new Date(reading.date);
-        } else {
+        // Check if reading was more than threshold above current SG
+        if (reading.value > currentSgValue + threshold) {
+          // This reading was too high, so stability started after this point
           break;
         }
+        // Reading is within threshold of current (not more than 0.001 higher), so stable since this point
+        stableFromDate = new Date(reading.date);
       }
       
       const now = new Date();
