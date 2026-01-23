@@ -123,23 +123,17 @@ function BrewCardComponent({
           }}
         />
         <div className="flex items-center justify-between gap-2 h-full">
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <h2 
-              className="font-bold text-foreground leading-tight truncate tracking-tight"
-              style={{ 
-                fontSize: 'max(18px, min(2.8vh, 2.6vw))',
-                textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
-                letterSpacing: '-0.02em'
-              }}
-            >
-              {brew.name}
-            </h2>
-            <p 
-              className="text-muted-foreground/60 truncate font-medium flex items-center gap-1.5" 
-              style={{ fontSize: 'max(14px, min(1.6vh, 1.8vw))', letterSpacing: '0.02em' }}
-            >
-              {brew.batch_id.startsWith('custom_') ? (
-                <>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h2 
+                className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
+                style={{ 
+                  fontSize: 'max(18px, min(2.8vh, 2.6vw))',
+                  textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
+                  letterSpacing: '-0.02em'
+                }}
+              >
+                {brew.name}
+                {brew.batch_id.startsWith('custom_') && (
                   <button
                     onClick={() => setSyncedDataOpen(true)}
                     className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity"
@@ -152,15 +146,23 @@ function BrewCardComponent({
                   >
                     Egen #{brew.batchNumber}
                   </button>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
-                </>
-              ) : (
-                <>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
-                </>
-              )}
-            </p>
-          </div>
+                )}
+              </h2>
+              <p 
+                className="text-muted-foreground/60 truncate font-medium" 
+                style={{ fontSize: 'max(14px, min(1.6vh, 1.8vw))', letterSpacing: '0.02em' }}
+              >
+                {brew.batch_id.startsWith('custom_') ? (
+                  <>
+                    {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
+                  </>
+                ) : (
+                  <>
+                    {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
+                  </>
+                )}
+              </p>
+            </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {/* Action buttons - only visible when authenticated and not in TV mode */}
             {showInteractiveElements && (
