@@ -92,8 +92,14 @@ export function FermentationSessionCompact({
   };
 
   const stabilityDuration = calculateStabilityDuration();
-
-  // Calculate SG progress (0-1) based on how far we've fermented toward the target
+  
+  // Calculate stability progress (0-1) for visual indicator
+  const stabilityProgress = (() => {
+    if (!stabilityDuration || !currentStep?.gravity_stable_days) return null;
+    const targetHours = currentStep.gravity_stable_days * 24;
+    const currentHours = stabilityDuration.days * 24 + stabilityDuration.hours;
+    return Math.min(currentHours / targetHours, 1);
+  })();
   const sgProgress = (() => {
     if (targetSg == null || currentSg == null || originalGravity == null) return null;
     if (originalGravity <= targetSg) return null; // Invalid: OG should be higher than target
@@ -274,6 +280,19 @@ export function FermentationSessionCompact({
         />
       )}
       
+      {/* Stability progress overlay - purple gradient for wait_for_gravity_stable */}
+      {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && stabilityProgress > 0 && (
+        <div 
+          className="absolute inset-0 pointer-events-none transition-all duration-1000"
+          style={{
+            background: `linear-gradient(90deg, 
+              hsl(280 70% 50% / 0.25) 0%, 
+              hsl(280 70% 55% / 0.15) ${stabilityProgress * 100}%, 
+              transparent ${stabilityProgress * 100}%)`,
+          }}
+        />
+      )}
+      
       {/* Waiting for temp pulse overlay - disabled in TV mode */}
       {waitingForTemp && !isTvMode && (
         <div 
@@ -381,6 +400,17 @@ export function FermentationSessionCompact({
               }}
             >
               {Math.round(rampProgress * 100)}%
+            </span>
+          )}
+          {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
+            <span 
+              className="text-xs font-bold shrink-0 rounded px-1"
+              style={{ 
+                background: 'hsl(280 70% 50% / 0.2)',
+                color: 'hsl(280 70% 70%)',
+              }}
+            >
+              {Math.round(stabilityProgress * 100)}%
             </span>
           )}
         </div>
