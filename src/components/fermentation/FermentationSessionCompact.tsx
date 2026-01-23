@@ -152,6 +152,8 @@ export function FermentationSessionCompact({
         if (stabilityDuration) {
           const { days, hours, stableSince } = stabilityDuration;
           const required = step.gravity_stable_days ?? 0;
+          const totalHours = days * 24 + hours;
+          const requiredHours = required * 24;
           let sinceStr = '';
           if (stableSince) {
             const today = new Date();
@@ -162,13 +164,10 @@ export function FermentationSessionCompact({
               sinceStr = ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
             }
           }
-          if (days >= 1) {
-            return `Stabil ${days}d ${hours}h / ${required}d${sinceStr}`;
-          } else {
-            return `Stabil ${hours}h / ${required}d${sinceStr}`;
-          }
+          return `Stabil ${totalHours}h / ${requiredHours}h${sinceStr}`;
         }
-        return `Stabil i ${step.gravity_stable_days}d`;
+        const requiredHours = (step.gravity_stable_days ?? 0) * 24;
+        return `Stabil i ${requiredHours}h`;
       }
       case 'wait_for_sg':
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(4) ?? ''}`;
