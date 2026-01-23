@@ -38,6 +38,7 @@ interface PillData {
   pill_id: string;
   name: string;
   color: string;
+  last_update: string | null;
 }
 
 export function RaptControllersManagement() {
@@ -169,7 +170,7 @@ export function RaptControllersManagement() {
       // Load all pills for linking
       const { data: pillsData, error: pillsError } = await supabase
         .from('rapt_pills')
-        .select('pill_id, name, color');
+        .select('pill_id, name, color, last_update');
 
       if (pillsError) {
         console.error('Error loading pills:', pillsError);
@@ -645,56 +646,77 @@ export function RaptControllersManagement() {
                 )}
                 
                 {/* Pill linking - only show for non-cooler controllers */}
-                {!isCooler && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Pill className="h-4 w-4" />
-                        <span>Kopplad Pill:</span>
-                      </div>
-                      <Select
-                        value={controller.linked_pill_id || "none"}
-                        onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)}
-                        disabled={updating}
-                      >
-                        <SelectTrigger className="w-[180px] h-8">
-                          <SelectValue placeholder="Välj pill..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <div className="flex items-center gap-2">
-                              <Unlink className="h-3 w-3 text-muted-foreground" />
-                              <span>Ingen koppling</span>
-                            </div>
-                          </SelectItem>
-                          {pills.map((pill) => {
-                            const linkedPillIds = getLinkedPillIds(controller.controller_id);
-                            const isAlreadyLinked = linkedPillIds.includes(pill.pill_id);
-                            return (
-                              <SelectItem 
-                                key={pill.pill_id} 
-                                value={pill.pill_id}
-                                disabled={isAlreadyLinked}
-                              >
+                {!isCooler && (() => {
+                  const linkedPill = controller.linked_pill_id 
+                    ? pills.find(p => p.pill_id === controller.linked_pill_id) 
+                    : null;
+                  
+                  return (
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Pill className="h-4 w-4" />
+                            <span>Kopplad Pill:</span>
+                          </div>
+                          <Select
+                            value={controller.linked_pill_id || "none"}
+                            onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)}
+                            disabled={updating}
+                          >
+                            <SelectTrigger className="w-[180px] h-8">
+                              <SelectValue placeholder="Välj pill..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
                                 <div className="flex items-center gap-2">
-                                  <Pill className="h-3 w-3" style={{ color: pill.color }} />
-                                  <span>{pill.name}</span>
-                                  {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                  <Unlink className="h-3 w-3 text-muted-foreground" />
+                                  <span>Ingen koppling</span>
                                 </div>
                               </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      {controller.linked_pill_id && (
-                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                          <Link2 className="h-3 w-3 mr-1" />
-                          Kopplad
-                        </Badge>
-                      )}
+                              {pills.map((pill) => {
+                                const linkedPillIds = getLinkedPillIds(controller.controller_id);
+                                const isAlreadyLinked = linkedPillIds.includes(pill.pill_id);
+                                return (
+                                  <SelectItem 
+                                    key={pill.pill_id} 
+                                    value={pill.pill_id}
+                                    disabled={isAlreadyLinked}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Pill className="h-3 w-3" style={{ color: pill.color }} />
+                                      <span>{pill.name}</span>
+                                      {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {controller.linked_pill_id && (
+                            <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                              <Link2 className="h-3 w-3 mr-1" />
+                              Kopplad
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {/* Pill last update - show when linked */}
+                        {linkedPill?.last_update && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              Pill synlig {formatDistanceToNow(new Date(linkedPill.last_update), { 
+                                addSuffix: true, 
+                                locale: sv 
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 
                 {/* Temperature limits */}
                 <div className="mt-3 pt-3 border-t border-border/50">
