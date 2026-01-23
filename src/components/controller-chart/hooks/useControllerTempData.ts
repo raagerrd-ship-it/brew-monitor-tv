@@ -1,0 +1,99 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { sv } from 'date-fns/locale';
+
+export type TimeRange = '24h' | '7d';
+
+interface SampledRecord {
+  recorded_at: string;
+  current_temp: number;
+  target_temp: number;
+  cooling_enabled: boolean;
+}
+
+export interface ChartDataPoint {
+  time: string;
+  timestamp: number;
+  currentTemp: number;
+  targetTemp: number;
+}
+
+interface UseControllerTempDataProps {
+  controllerId: string;
+}
+
+interface UseControllerTempDataReturn {
+  data: ChartDataPoint[];
+  loading: boolean;
+  timeRange: TimeRange;
+  setTimeRange: (range: TimeRange) => void;
+  minTemp: number;
+  maxTemp: number;
+}
+
+export function useControllerTempData({ controllerId }: UseControllerTempDataProps): UseControllerTempDataReturn {
+  const [data, setData] = useState<ChartDataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setLoading(true);
+      
+      // Calculate time range
+      const now = new Date();
+      const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
+      const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+      
+      // Use different sample intervals: 5 min for 24h, 30 min for 7d
+      const sampleInterval = timeRange === '24h' ? 5 : 30;
+      
+      const { data: history, error } = await supabase
+        .rpc('get_temp_history_sampled', {
+          p_controller_id: controllerId,
+          p_start_time: startTime.toISOString(),
+          p_end_time: now.toISOString(),
+          p_sample_interval_minutes: sampleInterval
+        });
+
+      if (error) {
+        console.error('Error fetching temperature history:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (!history || history.length === 0) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+
+      const chartData: ChartDataPoint[] = history.map((record: SampledRecord) => ({
+        time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
+        timestamp: new Date(record.recorded_at).getTime(),
+        currentTemp: Number(record.current_temp),
+        targetTemp: Number(record.target_temp),
+      }));
+
+      setData(chartData);
+      setLoading(false);
+    };
+
+    fetchHistory();
+  }, [controllerId, timeRange]);
+
+  // Calculate min/max for Y axis with some padding
+  const temps = data.length > 0 ? data.flatMap(d => [d.currentTemp, d.targetTemp]) : [0];
+  const minTemp = Math.floor(Math.min(...temps)) - 1;
+  const maxTemp = Math.ceil(Math.max(...temps)) + 1;
+
+  return {
+    data,
+    loading,
+    timeRange,
+    setTimeRange,
+    minTemp,
+    maxTemp,
+  };
+}

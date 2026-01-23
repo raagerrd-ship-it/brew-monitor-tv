@@ -460,6 +460,9 @@ export function ActiveFermentationSession({
     return timeComplete && !tempReached;
   })();
 
+  // Detect if we're in a gravity stability check step (allows manual skip)
+  const isWaitingForGravityStable = currentStep?.step_type === 'wait_for_gravity_stable';
+
   // Compact view uses the dedicated component
   if (compact) {
     // Get SG target from current step if it's SG-conditioned
@@ -483,9 +486,10 @@ export function ActiveFermentationSession({
         targetSg={stepTargetSg}
         sgComparison={stepSgComparison}
         originalGravity={originalGravity}
-        onSkipStep={isWaitingForTemp && isAuthenticated ? handleSkipStep : undefined}
+        onSkipStep={(isWaitingForTemp || isWaitingForGravityStable) && isAuthenticated ? handleSkipStep : undefined}
         skipLoading={skipLoading}
         sgData={sgData}
+        isWaitingForGravityStable={isWaitingForGravityStable}
       />
     );
   }
