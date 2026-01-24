@@ -6,6 +6,7 @@ import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
+import { SonosSettings } from "@/components/sonos/SonosSettings";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -1332,6 +1333,18 @@ export default function Settings() {
                   )}
                 </Card>
               </div>
+            </div>
+
+            {/* Sonos Section */}
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Music}
+                title="Sonos"
+                description="Visa vad som spelas på Sonos i headern"
+              />
+              <Card className="p-4">
+                <SonosSettings />
+              </Card>
             </div>
           </TabsContent>
 

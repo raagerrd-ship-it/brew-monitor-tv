@@ -707,6 +707,102 @@ export type Database = {
         }
         Relationships: []
       }
+      sonos_now_playing: {
+        Row: {
+          album_art_url: string | null
+          album_name: string | null
+          artist_name: string | null
+          duration_ms: number | null
+          group_id: string
+          id: string
+          playback_state: string
+          position_ms: number | null
+          track_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          album_art_url?: string | null
+          album_name?: string | null
+          artist_name?: string | null
+          duration_ms?: number | null
+          group_id: string
+          id?: string
+          playback_state?: string
+          position_ms?: number | null
+          track_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          album_art_url?: string | null
+          album_name?: string | null
+          artist_name?: string | null
+          duration_ms?: number | null
+          group_id?: string
+          id?: string
+          playback_state?: string
+          position_ms?: number | null
+          track_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sonos_settings: {
+        Row: {
+          created_at: string
+          id: string
+          selected_group_id: string | null
+          selected_group_name: string | null
+          show_on_dashboard: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          selected_group_id?: string | null
+          selected_group_name?: string | null
+          show_on_dashboard?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          selected_group_id?: string | null
+          selected_group_name?: string | null
+          show_on_dashboard?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sonos_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          household_id: string | null
+          id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          household_id?: string | null
+          id?: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          household_id?: string | null
+          id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sync_settings: {
         Row: {
           auto_activate_fermenting: boolean | null

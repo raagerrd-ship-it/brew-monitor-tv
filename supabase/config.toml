@@ -45,3 +45,12 @@ verify_jwt = false
 
 [functions.sync-custom-brew-pills]
 verify_jwt = false
+
+[functions.sonos-auth]
+verify_jwt = false
+
+[functions.sonos-now-playing]
+verify_jwt = false
+
+[functions.sonos-groups]
+verify_jwt = false
