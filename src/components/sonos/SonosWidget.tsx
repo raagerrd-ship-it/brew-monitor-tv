@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
+  album_art_url: string | null;
   playback_state: string;
 }
 
@@ -154,38 +155,77 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   return (
     <div 
-      className={`flex items-center gap-2 rounded-lg overflow-hidden transition-opacity duration-300 ${
-        isMobile ? 'px-2 py-1 max-w-[180px]' : 'px-3 py-1.5'
+      className={`flex items-center gap-3 rounded-xl overflow-hidden transition-all duration-300 animate-fade-in ${
+        isMobile ? 'px-2 py-1.5 max-w-[200px]' : 'px-3 py-2'
       }`}
       style={{
-        background: 'hsl(222 20% 11%)',
-        border: '1px solid hsl(222 15% 18%)',
-        maxWidth: isMobile ? '180px' : 'min(30vw, 280px)',
+        background: 'hsl(222 20% 11% / 0.95)',
+        border: '1px solid hsl(222 15% 22%)',
+        maxWidth: isMobile ? '200px' : 'min(35vw, 320px)',
+        backdropFilter: 'blur(8px)',
       }}
     >
-      <Music 
-        className="flex-shrink-0 text-primary/70" 
-        style={{ 
-          width: isMobile ? '0.9rem' : 'min(2vh, 1rem)',
-          height: isMobile ? '0.9rem' : 'min(2vh, 1rem)',
-        }} 
-      />
-      
-      <div 
-        ref={containerRef}
-        className="overflow-hidden flex-1"
-      >
-        <div 
-          ref={textRef}
-          className={`whitespace-nowrap text-muted-foreground ${
-            shouldScroll ? 'animate-marquee' : ''
-          }`}
-          style={{
-            fontSize: isMobile ? '0.75rem' : 'min(2vh, 0.875rem)',
+      {/* Album Art or Music Icon */}
+      {nowPlaying.album_art_url ? (
+        <img 
+          src={nowPlaying.album_art_url}
+          alt="Album art"
+          className="flex-shrink-0 rounded-md object-cover"
+          style={{ 
+            width: isMobile ? '32px' : 'min(5vh, 48px)',
+            height: isMobile ? '32px' : 'min(5vh, 48px)',
           }}
+          onError={(e) => {
+            // Fallback to music icon if image fails
+            e.currentTarget.style.display = 'none';
+            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+      ) : null}
+      <div 
+        className={`flex-shrink-0 flex items-center justify-center rounded-md bg-primary/10 ${nowPlaying.album_art_url ? 'hidden' : ''}`}
+        style={{ 
+          width: isMobile ? '32px' : 'min(5vh, 48px)',
+          height: isMobile ? '32px' : 'min(5vh, 48px)',
+        }}
+      >
+        <Music 
+          className="text-primary/70" 
+          style={{ 
+            width: isMobile ? '1rem' : 'min(2.5vh, 1.25rem)',
+            height: isMobile ? '1rem' : 'min(2.5vh, 1.25rem)',
+          }} 
+        />
+      </div>
+      
+      {/* Track Info */}
+      <div className="flex flex-col min-w-0 flex-1">
+        <div 
+          ref={containerRef}
+          className="overflow-hidden"
         >
-          {displayText}
+          <div 
+            ref={textRef}
+            className={`whitespace-nowrap font-medium text-foreground ${
+              shouldScroll ? 'animate-marquee' : ''
+            }`}
+            style={{
+              fontSize: isMobile ? '0.8rem' : 'min(2vh, 0.9rem)',
+            }}
+          >
+            {nowPlaying.track_name}
+          </div>
         </div>
+        {nowPlaying.artist_name && (
+          <div 
+            className="truncate text-muted-foreground"
+            style={{
+              fontSize: isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)',
+            }}
+          >
+            {nowPlaying.artist_name}
+          </div>
+        )}
       </div>
     </div>
   );
