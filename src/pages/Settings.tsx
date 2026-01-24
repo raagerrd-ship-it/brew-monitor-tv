@@ -910,7 +910,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto max-w-4xl pb-8">
         <div className="py-4 flex items-center justify-between">
           <Button
