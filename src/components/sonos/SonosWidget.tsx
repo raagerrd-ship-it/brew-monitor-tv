@@ -226,7 +226,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const artistFontSize = isTvMode ? 'min(2.5vh, 1rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
   const progressHeight = isTvMode ? 'min(0.6vh, 5px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
   const widgetHeight = isTvMode ? 'min(14vh, 140px)' : isMobile ? '56px' : 'min(7vh, 70px)';
-  const widgetWidth = isTvMode ? 'min(32vw, 340px)' : isMobile ? '160px' : 'min(22vw, 240px)';
+  const widgetWidth = isTvMode ? 'min(26vw, 280px)' : isMobile ? '140px' : 'min(18vw, 200px)';
 
   return (
     <div 
@@ -245,7 +245,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         <img 
           src={nowPlaying.album_art_url}
           alt="Album art"
-          className="absolute inset-0 w-full h-full object-cover opacity-70"
+          className="absolute inset-0 w-full h-full object-cover opacity-80"
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -258,7 +258,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       <div 
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.3) 100%)',
+          background: 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.15) 100%)',
         }}
       />
       
