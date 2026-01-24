@@ -227,9 +227,19 @@ export function BrewingDashboard() {
   
   return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: getContainerHeight(),
-    background: 'hsl(var(--background))'
+    background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Album art full-page background disabled - causes freeze on TV/Chromecast hardware */}
+      {/* Album art background - simplified for TV performance */}
+      {isTvMode && albumArtUrl && (
+        <div 
+          className="fixed inset-0 bg-cover bg-center"
+          style={{ 
+            backgroundImage: `url(${albumArtUrl})`,
+            filter: 'blur(8px)',
+            opacity: 0.3,
+          }}
+        />
+      )}
       {/* Version indicator */}
       
 
