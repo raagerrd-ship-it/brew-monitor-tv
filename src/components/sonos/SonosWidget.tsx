@@ -107,10 +107,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Poll every 10 seconds when visible
+    // Adaptive polling: faster when idle/nothing playing, slower during playback
+    const getPollingInterval = () => {
+      // If nothing playing or paused, poll faster to detect playback start quickly
+      if (!nowPlaying || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
+        return 2000; // 2 seconds when idle - detect start quickly
+      }
+      return 5000; // 5 seconds during playback
+    };
+
     const startPolling = () => {
       if (pollIntervalRef.current) return;
-      pollIntervalRef.current = window.setInterval(fetchNowPlaying, 10000);
+      const interval = getPollingInterval();
+      console.log('[Sonos Debug] Starting polling with interval:', interval);
+      pollIntervalRef.current = window.setInterval(fetchNowPlaying, interval);
     };
 
     const stopPolling = () => {
@@ -137,7 +147,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isConnected, showWidget]);
+  }, [isConnected, showWidget, nowPlaying?.playback_state]);
 
   // Subscribe to realtime updates
   useEffect(() => {
