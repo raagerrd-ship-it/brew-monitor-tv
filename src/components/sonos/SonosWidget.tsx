@@ -27,6 +27,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const pollIntervalRef = useRef<number | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
+  const trackEndFetchedRef = useRef<boolean>(false);
+  const currentTrackRef = useRef<string | null>(null);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -62,6 +64,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
+          // Reset track end flag when track changes
+          if (response.data.track_name !== currentTrackRef.current) {
+            trackEndFetchedRef.current = false;
+            currentTrackRef.current = response.data.track_name;
+          }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
@@ -116,12 +123,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sonos_now_playing' },
         (payload) => {
-          if (payload.new) {
-            const newData = payload.new as NowPlaying;
-            setNowPlaying(newData);
-            setLocalProgress(newData.position_ms);
-            lastUpdateRef.current = Date.now();
+        if (payload.new) {
+          const newData = payload.new as NowPlaying;
+          // Reset track end flag when track changes via realtime
+          if (newData.track_name !== currentTrackRef.current) {
+            trackEndFetchedRef.current = false;
+            currentTrackRef.current = newData.track_name;
           }
+          setNowPlaying(newData);
+          setLocalProgress(newData.position_ms);
+          lastUpdateRef.current = Date.now();
+        }
         }
       )
       .subscribe();
@@ -131,8 +143,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     };
   }, [isConnected, showWidget]);
 
-  // Local progress interpolation (update every second while playing)
+  // Local progress interpolation + smart track-end detection
   useEffect(() => {
+    if (!isConnected || !showWidget) return;
     if (!nowPlaying || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -141,11 +154,37 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       return;
     }
 
+    const fetchNowPlaying = async () => {
+      try {
+        const response = await supabase.functions.invoke('sonos-now-playing');
+        if (response.data && !response.error) {
+          if (response.data.track_name !== currentTrackRef.current) {
+            trackEndFetchedRef.current = false;
+            currentTrackRef.current = response.data.track_name;
+          }
+          setNowPlaying(response.data);
+          setLocalProgress(response.data.position_ms);
+          lastUpdateRef.current = Date.now();
+        }
+      } catch (error) {
+        console.error('Failed to fetch now playing:', error);
+      }
+    };
+
     progressIntervalRef.current = window.setInterval(() => {
       setLocalProgress((prev) => {
         if (prev === null || !nowPlaying.duration_ms) return prev;
         const elapsed = Date.now() - lastUpdateRef.current;
         const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
+        const remaining = nowPlaying.duration_ms - newProgress;
+        
+        // Smart track-end detection: fetch 2 seconds before track ends
+        if (remaining <= 2000 && remaining > 0 && !trackEndFetchedRef.current) {
+          trackEndFetchedRef.current = true;
+          // Schedule fetch slightly after track should end
+          setTimeout(fetchNowPlaying, remaining + 500);
+        }
+        
         return Math.min(newProgress, nowPlaying.duration_ms);
       });
     }, 1000);
@@ -156,7 +195,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         progressIntervalRef.current = null;
       }
     };
-  }, [nowPlaying]);
+  }, [isConnected, showWidget, nowPlaying]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
