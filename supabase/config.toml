@@ -54,3 +54,6 @@ verify_jwt = false
 
 [functions.sonos-groups]
 verify_jwt = false
+
+[functions.spotify-track-info]
+verify_jwt = false

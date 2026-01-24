@@ -46,6 +46,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [currentTempo, setCurrentTempo] = useState<number | null>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -226,6 +227,9 @@ export function BrewingDashboard() {
               backgroundImage: `url(${albumArtUrl})`,
               filter: 'blur(16px) brightness(0.4)',
               transform: 'scale(1.1)',
+              animation: currentTempo 
+                ? `pulse-bg ${60 / currentTempo}s ease-in-out infinite`
+                : undefined,
             }}
           />
           <div 
@@ -337,7 +341,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} />
         </div>
       )}
 
