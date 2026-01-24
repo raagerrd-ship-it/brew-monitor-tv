@@ -230,39 +230,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   return (
     <div 
-      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in backdrop-blur-md"
+      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in"
       style={{
         width: widgetWidth,
         height: widgetHeight,
-        background: 'rgba(0, 0, 0, 0.4)',
+        background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
         boxShadow: isTvMode 
           ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
-      {/* Fallback gradient background (behind album art) */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
-      
-      {/* Album Art Background */}
-      {nowPlaying.album_art_url && (
-        <img 
-          src={nowPlaying.album_art_url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover z-10"
-        />
-      )}
-      
-      {/* Gradient Overlay for Text Readability */}
-      <div 
-        className="absolute inset-0 z-20"
-        style={{
-          background: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.1) 100%)',
-        }}
-      />
       
       {/* Content */}
       <div 
-        className={`relative z-30 h-full flex flex-col justify-center ${
+        className={`relative h-full flex flex-col justify-center ${
           isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
         }`}
       >
