@@ -57,3 +57,6 @@ verify_jwt = false
 
 [functions.spotify-track-info]
 verify_jwt = false
+
+[functions.predict-bpm]
+verify_jwt = false
