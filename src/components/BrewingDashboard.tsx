@@ -97,10 +97,10 @@ export function BrewingDashboard() {
     loadCoolerController();
   }, []);
 
-  // Check for new app versions every 60 seconds
+  // Check for new app versions every 60 seconds, clear cache on load in TV mode
   const {
     appLoadTime
-  } = useVersionCheck(60000);
+  } = useVersionCheck(60000, isTvMode);
 
   // Scroll to focused brew when URL param is present (only on mobile with carousel)
   useEffect(() => {
