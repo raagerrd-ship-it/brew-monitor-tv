@@ -56,18 +56,12 @@ export function SonosSettings() {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      const response = await supabase.functions.invoke('sonos-auth', {
-        body: null,
-      });
-
-      // Get the auth URL with action=start
-      const startResponse = await fetch(
+      const response = await fetch(
         `https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-auth?action=start`
       );
-      const data = await startResponse.json();
+      const data = await response.json();
       
       if (data.authUrl) {
-        // Redirect to Sonos OAuth
         window.location.href = data.authUrl;
       } else {
         toast.error('Kunde inte starta Sonos-koppling');
