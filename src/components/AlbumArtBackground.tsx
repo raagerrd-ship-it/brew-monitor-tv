@@ -57,26 +57,30 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   const isVeryHighTempo = tempoValue > 140;
   const isDiscoTempo = tempoValue > 160;
   
-  // Dynamic scale - VERY pronounced for disco effect
-  const baseScale = 1.0;
-  const scaleIntensity = isDiscoTempo ? 0.35 : isVeryHighTempo ? 0.28 : isHighTempo ? 0.22 : 0.15;
+  // Dynamic scale - VERY pronounced for maximum room visibility
+  const baseScale = 1.05;
+  const scaleIntensity = isDiscoTempo ? 0.50 : isVeryHighTempo ? 0.40 : isHighTempo ? 0.32 : 0.25;
   const peakScale = baseScale + (energyValue * scaleIntensity);
   
-  // Brightness - disco mode gets much brighter flashes
-  const baseBrightness = 0.15;
-  const peakBrightness = isDiscoTempo ? 0.9 : isVeryHighTempo ? 0.8 : 0.65 + (energyValue * 0.25);
+  // Brightness - MUCH brighter flashes to light up the room
+  const baseBrightness = 0.25;
+  const peakBrightness = isDiscoTempo ? 1.4 : isVeryHighTempo ? 1.2 : 1.0 + (energyValue * 0.3);
   
-  // Blur - sharper at peak for disco effect
-  const baseBlur = 30;
-  const peakBlur = isDiscoTempo ? 2 : isVeryHighTempo ? 4 : 8 - (energyValue * 6);
+  // Blur - very sharp at peak for maximum impact
+  const baseBlur = 20;
+  const peakBlur = isDiscoTempo ? 0 : isVeryHighTempo ? 1 : 3 - (energyValue * 2);
   
-  // Opacity - more dramatic swings for disco
-  const baseOpacity = 0.3;
-  const peakOpacity = isDiscoTempo ? 1.0 : 0.9 + (energyValue * 0.1);
+  // Opacity - always high for visibility
+  const baseOpacity = 0.5;
+  const peakOpacity = 1.0;
   
-  // Saturation boost for disco effect
-  const baseSaturation = 1.0;
-  const peakSaturation = isDiscoTempo ? 1.8 : isVeryHighTempo ? 1.5 : 1.2;
+  // Saturation boost - vivid colors
+  const baseSaturation = 1.2;
+  const peakSaturation = isDiscoTempo ? 2.2 : isVeryHighTempo ? 1.9 : 1.6;
+  
+  // Contrast boost for punch
+  const baseContrast = 1.0;
+  const peakContrast = isDiscoTempo ? 1.4 : isVeryHighTempo ? 1.3 : 1.2;
 
   // Disco heartbeat easing - sharp attack, quick release for strobe-like effect
   const discoHeartbeatEase = useCallback((t: number, intensity: number): number => {
@@ -141,34 +145,43 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   const currentBlur = baseBlur - (baseBlur - peakBlur) * pulsePhase;
   const currentOpacity = baseOpacity + (peakOpacity - baseOpacity) * pulsePhase;
   const currentSaturation = baseSaturation + (peakSaturation - baseSaturation) * pulsePhase;
+  const currentContrast = baseContrast + (peakContrast - baseContrast) * pulsePhase;
   
   // Hue rotation for disco effect (only apply at high tempo)
-  const currentHueRotate = isHighTempo ? hueShift * pulsePhase * 0.5 : 0;
+  const currentHueRotate = isHighTempo ? hueShift * pulsePhase * 0.6 : 0;
 
   return (
     <>
-      {/* Main visible background with disco effects */}
+      {/* Main visible background with enhanced disco effects */}
       <div 
         className="fixed inset-0 bg-cover bg-center transition-[background-image] duration-300"
         style={{ 
           backgroundImage: `url(${currentImageUrl})`,
-          filter: `blur(${currentBlur}px) brightness(${currentBrightness}) saturate(${currentSaturation}) hue-rotate(${currentHueRotate}deg)`,
+          filter: `blur(${currentBlur}px) brightness(${currentBrightness}) saturate(${currentSaturation}) contrast(${currentContrast}) hue-rotate(${currentHueRotate}deg)`,
           transform: `scale(${currentScale})`,
           opacity: currentOpacity,
           willChange: 'transform, filter, opacity',
         }}
       />
       
-      {/* Color overlay for disco effect at high tempo */}
-      {isHighTempo && (
-        <div 
-          className="fixed inset-0 pointer-events-none mix-blend-overlay"
-          style={{ 
-            background: `radial-gradient(circle at 50% 50%, hsla(${hueShift}, 80%, 50%, ${pulsePhase * 0.3}) 0%, transparent 70%)`,
-            opacity: pulsePhase * energyValue,
-          }}
-        />
-      )}
+      {/* Intense color overlay for disco effect - visible at all tempos but stronger at high */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{ 
+          background: `radial-gradient(ellipse 120% 100% at 50% 50%, hsla(${hueShift}, 90%, 55%, ${pulsePhase * (isDiscoTempo ? 0.5 : isHighTempo ? 0.35 : 0.2)}) 0%, hsla(${(hueShift + 180) % 360}, 80%, 40%, ${pulsePhase * 0.15}) 50%, transparent 80%)`,
+          mixBlendMode: 'overlay',
+        }}
+      />
+      
+      {/* Secondary glow layer for extra room presence */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{ 
+          background: `conic-gradient(from ${hueShift}deg at 50% 50%, hsla(${hueShift}, 100%, 60%, ${pulsePhase * 0.25}) 0deg, transparent 60deg, hsla(${(hueShift + 120) % 360}, 100%, 50%, ${pulsePhase * 0.2}) 120deg, transparent 180deg, hsla(${(hueShift + 240) % 360}, 100%, 55%, ${pulsePhase * 0.2}) 240deg, transparent 300deg, hsla(${hueShift}, 100%, 60%, ${pulsePhase * 0.25}) 360deg)`,
+          opacity: isHighTempo ? 1 : 0.5,
+          mixBlendMode: 'screen',
+        }}
+      />
       
       {/* Hidden preload element for next track */}
       {preloadUrl && preloadUrl !== currentImageUrl && (
@@ -181,11 +194,11 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
         />
       )}
       
-      {/* Gradient overlay - less intense during disco peaks */}
+      {/* Gradient overlay - more transparent for room visibility */}
       <div 
         className="fixed inset-0"
         style={{ 
-          background: `linear-gradient(to bottom, rgba(0,0,0,${0.25 - pulsePhase * 0.15}) 0%, rgba(0,0,0,${0.5 - pulsePhase * 0.2}) 100%)`,
+          background: `linear-gradient(to bottom, rgba(0,0,0,${0.15 - pulsePhase * 0.1}) 0%, rgba(0,0,0,${0.35 - pulsePhase * 0.2}) 100%)`,
         }}
       />
     </>
