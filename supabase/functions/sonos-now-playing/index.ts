@@ -8,6 +8,55 @@ const corsHeaders = {
 
 const SONOS_API_URL = 'https://api.ws.sonos.com/control/api/v1';
 
+// Extract Spotify track ID from Sonos URI
+function extractSpotifyTrackId(trackUri: string | undefined): string | null {
+  if (!trackUri) return null;
+  // Format: x-sonos-spotify:spotify:track:TRACKID?...
+  const match = trackUri.match(/spotify(?:%3a|:)track(?:%3a|:)([a-zA-Z0-9]+)/i);
+  return match ? match[1] : null;
+}
+
+// Get Spotify access token using client credentials
+async function getSpotifyToken(clientId: string, clientSecret: string): Promise<string | null> {
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+      },
+      body: 'grant_type=client_credentials',
+    });
+    
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch album art from Spotify
+async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    
+    if (!response.ok) return null;
+    const track = await response.json();
+    
+    // Get largest album image
+    const images = track.album?.images;
+    if (images && images.length > 0) {
+      return images[0].url; // First image is largest
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -17,6 +66,8 @@ serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const SONOS_CLIENT_ID = Deno.env.get('SONOS_CLIENT_ID');
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
+  const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID');
+  const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -181,13 +232,34 @@ serve(async (req) => {
     const container = metadata.container;
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
+    
+    // Get album art - try Spotify first if available
+    let albumArtUrl = track?.imageUrl || container?.imageUrl || null;
+    
+    // Check if it's a local Sonos URL and try to get Spotify album art instead
+    if (albumArtUrl && (albumArtUrl.includes('192.168.') || albumArtUrl.includes('getaa'))) {
+      const trackUri = track?.id?.objectId || currentItem?.id?.objectId;
+      const spotifyTrackId = extractSpotifyTrackId(trackUri);
+      
+      if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
+        console.log('Fetching Spotify album art for track:', spotifyTrackId);
+        const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
+        if (spotifyToken) {
+          const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
+          if (spotifyArt) {
+            albumArtUrl = spotifyArt;
+            console.log('Got Spotify album art:', spotifyArt);
+          }
+        }
+      }
+    }
 
     const nowPlaying = {
       group_id: groupId,
       track_name: track?.name || container?.name || null,
       artist_name: track?.artist?.name || null,
       album_name: track?.album?.name || null,
-      album_art_url: track?.imageUrl || container?.imageUrl || null,
+      album_art_url: albumArtUrl,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
