@@ -171,40 +171,63 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError, onAlbumArtChange]);
 
-  // Fetch Spotify BPM/tempo when track changes
+  // Generate pseudo-random but deterministic values from track name
+  // This creates consistent tempo/energy for each unique song
+  const generatePseudoAudioFeatures = useCallback((trackName: string, artistName: string) => {
+    const combined = `${trackName}|${artistName}`;
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+      const char = combined.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    // Generate tempo between 80-160 BPM (most music falls in this range)
+    const tempo = 80 + Math.abs(hash % 80);
+    
+    // Generate energy between 0.3-0.9 (avoid extremes)
+    const energySeed = Math.abs((hash >> 8) % 60);
+    const energy = 0.3 + (energySeed / 100);
+    
+    return { tempo, energy };
+  }, []);
+
+  // Fetch Spotify BPM/tempo when track changes, fallback to pseudo-random
   const fetchSpotifyInfo = useCallback(async (trackName: string, artistName: string) => {
     const trackKey = `${trackName}|${artistName}`;
     
     // Skip if already fetched for this track
     if (spotifyFetchedTrackRef.current === trackKey) return;
     
+    spotifyFetchedTrackRef.current = trackKey;
+    
     try {
-      spotifyFetchedTrackRef.current = trackKey;
       const response = await supabase.functions.invoke('spotify-track-info', {
         body: { trackName, artistName }
       });
       
-      if (response.data && !response.error && response.data.tempo) {
+      // Check if Spotify returned real data
+      if (response.data && !response.error && response.data.tempo && !response.data.notConfigured) {
         setSpotifyInfo({
           tempo: response.data.tempo,
           energy: response.data.energy
         });
         onTempoChange?.(response.data.tempo);
         onEnergyChange?.(response.data.energy);
-      } else {
-        setSpotifyInfo(null);
-        onTempoChange?.(null);
-        onEnergyChange?.(null);
+        return;
       }
-    } catch (error) {
-      console.error('Failed to fetch Spotify info:', error);
-      setSpotifyInfo(null);
-      onTempoChange?.(null);
-      onEnergyChange?.(null);
+    } catch {
+      // Silent fail - will use fallback
     }
-  }, [onTempoChange, onEnergyChange]);
+    
+    // Fallback: Generate pseudo-random values based on track name
+    const pseudoFeatures = generatePseudoAudioFeatures(trackName, artistName);
+    setSpotifyInfo(pseudoFeatures);
+    onTempoChange?.(pseudoFeatures.tempo);
+    onEnergyChange?.(pseudoFeatures.energy);
+  }, [onTempoChange, onEnergyChange, generatePseudoAudioFeatures]);
 
-  // Trigger Spotify fetch when track changes
+  // Trigger audio features fetch when track changes
   useEffect(() => {
     if (!nowPlaying?.track_name || !nowPlaying?.artist_name) {
       setSpotifyInfo(null);
