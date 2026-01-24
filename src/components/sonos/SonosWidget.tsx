@@ -34,6 +34,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   // Check if connected and fetch initial data
   useEffect(() => {
+    console.log('[Sonos Debug] Checking connection...');
     const checkConnection = async () => {
       try {
         const { data: settings, error: settingsError } = await (supabase as any)
@@ -41,6 +42,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           .select('show_on_dashboard, selected_group_id')
           .limit(1)
           .maybeSingle();
+
+        console.log('[Sonos Debug] Settings loaded:', settings?.selected_group_id ? 'connected' : 'not connected');
 
         if (settingsError || !settings?.selected_group_id) {
           setIsConnected(false);
@@ -50,7 +53,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
       } catch (error) {
-        console.error('Failed to check Sonos connection:', error);
+        console.error('[Sonos Debug] Failed to check Sonos connection:', error);
         setIsConnected(false);
       }
     };
@@ -61,10 +64,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   // Poll for now playing data
   useEffect(() => {
     if (!isConnected || !showWidget) return;
+    console.log('[Sonos Debug] Starting polling...');
 
     const fetchNowPlaying = async () => {
+      console.log('[Sonos Debug] Fetching now playing...');
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
+        console.log('[Sonos Debug] Got response:', response.data?.track_name || 'no track');
         if (response.data && !response.error) {
           // Reset track end flag when track changes
           if (response.data.track_name !== currentTrackRef.current) {
@@ -79,7 +85,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           lastUpdateRef.current = Date.now();
         }
       } catch (error) {
-        console.error('Failed to fetch now playing:', error);
+        console.error('[Sonos Debug] Failed to fetch now playing:', error);
       }
     };
 
@@ -156,11 +162,18 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   onAlbumArtChangeRef.current = onAlbumArtChange;
 
   useEffect(() => {
+    console.log('[Sonos Debug] Album art effect:', { 
+      url: nowPlaying?.album_art_url ? 'exists' : 'null', 
+      imageLoaded, 
+      imageError 
+    });
     const callback = onAlbumArtChangeRef.current;
     if (callback) {
       if (nowPlaying?.album_art_url && imageLoaded && !imageError) {
+        console.log('[Sonos Debug] Notifying parent: album art loaded');
         callback(nowPlaying.album_art_url);
       } else {
+        console.log('[Sonos Debug] Notifying parent: no album art');
         callback(null);
       }
     }
@@ -309,7 +322,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           <div 
             ref={textRef}
             className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
-              shouldScroll ? 'animate-marquee' : ''
+              shouldScroll && !isTvMode ? 'animate-marquee' : ''
             }`}
             style={{ fontSize: trackFontSize }}
           >
