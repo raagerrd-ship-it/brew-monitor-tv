@@ -6,6 +6,8 @@ interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
   album_art_url: string | null;
+  duration_ms: number | null;
+  position_ms: number | null;
   playback_state: string;
 }
 
@@ -18,10 +20,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [localProgress, setLocalProgress] = useState<number | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
   const pollIntervalRef = useRef<number | null>(null);
+  const progressIntervalRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef<number>(Date.now());
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -66,6 +71,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
           setNowPlaying(response.data);
+          setLocalProgress(response.data.position_ms);
+          lastUpdateRef.current = Date.now();
         }
       } catch (error) {
         console.error('Failed to fetch now playing:', error);
@@ -118,7 +125,10 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         { event: '*', schema: 'public', table: 'sonos_now_playing' },
         (payload) => {
           if (payload.new) {
-            setNowPlaying(payload.new as NowPlaying);
+            const newData = payload.new as NowPlaying;
+            setNowPlaying(newData);
+            setLocalProgress(newData.position_ms);
+            lastUpdateRef.current = Date.now();
           }
         }
       )
@@ -128,6 +138,33 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       supabase.removeChannel(channel);
     };
   }, [isConnected, showWidget]);
+
+  // Local progress interpolation (update every second while playing)
+  useEffect(() => {
+    if (!nowPlaying || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      return;
+    }
+
+    progressIntervalRef.current = window.setInterval(() => {
+      setLocalProgress((prev) => {
+        if (prev === null || !nowPlaying.duration_ms) return prev;
+        const elapsed = Date.now() - lastUpdateRef.current;
+        const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
+        return Math.min(newProgress, nowPlaying.duration_ms);
+      });
+    }, 1000);
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [nowPlaying]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
@@ -149,9 +186,10 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   if (!nowPlaying?.track_name) return null;
   if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
 
-  const displayText = nowPlaying.artist_name 
-    ? `${nowPlaying.track_name} • ${nowPlaying.artist_name}`
-    : nowPlaying.track_name;
+  // Calculate progress percentage
+  const progressPercent = (localProgress && nowPlaying.duration_ms) 
+    ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
+    : 0;
 
   return (
     <div 
@@ -224,6 +262,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }}
           >
             {nowPlaying.artist_name}
+          </div>
+        )}
+        
+        {/* Progress Bar */}
+        {nowPlaying.duration_ms && (
+          <div 
+            className="w-full mt-1.5 rounded-full overflow-hidden"
+            style={{
+              height: isMobile ? '2px' : 'min(0.4vh, 3px)',
+              background: 'hsl(222 15% 25%)',
+            }}
+          >
+            <div 
+              className="h-full rounded-full transition-[width] duration-1000 ease-linear"
+              style={{
+                width: `${progressPercent}%`,
+                background: 'hsl(var(--primary))',
+              }}
+            />
           </div>
         )}
       </div>
