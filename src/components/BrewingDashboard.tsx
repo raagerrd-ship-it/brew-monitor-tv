@@ -232,9 +232,10 @@ export function BrewingDashboard() {
       {/* Album art background - simplified for TV performance */}
       {isTvMode && albumArtUrl && (
         <div 
-          className="fixed inset-0 bg-cover bg-center"
+          className="fixed inset-0 bg-cover"
           style={{ 
             backgroundImage: `url(${albumArtUrl})`,
+            backgroundPosition: 'center center',
             filter: 'blur(8px)',
             opacity: 0.3,
           }}
