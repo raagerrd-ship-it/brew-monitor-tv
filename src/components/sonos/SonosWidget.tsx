@@ -13,13 +13,16 @@ interface NowPlaying {
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
+  onAlbumArtChange?: (url: string | null) => void;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [localProgress, setLocalProgress] = useState<number | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -67,6 +70,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           if (response.data.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
             currentTrackRef.current = response.data.track_name;
+            // Reset image state for new track
+            setImageLoaded(false);
+            setImageError(false);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
@@ -128,6 +134,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           if (newData.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
             currentTrackRef.current = newData.track_name;
+            // Reset image state for new track
+            setImageLoaded(false);
+            setImageError(false);
           }
           setNowPlaying(newData);
           setLocalProgress(newData.position_ms);
@@ -141,6 +150,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       supabase.removeChannel(channel);
     };
   }, [isConnected, showWidget]);
+
+  // Notify parent about album art changes
+  useEffect(() => {
+    if (onAlbumArtChange) {
+      if (nowPlaying?.album_art_url && imageLoaded && !imageError) {
+        onAlbumArtChange(nowPlaying.album_art_url);
+      } else {
+        onAlbumArtChange(null);
+      }
+    }
+  }, [nowPlaying?.album_art_url, imageLoaded, imageError, onAlbumArtChange]);
 
   // Local progress interpolation + smart track-end detection
   useEffect(() => {
@@ -160,6 +180,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           if (response.data.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
             currentTrackRef.current = response.data.track_name;
+            setImageLoaded(false);
+            setImageError(false);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
@@ -228,18 +250,47 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const widgetHeight = isTvMode ? 'min(14vh, 140px)' : isMobile ? '56px' : 'min(7vh, 70px)';
   const widgetWidth = isTvMode ? 'min(26vw, 280px)' : isMobile ? '140px' : 'min(18vw, 200px)';
 
+  const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
+
   return (
     <div 
       className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in"
       style={{
         width: widgetWidth,
         height: widgetHeight,
-        background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
         boxShadow: isTvMode 
           ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
+      {/* Fallback gradient background */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
+        }}
+      />
+
+      {/* Album art background */}
+      {nowPlaying.album_art_url && !imageError && (
+        <img
+          src={nowPlaying.album_art_url}
+          alt=""
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+        />
+      )}
+
+      {/* Dark overlay for readability */}
+      {hasAlbumArt && (
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)',
+          }}
+        />
+      )}
       
       {/* Content */}
       <div 
