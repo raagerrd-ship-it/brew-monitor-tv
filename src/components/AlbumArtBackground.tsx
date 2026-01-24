@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, useCallback } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 interface AlbumArtBackgroundProps {
   albumArtUrl: string;
@@ -13,14 +13,21 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   energy,
   preloadUrl
 }: AlbumArtBackgroundProps) {
-  const [pulsePhase, setPulsePhase] = useState(0);
+  const [isFlashing, setIsFlashing] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState(albumArtUrl);
-  const [hueShift, setHueShift] = useState(0);
-  const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const [colorIndex, setColorIndex] = useState(0);
+  const beatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const preloadedImagesRef = useRef<Set<string>>(new Set());
-  const beatCountRef = useRef<number>(0);
-  const lastUpdateRef = useRef<number>(0);
+
+  // Disco color palette - bold colors that pop
+  const discoColors = [
+    'hsl(320, 80%, 50%)', // Magenta
+    'hsl(200, 90%, 50%)', // Cyan
+    'hsl(45, 95%, 55%)',  // Gold
+    'hsl(280, 75%, 55%)', // Purple
+    'hsl(140, 70%, 45%)', // Green
+    'hsl(15, 90%, 55%)',  // Orange
+  ];
 
   // Preload next track's album art
   useEffect(() => {
@@ -33,7 +40,7 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
     }
   }, [preloadUrl]);
 
-  // Smooth transition when album art changes
+  // Update image when album art changes
   useEffect(() => {
     if (albumArtUrl !== currentImageUrl) {
       if (preloadedImagesRef.current.has(albumArtUrl)) {
@@ -49,102 +56,72 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
     }
   }, [albumArtUrl, currentImageUrl]);
 
-  const energyValue = energy ?? 0.5;
   const tempoValue = tempo ?? 100;
+  const energyValue = energy ?? 0.5;
   
   const isHighTempo = tempoValue > 120;
-  const isVeryHighTempo = tempoValue > 140;
-  const isDiscoTempo = tempoValue > 160;
-  
-  // Chromecast-optimized values - dramatic but lightweight
-  // Using opacity and a simple color overlay instead of expensive filters
-  const baseOpacity = 0.5;
-  const peakOpacity = 1.0;
-  
-  // Scale is relatively cheap on GPU
-  const baseScale = 1.02;
-  const peakScale = isDiscoTempo ? 1.25 : isVeryHighTempo ? 1.18 : isHighTempo ? 1.12 : 1.08;
+  const isDiscoTempo = tempoValue > 150;
 
-  const discoHeartbeatEase = useCallback((t: number): number => {
-    const attackDuration = isDiscoTempo ? 0.08 : isVeryHighTempo ? 0.1 : 0.15;
-    
-    if (t < attackDuration) {
-      return Math.pow(t / attackDuration, 0.5);
-    } else {
-      const decayT = (t - attackDuration) / (1 - attackDuration);
-      const decayPower = isDiscoTempo ? 3 : isVeryHighTempo ? 2.5 : 2;
-      return Math.pow(1 - decayT, decayPower);
-    }
-  }, [isDiscoTempo, isVeryHighTempo]);
-
-  // Animation loop - throttled to ~20fps for Chromecast
+  // Simple interval-based beat flash - works great at low fps
   useEffect(() => {
     if (!tempo || tempo <= 0) {
-      setPulsePhase(0);
+      setIsFlashing(false);
       return;
     }
 
-    const beatDuration = (60 / tempo) * 1000;
-    startTimeRef.current = performance.now();
-    const frameInterval = 50; // ~20fps for Chromecast performance
+    // Flash duration: brief flash on each beat
+    const beatMs = (60 / tempo) * 1000;
+    const flashDuration = Math.min(beatMs * 0.3, 150); // Flash for 30% of beat or max 150ms
 
-    const animate = (currentTime: number) => {
-      if (currentTime - lastUpdateRef.current < frameInterval) {
-        animationRef.current = requestAnimationFrame(animate);
-        return;
-      }
-      lastUpdateRef.current = currentTime;
-
-      const elapsed = currentTime - startTimeRef.current;
-      const beatNumber = Math.floor(elapsed / beatDuration);
-      const rawPhase = (elapsed % beatDuration) / beatDuration;
+    const triggerFlash = () => {
+      setIsFlashing(true);
+      setColorIndex(prev => (prev + 1) % discoColors.length);
       
-      const phase = discoHeartbeatEase(rawPhase);
-      setPulsePhase(phase);
-      
-      if (beatNumber !== beatCountRef.current) {
-        beatCountRef.current = beatNumber;
-        const hueStep = isDiscoTempo ? 60 : isVeryHighTempo ? 45 : 30;
-        setHueShift(prev => (prev + hueStep) % 360);
-      }
-      
-      animationRef.current = requestAnimationFrame(animate);
+      setTimeout(() => {
+        setIsFlashing(false);
+      }, flashDuration);
     };
 
-    animationRef.current = requestAnimationFrame(animate);
+    // Initial flash
+    triggerFlash();
+    
+    // Set up interval for beats
+    beatIntervalRef.current = setInterval(triggerFlash, beatMs);
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (beatIntervalRef.current) {
+        clearInterval(beatIntervalRef.current);
       }
     };
-  }, [tempo, discoHeartbeatEase, isDiscoTempo, isVeryHighTempo]);
+  }, [tempo, discoColors.length]);
 
-  const currentScale = baseScale + (peakScale - baseScale) * pulsePhase;
-  const currentOpacity = baseOpacity + (peakOpacity - baseOpacity) * pulsePhase;
-  
-  // Color overlay intensity based on pulse
-  const overlayOpacity = pulsePhase * (isDiscoTempo ? 0.6 : isHighTempo ? 0.4 : 0.25);
+  // Discrete states - no interpolation needed, works at any fps
+  const scale = isFlashing ? (isDiscoTempo ? 1.15 : isHighTempo ? 1.1 : 1.06) : 1.0;
+  const imageOpacity = isFlashing ? 1.0 : 0.6;
+  const overlayOpacity = isFlashing ? (isDiscoTempo ? 0.5 : isHighTempo ? 0.35 : 0.2) : 0;
 
   return (
     <>
-      {/* Main background - NO expensive filters, just scale + opacity */}
+      {/* Album art background - discrete scale states */}
       <div 
         className="fixed inset-0 bg-cover bg-center"
         style={{ 
           backgroundImage: `url(${currentImageUrl})`,
-          transform: `scale(${currentScale})`,
-          opacity: currentOpacity,
+          transform: `scale(${scale})`,
+          opacity: imageOpacity,
+          // CSS transition handles smoothing even at low fps
+          transition: isFlashing ? 'none' : 'transform 200ms ease-out, opacity 200ms ease-out',
         }}
       />
       
-      {/* Color flash overlay - simple solid color, very cheap to render */}
+      {/* Color flash overlay - instant on, fade out */}
       <div 
         className="fixed inset-0 pointer-events-none"
         style={{ 
-          backgroundColor: `hsl(${hueShift}, 70%, 50%)`,
+          backgroundColor: discoColors[colorIndex],
           opacity: overlayOpacity,
           mixBlendMode: 'overlay',
+          transition: isFlashing ? 'none' : 'opacity 300ms ease-out',
         }}
       />
       
@@ -157,12 +134,12 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
         />
       )}
       
-      {/* Simple dark gradient for readability */}
+      {/* Dark overlay for readability - less dark when flashing */}
       <div 
-        className="fixed inset-0 pointer-events-none"
+        className="fixed inset-0 pointer-events-none bg-black"
         style={{ 
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%)',
-          opacity: 1 - (pulsePhase * 0.3),
+          opacity: isFlashing ? 0.1 : 0.35,
+          transition: isFlashing ? 'none' : 'opacity 200ms ease-out',
         }}
       />
     </>
