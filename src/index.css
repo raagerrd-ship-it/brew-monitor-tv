@@ -28,15 +28,15 @@
   animation: marquee 8s linear infinite;
 }
 
-/* BPM-synced pulse animation for background */
+/* BPM-synced pulse animation for background - uses CSS custom properties for dynamic intensity */
 @keyframes pulse-bg {
   0%, 100% {
     transform: scale(1.1);
     filter: blur(16px) brightness(0.4);
   }
   50% {
-    transform: scale(1.15);
-    filter: blur(18px) brightness(0.45);
+    transform: scale(var(--pulse-scale, 1.15));
+    filter: blur(var(--pulse-blur, 18px)) brightness(var(--pulse-brightness, 0.45));
   }
 }
 

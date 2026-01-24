@@ -20,9 +20,10 @@ interface SonosWidgetProps {
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
   onTempoChange?: (tempo: number | null) => void;
+  onEnergyChange?: (energy: number | null) => void;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange, onEnergyChange }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -189,27 +190,31 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           energy: response.data.energy
         });
         onTempoChange?.(response.data.tempo);
+        onEnergyChange?.(response.data.energy);
       } else {
         setSpotifyInfo(null);
         onTempoChange?.(null);
+        onEnergyChange?.(null);
       }
     } catch (error) {
       console.error('Failed to fetch Spotify info:', error);
       setSpotifyInfo(null);
       onTempoChange?.(null);
+      onEnergyChange?.(null);
     }
-  }, [onTempoChange]);
+  }, [onTempoChange, onEnergyChange]);
 
   // Trigger Spotify fetch when track changes
   useEffect(() => {
     if (!nowPlaying?.track_name || !nowPlaying?.artist_name) {
       setSpotifyInfo(null);
       onTempoChange?.(null);
+      onEnergyChange?.(null);
       return;
     }
     
     fetchSpotifyInfo(nowPlaying.track_name, nowPlaying.artist_name);
-  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchSpotifyInfo, onTempoChange]);
+  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchSpotifyInfo, onTempoChange, onEnergyChange]);
 
   // Local progress interpolation + smart track-end detection
   useEffect(() => {

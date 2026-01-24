@@ -47,6 +47,7 @@ export function BrewingDashboard() {
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [currentTempo, setCurrentTempo] = useState<number | null>(null);
+  const [currentEnergy, setCurrentEnergy] = useState<number | null>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -230,6 +231,17 @@ export function BrewingDashboard() {
               animation: currentTempo 
                 ? `pulse-bg ${60 / currentTempo}s ease-in-out infinite`
                 : undefined,
+              // Dynamic intensity based on energy (0-1 scale)
+              // CSS custom properties for animation keyframes
+              ['--pulse-scale' as string]: currentEnergy 
+                ? `${1.1 + (currentEnergy * 0.1)}` // 1.1 to 1.2 based on energy
+                : '1.15',
+              ['--pulse-brightness' as string]: currentEnergy 
+                ? `${0.4 + (currentEnergy * 0.15)}` // 0.4 to 0.55 based on energy
+                : '0.45',
+              ['--pulse-blur' as string]: currentEnergy 
+                ? `${16 + (currentEnergy * 6)}px` // 16px to 22px based on energy
+                : '18px',
             }}
           />
           <div 
@@ -341,7 +353,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} onEnergyChange={setCurrentEnergy} />
         </div>
       )}
 
