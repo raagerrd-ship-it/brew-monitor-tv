@@ -203,16 +203,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
 
+  // Store nowPlaying in ref to avoid dependency issues
+  const nowPlayingRef = useRef(nowPlaying);
+  nowPlayingRef.current = nowPlaying;
+
   // Local progress interpolation + smart track-end detection
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    if (!nowPlaying || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      return;
-    }
 
     const fetchNowPlaying = async () => {
       try {
@@ -233,22 +230,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     };
 
-    // Pre-load next track's data 10 seconds before track ends for more buffer time
+    // Pre-load next track's data
     const preloadNextTrack = async () => {
+      const current = nowPlayingRef.current;
+      if (!current) return;
+      
       console.log('[Sonos Debug] Pre-loading next track data...');
       try {
         const response = await supabase.functions.invoke('sonos-now-playing', {
           body: { peek_next: true }
         });
-        // Store full next track data
-        if (response.data?.track_name && response.data.track_name !== nowPlaying.track_name) {
+        if (response.data?.track_name && response.data.track_name !== current.track_name) {
           preloadedDataRef.current = response.data;
-          // Preload the image with callback to track completion
           if (response.data.album_art_url) {
             const img = new Image();
-            img.onload = () => {
-              console.log('[Sonos Debug] Pre-loaded image ready!');
-            };
+            img.onload = () => console.log('[Sonos Debug] Pre-loaded image ready!');
             img.src = response.data.album_art_url;
             preloadedImageRef.current = img;
           }
@@ -266,39 +262,31 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const preloadedData = preloadedDataRef.current;
         currentTrackRef.current = preloadedData.track_name;
         
-        // Start crossfade: save current art as previous
         if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
           setPreviousAlbumArt(currentAlbumArtRef.current);
           setShowPreviousArt(true);
         }
         currentAlbumArtRef.current = preloadedData.album_art_url;
         
-        // If image is pre-loaded, mark as loaded immediately to prevent flash
         const imageIsReady = preloadedImageRef.current?.complete && preloadedImageRef.current?.naturalWidth > 0;
         if (imageIsReady) {
-          console.log('[Sonos Debug] Image already cached, setting loaded immediately');
           setImageLoaded(true);
           setImageError(false);
-          // Fade out previous after a short delay
           setTimeout(() => setShowPreviousArt(false), 800);
         } else {
-          console.log('[Sonos Debug] Image not ready yet, will load on display');
           setImageLoaded(false);
           setImageError(false);
         }
         
-        // Update state synchronously
         setNowPlaying(preloadedData);
         setLocalProgress(preloadedData.position_ms ?? 0);
         lastUpdateRef.current = Date.now();
         
-        // Keep refs for the image onLoad handler to use, clear after short delay
         setTimeout(() => {
           preloadedDataRef.current = null;
           preloadedImageRef.current = null;
         }, 100);
         
-        // Still fetch to verify/update, but don't block UI
         setTimeout(fetchNowPlaying, 1500);
         return true;
       }
@@ -306,28 +294,27 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     };
 
     progressIntervalRef.current = window.setInterval(() => {
+      const current = nowPlayingRef.current;
+      if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
+      
       setLocalProgress((prev) => {
-        if (prev === null || !nowPlaying.duration_ms) return prev;
+        if (prev === null || !current.duration_ms) return prev;
         const elapsed = Date.now() - lastUpdateRef.current;
-        const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
-        const remaining = nowPlaying.duration_ms - newProgress;
+        const newProgress = (current.position_ms ?? 0) + elapsed;
+        const remaining = current.duration_ms - newProgress;
         
-        // Pre-load next track's data 10 seconds before track ends for more buffer time
         if (remaining <= 10000 && remaining > 9000 && !trackEndFetchedRef.current) {
           preloadNextTrack();
         }
         
-        // When track ends, immediately apply pre-loaded data
         if (remaining <= 500 && remaining > -500 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
-          // Try to apply preloaded data immediately
           if (!applyPreloadedData()) {
-            // Fallback: fetch if no preloaded data
             fetchNowPlaying();
           }
         }
         
-        return Math.min(newProgress, nowPlaying.duration_ms);
+        return Math.min(newProgress, current.duration_ms);
       });
     }, 1000);
 
@@ -337,7 +324,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         progressIntervalRef.current = null;
       }
     };
-  }, [isConnected, showWidget, nowPlaying]);
+  }, [isConnected, showWidget]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
