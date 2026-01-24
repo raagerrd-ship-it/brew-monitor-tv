@@ -56,23 +56,14 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   const isVeryHighTempo = tempoValue > 140;
   const isDiscoTempo = tempoValue > 160;
   
-  // Dramatic but optimized values
-  const baseScale = 1.05;
-  const scaleIntensity = isDiscoTempo ? 0.45 : isVeryHighTempo ? 0.35 : isHighTempo ? 0.28 : 0.20;
-  const peakScale = baseScale + (energyValue * scaleIntensity);
-  
-  const baseBrightness = 0.3;
-  const peakBrightness = isDiscoTempo ? 1.3 : isVeryHighTempo ? 1.15 : 1.0;
-  
-  // Less blur variation = less GPU work
-  const baseBlur = 15;
-  const peakBlur = isDiscoTempo ? 2 : isVeryHighTempo ? 4 : 6;
-  
-  const baseOpacity = 0.6;
+  // Chromecast-optimized values - dramatic but lightweight
+  // Using opacity and a simple color overlay instead of expensive filters
+  const baseOpacity = 0.5;
   const peakOpacity = 1.0;
   
-  const baseSaturation = 1.3;
-  const peakSaturation = isDiscoTempo ? 2.0 : isVeryHighTempo ? 1.8 : 1.5;
+  // Scale is relatively cheap on GPU
+  const baseScale = 1.02;
+  const peakScale = isDiscoTempo ? 1.25 : isVeryHighTempo ? 1.18 : isHighTempo ? 1.12 : 1.08;
 
   const discoHeartbeatEase = useCallback((t: number): number => {
     const attackDuration = isDiscoTempo ? 0.08 : isVeryHighTempo ? 0.1 : 0.15;
@@ -86,7 +77,7 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
     }
   }, [isDiscoTempo, isVeryHighTempo]);
 
-  // Optimized animation loop - throttle to ~30fps for performance
+  // Animation loop - throttled to ~20fps for Chromecast
   useEffect(() => {
     if (!tempo || tempo <= 0) {
       setPulsePhase(0);
@@ -95,10 +86,9 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
 
     const beatDuration = (60 / tempo) * 1000;
     startTimeRef.current = performance.now();
-    const frameInterval = 33; // ~30fps instead of 60fps
+    const frameInterval = 50; // ~20fps for Chromecast performance
 
     const animate = (currentTime: number) => {
-      // Throttle updates
       if (currentTime - lastUpdateRef.current < frameInterval) {
         animationRef.current = requestAnimationFrame(animate);
         return;
@@ -114,7 +104,7 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
       
       if (beatNumber !== beatCountRef.current) {
         beatCountRef.current = beatNumber;
-        const hueStep = isDiscoTempo ? 45 : isVeryHighTempo ? 35 : 25;
+        const hueStep = isDiscoTempo ? 60 : isVeryHighTempo ? 45 : 30;
         setHueShift(prev => (prev + hueStep) % 360);
       }
       
@@ -131,36 +121,32 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   }, [tempo, discoHeartbeatEase, isDiscoTempo, isVeryHighTempo]);
 
   const currentScale = baseScale + (peakScale - baseScale) * pulsePhase;
-  const currentBrightness = baseBrightness + (peakBrightness - baseBrightness) * pulsePhase;
-  const currentBlur = baseBlur - (baseBlur - peakBlur) * pulsePhase;
   const currentOpacity = baseOpacity + (peakOpacity - baseOpacity) * pulsePhase;
-  const currentSaturation = baseSaturation + (peakSaturation - baseSaturation) * pulsePhase;
-  const currentHueRotate = isHighTempo ? hueShift * pulsePhase * 0.5 : 0;
+  
+  // Color overlay intensity based on pulse
+  const overlayOpacity = pulsePhase * (isDiscoTempo ? 0.6 : isHighTempo ? 0.4 : 0.25);
 
   return (
     <>
-      {/* Main background - simplified filter for performance */}
+      {/* Main background - NO expensive filters, just scale + opacity */}
       <div 
-        className="fixed inset-0 bg-cover bg-center transition-[background-image] duration-300"
+        className="fixed inset-0 bg-cover bg-center"
         style={{ 
           backgroundImage: `url(${currentImageUrl})`,
-          filter: `blur(${currentBlur}px) brightness(${currentBrightness}) saturate(${currentSaturation}) hue-rotate(${currentHueRotate}deg)`,
           transform: `scale(${currentScale})`,
           opacity: currentOpacity,
-          willChange: 'transform, opacity',
         }}
       />
       
-      {/* Single color overlay - simpler gradient for performance */}
-      {isHighTempo && (
-        <div 
-          className="fixed inset-0 pointer-events-none"
-          style={{ 
-            background: `radial-gradient(circle at 50% 50%, hsla(${hueShift}, 85%, 50%, ${pulsePhase * 0.4}) 0%, transparent 60%)`,
-            mixBlendMode: 'overlay',
-          }}
-        />
-      )}
+      {/* Color flash overlay - simple solid color, very cheap to render */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{ 
+          backgroundColor: `hsl(${hueShift}, 70%, 50%)`,
+          opacity: overlayOpacity,
+          mixBlendMode: 'overlay',
+        }}
+      />
       
       {/* Preload element */}
       {preloadUrl && preloadUrl !== currentImageUrl && (
@@ -171,11 +157,12 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
         />
       )}
       
-      {/* Minimal gradient overlay */}
+      {/* Simple dark gradient for readability */}
       <div 
         className="fixed inset-0 pointer-events-none"
         style={{ 
-          background: `linear-gradient(to bottom, rgba(0,0,0,${0.1 - pulsePhase * 0.05}) 0%, rgba(0,0,0,${0.25 - pulsePhase * 0.1}) 100%)`,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%)',
+          opacity: 1 - (pulsePhase * 0.3),
         }}
       />
     </>
