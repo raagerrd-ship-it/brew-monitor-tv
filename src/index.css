@@ -28,19 +28,7 @@
   animation: marquee 8s linear infinite;
 }
 
-/* BPM-synced pulse animation for background - uses CSS custom properties for dynamic intensity */
-@keyframes pulse-bg {
-  0%, 100% {
-    transform: scale(1.08);
-    filter: blur(24px) brightness(0.25);
-    opacity: var(--pulse-opacity-low, 0.5);
-  }
-  50% {
-    transform: scale(var(--pulse-scale, 1.18));
-    filter: blur(var(--pulse-blur, 10px)) brightness(var(--pulse-brightness, 0.6));
-    opacity: var(--pulse-opacity-high, 0.92);
-  }
-}
+/* BPM-synced pulse animation - now handled via JavaScript in AlbumArtBackground.tsx */
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.

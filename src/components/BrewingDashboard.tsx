@@ -6,6 +6,7 @@ import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
+import { AlbumArtBackground } from "./AlbumArtBackground";
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
@@ -221,43 +222,11 @@ export function BrewingDashboard() {
   }}>
       {/* Album art full-page background - TV mode only */}
       {isTvMode && albumArtUrl && (
-        <>
-          <div 
-            className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
-            style={{ 
-              backgroundImage: `url(${albumArtUrl})`,
-              filter: 'blur(24px) brightness(0.25)',
-              transform: 'scale(1.1)',
-              opacity: 0.5,
-              animation: currentTempo 
-                ? `pulse-bg ${60 / currentTempo}s ease-in-out infinite`
-                : undefined,
-              // Dynamic intensity based on energy (0-1 scale)
-              // More dramatic: bigger difference between low and high states
-              ['--pulse-scale' as string]: currentEnergy 
-                ? `${1.08 + (currentEnergy * 0.18)}` // 1.08 to 1.26 based on energy
-                : '1.18',
-              ['--pulse-brightness' as string]: currentEnergy 
-                ? `${0.45 + (currentEnergy * 0.35)}` // 0.45 to 0.80 - much brighter at peak
-                : '0.6',
-              ['--pulse-blur' as string]: currentEnergy 
-                ? `${20 - (currentEnergy * 14)}px` // 20px to 6px - much sharper at peak
-                : '10px',
-              ['--pulse-opacity-low' as string]: currentEnergy 
-                ? `${0.45 + (currentEnergy * 0.1)}` // 0.45 to 0.55 base opacity (darker)
-                : '0.5',
-              ['--pulse-opacity-high' as string]: currentEnergy 
-                ? `${0.85 + (currentEnergy * 0.1)}` // 0.85 to 0.95 peak opacity (brighter)
-                : '0.92',
-            }}
-          />
-          <div 
-            className="fixed inset-0 transition-opacity duration-1000"
-            style={{ 
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)',
-            }}
-          />
-        </>
+        <AlbumArtBackground 
+          albumArtUrl={albumArtUrl} 
+          tempo={currentTempo} 
+          energy={currentEnergy} 
+        />
       )}
       {/* Version indicator */}
       
