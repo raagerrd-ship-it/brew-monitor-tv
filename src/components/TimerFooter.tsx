@@ -279,7 +279,8 @@ export const TimerFooter = memo(function TimerFooter() {
                       : "text-primary"
                 )} />
                 <div className="overflow-hidden max-w-[250px] relative">
-                  <div className="inline-flex animate-marquee-seamless whitespace-nowrap">
+                  {/* Disable seamless marquee in TV mode to prevent performance issues on Chromecast */}
+                  <div className={cn("inline-flex whitespace-nowrap", !isTvMode && "animate-marquee-seamless")}>
                     <span className={cn(
                       "text-lg font-semibold px-8",
                       isNextMilestoneImminent 
