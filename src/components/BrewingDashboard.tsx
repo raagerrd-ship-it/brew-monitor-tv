@@ -21,6 +21,7 @@ import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 // Fixed header height in pixels
 const HEADER_HEIGHT = 72;
@@ -46,8 +47,7 @@ export function BrewingDashboard() {
   });
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const isTvMode = searchParams.get('tv') === 'true';
-  
+  const { isTvMode } = useTvMode();
   // Get aspect ratio context to determine sizing strategy
   const { isLocked: isAspectRatioLocked, height: containerHeight } = useAspectRatio();
 
