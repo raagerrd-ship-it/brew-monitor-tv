@@ -241,18 +241,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }}
     >
       {/* Album Art Background */}
-      {nowPlaying.album_art_url ? (
+      {nowPlaying.album_art_url && (
         <img 
           src={nowPlaying.album_art_url}
           alt="Album art"
           className="absolute inset-0 w-full h-full object-cover opacity-80"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
         />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />
       )}
+      
+      {/* Fallback gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
       
       {/* Gradient Overlay for Text Readability */}
       <div 
