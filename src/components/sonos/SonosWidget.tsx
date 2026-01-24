@@ -32,30 +32,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        console.log('[SonosWidget] Checking connection...');
-        
-        // Check sonos_settings for selected_group_id (indicates Sonos is configured)
-        // We can't read sonos_tokens directly due to RLS (service_role only)
         const { data: settings, error: settingsError } = await (supabase as any)
           .from('sonos_settings')
           .select('show_on_dashboard, selected_group_id')
           .limit(1)
           .maybeSingle();
 
-        console.log('[SonosWidget] Settings:', settings, 'Error:', settingsError);
-
-        // If no settings or no selected group, treat as not connected
         if (settingsError || !settings?.selected_group_id) {
-          console.log('[SonosWidget] Not connected - no selected_group_id');
           setIsConnected(false);
           return;
         }
 
-        console.log('[SonosWidget] Connected! show_on_dashboard:', settings?.show_on_dashboard);
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
       } catch (error) {
-        console.error('[SonosWidget] Failed to check Sonos connection:', error);
+        console.error('Failed to check Sonos connection:', error);
         setIsConnected(false);
       }
     };
@@ -69,18 +60,14 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
     const fetchNowPlaying = async () => {
       try {
-        console.log('[SonosWidget] Fetching now playing...');
         const response = await supabase.functions.invoke('sonos-now-playing');
-        console.log('[SonosWidget] Response:', response.data);
         if (response.data && !response.error) {
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
-        } else {
-          console.log('[SonosWidget] Error or no data:', response.error);
         }
       } catch (error) {
-        console.error('[SonosWidget] Failed to fetch now playing:', error);
+        console.error('Failed to fetch now playing:', error);
       }
     };
 
@@ -187,36 +174,36 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   }, [nowPlaying]);
 
   // Don't render if not connected, not visible, or nothing playing
-  if (!isConnected || !showWidget) {
-    console.log('[SonosWidget] Not rendering - isConnected:', isConnected, 'showWidget:', showWidget);
-    return null;
-  }
-  if (!nowPlaying?.track_name) {
-    console.log('[SonosWidget] Not rendering - no track_name. nowPlaying:', nowPlaying);
-    return null;
-  }
-  if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
-    console.log('[SonosWidget] Not rendering - playback_state:', nowPlaying.playback_state);
-    return null;
-  }
-  
-  console.log('[SonosWidget] Rendering widget with:', nowPlaying.track_name, 'by', nowPlaying.artist_name);
+  if (!isConnected || !showWidget) return null;
+  if (!nowPlaying?.track_name) return null;
+  if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
 
   // Calculate progress percentage
   const progressPercent = (localProgress && nowPlaying.duration_ms) 
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
     : 0;
 
+  // Size configuration based on mode
+  const albumSize = isTvMode ? 'min(12vh, 120px)' : isMobile ? '32px' : 'min(5vh, 48px)';
+  const iconSize = isTvMode ? 'min(6vh, 60px)' : isMobile ? '1rem' : 'min(2.5vh, 1.25rem)';
+  const trackFontSize = isTvMode ? 'min(4vh, 1.5rem)' : isMobile ? '0.8rem' : 'min(2vh, 0.9rem)';
+  const artistFontSize = isTvMode ? 'min(3vh, 1.2rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
+  const progressHeight = isTvMode ? 'min(0.8vh, 6px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
+  const maxWidth = isTvMode ? 'min(45vw, 500px)' : isMobile ? '200px' : 'min(35vw, 320px)';
+
   return (
     <div 
-      className={`flex items-center gap-3 rounded-xl overflow-hidden transition-all duration-300 animate-fade-in ${
-        isMobile ? 'px-2 py-1.5 max-w-[200px]' : 'px-3 py-2'
+      className={`flex items-center rounded-xl overflow-hidden transition-all duration-300 animate-fade-in ${
+        isTvMode ? 'gap-5 px-5 py-4' : isMobile ? 'gap-3 px-2 py-1.5' : 'gap-3 px-3 py-2'
       }`}
       style={{
         background: 'hsl(222 20% 11% / 0.95)',
         border: '1px solid hsl(222 15% 22%)',
-        maxWidth: isMobile ? '200px' : 'min(35vw, 320px)',
-        backdropFilter: 'blur(8px)',
+        maxWidth,
+        backdropFilter: 'blur(12px)',
+        boxShadow: isTvMode 
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+          : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
       {/* Album Art or Music Icon */}
@@ -224,30 +211,30 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         <img 
           src={nowPlaying.album_art_url}
           alt="Album art"
-          className="flex-shrink-0 rounded-md object-cover"
+          className="flex-shrink-0 rounded-lg object-cover"
           style={{ 
-            width: isMobile ? '32px' : 'min(5vh, 48px)',
-            height: isMobile ? '32px' : 'min(5vh, 48px)',
+            width: albumSize,
+            height: albumSize,
+            boxShadow: isTvMode ? '0 8px 16px rgba(0, 0, 0, 0.4)' : undefined,
           }}
           onError={(e) => {
-            // Fallback to music icon if image fails
             e.currentTarget.style.display = 'none';
             e.currentTarget.nextElementSibling?.classList.remove('hidden');
           }}
         />
       ) : null}
       <div 
-        className={`flex-shrink-0 flex items-center justify-center rounded-md bg-primary/10 ${nowPlaying.album_art_url ? 'hidden' : ''}`}
+        className={`flex-shrink-0 flex items-center justify-center rounded-lg bg-primary/10 ${nowPlaying.album_art_url ? 'hidden' : ''}`}
         style={{ 
-          width: isMobile ? '32px' : 'min(5vh, 48px)',
-          height: isMobile ? '32px' : 'min(5vh, 48px)',
+          width: albumSize,
+          height: albumSize,
         }}
       >
         <Music 
           className="text-primary/70" 
           style={{ 
-            width: isMobile ? '1rem' : 'min(2.5vh, 1.25rem)',
-            height: isMobile ? '1rem' : 'min(2.5vh, 1.25rem)',
+            width: iconSize,
+            height: iconSize,
           }} 
         />
       </div>
@@ -263,9 +250,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             className={`whitespace-nowrap font-medium text-foreground ${
               shouldScroll ? 'animate-marquee' : ''
             }`}
-            style={{
-              fontSize: isMobile ? '0.8rem' : 'min(2vh, 0.9rem)',
-            }}
+            style={{ fontSize: trackFontSize }}
           >
             {nowPlaying.track_name}
           </div>
@@ -273,9 +258,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         {nowPlaying.artist_name && (
           <div 
             className="truncate text-muted-foreground"
-            style={{
-              fontSize: isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)',
-            }}
+            style={{ fontSize: artistFontSize }}
           >
             {nowPlaying.artist_name}
           </div>
@@ -284,9 +267,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         {/* Progress Bar */}
         {nowPlaying.duration_ms && (
           <div 
-            className="w-full mt-1.5 rounded-full overflow-hidden"
+            className="w-full mt-2 rounded-full overflow-hidden"
             style={{
-              height: isMobile ? '2px' : 'min(0.4vh, 3px)',
+              height: progressHeight,
               background: 'hsl(222 15% 25%)',
             }}
           >
