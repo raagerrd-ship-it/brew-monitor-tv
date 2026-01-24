@@ -230,12 +230,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   return (
     <div 
-      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in"
+      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in backdrop-blur-md"
       style={{
         width: widgetWidth,
         height: widgetHeight,
+        background: 'rgba(0, 0, 0, 0.4)',
         boxShadow: isTvMode 
-          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
