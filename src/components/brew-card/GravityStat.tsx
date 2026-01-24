@@ -16,10 +16,20 @@ function GravityStatComponent({ brew, updatedFields }: GravityStatProps) {
     ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
     : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)';
 
+  // Split gravity into main (3 decimals) and 4th decimal
+  const sgString = brew.currentSG.toFixed(4);
+  const mainPart = sgString.slice(0, -1); // e.g., "1.012"
+  const fourthDecimal = sgString.slice(-1); // e.g., "3"
+
   return (
     <StatCard
       label="Gravity"
-      value={<span className="tabular-nums">{brew.currentSG.toFixed(3)}</span>}
+      value={
+        <span className="tabular-nums">
+          {mainPart}
+          <span className="text-muted-foreground/40">{fourthDecimal}</span>
+        </span>
+      }
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.sg}
       centered
