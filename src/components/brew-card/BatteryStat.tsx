@@ -40,7 +40,19 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
     </svg>
   );
 
-  const displayValue = isInactive ? "--" : (batteryValue !== null ? `${Math.round(batteryValue)}%` : "--");
+  // Format battery with 1 decimal, fading the decimal part
+  const formatBatteryValue = () => {
+    if (isInactive || batteryValue === null) return "--";
+    const formatted = batteryValue.toFixed(1);
+    const [whole, decimal] = formatted.split('.');
+    return (
+      <span className="tabular-nums">
+        {whole}.<span className="text-muted-foreground/40">{decimal}</span>%
+      </span>
+    );
+  };
+
+  const displayValue = formatBatteryValue();
 
   return (
     <StatCard
