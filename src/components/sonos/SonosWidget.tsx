@@ -21,9 +21,10 @@ interface SonosWidgetProps {
   onAlbumArtChange?: (url: string | null) => void;
   onTempoChange?: (tempo: number | null) => void;
   onEnergyChange?: (energy: number | null) => void;
+  onNextAlbumArtPreload?: (url: string | null) => void;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange, onEnergyChange }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange, onEnergyChange, onNextAlbumArtPreload }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -31,6 +32,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [spotifyInfo, setSpotifyInfo] = useState<SpotifyTrackInfo | null>(null);
+  const [nextTrackAlbumArt, setNextTrackAlbumArt] = useState<string | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -38,6 +40,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const progressIntervalRef = useRef<number | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const trackEndFetchedRef = useRef<boolean>(false);
+  const nextTrackPreloadedRef = useRef<boolean>(false);
   const currentTrackRef = useRef<string | null>(null);
   const spotifyFetchedTrackRef = useRef<string | null>(null);
 
@@ -75,17 +78,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
-          // Reset track end flag when track changes
+          // Reset flags when track changes
           if (response.data.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
+            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = response.data.track_name;
             // Reset image state for new track
             setImageLoaded(false);
             setImageError(false);
+            setNextTrackAlbumArt(null);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
+          
+          // Preload album art immediately when we get new track data
+          if (response.data.album_art_url) {
+            const img = new Image();
+            img.src = response.data.album_art_url;
+          }
         }
       } catch (error) {
         console.error('Failed to fetch now playing:', error);
@@ -139,17 +150,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         (payload) => {
         if (payload.new) {
           const newData = payload.new as NowPlaying;
-          // Reset track end flag when track changes via realtime
+          // Reset flags when track changes via realtime
           if (newData.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
+            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = newData.track_name;
             // Reset image state for new track
             setImageLoaded(false);
             setImageError(false);
+            setNextTrackAlbumArt(null);
           }
           setNowPlaying(newData);
           setLocalProgress(newData.position_ms);
           lastUpdateRef.current = Date.now();
+          
+          // Preload album art immediately when we get new track data via realtime
+          if (newData.album_art_url) {
+            const img = new Image();
+            img.src = newData.album_art_url;
+          }
         }
         }
       )
@@ -250,19 +269,30 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       return;
     }
 
-    const fetchNowPlaying = async () => {
+    const fetchNowPlayingAndPreload = async () => {
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
-          if (response.data.track_name !== currentTrackRef.current) {
+          const newTrack = response.data.track_name !== currentTrackRef.current;
+          if (newTrack) {
             trackEndFetchedRef.current = false;
+            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = response.data.track_name;
             setImageLoaded(false);
             setImageError(false);
+            setNextTrackAlbumArt(null);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
+          
+          // Immediately preload album art for instant display
+          if (response.data.album_art_url) {
+            const img = new Image();
+            img.src = response.data.album_art_url;
+            // Notify parent to preload in background component
+            onNextAlbumArtPreload?.(response.data.album_art_url);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch now playing:', error);
@@ -276,16 +306,23 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
         const remaining = nowPlaying.duration_ms - newProgress;
         
-        // Smart track-end detection: fetch 2 seconds before track ends
-        if (remaining <= 2000 && remaining > 0 && !trackEndFetchedRef.current) {
+        // Early preload: Start fetching 5 seconds before track ends
+        // This gives us time to get next track info and preload its album art
+        if (remaining <= 5000 && remaining > 0 && !nextTrackPreloadedRef.current) {
+          nextTrackPreloadedRef.current = true;
+          // Fetch now to get next track info as early as possible
+          fetchNowPlayingAndPreload();
+        }
+        
+        // Smart track-end detection: schedule final fetch just after track should end
+        if (remaining <= 1500 && remaining > 0 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
-          // Schedule fetch slightly after track should end
-          setTimeout(fetchNowPlaying, remaining + 500);
+          setTimeout(fetchNowPlayingAndPreload, remaining + 200);
         }
         
         return Math.min(newProgress, nowPlaying.duration_ms);
       });
-    }, 1000);
+    }, 500); // Check more frequently for smoother transitions
 
     return () => {
       if (progressIntervalRef.current) {
@@ -293,7 +330,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         progressIntervalRef.current = null;
       }
     };
-  }, [isConnected, showWidget, nowPlaying]);
+  }, [isConnected, showWidget, nowPlaying, onNextAlbumArtPreload]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {

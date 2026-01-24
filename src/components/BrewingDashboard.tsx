@@ -47,6 +47,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [preloadAlbumArtUrl, setPreloadAlbumArtUrl] = useState<string | null>(null);
   const [currentTempo, setCurrentTempo] = useState<number | null>(null);
   const [currentEnergy, setCurrentEnergy] = useState<number | null>(null);
   const navigate = useNavigate();
@@ -225,7 +226,8 @@ export function BrewingDashboard() {
         <AlbumArtBackground 
           albumArtUrl={albumArtUrl} 
           tempo={currentTempo} 
-          energy={currentEnergy} 
+          energy={currentEnergy}
+          preloadUrl={preloadAlbumArtUrl}
         />
       )}
       {/* Version indicator */}
@@ -329,7 +331,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} onEnergyChange={setCurrentEnergy} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} onEnergyChange={setCurrentEnergy} onNextAlbumArtPreload={setPreloadAlbumArtUrl} />
         </div>
       )}
 
