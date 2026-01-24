@@ -45,6 +45,7 @@ export function BrewingDashboard() {
     currentControllerId: null,
     currentPillId: null
   });
+  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -212,9 +213,29 @@ export function BrewingDashboard() {
     return `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`;
   };
   
-  return <div className={`w-full bg-background relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
-    height: getContainerHeight()
+  return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
+    height: getContainerHeight(),
+    background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
+      {/* Album art full-page background - TV mode only */}
+      {isTvMode && albumArtUrl && (
+        <>
+          <div 
+            className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
+            style={{ 
+              backgroundImage: `url(${albumArtUrl})`,
+              filter: 'blur(40px) brightness(0.4)',
+              transform: 'scale(1.2)',
+            }}
+          />
+          <div 
+            className="fixed inset-0 transition-opacity duration-1000"
+            style={{ 
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)',
+            }}
+          />
+        </>
+      )}
       {/* Version indicator */}
       
 
@@ -316,7 +337,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} />
         </div>
       )}
 
