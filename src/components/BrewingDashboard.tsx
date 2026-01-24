@@ -6,7 +6,6 @@ import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
-import { AlbumArtBackground } from "./AlbumArtBackground";
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
@@ -47,9 +46,6 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [preloadAlbumArtUrl, setPreloadAlbumArtUrl] = useState<string | null>(null);
-  const [currentTempo, setCurrentTempo] = useState<number | null>(null);
-  const [currentEnergy, setCurrentEnergy] = useState<number | null>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -223,12 +219,22 @@ export function BrewingDashboard() {
   }}>
       {/* Album art full-page background - TV mode only */}
       {isTvMode && albumArtUrl && (
-        <AlbumArtBackground 
-          albumArtUrl={albumArtUrl} 
-          tempo={currentTempo} 
-          energy={currentEnergy}
-          preloadUrl={preloadAlbumArtUrl}
-        />
+        <>
+          <div 
+            className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
+            style={{ 
+              backgroundImage: `url(${albumArtUrl})`,
+              filter: 'blur(16px) brightness(0.4)',
+              transform: 'scale(1.1)',
+            }}
+          />
+          <div 
+            className="fixed inset-0 transition-opacity duration-1000"
+            style={{ 
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)',
+            }}
+          />
+        </>
       )}
       {/* Version indicator */}
       
@@ -331,7 +337,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} onTempoChange={setCurrentTempo} onEnergyChange={setCurrentEnergy} onNextAlbumArtPreload={setPreloadAlbumArtUrl} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} />
         </div>
       )}
 

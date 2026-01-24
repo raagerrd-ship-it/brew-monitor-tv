@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef, useCallback } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface NowPlaying {
@@ -10,29 +10,19 @@ interface NowPlaying {
   playback_state: string;
 }
 
-interface SpotifyTrackInfo {
-  tempo: number | null;
-  energy: number | null;
-}
-
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
-  onTempoChange?: (tempo: number | null) => void;
-  onEnergyChange?: (energy: number | null) => void;
-  onNextAlbumArtPreload?: (url: string | null) => void;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange, onEnergyChange, onNextAlbumArtPreload }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [localProgress, setLocalProgress] = useState<number | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [spotifyInfo, setSpotifyInfo] = useState<SpotifyTrackInfo | null>(null);
-  const [nextTrackAlbumArt, setNextTrackAlbumArt] = useState<string | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -40,9 +30,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const progressIntervalRef = useRef<number | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const trackEndFetchedRef = useRef<boolean>(false);
-  const nextTrackPreloadedRef = useRef<boolean>(false);
   const currentTrackRef = useRef<string | null>(null);
-  const spotifyFetchedTrackRef = useRef<string | null>(null);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -78,25 +66,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
-          // Reset flags when track changes
+          // Reset track end flag when track changes
           if (response.data.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
-            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = response.data.track_name;
             // Reset image state for new track
             setImageLoaded(false);
             setImageError(false);
-            setNextTrackAlbumArt(null);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
-          
-          // Preload album art immediately when we get new track data
-          if (response.data.album_art_url) {
-            const img = new Image();
-            img.src = response.data.album_art_url;
-          }
         }
       } catch (error) {
         console.error('Failed to fetch now playing:', error);
@@ -150,25 +130,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         (payload) => {
         if (payload.new) {
           const newData = payload.new as NowPlaying;
-          // Reset flags when track changes via realtime
+          // Reset track end flag when track changes via realtime
           if (newData.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
-            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = newData.track_name;
             // Reset image state for new track
             setImageLoaded(false);
             setImageError(false);
-            setNextTrackAlbumArt(null);
           }
           setNowPlaying(newData);
           setLocalProgress(newData.position_ms);
           lastUpdateRef.current = Date.now();
-          
-          // Preload album art immediately when we get new track data via realtime
-          if (newData.album_art_url) {
-            const img = new Image();
-            img.src = newData.album_art_url;
-          }
         }
         }
       )
@@ -190,94 +162,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError, onAlbumArtChange]);
 
-  // Generate pseudo-random but deterministic values from track name
-  // This creates consistent tempo/energy for each unique song
-  const generatePseudoAudioFeatures = useCallback((trackName: string, artistName: string) => {
-    const combined = `${trackName}|${artistName}`;
-    let hash = 0;
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    
-    // Generate tempo between 80-160 BPM (most music falls in this range)
-    const tempo = 80 + Math.abs(hash % 80);
-    
-    // Generate energy between 0.3-0.9 (avoid extremes)
-    const energySeed = Math.abs((hash >> 8) % 60);
-    const energy = 0.3 + (energySeed / 100);
-    
-    return { tempo, energy };
-  }, []);
-
-  // Fetch BPM/tempo when track changes - try AI prediction first, then Spotify, then fallback
-  const fetchAudioFeatures = useCallback(async (trackName: string, artistName: string) => {
-    const trackKey = `${trackName}|${artistName}`;
-    
-    // Skip if already fetched for this track
-    if (spotifyFetchedTrackRef.current === trackKey) return;
-    
-    spotifyFetchedTrackRef.current = trackKey;
-    
-    // Try AI prediction first (faster and doesn't require Spotify API)
-    try {
-      const aiResponse = await supabase.functions.invoke('predict-bpm', {
-        body: { trackName, artistName }
-      });
-      
-      if (aiResponse.data && !aiResponse.error && aiResponse.data.tempo) {
-        console.log(`AI BPM prediction for "${trackName}": ${aiResponse.data.tempo} BPM (source: ${aiResponse.data.source})`);
-        setSpotifyInfo({
-          tempo: aiResponse.data.tempo,
-          energy: aiResponse.data.energy
-        });
-        onTempoChange?.(aiResponse.data.tempo);
-        onEnergyChange?.(aiResponse.data.energy);
-        return;
-      }
-    } catch (e) {
-      console.log('AI BPM prediction failed, trying Spotify...', e);
-    }
-    
-    // Fallback to Spotify API
-    try {
-      const response = await supabase.functions.invoke('spotify-track-info', {
-        body: { trackName, artistName }
-      });
-      
-      if (response.data && !response.error && response.data.tempo && !response.data.notConfigured) {
-        setSpotifyInfo({
-          tempo: response.data.tempo,
-          energy: response.data.energy
-        });
-        onTempoChange?.(response.data.tempo);
-        onEnergyChange?.(response.data.energy);
-        return;
-      }
-    } catch {
-      // Silent fail - will use fallback
-    }
-    
-    // Final fallback: Generate pseudo-random values based on track name
-    const pseudoFeatures = generatePseudoAudioFeatures(trackName, artistName);
-    setSpotifyInfo(pseudoFeatures);
-    onTempoChange?.(pseudoFeatures.tempo);
-    onEnergyChange?.(pseudoFeatures.energy);
-  }, [onTempoChange, onEnergyChange, generatePseudoAudioFeatures]);
-
-  // Trigger audio features fetch when track changes
-  useEffect(() => {
-    if (!nowPlaying?.track_name || !nowPlaying?.artist_name) {
-      setSpotifyInfo(null);
-      onTempoChange?.(null);
-      onEnergyChange?.(null);
-      return;
-    }
-    
-    fetchAudioFeatures(nowPlaying.track_name, nowPlaying.artist_name);
-  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchAudioFeatures, onTempoChange, onEnergyChange]);
-
   // Local progress interpolation + smart track-end detection
   useEffect(() => {
     if (!isConnected || !showWidget) return;
@@ -289,30 +173,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       return;
     }
 
-    const fetchNowPlayingAndPreload = async () => {
+    const fetchNowPlaying = async () => {
       try {
         const response = await supabase.functions.invoke('sonos-now-playing');
         if (response.data && !response.error) {
-          const newTrack = response.data.track_name !== currentTrackRef.current;
-          if (newTrack) {
+          if (response.data.track_name !== currentTrackRef.current) {
             trackEndFetchedRef.current = false;
-            nextTrackPreloadedRef.current = false;
             currentTrackRef.current = response.data.track_name;
             setImageLoaded(false);
             setImageError(false);
-            setNextTrackAlbumArt(null);
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
-          
-          // Immediately preload album art for instant display
-          if (response.data.album_art_url) {
-            const img = new Image();
-            img.src = response.data.album_art_url;
-            // Notify parent to preload in background component
-            onNextAlbumArtPreload?.(response.data.album_art_url);
-          }
         }
       } catch (error) {
         console.error('Failed to fetch now playing:', error);
@@ -326,23 +199,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
         const remaining = nowPlaying.duration_ms - newProgress;
         
-        // Early preload: Start fetching 5 seconds before track ends
-        // This gives us time to get next track info and preload its album art
-        if (remaining <= 5000 && remaining > 0 && !nextTrackPreloadedRef.current) {
-          nextTrackPreloadedRef.current = true;
-          // Fetch now to get next track info as early as possible
-          fetchNowPlayingAndPreload();
-        }
-        
-        // Smart track-end detection: schedule final fetch just after track should end
-        if (remaining <= 1500 && remaining > 0 && !trackEndFetchedRef.current) {
+        // Smart track-end detection: fetch 2 seconds before track ends
+        if (remaining <= 2000 && remaining > 0 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
-          setTimeout(fetchNowPlayingAndPreload, remaining + 200);
+          // Schedule fetch slightly after track should end
+          setTimeout(fetchNowPlaying, remaining + 500);
         }
         
         return Math.min(newProgress, nowPlaying.duration_ms);
       });
-    }, 500); // Check more frequently for smoother transitions
+    }, 1000);
 
     return () => {
       if (progressIntervalRef.current) {
@@ -350,7 +216,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         progressIntervalRef.current = null;
       }
     };
-  }, [isConnected, showWidget, nowPlaying, onNextAlbumArtPreload]);
+  }, [isConnected, showWidget, nowPlaying]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {

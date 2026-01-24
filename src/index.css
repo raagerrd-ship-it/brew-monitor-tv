@@ -28,8 +28,6 @@
   animation: marquee 8s linear infinite;
 }
 
-/* BPM-synced pulse animation - now handled via JavaScript in AlbumArtBackground.tsx */
-
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
