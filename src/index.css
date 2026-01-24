@@ -31,14 +31,14 @@
 /* BPM-synced pulse animation for background - uses CSS custom properties for dynamic intensity */
 @keyframes pulse-bg {
   0%, 100% {
-    transform: scale(1.1);
-    filter: blur(20px) brightness(0.35);
-    opacity: var(--pulse-opacity-low, 0.7);
+    transform: scale(1.08);
+    filter: blur(24px) brightness(0.25);
+    opacity: var(--pulse-opacity-low, 0.5);
   }
   50% {
-    transform: scale(var(--pulse-scale, 1.15));
-    filter: blur(var(--pulse-blur, 12px)) brightness(var(--pulse-brightness, 0.5));
-    opacity: var(--pulse-opacity-high, 0.9);
+    transform: scale(var(--pulse-scale, 1.18));
+    filter: blur(var(--pulse-blur, 10px)) brightness(var(--pulse-brightness, 0.6));
+    opacity: var(--pulse-opacity-high, 0.92);
   }
 }
 
