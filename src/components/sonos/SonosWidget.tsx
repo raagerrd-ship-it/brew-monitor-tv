@@ -226,7 +226,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const artistFontSize = isTvMode ? 'min(2.5vh, 1rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
   const progressHeight = isTvMode ? 'min(0.6vh, 5px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
   const widgetHeight = isTvMode ? 'min(14vh, 140px)' : isMobile ? '56px' : 'min(7vh, 70px)';
-  const widgetWidth = isTvMode ? 'min(40vw, 420px)' : isMobile ? '180px' : 'min(28vw, 280px)';
+  const widgetWidth = isTvMode ? 'min(32vw, 340px)' : isMobile ? '160px' : 'min(22vw, 240px)';
 
   return (
     <div 
