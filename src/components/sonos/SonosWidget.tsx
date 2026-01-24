@@ -211,8 +211,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return { tempo, energy };
   }, []);
 
-  // Fetch Spotify BPM/tempo when track changes, fallback to pseudo-random
-  const fetchSpotifyInfo = useCallback(async (trackName: string, artistName: string) => {
+  // Fetch BPM/tempo when track changes - try AI prediction first, then Spotify, then fallback
+  const fetchAudioFeatures = useCallback(async (trackName: string, artistName: string) => {
     const trackKey = `${trackName}|${artistName}`;
     
     // Skip if already fetched for this track
@@ -220,12 +220,32 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     
     spotifyFetchedTrackRef.current = trackKey;
     
+    // Try AI prediction first (faster and doesn't require Spotify API)
+    try {
+      const aiResponse = await supabase.functions.invoke('predict-bpm', {
+        body: { trackName, artistName }
+      });
+      
+      if (aiResponse.data && !aiResponse.error && aiResponse.data.tempo) {
+        console.log(`AI BPM prediction for "${trackName}": ${aiResponse.data.tempo} BPM (source: ${aiResponse.data.source})`);
+        setSpotifyInfo({
+          tempo: aiResponse.data.tempo,
+          energy: aiResponse.data.energy
+        });
+        onTempoChange?.(aiResponse.data.tempo);
+        onEnergyChange?.(aiResponse.data.energy);
+        return;
+      }
+    } catch (e) {
+      console.log('AI BPM prediction failed, trying Spotify...', e);
+    }
+    
+    // Fallback to Spotify API
     try {
       const response = await supabase.functions.invoke('spotify-track-info', {
         body: { trackName, artistName }
       });
       
-      // Check if Spotify returned real data
       if (response.data && !response.error && response.data.tempo && !response.data.notConfigured) {
         setSpotifyInfo({
           tempo: response.data.tempo,
@@ -239,7 +259,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       // Silent fail - will use fallback
     }
     
-    // Fallback: Generate pseudo-random values based on track name
+    // Final fallback: Generate pseudo-random values based on track name
     const pseudoFeatures = generatePseudoAudioFeatures(trackName, artistName);
     setSpotifyInfo(pseudoFeatures);
     onTempoChange?.(pseudoFeatures.tempo);
@@ -255,8 +275,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       return;
     }
     
-    fetchSpotifyInfo(nowPlaying.track_name, nowPlaying.artist_name);
-  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchSpotifyInfo, onTempoChange, onEnergyChange]);
+    fetchAudioFeatures(nowPlaying.track_name, nowPlaying.artist_name);
+  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchAudioFeatures, onTempoChange, onEnergyChange]);
 
   // Local progress interpolation + smart track-end detection
   useEffect(() => {

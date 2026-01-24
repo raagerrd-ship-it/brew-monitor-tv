@@ -15,10 +15,11 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
 }: AlbumArtBackgroundProps) {
   const [pulsePhase, setPulsePhase] = useState(0); // 0 to 1
   const [currentImageUrl, setCurrentImageUrl] = useState(albumArtUrl);
-  const [nextImageLoaded, setNextImageLoaded] = useState(false);
+  const [hueShift, setHueShift] = useState(0);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const preloadedImagesRef = useRef<Set<string>>(new Set());
+  const beatCountRef = useRef<number>(0);
 
   // Preload next track's album art
   useEffect(() => {
@@ -26,7 +27,6 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
       const img = new Image();
       img.onload = () => {
         preloadedImagesRef.current.add(preloadUrl);
-        setNextImageLoaded(true);
       };
       img.src = preloadUrl;
     }
@@ -35,11 +35,9 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   // Smooth transition when album art changes
   useEffect(() => {
     if (albumArtUrl !== currentImageUrl) {
-      // If next image is preloaded, transition immediately
       if (preloadedImagesRef.current.has(albumArtUrl)) {
         setCurrentImageUrl(albumArtUrl);
       } else {
-        // Preload then transition
         const img = new Image();
         img.onload = () => {
           preloadedImagesRef.current.add(albumArtUrl);
@@ -54,39 +52,50 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
   const energyValue = energy ?? 0.5;
   const tempoValue = tempo ?? 100;
   
-  // For high tempo (>120 BPM), use more aggressive heartbeat effect
+  // Disco mode: higher tempo = more intense effects
   const isHighTempo = tempoValue > 120;
   const isVeryHighTempo = tempoValue > 140;
+  const isDiscoTempo = tempoValue > 160;
   
-  // Dynamic scale based on tempo - higher tempo = more pronounced heartbeat
-  const baseScale = 1.05;
-  const tempoScaleBoost = isVeryHighTempo ? 0.25 : isHighTempo ? 0.18 : 0.12;
-  const peakScale = baseScale + (energyValue * tempoScaleBoost); // More dramatic for high tempo
+  // Dynamic scale - VERY pronounced for disco effect
+  const baseScale = 1.0;
+  const scaleIntensity = isDiscoTempo ? 0.35 : isVeryHighTempo ? 0.28 : isHighTempo ? 0.22 : 0.15;
+  const peakScale = baseScale + (energyValue * scaleIntensity);
   
-  const baseBrightness = 0.2;
-  const peakBrightness = 0.4 + (energyValue * 0.4); // 0.4 to 0.80
+  // Brightness - disco mode gets much brighter flashes
+  const baseBrightness = 0.15;
+  const peakBrightness = isDiscoTempo ? 0.9 : isVeryHighTempo ? 0.8 : 0.65 + (energyValue * 0.25);
   
-  const baseBlur = 28;
-  const peakBlur = 16 - (energyValue * 12); // 16px to 4px
+  // Blur - sharper at peak for disco effect
+  const baseBlur = 30;
+  const peakBlur = isDiscoTempo ? 2 : isVeryHighTempo ? 4 : 8 - (energyValue * 6);
   
-  const baseOpacity = 0.4;
-  const peakOpacity = 0.85 + (energyValue * 0.1); // 0.85 to 0.95
+  // Opacity - more dramatic swings for disco
+  const baseOpacity = 0.3;
+  const peakOpacity = isDiscoTempo ? 1.0 : 0.9 + (energyValue * 0.1);
+  
+  // Saturation boost for disco effect
+  const baseSaturation = 1.0;
+  const peakSaturation = isDiscoTempo ? 1.8 : isVeryHighTempo ? 1.5 : 1.2;
 
-  // Heartbeat-style easing function - quick attack, slower release
-  const heartbeatEase = useCallback((t: number): number => {
-    // Create a sharper "thump" at the beat with quick attack and slower decay
-    // This mimics a heartbeat more than a sine wave
-    if (t < 0.15) {
-      // Quick attack to peak (0 -> 1 in first 15%)
-      return Math.sin((t / 0.15) * (Math.PI / 2));
+  // Disco heartbeat easing - sharp attack, quick release for strobe-like effect
+  const discoHeartbeatEase = useCallback((t: number, intensity: number): number => {
+    // For disco, use even sharper attack
+    const attackDuration = isDiscoTempo ? 0.08 : isVeryHighTempo ? 0.1 : 0.15;
+    
+    if (t < attackDuration) {
+      // Super quick attack to peak
+      const attackProgress = t / attackDuration;
+      return Math.pow(attackProgress, 0.5); // Fast ramp up
     } else {
-      // Slower decay (1 -> 0 in remaining 85%)
-      const decayT = (t - 0.15) / 0.85;
-      return Math.cos(decayT * (Math.PI / 2));
+      // Quick decay for strobe effect at high tempo
+      const decayT = (t - attackDuration) / (1 - attackDuration);
+      const decayPower = isDiscoTempo ? 3 : isVeryHighTempo ? 2.5 : 2;
+      return Math.pow(1 - decayT, decayPower);
     }
-  }, []);
+  }, [isDiscoTempo, isVeryHighTempo]);
 
-  // JavaScript-based animation that runs in sync with tempo
+  // JavaScript-based animation synced to tempo with disco effects
   useEffect(() => {
     if (!tempo || tempo <= 0) {
       setPulsePhase(0);
@@ -99,11 +108,21 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTimeRef.current;
-      // Calculate position within beat cycle (0 to 1)
+      const beatNumber = Math.floor(elapsed / beatDuration);
       const rawPhase = (elapsed % beatDuration) / beatDuration;
-      // Apply heartbeat easing for snappy attack, smooth release
-      const phase = heartbeatEase(rawPhase);
+      
+      // Apply disco heartbeat easing
+      const phase = discoHeartbeatEase(rawPhase, energyValue);
       setPulsePhase(phase);
+      
+      // Update hue shift on each beat (disco color cycling)
+      if (beatNumber !== beatCountRef.current) {
+        beatCountRef.current = beatNumber;
+        // Shift hue by 30-60 degrees on each beat for color variety
+        const hueStep = isDiscoTempo ? 45 : isVeryHighTempo ? 35 : 25;
+        setHueShift(prev => (prev + hueStep) % 360);
+      }
+      
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -114,27 +133,42 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [tempo, heartbeatEase]);
+  }, [tempo, energyValue, discoHeartbeatEase, isDiscoTempo, isVeryHighTempo]);
 
   // Interpolate values based on pulse phase
   const currentScale = baseScale + (peakScale - baseScale) * pulsePhase;
   const currentBrightness = baseBrightness + (peakBrightness - baseBrightness) * pulsePhase;
   const currentBlur = baseBlur - (baseBlur - peakBlur) * pulsePhase;
   const currentOpacity = baseOpacity + (peakOpacity - baseOpacity) * pulsePhase;
+  const currentSaturation = baseSaturation + (peakSaturation - baseSaturation) * pulsePhase;
+  
+  // Hue rotation for disco effect (only apply at high tempo)
+  const currentHueRotate = isHighTempo ? hueShift * pulsePhase * 0.5 : 0;
 
   return (
     <>
-      {/* Main visible background */}
+      {/* Main visible background with disco effects */}
       <div 
-        className="fixed inset-0 bg-cover bg-center transition-[background-image] duration-500"
+        className="fixed inset-0 bg-cover bg-center transition-[background-image] duration-300"
         style={{ 
           backgroundImage: `url(${currentImageUrl})`,
-          filter: `blur(${currentBlur}px) brightness(${currentBrightness})`,
+          filter: `blur(${currentBlur}px) brightness(${currentBrightness}) saturate(${currentSaturation}) hue-rotate(${currentHueRotate}deg)`,
           transform: `scale(${currentScale})`,
           opacity: currentOpacity,
           willChange: 'transform, filter, opacity',
         }}
       />
+      
+      {/* Color overlay for disco effect at high tempo */}
+      {isHighTempo && (
+        <div 
+          className="fixed inset-0 pointer-events-none mix-blend-overlay"
+          style={{ 
+            background: `radial-gradient(circle at 50% 50%, hsla(${hueShift}, 80%, 50%, ${pulsePhase * 0.3}) 0%, transparent 70%)`,
+            opacity: pulsePhase * energyValue,
+          }}
+        />
+      )}
       
       {/* Hidden preload element for next track */}
       {preloadUrl && preloadUrl !== currentImageUrl && (
@@ -147,11 +181,11 @@ export const AlbumArtBackground = memo(function AlbumArtBackground({
         />
       )}
       
-      {/* Gradient overlay */}
+      {/* Gradient overlay - less intense during disco peaks */}
       <div 
         className="fixed inset-0"
         style={{ 
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.5) 100%)',
+          background: `linear-gradient(to bottom, rgba(0,0,0,${0.25 - pulsePhase * 0.15}) 0%, rgba(0,0,0,${0.5 - pulsePhase * 0.2}) 100%)`,
         }}
       />
     </>
