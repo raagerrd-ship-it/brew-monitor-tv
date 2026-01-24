@@ -30,8 +30,8 @@ serve(async (req) => {
 
     if (!tokenData) {
       return new Response(
-        JSON.stringify({ error: 'Not connected to Sonos', connected: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ connected: false, groups: [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
