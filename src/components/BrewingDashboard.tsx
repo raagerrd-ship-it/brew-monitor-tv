@@ -46,6 +46,10 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const handleAlbumArtChange = useCallback((url: string | null) => {
+    console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
+    setAlbumArtUrl(url);
+  }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -101,6 +105,14 @@ export function BrewingDashboard() {
   const {
     appLoadTime
   } = useVersionCheck(60000);
+
+  // Debug log for TV mode
+  useEffect(() => {
+    if (isTvMode) {
+      console.log('[TV Debug] Dashboard mounted in TV mode');
+      console.log('[TV Debug] Brews:', brews.length, 'Controllers:', controllers.length);
+    }
+  }, [isTvMode, brews.length, controllers.length]);
 
   // Scroll to focused brew when URL param is present (only on mobile with carousel)
   useEffect(() => {
@@ -337,7 +349,7 @@ export function BrewingDashboard() {
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={setAlbumArtUrl} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
         </div>
       )}
 
