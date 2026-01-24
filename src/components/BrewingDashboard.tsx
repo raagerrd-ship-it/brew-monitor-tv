@@ -227,27 +227,9 @@ export function BrewingDashboard() {
   
   return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: getContainerHeight(),
-    background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
+    background: 'hsl(var(--background))'
   }}>
-      {/* Album art full-page background - TV mode only */}
-      {isTvMode && albumArtUrl && (
-        <>
-          <div 
-            className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
-            style={{ 
-              backgroundImage: `url(${albumArtUrl})`,
-              filter: 'blur(16px) brightness(0.4)',
-              transform: 'scale(1.1)',
-            }}
-          />
-          <div 
-            className="fixed inset-0 transition-opacity duration-1000"
-            style={{ 
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)',
-            }}
-          />
-        </>
-      )}
+      {/* Album art full-page background disabled - causes freeze on TV/Chromecast hardware */}
       {/* Version indicator */}
       
 
