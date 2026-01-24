@@ -32,6 +32,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   useEffect(() => {
     const checkConnection = async () => {
       try {
+        console.log('[SonosWidget] Checking connection...');
+        
         // Use any type to avoid TypeScript errors until types are regenerated
         const { data: settings, error: settingsError } = await (supabase as any)
           .from('sonos_settings')
@@ -45,16 +47,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           .limit(1)
           .maybeSingle();
 
+        console.log('[SonosWidget] Settings:', settings, 'Tokens:', tokens);
+        console.log('[SonosWidget] Errors - settings:', settingsError, 'tokens:', tokensError);
+
         // If we get errors (like 406), treat as not connected
         if (tokensError || !tokens) {
+          console.log('[SonosWidget] Not connected - no tokens');
           setIsConnected(false);
           return;
         }
 
+        console.log('[SonosWidget] Connected! show_on_dashboard:', settings?.show_on_dashboard);
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
       } catch (error) {
-        console.error('Failed to check Sonos connection:', error);
+        console.error('[SonosWidget] Failed to check Sonos connection:', error);
         setIsConnected(false);
       }
     };
@@ -68,14 +75,18 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
     const fetchNowPlaying = async () => {
       try {
+        console.log('[SonosWidget] Fetching now playing...');
         const response = await supabase.functions.invoke('sonos-now-playing');
+        console.log('[SonosWidget] Response:', response.data);
         if (response.data && !response.error) {
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
           lastUpdateRef.current = Date.now();
+        } else {
+          console.log('[SonosWidget] Error or no data:', response.error);
         }
       } catch (error) {
-        console.error('Failed to fetch now playing:', error);
+        console.error('[SonosWidget] Failed to fetch now playing:', error);
       }
     };
 
@@ -182,9 +193,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   }, [nowPlaying]);
 
   // Don't render if not connected, not visible, or nothing playing
-  if (!isConnected || !showWidget) return null;
-  if (!nowPlaying?.track_name) return null;
-  if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
+  if (!isConnected || !showWidget) {
+    console.log('[SonosWidget] Not rendering - isConnected:', isConnected, 'showWidget:', showWidget);
+    return null;
+  }
+  if (!nowPlaying?.track_name) {
+    console.log('[SonosWidget] Not rendering - no track_name. nowPlaying:', nowPlaying);
+    return null;
+  }
+  if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
+    console.log('[SonosWidget] Not rendering - playback_state:', nowPlaying.playback_state);
+    return null;
+  }
+  
+  console.log('[SonosWidget] Rendering widget with:', nowPlaying.track_name, 'by', nowPlaying.artist_name);
 
   // Calculate progress percentage
   const progressPercent = (localProgress && nowPlaying.duration_ms) 
