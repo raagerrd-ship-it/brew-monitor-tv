@@ -240,29 +240,29 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
+      {/* Fallback gradient background (behind album art) */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
+      
       {/* Album Art Background */}
       {nowPlaying.album_art_url && (
         <img 
           src={nowPlaying.album_art_url}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-80"
+          className="absolute inset-0 w-full h-full object-cover z-10"
         />
       )}
       
-      {/* Fallback gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
-      
       {/* Gradient Overlay for Text Readability */}
       <div 
-        className="absolute inset-0"
+        className="absolute inset-0 z-20"
         style={{
-          background: 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.15) 100%)',
+          background: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.1) 100%)',
         }}
       />
       
       {/* Content */}
       <div 
-        className={`relative h-full flex flex-col justify-center ${
+        className={`relative z-30 h-full flex flex-col justify-center ${
           isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
         }`}
       >
