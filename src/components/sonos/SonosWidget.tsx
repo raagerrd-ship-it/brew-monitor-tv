@@ -151,16 +151,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     };
   }, [isConnected, showWidget]);
 
-  // Notify parent about album art changes
+  // Notify parent about album art changes - use ref to avoid dependency issues
+  const onAlbumArtChangeRef = useRef(onAlbumArtChange);
+  onAlbumArtChangeRef.current = onAlbumArtChange;
+
   useEffect(() => {
-    if (onAlbumArtChange) {
+    const callback = onAlbumArtChangeRef.current;
+    if (callback) {
       if (nowPlaying?.album_art_url && imageLoaded && !imageError) {
-        onAlbumArtChange(nowPlaying.album_art_url);
+        callback(nowPlaying.album_art_url);
       } else {
-        onAlbumArtChange(null);
+        callback(null);
       }
     }
-  }, [nowPlaying?.album_art_url, imageLoaded, imageError, onAlbumArtChange]);
+  }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
 
   // Local progress interpolation + smart track-end detection
   useEffect(() => {
