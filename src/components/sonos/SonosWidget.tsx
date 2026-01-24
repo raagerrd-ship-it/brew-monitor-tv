@@ -23,6 +23,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [localProgress, setLocalProgress] = useState<number | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [previousAlbumArt, setPreviousAlbumArt] = useState<string | null>(null);
+  const [showPreviousArt, setShowPreviousArt] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -33,6 +35,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const currentTrackRef = useRef<string | null>(null);
   const preloadedImageRef = useRef<HTMLImageElement | null>(null);
   const preloadedDataRef = useRef<NowPlaying | null>(null);
+  const currentAlbumArtRef = useRef<string | null>(null);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -264,12 +267,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const preloadedData = preloadedDataRef.current;
         currentTrackRef.current = preloadedData.track_name;
         
+        // Start crossfade: save current art as previous
+        if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
+          setPreviousAlbumArt(currentAlbumArtRef.current);
+          setShowPreviousArt(true);
+        }
+        currentAlbumArtRef.current = preloadedData.album_art_url;
+        
         // If image is pre-loaded, mark as loaded immediately to prevent flash
         const imageIsReady = preloadedImageRef.current?.complete && preloadedImageRef.current?.naturalWidth > 0;
         if (imageIsReady) {
           console.log('[Sonos Debug] Image already cached, setting loaded immediately');
           setImageLoaded(true);
           setImageError(false);
+          // Fade out previous after a short delay
+          setTimeout(() => setShowPreviousArt(false), 800);
         } else {
           console.log('[Sonos Debug] Image not ready yet, will load on display');
           setImageLoaded(false);
@@ -381,13 +393,32 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         }}
       />
 
-      {/* Album art background */}
+      {/* Previous album art for crossfade (underneath) */}
+      {previousAlbumArt && showPreviousArt && (
+        <img
+          src={previousAlbumArt}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: 1 }}
+        />
+      )}
+
+      {/* Current album art background (on top, fades in) */}
       {nowPlaying.album_art_url && !imageError && (
         <img
           src={nowPlaying.album_art_url}
           alt=""
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setImageLoaded(true)}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ 
+            opacity: imageLoaded ? 1 : 0,
+            transition: 'opacity 800ms ease-out',
+          }}
+          onLoad={() => {
+            setImageLoaded(true);
+            currentAlbumArtRef.current = nowPlaying.album_art_url;
+            // Fade out previous art after new one is loaded
+            setTimeout(() => setShowPreviousArt(false), 800);
+          }}
           onError={() => setImageError(true)}
         />
       )}
