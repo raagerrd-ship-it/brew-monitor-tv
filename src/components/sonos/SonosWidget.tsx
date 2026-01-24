@@ -244,7 +244,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       {nowPlaying.album_art_url && (
         <img 
           src={nowPlaying.album_art_url}
-          alt="Album art"
+          alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-80"
         />
       )}
