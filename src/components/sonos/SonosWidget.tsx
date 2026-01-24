@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface NowPlaying {
@@ -10,19 +10,26 @@ interface NowPlaying {
   playback_state: string;
 }
 
+interface SpotifyTrackInfo {
+  tempo: number | null;
+  energy: number | null;
+}
+
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
+  onTempoChange?: (tempo: number | null) => void;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onTempoChange }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [localProgress, setLocalProgress] = useState<number | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [spotifyInfo, setSpotifyInfo] = useState<SpotifyTrackInfo | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -31,6 +38,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const lastUpdateRef = useRef<number>(Date.now());
   const trackEndFetchedRef = useRef<boolean>(false);
   const currentTrackRef = useRef<string | null>(null);
+  const spotifyFetchedTrackRef = useRef<string | null>(null);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -161,6 +169,47 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError, onAlbumArtChange]);
+
+  // Fetch Spotify BPM/tempo when track changes
+  const fetchSpotifyInfo = useCallback(async (trackName: string, artistName: string) => {
+    const trackKey = `${trackName}|${artistName}`;
+    
+    // Skip if already fetched for this track
+    if (spotifyFetchedTrackRef.current === trackKey) return;
+    
+    try {
+      spotifyFetchedTrackRef.current = trackKey;
+      const response = await supabase.functions.invoke('spotify-track-info', {
+        body: { trackName, artistName }
+      });
+      
+      if (response.data && !response.error && response.data.tempo) {
+        setSpotifyInfo({
+          tempo: response.data.tempo,
+          energy: response.data.energy
+        });
+        onTempoChange?.(response.data.tempo);
+      } else {
+        setSpotifyInfo(null);
+        onTempoChange?.(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Spotify info:', error);
+      setSpotifyInfo(null);
+      onTempoChange?.(null);
+    }
+  }, [onTempoChange]);
+
+  // Trigger Spotify fetch when track changes
+  useEffect(() => {
+    if (!nowPlaying?.track_name || !nowPlaying?.artist_name) {
+      setSpotifyInfo(null);
+      onTempoChange?.(null);
+      return;
+    }
+    
+    fetchSpotifyInfo(nowPlaying.track_name, nowPlaying.artist_name);
+  }, [nowPlaying?.track_name, nowPlaying?.artist_name, fetchSpotifyInfo, onTempoChange]);
 
   // Local progress interpolation + smart track-end detection
   useEffect(() => {
