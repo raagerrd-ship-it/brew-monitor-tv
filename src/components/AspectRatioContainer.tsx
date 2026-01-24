@@ -75,15 +75,17 @@ export function AspectRatioContainer({
 
   return (
     <AspectRatioContext.Provider value={{ isLocked: true, width: dimensions.width, height: dimensions.height }}>
-      <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
         <div
           style={{
             width: dimensions.width,
             height: dimensions.height,
           }}
-          className="relative overflow-hidden bg-background"
+          className="relative bg-background flex flex-col"
         >
-          {children}
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
         </div>
       </div>
     </AspectRatioContext.Provider>
