@@ -1,5 +1,4 @@
 import { memo, useEffect, useState, useRef } from "react";
-import { Music } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface NowPlaying {
@@ -223,70 +222,58 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     : 0;
 
   // Size configuration based on mode
-  const albumSize = isTvMode ? 'min(12vh, 120px)' : isMobile ? '32px' : 'min(5vh, 48px)';
-  const iconSize = isTvMode ? 'min(6vh, 60px)' : isMobile ? '1rem' : 'min(2.5vh, 1.25rem)';
-  const trackFontSize = isTvMode ? 'min(4vh, 1.5rem)' : isMobile ? '0.8rem' : 'min(2vh, 0.9rem)';
-  const artistFontSize = isTvMode ? 'min(3vh, 1.2rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
-  const progressHeight = isTvMode ? 'min(0.8vh, 6px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
-  const maxWidth = isTvMode ? 'min(45vw, 500px)' : isMobile ? '200px' : 'min(35vw, 320px)';
+  const trackFontSize = isTvMode ? 'min(3.5vh, 1.4rem)' : isMobile ? '0.8rem' : 'min(2vh, 0.9rem)';
+  const artistFontSize = isTvMode ? 'min(2.5vh, 1rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
+  const progressHeight = isTvMode ? 'min(0.6vh, 5px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
+  const widgetHeight = isTvMode ? 'min(14vh, 140px)' : isMobile ? '56px' : 'min(7vh, 70px)';
+  const widgetWidth = isTvMode ? 'min(40vw, 420px)' : isMobile ? '180px' : 'min(28vw, 280px)';
 
   return (
     <div 
-      className={`flex items-center rounded-xl overflow-hidden transition-all duration-300 animate-fade-in ${
-        isTvMode ? 'gap-5 px-5 py-4' : isMobile ? 'gap-3 px-2 py-1.5' : 'gap-3 px-3 py-2'
-      }`}
+      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in"
       style={{
-        background: 'hsl(222 20% 11% / 0.95)',
-        border: '1px solid hsl(222 15% 22%)',
-        maxWidth,
-        backdropFilter: 'blur(12px)',
+        width: widgetWidth,
+        height: widgetHeight,
         boxShadow: isTvMode 
-          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08)'
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
-      {/* Album Art or Music Icon */}
+      {/* Album Art Background */}
       {nowPlaying.album_art_url ? (
         <img 
           src={nowPlaying.album_art_url}
           alt="Album art"
-          className="flex-shrink-0 rounded-lg object-cover"
-          style={{ 
-            width: albumSize,
-            height: albumSize,
-            boxShadow: isTvMode ? '0 8px 16px rgba(0, 0, 0, 0.4)' : undefined,
-          }}
+          className="absolute inset-0 w-full h-full object-cover"
           onError={(e) => {
             e.currentTarget.style.display = 'none';
-            e.currentTarget.nextElementSibling?.classList.remove('hidden');
           }}
         />
-      ) : null}
-      <div 
-        className={`flex-shrink-0 flex items-center justify-center rounded-lg bg-primary/10 ${nowPlaying.album_art_url ? 'hidden' : ''}`}
-        style={{ 
-          width: albumSize,
-          height: albumSize,
-        }}
-      >
-        <Music 
-          className="text-primary/70" 
-          style={{ 
-            width: iconSize,
-            height: iconSize,
-          }} 
-        />
-      </div>
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />
+      )}
       
-      {/* Track Info */}
-      <div className="flex flex-col min-w-0 flex-1">
+      {/* Gradient Overlay for Text Readability */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.3) 100%)',
+        }}
+      />
+      
+      {/* Content */}
+      <div 
+        className={`relative h-full flex flex-col justify-center ${
+          isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
+        }`}
+      >
         <div 
           ref={containerRef}
           className="overflow-hidden"
         >
           <div 
             ref={textRef}
-            className={`whitespace-nowrap font-medium text-foreground ${
+            className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
               shouldScroll ? 'animate-marquee' : ''
             }`}
             style={{ fontSize: trackFontSize }}
@@ -296,7 +283,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         </div>
         {nowPlaying.artist_name && (
           <div 
-            className="truncate text-muted-foreground"
+            className="truncate text-white/80 drop-shadow-md"
             style={{ fontSize: artistFontSize }}
           >
             {nowPlaying.artist_name}
@@ -306,17 +293,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         {/* Progress Bar */}
         {nowPlaying.duration_ms && (
           <div 
-            className="w-full mt-2 rounded-full overflow-hidden"
+            className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
             style={{
               height: progressHeight,
-              background: 'hsl(222 15% 25%)',
+              background: 'rgba(255, 255, 255, 0.2)',
             }}
           >
             <div 
               className="h-full rounded-full transition-[width] duration-1000 ease-linear"
               style={{
                 width: `${progressPercent}%`,
-                background: 'hsl(var(--primary))',
+                background: 'rgba(255, 255, 255, 0.9)',
               }}
             />
           </div>
