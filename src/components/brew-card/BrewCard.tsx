@@ -97,10 +97,10 @@ function BrewCardComponent({
           ? 'hsl(222 18% 15%)' 
           : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
         boxShadow: isTvMode
-          ? '0 4px 12px hsl(222 30% 5% / 0.4)'
+          ? '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)'
           : hasCardGlow 
             ? undefined 
-            : '0 8px 32px hsl(222 30% 5% / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
+            : '0 12px 40px hsl(222 30% 3% / 0.7), 0 25px 60px hsl(222 30% 2% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
       }}
     >
       {/* Glass highlight overlay - top edge (skip in TV mode) */}
