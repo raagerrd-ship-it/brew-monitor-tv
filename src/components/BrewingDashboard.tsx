@@ -226,29 +226,29 @@ export function BrewingDashboard() {
             className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
             style={{ 
               backgroundImage: `url(${albumArtUrl})`,
-              filter: 'blur(20px) brightness(0.35)',
+              filter: 'blur(24px) brightness(0.25)',
               transform: 'scale(1.1)',
-              opacity: 0.7,
+              opacity: 0.5,
               animation: currentTempo 
                 ? `pulse-bg ${60 / currentTempo}s ease-in-out infinite`
                 : undefined,
               // Dynamic intensity based on energy (0-1 scale)
-              // CSS custom properties for animation keyframes
+              // More dramatic: bigger difference between low and high states
               ['--pulse-scale' as string]: currentEnergy 
-                ? `${1.1 + (currentEnergy * 0.12)}` // 1.1 to 1.22 based on energy
-                : '1.15',
+                ? `${1.08 + (currentEnergy * 0.18)}` // 1.08 to 1.26 based on energy
+                : '1.18',
               ['--pulse-brightness' as string]: currentEnergy 
-                ? `${0.4 + (currentEnergy * 0.25)}` // 0.4 to 0.65 based on energy (more visible)
-                : '0.5',
+                ? `${0.45 + (currentEnergy * 0.35)}` // 0.45 to 0.80 - much brighter at peak
+                : '0.6',
               ['--pulse-blur' as string]: currentEnergy 
-                ? `${18 - (currentEnergy * 10)}px` // 18px to 8px - less blur = clearer at peak
-                : '12px',
+                ? `${20 - (currentEnergy * 14)}px` // 20px to 6px - much sharper at peak
+                : '10px',
               ['--pulse-opacity-low' as string]: currentEnergy 
-                ? `${0.6 + (currentEnergy * 0.1)}` // 0.6 to 0.7 base opacity
-                : '0.7',
+                ? `${0.45 + (currentEnergy * 0.1)}` // 0.45 to 0.55 base opacity (darker)
+                : '0.5',
               ['--pulse-opacity-high' as string]: currentEnergy 
-                ? `${0.8 + (currentEnergy * 0.15)}` // 0.8 to 0.95 peak opacity
-                : '0.9',
+                ? `${0.85 + (currentEnergy * 0.1)}` // 0.85 to 0.95 peak opacity (brighter)
+                : '0.92',
             }}
           />
           <div 
