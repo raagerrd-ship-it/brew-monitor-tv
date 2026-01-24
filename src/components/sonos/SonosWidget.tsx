@@ -32,7 +32,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const trackEndFetchedRef = useRef<boolean>(false);
   const currentTrackRef = useRef<string | null>(null);
   const preloadedImageRef = useRef<HTMLImageElement | null>(null);
-  const preloadedUrlRef = useRef<string | null>(null);
+  const preloadedDataRef = useRef<NowPlaying | null>(null);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -79,7 +79,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             trackEndFetchedRef.current = false;
             currentTrackRef.current = response.data.track_name;
             // Check if we pre-loaded this image
-            if (preloadedUrlRef.current === response.data.album_art_url && preloadedImageRef.current?.complete) {
+            if (preloadedDataRef.current?.album_art_url === response.data.album_art_url && preloadedImageRef.current?.complete) {
               console.log('[Sonos Debug] Using pre-loaded image!');
               setImageLoaded(true);
               setImageError(false);
@@ -90,7 +90,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }
             // Clear preload refs
             preloadedImageRef.current = null;
-            preloadedUrlRef.current = null;
+            preloadedDataRef.current = null;
           }
           setNowPlaying(response.data);
           setLocalProgress(response.data.position_ms);
@@ -153,7 +153,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             trackEndFetchedRef.current = false;
             currentTrackRef.current = newData.track_name;
             // Check if we pre-loaded this image
-            if (preloadedUrlRef.current === newData.album_art_url && preloadedImageRef.current?.complete) {
+            if (preloadedDataRef.current?.album_art_url === newData.album_art_url && preloadedImageRef.current?.complete) {
               console.log('[Sonos Debug] Using pre-loaded image (realtime)!');
               setImageLoaded(true);
               setImageError(false);
@@ -164,7 +164,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }
             // Clear preload refs
             preloadedImageRef.current = null;
-            preloadedUrlRef.current = null;
+            preloadedDataRef.current = null;
           }
           setNowPlaying(newData);
           setLocalProgress(newData.position_ms);
@@ -231,24 +231,58 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     };
 
-    // Pre-load next track's album art 5 seconds before track ends
-    const preloadNextImage = async () => {
-      console.log('[Sonos Debug] Pre-loading next track image...');
+    // Pre-load next track's data 5 seconds before track ends
+    const preloadNextTrack = async () => {
+      console.log('[Sonos Debug] Pre-loading next track data...');
       try {
         const response = await supabase.functions.invoke('sonos-now-playing', {
           body: { peek_next: true }
         });
-        // If we get different album art, preload it
-        if (response.data?.album_art_url && response.data.album_art_url !== nowPlaying.album_art_url) {
-          const img = new Image();
-          img.src = response.data.album_art_url;
-          preloadedImageRef.current = img;
-          preloadedUrlRef.current = response.data.album_art_url;
-          console.log('[Sonos Debug] Pre-loaded next album art');
+        // Store full next track data
+        if (response.data?.track_name && response.data.track_name !== nowPlaying.track_name) {
+          preloadedDataRef.current = response.data;
+          // Preload the image
+          if (response.data.album_art_url) {
+            const img = new Image();
+            img.src = response.data.album_art_url;
+            preloadedImageRef.current = img;
+          }
+          console.log('[Sonos Debug] Pre-loaded next track:', response.data.track_name);
         }
       } catch (error) {
-        console.error('[Sonos Debug] Failed to preload next image:', error);
+        console.error('[Sonos Debug] Failed to preload next track:', error);
       }
+    };
+
+    // Apply pre-loaded data immediately when track ends
+    const applyPreloadedData = () => {
+      if (preloadedDataRef.current) {
+        console.log('[Sonos Debug] Applying pre-loaded data immediately!');
+        const preloadedData = preloadedDataRef.current;
+        currentTrackRef.current = preloadedData.track_name;
+        
+        // Check if image is already loaded
+        if (preloadedImageRef.current?.complete) {
+          setImageLoaded(true);
+          setImageError(false);
+        } else {
+          setImageLoaded(false);
+          setImageError(false);
+        }
+        
+        setNowPlaying(preloadedData);
+        setLocalProgress(preloadedData.position_ms ?? 0);
+        lastUpdateRef.current = Date.now();
+        
+        // Clear refs
+        preloadedDataRef.current = null;
+        preloadedImageRef.current = null;
+        
+        // Still fetch to verify/update, but don't block UI
+        setTimeout(fetchNowPlaying, 1000);
+        return true;
+      }
+      return false;
     };
 
     progressIntervalRef.current = window.setInterval(() => {
@@ -258,16 +292,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
         const remaining = nowPlaying.duration_ms - newProgress;
         
-        // Pre-load next track's image 5 seconds before track ends
+        // Pre-load next track's data 5 seconds before track ends
         if (remaining <= 5000 && remaining > 4000 && !trackEndFetchedRef.current) {
-          preloadNextImage();
+          preloadNextTrack();
         }
         
-        // Smart track-end detection: fetch 2 seconds before track ends
-        if (remaining <= 2000 && remaining > 0 && !trackEndFetchedRef.current) {
+        // When track ends, immediately apply pre-loaded data
+        if (remaining <= 500 && remaining > -500 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
-          // Schedule fetch slightly after track should end
-          setTimeout(fetchNowPlaying, remaining + 500);
+          // Try to apply preloaded data immediately
+          if (!applyPreloadedData()) {
+            // Fallback: fetch if no preloaded data
+            fetchNowPlaying();
+          }
         }
         
         return Math.min(newProgress, nowPlaying.duration_ms);
