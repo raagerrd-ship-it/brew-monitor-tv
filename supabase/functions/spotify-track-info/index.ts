@@ -30,7 +30,7 @@ interface SpotifyAudioFeatures {
 // Cache for Spotify access token
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
-async function getSpotifyToken(): Promise<string> {
+async function getSpotifyToken(): Promise<string | null> {
   // Return cached token if still valid (with 1 minute buffer)
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60000) {
     return cachedToken.token;
@@ -39,33 +39,38 @@ async function getSpotifyToken(): Promise<string> {
   const clientId = Deno.env.get('SPOTIFY_CLIENT_ID');
   const clientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
+  // Silently return null if credentials are not configured
   if (!clientId || !clientSecret) {
-    throw new Error('Spotify credentials not configured');
+    return null;
   }
 
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-    },
-    body: 'grant_type=client_credentials',
-  });
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+      },
+      body: 'grant_type=client_credentials',
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Spotify token error:', errorText);
-    throw new Error('Failed to get Spotify access token');
+    if (!response.ok) {
+      // Silently fail - don't log errors for missing/invalid credentials
+      return null;
+    }
+
+    const data: SpotifyTokenResponse = await response.json();
+    
+    cachedToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in * 1000),
+    };
+
+    return data.access_token;
+  } catch {
+    // Silently fail on any error
+    return null;
   }
-
-  const data: SpotifyTokenResponse = await response.json();
-  
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + (data.expires_in * 1000),
-  };
-
-  return data.access_token;
 }
 
 async function searchTrack(token: string, trackName: string, artistName: string): Promise<string | null> {
@@ -131,17 +136,26 @@ serve(async (req) => {
 
     if (!trackName || !artistName) {
       return new Response(
-        JSON.stringify({ error: 'trackName and artistName are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ notConfigured: true, tempo: null, energy: null }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const token = await getSpotifyToken();
+    
+    // If no token (credentials not configured), return silently
+    if (!token) {
+      return new Response(
+        JSON.stringify({ notConfigured: true, tempo: null, energy: null }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const trackId = await searchTrack(token, trackName, artistName);
 
     if (!trackId) {
       return new Response(
-        JSON.stringify({ error: 'Track not found', tempo: null }),
+        JSON.stringify({ tempo: null, energy: null }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -150,7 +164,7 @@ serve(async (req) => {
 
     if (!audioFeatures) {
       return new Response(
-        JSON.stringify({ error: 'Audio features not available', tempo: null }),
+        JSON.stringify({ tempo: null, energy: null }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -164,11 +178,11 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
-    console.error('Error:', error);
+  } catch {
+    // Silently return null values on any error
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ tempo: null, energy: null }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
