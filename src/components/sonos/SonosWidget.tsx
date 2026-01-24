@@ -231,7 +231,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     };
 
-    // Pre-load next track's data 5 seconds before track ends
+    // Pre-load next track's data 10 seconds before track ends for more buffer time
     const preloadNextTrack = async () => {
       console.log('[Sonos Debug] Pre-loading next track data...');
       try {
@@ -241,9 +241,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         // Store full next track data
         if (response.data?.track_name && response.data.track_name !== nowPlaying.track_name) {
           preloadedDataRef.current = response.data;
-          // Preload the image
+          // Preload the image with callback to track completion
           if (response.data.album_art_url) {
             const img = new Image();
+            img.onload = () => {
+              console.log('[Sonos Debug] Pre-loaded image ready!');
+            };
             img.src = response.data.album_art_url;
             preloadedImageRef.current = img;
           }
@@ -261,25 +264,31 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const preloadedData = preloadedDataRef.current;
         currentTrackRef.current = preloadedData.track_name;
         
-        // Check if image is already loaded
-        if (preloadedImageRef.current?.complete) {
+        // If image is pre-loaded, mark as loaded immediately to prevent flash
+        const imageIsReady = preloadedImageRef.current?.complete && preloadedImageRef.current?.naturalWidth > 0;
+        if (imageIsReady) {
+          console.log('[Sonos Debug] Image already cached, setting loaded immediately');
           setImageLoaded(true);
           setImageError(false);
         } else {
+          console.log('[Sonos Debug] Image not ready yet, will load on display');
           setImageLoaded(false);
           setImageError(false);
         }
         
+        // Update state synchronously
         setNowPlaying(preloadedData);
         setLocalProgress(preloadedData.position_ms ?? 0);
         lastUpdateRef.current = Date.now();
         
-        // Clear refs
-        preloadedDataRef.current = null;
-        preloadedImageRef.current = null;
+        // Keep refs for the image onLoad handler to use, clear after short delay
+        setTimeout(() => {
+          preloadedDataRef.current = null;
+          preloadedImageRef.current = null;
+        }, 100);
         
         // Still fetch to verify/update, but don't block UI
-        setTimeout(fetchNowPlaying, 1000);
+        setTimeout(fetchNowPlaying, 1500);
         return true;
       }
       return false;
@@ -292,8 +301,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const newProgress = (nowPlaying.position_ms ?? 0) + elapsed;
         const remaining = nowPlaying.duration_ms - newProgress;
         
-        // Pre-load next track's data 5 seconds before track ends
-        if (remaining <= 5000 && remaining > 4000 && !trackEndFetchedRef.current) {
+        // Pre-load next track's data 10 seconds before track ends for more buffer time
+        if (remaining <= 10000 && remaining > 9000 && !trackEndFetchedRef.current) {
           preloadNextTrack();
         }
         
