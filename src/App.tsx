@@ -12,6 +12,7 @@ import Settings from "./pages/Settings";
 import Install from "./pages/Install";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import SonosCallback from "./pages/SonosCallback";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/install" element={<Install />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/sonos-callback" element={<SonosCallback />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

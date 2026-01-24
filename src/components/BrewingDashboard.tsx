@@ -5,6 +5,7 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
+import { SonosWidget } from "./sonos/SonosWidget";
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
@@ -255,6 +256,7 @@ export function BrewingDashboard() {
             </div>
             
             <div className="flex items-center gap-4 flex-shrink-0">
+              <SonosWidget isMobile={false} isTvMode={isTvMode} />
               <Clock />
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{
