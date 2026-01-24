@@ -256,7 +256,7 @@ export function BrewingDashboard() {
             </div>
             
             <div className="flex items-center gap-4 flex-shrink-0">
-              <SonosWidget isMobile={false} isTvMode={isTvMode} />
+              {/* SonosWidget moved to floating position - TV mode only */}
               <Clock />
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{
@@ -307,6 +307,18 @@ export function BrewingDashboard() {
               </div>)}
           </div>}
       </div>
+
+      {/* Sonos Now Playing - floating bottom right, TV mode only */}
+      {isTvMode && (
+        <div 
+          className="fixed right-4 z-30"
+          style={{ 
+            bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
+          }}
+        >
+          <SonosWidget isMobile={false} isTvMode={true} />
+        </div>
+      )}
 
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
