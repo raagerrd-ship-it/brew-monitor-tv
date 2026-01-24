@@ -34,25 +34,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         console.log('[SonosWidget] Checking connection...');
         
-        // Use any type to avoid TypeScript errors until types are regenerated
+        // Check sonos_settings for selected_group_id (indicates Sonos is configured)
+        // We can't read sonos_tokens directly due to RLS (service_role only)
         const { data: settings, error: settingsError } = await (supabase as any)
           .from('sonos_settings')
-          .select('show_on_dashboard')
+          .select('show_on_dashboard, selected_group_id')
           .limit(1)
           .maybeSingle();
 
-        const { data: tokens, error: tokensError } = await (supabase as any)
-          .from('sonos_tokens')
-          .select('id')
-          .limit(1)
-          .maybeSingle();
+        console.log('[SonosWidget] Settings:', settings, 'Error:', settingsError);
 
-        console.log('[SonosWidget] Settings:', settings, 'Tokens:', tokens);
-        console.log('[SonosWidget] Errors - settings:', settingsError, 'tokens:', tokensError);
-
-        // If we get errors (like 406), treat as not connected
-        if (tokensError || !tokens) {
-          console.log('[SonosWidget] Not connected - no tokens');
+        // If no settings or no selected group, treat as not connected
+        if (settingsError || !settings?.selected_group_id) {
+          console.log('[SonosWidget] Not connected - no selected_group_id');
           setIsConnected(false);
           return;
         }
