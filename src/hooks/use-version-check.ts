@@ -1,41 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 
-// Clear all caches on load (useful for TV mode)
-const clearAllCaches = async () => {
-  try {
-    // Clear Service Worker caches
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
-      console.log('Caches cleared on load:', cacheNames);
-    }
-    
-    // Unregister Service Workers
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map(reg => reg.unregister()));
-      console.log('Service Workers unregistered on load:', registrations.length);
-    }
-  } catch (error) {
-    console.error('Failed to clear caches on load:', error);
-  }
-};
-
 // Check for new app versions by comparing the HTML content
-export const useVersionCheck = (checkInterval = 60000, clearCacheOnLoad = false) => { // Default: check every minute
+export const useVersionCheck = (checkInterval = 60000) => { // Default: check every minute
   const lastHtmlHash = useRef<string | null>(null);
   const appLoadTime = useRef(new Date());
   const isFirstCheck = useRef(true);
-  const hasClearedCache = useRef(false);
-
-  // Clear cache on initial load if requested (e.g., TV mode)
-  useEffect(() => {
-    if (clearCacheOnLoad && !hasClearedCache.current) {
-      hasClearedCache.current = true;
-      clearAllCaches();
-    }
-  }, [clearCacheOnLoad]);
 
   useEffect(() => {
     const hashString = async (str: string): Promise<string> => {
