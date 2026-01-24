@@ -107,47 +107,36 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Adaptive polling: faster when idle/nothing playing, slower during playback
-    const getPollingInterval = () => {
-      // If nothing playing or paused, poll faster to detect playback start quickly
-      if (!nowPlaying || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') {
-        return 2000; // 2 seconds when idle - detect start quickly
-      }
-      return 5000; // 5 seconds during playback
-    };
-
-    const startPolling = () => {
-      if (pollIntervalRef.current) return;
-      const interval = getPollingInterval();
-      console.log('[Sonos Debug] Starting polling with interval:', interval);
-      pollIntervalRef.current = window.setInterval(fetchNowPlaying, interval);
-    };
-
-    const stopPolling = () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
+    // Fixed polling interval - 3 seconds for quick response
+    const POLL_INTERVAL = 3000;
+    console.log('[Sonos Debug] Starting polling with interval:', POLL_INTERVAL);
+    pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
 
     // Handle visibility changes
     const handleVisibility = () => {
       if (document.hidden) {
-        stopPolling();
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
       } else {
         fetchNowPlaying();
-        startPolling();
+        if (!pollIntervalRef.current) {
+          pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
+        }
       }
     };
 
-    startPolling();
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      stopPolling();
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isConnected, showWidget, nowPlaying?.playback_state]);
+  }, [isConnected, showWidget]);
 
   // Subscribe to realtime updates
   useEffect(() => {
