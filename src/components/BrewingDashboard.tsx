@@ -226,22 +226,29 @@ export function BrewingDashboard() {
             className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
             style={{ 
               backgroundImage: `url(${albumArtUrl})`,
-              filter: 'blur(16px) brightness(0.4)',
+              filter: 'blur(20px) brightness(0.35)',
               transform: 'scale(1.1)',
+              opacity: 0.7,
               animation: currentTempo 
                 ? `pulse-bg ${60 / currentTempo}s ease-in-out infinite`
                 : undefined,
               // Dynamic intensity based on energy (0-1 scale)
               // CSS custom properties for animation keyframes
               ['--pulse-scale' as string]: currentEnergy 
-                ? `${1.1 + (currentEnergy * 0.1)}` // 1.1 to 1.2 based on energy
+                ? `${1.1 + (currentEnergy * 0.12)}` // 1.1 to 1.22 based on energy
                 : '1.15',
               ['--pulse-brightness' as string]: currentEnergy 
-                ? `${0.4 + (currentEnergy * 0.15)}` // 0.4 to 0.55 based on energy
-                : '0.45',
+                ? `${0.4 + (currentEnergy * 0.25)}` // 0.4 to 0.65 based on energy (more visible)
+                : '0.5',
               ['--pulse-blur' as string]: currentEnergy 
-                ? `${16 + (currentEnergy * 6)}px` // 16px to 22px based on energy
-                : '18px',
+                ? `${18 - (currentEnergy * 10)}px` // 18px to 8px - less blur = clearer at peak
+                : '12px',
+              ['--pulse-opacity-low' as string]: currentEnergy 
+                ? `${0.6 + (currentEnergy * 0.1)}` // 0.6 to 0.7 base opacity
+                : '0.7',
+              ['--pulse-opacity-high' as string]: currentEnergy 
+                ? `${0.8 + (currentEnergy * 0.15)}` // 0.8 to 0.95 peak opacity
+                : '0.9',
             }}
           />
           <div 
