@@ -224,8 +224,8 @@ export function BrewingDashboard() {
             className="fixed inset-0 bg-cover bg-center transition-all duration-1000"
             style={{ 
               backgroundImage: `url(${albumArtUrl})`,
-              filter: 'blur(40px) brightness(0.4)',
-              transform: 'scale(1.2)',
+              filter: 'blur(16px) brightness(0.4)',
+              transform: 'scale(1.1)',
             }}
           />
           <div 
