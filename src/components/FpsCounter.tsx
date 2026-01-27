@@ -14,7 +14,8 @@ export const FpsCounter = memo(function FpsCounter() {
   const lastFrameTimeRef = useRef(performance.now());
   const rafIdRef = useRef<number>(0);
 
-  const showFps = searchParams.get('fps') === 'true';
+  // TEMP: Always show for testing - revert to: searchParams.get('fps') === 'true'
+  const showFps = true;
 
   useEffect(() => {
     if (!showFps) return;
