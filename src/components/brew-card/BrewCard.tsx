@@ -19,7 +19,7 @@ import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
 const CARD_HEADER_HEIGHT = 60;
-const CARD_STATS_HEIGHT = 130;
+const CARD_STATS_HEIGHT = 140;
 
 function BrewCardComponent({
   brew,
