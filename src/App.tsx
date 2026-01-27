@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
+import { FpsCounterProvider } from "@/contexts/FpsCounterContext";
 import { AspectRatioContainer } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";
 import { FpsCounter } from "@/components/FpsCounter";
@@ -24,21 +25,23 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <TvModeProvider>
-          <ExternalAuthProvider>
-            <AspectRatioContainer>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/install" element={<Install />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/sonos-callback" element={<SonosCallback />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <TimerFooter />
-            </AspectRatioContainer>
-            <FpsCounter />
-          </ExternalAuthProvider>
+          <FpsCounterProvider>
+            <ExternalAuthProvider>
+              <AspectRatioContainer>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/install" element={<Install />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/sonos-callback" element={<SonosCallback />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <TimerFooter />
+              </AspectRatioContainer>
+              <FpsCounter />
+            </ExternalAuthProvider>
+          </FpsCounterProvider>
         </TvModeProvider>
       </BrowserRouter>
     </TooltipProvider>

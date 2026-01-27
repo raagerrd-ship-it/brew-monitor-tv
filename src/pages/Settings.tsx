@@ -15,7 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, Gauge } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,7 @@ import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useFpsCounter } from "@/contexts/FpsCounterContext";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -100,6 +101,9 @@ export default function Settings() {
   
   // External user settings (stored in database per user)
   const { timerTvModeOnly, setTimerTvModeOnly, isLoading: settingsLoading } = useExternalUserSettings();
+  
+  // FPS counter setting
+  const { showFps, setShowFps } = useFpsCounter();
 
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
@@ -1717,6 +1721,33 @@ export default function Settings() {
                   </div>
                 </Card>
               )}
+            </div>
+            
+            {/* Debug Section */}
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Gauge}
+                title="Prestandaövervakning"
+                description="Verktyg för att övervaka appens prestanda"
+              />
+              
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Gauge className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">FPS-räknare</p>
+                      <p className="text-sm text-muted-foreground">
+                        Visa aktuell bildfrekvens för att övervaka prestanda
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={showFps}
+                    onCheckedChange={setShowFps}
+                  />
+                </div>
+              </Card>
             </div>
           </TabsContent>
 
