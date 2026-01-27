@@ -7,6 +7,7 @@ import { TvModeProvider } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { AspectRatioContainer } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";
+import { FpsCounter } from "@/components/FpsCounter";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import Install from "./pages/Install";
@@ -35,6 +36,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <TimerFooter />
+              <FpsCounter />
             </AspectRatioContainer>
           </ExternalAuthProvider>
         </TvModeProvider>
