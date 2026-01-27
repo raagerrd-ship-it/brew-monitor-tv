@@ -61,7 +61,7 @@ export function StatCard({
 
   return (
     <div 
-      className={`rounded-xl ${paddingClass} flex flex-col ${alignmentClass} justify-center gap-0 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 ${
+      className={`rounded-xl ${paddingClass} flex flex-col ${alignmentClass} justify-center gap-0 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 min-h-0 ${
         clickable ? 'cursor-pointer hover:opacity-80' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
