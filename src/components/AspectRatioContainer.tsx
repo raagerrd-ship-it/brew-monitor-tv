@@ -81,11 +81,9 @@ export function AspectRatioContainer({
             width: dimensions.width,
             height: dimensions.height,
           }}
-          className="relative bg-background flex flex-col"
+          className="relative bg-background flex flex-col overflow-hidden"
         >
-          <div className="flex-1 overflow-y-auto">
-            {children}
-          </div>
+          {children}
         </div>
       </div>
     </AspectRatioContext.Provider>
