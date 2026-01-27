@@ -1,21 +1,18 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useFpsCounter } from "@/contexts/FpsCounterContext";
 
 /**
  * FPS Counter component for performance monitoring.
- * Enable by adding ?fps=true to the URL.
+ * Enable via Settings -> Prestandaövervakning -> FPS-räknare
  */
 export const FpsCounter = memo(function FpsCounter() {
-  const [searchParams] = useSearchParams();
+  const { showFps } = useFpsCounter();
   const [fps, setFps] = useState(0);
   const [avgFps, setAvgFps] = useState(0);
   const [minFps, setMinFps] = useState(999);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef(performance.now());
   const rafIdRef = useRef<number>(0);
-
-  // TEMP: Always show for testing - revert to: searchParams.get('fps') === 'true'
-  const showFps = true;
 
   useEffect(() => {
     if (!showFps) return;
