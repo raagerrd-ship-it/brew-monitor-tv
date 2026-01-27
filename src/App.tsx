@@ -36,8 +36,8 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <TimerFooter />
-              <FpsCounter />
             </AspectRatioContainer>
+            <FpsCounter />
           </ExternalAuthProvider>
         </TvModeProvider>
       </BrowserRouter>
