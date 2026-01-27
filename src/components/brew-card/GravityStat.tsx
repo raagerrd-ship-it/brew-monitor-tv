@@ -39,14 +39,14 @@ function GravityStatComponent({ brew, updatedFields }: GravityStatProps) {
       valueSize="max(32px, min(6vh, 3vw))"
       className="gap-0.5"
     >
-      <div className="text-muted-foreground/70 mt-0.5 space-y-0.5 z-10 text-center px-1 w-full">
-        <p className="tabular-nums truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
+      <div className="text-muted-foreground/70 z-10 text-center px-1 w-full flex flex-col min-h-0">
+        <p className="tabular-nums truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
           OG: {brew.originalGravity.toFixed(3)}
         </p>
-        <p className="tabular-nums truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
+        <p className="tabular-nums truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
           FG: {brew.finalGravity.toFixed(3)}
         </p>
-        <p className="font-medium truncate" style={{ fontSize: 'max(12px, min(1.8vh, 1.3vw))' }}>
+        <p className="font-medium truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
           {brew.fermentationRate !== null ? (
             <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
           ) : (
