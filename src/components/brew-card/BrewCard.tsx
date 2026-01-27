@@ -18,8 +18,8 @@ import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
-const CARD_HEADER_HEIGHT = 52;
-const CARD_STATS_HEIGHT = 140;
+const CARD_HEADER_HEIGHT = 60;
+const CARD_STATS_HEIGHT = 130;
 
 function BrewCardComponent({
   brew,
