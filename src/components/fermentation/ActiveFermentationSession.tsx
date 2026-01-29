@@ -65,6 +65,7 @@ export function ActiveFermentationSession({
   const [loading, setLoading] = useState(!preloadedSession);
   const [actionLoading, setActionLoading] = useState(false);
   const [skipLoading, setSkipLoading] = useState(false);
+  const [acknowledgeLoading, setAcknowledgeLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
@@ -171,7 +172,7 @@ export function ActiveFermentationSession({
     let query = supabase
       .from('fermentation_sessions')
       .select('*')
-      .in('status', ['running', 'paused']);
+      .in('status', ['running', 'paused', 'completed']);
     
     if (controllerId) {
       query = query.eq('controller_id', controllerId);
@@ -380,6 +381,31 @@ export function ActiveFermentationSession({
     
     setSkipLoading(false);
   }, [session, controllerData, toast, loadSession]);
+
+  // Acknowledge completed session (deletes the session record)
+  const handleAcknowledge = useCallback(async () => {
+    if (!session) return;
+    
+    setAcknowledgeLoading(true);
+    
+    const { error } = await supabase
+      .from('fermentation_sessions')
+      .delete()
+      .eq('id', session.id);
+
+    if (error) {
+      toast({ title: "Fel", description: "Kunde inte kvittera sessionen", variant: "destructive" });
+    } else {
+      toast({ 
+        title: "Kvitterad", 
+        description: "Fermenteringsprofilen har kvitterats" 
+      });
+      setSession(null);
+    }
+    
+    setAcknowledgeLoading(false);
+  }, [session, toast]);
+
   const calculateProgress = useCallback(() => {
     if (!session?.steps?.length) return 0;
     const totalSteps = session.steps.length;
@@ -490,6 +516,8 @@ export function ActiveFermentationSession({
         skipLoading={skipLoading}
         sgData={sgData}
         isWaitingForGravityStable={isWaitingForGravityStable}
+        onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
+        acknowledgeLoading={acknowledgeLoading}
       />
     );
   }

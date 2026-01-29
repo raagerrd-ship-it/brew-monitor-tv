@@ -130,7 +130,7 @@ export function useBrewData(): UseBrewDataReturn {
       supabase
         .from('fermentation_sessions')
         .select('*')
-        .in('status', ['running', 'paused']),
+        .in('status', ['running', 'paused', 'completed']),
     ]);
 
     if (brewReadingsRes.error) throw brewReadingsRes.error;
