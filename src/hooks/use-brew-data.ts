@@ -480,23 +480,6 @@ export function useBrewData(): UseBrewDataReturn {
 
             const newFermentationRate = calculateFermentationRate(originalSgData);
 
-            // Cold crash notification
-            if (
-              newFermentationRate !== null &&
-              Math.abs(newFermentationRate) < 0.0005 &&
-              !brew.coldcrashAcknowledged
-            ) {
-              sonnerToast(`${updatedReading.name} är klar! 🍺`, {
-                description: 'Jäsningen är färdig (0.000/dag). Dags för Coldcrash!',
-                duration: 5000,
-              });
-
-              supabase
-                .from('brew_readings')
-                .update({ coldcrash_acknowledged: true })
-                .eq('batch_id', brew.batch_id);
-            }
-
             return {
               ...brew,
               status: updatedReading.status ?? brew.status,
