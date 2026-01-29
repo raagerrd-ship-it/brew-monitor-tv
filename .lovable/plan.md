@@ -1,39 +1,40 @@
 
-# Plan: Fixa FPS-räknare toggle i Settings
+# Plan: Ta bort popup för "Jäsning klar"
 
-## Problem
-Togglen för FPS-räknaren i Settings går att klicka på och ändrar visuellt state (checked/unchecked), men inställningen verkar inte persisteras eller påverka FPS-räknarens visibilitet.
+## Bakgrund
+Popupen som visas i nedre högra hörnet med texten "Jäsningen är färdig (0.000/dag). Dags för Coldcrash!" triggas automatiskt när jäsningshastigheten sjunker under ett tröskelvärde.
 
-## Analys
-Efter att ha granskat koden har jag identifierat att:
+## Aktuell implementation
+- **Fil:** `src/hooks/use-brew-data.ts` (rad 483-498)
+- **Villkor:** När `fermentationRate < 0.0005` och `coldcrashAcknowledged` är false
+- **Åtgärd:** Visar en sonner toast-notifiering och uppdaterar databasen för att markera att meddelandet har visats
 
-1. **Kontextstrukturen är korrekt** - `FpsCounterProvider` omsluter både Settings-sidan och FpsCounter-komponenten i `App.tsx`
-2. **Switch-kopplingen ser korrekt ut** - `checked={showFps}` och `onCheckedChange={setShowFps}` är rätt konfigurerade
-3. **localStorage-hantering finns** - Värdet sparas och läses från localStorage
+## Åtgärd
+Ta bort eller kommentera bort koden som visar denna popup (rad 483-498).
 
-## Möjliga orsaker
-1. **Re-render problem** - Komponenten kanske inte uppdateras korrekt när state ändras
-2. **localStorage synkronisering** - Kan finnas race condition vid läsning/skrivning
-3. **Kontext-initialisering** - Initialt värde kan läsas fel
+### Teknisk ändring
 
-## Lösning
-Jag kommer att:
+**Fil: `src/hooks/use-brew-data.ts`**
 
-1. **Lägga till console.log för debugging** - Temporärt för att se om `setShowFps` faktiskt anropas och vad värdet är
+Bort med följande kodblock:
+```typescript
+// Cold crash notification
+if (
+  newFermentationRate !== null &&
+  Math.abs(newFermentationRate) < 0.0005 &&
+  !brew.coldcrashAcknowledged
+) {
+  sonnerToast(`${updatedReading.name} är klar! 🍺`, {
+    description: 'Jäsningen är färdig (0.000/dag). Dags för Coldcrash!',
+    duration: 5000,
+  });
 
-2. **Verifiera localStorage-nyckeln** - Säkerställa att samma nyckel används överallt
+  supabase
+    .from('brew_readings')
+    .update({ coldcrash_acknowledged: true })
+    .eq('batch_id', brew.batch_id);
+}
+```
 
-3. **Testa med en enklare implementation** - Om problemet kvarstår, förenkla kontexten för att isolera problemet
-
-## Tekniska ändringar
-
-### Fil: `src/contexts/FpsCounterContext.tsx`
-- Lägg till console.log i `setShowFps` för att verifiera att funktionen anropas
-- Verifiera att localStorage uppdateras korrekt
-
-### Fil: `src/pages/Settings.tsx`
-- Kontrollera att `useFpsCounter()` returnerar korrekta värden
-- Eventuellt lägga till lokal debugging
-
-## Prioritet
-Hög - Detta är en enkel UX-bugg som bör vara snabb att lösa med rätt debugging.
+## Resultat
+Ingen popup kommer längre visas när jäsningen bedöms vara klar. Användaren kan fortfarande se jäsningsstatus via dashboarden.
