@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2, CheckCircle2, Check } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
@@ -51,6 +51,8 @@ interface FermentationSessionCompactProps {
   skipLoading?: boolean;
   sgData?: SgDataPoint[];
   isWaitingForGravityStable?: boolean;
+  onAcknowledge?: () => void;
+  acknowledgeLoading?: boolean;
 }
 
 export function FermentationSessionCompact({
@@ -73,6 +75,8 @@ export function FermentationSessionCompact({
   skipLoading,
   sgData,
   isWaitingForGravityStable = false,
+  onAcknowledge,
+  acknowledgeLoading,
 }: FermentationSessionCompactProps) {
   const { isTvMode } = useTvMode();
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
@@ -176,7 +180,96 @@ export function FermentationSessionCompact({
     }
   };
 
-  const visualState: VisualState = waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
+  const visualState: VisualState = status === 'completed' ? 'normal' : waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
+  const isCompleted = status === 'completed';
+
+  // Completed session - simplified view
+  if (isCompleted) {
+    return (
+      <div 
+        className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+        style={{
+          background: 'linear-gradient(135deg, hsl(142 70% 30% / 0.3) 0%, hsl(142 70% 20% / 0.2) 100%)',
+          border: '1px solid hsl(142 70% 50% / 0.4)',
+          boxShadow: '0 0 20px hsl(142 70% 50% / 0.15), inset 0 1px 0 hsl(142 70% 70% / 0.1)',
+        }}
+      >
+        {/* Success shimmer overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'linear-gradient(90deg, transparent 0%, hsl(142 70% 50% / 0.1) 50%, transparent 100%)',
+            backgroundSize: '200% 100%',
+          }}
+        />
+        
+        {/* Checkmark icon */}
+        <div className="relative z-10 shrink-0">
+          <div 
+            className="w-6 h-6 rounded-full flex items-center justify-center"
+            style={{
+              background: 'hsl(142 70% 45% / 0.3)',
+              border: '1px solid hsl(142 70% 50% / 0.5)',
+            }}
+          >
+            <CheckCircle2 className="h-4 w-4" style={{ color: 'hsl(142 70% 60%)' }} />
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="relative z-10 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold tracking-tight truncate">
+              {profileName}
+            </span>
+            <Badge 
+              variant="outline"
+              className="shrink-0 text-xs font-medium px-1.5 py-0"
+              style={{
+                borderColor: 'hsl(142 70% 50% / 0.4)',
+                background: 'hsl(142 70% 50% / 0.15)',
+                color: 'hsl(142 70% 65%)',
+              }}
+            >
+              <CheckCircle2 className="h-3 w-3 mr-0.5" />
+              Klar
+            </Badge>
+            
+            {/* Acknowledge button - hidden in TV mode */}
+            {!isTvMode && onAcknowledge && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAcknowledge();
+                }}
+                disabled={acknowledgeLoading}
+                className="h-5 px-2 text-xs font-medium gap-1 ml-auto"
+                style={{
+                  color: 'hsl(142 70% 70%)',
+                  background: 'hsl(142 70% 50% / 0.15)',
+                }}
+              >
+                {acknowledgeLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="h-3 w-3" />
+                    Kvittera
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+            <span className="font-medium">Alla {totalSteps} steg slutförda</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
