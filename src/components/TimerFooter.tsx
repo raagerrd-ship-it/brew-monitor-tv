@@ -262,23 +262,23 @@ export const TimerFooter = memo(function TimerFooter() {
         }}
       >
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[minmax(280px,1.5fr)_2fr_auto] h-full">
+        <div className="grid grid-cols-[minmax(320px,2fr)_1.5fr_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
-            "flex flex-col justify-center px-4 border-r gap-0.5",
+            "flex flex-col justify-center px-4 border-r gap-1",
             isMash ? "border-orange-700/40" : "border-border/50"
           )}>
             {/* Current Step - show last triggered milestone or timer label */}
             <div className="flex items-center gap-2">
               <span className={cn(
-                "text-xs uppercase tracking-wide flex-shrink-0",
-                isMash ? "text-green-400/80" : "text-green-500/80"
+                "text-sm uppercase tracking-wide flex-shrink-0 font-medium",
+                isMash ? "text-green-400/90" : "text-green-500/90"
               )}>
                 Nu:
               </span>
               <span className={cn(
-                "text-sm font-medium truncate",
+                "text-base font-semibold truncate",
                 isMash ? "text-green-300" : "text-green-400"
               )}>
                 {currentMilestone 
@@ -290,13 +290,13 @@ export const TimerFooter = memo(function TimerFooter() {
             {/* Next Step */}
             <div className="flex items-center gap-2">
               <span className={cn(
-                "text-xs uppercase tracking-wide flex-shrink-0",
-                isMash ? "text-orange-400/80" : "text-muted-foreground"
+                "text-sm uppercase tracking-wide flex-shrink-0 font-medium",
+                isMash ? "text-orange-400/90" : "text-muted-foreground"
               )}>
                 Nästa:
               </span>
               {timer.nextMilestone ? (
-                <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Flame className={cn(
                     "w-4 h-4 flex-shrink-0",
                     isNextMilestoneImminent 
@@ -305,31 +305,16 @@ export const TimerFooter = memo(function TimerFooter() {
                         ? "text-orange-400" 
                         : "text-primary"
                   )} />
-                  <div className="overflow-hidden max-w-[200px] relative">
-                    {/* Disable seamless marquee in TV mode to prevent performance issues on Chromecast */}
-                    <div className={cn("inline-flex whitespace-nowrap", !isTvMode && "animate-marquee-seamless")}>
-                      <span className={cn(
-                        "text-base font-semibold px-4",
-                        isNextMilestoneImminent 
-                          ? "text-yellow-300" 
-                          : isMash 
-                            ? "text-orange-100" 
-                            : "text-foreground"
-                      )}>
-                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                      </span>
-                      <span className={cn(
-                        "text-base font-semibold px-4",
-                        isNextMilestoneImminent 
-                          ? "text-yellow-300" 
-                          : isMash 
-                            ? "text-orange-100" 
-                            : "text-foreground"
-                      )}>
-                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                      </span>
-                    </div>
-                  </div>
+                  <span className={cn(
+                    "text-base font-semibold truncate",
+                    isNextMilestoneImminent 
+                      ? "text-yellow-300" 
+                      : isMash 
+                        ? "text-orange-100" 
+                        : "text-foreground"
+                  )}>
+                    {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                  </span>
                 </div>
               ) : (
                 <span className={cn(
