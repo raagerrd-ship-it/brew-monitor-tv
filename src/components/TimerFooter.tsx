@@ -262,7 +262,7 @@ export const TimerFooter = memo(function TimerFooter() {
         }}
       >
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[300px_1fr_auto] h-full">
+        <div className="grid grid-cols-[350px_1fr_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
