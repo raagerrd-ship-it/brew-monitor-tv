@@ -262,30 +262,30 @@ export const TimerFooter = memo(function TimerFooter() {
         }}
       >
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[minmax(200px,1fr)_3fr_auto] h-full">
+        <div className="grid grid-cols-[minmax(280px,1.5fr)_2fr_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
             "flex flex-col justify-center px-4 border-r gap-0.5",
             isMash ? "border-orange-700/40" : "border-border/50"
           )}>
-            {/* Current Step - show last triggered milestone */}
-            {currentMilestone && (
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  "text-xs uppercase tracking-wide flex-shrink-0",
-                  isMash ? "text-green-400/80" : "text-green-500/80"
-                )}>
-                  Nu:
-                </span>
-                <span className={cn(
-                  "text-sm font-medium truncate",
-                  isMash ? "text-green-300" : "text-green-400"
-                )}>
-                  {currentMilestone.label.replace(/🔥\s*/g, '')}
-                </span>
-              </div>
-            )}
+            {/* Current Step - show last triggered milestone or timer label */}
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-xs uppercase tracking-wide flex-shrink-0",
+                isMash ? "text-green-400/80" : "text-green-500/80"
+              )}>
+                Nu:
+              </span>
+              <span className={cn(
+                "text-sm font-medium truncate",
+                isMash ? "text-green-300" : "text-green-400"
+              )}>
+                {currentMilestone 
+                  ? currentMilestone.label.replace(/🔥\s*/g, '') 
+                  : timer.label || 'Pågår'}
+              </span>
+            </div>
             
             {/* Next Step */}
             <div className="flex items-center gap-2">
