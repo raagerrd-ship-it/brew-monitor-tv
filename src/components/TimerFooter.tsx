@@ -145,6 +145,12 @@ export const TimerFooter = memo(function TimerFooter() {
 
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
+  
+  // Find the most recently triggered milestone (current step)
+  // This is the milestone with the highest time that has been triggered
+  const currentMilestone = timer.milestones
+    .filter(m => m.triggered || m.time >= timer.remainingSeconds)
+    .sort((a, b) => b.time - a.time)[0] || null;
 
   // Check if we should show based on TV mode setting
   const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
@@ -254,64 +260,85 @@ export const TimerFooter = memo(function TimerFooter() {
           height: `${TIMER_FOOTER_HEIGHT}px`,
         }}
       >
-        {/* 3-column grid: Next Step | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[minmax(180px,1fr)_3fr_auto] h-full">
+        {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
+        <div className="grid grid-cols-[minmax(200px,1fr)_3fr_auto] h-full">
           
-          {/* LEFT COLUMN: Next Step */}
+          {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
-            "flex flex-col justify-center px-4 border-r",
+            "flex flex-col justify-center px-4 border-r gap-0.5",
             isMash ? "border-orange-700/40" : "border-border/50"
           )}>
-            <span className={cn(
-              "text-sm uppercase tracking-wide mb-1",
-              isMash ? "text-orange-400/80" : "text-muted-foreground"
-            )}>
-              Nästa
-            </span>
-            {timer.nextMilestone ? (
+            {/* Current Step - show last triggered milestone */}
+            {currentMilestone && (
               <div className="flex items-center gap-2">
-                <Flame className={cn(
-                  "w-5 h-5 flex-shrink-0",
-                  isNextMilestoneImminent 
-                    ? "text-yellow-400 animate-pulse" 
-                    : isMash 
-                      ? "text-orange-400" 
-                      : "text-primary"
-                )} />
-                <div className="overflow-hidden max-w-[250px] relative">
-                  {/* Disable seamless marquee in TV mode to prevent performance issues on Chromecast */}
-                  <div className={cn("inline-flex whitespace-nowrap", !isTvMode && "animate-marquee-seamless")}>
-                    <span className={cn(
-                      "text-lg font-semibold px-8",
-                      isNextMilestoneImminent 
-                        ? "text-yellow-300" 
-                        : isMash 
-                          ? "text-orange-100" 
-                          : "text-foreground"
-                    )}>
-                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                    </span>
-                    <span className={cn(
-                      "text-lg font-semibold px-8",
-                      isNextMilestoneImminent 
-                        ? "text-yellow-300" 
-                        : isMash 
-                          ? "text-orange-100" 
-                          : "text-foreground"
-                    )}>
-                      {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
-                    </span>
+                <span className={cn(
+                  "text-xs uppercase tracking-wide flex-shrink-0",
+                  isMash ? "text-green-400/80" : "text-green-500/80"
+                )}>
+                  Nu:
+                </span>
+                <span className={cn(
+                  "text-sm font-medium truncate",
+                  isMash ? "text-green-300" : "text-green-400"
+                )}>
+                  {currentMilestone.label.replace(/🔥\s*/g, '')}
+                </span>
+              </div>
+            )}
+            
+            {/* Next Step */}
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-xs uppercase tracking-wide flex-shrink-0",
+                isMash ? "text-orange-400/80" : "text-muted-foreground"
+              )}>
+                Nästa:
+              </span>
+              {timer.nextMilestone ? (
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <Flame className={cn(
+                    "w-4 h-4 flex-shrink-0",
+                    isNextMilestoneImminent 
+                      ? "text-yellow-400 animate-pulse" 
+                      : isMash 
+                        ? "text-orange-400" 
+                        : "text-primary"
+                  )} />
+                  <div className="overflow-hidden max-w-[200px] relative">
+                    {/* Disable seamless marquee in TV mode to prevent performance issues on Chromecast */}
+                    <div className={cn("inline-flex whitespace-nowrap", !isTvMode && "animate-marquee-seamless")}>
+                      <span className={cn(
+                        "text-base font-semibold px-4",
+                        isNextMilestoneImminent 
+                          ? "text-yellow-300" 
+                          : isMash 
+                            ? "text-orange-100" 
+                            : "text-foreground"
+                      )}>
+                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                      </span>
+                      <span className={cn(
+                        "text-base font-semibold px-4",
+                        isNextMilestoneImminent 
+                          ? "text-yellow-300" 
+                          : isMash 
+                            ? "text-orange-100" 
+                            : "text-foreground"
+                      )}>
+                        {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <span className={cn(
-                "text-lg font-semibold",
-                isMash ? "text-green-400" : "text-green-500"
-              )}>
-                ✓ Klart!
-              </span>
-            )}
+              ) : (
+                <span className={cn(
+                  "text-base font-semibold",
+                  isMash ? "text-green-400" : "text-green-500"
+                )}>
+                  ✓ Klart!
+                </span>
+              )}
+            </div>
           </div>
 
           {/* CENTER COLUMN: Visual Timeline */}
