@@ -147,10 +147,11 @@ export const TimerFooter = memo(function TimerFooter() {
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
   // Find the most recently triggered milestone (current step)
-  // This is the milestone with the highest time that has been triggered
+  // A milestone is triggered when remainingSeconds drops below its time
+  // We want the one with the LOWEST time among triggered ones (most recently passed)
   const currentMilestone = timer.milestones
-    .filter(m => m.triggered || m.time >= timer.remainingSeconds)
-    .sort((a, b) => b.time - a.time)[0] || null;
+    .filter(m => m.triggered || m.time > timer.remainingSeconds)
+    .sort((a, b) => a.time - b.time)[0] || null;
 
   // Check if we should show based on TV mode setting
   const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
