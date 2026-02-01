@@ -148,8 +148,9 @@ export function BrewingDashboard() {
 
   // Memoized handlers - MUST be before any conditional returns
   const handleShareBrew = useCallback(async (brew: typeof brews[0]) => {
-    // Use dedicated brew page with batch_id for QR code scanning
-    const shareUrl = `https://brew-monitor-tv.lovable.app/brew/${encodeURIComponent(brew.batch_id)}`;
+    // Use short share_id for cleaner QR codes, fallback to batch_id
+    const shareId = brew.share_id || brew.batch_id;
+    const shareUrl = `https://brew-monitor-tv.lovable.app/brew/${encodeURIComponent(shareId)}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       sonnerToast(`${brew.name} delad!`, {

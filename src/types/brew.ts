@@ -36,6 +36,7 @@ export interface FermentationStepData {
 export interface BrewData {
   id: string;
   batch_id: string;
+  share_id: string | null;
   name: string;
   style: string;
   batchNumber: string;
