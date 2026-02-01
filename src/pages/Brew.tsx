@@ -7,6 +7,8 @@ import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { calculateFermentationRate } from "@/lib/brew-utils";
 
+console.log('Brew.tsx loaded - this confirms the route /brew/:id is being matched');
+
 // Update document title when brew is loaded
 const useDocumentTitle = (title: string | null) => {
   useEffect(() => {
