@@ -204,6 +204,7 @@ export type Database = {
           name: string
           original_gravity: number
           sg_data: Json
+          share_id: string | null
           status: string
           style: string
           updated_at: string
@@ -227,6 +228,7 @@ export type Database = {
           name: string
           original_gravity: number
           sg_data?: Json
+          share_id?: string | null
           status: string
           style: string
           updated_at?: string
@@ -250,6 +252,7 @@ export type Database = {
           name?: string
           original_gravity?: number
           sg_data?: Json
+          share_id?: string | null
           status?: string
           style?: string
           updated_at?: string
@@ -895,6 +898,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_share_id: { Args: { length?: number }; Returns: string }
       get_temp_history_sampled: {
         Args: {
           p_controller_id: string

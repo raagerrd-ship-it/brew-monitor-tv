@@ -54,12 +54,13 @@ export default function Brew() {
     const fetchBrew = async () => {
       try {
         // Fetch brew reading, events, pills, controllers, and fermentation session in parallel
+        // Try to find by share_id first, then batch_id, then id
         const [brewResponse, eventsResponse, pillsResponse, controllersResponse] = await Promise.all([
           supabase
             .from('brew_readings')
             .select('*')
-            .eq('batch_id', id)
-            .single(),
+            .eq('share_id', id)
+            .maybeSingle(),
           supabase
             .from('brew_events')
             .select('*'),
@@ -71,21 +72,32 @@ export default function Brew() {
             .select('id, controller_id, name, current_temp, pill_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id')
         ]);
 
-        if (brewResponse.error) {
-          // Try finding by ID instead of batch_id
-          const byIdResponse = await supabase
+        if (!brewResponse.data) {
+          // Try finding by batch_id
+          const byBatchIdResponse = await supabase
             .from('brew_readings')
             .select('*')
-            .eq('id', id)
-            .single();
+            .eq('batch_id', id)
+            .maybeSingle();
           
-          if (byIdResponse.error) {
-            setError("Ölen hittades inte");
-            setLoading(false);
-            return;
+          if (byBatchIdResponse.data) {
+            brewResponse.data = byBatchIdResponse.data;
+          } else {
+            // Try finding by UUID id
+            const byIdResponse = await supabase
+              .from('brew_readings')
+              .select('*')
+              .eq('id', id)
+              .maybeSingle();
+            
+            if (byIdResponse.data) {
+              brewResponse.data = byIdResponse.data;
+            } else {
+              setError("Ölen hittades inte");
+              setLoading(false);
+              return;
+            }
           }
-          
-          brewResponse.data = byIdResponse.data;
         }
 
         const reading = brewResponse.data as unknown as BrewReading;
@@ -191,6 +203,7 @@ export default function Brew() {
         const brewData: BrewData = {
           id: reading.id,
           batch_id: reading.batch_id,
+          share_id: (reading as any).share_id || null,
           name: reading.name,
           style: reading.style,
           batchNumber: reading.batch_number,

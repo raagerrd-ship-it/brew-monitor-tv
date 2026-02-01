@@ -263,6 +263,7 @@ export function useBrewData(): UseBrewDataReturn {
       return {
         id: reading.id,
         batch_id: reading.batch_id,
+        share_id: reading.share_id || null,
         name: reading.name,
         style: reading.style,
         batchNumber: reading.batch_number,
