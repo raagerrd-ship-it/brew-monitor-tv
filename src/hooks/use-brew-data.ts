@@ -296,6 +296,7 @@ export function useBrewData(): UseBrewDataReturn {
         linked_pill_id: reading.linked_pill_id || null,
         fermentationSession: sessionsByBrewId.get(reading.id) || null,
         label_image_url: reading.label_image_url || null,
+        description: reading.description || null,
       };
     });
   }, []);
