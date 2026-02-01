@@ -28,19 +28,26 @@ const App = () => (
         <TvModeProvider>
           <FpsCounterProvider>
             <ExternalAuthProvider>
-              <AspectRatioContainer>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/install" element={<Install />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/sonos-callback" element={<SonosCallback />} />
-                  <Route path="/brew/:id" element={<Brew />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-                <TimerFooter />
-              </AspectRatioContainer>
+              <Routes>
+                {/* Brew page without aspect ratio lock */}
+                <Route path="/brew/:id" element={<Brew />} />
+                
+                {/* All other routes with aspect ratio lock */}
+                <Route path="/*" element={
+                  <AspectRatioContainer>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/install" element={<Install />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/sonos-callback" element={<SonosCallback />} />
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                    <TimerFooter />
+                  </AspectRatioContainer>
+                } />
+              </Routes>
               <FpsCounter />
             </ExternalAuthProvider>
           </FpsCounterProvider>
