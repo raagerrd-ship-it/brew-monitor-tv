@@ -7,6 +7,18 @@ import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { calculateFermentationRate } from "@/lib/brew-utils";
 
+// Update document title when brew is loaded
+const useDocumentTitle = (title: string | null) => {
+  useEffect(() => {
+    if (title) {
+      document.title = `${title} - Dahlsjö Brewing`;
+    }
+    return () => {
+      document.title = "Bryggövervakare";
+    };
+  }, [title]);
+};
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 
@@ -17,6 +29,8 @@ export default function Brew() {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useDocumentTitle(brew?.name ?? null);
 
   useEffect(() => {
     if (!id) {
