@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import {
 } from "./ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { PillData, TempController } from "@/types/brew";
@@ -36,6 +36,7 @@ export interface CustomBrewData {
   linked_pill_id: string | null;
   status: string;
   fermentation_start: string | null;
+  label_image_url: string | null;
 }
 
 interface SgDataPoint {
@@ -75,6 +76,9 @@ export function CustomBrewDialog({
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
+  const [labelImageUrl, setLabelImageUrl] = useState<string | null>(null);
+  const [uploadingLabel, setUploadingLabel] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [sgData, setSgData] = useState<SgDataPoint[]>([]);
   const [selectedEndPointIndex, setSelectedEndPointIndex] = useState<string>("");
@@ -158,6 +162,7 @@ export function CustomBrewDialog({
         setSelectedPillId(editBrew.linked_pill_id || "");
         setStatus(editBrew.status || "Jäsning");
         setOriginalStatus(editBrew.status || "Jäsning");
+        setLabelImageUrl(editBrew.label_image_url || null);
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -180,6 +185,7 @@ export function CustomBrewDialog({
         setOriginalStatus("Jäsning");
         setSgData([]);
         setSelectedEndPointIndex("");
+        setLabelImageUrl(null);
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -189,6 +195,87 @@ export function CustomBrewDialog({
       }
     }
   }, [open, editBrew]);
+
+  const handleLabelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Fel",
+        description: "Endast bildfiler är tillåtna",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Fel",
+        description: "Bilden får inte vara större än 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setUploadingLabel(true);
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `labels/${fileName}`;
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('brew-labels')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('brew-labels')
+        .getPublicUrl(filePath);
+
+      setLabelImageUrl(publicUrl);
+      toast({
+        title: "Etikett uppladdad!",
+        description: "Bilden har sparats",
+      });
+    } catch (error) {
+      console.error("Error uploading label:", error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte ladda upp etiketten",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingLabel(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveLabel = async () => {
+    if (labelImageUrl) {
+      // Extract path from URL for deletion
+      try {
+        const urlParts = labelImageUrl.split('/brew-labels/');
+        if (urlParts.length > 1) {
+          const path = urlParts[1];
+          await supabase.storage.from('brew-labels').remove([path]);
+        }
+      } catch (error) {
+        console.error("Error removing label from storage:", error);
+      }
+    }
+    setLabelImageUrl(null);
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -247,6 +334,7 @@ export function CustomBrewDialog({
           linked_pill_id: selectedPillId || null,
           status: status,
           fermentation_start: fermStart,
+          label_image_url: labelImageUrl,
         };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
@@ -302,6 +390,7 @@ export function CustomBrewDialog({
             linked_controller_id: selectedControllerId || null,
             linked_pill_id: selectedPillId || null,
             fermentation_start: fermStart,
+            label_image_url: labelImageUrl,
           });
 
         if (insertError) throw insertError;
@@ -507,6 +596,58 @@ export function CustomBrewDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Label Image Upload */}
+          <div className="grid gap-2">
+            <Label>Öl-etikett</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLabelUpload}
+              className="hidden"
+            />
+            {labelImageUrl ? (
+              <div className="relative group">
+                <img
+                  src={labelImageUrl}
+                  alt="Öl-etikett"
+                  className="w-full h-32 object-contain rounded-lg border bg-muted/50"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={handleRemoveLabel}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-24 border-dashed flex flex-col gap-2"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLabel}
+              >
+                {uploadingLabel ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="text-sm">Laddar upp...</span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Klicka för att ladda upp etikett
+                    </span>
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
 

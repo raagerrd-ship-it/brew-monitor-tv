@@ -57,6 +57,7 @@ export interface BrewData {
   linked_controller_id: string | null;
   linked_pill_id: string | null;
   fermentationSession: FermentationSessionData | null;
+  label_image_url: string | null;
 }
 
 export interface PillData {
