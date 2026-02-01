@@ -123,6 +123,16 @@ function BrewCardComponent({
           }}
         />
         <div className="flex items-center justify-between gap-2 h-full">
+          {/* Label image thumbnail if exists */}
+          {brew.label_image_url && (
+            <div className="flex-shrink-0 h-10 w-10 rounded-md overflow-hidden border border-white/10 bg-muted/30">
+              <img
+                src={brew.label_image_url}
+                alt={`${brew.name} etikett`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          )}
             <div className="min-w-0 flex-1 overflow-hidden">
               <h2 
                 className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"

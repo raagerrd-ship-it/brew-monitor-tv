@@ -198,6 +198,7 @@ export type Database = {
           fermentation_start: string | null
           final_gravity: number
           id: string
+          label_image_url: string | null
           last_update: string | null
           linked_controller_id: string | null
           linked_pill_id: string | null
@@ -222,6 +223,7 @@ export type Database = {
           fermentation_start?: string | null
           final_gravity: number
           id?: string
+          label_image_url?: string | null
           last_update?: string | null
           linked_controller_id?: string | null
           linked_pill_id?: string | null
@@ -246,6 +248,7 @@ export type Database = {
           fermentation_start?: string | null
           final_gravity?: number
           id?: string
+          label_image_url?: string | null
           last_update?: string | null
           linked_controller_id?: string | null
           linked_pill_id?: string | null

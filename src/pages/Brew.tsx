@@ -153,7 +153,8 @@ export default function Brew() {
           fermentationRate,
           coldcrashAcknowledged: reading.coldcrash_acknowledged,
           events: brewEvents,
-          fermentationSession
+          fermentationSession,
+          label_image_url: reading.label_image_url || null
         };
 
         setBrew(brewData);
