@@ -196,15 +196,15 @@ export default function Brew() {
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Label and description side by side */}
         {(brew.label_image_url || brew.description) && (
-          <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-6 shadow-xl">
-            <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
+            <div className="flex flex-row gap-4 md:gap-6 items-start">
               {/* Label image */}
               {brew.label_image_url && (
-                <div className="flex-shrink-0 mx-auto md:mx-0">
+                <div className="flex-shrink-0">
                   <img
                     src={brew.label_image_url}
                     alt={`${brew.name} etikett`}
-                    className="max-h-48 md:max-h-64 w-auto rounded-lg shadow-lg border border-white/10"
+                    className="max-h-32 sm:max-h-48 md:max-h-64 w-auto rounded-lg shadow-lg border border-white/10"
                   />
                 </div>
               )}
