@@ -255,10 +255,11 @@ export function CustomBrewDialog({
           const trimmedSgData = sgData.slice(0, endIndex + 1);
           updateData.sg_data = trimmedSgData;
           
-          // Update current_sg to the last point's value
+          // Update current_sg to the last point's value (support both field names)
           const lastPoint = trimmedSgData[trimmedSgData.length - 1];
-          if (lastPoint?.sg) {
-            updateData.current_sg = lastPoint.sg;
+          const lastSgValue = lastPoint?.sg ?? lastPoint?.value;
+          if (lastSgValue !== undefined) {
+            updateData.current_sg = lastSgValue;
           }
         }
 
