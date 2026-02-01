@@ -19,7 +19,8 @@ import {
 } from "./ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Upload, X, ImageIcon } from "lucide-react";
+import { Loader2, X, ImageIcon } from "lucide-react";
+import { Textarea } from "./ui/textarea";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { PillData, TempController } from "@/types/brew";
@@ -37,6 +38,7 @@ export interface CustomBrewData {
   status: string;
   fermentation_start: string | null;
   label_image_url: string | null;
+  description: string | null;
 }
 
 interface SgDataPoint {
@@ -77,6 +79,7 @@ export function CustomBrewDialog({
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
   const [labelImageUrl, setLabelImageUrl] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
   const [uploadingLabel, setUploadingLabel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -163,6 +166,7 @@ export function CustomBrewDialog({
         setStatus(editBrew.status || "Jäsning");
         setOriginalStatus(editBrew.status || "Jäsning");
         setLabelImageUrl(editBrew.label_image_url || null);
+        setDescription(editBrew.description || "");
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -186,6 +190,7 @@ export function CustomBrewDialog({
         setSgData([]);
         setSelectedEndPointIndex("");
         setLabelImageUrl(null);
+        setDescription("");
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -335,6 +340,7 @@ export function CustomBrewDialog({
           status: status,
           fermentation_start: fermStart,
           label_image_url: labelImageUrl,
+          description: description.trim() || null,
         };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
@@ -391,6 +397,7 @@ export function CustomBrewDialog({
             linked_pill_id: selectedPillId || null,
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
+            description: description.trim() || null,
           });
 
         if (insertError) throw insertError;
@@ -648,6 +655,19 @@ export function CustomBrewDialog({
                 )}
               </Button>
             )}
+          </div>
+
+          {/* Description */}
+          <div className="grid gap-2">
+            <Label htmlFor="description">Beskrivning</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="En poetisk beskrivning av ölet..."
+              rows={4}
+              className="resize-none"
+            />
           </div>
         </div>
 
