@@ -6,8 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { FpsCounterProvider } from "@/contexts/FpsCounterContext";
-import { AspectRatioContainer } from "@/components/AspectRatioContainer";
-import { TimerFooter } from "@/components/TimerFooter";
+import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 import { FpsCounter } from "@/components/FpsCounter";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
@@ -32,21 +31,16 @@ const App = () => (
                 {/* Brew page without aspect ratio lock */}
                 <Route path="/brew/:id" element={<Brew />} />
                 
-                {/* All other routes with aspect ratio lock */}
-                <Route path="/*" element={
-                  <AspectRatioContainer>
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/install" element={<Install />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/sonos-callback" element={<SonosCallback />} />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                    <TimerFooter />
-                  </AspectRatioContainer>
-                } />
+                {/* All other routes with aspect ratio lock using layout */}
+                <Route element={<AspectRatioLayout />}>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/install" element={<Install />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/sonos-callback" element={<SonosCallback />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Route>
               </Routes>
               <FpsCounter />
             </ExternalAuthProvider>
