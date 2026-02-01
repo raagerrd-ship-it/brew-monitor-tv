@@ -193,15 +193,32 @@ export default function Brew() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Label image - large display */}
-        {brew.label_image_url && (
-          <div className="flex justify-center">
-            <img
-              src={brew.label_image_url}
-              alt={`${brew.name} etikett`}
-              className="max-h-64 w-auto rounded-xl shadow-lg border border-border/50"
-            />
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Label and description side by side */}
+        {(brew.label_image_url || brew.description) && (
+          <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-6 shadow-xl">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              {/* Label image */}
+              {brew.label_image_url && (
+                <div className="flex-shrink-0 mx-auto md:mx-0">
+                  <img
+                    src={brew.label_image_url}
+                    alt={`${brew.name} etikett`}
+                    className="max-h-48 md:max-h-64 w-auto rounded-lg shadow-lg border border-white/10"
+                  />
+                </div>
+              )}
+              
+              {/* Description */}
+              {brew.description && (
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-foreground mb-3">Om ölet</h3>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-sm md:text-base">
+                    {brew.description}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -217,16 +234,6 @@ export default function Brew() {
           isTvMode={false}
           cardIndex={0}
         />
-
-        {/* Description */}
-        {brew.description && (
-          <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-3">Om ölet</h3>
-            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-              {brew.description}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
