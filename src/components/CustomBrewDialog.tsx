@@ -97,18 +97,23 @@ export function CustomBrewDialog({
     status !== "Jäsning" && 
     sgData.length > 0;
 
-  // Format sg_data for display in dropdown - show last 20 points reversed (newest first)
+  // Format sg_data for display in dropdown - show last 30 points reversed (newest first)
   const sgDataOptions = useMemo(() => {
     if (!sgData.length) return [];
     
     return sgData
-      .map((point, index) => ({
-        index,
-        date: point.date,
-        sg: point.sg,
-        temp: point.pillTemp || point.controllerTemp || point.temp,
-        label: `${format(new Date(point.date), "d MMM HH:mm", { locale: sv })} - SG: ${point.sg?.toFixed(3) || "?"}`
-      }))
+      .map((point, index) => {
+        const temp = point.pillTemp || point.controllerTemp || point.temp;
+        const tempStr = temp !== undefined ? `${temp.toFixed(1)}°C` : "?°C";
+        const sgStr = point.sg !== undefined ? point.sg.toFixed(4) : "?";
+        return {
+          index,
+          date: point.date,
+          sg: point.sg,
+          temp,
+          label: `${format(new Date(point.date), "d MMM HH:mm", { locale: sv })} • ${sgStr} SG • ${tempStr}`
+        };
+      })
       .reverse() // Show newest first
       .slice(0, 30); // Limit to last 30 points
   }, [sgData]);
