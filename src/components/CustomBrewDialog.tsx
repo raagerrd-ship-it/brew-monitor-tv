@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -20,6 +20,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { sv } from "date-fns/locale";
 import type { PillData, TempController } from "@/types/brew";
 
 export interface CustomBrewData {
@@ -34,6 +36,15 @@ export interface CustomBrewData {
   linked_pill_id: string | null;
   status: string;
   fermentation_start: string | null;
+}
+
+interface SgDataPoint {
+  date: string;
+  sg?: number;
+  temp?: number;
+  pillTemp?: number;
+  controllerTemp?: number;
+  targetTemp?: number;
 }
 
 interface CustomBrewDialogProps {
@@ -61,8 +72,11 @@ export function CustomBrewDialog({
   const [selectedControllerId, setSelectedControllerId] = useState<string>("");
   const [selectedPillId, setSelectedPillId] = useState<string>("");
   const [status, setStatus] = useState("Jäsning");
+  const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sgData, setSgData] = useState<SgDataPoint[]>([]);
+  const [selectedEndPointIndex, setSelectedEndPointIndex] = useState<string>("");
   const { toast } = useToast();
 
   // Use Swedish status values to match Brewfather sync
@@ -77,6 +91,52 @@ export function CustomBrewDialog({
 
   const isEditMode = !!editBrew;
 
+  // Check if we're changing from Jäsning to another status
+  const isLeavingFermentation = isEditMode && 
+    originalStatus === "Jäsning" && 
+    status !== "Jäsning" && 
+    sgData.length > 0;
+
+  // Format sg_data for display in dropdown - show last 20 points reversed (newest first)
+  const sgDataOptions = useMemo(() => {
+    if (!sgData.length) return [];
+    
+    return sgData
+      .map((point, index) => ({
+        index,
+        date: point.date,
+        sg: point.sg,
+        temp: point.pillTemp || point.controllerTemp || point.temp,
+        label: `${format(new Date(point.date), "d MMM HH:mm", { locale: sv })} - SG: ${point.sg?.toFixed(3) || "?"}`
+      }))
+      .reverse() // Show newest first
+      .slice(0, 30); // Limit to last 30 points
+  }, [sgData]);
+
+  // Load sg_data when editing
+  useEffect(() => {
+    const loadSgData = async () => {
+      if (open && editBrew) {
+        const { data, error } = await supabase
+          .from("brew_readings")
+          .select("sg_data")
+          .eq("id", editBrew.id)
+          .single();
+        
+        if (!error && data?.sg_data) {
+          const parsedData = Array.isArray(data.sg_data) ? data.sg_data : [];
+          setSgData(parsedData as unknown as SgDataPoint[]);
+          // Default to last point
+          if (parsedData.length > 0) {
+            setSelectedEndPointIndex((parsedData.length - 1).toString());
+          }
+        }
+      }
+    };
+    
+    loadSgData();
+  }, [open, editBrew]);
+
   // Reset/populate form when dialog opens
   useEffect(() => {
     if (open) {
@@ -89,6 +149,7 @@ export function CustomBrewDialog({
         setSelectedControllerId(editBrew.linked_controller_id || "");
         setSelectedPillId(editBrew.linked_pill_id || "");
         setStatus(editBrew.status || "Jäsning");
+        setOriginalStatus(editBrew.status || "Jäsning");
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -108,6 +169,9 @@ export function CustomBrewDialog({
         setSelectedControllerId("");
         setSelectedPillId("");
         setStatus("Jäsning");
+        setOriginalStatus("Jäsning");
+        setSgData([]);
+        setSelectedEndPointIndex("");
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -162,29 +226,49 @@ export function CustomBrewDialog({
       const fermStart = fermentationStart ? new Date(fermentationStart).toISOString() : null;
 
       if (isEditMode && editBrew) {
+        // Prepare update data
+        const updateData: Record<string, unknown> = {
+          name: name.trim(),
+          style: style.trim() || "Custom",
+          batch_number: batchNumber.trim() || "1",
+          original_gravity: og,
+          final_gravity: fg,
+          attenuation: attenuation,
+          abv: abv,
+          linked_controller_id: selectedControllerId || null,
+          linked_pill_id: selectedPillId || null,
+          status: status,
+          fermentation_start: fermStart,
+        };
+
+        // If leaving fermentation and user selected an endpoint, trim sg_data
+        if (isLeavingFermentation && selectedEndPointIndex !== "") {
+          const endIndex = parseInt(selectedEndPointIndex, 10);
+          const trimmedSgData = sgData.slice(0, endIndex + 1);
+          updateData.sg_data = trimmedSgData;
+          
+          // Update current_sg to the last point's value
+          const lastPoint = trimmedSgData[trimmedSgData.length - 1];
+          if (lastPoint?.sg) {
+            updateData.current_sg = lastPoint.sg;
+          }
+        }
+
         // Update existing brew
         const { error: updateError } = await supabase
           .from("brew_readings")
-          .update({
-            name: name.trim(),
-            style: style.trim() || "Custom",
-            batch_number: batchNumber.trim() || "1",
-            original_gravity: og,
-            final_gravity: fg,
-            attenuation: attenuation,
-            abv: abv,
-            linked_controller_id: selectedControllerId || null,
-            linked_pill_id: selectedPillId || null,
-            status: status,
-            fermentation_start: fermStart,
-          })
+          .update(updateData)
           .eq("id", editBrew.id);
 
         if (updateError) throw updateError;
 
+        const trimMessage = isLeavingFermentation && selectedEndPointIndex !== "" 
+          ? ` (${sgData.length - parseInt(selectedEndPointIndex, 10) - 1} mätpunkter borttagna)`
+          : "";
+
         toast({
           title: "Öl uppdaterad!",
-          description: `${name} har sparats`,
+          description: `${name} har sparats${trimMessage}`,
         });
       } else {
         // Generate a unique batch_id for custom brews
@@ -249,7 +333,7 @@ export function CustomBrewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Redigera öl" : "Skapa egen öl"}</DialogTitle>
           <DialogDescription>
@@ -342,6 +426,36 @@ export function CustomBrewDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Show endpoint selector when leaving fermentation status */}
+          {isLeavingFermentation && sgDataOptions.length > 0 && (
+            <div className="grid gap-2 p-3 rounded-lg border border-primary/30 bg-primary/10">
+              <Label className="text-primary">Sista mätpunkt vid jäsningsslut</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Välj sista riktiga mätpunkten. Alla punkter efter tas bort.
+              </p>
+              <Select 
+                value={selectedEndPointIndex} 
+                onValueChange={setSelectedEndPointIndex}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj sista mätpunkt" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sgDataOptions.map((option) => (
+                    <SelectItem key={option.index} value={option.index.toString()}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedEndPointIndex !== "" && (
+                <p className="text-xs text-muted-foreground">
+                  {sgData.length - parseInt(selectedEndPointIndex, 10) - 1} mätpunkter kommer att tas bort
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label>RAPT Controller</Label>
