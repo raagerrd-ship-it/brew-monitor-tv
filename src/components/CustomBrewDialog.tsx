@@ -41,6 +41,7 @@ export interface CustomBrewData {
 interface SgDataPoint {
   date: string;
   sg?: number;
+  value?: number; // Alternative field name for SG
   temp?: number;
   pillTemp?: number;
   controllerTemp?: number;
@@ -105,11 +106,13 @@ export function CustomBrewDialog({
       .map((point, index) => {
         const temp = point.pillTemp || point.controllerTemp || point.temp;
         const tempStr = temp !== undefined ? `${temp.toFixed(1)}°C` : "?°C";
-        const sgStr = point.sg !== undefined ? point.sg.toFixed(4) : "?";
+        // Support both 'sg' and 'value' field names
+        const sgValue = point.sg ?? point.value;
+        const sgStr = sgValue !== undefined ? sgValue.toFixed(4) : "?";
         return {
           index,
           date: point.date,
-          sg: point.sg,
+          sg: sgValue,
           temp,
           label: `${format(new Date(point.date), "d MMM HH:mm", { locale: sv })} • ${sgStr} SG • ${tempStr}`
         };
