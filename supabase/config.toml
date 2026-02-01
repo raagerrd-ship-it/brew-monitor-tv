@@ -54,3 +54,6 @@ verify_jwt = false
 
 [functions.sonos-groups]
 verify_jwt = false
+
+[functions.public-brew]
+verify_jwt = false
