@@ -43,7 +43,7 @@ export default function Brew() {
       try {
         // Use edge function for public access (no auth required)
         const response = await fetch(
-          `${SUPABASE_URL}/functions/v1/get-public-brew?id=${encodeURIComponent(id)}`,
+          `${SUPABASE_URL}/functions/v1/get-public-rapt-data?brew_id=${encodeURIComponent(id)}`,
           {
             method: 'GET',
             headers: {
