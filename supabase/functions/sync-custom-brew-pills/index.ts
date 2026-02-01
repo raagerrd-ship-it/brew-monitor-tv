@@ -32,13 +32,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get custom brews with linked pills (custom brews have batch_id starting with 'custom_')
+    // Get custom brews with linked pills that are actively fermenting
+    // Only sync data for brews in "Jäsning" status - other statuses should not add new data points
     const { data: customBrews, error: brewsError } = await supabase
       .from('brew_readings')
       .select('*')
       .not('linked_pill_id', 'is', null)
       .like('batch_id', 'custom\\_%')
-      .in('status', ['Jäsning', 'Konditionering', 'Bryggning', 'Fermenting', 'Conditioning', 'Brewing']);
+      .in('status', ['Jäsning', 'Fermenting']);
 
     if (brewsError) {
       throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);
