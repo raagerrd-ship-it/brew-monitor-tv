@@ -59,7 +59,15 @@ export function SyncedDataDialog({
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       const startTime = sortedSg[0].date;
-      const endTime = sortedSg[sortedSg.length - 1].date;
+      let endTime = sortedSg[sortedSg.length - 1].date;
+      
+      // Ensure we have at least a 30-minute window to capture controller data
+      // This handles the case when there's only one or very few data points
+      const startMs = new Date(startTime).getTime();
+      const endMs = new Date(endTime).getTime();
+      if (endMs - startMs < 30 * 60 * 1000) {
+        endTime = new Date(startMs + 30 * 60 * 1000).toISOString();
+      }
 
       const { data, error } = await supabase.rpc("get_temp_history_sampled", {
         p_controller_id: controllerId,
