@@ -148,8 +148,8 @@ export function BrewingDashboard() {
 
   // Memoized handlers - MUST be before any conditional returns
   const handleShareBrew = useCallback(async (brew: typeof brews[0]) => {
-    const brewSlug = brew.name.toLowerCase().replace(/[åä]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const shareUrl = `https://brew-monitor-tv.lovable.app/?brew=${brewSlug}`;
+    // Use batch_id for unique identification (handles duplicate names)
+    const shareUrl = `https://brew-monitor-tv.lovable.app/?brew=${encodeURIComponent(brew.batch_id)}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       sonnerToast(`${brew.name} delad!`, {
