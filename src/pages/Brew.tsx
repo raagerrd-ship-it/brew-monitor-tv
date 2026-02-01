@@ -222,18 +222,21 @@ export default function Brew() {
           </div>
         )}
 
-        <BrewCard
-          brew={brew}
-          updatedFields={{}}
-          isAuthenticated={false}
-          pills={pills}
-          controllers={controllers}
-          onShareBrew={() => {}}
-          onEventsChange={() => {}}
-          onDeviceLinkOpen={() => {}}
-          isTvMode={false}
-          cardIndex={0}
-        />
+        {/* BrewCard needs explicit height since chart uses flex-1 */}
+        <div className="h-[600px] md:h-[700px]">
+          <BrewCard
+            brew={brew}
+            updatedFields={{}}
+            isAuthenticated={false}
+            pills={pills}
+            controllers={controllers}
+            onShareBrew={() => {}}
+            onEventsChange={() => {}}
+            onDeviceLinkOpen={() => {}}
+            isTvMode={false}
+            cardIndex={0}
+          />
+        </div>
       </div>
     </div>
   );
