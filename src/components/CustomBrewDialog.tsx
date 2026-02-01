@@ -198,7 +198,7 @@ export function CustomBrewDialog({
             name: name.trim(),
             style: style.trim() || "Custom",
             batch_number: batchNumber.trim() || "1",
-            status: "Jäsning",
+            status: status,
             original_gravity: og,
             final_gravity: fg,
             current_sg: og, // Start at OG
@@ -327,23 +327,21 @@ export function CustomBrewDialog({
             />
           </div>
 
-          {isEditMode && (
-            <div className="grid gap-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="grid gap-2">
             <Label>RAPT Controller</Label>
