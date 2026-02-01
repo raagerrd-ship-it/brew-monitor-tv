@@ -154,7 +154,8 @@ export default function Brew() {
           coldcrashAcknowledged: reading.coldcrash_acknowledged,
           events: brewEvents,
           fermentationSession,
-          label_image_url: reading.label_image_url || null
+          label_image_url: reading.label_image_url || null,
+          description: reading.description || null
         };
 
         setBrew(brewData);
@@ -192,7 +193,18 @@ export default function Brew() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Label image - large display */}
+        {brew.label_image_url && (
+          <div className="flex justify-center">
+            <img
+              src={brew.label_image_url}
+              alt={`${brew.name} etikett`}
+              className="max-h-64 w-auto rounded-xl shadow-lg border border-border/50"
+            />
+          </div>
+        )}
+
         <BrewCard
           brew={brew}
           updatedFields={{}}
@@ -205,6 +217,16 @@ export default function Brew() {
           isTvMode={false}
           cardIndex={0}
         />
+
+        {/* Description */}
+        {brew.description && (
+          <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-3">Om ölet</h3>
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+              {brew.description}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
