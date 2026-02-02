@@ -221,12 +221,21 @@ export function BrewingDashboard() {
   };
   
   // Calculate content area height for brew cards
+  const CONTENT_PADDING = 16; // 8px top + 8px bottom
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
       const baseHeight = showTimerFooter ? REFERENCE_HEIGHT - TIMER_FOOTER_HEIGHT : REFERENCE_HEIGHT;
-      return `${baseHeight - HEADER_HEIGHT}px`;
+      return baseHeight - HEADER_HEIGHT;
     }
-    return `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`;
+    return null; // Use CSS calc for non-locked mode
+  };
+  
+  const getCardHeight = () => {
+    if (isAspectRatioLocked) {
+      const contentHeight = getContentHeight();
+      return contentHeight ? contentHeight - CONTENT_PADDING : null;
+    }
+    return null;
   };
   
   return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
@@ -331,8 +340,19 @@ export function BrewingDashboard() {
                   </div>)}
               </div>
             </div>
-          </div> : <div className={`${gridLayout} w-full px-4 py-2`} style={{ height: getContentHeight() }}>
-            {brews.map((brew, index) => <div key={brew.id} className={`${cardWidthClass} h-full`}>
+          </div> : <div 
+            className={`${gridLayout} w-full px-4 py-2`} 
+            style={{ 
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+            }}
+          >
+            {brews.map((brew, index) => <div 
+              key={brew.id} 
+              className={cardWidthClass}
+              style={{ 
+                height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
+              }}
+            >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
               </div>)}
           </div>}
