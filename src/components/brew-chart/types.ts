@@ -4,6 +4,7 @@ export interface ChartDataPoint {
   temp: number;
   pillTemp?: number;
   controllerTemp?: number | null;
+  targetTemp?: number | null;
 }
 
 export interface ChartDataPointWithTimestamp extends ChartDataPoint {

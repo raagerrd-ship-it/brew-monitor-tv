@@ -184,6 +184,11 @@ function BrewChartComponent({
                   <span key="v" style={{ color: COLORS.temp }}>{value.toFixed(1)}°C</span>,
                   <span key="l" style={{ color: COLORS.temp }}>Controller</span>,
                 ];
+              if (name === "targetTemp")
+                return [
+                  <span key="v" style={{ color: COLORS.targetTemp }}>{value.toFixed(1)}°C</span>,
+                  <span key="l" style={{ color: COLORS.targetTemp }}>Mål</span>,
+                ];
               if (name === "pillTemp")
                 return [
                   <span key="v" style={{ color: "hsl(var(--temp-blue) / 0.5)" }}>{value.toFixed(1)}°C</span>,
@@ -233,6 +238,21 @@ function BrewChartComponent({
             activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
             name="pillTemp"
             isAnimationActive={isAnimationActive}
+          />
+
+          {/* Target temp - dashed line showing setpoint */}
+          <Line
+            yAxisId="temp"
+            type="stepAfter"
+            dataKey="targetTemp"
+            stroke={COLORS.targetTemp}
+            strokeWidth={DATA_SERIES_CONFIG.targetTemp.strokeWidth}
+            strokeDasharray={DATA_SERIES_CONFIG.targetTemp.strokeDasharray}
+            dot={false}
+            activeDot={{ r: DATA_SERIES_CONFIG.targetTemp.dotRadius, fill: COLORS.targetTemp }}
+            name="targetTemp"
+            isAnimationActive={isAnimationActive}
+            connectNulls={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
