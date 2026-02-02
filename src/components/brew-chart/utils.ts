@@ -11,28 +11,24 @@ import {
  * Interpolate controller temperature for a given timestamp
  * Uses linear interpolation between the two closest data points
  */
-export function interpolateControllerTemp(
+/**
+ * Interpolate a value from controller data for a given timestamp
+ * Uses linear interpolation between the two closest data points
+ */
+function interpolateValue(
   timestamp: number,
-  controllerData: ControllerTempPoint[]
+  sortedData: { timestamp: number; value: number }[]
 ): number | null {
-  if (!controllerData || controllerData.length === 0) return null;
-
-  // Convert to timestamps and sort
-  const sortedData = controllerData
-    .map(d => ({
-      timestamp: new Date(d.recorded_at).getTime(),
-      temp: d.current_temp
-    }))
-    .sort((a, b) => a.timestamp - b.timestamp);
+  if (sortedData.length === 0) return null;
 
   // If before first point, use first point
   if (timestamp <= sortedData[0].timestamp) {
-    return sortedData[0].temp;
+    return sortedData[0].value;
   }
 
   // If after last point, use last point
   if (timestamp >= sortedData[sortedData.length - 1].timestamp) {
-    return sortedData[sortedData.length - 1].temp;
+    return sortedData[sortedData.length - 1].value;
   }
 
   // Find surrounding points and interpolate
@@ -43,11 +39,61 @@ export function interpolateControllerTemp(
     if (timestamp >= current.timestamp && timestamp <= next.timestamp) {
       // Linear interpolation
       const ratio = (timestamp - current.timestamp) / (next.timestamp - current.timestamp);
-      return current.temp + ratio * (next.temp - current.temp);
+      return current.value + ratio * (next.value - current.value);
     }
   }
 
   return null;
+}
+
+/**
+ * Interpolate controller temperature for a given timestamp
+ */
+export function interpolateControllerTemp(
+  timestamp: number,
+  controllerData: ControllerTempPoint[]
+): number | null {
+  if (!controllerData || controllerData.length === 0) return null;
+
+  const sortedData = controllerData
+    .map(d => ({
+      timestamp: new Date(d.recorded_at).getTime(),
+      value: d.current_temp
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  return interpolateValue(timestamp, sortedData);
+}
+
+/**
+ * Interpolate target temperature for a given timestamp
+ * Target temp changes in steps, so we use the most recent value (no interpolation)
+ */
+export function interpolateTargetTemp(
+  timestamp: number,
+  controllerData: ControllerTempPoint[]
+): number | null {
+  if (!controllerData || controllerData.length === 0) return null;
+
+  const sortedData = controllerData
+    .map(d => ({
+      timestamp: new Date(d.recorded_at).getTime(),
+      value: d.target_temp
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  // For target temp, use step function (most recent value before timestamp)
+  if (timestamp <= sortedData[0].timestamp) {
+    return sortedData[0].value;
+  }
+
+  for (let i = sortedData.length - 1; i >= 0; i--) {
+    if (sortedData[i].timestamp <= timestamp) {
+      return sortedData[i].value;
+    }
+  }
+
+  return sortedData[0].value;
 }
 
 /**
@@ -60,14 +106,19 @@ export function mergeWithControllerTemp(
 ): ChartDataPoint[] {
   return sgData.map(point => {
     const timestamp = new Date(point.date).getTime();
-    const controllerTemp = controllerData && controllerData.length > 0 
+    const hasControllerData = controllerData && controllerData.length > 0;
+    const controllerTemp = hasControllerData
       ? interpolateControllerTemp(timestamp, controllerData) 
+      : null;
+    const targetTemp = hasControllerData
+      ? interpolateTargetTemp(timestamp, controllerData)
       : null;
     
     return {
       ...point,
       pillTemp: point.temp,
-      controllerTemp: controllerTemp
+      controllerTemp,
+      targetTemp
     };
   });
 }
@@ -95,11 +146,15 @@ export function calculateMovingAverage(
       ? controllerTemps.reduce((sum, d) => sum + d.controllerTemp!, 0) / controllerTemps.length 
       : null;
     
+    // Target temp should not be smoothed - it changes in discrete steps
+    const targetTemp = data[i].targetTemp;
+    
     result.push({
       ...data[i],
       value: avgValue,
       pillTemp: avgPillTemp,
-      controllerTemp: avgControllerTemp
+      controllerTemp: avgControllerTemp,
+      targetTemp
     });
   }
   return result;

@@ -7,6 +7,7 @@ export const COLORS = {
   temp: "hsl(var(--temp-blue))",
   tempFaint: "hsl(var(--temp-blue) / 0.3)",
   tempFill: "hsl(var(--temp-blue) / 0.08)",
+  targetTemp: "hsl(var(--temp-blue) / 0.5)",
   border: "hsl(var(--border))",
   mutedForeground: "hsl(var(--muted-foreground))",
   card: "hsl(var(--card))",
@@ -35,6 +36,11 @@ export const DATA_SERIES_CONFIG = {
   pillTemp: {
     strokeWidth: 1,
     dotRadius: 3,
+  },
+  targetTemp: {
+    strokeWidth: 1.5,
+    dotRadius: 3,
+    strokeDasharray: "4 4",
   },
 } as const;
 

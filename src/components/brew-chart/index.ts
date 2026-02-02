@@ -32,5 +32,6 @@ export {
   getOptimalWindowSize,
   mergeWithControllerTemp,
   interpolateControllerTemp,
+  interpolateTargetTemp,
   downsampleForTvMode,
 } from "./utils";
