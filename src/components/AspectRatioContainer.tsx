@@ -110,6 +110,7 @@ export function AspectRatioContainer({
               height: REFERENCE_HEIGHT,
               transform: `scale(${dimensions.scale})`,
               transformOrigin: 'top left',
+              overflow: 'hidden',
             }}
             className="flex flex-col"
           >
