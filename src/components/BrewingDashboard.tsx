@@ -233,10 +233,10 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Album art background - simplified for TV performance */}
+      {/* Album art background - positioned within the scaled container, not fixed */}
       {isTvMode && albumArtUrl && (
         <div 
-          className="fixed inset-0 bg-cover"
+          className="absolute inset-0 bg-cover pointer-events-none"
           style={{ 
             backgroundImage: `url(${albumArtUrl})`,
             backgroundPosition: 'center center',
@@ -338,10 +338,10 @@ export function BrewingDashboard() {
           </div>}
       </div>
 
-      {/* Sonos Now Playing - floating bottom right, TV mode only */}
+      {/* Sonos Now Playing - positioned within scaled container, not fixed */}
       {isTvMode && (
         <div 
-          className="fixed right-4 z-30"
+          className="absolute right-4 z-30"
           style={{ 
             bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
           }}
