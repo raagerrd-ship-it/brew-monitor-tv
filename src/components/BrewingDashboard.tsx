@@ -209,18 +209,21 @@ export function BrewingDashboard() {
   // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
   
-  // Calculate container height - use container height when aspect ratio locked, otherwise viewport
+  // Reference dimensions for aspect-ratio locked mode (1920x1080)
+  const REFERENCE_HEIGHT = 1080;
+  
+  // Calculate container height - use fixed reference height when aspect ratio locked
   const getContainerHeight = () => {
-    if (isAspectRatioLocked && containerHeight > 0) {
-      return showTimerFooter ? `${containerHeight - TIMER_FOOTER_HEIGHT}px` : `${containerHeight}px`;
+    if (isAspectRatioLocked) {
+      return showTimerFooter ? `${REFERENCE_HEIGHT - TIMER_FOOTER_HEIGHT}px` : `${REFERENCE_HEIGHT}px`;
     }
     return showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh';
   };
   
   // Calculate content area height for brew cards
   const getContentHeight = () => {
-    if (isAspectRatioLocked && containerHeight > 0) {
-      const baseHeight = showTimerFooter ? containerHeight - TIMER_FOOTER_HEIGHT : containerHeight;
+    if (isAspectRatioLocked) {
+      const baseHeight = showTimerFooter ? REFERENCE_HEIGHT - TIMER_FOOTER_HEIGHT : REFERENCE_HEIGHT;
       return `${baseHeight - HEADER_HEIGHT}px`;
     }
     return `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`;
