@@ -1,6 +1,7 @@
 import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSonosTrackTransition } from "./hooks";
+import { SonosDebugOverlay } from "./SonosDebugOverlay";
 
 interface NowPlaying {
   track_name: string | null;
@@ -15,9 +16,10 @@ interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
+  showDebug?: boolean;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -182,8 +184,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
 
   return (
-    <div 
-      className="relative overflow-hidden rounded-xl animate-fade-in"
+    <>
+      {showDebug && (
+        <SonosDebugOverlay
+          trackName={nowPlaying.track_name}
+          artistName={nowPlaying.artist_name}
+          playbackState={nowPlaying.playback_state}
+          positionMs={localProgress}
+          durationMs={nowPlaying.duration_ms}
+          imageLoaded={imageLoaded}
+          imageError={imageError}
+        />
+      )}
+      <div 
+        className="relative overflow-hidden rounded-xl animate-fade-in"
       style={{
         width: widgetWidth,
         height: widgetHeight,
@@ -293,6 +307,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 });
