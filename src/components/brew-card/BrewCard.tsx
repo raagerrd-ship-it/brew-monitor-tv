@@ -16,6 +16,7 @@ import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { SyncedDataDialog } from "./SyncedDataDialog";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 // Fixed heights in pixels for consistent layout
 const CARD_HEADER_HEIGHT = 100;
@@ -30,10 +31,13 @@ function BrewCardComponent({
   onShareBrew,
   onEventsChange,
   onDeviceLinkOpen,
-  isTvMode = false,
+  isTvMode: tvModeProp = false,
   cardIndex = 0,
   hasAlbumArtBackground = false,
 }: BrewCardProps) {
+  // Use context if not passed as prop
+  const { isTvMode: tvModeContext } = useTvMode();
+  const isTvMode = tvModeProp || tvModeContext;
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   // Staggered rendering for TV mode - each card renders with a delay
   const shouldRenderContent = useStaggeredRender(cardIndex);
@@ -215,17 +219,36 @@ function BrewCardComponent({
       </div>
       
       {/* Chart Area - fills remaining space */}
-      {/* Chart Area - fills remaining space */}
+      {/* In TV mode, show simplified static display instead of heavy Recharts */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0">
-          <BrewChart 
-            data={brew.sgData} 
-            og={brew.originalGravity} 
-            fg={brew.finalGravity} 
-            singleView={true}
-            events={brew.events}
-            controllerId={brew.linked_controller_id}
-          />
+          {isTvMode ? (
+            // Ultra-light TV mode: static SG trend display instead of Recharts
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <div className="text-muted-foreground/60 text-sm mb-2">Gravitet trend</div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl font-bold text-primary">{brew.currentSG.toFixed(3)}</span>
+                <span className="text-muted-foreground">SG</span>
+              </div>
+              <div className="text-muted-foreground/50 text-xs mt-2">
+                OG {brew.originalGravity.toFixed(3)} → FG {brew.finalGravity.toFixed(3)}
+              </div>
+              {brew.sgData && brew.sgData.length > 0 && (
+                <div className="text-muted-foreground/40 text-xs mt-1">
+                  {brew.sgData.length} datapunkter
+                </div>
+              )}
+            </div>
+          ) : (
+            <BrewChart 
+              data={brew.sgData} 
+              og={brew.originalGravity} 
+              fg={brew.finalGravity} 
+              singleView={true}
+              events={brew.events}
+              controllerId={brew.linked_controller_id}
+            />
+          )}
         </div>
         
         {/* Active Fermentation Session - compact view, px-1 to match stats px-3 (p-2 + px-1 = px-3) */}
