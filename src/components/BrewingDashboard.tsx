@@ -301,13 +301,7 @@ export function BrewingDashboard() {
             </div>
             
             <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="flex flex-col items-end gap-2">
-                <Clock />
-                {/* Sonos widget under clock - always render in TV mode so it can set albumArtUrl */}
-                {isTvMode && (
-                  <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
-                )}
-              </div>
+              <Clock />
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{
             width: '40px',
@@ -369,7 +363,18 @@ export function BrewingDashboard() {
           </div>}
       </div>
 
-      {/* Removed: Floating Sonos widget (now in header under clock) */}
+      {/* Floating Sonos widget - positioned top-right over brew cards in TV mode */}
+      {isTvMode && (
+        <div 
+          className="absolute z-10"
+          style={{
+            top: `${HEADER_HEIGHT + 16}px`,
+            right: '24px',
+          }}
+        >
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
+        </div>
+      )}
 
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
