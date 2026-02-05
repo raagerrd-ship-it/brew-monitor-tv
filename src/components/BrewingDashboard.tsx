@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 // Fixed header height in pixels
-const HEADER_HEIGHT = 72;
+const HEADER_HEIGHT = 77;
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
   const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
