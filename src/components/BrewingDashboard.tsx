@@ -255,18 +255,19 @@ export function BrewingDashboard() {
         <TvDebugOverlay />
       )}
       
-      {/* Album art background - TEMP DISABLED for performance testing */}
-      {/* {isTvMode && albumArtUrl && (
+      {/* Album art background */}
+      {isTvMode && albumArtUrl && (
         <div 
-          className="absolute inset-0 bg-cover pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{ 
             backgroundImage: `url(${albumArtUrl})`,
+            backgroundSize: 'cover',
             backgroundPosition: 'center center',
             filter: 'blur(8px)',
             opacity: 0.3,
           }}
         />
-      )} */}
+      )}
       {/* Version indicator */}
       
 
