@@ -257,8 +257,8 @@ export function BrewingDashboard() {
         />
       )}
       
-      {/* Album art background - positioned within the scaled container, not fixed */}
-      {isTvMode && albumArtUrl && (
+      {/* Album art background - TEMP DISABLED for performance testing */}
+      {/* {isTvMode && albumArtUrl && (
         <div 
           className="absolute inset-0 bg-cover pointer-events-none"
           style={{ 
@@ -268,7 +268,7 @@ export function BrewingDashboard() {
             opacity: 0.3,
           }}
         />
-      )}
+      )} */}
       {/* Version indicator */}
       
 
