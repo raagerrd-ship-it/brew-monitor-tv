@@ -6,6 +6,7 @@ import { BrewCard } from "./brew-card";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
+import { DashboardDebugOverlay } from "./DashboardDebugOverlay";
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
@@ -47,6 +48,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [showDebug] = useState(true); // Toggle this to show/hide debug overlay
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
@@ -246,6 +248,15 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
+      {/* Debug overlay */}
+      {showDebug && isTvMode && (
+        <DashboardDebugOverlay
+          brewCount={brews.length}
+          controllerCount={controllers.length}
+          pillCount={pills.length}
+        />
+      )}
+      
       {/* Album art background - positioned within the scaled container, not fixed */}
       {isTvMode && albumArtUrl && (
         <div 
@@ -376,7 +387,7 @@ export function BrewingDashboard() {
             right: '24px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} showDebug={true} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
         </div>
       )}
 
