@@ -11,6 +11,7 @@ interface GravityStatProps {
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
+  const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
   
   const color = isColdcrash 
     ? 'hsl(120 50% 45%)' 
@@ -95,14 +96,16 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
           <span>{brew.finalGravity.toFixed(3)}</span>
         </div>
         
-        {/* Fermentation rate */}
-        <p className="font-medium text-muted-foreground/70 truncate leading-tight" style={{ fontSize: '12px' }}>
-          {brew.fermentationRate !== null ? (
-            <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
-          ) : (
-            <>Beräknar...</>
-          )}
-        </p>
+        {/* Fermentation rate - hide for conditioning/completed brews */}
+        {!isInactive && (
+          <p className="font-medium text-muted-foreground/70 truncate leading-tight" style={{ fontSize: '12px' }}>
+            {brew.fermentationRate !== null ? (
+              <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
+            ) : (
+              <>Beräknar...</>
+            )}
+          </p>
+        )}
       </div>
     </StatCard>
   );
