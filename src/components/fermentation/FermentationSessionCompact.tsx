@@ -307,6 +307,7 @@ export function FermentationSessionCompact({
           <span className="text-xl font-semibold tracking-tight truncate">
             {profileName}
           </span>
+          <div className="flex-1" />
           <Badge 
             variant="outline"
             className="shrink-0 text-lg font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
