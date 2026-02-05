@@ -278,7 +278,7 @@ export function FermentationSessionCompact({
         background: getBackgroundStyle(visualState),
         border: `1px solid ${getBorderColor(visualState)}`,
         boxShadow: getBoxShadow(visualState),
-        minHeight: '88px',
+        minHeight: '104px',
       }}
     >
       {/* Progress overlays */}
