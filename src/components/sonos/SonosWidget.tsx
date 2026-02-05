@@ -299,10 +299,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               key={`${nowPlaying.track_name}-${localProgress}`}
               className="h-full rounded-full"
               style={{
+                '--progress-start': `${initialProgress}%`,
                 width: `${initialProgress}%`,
                 background: 'rgba(255, 255, 255, 0.9)',
                 animation: remainingMs > 0 ? `progress-grow ${remainingMs}ms linear forwards` : 'none',
-              }}
+              } as React.CSSProperties}
             />
           </div>
         )}
