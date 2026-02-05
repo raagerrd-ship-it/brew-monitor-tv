@@ -48,7 +48,6 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [showDebug] = useState(true); // ENABLED: Debug overlay for performance testing
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
@@ -56,6 +55,7 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
+  const showDebug = !isTvMode; // Disable debug overlay in TV mode to save memory
   // Get aspect ratio context to determine sizing strategy
   // In TV mode, height will be actual viewport height, not reference 1080
   const { isLocked: isAspectRatioLocked, height: containerHeight, width: containerWidth } = useAspectRatio();
