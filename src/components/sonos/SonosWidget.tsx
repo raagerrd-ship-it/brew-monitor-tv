@@ -72,15 +72,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Single polling interval - 30s for progress sync, realtime handles track changes
+  // Polling interval - 5s for track changes (no server-side poller exists)
+  // This is required because realtime only works when DB is updated
   useEffect(() => {
     if (!isConnected || !showWidget) return;
 
     // Initial fetch
     fetchNowPlaying();
 
-    // Sync progress every 30 seconds to correct CSS drift
-    const SYNC_INTERVAL = 30000;
+    // Poll every 5 seconds to detect track changes
+    // This is necessary because there's no server-side cron updating the DB
+    const SYNC_INTERVAL = 5000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
 
     // Handle visibility changes
