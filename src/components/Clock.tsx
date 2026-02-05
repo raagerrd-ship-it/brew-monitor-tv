@@ -55,15 +55,6 @@ function ClockComponent() {
           hour: "2-digit",
           minute: "2-digit",
         })}
-        {/* Only show seconds in non-TV mode */}
-        {!isTvMode && (
-          <>
-            <span className="text-muted-foreground/40">:</span>
-            <span className="text-muted-foreground/60">
-              {displayTime.getSeconds().toString().padStart(2, '0')}
-            </span>
-          </>
-        )}
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
