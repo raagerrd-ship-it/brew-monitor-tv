@@ -70,16 +70,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Poll for now playing data - less frequently since realtime handles updates
+  // Single polling interval - 30s for progress sync, realtime handles track changes
   useEffect(() => {
     if (!isConnected || !showWidget) return;
 
     // Initial fetch
     fetchNowPlaying();
 
-    // Slow polling interval - 10 seconds since realtime handles most updates
-    const POLL_INTERVAL = 10000;
-    pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
+    // Sync progress every 30 seconds to correct CSS drift
+    const SYNC_INTERVAL = 30000;
+    pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
 
     // Handle visibility changes
     const handleVisibility = () => {
@@ -91,7 +91,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       } else {
         fetchNowPlaying();
         if (!pollIntervalRef.current) {
-          pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
+          pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
         }
       }
     };
