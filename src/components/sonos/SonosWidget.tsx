@@ -180,10 +180,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   return (
     <div 
-      className="relative overflow-hidden rounded-xl transition-all duration-300 animate-fade-in"
+      className="relative overflow-hidden rounded-xl animate-fade-in"
       style={{
         width: widgetWidth,
         height: widgetHeight,
+        contain: 'strict', // Isolate rendering for performance
         boxShadow: isTvMode 
           ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
           : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
@@ -202,8 +203,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         <img
           src={previousAlbumArt}
           alt=""
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: 1 }}
+          style={{ 
+            opacity: 1,
+            willChange: 'opacity',
+          }}
         />
       )}
 
@@ -212,10 +217,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         <img
           src={nowPlaying.album_art_url}
           alt=""
+          decoding="async"
+          fetchPriority="high"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ 
             opacity: imageLoaded ? 1 : 0,
-            transition: 'opacity 800ms ease-out',
+            transition: 'opacity 600ms ease-out',
+            willChange: imageLoaded ? 'auto' : 'opacity',
           }}
           onLoad={handleImageLoad}
           onError={handleImageError}
