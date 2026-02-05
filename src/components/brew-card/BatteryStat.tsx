@@ -40,14 +40,14 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
     </svg>
   );
 
-  // Format battery with 1 decimal, fading the decimal part
+  // Format battery with 1 decimal, fading the decimal part including dot
   const formatBatteryValue = () => {
     if (isInactive || batteryValue === null) return "--";
     const formatted = batteryValue.toFixed(1);
     const [whole, decimal] = formatted.split('.');
     return (
       <span className="tabular-nums">
-        {whole}.<span className="text-muted-foreground/40">{decimal}</span>%
+        {whole}<span className="text-muted-foreground/40">.{decimal}%</span>
       </span>
     );
   };
