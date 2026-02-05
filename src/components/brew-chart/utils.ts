@@ -126,7 +126,7 @@ export function interpolateTargetTemp(
 
 /**
  * Merge SG data with controller temperature data
- * OPTIMIZED: Pre-sorts controller data once instead of per-point
+ * OPTIMIZED: Uses binary search for target temp lookup (O(log n) per point instead of O(n))
  */
 export function mergeWithControllerTemp(
   sgData: ChartDataPoint[],
@@ -144,25 +144,34 @@ export function mergeWithControllerTemp(
     }));
   }
   
+  const targetData = prepared.targetTemp;
+  
+  // Binary search helper for target temp (step function - find last value before timestamp)
+  const findTargetTemp = (timestamp: number): number | null => {
+    if (targetData.length === 0) return null;
+    if (timestamp <= targetData[0].timestamp) return targetData[0].value;
+    if (timestamp >= targetData[targetData.length - 1].timestamp) {
+      return targetData[targetData.length - 1].value;
+    }
+    
+    // Binary search for the rightmost element with timestamp <= target
+    let left = 0;
+    let right = targetData.length - 1;
+    while (left < right) {
+      const mid = Math.ceil((left + right + 1) / 2);
+      if (targetData[mid].timestamp <= timestamp) {
+        left = mid;
+      } else {
+        right = mid - 1;
+      }
+    }
+    return targetData[left].value;
+  };
+  
   return sgData.map(point => {
     const timestamp = new Date(point.date).getTime();
     const controllerTemp = interpolateValue(timestamp, prepared.currentTemp);
-    
-    // For target temp, use step function (most recent value)
-    let targetTemp: number | null = null;
-    const targetData = prepared.targetTemp;
-    if (targetData.length > 0) {
-      if (timestamp <= targetData[0].timestamp) {
-        targetTemp = targetData[0].value;
-      } else {
-        for (let i = targetData.length - 1; i >= 0; i--) {
-          if (targetData[i].timestamp <= timestamp) {
-            targetTemp = targetData[i].value;
-            break;
-          }
-        }
-      }
-    }
+    const targetTemp = findTargetTemp(timestamp);
     
     return {
       ...point,
@@ -175,7 +184,8 @@ export function mergeWithControllerTemp(
 
 /**
  * Calculate moving average for smoother chart lines
- * OPTIMIZED: Uses running sum instead of slice for O(n) instead of O(n*windowSize)
+ * TRULY OPTIMIZED: Uses proper sliding window with O(n) complexity
+ * Previous implementation was O(n*windowSize) due to nested loops
  */
 export function calculateMovingAverage(
   data: ChartDataPoint[], 
@@ -184,40 +194,77 @@ export function calculateMovingAverage(
 ): ChartDataPoint[] {
   if (!enabled || windowSize < 2 || data.length === 0) return data;
   
+  const len = data.length;
   const halfWindow = Math.floor(windowSize / 2);
-  const result: ChartDataPoint[] = new Array(data.length);
+  const result: ChartDataPoint[] = new Array(len);
   
-  // Pre-calculate arrays for running sums
-  const values: number[] = data.map(d => d.value);
-  const pillTemps: number[] = data.map(d => d.pillTemp ?? d.temp);
-  const controllerTemps: (number | null)[] = data.map(d => d.controllerTemp ?? null);
+  // Pre-extract values to avoid repeated property access
+  const values: number[] = new Array(len);
+  const pillTemps: number[] = new Array(len);
+  const controllerTemps: number[] = new Array(len);
+  const controllerValid: boolean[] = new Array(len);
   
-  for (let i = 0; i < data.length; i++) {
-    const start = Math.max(0, i - halfWindow);
-    const end = Math.min(data.length, i + halfWindow + 1);
-    const count = end - start;
+  for (let i = 0; i < len; i++) {
+    const d = data[i];
+    values[i] = d.value;
+    pillTemps[i] = d.pillTemp ?? d.temp;
+    const ct = d.controllerTemp;
+    controllerTemps[i] = ct ?? 0;
+    controllerValid[i] = ct !== null && ct !== undefined;
+  }
+  
+  // Use true sliding window - O(n) instead of O(n*windowSize)
+  let valueSum = 0;
+  let pillTempSum = 0;
+  let controllerTempSum = 0;
+  let controllerTempCount = 0;
+  
+  // Initialize window for first element
+  const firstEnd = Math.min(len, halfWindow + 1);
+  for (let j = 0; j < firstEnd; j++) {
+    valueSum += values[j];
+    pillTempSum += pillTemps[j];
+    if (controllerValid[j]) {
+      controllerTempSum += controllerTemps[j];
+      controllerTempCount++;
+    }
+  }
+  
+  for (let i = 0; i < len; i++) {
+    const windowStart = Math.max(0, i - halfWindow);
+    const windowEnd = Math.min(len, i + halfWindow + 1);
     
-    // Calculate averages using direct index access (faster than slice)
-    let valueSum = 0;
-    let pillTempSum = 0;
-    let controllerTempSum = 0;
-    let controllerTempCount = 0;
-    
-    for (let j = start; j < end; j++) {
-      valueSum += values[j];
-      pillTempSum += pillTemps[j];
-      if (controllerTemps[j] !== null) {
-        controllerTempSum += controllerTemps[j]!;
-        controllerTempCount++;
+    // Add new element entering the window (right side)
+    if (i > 0) {
+      const newIdx = i + halfWindow;
+      if (newIdx < len) {
+        valueSum += values[newIdx];
+        pillTempSum += pillTemps[newIdx];
+        if (controllerValid[newIdx]) {
+          controllerTempSum += controllerTemps[newIdx];
+          controllerTempCount++;
+        }
+      }
+      
+      // Remove element leaving the window (left side)
+      const oldIdx = i - halfWindow - 1;
+      if (oldIdx >= 0) {
+        valueSum -= values[oldIdx];
+        pillTempSum -= pillTemps[oldIdx];
+        if (controllerValid[oldIdx]) {
+          controllerTempSum -= controllerTemps[oldIdx];
+          controllerTempCount--;
+        }
       }
     }
+    
+    const count = windowEnd - windowStart;
     
     result[i] = {
       ...data[i],
       value: valueSum / count,
       pillTemp: pillTempSum / count,
       controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
-      // Target temp should not be smoothed - it changes in discrete steps
       targetTemp: data[i].targetTemp
     };
   }
