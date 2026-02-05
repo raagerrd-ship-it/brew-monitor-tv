@@ -10,11 +10,18 @@ interface GravityStatProps {
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
   const isCustomBrew = brew.batch_id.startsWith('custom_');
-  const color = brew.coldcrashAcknowledged 
+  const isColdcrash = brew.coldcrashAcknowledged;
+  
+  const color = isColdcrash 
     ? 'hsl(120 50% 45%)' 
     : 'hsl(var(--primary))';
   
-  const customBackground = brew.coldcrashAcknowledged 
+  // Use explicit HSL values for progress bar (CSS variables don't work with opacity manipulation)
+  const progressColor = isColdcrash 
+    ? 'hsl(120 50% 45%)' 
+    : 'hsl(38 90% 50%)'; // Amber/gold color matching --primary
+  
+  const customBackground = isColdcrash 
     ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
     : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)';
 
@@ -67,8 +74,8 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
               className="h-full rounded-full transition-all duration-700 ease-out"
               style={{ 
                 width: `${progress}%`,
-                background: `linear-gradient(180deg, ${color} 0%, ${color.replace('hsl(', 'hsl(').replace(')', ' / 0.8)')} 100%)`,
-                boxShadow: `0 0 12px ${color.replace(')', ' / 0.6)')}, 0 0 4px ${color}`
+                background: progressColor,
+                boxShadow: `0 0 12px ${progressColor}, 0 0 6px ${progressColor}`
               }}
             />
             {/* Shine overlay */}
