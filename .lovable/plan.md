@@ -1,113 +1,82 @@
 
-# Plan: Fixa aspect-ratio-skalning så layouten ser identisk ut
+# Optimera Sonos-widget med smart progress och minimal polling
 
-## Bakgrund
+## Sammanfattning
+Ersätter JavaScript-baserad progress-interpolering med CSS-animation och smarta timers för att eliminera alla onödiga intervaller.
 
-AspectRatioContainer är tänkt att fungera som en "virtuell skärm" på 1920x1080 pixlar som skalas proportionellt till fönstrets storlek. Men layouten ser inte identisk ut i olika fönsterstorlekar på grund av att vissa element inte följer skalningssystemet.
+## Förändringar
 
----
+### 1. Progress-bar med CSS-animation
+Istället för att uppdatera progress via JavaScript var 2:e sekund, använder vi CSS-animation som körs helt på GPU:n.
 
-## Tekniska problem
+- Beräkna `animation-duration` baserat på kvarvarande tid
+- Starta animationen från nuvarande position
+- Ingen JavaScript-overhead under uppspelning
 
-### Problem 1: TimerFooter använder `position: fixed`
-`fixed` positionering gör att footern placeras relativt till webbläsarfönstret istället för den skalade containern. Det innebär att:
-- Footern har alltid samma storlek oavsett skalning
-- Den "sticker ut" från det skalade innehållet
+### 2. Ta bort progress-intervallet
+Intervallet i `useSonosTrackTransition` som tickar var 2:e sekund tas bort helt.
 
-### Problem 2: Höjdberäkningar i BrewingDashboard
-Dashboard-komponenten räknar ut höjden för brew-kort med hänsyn till `TIMER_FOOTER_HEIGHT`, men eftersom footern inte skalar blir beräkningarna fel.
+### 3. Smart track-end timer
+Istället för att polla för att upptäcka låtslut:
+- Beräkna när låten slutar baserat på `duration_ms - position_ms`
+- Sätt en `setTimeout` som triggar preload ~15s innan slut
+- Sätt en till för att hämta nästa låt ~3s innan slut
 
-### Problem 3: Dynamiskt innehåll i BrewCard
-Chart-arean använder `flex-1` och `ActiveFermentationSession` kan ta varierande höjd.
-
----
-
-## Lösning
-
-### Steg 1: Ändra TimerFooter till absolut positionering
-
-Ändra `TimerFooter.tsx`:
-- Byt `position: fixed` till `position: absolute`
-- Lägg till `bottom: 0`, `left: 0`, `right: 0`
-- Ta bort `z-50` och använd lägre z-index inom containern
-
-### Steg 2: Uppdatera AspectRatioContainer
-
-Säkerställ att containern som omsluter `TimerFooter` har `position: relative` så att `absolute`-positioneringen fungerar korrekt.
-
-### Steg 3: Förenkla höjdberäkningar i BrewingDashboard
-
-Eftersom allt nu ligger i en 1920x1080-container:
-- Ta bort alla `calc()` och dynamiska höjdberäkningar
-- Använd fasta pixelvärden baserade på referensupplösningen:
-  - Header: 72px
-  - Timer footer: 90px (om aktiv)
-  - Innehållsarea: 1080 - 72 - 90 = 918px (eller 1008px utan footer)
-
-### Steg 4: Säkerställ fasta höjder i BrewCard
-
-- Chart-arean ska använda beräknad höjd istället för `flex-1`
-- Kontrollera att `ActiveFermentationSession` har en fast max-höjd
-
----
+### 4. Polling endast för manuella byten
+Behåll 10s polling som backup för att fånga:
+- Användaren byter låt manuellt
+- Pause/play
+- Volymändringar som påverkar state
 
 ## Tekniska detaljer
 
-### TimerFooter.tsx ändringar
-
+**SonosWidget.tsx - CSS-animerad progress:**
 ```tsx
-// Före
-<div className="fixed bottom-0 left-0 right-0 z-50 border-t" ...>
+// Beräkna animation baserat på serverdata
+const remainingMs = (nowPlaying.duration_ms ?? 0) - (localProgress ?? 0);
+const remainingPercent = 100 - progressPercent;
 
-// Efter
-<div className="absolute bottom-0 left-0 right-0 z-20 border-t" ...>
-```
-
-Notera: Alert-overlay (triggeredAlert) behöver fortfarande `fixed` för att täcka hela skärmen.
-
-### BrewingDashboard.tsx ändringar
-
-Förenkla höjdberäkningarna:
-```tsx
-// Referenshöjder (baserat på 1920x1080)
-const HEADER_HEIGHT = 72;
-const TIMER_FOOTER_HEIGHT = 90;
-const TOTAL_HEIGHT = 1080;
-
-const getContentHeight = () => {
-  const footerHeight = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
-  return TOTAL_HEIGHT - HEADER_HEIGHT - footerHeight;
-};
-```
-
-### AspectRatioContainer.tsx ändringar
-
-Lägg till `position: relative` på den skalade containern:
-```tsx
-<div
+<div 
+  className="h-full rounded-full"
   style={{
-    width: REFERENCE_WIDTH,
-    height: REFERENCE_HEIGHT,
-    transform: `scale(${dimensions.scale})`,
-    transformOrigin: 'top left',
-    position: 'relative', // Viktigt för absolut positionering av barn
+    width: `${progressPercent}%`,
+    background: 'rgba(255, 255, 255, 0.9)',
+    animation: nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING'
+      ? `progress-grow ${remainingMs}ms linear forwards`
+      : 'none',
   }}
->
+/>
 ```
 
----
+**useSonosTrackTransition.ts - Ersätt interval med setTimeout:**
+```typescript
+// Ta bort setInterval helt
+// Använd setTimeout baserat på beräknad sluttid
+useEffect(() => {
+  const current = nowPlayingRef.current;
+  if (!current?.duration_ms) return;
+  
+  const remaining = current.duration_ms - (current.position_ms ?? 0);
+  
+  // Preload 15s innan slut
+  const preloadTimer = setTimeout(() => {
+    preloadNextTrack();
+  }, Math.max(0, remaining - 15000));
+  
+  // Hämta ny data 3s innan slut
+  const fetchTimer = setTimeout(() => {
+    fetchNowPlaying();
+  }, Math.max(0, remaining - 3000));
+  
+  return () => {
+    clearTimeout(preloadTimer);
+    clearTimeout(fetchTimer);
+  };
+}, [nowPlaying?.track_name, nowPlaying?.position_ms]);
+```
 
-## Förväntad effekt
-
-Efter dessa ändringar kommer:
-1. Hela layouten (inklusive timer footer) att skalas proportionellt
-2. Brew-korten att ha exakt samma proportioner oavsett fönsterstorlek
-3. Diagrammet att behålla rätt storlek relativt till stats-griden
-
----
-
-## Filer som påverkas
-
-1. `src/components/TimerFooter.tsx` - Ändra från fixed till absolute positionering
-2. `src/components/AspectRatioContainer.tsx` - Säkerställ position: relative
-3. `src/components/BrewingDashboard.tsx` - Förenkla höjdberäkningar
+## Resultat
+- **0 JavaScript-intervaller** under normal uppspelning
+- **Endast 1 nätverksanrop var 10:e sekund** som backup
+- Progress-bar körs helt på GPU via CSS
+- Automatisk preload baserat på låtlängd
