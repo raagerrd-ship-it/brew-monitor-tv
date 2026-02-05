@@ -20,7 +20,8 @@ import { SessionStatusIcon } from "./SessionStatusIcon";
 import { 
   getBackgroundStyle, 
   getBorderColor, 
-  getBoxShadow, 
+  getBoxShadow,
+  getTopReflection,
   formatRemainingTime,
   type VisualState 
 } from "./sessionStyles";
@@ -287,6 +288,12 @@ export function FermentationSessionCompact({
         minHeight: '104px',
       }}
     >
+      {/* Top light reflection - glassmorphism effect */}
+      <div 
+        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-20"
+        style={{ background: getTopReflection() }}
+      />
+      
       {/* Progress overlays */}
       <ProgressOverlay progress={sgProgress} color="green" />
       {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
