@@ -1,10 +1,17 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef, useCallback } from "react";
 
 interface DebugEvent {
   timestamp: string;
   source: string;
   event: string;
   details?: string;
+}
+
+interface LongTaskStats {
+  count: number;
+  totalDuration: number;
+  maxDuration: number;
+  lastSeen: string | null;
 }
 
 interface DashboardDebugOverlayProps {
@@ -30,25 +37,41 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   const [logs, setLogs] = useState<DebugEvent[]>([]);
   const [realtimeEvents, setRealtimeEvents] = useState<number>(0);
   const [lastRealtimeEvent, setLastRealtimeEvent] = useState<string | null>(null);
+  const [longTaskStats, setLongTaskStats] = useState<LongTaskStats>({
+    count: 0,
+    totalDuration: 0,
+    maxDuration: 0,
+    lastSeen: null,
+  });
+  const [renderCount, setRenderCount] = useState(0);
   
   const frameCountRef = useRef(0);
   const lastFrameTimeRef = useRef(performance.now());
   const lastSonosTrackRef = useRef<string | null>(null);
   const mountTimeRef = useRef(Date.now());
+  const longTaskThrottleRef = useRef<number>(0);
 
-  // FPS counter
+  // Track renders
+  useEffect(() => {
+    setRenderCount(c => c + 1);
+  });
+
+  // FPS counter - throttled to reduce overhead
   useEffect(() => {
     let animationId: number;
+    let lastUpdate = performance.now();
     
     const measureFps = () => {
       frameCountRef.current++;
       const now = performance.now();
-      const elapsed = now - lastFrameTimeRef.current;
       
-      if (elapsed >= 1000) {
+      // Only update state every second to reduce re-renders
+      if (now - lastUpdate >= 1000) {
+        const elapsed = now - lastFrameTimeRef.current;
         setFps(Math.round((frameCountRef.current * 1000) / elapsed));
         frameCountRef.current = 0;
         lastFrameTimeRef.current = now;
+        lastUpdate = now;
       }
       
       animationId = requestAnimationFrame(measureFps);
@@ -58,7 +81,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Memory monitor
+  // Memory monitor - less frequent
   useEffect(() => {
     const updateMemory = () => {
       const perf = performance as any;
@@ -74,7 +97,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     };
 
     updateMemory();
-    const interval = setInterval(updateMemory, 2000);
+    const interval = setInterval(updateMemory, 5000); // Every 5s instead of 2s
     return () => clearInterval(interval);
   }, []);
 
@@ -82,119 +105,153 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   useEffect(() => {
     if (sonosTrack !== lastSonosTrackRef.current) {
       if (lastSonosTrackRef.current !== null) {
-        addLog("SONOS", "TRACK_CHANGE", `${lastSonosTrackRef.current?.slice(0, 20)} → ${sonosTrack?.slice(0, 20)}`);
+        addLog("SONOS", "TRACK_CHANGE", `→ ${sonosTrack?.slice(0, 30)}`);
       }
       lastSonosTrackRef.current = sonosTrack ?? null;
     }
   }, [sonosTrack]);
 
-  // Intercept Supabase realtime events
+  // Long task detector with aggregation
   useEffect(() => {
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
+    if (!('PerformanceObserver' in window)) return;
     
-    console.log = (...args) => {
-      const msg = args.join(' ');
-      if (msg.includes('postgres_changes') || msg.includes('realtime')) {
-        setRealtimeEvents(prev => prev + 1);
-        setLastRealtimeEvent(new Date().toLocaleTimeString('sv-SE'));
-      }
-      originalConsoleLog.apply(console, args);
-    };
+    try {
+      const observer = new PerformanceObserver((list) => {
+        const now = Date.now();
+        
+        for (const entry of list.getEntries()) {
+          if (entry.duration > 50) {
+            const duration = Math.round(entry.duration);
+            
+            setLongTaskStats(prev => ({
+              count: prev.count + 1,
+              totalDuration: prev.totalDuration + duration,
+              maxDuration: Math.max(prev.maxDuration, duration),
+              lastSeen: new Date().toLocaleTimeString('sv-SE'),
+            }));
+            
+            // Only log to event log every 2 seconds max to avoid spam
+            if (now - longTaskThrottleRef.current > 2000) {
+              longTaskThrottleRef.current = now;
+              
+              // Try to get attribution if available
+              const attribution = (entry as any).attribution;
+              let source = 'unknown';
+              if (attribution && attribution.length > 0) {
+                const attr = attribution[0];
+                source = attr.containerType || attr.name || 'script';
+              }
+              
+              addLog("PERF", `LONG_TASK ${duration}ms`, source);
+            }
+          }
+        }
+      });
+      
+      observer.observe({ entryTypes: ['longtask'] });
+      return () => observer.disconnect();
+    } catch (e) {
+      return;
+    }
+  }, []);
+
+  // Intercept realtime events only (removed console interception - it causes overhead)
+  useEffect(() => {
+    const originalConsoleError = console.error;
     
     console.error = (...args) => {
       const msg = args.join(' ');
-      addLog("ERROR", "CONSOLE", msg.slice(0, 100));
+      addLog("ERROR", "CONSOLE", msg.slice(0, 80));
       originalConsoleError.apply(console, args);
     };
     
     return () => {
-      console.log = originalConsoleLog;
       console.error = originalConsoleError;
     };
   }, []);
 
-  const addLog = (source: string, event: string, details?: string) => {
+  const addLog = useCallback((source: string, event: string, details?: string) => {
     const now = new Date();
     const timestamp = `${now.toLocaleTimeString('sv-SE')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
-    setLogs(prev => [...prev.slice(-14), { timestamp, source, event, details }]);
-  };
+    setLogs(prev => [...prev.slice(-9), { timestamp, source, event, details }]);
+  }, []);
 
   const uptime = Math.round((Date.now() - mountTimeRef.current) / 1000);
+  const avgLongTask = longTaskStats.count > 0 
+    ? Math.round(longTaskStats.totalDuration / longTaskStats.count) 
+    : 0;
 
   return (
     <div 
-      className="fixed top-4 left-4 z-50 p-4 rounded-lg text-xs font-mono select-none pointer-events-none"
+      className="fixed top-4 left-4 z-50 p-3 rounded-lg text-xs font-mono select-none pointer-events-none"
       style={{
-        background: 'rgba(0, 0, 0, 0.95)',
+        background: 'rgba(0, 0, 0, 0.92)',
         color: '#0f0',
-        width: '420px',
-        maxHeight: '600px',
+        width: '380px',
+        maxHeight: '500px',
         overflow: 'auto',
         border: '1px solid #333',
       }}
     >
-      <div className="font-bold mb-3 text-yellow-400 text-sm">🔧 Dashboard Debug</div>
+      <div className="font-bold mb-2 text-yellow-400 text-sm">🔧 Debug Overlay</div>
       
-      {/* Performance metrics */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div>
-          <span className={fps < 30 ? 'text-red-400' : fps < 50 ? 'text-yellow-400' : 'text-green-400'}>
-            FPS: {fps}
-          </span>
+      {/* Performance metrics row */}
+      <div className="grid grid-cols-4 gap-2 mb-2 text-[11px]">
+        <div className={fps < 30 ? 'text-red-400' : fps < 50 ? 'text-yellow-400' : 'text-green-400'}>
+          FPS: {fps}
         </div>
-        <div>Uptime: {uptime}s</div>
+        <div>Up: {uptime}s</div>
+        <div>Renders: {renderCount}</div>
         {memoryInfo && (
-          <>
-            <div className={memoryInfo.percent > 80 ? 'text-red-400' : memoryInfo.percent > 60 ? 'text-yellow-400' : ''}>
-              Memory: {memoryInfo.usedMB}MB
-            </div>
-            <div className={memoryInfo.percent > 80 ? 'text-red-400' : ''}>
-              ({memoryInfo.percent}% of {memoryInfo.totalMB}MB)
-            </div>
-          </>
+          <div className={memoryInfo.percent > 80 ? 'text-red-400' : memoryInfo.percent > 60 ? 'text-yellow-400' : ''}>
+            Mem: {memoryInfo.percent}%
+          </div>
+        )}
+      </div>
+
+      {/* Long Task Stats - this is the key diagnostic */}
+      <div className={`border rounded p-2 mb-2 ${longTaskStats.count > 10 ? 'border-red-500 bg-red-900/20' : 'border-gray-600'}`}>
+        <div className="text-yellow-400 mb-1 font-semibold">⚠️ Long Tasks (&gt;50ms)</div>
+        <div className="grid grid-cols-2 gap-1 text-[11px]">
+          <div>Count: <span className={longTaskStats.count > 20 ? 'text-red-400' : ''}>{longTaskStats.count}</span></div>
+          <div>Max: <span className={longTaskStats.maxDuration > 100 ? 'text-red-400' : ''}>{longTaskStats.maxDuration}ms</span></div>
+          <div>Avg: {avgLongTask}ms</div>
+          <div>Last: {longTaskStats.lastSeen || '-'}</div>
+        </div>
+        {longTaskStats.count > 20 && (
+          <div className="text-red-400 text-[10px] mt-1">
+            ⚠️ Många long tasks = något blockerar huvudtråden
+          </div>
         )}
       </div>
 
       {/* Data counts */}
-      <div className="border-t border-gray-600 pt-2 mb-2">
-        <div className="text-gray-400 mb-1">Data loaded:</div>
-        <div className="grid grid-cols-3 gap-2">
-          <div>Brews: {brewCount}</div>
-          <div>Controllers: {controllerCount}</div>
-          <div>Pills: {pillCount}</div>
-        </div>
-      </div>
-
-      {/* Realtime stats */}
-      <div className="border-t border-gray-600 pt-2 mb-2">
-        <div className="text-gray-400 mb-1">Realtime:</div>
-        <div>Events received: {realtimeEvents}</div>
-        <div>Last event: {lastRealtimeEvent || 'none'}</div>
+      <div className="grid grid-cols-3 gap-2 text-[11px] mb-2">
+        <div>Brews: {brewCount}</div>
+        <div>Ctrl: {controllerCount}</div>
+        <div>Pills: {pillCount}</div>
       </div>
 
       {/* Sonos state */}
       {sonosTrack && (
-        <div className="border-t border-gray-600 pt-2 mb-2">
-          <div className="text-cyan-400 mb-1">Sonos:</div>
-          <div className="truncate">Track: {sonosTrack}</div>
-          <div>Progress: {Math.round((sonosPosition ?? 0) / 1000)}s / {Math.round((sonosDuration ?? 0) / 1000)}s</div>
+        <div className="border-t border-gray-600 pt-1 mb-2 text-[11px]">
+          <span className="text-cyan-400">♪</span> {sonosTrack.slice(0, 35)}
         </div>
       )}
 
-      {/* Event log */}
-      <div className="border-t border-gray-600 pt-2">
-        <div className="text-yellow-400 mb-1">Event Log:</div>
+      {/* Event log - reduced size */}
+      <div className="border-t border-gray-600 pt-1">
+        <div className="text-gray-400 mb-1 text-[10px]">Recent Events:</div>
         {logs.length === 0 ? (
-          <div className="text-gray-500">No events yet...</div>
+          <div className="text-gray-500 text-[10px]">No events...</div>
         ) : (
-          logs.map((log, i) => (
-            <div key={i} className="text-[10px] mb-1 flex gap-1">
-              <span className="text-gray-500 w-20 flex-shrink-0">{log.timestamp}</span>
+          logs.slice(-6).map((log, i) => (
+            <div key={i} className="text-[9px] mb-0.5 flex gap-1">
+              <span className="text-gray-500 w-16 flex-shrink-0">{log.timestamp.split('.')[0]}</span>
               <span className={
                 log.source === 'ERROR' ? 'text-red-400' :
                 log.source === 'SONOS' ? 'text-cyan-400' :
-                log.source === 'REALTIME' ? 'text-purple-400' :
+                log.source === 'PERF' ? 'text-orange-400' :
                 'text-white'
               }>
                 [{log.source}]
@@ -204,34 +261,6 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
           ))
         )}
       </div>
-
-      {/* Long task detection */}
-      <LongTaskDetector onLongTask={(duration) => addLog("PERF", "LONG_TASK", `${duration}ms`)} />
     </div>
   );
 });
-
-// Detects long tasks (> 50ms) that cause jank
-function LongTaskDetector({ onLongTask }: { onLongTask: (duration: number) => void }) {
-  useEffect(() => {
-    if (!('PerformanceObserver' in window)) return;
-    
-    try {
-      const observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          if (entry.duration > 50) {
-            onLongTask(Math.round(entry.duration));
-          }
-        }
-      });
-      
-      observer.observe({ entryTypes: ['longtask'] });
-      return () => observer.disconnect();
-    } catch (e) {
-      // longtask not supported in all browsers
-      return;
-    }
-  }, [onLongTask]);
-  
-  return null;
-}
