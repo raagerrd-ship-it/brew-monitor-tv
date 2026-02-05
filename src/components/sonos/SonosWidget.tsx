@@ -80,9 +80,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Poll every 5 seconds to detect track changes
+    // Poll every 3 seconds to detect track changes
     // This is necessary because there's no server-side cron updating the DB
-    const SYNC_INTERVAL = 5000;
+    const SYNC_INTERVAL = 3000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
 
     // Handle visibility changes
@@ -177,11 +177,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     : 0;
 
   // Fixed pixel sizes for scaled container (adjusted for 720p TV)
-  const trackFontSize = isTvMode ? '16px' : isMobile ? '0.8rem' : '14px';
-  const artistFontSize = isTvMode ? '12px' : isMobile ? '0.7rem' : '12px';
-  const progressHeight = isTvMode ? '4px' : isMobile ? '2px' : '3px';
-  const widgetHeight = isTvMode ? '100px' : isMobile ? '56px' : '70px';
-  const widgetWidth = isTvMode ? '200px' : isMobile ? '140px' : '200px';
+  const trackFontSize = isTvMode ? '18px' : isMobile ? '0.8rem' : '14px';
+  const artistFontSize = isTvMode ? '14px' : isMobile ? '0.7rem' : '12px';
+  const progressHeight = isTvMode ? '5px' : isMobile ? '2px' : '3px';
+  const widgetHeight = isTvMode ? '120px' : isMobile ? '56px' : '70px';
+  const widgetWidth = isTvMode ? '240px' : isMobile ? '140px' : '200px';
 
   const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
 
