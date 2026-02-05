@@ -312,7 +312,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           preloadNextTrack();
         }
         
-        if (remaining <= 1500 && remaining > 500 && !trackEndFetchedRef.current) {
+        if (remaining <= 3500 && remaining > 2500 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
           if (!applyPreloadedData()) {
             fetchNowPlaying();
