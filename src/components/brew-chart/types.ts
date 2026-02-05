@@ -35,6 +35,8 @@ export interface BrewChartProps {
   singleView?: boolean;
   events?: BrewChartEvent[];
   controllerId?: string | null;
+  /** Index for staggered rendering - prevents all charts from loading at once */
+  chartIndex?: number;
 }
 
 export interface EventDisplay {

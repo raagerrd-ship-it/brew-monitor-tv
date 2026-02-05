@@ -1,21 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTvMode } from '@/contexts/TvModeContext';
 
 /**
- * Hook that defers rendering of heavy components to prevent blocking the main thread.
- * In TV mode, we skip deferring since we want immediate render without setTimeout overhead.
+ * Hook that defers rendering of heavy components using requestIdleCallback.
+ * This ensures the main thread isn't blocked during initial page load.
+ * Falls back to setTimeout if requestIdleCallback isn't available.
  * 
- * @param delayMs - Delay in milliseconds before rendering (default: 50ms, TV mode: 0ms)
+ * In TV mode, renders immediately since charts are already disabled there.
+ * 
+ * @param priority - 'high' renders sooner, 'low' waits longer (default: 'high')
  * @returns boolean - Whether the component should render
  */
-export function useDeferredRender(delayMs?: number): boolean {
+export function useDeferredRender(priority: 'high' | 'low' = 'high'): boolean {
   const { isTvMode } = useTvMode();
   
-  // In TV mode, render immediately - no deferring to avoid timeout overhead
+  // In TV mode, render immediately - charts are disabled anyway
   const [shouldRender, setShouldRender] = useState(isTvMode);
-  
-  // On desktop/mobile, use short delay
-  const delay = delayMs ?? 50;
   
   useEffect(() => {
     if (isTvMode) {
@@ -23,34 +23,40 @@ export function useDeferredRender(delayMs?: number): boolean {
       return;
     }
     
-    const timeoutId = setTimeout(() => {
-      setShouldRender(true);
-    }, delay);
-    
-    return () => clearTimeout(timeoutId);
-  }, [delay, isTvMode]);
+    // Use requestIdleCallback to wait for browser idle time
+    if ('requestIdleCallback' in window) {
+      const timeout = priority === 'high' ? 200 : 500;
+      const idleId = (window as any).requestIdleCallback(
+        () => setShouldRender(true),
+        { timeout }
+      );
+      return () => (window as any).cancelIdleCallback(idleId);
+    } else {
+      // Fallback for Safari/older browsers
+      const delay = priority === 'high' ? 100 : 300;
+      const timeoutId = setTimeout(() => setShouldRender(true), delay);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isTvMode, priority]);
   
   return shouldRender;
 }
 
 /**
- * Hook for staggered rendering of multiple components.
- * In TV mode, renders everything immediately to avoid timeout overhead.
- * On desktop/mobile, staggers rendering for smoother initial load.
+ * Hook for staggered rendering of multiple components using requestIdleCallback.
+ * Each component waits for browser idle time before rendering.
+ * This prevents multiple heavy components from rendering simultaneously.
+ * 
+ * In TV mode, renders everything immediately since heavy components are disabled.
  * 
  * @param index - Index of the component (0-based)
- * @param baseDelayMs - Base delay between each component (default: 50ms)
  * @returns boolean - Whether the component should render
  */
-export function useStaggeredRender(index: number, baseDelayMs?: number): boolean {
+export function useStaggeredRender(index: number): boolean {
   const { isTvMode } = useTvMode();
   
-  // In TV mode, render everything immediately - no staggering
+  // In TV mode, render everything immediately
   const [shouldRender, setShouldRender] = useState(isTvMode);
-  
-  const staggerDelay = baseDelayMs ?? 50;
-  const initialDelay = 100;
-  const delay = initialDelay + (index * staggerDelay);
   
   useEffect(() => {
     if (isTvMode) {
@@ -58,12 +64,35 @@ export function useStaggeredRender(index: number, baseDelayMs?: number): boolean
       return;
     }
     
-    const timeoutId = setTimeout(() => {
-      setShouldRender(true);
-    }, delay);
+    // Stagger each component by waiting for idle + small delay per index
+    const baseDelay = 150;
+    const staggerDelay = 100 * index;
+    const totalDelay = baseDelay + staggerDelay;
     
-    return () => clearTimeout(timeoutId);
-  }, [delay, isTvMode]);
+    if ('requestIdleCallback' in window) {
+      const idleId = (window as any).requestIdleCallback(
+        () => setShouldRender(true),
+        { timeout: totalDelay + 500 } // Max wait time
+      );
+      
+      // Also set a minimum delay so components don't all fire at once
+      const timeoutId = setTimeout(() => {
+        // Only trigger if idle callback hasn't fired yet
+        if (!shouldRender) {
+          (window as any).cancelIdleCallback(idleId);
+          setShouldRender(true);
+        }
+      }, totalDelay + 1000);
+      
+      return () => {
+        (window as any).cancelIdleCallback(idleId);
+        clearTimeout(timeoutId);
+      };
+    } else {
+      const timeoutId = setTimeout(() => setShouldRender(true), totalDelay);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [index, isTvMode]);
   
   return shouldRender;
 }
