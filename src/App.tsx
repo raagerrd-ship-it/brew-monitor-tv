@@ -65,7 +65,7 @@ function AppContent() {
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
-          <FpsCounter />
+          {/* <FpsCounter /> */}{/* TEMP: Disabled for performance testing */}
         </ExternalAuthProvider>
       </FpsCounterProvider>
     </TvModeProvider>
