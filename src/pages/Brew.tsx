@@ -220,7 +220,7 @@ export default function Brew() {
           <img 
             src={dbLogo} 
             alt="Dahlsjö Brewing" 
-            className="h-16 md:h-20 w-auto opacity-90"
+            className="h-24 md:h-32 w-auto opacity-90"
           />
         </div>
         {/* Label and description side by side */}
