@@ -1,94 +1,170 @@
 
-# Optimeringsplan: TV-läge utan skalning
+# Plan: Förhindra TV-krasch med Albumartbakgrund
 
 ## Problemanalys
 
-Just nu använder `AspectRatioContainer` **CSS `transform: scale()`** för både desktop och TV-läge. Detta är problematiskt på TV-hårdvara (Chromecast) av flera anledningar:
+Utifrån sessionsreplayet och koden har jag identifierat följande potentiella kraschorsaker:
 
-1. **GPU-overhead**: `transform: scale()` skapar ett nytt compositing layer och kräver kontinuerlig GPU-bearbetning
-2. **Layout thrashing**: Skalningen triggar reflows vid varje resize-event
-3. **Onödig komplexitet**: TV:n har redan 1920x1080 - ingen skalning behövs
+1. **Ohanteradepromise-fel i async-funktioner** - Edge function-anropen i SonosWidget och useSonosTrackTransition saknar fullständig felhantering
+2. **Bildladdningsfel utan recovery** - När albumart-bilden ändras snabbt kan det orsaka minnesläckor
+3. **CSS filter på stora bilder** - `blur(8px)` på en bakgrundsbild som täcker hela skärmen är CPU-intensivt på Chromecast
+4. **Ingen preloading av bakgrundsbild** - Bilden laddas direkt som bakgrund utan att först laddas i minnet
 
-## Lösning
+## Åtgärder
 
-Skapa två separata renderingsvägar:
+### 1. Ta bort blur-filter från bakgrundsbilden
+CSS blur-filter på stora bilder är extremt resurskrävande. Vi ersätter det med en mörkare overlay istället.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    AspectRatioContainer                      │
-├─────────────────┬───────────────────┬───────────────────────┤
-│   TV-läge       │   Desktop         │   Mobil               │
-├─────────────────┼───────────────────┼───────────────────────┤
-│ • Ingen         │ • transform:      │ • Ingen               │
-│   skalning      │   scale()         │   aspect-ratio        │
-│ • Direkt 1920   │ • Preview av      │ • Normal flow         │
-│   x1080 layout  │   TV-layout       │                       │
-│ • Maximal       │ • Letterbox/      │                       │
-│   prestanda     │   pillarbox       │                       │
-└─────────────────┴───────────────────┴───────────────────────┘
-```
-
-## Tekniska ändringar
-
-### 1. Uppdatera AspectRatioContainer
-
-Modifiera komponenten så att den detekterar TV-läge och renderar utan skalning:
-
-**TV-läge (optimerat):**
-- Renderar direkt i 1920x1080 utan transform
-- Ingen scale-beräkning
-- Fullskärm utan compositing overhead
-
-**Desktop (preview-läge):**
-- Behåller nuvarande `transform: scale()` för att förhandsgranska TV-layout
-- Letterbox/pillarbox beroende på fönsterstorlek
-
-### 2. Konkreta kodändringar
-
+**Fil:** `src/components/BrewingDashboard.tsx`
 ```tsx
-// AspectRatioContainer.tsx
+// Ändra från:
+style={{ 
+  backgroundImage: `url(${albumArtUrl})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center center',
+  filter: 'blur(8px)',  // Ta bort detta
+  opacity: 0.3,
+}}
 
-// TV-läge: Direkt rendering utan skalning
-if (isTvMode) {
-  return (
-    <AspectRatioContext.Provider value={{ 
-      isLocked: true, 
-      width: REFERENCE_WIDTH, 
-      height: REFERENCE_HEIGHT,
-      scale: 1  // Alltid 1 i TV-läge
-    }}>
-      <div 
-        className="fixed inset-0 bg-background overflow-hidden flex flex-col"
-        style={{
-          width: '100vw',
-          height: '100vh',
-        }}
-      >
-        {children}
-      </div>
-    </AspectRatioContext.Provider>
-  );
-}
-
-// Desktop: Behåll skalning för preview
-// ... befintlig kod med transform: scale()
+// Till:
+style={{ 
+  backgroundImage: `url(${albumArtUrl})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center center',
+  opacity: 0.2,  // Minska opacitet istället för blur
+}}
 ```
 
-### 3. Potentiella CSS-optimeringar för TV
+### 2. Lägg till robust felhantering i fetchNowPlaying
+Wrap alla async-operationer i try-catch för att förhindra ohanteradefel som kan krascha appen.
 
-För att ytterligare minska GPU-belastning i TV-läge:
-- Lägg till `will-change: auto` (eller ta bort helt) istället för `will-change: transform`
-- Undvik `backdrop-blur` på stora element
-- Använd `contain: layout paint` på kort för att isolera repaints
+**Fil:** `src/components/sonos/hooks/useSonosTrackTransition.ts`
+```tsx
+const fetchNowPlaying = useCallback(async () => {
+  try {
+    const response = await supabase.functions.invoke('sonos-now-playing');
+    if (response.data && !response.error) {
+      // ... existing logic
+    }
+  } catch (error) {
+    // Logga men krascha inte
+    console.error('[Sonos] Failed to fetch now playing:', error);
+  }
+}, [/* deps */]);
+```
 
-## Förväntade resultat
+### 3. Preloada bakgrundsbilden innan visning
+Skapa en Image-instans för att ladda bilden i minnet innan den används som CSS-bakgrund.
 
-| Metrik | Före | Efter |
-|--------|------|-------|
-| Long tasks | ~26 st, avg 700ms | Nära 0 |
-| GPU-användning | Hög (skalning) | Låg (direkt) |
-| Layout reflows | Vid resize | Inga |
+**Fil:** `src/components/BrewingDashboard.tsx`
+```tsx
+// Ny state för preloaded bild
+const [preloadedAlbumArt, setPreloadedAlbumArt] = useState<string | null>(null);
 
-## Filer som ändras
+// Preload-logik i handleAlbumArtChange
+const handleAlbumArtChange = useCallback((url: string | null) => {
+  if (!url) {
+    setPreloadedAlbumArt(null);
+    return;
+  }
+  
+  // Preloada bilden innan den visas
+  const img = new Image();
+  img.onload = () => setPreloadedAlbumArt(url);
+  img.onerror = () => setPreloadedAlbumArt(null);
+  img.src = url;
+}, []);
+```
 
-1. `src/components/AspectRatioContainer.tsx` - Separat TV-rendering utan scale
+### 4. Skydda mot snabba bildbyten (debounce)
+Förhindra att flera bildbyten sker samtidigt genom att throttla uppdateringar.
+
+**Fil:** `src/components/BrewingDashboard.tsx`
+```tsx
+const preloadTimeoutRef = useRef<number | null>(null);
+
+const handleAlbumArtChange = useCallback((url: string | null) => {
+  // Rensa tidigare timeout
+  if (preloadTimeoutRef.current) {
+    clearTimeout(preloadTimeoutRef.current);
+  }
+  
+  if (!url) {
+    setPreloadedAlbumArt(null);
+    return;
+  }
+  
+  // Debounce för att förhindra snabba byten
+  preloadTimeoutRef.current = window.setTimeout(() => {
+    const img = new Image();
+    img.onload = () => setPreloadedAlbumArt(url);
+    img.onerror = () => setPreloadedAlbumArt(null);
+    img.src = url;
+  }, 100);
+}, []);
+```
+
+### 5. Förbättra felhantering i SonosWidget
+Lägg till ytterligare skydd i komponenten.
+
+**Fil:** `src/components/sonos/SonosWidget.tsx`
+```tsx
+// Wrap alla async-operationer
+const checkConnection = async () => {
+  try {
+    const { data: settings, error: settingsError } = await (supabase as any)
+      .from('sonos_settings')
+      .select('show_on_dashboard, selected_group_id')
+      .limit(1)
+      .maybeSingle();
+    // ... rest of logic
+  } catch (error) {
+    console.error('[Sonos] Failed to check connection:', error);
+    setIsConnected(false);
+  }
+};
+```
+
+### 6. Använd contain: strict på bakgrundscontainern
+Isolera bakgrundsbilden från övriga renderingar.
+
+**Fil:** `src/components/BrewingDashboard.tsx`
+```tsx
+{isTvMode && preloadedAlbumArt && (
+  <div 
+    className="absolute inset-0 pointer-events-none"
+    style={{ 
+      backgroundImage: `url(${preloadedAlbumArt})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center center',
+      opacity: 0.2,
+      contain: 'strict',  // Isolera rendering
+    }}
+  />
+)}
+```
+
+## Sammanfattning av ändringar
+
+| Fil | Ändring |
+|-----|---------|
+| `src/components/BrewingDashboard.tsx` | Ta bort blur, lägg till preloading med debounce, använd contain: strict |
+| `src/components/sonos/hooks/useSonosTrackTransition.ts` | Förbättrad try-catch i alla async-funktioner |
+| `src/components/sonos/SonosWidget.tsx` | Förbättrad felhantering i checkConnection |
+
+## Tekniska detaljer
+
+**Varför blur(8px) är problematiskt på TV:**
+- CSS blur kräver att varje pixel bearbetas med en Gaussian kernel
+- På 720p/1080p bilder betyder det miljontals operationer per frame
+- Chromecast har begränsad GPU-kapacitet för CSS-filter
+
+**Varför preloading hjälper:**
+- Förhindrar "torn" rendering där bilden delvis visas
+- Ger appen möjlighet att hantera laddningsfel graciöst
+- Minskar risken för minnesläckor vid snabba byten
+
+**Varför contain: strict hjälper:**
+- Isolerar bakgrundscontainern från övriga DOM-ändringar
+- Förhindrar att bakgrundsbyten triggar omrendering av hela appen
+- Optimerar GPU-lager hantering
