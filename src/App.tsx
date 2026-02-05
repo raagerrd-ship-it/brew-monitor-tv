@@ -8,6 +8,7 @@ import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { FpsCounterProvider } from "@/contexts/FpsCounterContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 import { FpsCounter } from "@/components/FpsCounter";
+import { TvRefreshListener } from "@/components/TvRefreshListener";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import Install from "./pages/Install";
@@ -27,6 +28,7 @@ const App = () => (
         <TvModeProvider>
           <FpsCounterProvider>
             <ExternalAuthProvider>
+              <TvRefreshListener />
               <Routes>
                 {/* Brew page without aspect ratio lock */}
                 <Route path="/brew/:id" element={<Brew />} />

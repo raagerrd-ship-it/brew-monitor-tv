@@ -15,7 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, Gauge } from "lucide-react";
+import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, Gauge, MonitorPlay } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -1723,6 +1723,57 @@ export default function Settings() {
               )}
             </div>
             
+            {/* TV Mode Section */}
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={MonitorPlay}
+                title="TV-läge"
+                description="Hantera enheter som körs i TV-läge"
+              />
+              
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <MonitorPlay className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Uppdatera TV:ar</p>
+                      <p className="text-sm text-muted-foreground">
+                        Tvinga alla enheter i TV-läge att ladda om sidan
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('sync_settings')
+                          .update({ force_tv_refresh_at: new Date().toISOString() })
+                          .not('id', 'is', null);
+                        
+                        if (error) throw error;
+                        
+                        toast({
+                          title: "Uppdatering skickad",
+                          description: "Alla TV-enheter kommer att ladda om",
+                        });
+                      } catch (error) {
+                        console.error('Error triggering TV refresh:', error);
+                        toast({
+                          title: "Fel",
+                          description: "Kunde inte skicka uppdateringskommando",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Uppdatera
+                  </Button>
+                </div>
+              </Card>
+            </div>
+
             {/* Debug Section */}
             <div className="space-y-4">
               <SectionHeader 
