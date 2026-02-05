@@ -64,19 +64,6 @@ export function StatCard({
       onClick={onClick}
       title={title}
     >
-      {/* Glow effect - positioned behind the card with negative z-index */}
-      {isUpdated && (
-        <div 
-          className="absolute pointer-events-none transition-opacity duration-700"
-          style={{
-            inset: '-8px',
-            borderRadius: '20px',
-            background: `radial-gradient(ellipse at center, ${colorWithOpacity(color, 0.5)} 0%, transparent 70%)`,
-            filter: 'blur(16px)',
-            zIndex: -1,
-          }}
-        />
-      )}
       {/* Top light reflection */}
       <div 
         className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
