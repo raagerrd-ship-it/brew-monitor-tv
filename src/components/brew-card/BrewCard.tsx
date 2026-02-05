@@ -144,18 +144,16 @@ function BrewCardComponent({
               >
                 {brew.name}
                 {brew.batch_id.startsWith('custom_') && (
-                  <button
-                    onClick={() => setSyncedDataOpen(true)}
-                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity"
+                  <span
+                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                     style={{
                       background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
                       color: 'hsl(var(--accent-foreground) / 0.9)',
                       border: '1px solid hsl(var(--accent) / 0.4)',
                     }}
-                    title="Visa synkad data"
                   >
                     Egen #{brew.batchNumber}
-                  </button>
+                  </span>
                 )}
               </h2>
               <p 
@@ -246,7 +244,11 @@ function BrewCardComponent({
       {/* Stats Grid - fixed height */}
       <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
         <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
-          <GravityStat brew={brew} updatedFields={updatedFields} />
+          <GravityStat 
+            brew={brew} 
+            updatedFields={updatedFields} 
+            onSyncedDataClick={() => setSyncedDataOpen(true)}
+          />
           <AbvStat brew={brew} updatedFields={updatedFields} />
           <TempStat 
             brew={brew} 

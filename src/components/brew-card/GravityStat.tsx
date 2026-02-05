@@ -5,9 +5,11 @@ import { StatCard } from "./StatCard";
 interface GravityStatProps {
   brew: BrewData;
   updatedFields: Record<string, Record<string, boolean>>;
+  onSyncedDataClick?: () => void;
 }
 
-function GravityStatComponent({ brew, updatedFields }: GravityStatProps) {
+function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
+  const isCustomBrew = brew.batch_id.startsWith('custom_');
   const color = brew.coldcrashAcknowledged 
     ? 'hsl(120 50% 45%)' 
     : 'hsl(var(--primary))';
@@ -38,6 +40,9 @@ function GravityStatComponent({ brew, updatedFields }: GravityStatProps) {
       labelSize="max(14px, min(2.5vh, 1.6vw))"
       valueSize="max(32px, min(6vh, 3vw))"
       className="gap-0.5"
+      clickable={isCustomBrew && !!onSyncedDataClick}
+      onClick={isCustomBrew ? onSyncedDataClick : undefined}
+      title={isCustomBrew ? "Visa synkad data" : undefined}
     >
       <div className="text-muted-foreground/70 z-10 text-center px-1 w-full flex flex-col min-h-0">
         <p className="tabular-nums truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
