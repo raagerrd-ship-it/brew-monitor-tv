@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,35 +20,65 @@ import SonosCallback from "./pages/SonosCallback";
 
 const queryClient = new QueryClient();
 
+// Global error boundary for unhandled promise rejections
+function useGlobalErrorHandler() {
+  useEffect(() => {
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("[Global] Unhandled rejection:", event.reason);
+      event.preventDefault(); // Prevent browser default error handling
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      console.error("[Global] Unhandled error:", event.error);
+    };
+
+    window.addEventListener("unhandledrejection", handleRejection);
+    window.addEventListener("error", handleError);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleRejection);
+      window.removeEventListener("error", handleError);
+    };
+  }, []);
+}
+
+function AppContent() {
+  useGlobalErrorHandler();
+  
+  return (
+    <TvModeProvider>
+      <FpsCounterProvider>
+        <ExternalAuthProvider>
+          <TvRefreshListener />
+          <Routes>
+            {/* Brew page without aspect ratio lock */}
+            <Route path="/brew/:id" element={<Brew />} />
+            
+            {/* All other routes with aspect ratio lock using layout */}
+            <Route element={<AspectRatioLayout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/install" element={<Install />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/sonos-callback" element={<SonosCallback />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+          <FpsCounter />
+        </ExternalAuthProvider>
+      </FpsCounterProvider>
+    </TvModeProvider>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <TvModeProvider>
-          <FpsCounterProvider>
-            <ExternalAuthProvider>
-              <TvRefreshListener />
-              <Routes>
-                {/* Brew page without aspect ratio lock */}
-                <Route path="/brew/:id" element={<Brew />} />
-                
-                {/* All other routes with aspect ratio lock using layout */}
-                <Route element={<AspectRatioLayout />}>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/install" element={<Install />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/sonos-callback" element={<SonosCallback />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
-              <FpsCounter />
-            </ExternalAuthProvider>
-          </FpsCounterProvider>
-        </TvModeProvider>
+        <AppContent />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
