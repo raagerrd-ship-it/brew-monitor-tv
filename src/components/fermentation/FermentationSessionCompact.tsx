@@ -273,12 +273,12 @@ export function FermentationSessionCompact({
 
   return (
     <div 
-      className="relative flex items-center gap-3 px-4 py-3 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+      className="relative flex items-center gap-4 px-5 py-4 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
         background: getBackgroundStyle(visualState),
         border: `1px solid ${getBorderColor(visualState)}`,
         boxShadow: getBoxShadow(visualState),
-        minHeight: '72px',
+        minHeight: '88px',
       }}
     >
       {/* Progress overlays */}
@@ -303,13 +303,13 @@ export function FermentationSessionCompact({
       
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-base font-semibold tracking-tight truncate">
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg font-semibold tracking-tight truncate">
             {profileName}
           </span>
           <Badge 
             variant="outline"
-            className="shrink-0 text-sm font-medium border-primary/30 bg-primary/5 px-2 py-0.5"
+            className="shrink-0 text-base font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
           >
             {currentStepIndex + 1}/{totalSteps}
           </Badge>
@@ -387,7 +387,7 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-sm">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-1.5 text-base">
             {/* Temperature display */}
             <TemperatureDisplay
               currentStep={currentStep}
