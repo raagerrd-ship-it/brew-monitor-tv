@@ -28,6 +28,15 @@
   animation: marquee 8s linear infinite;
 }
 
+@keyframes progress-grow {
+  from {
+    width: inherit;
+  }
+  to {
+    width: 100%;
+  }
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

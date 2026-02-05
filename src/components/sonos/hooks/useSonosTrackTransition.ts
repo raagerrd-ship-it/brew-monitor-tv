@@ -55,7 +55,6 @@ export function useSonosTrackTransition(
   const currentTrackRef = useRef<string | null>(null);
   const trackEndFetchedRef = useRef<boolean>(false);
   const lastUpdateRef = useRef<number>(Date.now());
-  const progressIntervalRef = useRef<number | null>(null);
   const nowPlayingRef = useRef(nowPlaying);
   
   // Keep ref in sync
@@ -199,11 +198,13 @@ export function useSonosTrackTransition(
     lastUpdateRef.current = Date.now();
   }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError, cleanupPreloadedImage]);
 
-  // Progress interpolation + track-end detection
-  // Use refs for callbacks to avoid re-creating the interval
+  // Smart timers for track-end detection (no intervals!)
+  // Use refs for callbacks to avoid re-creating timers
   const preloadNextTrackRef = useRef(preloadNextTrack);
   const applyPreloadedDataRef = useRef(applyPreloadedData);
   const fetchNowPlayingRef = useRef(fetchNowPlaying);
+  const preloadTimerRef = useRef<number | null>(null);
+  const applyTimerRef = useRef<number | null>(null);
   
   useEffect(() => {
     preloadNextTrackRef.current = preloadNextTrack;
@@ -211,51 +212,51 @@ export function useSonosTrackTransition(
     fetchNowPlayingRef.current = fetchNowPlaying;
   });
 
+  // Smart timers based on track duration - no polling!
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-
-    let lastTickTime = 0;
     
-    // Use a longer interval (2s) to reduce CPU usage
-    progressIntervalRef.current = window.setInterval(() => {
-      const now = Date.now();
-      // Throttle to avoid back-to-back updates
-      if (now - lastTickTime < 900) return;
-      lastTickTime = now;
-      
-      const current = nowPlayingRef.current;
-      if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
-      if (!current.duration_ms) return;
-      
-      const elapsed = now - lastUpdateRef.current;
-      const newProgress = (current.position_ms ?? 0) + elapsed;
-      const remaining = current.duration_ms - newProgress;
-      
-      // Update progress without functional update to reduce allocations
-      setLocalProgress(Math.min(newProgress, current.duration_ms));
-      
-      // Preload at 15 seconds remaining
-      if (remaining <= 15000 && remaining > 13000 && !trackEndFetchedRef.current) {
+    const current = nowPlayingRef.current;
+    if (!current?.duration_ms || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
+    
+    // Calculate remaining time based on when we last got data
+    const elapsed = Date.now() - lastUpdateRef.current;
+    const currentPosition = (current.position_ms ?? 0) + elapsed;
+    const remaining = current.duration_ms - currentPosition;
+    
+    // Clear any existing timers
+    if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
+    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    
+    // Preload next track ~15s before end
+    if (remaining > 15000 && !trackEndFetchedRef.current) {
+      preloadTimerRef.current = window.setTimeout(() => {
         preloadNextTrackRef.current().catch(console.error);
-      }
-      
-      // Apply preloaded data at 3.5 seconds remaining
-      if (remaining <= 3500 && remaining > 1500 && !trackEndFetchedRef.current) {
+      }, remaining - 15000);
+    }
+    
+    // Apply preloaded data ~3s before end
+    if (remaining > 3000 && !trackEndFetchedRef.current) {
+      applyTimerRef.current = window.setTimeout(() => {
         trackEndFetchedRef.current = true;
         if (!applyPreloadedDataRef.current()) {
           fetchNowPlayingRef.current().catch(console.error);
         }
-      }
-    }, 2000);
+      }, remaining - 3000);
+    }
 
     return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
+      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
+      if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    };
+  }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.position_ms]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
       cleanupPreloadedImage();
     };
-  }, [isConnected, showWidget, setLocalProgress, cleanupPreloadedImage]);
+  }, [cleanupPreloadedImage]);
 
   // Handle image load for current album art
   const handleImageLoad = useCallback(() => {

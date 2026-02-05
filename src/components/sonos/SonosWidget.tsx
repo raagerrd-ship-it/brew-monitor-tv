@@ -164,9 +164,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   if (!nowPlaying?.track_name) return null;
   if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
 
-  // Calculate progress percentage
-  const progressPercent = (localProgress && nowPlaying.duration_ms) 
+  // Calculate progress for CSS animation
+  const initialProgress = (localProgress && nowPlaying.duration_ms) 
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
+    : 0;
+  const remainingMs = nowPlaying.duration_ms 
+    ? Math.max(0, nowPlaying.duration_ms - (localProgress ?? 0))
     : 0;
 
   // Fixed pixel sizes for scaled container
@@ -269,7 +272,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           </div>
         )}
         
-        {/* Progress Bar */}
+        {/* Progress Bar - CSS animated, no JS updates */}
         {nowPlaying.duration_ms && (
           <div 
             className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
@@ -279,10 +282,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }}
           >
             <div 
-              className="h-full rounded-full transition-[width] duration-1000 ease-linear"
+              key={`${nowPlaying.track_name}-${localProgress}`}
+              className="h-full rounded-full"
               style={{
-                width: `${progressPercent}%`,
+                width: `${initialProgress}%`,
                 background: 'rgba(255, 255, 255, 0.9)',
+                animation: remainingMs > 0 ? `progress-grow ${remainingMs}ms linear forwards` : 'none',
               }}
             />
           </div>
