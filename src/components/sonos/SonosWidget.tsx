@@ -77,8 +77,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Slower polling interval - 5 seconds since realtime handles most updates
-    const POLL_INTERVAL = 5000;
+    // Slow polling interval - 10 seconds since realtime handles most updates
+    const POLL_INTERVAL = 10000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
 
     // Handle visibility changes
