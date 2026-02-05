@@ -1,0 +1,95 @@
+import { Component, ErrorInfo, ReactNode } from "react";
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  errorCount: number;
+  lastErrorTime: number;
+}
+
+/**
+ * Error Boundary that catches render errors and auto-recovers.
+ * Designed for TV/Cast environments where user interaction is limited.
+ * 
+ * If multiple errors occur within a short time, it will reload the page
+ * to clear any corrupted state.
+ */
+export class ErrorBoundary extends Component<Props, State> {
+  private recoveryTimeout: number | null = null;
+
+  constructor(props: Props) {
+    super(props);
+    this.state = { 
+      hasError: false,
+      errorCount: 0,
+      lastErrorTime: 0
+    };
+  }
+
+  static getDerivedStateFromError(_: Error): Partial<State> {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    
+    const now = Date.now();
+    const timeSinceLastError = now - this.state.lastErrorTime;
+    
+    // If errors are happening frequently (within 30 seconds), increment counter
+    const newErrorCount = timeSinceLastError < 30000 
+      ? this.state.errorCount + 1 
+      : 1;
+    
+    this.setState({ 
+      errorCount: newErrorCount,
+      lastErrorTime: now
+    });
+    
+    // If too many errors in quick succession, reload the page
+    if (newErrorCount >= 3) {
+      console.log("[ErrorBoundary] Too many errors, reloading page...");
+      window.location.reload();
+      return;
+    }
+    
+    // Auto-recover after 2 seconds
+    this.recoveryTimeout = window.setTimeout(() => {
+      console.log("[ErrorBoundary] Attempting auto-recovery...");
+      this.setState({ hasError: false });
+    }, 2000);
+  }
+
+  componentWillUnmount() {
+    if (this.recoveryTimeout) {
+      clearTimeout(this.recoveryTimeout);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+      
+      // Minimal fallback UI - auto-recovers after 2 seconds
+      return (
+        <div 
+          className="min-h-screen w-full flex items-center justify-center"
+          style={{ background: 'hsl(222 20% 9%)' }}
+        >
+          <div className="text-center text-white/60">
+            <div className="animate-spin h-8 w-8 border-2 border-white/20 border-t-white/60 rounded-full mx-auto mb-4" />
+            <p>Återhämtar...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}

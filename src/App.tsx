@@ -10,6 +10,7 @@ import { FpsCounterProvider } from "@/contexts/FpsCounterContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 import { FpsCounter } from "@/components/FpsCounter";
 import { TvRefreshListener } from "@/components/TvRefreshListener";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import Install from "./pages/Install";
@@ -73,15 +74,17 @@ function AppContent() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
