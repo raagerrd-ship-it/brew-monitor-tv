@@ -7,6 +7,7 @@ import { Logo } from "./Logo";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { DashboardDebugOverlay } from "./DashboardDebugOverlay";
+import { TvDebugOverlay } from "./TvDebugOverlay";
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
@@ -55,7 +56,7 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
-  const showDebug = true; // Debug overlay now uses 5s intervals - safe for TV mode
+  const showDebug = true; // Debug always enabled
   // Get aspect ratio context to determine sizing strategy
   // In TV mode, height will be actual viewport height, not reference 1080
   const { isLocked: isAspectRatioLocked, height: containerHeight, width: containerWidth } = useAspectRatio();
@@ -249,13 +250,17 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Debug overlay - always show when enabled for debugging (temporarily removed isTvMode check) */}
+      {/* Debug overlay - use minimal version in TV mode */}
       {showDebug && (
-        <DashboardDebugOverlay
-          brewCount={brews.length}
-          controllerCount={controllers.length}
-          pillCount={pills.length}
-        />
+        isTvMode ? (
+          <TvDebugOverlay />
+        ) : (
+          <DashboardDebugOverlay
+            brewCount={brews.length}
+            controllerCount={controllers.length}
+            pillCount={pills.length}
+          />
+        )
       )}
       
       {/* Album art background - TEMP DISABLED for performance testing */}
