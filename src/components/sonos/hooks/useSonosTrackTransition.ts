@@ -198,59 +198,6 @@ export function useSonosTrackTransition(
     lastUpdateRef.current = Date.now();
   }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError, cleanupPreloadedImage]);
 
-  // Smart timers for track-end detection (no intervals!)
-  // Use refs for callbacks to avoid re-creating timers
-  const preloadNextTrackRef = useRef(preloadNextTrack);
-  const applyPreloadedDataRef = useRef(applyPreloadedData);
-  const fetchNowPlayingRef = useRef(fetchNowPlaying);
-  const preloadTimerRef = useRef<number | null>(null);
-  const applyTimerRef = useRef<number | null>(null);
-  
-  useEffect(() => {
-    preloadNextTrackRef.current = preloadNextTrack;
-    applyPreloadedDataRef.current = applyPreloadedData;
-    fetchNowPlayingRef.current = fetchNowPlaying;
-  });
-
-  // Smart timers based on track duration - no polling!
-  useEffect(() => {
-    if (!isConnected || !showWidget) return;
-    
-    const current = nowPlayingRef.current;
-    if (!current?.duration_ms || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
-    
-    // Calculate remaining time based on when we last got data
-    const elapsed = Date.now() - lastUpdateRef.current;
-    const currentPosition = (current.position_ms ?? 0) + elapsed;
-    const remaining = current.duration_ms - currentPosition;
-    
-    // Clear any existing timers
-    if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
-    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    
-    // Preload next track ~15s before end
-    if (remaining > 15000 && !trackEndFetchedRef.current) {
-      preloadTimerRef.current = window.setTimeout(() => {
-        preloadNextTrackRef.current().catch(console.error);
-      }, remaining - 15000);
-    }
-    
-    // Apply preloaded data ~3s before end
-    if (remaining > 3000 && !trackEndFetchedRef.current) {
-      applyTimerRef.current = window.setTimeout(() => {
-        trackEndFetchedRef.current = true;
-        if (!applyPreloadedDataRef.current()) {
-          fetchNowPlayingRef.current().catch(console.error);
-        }
-      }, remaining - 3000);
-    }
-
-    return () => {
-      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
-      if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    };
-  }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.position_ms]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
