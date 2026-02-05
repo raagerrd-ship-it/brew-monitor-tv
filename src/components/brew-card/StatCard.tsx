@@ -45,9 +45,9 @@ export function StatCard({
     borderWidth: '1px',
     borderStyle: 'solid',
     background: customBackground || `linear-gradient(145deg, ${colorWithOpacity(color, 0.06)} 0%, hsl(222 20% 12% / 0.7) 100%)`,
-    boxShadow: isUpdated 
-      ? `0 0 30px ${colorWithOpacity(color, 0.5)}, inset 0 1px 0 hsl(0 0% 100% / 0.08)`
-      : '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
+    // Only keep the inset shadows on the card itself - glow is handled by a separate element
+    boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
+    position: 'relative',
   };
 
   // Use explicit classes for Tailwind purging to work correctly
@@ -57,13 +57,26 @@ export function StatCard({
 
   return (
     <div 
-      className={`rounded-xl p-3 flex flex-col items-center justify-center gap-1 relative overflow-hidden backdrop-blur-md transition-all duration-700 min-h-0 ${
+      className={`rounded-xl p-3 flex flex-col items-center justify-center gap-1 relative overflow-visible backdrop-blur-md transition-all duration-700 min-h-0 ${
         clickable ? 'cursor-pointer hover:scale-[1.02] hover:shadow-lg' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
       onClick={onClick}
       title={title}
     >
+      {/* Glow effect - positioned behind the card with negative z-index */}
+      {isUpdated && (
+        <div 
+          className="absolute pointer-events-none transition-opacity duration-700"
+          style={{
+            inset: '-8px',
+            borderRadius: '20px',
+            background: `radial-gradient(ellipse at center, ${colorWithOpacity(color, 0.5)} 0%, transparent 70%)`,
+            filter: 'blur(16px)',
+            zIndex: -1,
+          }}
+        />
+      )}
       {/* Top light reflection */}
       <div 
         className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
