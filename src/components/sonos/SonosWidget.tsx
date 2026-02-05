@@ -351,12 +351,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
     : 0;
 
-  // Size configuration based on mode
-  const trackFontSize = isTvMode ? 'min(3.5vh, 1.4rem)' : isMobile ? '0.8rem' : 'min(2vh, 0.9rem)';
-  const artistFontSize = isTvMode ? 'min(2.5vh, 1rem)' : isMobile ? '0.7rem' : 'min(1.6vh, 0.75rem)';
-  const progressHeight = isTvMode ? 'min(0.6vh, 5px)' : isMobile ? '2px' : 'min(0.4vh, 3px)';
-  const widgetHeight = isTvMode ? 'min(14vh, 140px)' : isMobile ? '56px' : 'min(7vh, 70px)';
-  const widgetWidth = isTvMode ? 'min(26vw, 280px)' : isMobile ? '140px' : 'min(18vw, 200px)';
+  // Fixed pixel sizes for scaled container
+  const trackFontSize = isTvMode ? '22px' : isMobile ? '0.8rem' : '14px';
+  const artistFontSize = isTvMode ? '16px' : isMobile ? '0.7rem' : '12px';
+  const progressHeight = isTvMode ? '5px' : isMobile ? '2px' : '3px';
+  const widgetHeight = isTvMode ? '140px' : isMobile ? '56px' : '70px';
+  const widgetWidth = isTvMode ? '280px' : isMobile ? '140px' : '200px';
 
   const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
 

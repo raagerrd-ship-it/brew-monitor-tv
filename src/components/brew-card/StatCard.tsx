@@ -37,8 +37,8 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = 'max(12px, min(2vh, 1.2vw))',
-  valueSize = 'max(28px, min(5vh, 2.5vw))',
+  labelSize = '14px',
+  valueSize = '36px',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.2),

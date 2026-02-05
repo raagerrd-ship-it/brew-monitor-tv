@@ -109,14 +109,14 @@ export const RaptPills = ({ dynamicSize = false, className }: RaptPillsProps) =>
   const gap = isMobile ? 'gap-2' : 'gap-4';
   const itemGap = isMobile ? 'gap-1' : 'gap-2';
 
-  // Dynamic sizing for viewport units (compatible with older browsers like Chromecast)
+  // Fixed pixel sizing for scaled container
   const iconStyle = dynamicSize ? {
-    width: isMobile ? 'min(3vh, 2.8vw)' : 'min(4vh, 3.4vw)',
-    height: isMobile ? 'min(3vh, 2.8vw)' : 'min(4vh, 3.4vw)'
+    width: isMobile ? '24px' : '32px',
+    height: isMobile ? '24px' : '32px'
   } : undefined;
 
   const textStyle = dynamicSize ? {
-    fontSize: isMobile ? 'min(3vh, 2.5vw)' : 'min(3.5vh, 2.8vw)'
+    fontSize: isMobile ? '22px' : '28px'
   } : undefined;
 
   return (

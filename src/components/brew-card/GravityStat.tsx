@@ -37,21 +37,21 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       centered
       rowSpan={2}
       customBackground={customBackground}
-      labelSize="max(14px, min(2.5vh, 1.6vw))"
-      valueSize="max(32px, min(6vh, 3vw))"
+      labelSize="18px"
+      valueSize="48px"
       className="gap-0.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
       <div className="text-muted-foreground/70 z-10 text-center px-1 w-full flex flex-col min-h-0">
-        <p className="tabular-nums truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
+        <p className="tabular-nums truncate leading-tight" style={{ fontSize: '13px' }}>
           OG: {brew.originalGravity.toFixed(3)}
         </p>
-        <p className="tabular-nums truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
+        <p className="tabular-nums truncate leading-tight" style={{ fontSize: '13px' }}>
           FG: {brew.finalGravity.toFixed(3)}
         </p>
-        <p className="font-medium truncate leading-tight" style={{ fontSize: 'max(11px, min(1.6vh, 1.1vw))' }}>
+        <p className="font-medium truncate leading-tight" style={{ fontSize: '13px' }}>
           {brew.fermentationRate !== null ? (
             <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
           ) : (
