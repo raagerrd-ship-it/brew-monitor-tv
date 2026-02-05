@@ -250,17 +250,9 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Debug overlay - use minimal version in TV mode */}
-      {showDebug && (
-        isTvMode ? (
-          <TvDebugOverlay />
-        ) : (
-          <DashboardDebugOverlay
-            brewCount={brews.length}
-            controllerCount={controllers.length}
-            pillCount={pills.length}
-          />
-        )
+      {/* Debug overlay - only in TV mode */}
+      {showDebug && isTvMode && (
+        <TvDebugOverlay />
       )}
       
       {/* Album art background - TEMP DISABLED for performance testing */}
