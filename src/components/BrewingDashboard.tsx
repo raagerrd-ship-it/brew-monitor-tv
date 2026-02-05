@@ -48,7 +48,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [showDebug] = useState(false); // TEMP: Disabled to test performance without debug overlay
+  const [showDebug] = useState(true); // ENABLED: Debug overlay for performance testing
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
