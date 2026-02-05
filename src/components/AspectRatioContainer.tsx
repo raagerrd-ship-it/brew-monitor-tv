@@ -111,6 +111,7 @@ export function AspectRatioContainer({
               transform: `scale(${dimensions.scale})`,
               transformOrigin: 'top left',
               overflow: 'hidden',
+              position: 'relative',
             }}
             className="flex flex-col"
           >

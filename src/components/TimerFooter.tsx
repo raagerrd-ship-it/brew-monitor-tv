@@ -251,13 +251,12 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Main footer - 3 column grid layout for TV */}
       <div 
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 border-t",
+          "absolute bottom-0 left-0 right-0 z-20 border-t",
           isMash 
             ? "bg-gradient-to-r from-orange-950 via-orange-900 to-orange-950 border-orange-700/60" 
             : "bg-gradient-to-r from-background via-card to-background border-border"
         )}
         style={{
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           height: `${TIMER_FOOTER_HEIGHT}px`,
         }}
       >
