@@ -9,14 +9,32 @@ import { calculateFermentationRate } from "@/lib/brew-utils";
 
 console.log('Brew.tsx loaded - this confirms the route /brew/:id is being matched');
 
-// Update document title when brew is loaded
-const useDocumentTitle = (title: string | null) => {
+// Update document title and favicon when brew is loaded
+const useDocumentTitleAndIcon = (title: string | null) => {
   useEffect(() => {
+    const originalIcon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+    const originalHref = originalIcon?.href;
+
     if (title) {
       document.title = `${title} - Dahlsjö Brewing`;
+      
+      // Set custom brew icon
+      let iconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+      if (!iconLink) {
+        iconLink = document.createElement('link');
+        iconLink.rel = 'icon';
+        document.head.appendChild(iconLink);
+      }
+      iconLink.href = '/brew-icon.png';
     }
+    
     return () => {
       document.title = "Bryggövervakare";
+      // Restore original icon
+      const iconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+      if (iconLink && originalHref) {
+        iconLink.href = originalHref;
+      }
     };
   }, [title]);
 };
@@ -32,7 +50,7 @@ export default function Brew() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useDocumentTitle(brew?.name ?? null);
+  useDocumentTitleAndIcon(brew?.name ?? null);
 
   useEffect(() => {
     if (!id) {
