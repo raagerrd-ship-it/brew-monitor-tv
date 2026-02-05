@@ -230,6 +230,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     };
 
+    // Clean up preloaded image to free memory
+    const cleanupPreloadedImage = () => {
+      if (preloadedImageRef.current) {
+        preloadedImageRef.current.onload = null;
+        preloadedImageRef.current.onerror = null;
+        preloadedImageRef.current.src = '';
+        preloadedImageRef.current = null;
+      }
+      preloadedDataRef.current = null;
+    };
+
     // Pre-load next track's data
     const preloadNextTrack = async () => {
       const current = nowPlayingRef.current;
@@ -241,10 +252,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           body: { peek_next: true }
         });
         if (response.data?.track_name && response.data.track_name !== current.track_name) {
+          // Clean up any existing preloaded image first
+          cleanupPreloadedImage();
+          
           preloadedDataRef.current = response.data;
           if (response.data.album_art_url) {
             const img = new Image();
             img.onload = () => console.log('[Sonos Debug] Pre-loaded image ready!');
+            img.onerror = () => {
+              console.log('[Sonos Debug] Pre-load image failed, cleaning up');
+              cleanupPreloadedImage();
+            };
             img.src = response.data.album_art_url;
             preloadedImageRef.current = img;
           }
@@ -262,9 +280,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         
         console.log('[Sonos Debug] Applying pre-loaded data immediately!');
         const preloadedData = preloadedDataRef.current;
+        const preloadedImage = preloadedImageRef.current;
         
         // Clear refs first to prevent re-entry
-        const preloadedImage = preloadedImageRef.current;
         preloadedDataRef.current = null;
         preloadedImageRef.current = null;
         
@@ -273,16 +291,26 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
           setPreviousAlbumArt(currentAlbumArtRef.current);
           setShowPreviousArt(true);
+          // Clear previous art after crossfade to free memory
+          setTimeout(() => {
+            setPreviousAlbumArt(null);
+            setShowPreviousArt(false);
+          }, 1000);
         }
         currentAlbumArtRef.current = preloadedData.album_art_url;
         
         const imageIsReady = preloadedImage?.complete && preloadedImage?.naturalWidth > 0;
         
+        // Clean up preloaded image reference after use
+        if (preloadedImage) {
+          preloadedImage.onload = null;
+          preloadedImage.onerror = null;
+        }
+        
         // Update state synchronously instead of RAF to avoid timing issues
         if (imageIsReady) {
           setImageLoaded(true);
           setImageError(false);
-          setTimeout(() => setShowPreviousArt(false), 800);
         } else {
           setImageLoaded(false);
           setImageError(false);
@@ -338,6 +366,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
       }
+      // Clean up preloaded resources on unmount
+      cleanupPreloadedImage();
     };
   }, [isConnected, showWidget]);
 
