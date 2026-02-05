@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useSonosTrackTransition } from "./hooks/useSonosTrackTransition";
 
 interface NowPlaying {
   track_name: string | null;
@@ -29,17 +30,22 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
   const pollIntervalRef = useRef<number | null>(null);
-  const progressIntervalRef = useRef<number | null>(null);
-  const lastUpdateRef = useRef<number>(Date.now());
-  const trackEndFetchedRef = useRef<boolean>(false);
-  const currentTrackRef = useRef<string | null>(null);
-  const preloadedImageRef = useRef<HTMLImageElement | null>(null);
-  const preloadedDataRef = useRef<NowPlaying | null>(null);
-  const currentAlbumArtRef = useRef<string | null>(null);
+
+  // Use the transition hook for track management
+  const { 
+    fetchNowPlaying, 
+    handleTrackUpdate, 
+    handleImageLoad, 
+    handleImageError 
+  } = useSonosTrackTransition(
+    isConnected,
+    showWidget,
+    { nowPlaying, localProgress, imageLoaded, imageError, previousAlbumArt, showPreviousArt },
+    { setNowPlaying, setLocalProgress, setImageLoaded, setImageError, setPreviousAlbumArt, setShowPreviousArt }
+  );
 
   // Check if connected and fetch initial data
   useEffect(() => {
-    console.log('[Sonos Debug] Checking connection...');
     const checkConnection = async () => {
       try {
         const { data: settings, error: settingsError } = await (supabase as any)
@@ -47,8 +53,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           .select('show_on_dashboard, selected_group_id')
           .limit(1)
           .maybeSingle();
-
-        console.log('[Sonos Debug] Settings loaded:', settings?.selected_group_id ? 'connected' : 'not connected');
 
         if (settingsError || !settings?.selected_group_id) {
           setIsConnected(false);
@@ -58,7 +62,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
       } catch (error) {
-        console.error('[Sonos Debug] Failed to check Sonos connection:', error);
+        console.error('[Sonos] Failed to check connection:', error);
         setIsConnected(false);
       }
     };
@@ -69,47 +73,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   // Poll for now playing data
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    console.log('[Sonos Debug] Starting polling...');
-
-    const fetchNowPlaying = async () => {
-      console.log('[Sonos Debug] Fetching now playing...');
-      try {
-        const response = await supabase.functions.invoke('sonos-now-playing');
-        console.log('[Sonos Debug] Got response:', response.data?.track_name || 'no track');
-        if (response.data && !response.error) {
-          // Reset track end flag when track changes
-          if (response.data.track_name !== currentTrackRef.current) {
-            trackEndFetchedRef.current = false;
-            currentTrackRef.current = response.data.track_name;
-            // Check if we pre-loaded this image
-            if (preloadedDataRef.current?.album_art_url === response.data.album_art_url && preloadedImageRef.current?.complete) {
-              console.log('[Sonos Debug] Using pre-loaded image!');
-              setImageLoaded(true);
-              setImageError(false);
-            } else {
-              // Reset image state for new track
-              setImageLoaded(false);
-              setImageError(false);
-            }
-            // Clear preload refs
-            preloadedImageRef.current = null;
-            preloadedDataRef.current = null;
-          }
-          setNowPlaying(response.data);
-          setLocalProgress(response.data.position_ms);
-          lastUpdateRef.current = Date.now();
-        }
-      } catch (error) {
-        console.error('[Sonos Debug] Failed to fetch now playing:', error);
-      }
-    };
 
     // Initial fetch
     fetchNowPlaying();
 
     // Fast polling interval - 1.5 seconds for minimal delay
     const POLL_INTERVAL = 1500;
-    console.log('[Sonos Debug] Starting polling with interval:', POLL_INTERVAL);
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
 
     // Handle visibility changes
@@ -136,7 +105,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isConnected, showWidget]);
+  }, [isConnected, showWidget, fetchNowPlaying]);
 
   // Subscribe to realtime updates
   useEffect(() => {
@@ -148,30 +117,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sonos_now_playing' },
         (payload) => {
-        if (payload.new) {
-          const newData = payload.new as NowPlaying;
-          // Reset track end flag when track changes via realtime
-          if (newData.track_name !== currentTrackRef.current) {
-            trackEndFetchedRef.current = false;
-            currentTrackRef.current = newData.track_name;
-            // Check if we pre-loaded this image
-            if (preloadedDataRef.current?.album_art_url === newData.album_art_url && preloadedImageRef.current?.complete) {
-              console.log('[Sonos Debug] Using pre-loaded image (realtime)!');
-              setImageLoaded(true);
-              setImageError(false);
-            } else {
-              // Reset image state for new track
-              setImageLoaded(false);
-              setImageError(false);
-            }
-            // Clear preload refs
-            preloadedImageRef.current = null;
-            preloadedDataRef.current = null;
+          if (payload.new) {
+            handleTrackUpdate(payload.new as NowPlaying);
           }
-          setNowPlaying(newData);
-          setLocalProgress(newData.position_ms);
-          lastUpdateRef.current = Date.now();
-        }
         }
       )
       .subscribe();
@@ -179,197 +127,22 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isConnected, showWidget]);
+  }, [isConnected, showWidget, handleTrackUpdate]);
 
-  // Notify parent about album art changes - use ref to avoid dependency issues
+  // Notify parent about album art changes
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
 
   useEffect(() => {
-    console.log('[Sonos Debug] Album art effect:', { 
-      url: nowPlaying?.album_art_url ? 'exists' : 'null', 
-      imageLoaded, 
-      imageError 
-    });
     const callback = onAlbumArtChangeRef.current;
     if (callback) {
       if (nowPlaying?.album_art_url && imageLoaded && !imageError) {
-        console.log('[Sonos Debug] Notifying parent: album art loaded');
         callback(nowPlaying.album_art_url);
       } else {
-        console.log('[Sonos Debug] Notifying parent: no album art');
         callback(null);
       }
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
-
-  // Store nowPlaying in ref to avoid dependency issues
-  const nowPlayingRef = useRef(nowPlaying);
-  nowPlayingRef.current = nowPlaying;
-
-  // Local progress interpolation + smart track-end detection
-  useEffect(() => {
-    if (!isConnected || !showWidget) return;
-
-    const fetchNowPlaying = async () => {
-      try {
-        const response = await supabase.functions.invoke('sonos-now-playing');
-        if (response.data && !response.error) {
-          if (response.data.track_name !== currentTrackRef.current) {
-            trackEndFetchedRef.current = false;
-            currentTrackRef.current = response.data.track_name;
-            setImageLoaded(false);
-            setImageError(false);
-          }
-          setNowPlaying(response.data);
-          setLocalProgress(response.data.position_ms);
-          lastUpdateRef.current = Date.now();
-        }
-      } catch (error) {
-        console.error('Failed to fetch now playing:', error);
-      }
-    };
-
-    // Clean up preloaded image to free memory
-    const cleanupPreloadedImage = () => {
-      if (preloadedImageRef.current) {
-        preloadedImageRef.current.onload = null;
-        preloadedImageRef.current.onerror = null;
-        preloadedImageRef.current.src = '';
-        preloadedImageRef.current = null;
-      }
-      preloadedDataRef.current = null;
-    };
-
-    // Pre-load next track's data
-    const preloadNextTrack = async () => {
-      const current = nowPlayingRef.current;
-      if (!current) return;
-      
-      console.log('[Sonos Debug] Pre-loading next track data...');
-      try {
-        const response = await supabase.functions.invoke('sonos-now-playing', {
-          body: { peek_next: true }
-        });
-        if (response.data?.track_name && response.data.track_name !== current.track_name) {
-          // Clean up any existing preloaded image first
-          cleanupPreloadedImage();
-          
-          preloadedDataRef.current = response.data;
-          if (response.data.album_art_url) {
-            const img = new Image();
-            img.onload = () => console.log('[Sonos Debug] Pre-loaded image ready!');
-            img.onerror = () => {
-              console.log('[Sonos Debug] Pre-load image failed, cleaning up');
-              cleanupPreloadedImage();
-            };
-            img.src = response.data.album_art_url;
-            preloadedImageRef.current = img;
-          }
-          console.log('[Sonos Debug] Pre-loaded next track:', response.data.track_name);
-        }
-      } catch (error) {
-        console.error('[Sonos Debug] Failed to preload next track:', error);
-      }
-    };
-
-    // Apply pre-loaded data immediately when track ends
-    const applyPreloadedData = () => {
-      try {
-        if (!preloadedDataRef.current) return false;
-        
-        console.log('[Sonos Debug] Applying pre-loaded data immediately!');
-        const preloadedData = preloadedDataRef.current;
-        const preloadedImage = preloadedImageRef.current;
-        
-        // Clear refs first to prevent re-entry
-        preloadedDataRef.current = null;
-        preloadedImageRef.current = null;
-        
-        currentTrackRef.current = preloadedData.track_name;
-        
-        if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
-          setPreviousAlbumArt(currentAlbumArtRef.current);
-          setShowPreviousArt(true);
-          // Clear previous art after crossfade to free memory
-          setTimeout(() => {
-            setPreviousAlbumArt(null);
-            setShowPreviousArt(false);
-          }, 1000);
-        }
-        currentAlbumArtRef.current = preloadedData.album_art_url;
-        
-        const imageIsReady = preloadedImage?.complete && preloadedImage?.naturalWidth > 0;
-        
-        // Clean up preloaded image reference after use
-        if (preloadedImage) {
-          preloadedImage.onload = null;
-          preloadedImage.onerror = null;
-        }
-        
-        // Update state synchronously instead of RAF to avoid timing issues
-        if (imageIsReady) {
-          setImageLoaded(true);
-          setImageError(false);
-        } else {
-          setImageLoaded(false);
-          setImageError(false);
-        }
-        
-        setNowPlaying(preloadedData);
-        setLocalProgress(preloadedData.position_ms ?? 0);
-        lastUpdateRef.current = Date.now();
-        
-        // Delayed refetch for accuracy
-        setTimeout(() => {
-          fetchNowPlaying().catch(console.error);
-        }, 1500);
-        
-        return true;
-      } catch (error) {
-        console.error('[Sonos Debug] Error applying preloaded data:', error);
-        return false;
-      }
-    };
-
-    progressIntervalRef.current = window.setInterval(() => {
-      try {
-        const current = nowPlayingRef.current;
-        if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
-        
-        setLocalProgress((prev) => {
-          if (prev === null || !current.duration_ms) return prev;
-          const elapsed = Date.now() - lastUpdateRef.current;
-          const newProgress = (current.position_ms ?? 0) + elapsed;
-          const remaining = current.duration_ms - newProgress;
-          
-          if (remaining <= 15000 && remaining > 14000 && !trackEndFetchedRef.current) {
-            preloadNextTrack().catch(console.error);
-          }
-          
-          if (remaining <= 3500 && remaining > 2500 && !trackEndFetchedRef.current) {
-            trackEndFetchedRef.current = true;
-            if (!applyPreloadedData()) {
-              fetchNowPlaying().catch(console.error);
-            }
-          }
-          
-          return Math.min(newProgress, current.duration_ms);
-        });
-      } catch (error) {
-        console.error('[Sonos Debug] Error in progress interval:', error);
-      }
-    }, 1000);
-
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      // Clean up preloaded resources on unmount
-      cleanupPreloadedImage();
-    };
-  }, [isConnected, showWidget]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
@@ -444,13 +217,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             opacity: imageLoaded ? 1 : 0,
             transition: 'opacity 800ms ease-out',
           }}
-          onLoad={() => {
-            setImageLoaded(true);
-            currentAlbumArtRef.current = nowPlaying.album_art_url;
-            // Fade out previous art after new one is loaded
-            setTimeout(() => setShowPreviousArt(false), 800);
-          }}
-          onError={() => setImageError(true)}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
       )}
 
