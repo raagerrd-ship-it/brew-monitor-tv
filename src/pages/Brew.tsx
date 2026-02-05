@@ -6,6 +6,7 @@ import type { BrewData, PillData, TempController, BrewEvent, FermentationSession
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { calculateFermentationRate } from "@/lib/brew-utils";
+import dbLogo from "@/assets/db-logo.png";
 
 console.log('Brew.tsx loaded - this confirms the route /brew/:id is being matched');
 
@@ -214,6 +215,14 @@ export default function Brew() {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
+        {/* Logo header */}
+        <div className="flex justify-center">
+          <img 
+            src={dbLogo} 
+            alt="Dahlsjö Brewing" 
+            className="h-16 md:h-20 w-auto opacity-90"
+          />
+        </div>
         {/* Label and description side by side */}
         {(brew.label_image_url || brew.description) && (
         <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
