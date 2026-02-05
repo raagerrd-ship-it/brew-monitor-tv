@@ -299,8 +299,8 @@ export function BrewingDashboard() {
               <Clock />
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{
-            width: 'min(6vh, 3.8vw)',
-            height: 'min(6vh, 3.8vw)'
+            width: '40px',
+            height: '40px'
           }}>
                   <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
                     <Settings className="transition-colors duration-200" style={{
@@ -433,7 +433,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
             }} />
                 
                 <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-              fontSize: isMobile ? undefined : 'min(2.6vh, 1.5vw)',
+              fontSize: isMobile ? undefined : '20px',
               color: linkedPill?.color || 'hsl(var(--foreground))'
             }}>
                   {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
@@ -451,7 +451,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
                 }} />}
                     </div>
                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
-                fontSize: isMobile ? undefined : 'min(2.2vh, 1.3vw)',
+                fontSize: isMobile ? undefined : '18px',
                 color: linkedPill.color
               }}>
                       {linkedPill.battery_level}%
