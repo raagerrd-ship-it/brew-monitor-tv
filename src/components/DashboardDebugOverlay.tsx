@@ -91,7 +91,16 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   const [fps, setFps] = useState<number>(0);
   const [logs, setLogs] = useState<DebugEvent[]>([]);
   const [manualTimings, setManualTimings] = useState<ManualTiming[]>([]);
-  const [longTaskStats, setLongTaskStats] = useState<LongTaskStats>({
+  
+  // Long task stats stored in ref to avoid re-render loops
+  const longTaskStatsRef = useRef<LongTaskStats>({
+    count: 0,
+    totalDuration: 0,
+    maxDuration: 0,
+    lastSeen: null,
+    recentTasks: [],
+  });
+  const [longTaskDisplay, setLongTaskDisplay] = useState<LongTaskStats>({
     count: 0,
     totalDuration: 0,
     maxDuration: 0,
@@ -99,11 +108,8 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     recentTasks: [],
   });
   
-  const frameCountRef = useRef(0);
-  const lastFrameTimeRef = useRef(performance.now());
   const lastSonosTrackRef = useRef<string | null>(null);
   const mountTimeRef = useRef(Date.now());
-  const longTaskThrottleRef = useRef<number>(0);
 
   // Track renders via ref (not state to avoid triggering re-renders)
   const renderCountRef = useRef(0);
@@ -185,9 +191,11 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     }
   }, [sonosTrack, addLog]);
 
-  // Long task detector
+  // Long task detector - uses ref to avoid re-render loops, syncs to display periodically
   useEffect(() => {
     if (!('PerformanceObserver' in window)) return;
+    
+    let throttleTime = 0;
     
     try {
       const observer = new PerformanceObserver((list) => {
@@ -198,24 +206,19 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
             const duration = Math.round(entry.duration);
             const time = new Date().toLocaleTimeString('sv-SE');
             
-            // Long Task API has limited attribution on most devices
-            const taskEntry: LongTaskEntry = { 
-              duration, 
-              source: 'main-thread', 
-              time 
+            // Update ref (no re-render)
+            const stats = longTaskStatsRef.current;
+            longTaskStatsRef.current = {
+              count: stats.count + 1,
+              totalDuration: stats.totalDuration + duration,
+              maxDuration: Math.max(stats.maxDuration, duration),
+              lastSeen: time,
+              recentTasks: [...stats.recentTasks.slice(-9), { duration, source: 'main-thread', time }],
             };
             
-            setLongTaskStats(prev => ({
-              count: prev.count + 1,
-              totalDuration: prev.totalDuration + duration,
-              maxDuration: Math.max(prev.maxDuration, duration),
-              lastSeen: time,
-              recentTasks: [...prev.recentTasks.slice(-9), taskEntry],
-            }));
-            
-            // Log significant tasks
-            if (duration > 100 || now - longTaskThrottleRef.current > 2000) {
-              longTaskThrottleRef.current = now;
+            // Log significant tasks (throttled)
+            if (duration > 100 || now - throttleTime > 2000) {
+              throttleTime = now;
               addLog("PERF", `LONG_TASK ${duration}ms`, '');
             }
           }
@@ -228,6 +231,14 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
       return;
     }
   }, [addLog]);
+  
+  // Sync long task stats to display every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLongTaskDisplay({ ...longTaskStatsRef.current });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Intercept console.error
   useEffect(() => {
@@ -255,8 +266,8 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   }, []);
 
   const uptime = Math.round((Date.now() - mountTimeRef.current) / 1000);
-  const avgLongTask = longTaskStats.count > 0 
-    ? Math.round(longTaskStats.totalDuration / longTaskStats.count) 
+  const avgLongTask = longTaskDisplay.count > 0 
+    ? Math.round(longTaskDisplay.totalDuration / longTaskDisplay.count) 
     : 0;
 
   return (
@@ -288,16 +299,16 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
       </div>
 
       {/* Long Task Stats */}
-      <div className={`border rounded p-2 mb-2 ${longTaskStats.count > 10 ? 'border-red-500 bg-red-900/20' : 'border-gray-600'}`}>
+      <div className={`border rounded p-2 mb-2 ${longTaskDisplay.count > 10 ? 'border-red-500 bg-red-900/20' : 'border-gray-600'}`}>
         <div className="text-yellow-400 mb-1 font-semibold">⚠️ Long Tasks (&gt;50ms)</div>
         <div className="grid grid-cols-2 gap-1 text-[11px]">
-          <div>Count: <span className={longTaskStats.count > 20 ? 'text-red-400' : ''}>{longTaskStats.count}</span></div>
-          <div>Max: <span className={longTaskStats.maxDuration > 100 ? 'text-red-400' : ''}>{longTaskStats.maxDuration}ms</span></div>
+          <div>Count: <span className={longTaskDisplay.count > 20 ? 'text-red-400' : ''}>{longTaskDisplay.count}</span></div>
+          <div>Max: <span className={longTaskDisplay.maxDuration > 100 ? 'text-red-400' : ''}>{longTaskDisplay.maxDuration}ms</span></div>
           <div>Avg: {avgLongTask}ms</div>
-          <div>Last: {longTaskStats.lastSeen || '-'}</div>
+          <div>Last: {longTaskDisplay.lastSeen || '-'}</div>
         </div>
         
-        {longTaskStats.count > 20 && (
+        {longTaskDisplay.count > 20 && (
           <div className="text-red-400 text-[10px] mt-1">
             ⚠️ Många long tasks = något blockerar huvudtråden
           </div>
