@@ -221,9 +221,12 @@ function BrewCardComponent({
             controllerId={brew.linked_controller_id}
           />
         </div>
-        
+      </div>
+
+      {/* Stats Grid - fixed height */}
+      <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
         {/* Active Fermentation Session - compact view */}
-        <div className="mt-1 flex-shrink-0">
+        <div className="mb-1.5">
           <ActiveFermentationSession 
             brewId={brew.id} 
             compact 
@@ -234,10 +237,6 @@ function BrewCardComponent({
             sgData={brew.sgData}
           />
         </div>
-      </div>
-
-      {/* Stats Grid - fixed height */}
-      <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
         <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
           <GravityStat 
             brew={brew} 
