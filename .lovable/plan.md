@@ -1,82 +1,94 @@
 
-# Optimera Sonos-widget med smart progress och minimal polling
+# Optimeringsplan: TV-läge utan skalning
 
-## Sammanfattning
-Ersätter JavaScript-baserad progress-interpolering med CSS-animation och smarta timers för att eliminera alla onödiga intervaller.
+## Problemanalys
 
-## Förändringar
+Just nu använder `AspectRatioContainer` **CSS `transform: scale()`** för både desktop och TV-läge. Detta är problematiskt på TV-hårdvara (Chromecast) av flera anledningar:
 
-### 1. Progress-bar med CSS-animation
-Istället för att uppdatera progress via JavaScript var 2:e sekund, använder vi CSS-animation som körs helt på GPU:n.
+1. **GPU-overhead**: `transform: scale()` skapar ett nytt compositing layer och kräver kontinuerlig GPU-bearbetning
+2. **Layout thrashing**: Skalningen triggar reflows vid varje resize-event
+3. **Onödig komplexitet**: TV:n har redan 1920x1080 - ingen skalning behövs
 
-- Beräkna `animation-duration` baserat på kvarvarande tid
-- Starta animationen från nuvarande position
-- Ingen JavaScript-overhead under uppspelning
+## Lösning
 
-### 2. Ta bort progress-intervallet
-Intervallet i `useSonosTrackTransition` som tickar var 2:e sekund tas bort helt.
+Skapa två separata renderingsvägar:
 
-### 3. Smart track-end timer
-Istället för att polla för att upptäcka låtslut:
-- Beräkna när låten slutar baserat på `duration_ms - position_ms`
-- Sätt en `setTimeout` som triggar preload ~15s innan slut
-- Sätt en till för att hämta nästa låt ~3s innan slut
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    AspectRatioContainer                      │
+├─────────────────┬───────────────────┬───────────────────────┤
+│   TV-läge       │   Desktop         │   Mobil               │
+├─────────────────┼───────────────────┼───────────────────────┤
+│ • Ingen         │ • transform:      │ • Ingen               │
+│   skalning      │   scale()         │   aspect-ratio        │
+│ • Direkt 1920   │ • Preview av      │ • Normal flow         │
+│   x1080 layout  │   TV-layout       │                       │
+│ • Maximal       │ • Letterbox/      │                       │
+│   prestanda     │   pillarbox       │                       │
+└─────────────────┴───────────────────┴───────────────────────┘
+```
 
-### 4. Polling endast för manuella byten
-Behåll 10s polling som backup för att fånga:
-- Användaren byter låt manuellt
-- Pause/play
-- Volymändringar som påverkar state
+## Tekniska ändringar
 
-## Tekniska detaljer
+### 1. Uppdatera AspectRatioContainer
 
-**SonosWidget.tsx - CSS-animerad progress:**
+Modifiera komponenten så att den detekterar TV-läge och renderar utan skalning:
+
+**TV-läge (optimerat):**
+- Renderar direkt i 1920x1080 utan transform
+- Ingen scale-beräkning
+- Fullskärm utan compositing overhead
+
+**Desktop (preview-läge):**
+- Behåller nuvarande `transform: scale()` för att förhandsgranska TV-layout
+- Letterbox/pillarbox beroende på fönsterstorlek
+
+### 2. Konkreta kodändringar
+
 ```tsx
-// Beräkna animation baserat på serverdata
-const remainingMs = (nowPlaying.duration_ms ?? 0) - (localProgress ?? 0);
-const remainingPercent = 100 - progressPercent;
+// AspectRatioContainer.tsx
 
-<div 
-  className="h-full rounded-full"
-  style={{
-    width: `${progressPercent}%`,
-    background: 'rgba(255, 255, 255, 0.9)',
-    animation: nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING'
-      ? `progress-grow ${remainingMs}ms linear forwards`
-      : 'none',
-  }}
-/>
+// TV-läge: Direkt rendering utan skalning
+if (isTvMode) {
+  return (
+    <AspectRatioContext.Provider value={{ 
+      isLocked: true, 
+      width: REFERENCE_WIDTH, 
+      height: REFERENCE_HEIGHT,
+      scale: 1  // Alltid 1 i TV-läge
+    }}>
+      <div 
+        className="fixed inset-0 bg-background overflow-hidden flex flex-col"
+        style={{
+          width: '100vw',
+          height: '100vh',
+        }}
+      >
+        {children}
+      </div>
+    </AspectRatioContext.Provider>
+  );
+}
+
+// Desktop: Behåll skalning för preview
+// ... befintlig kod med transform: scale()
 ```
 
-**useSonosTrackTransition.ts - Ersätt interval med setTimeout:**
-```typescript
-// Ta bort setInterval helt
-// Använd setTimeout baserat på beräknad sluttid
-useEffect(() => {
-  const current = nowPlayingRef.current;
-  if (!current?.duration_ms) return;
-  
-  const remaining = current.duration_ms - (current.position_ms ?? 0);
-  
-  // Preload 15s innan slut
-  const preloadTimer = setTimeout(() => {
-    preloadNextTrack();
-  }, Math.max(0, remaining - 15000));
-  
-  // Hämta ny data 3s innan slut
-  const fetchTimer = setTimeout(() => {
-    fetchNowPlaying();
-  }, Math.max(0, remaining - 3000));
-  
-  return () => {
-    clearTimeout(preloadTimer);
-    clearTimeout(fetchTimer);
-  };
-}, [nowPlaying?.track_name, nowPlaying?.position_ms]);
-```
+### 3. Potentiella CSS-optimeringar för TV
 
-## Resultat
-- **0 JavaScript-intervaller** under normal uppspelning
-- **Endast 1 nätverksanrop var 10:e sekund** som backup
-- Progress-bar körs helt på GPU via CSS
-- Automatisk preload baserat på låtlängd
+För att ytterligare minska GPU-belastning i TV-läge:
+- Lägg till `will-change: auto` (eller ta bort helt) istället för `will-change: transform`
+- Undvik `backdrop-blur` på stora element
+- Använd `contain: layout paint` på kort för att isolera repaints
+
+## Förväntade resultat
+
+| Metrik | Före | Efter |
+|--------|------|-------|
+| Long tasks | ~26 st, avg 700ms | Nära 0 |
+| GPU-användning | Hög (skalning) | Låg (direkt) |
+| Layout reflows | Vid resize | Inga |
+
+## Filer som ändras
+
+1. `src/components/AspectRatioContainer.tsx` - Separat TV-rendering utan scale
