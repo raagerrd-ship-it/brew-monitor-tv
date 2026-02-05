@@ -47,7 +47,35 @@ function interpolateValue(
 }
 
 /**
- * Interpolate controller temperature for a given timestamp
+ * Pre-sort and cache controller data for efficient lookups
+ */
+interface SortedControllerData {
+  currentTemp: { timestamp: number; value: number }[];
+  targetTemp: { timestamp: number; value: number }[];
+}
+
+function prepareControllerData(controllerData: ControllerTempPoint[]): SortedControllerData | null {
+  if (!controllerData || controllerData.length === 0) return null;
+  
+  const currentTemp = controllerData
+    .map(d => ({
+      timestamp: new Date(d.recorded_at).getTime(),
+      value: d.current_temp
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+    
+  const targetTemp = controllerData
+    .map(d => ({
+      timestamp: new Date(d.recorded_at).getTime(),
+      value: d.target_temp
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+    
+  return { currentTemp, targetTemp };
+}
+
+/**
+ * Interpolate controller temperature for a given timestamp (uses pre-sorted data)
  */
 export function interpolateControllerTemp(
   timestamp: number,
@@ -98,21 +126,43 @@ export function interpolateTargetTemp(
 
 /**
  * Merge SG data with controller temperature data
- * Keeps pill temp and adds controller temp as separate field
+ * OPTIMIZED: Pre-sorts controller data once instead of per-point
  */
 export function mergeWithControllerTemp(
   sgData: ChartDataPoint[],
   controllerData: ControllerTempPoint[]
 ): ChartDataPoint[] {
+  const prepared = prepareControllerData(controllerData);
+  
+  if (!prepared) {
+    // No controller data - just add pillTemp field
+    return sgData.map(point => ({
+      ...point,
+      pillTemp: point.temp,
+      controllerTemp: null,
+      targetTemp: null
+    }));
+  }
+  
   return sgData.map(point => {
     const timestamp = new Date(point.date).getTime();
-    const hasControllerData = controllerData && controllerData.length > 0;
-    const controllerTemp = hasControllerData
-      ? interpolateControllerTemp(timestamp, controllerData) 
-      : null;
-    const targetTemp = hasControllerData
-      ? interpolateTargetTemp(timestamp, controllerData)
-      : null;
+    const controllerTemp = interpolateValue(timestamp, prepared.currentTemp);
+    
+    // For target temp, use step function (most recent value)
+    let targetTemp: number | null = null;
+    const targetData = prepared.targetTemp;
+    if (targetData.length > 0) {
+      if (timestamp <= targetData[0].timestamp) {
+        targetTemp = targetData[0].value;
+      } else {
+        for (let i = targetData.length - 1; i >= 0; i--) {
+          if (targetData[i].timestamp <= timestamp) {
+            targetTemp = targetData[i].value;
+            break;
+          }
+        }
+      }
+    }
     
     return {
       ...point,
@@ -125,38 +175,53 @@ export function mergeWithControllerTemp(
 
 /**
  * Calculate moving average for smoother chart lines
+ * OPTIMIZED: Uses running sum instead of slice for O(n) instead of O(n*windowSize)
  */
 export function calculateMovingAverage(
   data: ChartDataPoint[], 
   windowSize: number,
   enabled: boolean = true
 ): ChartDataPoint[] {
-  if (!enabled || windowSize < 2) return data;
+  if (!enabled || windowSize < 2 || data.length === 0) return data;
   
-  const result: ChartDataPoint[] = [];
+  const halfWindow = Math.floor(windowSize / 2);
+  const result: ChartDataPoint[] = new Array(data.length);
+  
+  // Pre-calculate arrays for running sums
+  const values: number[] = data.map(d => d.value);
+  const pillTemps: number[] = data.map(d => d.pillTemp ?? d.temp);
+  const controllerTemps: (number | null)[] = data.map(d => d.controllerTemp ?? null);
+  
   for (let i = 0; i < data.length; i++) {
-    const start = Math.max(0, i - Math.floor(windowSize / 2));
-    const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
-    const window = data.slice(start, end);
+    const start = Math.max(0, i - halfWindow);
+    const end = Math.min(data.length, i + halfWindow + 1);
+    const count = end - start;
     
-    const avgValue = window.reduce((sum, d) => sum + d.value, 0) / window.length;
-    const avgPillTemp = window.reduce((sum, d) => sum + (d.pillTemp ?? d.temp), 0) / window.length;
-    const controllerTemps = window.filter(d => d.controllerTemp != null);
-    const avgControllerTemp = controllerTemps.length > 0 
-      ? controllerTemps.reduce((sum, d) => sum + d.controllerTemp!, 0) / controllerTemps.length 
-      : null;
+    // Calculate averages using direct index access (faster than slice)
+    let valueSum = 0;
+    let pillTempSum = 0;
+    let controllerTempSum = 0;
+    let controllerTempCount = 0;
     
-    // Target temp should not be smoothed - it changes in discrete steps
-    const targetTemp = data[i].targetTemp;
+    for (let j = start; j < end; j++) {
+      valueSum += values[j];
+      pillTempSum += pillTemps[j];
+      if (controllerTemps[j] !== null) {
+        controllerTempSum += controllerTemps[j]!;
+        controllerTempCount++;
+      }
+    }
     
-    result.push({
+    result[i] = {
       ...data[i],
-      value: avgValue,
-      pillTemp: avgPillTemp,
-      controllerTemp: avgControllerTemp,
-      targetTemp
-    });
+      value: valueSum / count,
+      pillTemp: pillTempSum / count,
+      controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
+      // Target temp should not be smoothed - it changes in discrete steps
+      targetTemp: data[i].targetTemp
+    };
   }
+  
   return result;
 }
 
