@@ -90,12 +90,13 @@ export function useBrewChartData({
 
     fetchControllerTemp();
 
-    // In TV mode, refresh controller temp data every 60 seconds
+    // In TV mode, refresh controller temp data every 5 minutes (300s) for performance
+    // In normal mode, no auto-refresh (realtime handles it)
     if (isTvMode) {
       const intervalId = setInterval(() => {
         lastFetchKey.current = ""; // Force refetch
         fetchControllerTemp();
-      }, 60000);
+      }, 300000); // 5 minutes
       return () => clearInterval(intervalId);
     }
   }, [controllerId, dataLength, firstDataDate, lastDataDate, isTvMode]);
