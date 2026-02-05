@@ -260,6 +260,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       if (preloadedDataRef.current) {
         console.log('[Sonos Debug] Applying pre-loaded data immediately!');
         const preloadedData = preloadedDataRef.current;
+        
+        // Clear refs first to prevent re-entry
+        const preloadedImage = preloadedImageRef.current;
+        preloadedDataRef.current = null;
+        preloadedImageRef.current = null;
+        
         currentTrackRef.current = preloadedData.track_name;
         
         if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
@@ -268,24 +274,23 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         }
         currentAlbumArtRef.current = preloadedData.album_art_url;
         
-        const imageIsReady = preloadedImageRef.current?.complete && preloadedImageRef.current?.naturalWidth > 0;
-        if (imageIsReady) {
-          setImageLoaded(true);
-          setImageError(false);
-          setTimeout(() => setShowPreviousArt(false), 800);
-        } else {
-          setImageLoaded(false);
-          setImageError(false);
-        }
+        const imageIsReady = preloadedImage?.complete && preloadedImage?.naturalWidth > 0;
         
-        setNowPlaying(preloadedData);
-        setLocalProgress(preloadedData.position_ms ?? 0);
-        lastUpdateRef.current = Date.now();
-        
-        setTimeout(() => {
-          preloadedDataRef.current = null;
-          preloadedImageRef.current = null;
-        }, 100);
+        // Batch state updates using a single RAF to prevent render loops
+        requestAnimationFrame(() => {
+          if (imageIsReady) {
+            setImageLoaded(true);
+            setImageError(false);
+            setTimeout(() => setShowPreviousArt(false), 800);
+          } else {
+            setImageLoaded(false);
+            setImageError(false);
+          }
+          
+          setNowPlaying(preloadedData);
+          setLocalProgress(preloadedData.position_ms ?? 0);
+          lastUpdateRef.current = Date.now();
+        });
         
         setTimeout(fetchNowPlaying, 1500);
         return true;
