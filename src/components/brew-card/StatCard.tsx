@@ -86,12 +86,12 @@ export function StatCard({
       </p>
       
       <p 
-        className={`font-black leading-none z-10 text-center ${isUpdated ? 'animate-value-shimmer' : ''}`}
+        className={`font-bold leading-none z-10 text-center ${isUpdated ? 'animate-value-shimmer' : ''}`}
         style={{ 
           color,
           fontSize: valueSize,
           textShadow: `0 0 25px ${colorWithOpacity(color, 0.4)}, 0 2px 6px hsl(0 0% 0% / 0.4)`,
-          letterSpacing: '-0.03em'
+          letterSpacing: '-0.02em'
         }}
       >
         {value}
