@@ -303,8 +303,8 @@ export function BrewingDashboard() {
             <div className="flex items-center gap-4 flex-shrink-0">
               <div className="flex flex-col items-end gap-2">
                 <Clock />
-                {/* Sonos widget under clock when playing - TV mode only */}
-                {isTvMode && albumArtUrl && (
+                {/* Sonos widget under clock - always render in TV mode so it can set albumArtUrl */}
+                {isTvMode && (
                   <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
                 )}
               </div>
