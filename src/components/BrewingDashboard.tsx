@@ -404,7 +404,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
   isTvMode = false
 }: RaptControllerBarProps) {
   return <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
-      <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-1.5 px-2 py-1.5'} overflow-x-auto scrollbar-hide`} style={{
+      <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide`} style={{
       background: 'hsl(222 20% 11%)',
       border: '1px solid hsl(222 15% 18%)',
       boxShadow: '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.04)'
@@ -414,11 +414,11 @@ const RaptControllerBar = memo(function RaptControllerBar({
         const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
         const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
         return <div key={controller.id} className="flex items-center">
-              {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1.5'} w-px`} style={{
+              {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-2'} w-px`} style={{
             background: 'hsl(222 15% 20%)'
           }} />}
               
-              <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-2.5 py-1.5 gap-2.5'} ${isTvMode ? '' : 'cursor-pointer transition-all duration-200'}`} style={{
+              <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} ${isTvMode ? '' : 'cursor-pointer transition-all duration-200'}`} style={{
             background: 'transparent'
           }} onClick={isTvMode ? undefined : () => onControllerClick(controller)} onMouseEnter={!isMobile && !isTvMode ? e => {
             e.currentTarget.style.background = 'hsl(222 18% 15%)';
@@ -426,25 +426,25 @@ const RaptControllerBar = memo(function RaptControllerBar({
             e.currentTarget.style.background = 'transparent';
           } : undefined} title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}>
                 <AirVent style={{
-              width: isMobile ? '1rem' : '1.1rem',
-              height: isMobile ? '1rem' : '1.1rem',
+              width: isMobile ? '1rem' : '1.25rem',
+              height: isMobile ? '1rem' : '1.25rem',
               color: controllerColor,
               flexShrink: 0,
               opacity: 0.7
             }} />
                 
                 <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-              fontSize: isMobile ? undefined : '20px',
+              fontSize: isMobile ? undefined : '24px',
               color: linkedPill?.color || 'hsl(var(--foreground))'
             }}>
                   {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
                 </span>
                 
-                {linkedPill && <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
+                {linkedPill && <div className={`flex items-center gap-1.5 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
                     <div className="relative flex items-center">
                       <Pill style={{
-                  width: isMobile ? '0.7rem' : '0.85rem',
-                  height: isMobile ? '0.7rem' : '0.85rem',
+                  width: isMobile ? '0.7rem' : '1rem',
+                  height: isMobile ? '0.7rem' : '1rem',
                   flexShrink: 0
                 }} color={linkedPill.color} strokeWidth={2} className={isPillStale && !isMobile && !isTvMode ? 'animate-pulse' : ''} />
                       {isPillStale && !isMobile && !isTvMode && <div className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5" style={{
@@ -452,7 +452,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
                 }} />}
                     </div>
                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
-                fontSize: isMobile ? undefined : '18px',
+                fontSize: isMobile ? undefined : '20px',
                 color: linkedPill.color
               }}>
                       {linkedPill.battery_level}%
