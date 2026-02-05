@@ -43,7 +43,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     maxDuration: 0,
     lastSeen: null,
   });
-  const [renderCount, setRenderCount] = useState(0);
+  
   
   const frameCountRef = useRef(0);
   const lastFrameTimeRef = useRef(performance.now());
@@ -51,10 +51,9 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   const mountTimeRef = useRef(Date.now());
   const longTaskThrottleRef = useRef<number>(0);
 
-  // Track renders
-  useEffect(() => {
-    setRenderCount(c => c + 1);
-  });
+  // Track renders via ref (not state to avoid triggering re-renders)
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
 
   // FPS counter - throttled to reduce overhead
   useEffect(() => {
@@ -201,7 +200,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
           FPS: {fps}
         </div>
         <div>Up: {uptime}s</div>
-        <div>Renders: {renderCount}</div>
+        <div>Renders: {renderCountRef.current}</div>
         {memoryInfo && (
           <div className={memoryInfo.percent > 80 ? 'text-red-400' : memoryInfo.percent > 60 ? 'text-yellow-400' : ''}>
             Mem: {memoryInfo.percent}%
