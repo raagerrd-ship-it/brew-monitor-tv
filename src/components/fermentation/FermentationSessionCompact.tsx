@@ -304,12 +304,12 @@ export function FermentationSessionCompact({
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
         <div className="flex items-center gap-2.5">
-          <span className="text-lg font-semibold tracking-tight truncate">
+          <span className="text-xl font-semibold tracking-tight truncate">
             {profileName}
           </span>
           <Badge 
             variant="outline"
-            className="shrink-0 text-base font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
+            className="shrink-0 text-lg font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
           >
             {currentStepIndex + 1}/{totalSteps}
           </Badge>
@@ -387,7 +387,7 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-1.5 text-base">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-1.5 text-lg">
             {/* Temperature display */}
             <TemperatureDisplay
               currentStep={currentStep}
