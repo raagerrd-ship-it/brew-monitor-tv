@@ -38,11 +38,11 @@ export function AspectRatioContainer({
   const { isTvMode } = useTvMode();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0, scale: 1 });
 
-  // Only lock aspect ratio for TV mode OR desktop (not mobile)
-  const shouldLockAspectRatio = isTvMode || !isMobile;
+  // Desktop needs scaling for preview, TV and mobile don't
+  const needsScaling = !isTvMode && !isMobile;
 
   useEffect(() => {
-    if (!shouldLockAspectRatio) return;
+    if (!needsScaling) return;
 
     const calculateDimensions = () => {
       const viewportWidth = window.innerWidth;
@@ -77,10 +77,10 @@ export function AspectRatioContainer({
 
     window.addEventListener("resize", calculateDimensions);
     return () => window.removeEventListener("resize", calculateDimensions);
-  }, [shouldLockAspectRatio, aspectRatio]);
+  }, [needsScaling, aspectRatio]);
 
   // Mobile: render children without aspect ratio lock
-  if (!shouldLockAspectRatio) {
+  if (isMobile) {
     return (
       <AspectRatioContext.Provider value={{ isLocked: false, width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT, scale: 1 }}>
         {children}
@@ -88,6 +88,29 @@ export function AspectRatioContainer({
     );
   }
 
+  // TV Mode: Direct fullscreen rendering without any scaling (optimized for performance)
+  if (isTvMode) {
+    return (
+      <AspectRatioContext.Provider value={{ 
+        isLocked: true, 
+        width: REFERENCE_WIDTH, 
+        height: REFERENCE_HEIGHT,
+        scale: 1  // Always 1 in TV mode - no transform overhead
+      }}>
+        <div 
+          className="fixed inset-0 bg-background overflow-hidden flex flex-col"
+          style={{
+            width: '100vw',
+            height: '100vh',
+          }}
+        >
+          {children}
+        </div>
+      </AspectRatioContext.Provider>
+    );
+  }
+
+  // Desktop: Scaled preview of TV layout with letterbox/pillarbox
   return (
     <AspectRatioContext.Provider value={{ 
       isLocked: true, 
@@ -103,7 +126,7 @@ export function AspectRatioContainer({
           }}
           className="relative bg-background overflow-hidden"
         >
-          {/* Scaled content container */}
+          {/* Scaled content container for desktop preview */}
           <div
             style={{
               width: REFERENCE_WIDTH,
