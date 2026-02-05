@@ -32,6 +32,7 @@ function BrewCardComponent({
   onDeviceLinkOpen,
   isTvMode = false,
   cardIndex = 0,
+  hasAlbumArtBackground = false,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   // Staggered rendering for TV mode - each card renders with a delay
@@ -83,16 +84,20 @@ function BrewCardComponent({
 
   return (
     <Card 
-      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${
+      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative transition-all duration-500 ${
         isTvMode ? '' : 'backdrop-blur-xl'
+      } ${
+        hasAlbumArtBackground ? 'backdrop-blur-md' : ''
       } ${
         showInteractiveElements ? 'group' : ''
       }`}
       style={{
-        // Simplified solid background in TV mode - no gradients or blur
-        background: isTvMode 
-          ? 'hsl(222 18% 15%)' 
-          : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
+        // When album art background is showing, make cards semi-transparent
+        background: hasAlbumArtBackground
+          ? 'hsl(222 18% 15% / 0.75)'
+          : isTvMode 
+            ? 'hsl(222 18% 15%)' 
+            : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
         boxShadow: isTvMode
           ? '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)'
           : '0 12px 40px hsl(222 30% 3% / 0.7), 0 25px 60px hsl(222 30% 2% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
