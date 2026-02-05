@@ -57,25 +57,25 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         {/* Progress bar */}
         <div className="w-full px-1">
           <div 
-            className="w-full h-2 rounded-full overflow-hidden relative"
+            className="w-full h-3 rounded-full overflow-hidden relative"
             style={{ 
-              background: 'hsl(222 20% 12% / 0.8)',
-              boxShadow: 'inset 0 1px 3px hsl(0 0% 0% / 0.4)'
+              background: 'hsl(0 0% 0% / 0.5)',
+              boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
             }}
           >
             <div 
               className="h-full rounded-full transition-all duration-700 ease-out"
               style={{ 
                 width: `${progress}%`,
-                background: `linear-gradient(90deg, ${color} 0%, ${color.replace(')', ' / 0.7)')} 100%)`,
-                boxShadow: `0 0 10px ${color.replace(')', ' / 0.5)')}`
+                background: `linear-gradient(180deg, ${color} 0%, ${color.replace('hsl(', 'hsl(').replace(')', ' / 0.8)')} 100%)`,
+                boxShadow: `0 0 12px ${color.replace(')', ' / 0.6)')}, 0 0 4px ${color}`
               }}
             />
             {/* Shine overlay */}
             <div 
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
-                background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.15) 0%, transparent 50%)'
+                background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
               }}
             />
           </div>
