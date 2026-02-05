@@ -174,12 +174,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     ? Math.max(0, nowPlaying.duration_ms - (localProgress ?? 0))
     : 0;
 
-  // Fixed pixel sizes for scaled container
-  const trackFontSize = isTvMode ? '26px' : isMobile ? '0.8rem' : '14px';
-  const artistFontSize = isTvMode ? '18px' : isMobile ? '0.7rem' : '12px';
-  const progressHeight = isTvMode ? '6px' : isMobile ? '2px' : '3px';
-  const widgetHeight = isTvMode ? '170px' : isMobile ? '56px' : '70px';
-  const widgetWidth = isTvMode ? '340px' : isMobile ? '140px' : '200px';
+  // Fixed pixel sizes for scaled container (adjusted for 720p TV)
+  const trackFontSize = isTvMode ? '16px' : isMobile ? '0.8rem' : '14px';
+  const artistFontSize = isTvMode ? '12px' : isMobile ? '0.7rem' : '12px';
+  const progressHeight = isTvMode ? '4px' : isMobile ? '2px' : '3px';
+  const widgetHeight = isTvMode ? '100px' : isMobile ? '56px' : '70px';
+  const widgetWidth = isTvMode ? '200px' : isMobile ? '140px' : '200px';
 
   const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
 
