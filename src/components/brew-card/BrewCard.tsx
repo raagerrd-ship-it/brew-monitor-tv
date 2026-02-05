@@ -18,7 +18,7 @@ import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
-const CARD_HEADER_HEIGHT = 80;
+const CARD_HEADER_HEIGHT = 100;
 const CARD_STATS_HEIGHT = 220; // Increased for taller stat cards
 
 function BrewCardComponent({
@@ -125,7 +125,7 @@ function BrewCardComponent({
         <div className="flex items-center justify-between gap-2 h-full">
           {/* Label image thumbnail if exists */}
           {brew.label_image_url && (
-            <div className="flex-shrink-0 h-10 w-10 rounded-md overflow-hidden border border-white/10 bg-muted/30">
+            <div className="flex-shrink-0 h-16 w-16 rounded-lg overflow-hidden border border-white/10 bg-muted/30">
               <img
                 src={brew.label_image_url}
                 alt={`${brew.name} etikett`}
