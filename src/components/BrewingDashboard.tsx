@@ -48,7 +48,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [showDebug] = useState(true); // Toggle this to show/hide debug overlay
+  const [showDebug] = useState(true); // Toggle this to show/hide debug overlay - always show when enabled, regardless of TV mode for debugging
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
@@ -248,8 +248,8 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Debug overlay */}
-      {showDebug && isTvMode && (
+      {/* Debug overlay - always show when enabled for debugging (temporarily removed isTvMode check) */}
+      {showDebug && (
         <DashboardDebugOverlay
           brewCount={brews.length}
           controllerCount={controllers.length}
