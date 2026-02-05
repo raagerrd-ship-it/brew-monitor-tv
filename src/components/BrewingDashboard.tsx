@@ -258,11 +258,17 @@ export function BrewingDashboard() {
       
 
       {/* Header Bar */}
-      <div className={`overflow-visible z-20 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} style={{
-        height: isMobile ? 'auto' : `${HEADER_HEIGHT}px`,
-        background: 'hsl(222 20% 9%)',
-        borderBottom: '1px solid hsl(222 15% 16%)'
-      }}>
+      <div 
+        className={`overflow-visible z-20 transition-all duration-500 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} 
+        style={{
+          height: isMobile ? 'auto' : albumArtUrl && isTvMode ? 'auto' : `${HEADER_HEIGHT}px`,
+          background: albumArtUrl && isTvMode 
+            ? 'hsl(222 20% 9% / 0.7)' 
+            : 'hsl(222 20% 9%)',
+          backdropFilter: albumArtUrl && isTvMode ? 'blur(12px)' : undefined,
+          borderBottom: '1px solid hsl(222 15% 16%)'
+        }}
+      >
         {/* Subtle top highlight - desktop only */}
         {!isMobile && <div className="absolute inset-x-0 top-0 h-px" style={{
         background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)'
@@ -295,8 +301,13 @@ export function BrewingDashboard() {
             </div>
             
             <div className="flex items-center gap-4 flex-shrink-0">
-              {/* SonosWidget moved to floating position - TV mode only */}
-              <Clock />
+              <div className="flex flex-col items-end gap-2">
+                <Clock />
+                {/* Sonos widget under clock when playing - TV mode only */}
+                {isTvMode && albumArtUrl && (
+                  <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
+                )}
+              </div>
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{
             width: '40px',
@@ -336,7 +347,7 @@ export function BrewingDashboard() {
             <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
-                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
+                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} hasAlbumArtBackground={!!albumArtUrl && isTvMode} />
                   </div>)}
               </div>
             </div>
@@ -353,22 +364,12 @@ export function BrewingDashboard() {
                 height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
               }}
             >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} hasAlbumArtBackground={!!albumArtUrl && isTvMode} />
               </div>)}
           </div>}
       </div>
 
-      {/* Sonos Now Playing - positioned within scaled container, not fixed */}
-      {isTvMode && (
-        <div 
-          className="absolute right-4 z-30"
-          style={{ 
-            bottom: showTimerFooter ? `${TIMER_FOOTER_HEIGHT + 16}px` : '16px' 
-          }}
-        >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
-        </div>
-      )}
+      {/* Removed: Floating Sonos widget (now in header under clock) */}
 
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}

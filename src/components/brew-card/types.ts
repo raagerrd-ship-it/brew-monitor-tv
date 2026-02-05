@@ -12,6 +12,8 @@ export interface BrewCardProps {
   isTvMode?: boolean;
   /** Index for staggered rendering in TV mode */
   cardIndex?: number;
+  /** Whether album art background is showing (for transparency effect) */
+  hasAlbumArtBackground?: boolean;
 }
 
 export interface DeviceMatch {
