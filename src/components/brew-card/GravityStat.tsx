@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 
@@ -23,6 +23,15 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
   const mainPart = sgString.slice(0, -1); // e.g., "1.012"
   const fourthDecimal = sgString.slice(-1); // e.g., "3"
 
+  // Calculate progress from OG to FG
+  const progress = useMemo(() => {
+    const range = brew.originalGravity - brew.finalGravity;
+    if (range <= 0) return 0;
+    const current = brew.originalGravity - brew.currentSG;
+    const pct = (current / range) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }, [brew.originalGravity, brew.finalGravity, brew.currentSG]);
+
   return (
     <StatCard
       label="Gravity"
@@ -44,14 +53,43 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      <div className="text-muted-foreground/70 z-10 text-center px-1 w-full flex flex-col min-h-0">
-        <p className="tabular-nums truncate leading-tight" style={{ fontSize: '13px' }}>
-          OG: {brew.originalGravity.toFixed(3)}
-        </p>
-        <p className="tabular-nums truncate leading-tight" style={{ fontSize: '13px' }}>
-          FG: {brew.finalGravity.toFixed(3)}
-        </p>
-        <p className="font-medium truncate leading-tight" style={{ fontSize: '13px' }}>
+      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1.5">
+        {/* Progress bar */}
+        <div className="w-full px-1">
+          <div 
+            className="w-full h-2 rounded-full overflow-hidden relative"
+            style={{ 
+              background: 'hsl(222 20% 12% / 0.8)',
+              boxShadow: 'inset 0 1px 3px hsl(0 0% 0% / 0.4)'
+            }}
+          >
+            <div 
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{ 
+                width: `${progress}%`,
+                background: `linear-gradient(90deg, ${color} 0%, ${color.replace(')', ' / 0.7)')} 100%)`,
+                boxShadow: `0 0 10px ${color.replace(')', ' / 0.5)')}`
+              }}
+            />
+            {/* Shine overlay */}
+            <div 
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.15) 0%, transparent 50%)'
+              }}
+            />
+          </div>
+        </div>
+        
+        {/* OG and FG labels */}
+        <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '11px' }}>
+          <span>{brew.originalGravity.toFixed(3)}</span>
+          <span className="text-muted-foreground/40">{progress.toFixed(0)}%</span>
+          <span>{brew.finalGravity.toFixed(3)}</span>
+        </div>
+        
+        {/* Fermentation rate */}
+        <p className="font-medium text-muted-foreground/70 truncate leading-tight" style={{ fontSize: '12px' }}>
           {brew.fermentationRate !== null ? (
             <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
           ) : (
