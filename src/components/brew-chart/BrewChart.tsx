@@ -15,7 +15,7 @@ import { Button } from "../ui/button";
 import { TrendingUp } from "lucide-react";
 import { BrewChartProps } from "./types";
 import { getEventDisplay, getEventsPerDay, formatXAxisTick, formatTooltipLabel } from "./utils";
-import { useDeferredRender } from "@/hooks/use-deferred-render";
+import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBrewChartData } from "./hooks/useBrewChartData";
 import {
@@ -35,17 +35,19 @@ function BrewChartComponent({
   singleView = false,
   events = [],
   controllerId,
+  chartIndex = 0,
 }: BrewChartProps) {
   const [smoothLines, setSmoothLines] = useState(true);
   const { isTvMode } = useTvMode();
 
-  // Defer chart rendering to prevent blocking main thread during page updates
-  const shouldRenderChart = useDeferredRender();
+  // Defer chart rendering using staggered approach - each chart waits for idle time
+  // This prevents multiple charts from rendering simultaneously and blocking the main thread
+  const shouldRenderChart = useStaggeredRender(chartIndex);
 
-  // Custom hook for data fetching and processing
+  // Custom hook for data fetching and processing - only run when we're about to render
   const { chartData, dayBoundaries, dayTicks } = useBrewChartData({
-    data,
-    controllerId,
+    data: shouldRenderChart ? data : [],
+    controllerId: shouldRenderChart ? controllerId : undefined,
     smoothLines,
   });
 

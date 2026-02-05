@@ -217,6 +217,7 @@ function BrewCardComponent({
               singleView={true}
               events={brew.events}
               controllerId={brew.linked_controller_id}
+              chartIndex={cardIndex}
             />
           )}
         </div>
