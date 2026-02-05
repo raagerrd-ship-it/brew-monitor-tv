@@ -37,10 +37,25 @@ export function AspectRatioContainer({
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0, scale: 1 });
+  const [tvDimensions, setTvDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   // Desktop needs scaling for preview, TV and mobile don't
   const needsScaling = !isTvMode && !isMobile;
 
+  // TV mode: track actual viewport size
+  useEffect(() => {
+    if (!isTvMode) return;
+
+    const updateTvDimensions = () => {
+      setTvDimensions({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    updateTvDimensions();
+    window.addEventListener("resize", updateTvDimensions);
+    return () => window.removeEventListener("resize", updateTvDimensions);
+  }, [isTvMode]);
+
+  // Desktop: calculate scaling
   useEffect(() => {
     if (!needsScaling) return;
 
@@ -88,21 +103,17 @@ export function AspectRatioContainer({
     );
   }
 
-  // TV Mode: Direct fullscreen rendering without any scaling (optimized for performance)
+  // TV Mode: Use actual viewport dimensions, no scaling
   if (isTvMode) {
     return (
       <AspectRatioContext.Provider value={{ 
         isLocked: true, 
-        width: REFERENCE_WIDTH, 
-        height: REFERENCE_HEIGHT,
+        width: tvDimensions.width,
+        height: tvDimensions.height,
         scale: 1  // Always 1 in TV mode - no transform overhead
       }}>
         <div 
           className="fixed inset-0 bg-background overflow-hidden flex flex-col"
-          style={{
-            width: '100vw',
-            height: '100vh',
-          }}
         >
           {children}
         </div>

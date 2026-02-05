@@ -57,7 +57,8 @@ export function BrewingDashboard() {
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
   // Get aspect ratio context to determine sizing strategy
-  const { isLocked: isAspectRatioLocked, height: containerHeight } = useAspectRatio();
+  // In TV mode, height will be actual viewport height, not reference 1080
+  const { isLocked: isAspectRatioLocked, height: containerHeight, width: containerWidth } = useAspectRatio();
 
   // Only use carousel on mobile and not in TV mode - skip embla overhead in TV mode
   const shouldUseCarousel = isMobile && !isTvMode;
@@ -215,13 +216,13 @@ export function BrewingDashboard() {
   // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
   
-  // Reference dimensions for aspect-ratio locked mode (1920x1080)
-  const REFERENCE_HEIGHT = 1080;
+  // Use actual container height from context (viewport in TV mode, 1080 in desktop preview)
+  const actualContainerHeight = containerHeight;
   
   // Calculate container height - always use full reference height, footer is positioned absolutely
   const getContainerHeight = () => {
     if (isAspectRatioLocked) {
-      return `${REFERENCE_HEIGHT}px`;
+      return `${actualContainerHeight}px`;
     }
     return showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh';
   };
@@ -231,7 +232,7 @@ export function BrewingDashboard() {
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
       const footerSpace = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
-      return REFERENCE_HEIGHT - HEADER_HEIGHT - footerSpace;
+      return actualContainerHeight - HEADER_HEIGHT - footerSpace;
     }
     return null; // Use CSS calc for non-locked mode
   };
