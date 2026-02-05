@@ -1,5 +1,6 @@
 import { ReactNode, CSSProperties } from "react";
 import { colorWithOpacity } from "./utils";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 interface StatCardProps {
   label: string;
@@ -37,27 +38,39 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = '12px',
-  valueSize = '42px',
+  labelSize,
+  valueSize,
 }: StatCardProps) {
+  const { isTvMode } = useTvMode();
+  
+  // Default sizes with TV mode adjustments (~30% smaller)
+  const defaultLabelSize = isTvMode ? '9px' : '12px';
+  const defaultValueSize = isTvMode ? '28px' : '42px';
+  
+  // Apply TV scaling to custom sizes too
+  const finalLabelSize = labelSize 
+    ? (isTvMode ? `${Math.round(parseInt(labelSize) * 0.7)}px` : labelSize)
+    : defaultLabelSize;
+  const finalValueSize = valueSize 
+    ? (isTvMode ? `${Math.round(parseInt(valueSize) * 0.7)}px` : valueSize)
+    : defaultValueSize;
+
   const baseStyles: CSSProperties = {
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.15),
     borderWidth: '1px',
     borderStyle: 'solid',
     background: customBackground || `linear-gradient(145deg, ${colorWithOpacity(color, 0.06)} 0%, hsl(222 20% 12% / 0.7) 100%)`,
-    // Only keep the inset shadows on the card itself - glow is handled by a separate element
     boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
     position: 'relative',
   };
 
-  // Use explicit classes for Tailwind purging to work correctly
   const colSpanClass = colSpan === 2 ? 'col-span-2' : colSpan === 3 ? 'col-span-3' : '';
   const rowSpanClass = rowSpan === 2 ? 'row-span-2' : rowSpan === 3 ? 'row-span-3' : '';
   const gridClass = `${colSpanClass} ${rowSpanClass}`.trim();
 
   return (
     <div 
-      className={`rounded-xl p-3 flex flex-col items-center justify-center gap-1 relative overflow-visible backdrop-blur-md transition-all duration-700 min-h-0 ${
+      className={`rounded-xl ${isTvMode ? 'p-2' : 'p-3'} flex flex-col items-center justify-center gap-0.5 relative overflow-visible backdrop-blur-md transition-all duration-700 min-h-0 ${
         clickable ? 'cursor-pointer hover:scale-[1.02] hover:shadow-lg' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
@@ -80,7 +93,7 @@ export function StatCard({
       
       <p 
         className="text-muted-foreground/50 uppercase tracking-widest z-10 font-medium text-center"
-        style={{ fontSize: labelSize, letterSpacing: '0.1em' }}
+        style={{ fontSize: finalLabelSize, letterSpacing: '0.1em' }}
       >
         {label}
       </p>
@@ -89,7 +102,7 @@ export function StatCard({
         className={`font-bold leading-none z-10 text-center ${isUpdated ? 'animate-value-shimmer' : ''}`}
         style={{ 
           color,
-          fontSize: valueSize,
+          fontSize: finalValueSize,
           textShadow: `0 0 25px ${colorWithOpacity(color, 0.4)}, 0 2px 6px hsl(0 0% 0% / 0.4)`,
           letterSpacing: '-0.02em'
         }}

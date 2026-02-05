@@ -99,7 +99,10 @@ function BrewCardComponent({
         <div className="flex items-center justify-between gap-2 h-full">
           {/* Label image thumbnail if exists */}
           {brew.label_image_url && (
-            <div className="flex-shrink-0 h-16 w-16 rounded-lg overflow-hidden border border-white/10 bg-muted/30">
+            <div 
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30"
+              style={{ width: isTvMode ? '40px' : '64px', height: isTvMode ? '40px' : '64px' }}
+            >
               <img
                 src={brew.label_image_url}
                 alt={`${brew.name} etikett`}
@@ -111,7 +114,7 @@ function BrewCardComponent({
               <h2 
                 className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
                 style={{ 
-                  fontSize: '28px',
+                  fontSize: isTvMode ? '18px' : '28px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
                   letterSpacing: '-0.02em'
                 }}
@@ -119,8 +122,9 @@ function BrewCardComponent({
                 {brew.name}
                 {brew.batch_id.startsWith('custom_') && (
                   <span
-                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                    className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider"
                     style={{
+                      fontSize: isTvMode ? '7px' : '10px',
                       background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
                       color: 'hsl(var(--accent-foreground) / 0.9)',
                       border: '1px solid hsl(var(--accent) / 0.4)',
@@ -132,7 +136,7 @@ function BrewCardComponent({
               </h2>
               <p 
                 className="text-muted-foreground/60 truncate font-medium" 
-                style={{ fontSize: '16px', letterSpacing: '0.02em' }}
+                style={{ fontSize: isTvMode ? '11px' : '16px', letterSpacing: '0.02em' }}
               >
                 {brew.batch_id.startsWith('custom_') ? (
                   <>
@@ -168,9 +172,9 @@ function BrewCardComponent({
             )}
             {/* Status badge - glassmorphism style */}
             <span
-              className="rounded-full px-2.5 py-1 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
+              className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
               style={{ 
-                fontSize: '16px',
+                fontSize: isTvMode ? '11px' : '16px',
                 background: isCompletedOrConditioning 
                   ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
                   : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
