@@ -257,7 +257,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
     // Apply pre-loaded data immediately when track ends
     const applyPreloadedData = () => {
-      if (preloadedDataRef.current) {
+      try {
+        if (!preloadedDataRef.current) return false;
+        
         console.log('[Sonos Debug] Applying pre-loaded data immediately!');
         const preloadedData = preloadedDataRef.current;
         
@@ -276,51 +278,59 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         
         const imageIsReady = preloadedImage?.complete && preloadedImage?.naturalWidth > 0;
         
-        // Batch state updates using a single RAF to prevent render loops
-        requestAnimationFrame(() => {
-          if (imageIsReady) {
-            setImageLoaded(true);
-            setImageError(false);
-            setTimeout(() => setShowPreviousArt(false), 800);
-          } else {
-            setImageLoaded(false);
-            setImageError(false);
-          }
-          
-          setNowPlaying(preloadedData);
-          setLocalProgress(preloadedData.position_ms ?? 0);
-          lastUpdateRef.current = Date.now();
-        });
+        // Update state synchronously instead of RAF to avoid timing issues
+        if (imageIsReady) {
+          setImageLoaded(true);
+          setImageError(false);
+          setTimeout(() => setShowPreviousArt(false), 800);
+        } else {
+          setImageLoaded(false);
+          setImageError(false);
+        }
         
-        setTimeout(fetchNowPlaying, 1500);
+        setNowPlaying(preloadedData);
+        setLocalProgress(preloadedData.position_ms ?? 0);
+        lastUpdateRef.current = Date.now();
+        
+        // Delayed refetch for accuracy
+        setTimeout(() => {
+          fetchNowPlaying().catch(console.error);
+        }, 1500);
+        
         return true;
+      } catch (error) {
+        console.error('[Sonos Debug] Error applying preloaded data:', error);
+        return false;
       }
-      return false;
     };
 
     progressIntervalRef.current = window.setInterval(() => {
-      const current = nowPlayingRef.current;
-      if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
-      
-      setLocalProgress((prev) => {
-        if (prev === null || !current.duration_ms) return prev;
-        const elapsed = Date.now() - lastUpdateRef.current;
-        const newProgress = (current.position_ms ?? 0) + elapsed;
-        const remaining = current.duration_ms - newProgress;
+      try {
+        const current = nowPlayingRef.current;
+        if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
         
-        if (remaining <= 15000 && remaining > 14000 && !trackEndFetchedRef.current) {
-          preloadNextTrack();
-        }
-        
-        if (remaining <= 3500 && remaining > 2500 && !trackEndFetchedRef.current) {
-          trackEndFetchedRef.current = true;
-          if (!applyPreloadedData()) {
-            fetchNowPlaying();
+        setLocalProgress((prev) => {
+          if (prev === null || !current.duration_ms) return prev;
+          const elapsed = Date.now() - lastUpdateRef.current;
+          const newProgress = (current.position_ms ?? 0) + elapsed;
+          const remaining = current.duration_ms - newProgress;
+          
+          if (remaining <= 15000 && remaining > 14000 && !trackEndFetchedRef.current) {
+            preloadNextTrack().catch(console.error);
           }
-        }
-        
-        return Math.min(newProgress, current.duration_ms);
-      });
+          
+          if (remaining <= 3500 && remaining > 2500 && !trackEndFetchedRef.current) {
+            trackEndFetchedRef.current = true;
+            if (!applyPreloadedData()) {
+              fetchNowPlaying().catch(console.error);
+            }
+          }
+          
+          return Math.min(newProgress, current.duration_ms);
+        });
+      } catch (error) {
+        console.error('[Sonos Debug] Error in progress interval:', error);
+      }
     }, 1000);
 
     return () => {
