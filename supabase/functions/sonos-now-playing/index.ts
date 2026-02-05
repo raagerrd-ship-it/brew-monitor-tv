@@ -36,7 +36,7 @@ async function getSpotifyToken(clientId: string, clientSecret: string): Promise<
   }
 }
 
-// Fetch album art from Spotify
+// Fetch album art from Spotify - prefer medium size for performance
 async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise<string | null> {
   try {
     const response = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
@@ -46,10 +46,12 @@ async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise
     if (!response.ok) return null;
     const track = await response.json();
     
-    // Get largest album image
+    // Spotify provides images in order: large (640px), medium (300px), small (64px)
+    // Use medium (300px) for better performance - good enough for blurred backgrounds
     const images = track.album?.images;
     if (images && images.length > 0) {
-      return images[0].url; // First image is largest
+      // Prefer medium size (index 1), fallback to first available
+      return images[1]?.url || images[0]?.url;
     }
     return null;
   } catch {
