@@ -219,7 +219,13 @@ export function FermentationSessionCompact({
         {/* Content */}
         <div className="relative z-10 flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold tracking-tight truncate">
+            <span 
+              className="text-sm font-bold tracking-tight truncate"
+              style={{ 
+                color: 'hsl(142 70% 60%)',
+                textShadow: '0 0 15px hsl(142 70% 50% / 0.4), 0 2px 4px hsl(0 0% 0% / 0.4)',
+              }}
+            >
               {profileName}
             </span>
             <Badge 
@@ -304,7 +310,13 @@ export function FermentationSessionCompact({
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
         <div className="flex items-center gap-2.5">
-          <span className="text-xl font-semibold tracking-tight truncate">
+          <span 
+            className="text-xl font-bold tracking-tight truncate"
+            style={{ 
+              color: 'hsl(var(--primary))',
+              textShadow: '0 0 20px hsl(var(--primary) / 0.4), 0 2px 6px hsl(0 0% 0% / 0.4)',
+            }}
+          >
             {profileName}
           </span>
           <div className="flex-1" />
