@@ -16,6 +16,7 @@ import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
+import { useMemoryMonitor } from "@/hooks/use-memory-monitor";
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
@@ -105,6 +106,9 @@ export function BrewingDashboard() {
   const {
     appLoadTime
   } = useVersionCheck(60000);
+
+  // Monitor memory usage in TV mode - reload if above 90%
+  useMemoryMonitor(90, 30000, isTvMode);
 
   // Debug log for TV mode
   useEffect(() => {
