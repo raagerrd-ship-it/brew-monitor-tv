@@ -8,9 +8,20 @@ import { memo, useEffect, useState, useRef } from "react";
 export const TvDebugOverlay = memo(function TvDebugOverlay() {
   const [memoryInfo, setMemoryInfo] = useState<{ usedMB: number; percent: number } | null>(null);
   const [fps, setFps] = useState<number>(0);
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const mountTimeRef = useRef(Date.now());
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
+
+  // Viewport tracking
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    };
+    
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
 
   // FPS counter - measure for 1 second every 5 seconds
   useEffect(() => {
@@ -81,12 +92,12 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
       }}
     >
       <div className="flex items-center gap-4">
+        <span style={{ color: '#60a5fa' }}>{viewport.width}x{viewport.height}</span>
         <span style={{ color: fpsColor }}>FPS: {fps}</span>
         {memoryInfo && (
           <span style={{ color: memColor }}>Mem: {memoryInfo.usedMB}MB ({memoryInfo.percent}%)</span>
         )}
         <span style={{ color: '#9ca3af' }}>Up: {uptime}s</span>
-        <span style={{ color: '#9ca3af' }}>R: {renderCountRef.current}</span>
       </div>
     </div>
   );
