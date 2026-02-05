@@ -74,7 +74,8 @@ function BrewChartComponent({
 
   const lineType = smoothLines ? "monotoneX" : "linear";
   const areaType = smoothLines ? "monotoneX" : "linear";
-  const isAnimationActive = !isTvMode;
+  // Disable all animations - data loads in background and chart appears when ready
+  const isAnimationActive = false;
 
   return (
     <div className="h-full relative group">
