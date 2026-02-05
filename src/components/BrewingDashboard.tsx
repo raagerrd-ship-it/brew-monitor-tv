@@ -8,7 +8,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { DashboardDebugOverlay } from "./DashboardDebugOverlay";
 import { TvDebugOverlay } from "./TvDebugOverlay";
-import { useEffect, useState, useMemo, useCallback, memo } from "react";
+import { useEffect, useState, useMemo, useCallback, memo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2, Pill, AirVent } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -49,9 +49,46 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [preloadedAlbumArt, setPreloadedAlbumArt] = useState<string | null>(null);
+  const preloadTimeoutRef = useRef<number | null>(null);
+  
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
+    
+    // Clear any pending preload
+    if (preloadTimeoutRef.current) {
+      clearTimeout(preloadTimeoutRef.current);
+      preloadTimeoutRef.current = null;
+    }
+    
+    if (!url) {
+      setPreloadedAlbumArt(null);
+      return;
+    }
+    
+    // Debounce preloading to prevent rapid image switches
+    preloadTimeoutRef.current = window.setTimeout(() => {
+      const img = new Image();
+      img.onload = () => {
+        console.log('[TV Debug] Album art preloaded successfully');
+        setPreloadedAlbumArt(url);
+      };
+      img.onerror = () => {
+        console.log('[TV Debug] Album art preload failed');
+        setPreloadedAlbumArt(null);
+      };
+      img.src = url;
+    }, 100);
+  }, []);
+  
+  // Cleanup preload timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current);
+      }
+    };
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -255,16 +292,16 @@ export function BrewingDashboard() {
         <TvDebugOverlay />
       )}
       
-      {/* Album art background */}
-      {isTvMode && albumArtUrl && (
+      {/* Album art background - uses preloaded image for stability */}
+      {isTvMode && preloadedAlbumArt && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
-            backgroundImage: `url(${albumArtUrl})`,
+            backgroundImage: `url(${preloadedAlbumArt})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
-            filter: 'blur(8px)',
-            opacity: 0.3,
+            opacity: 0.2,
+            contain: 'strict',
           }}
         />
       )}
