@@ -200,39 +200,53 @@ export function useSonosTrackTransition(
   }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError, cleanupPreloadedImage]);
 
   // Progress interpolation + track-end detection
+  // Use refs for callbacks to avoid re-creating the interval
+  const preloadNextTrackRef = useRef(preloadNextTrack);
+  const applyPreloadedDataRef = useRef(applyPreloadedData);
+  const fetchNowPlayingRef = useRef(fetchNowPlaying);
+  
+  useEffect(() => {
+    preloadNextTrackRef.current = preloadNextTrack;
+    applyPreloadedDataRef.current = applyPreloadedData;
+    fetchNowPlayingRef.current = fetchNowPlaying;
+  });
+
   useEffect(() => {
     if (!isConnected || !showWidget) return;
 
+    let lastTickTime = 0;
+    
+    // Use a longer interval (2s) to reduce CPU usage
     progressIntervalRef.current = window.setInterval(() => {
-      try {
-        const current = nowPlayingRef.current;
-        if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
-        
-        setLocalProgress((prev) => {
-          if (prev === null || !current.duration_ms) return prev;
-          const elapsed = Date.now() - lastUpdateRef.current;
-          const newProgress = (current.position_ms ?? 0) + elapsed;
-          const remaining = current.duration_ms - newProgress;
-          
-          // Preload at 15 seconds remaining
-          if (remaining <= 15000 && remaining > 14000 && !trackEndFetchedRef.current) {
-            preloadNextTrack().catch(console.error);
-          }
-          
-          // Apply preloaded data at 3.5 seconds remaining
-          if (remaining <= 3500 && remaining > 2500 && !trackEndFetchedRef.current) {
-            trackEndFetchedRef.current = true;
-            if (!applyPreloadedData()) {
-              fetchNowPlaying().catch(console.error);
-            }
-          }
-          
-          return Math.min(newProgress, current.duration_ms);
-        });
-      } catch (error) {
-        console.error('[Sonos] Error in progress interval:', error);
+      const now = Date.now();
+      // Throttle to avoid back-to-back updates
+      if (now - lastTickTime < 900) return;
+      lastTickTime = now;
+      
+      const current = nowPlayingRef.current;
+      if (!current || current.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
+      if (!current.duration_ms) return;
+      
+      const elapsed = now - lastUpdateRef.current;
+      const newProgress = (current.position_ms ?? 0) + elapsed;
+      const remaining = current.duration_ms - newProgress;
+      
+      // Update progress without functional update to reduce allocations
+      setLocalProgress(Math.min(newProgress, current.duration_ms));
+      
+      // Preload at 15 seconds remaining
+      if (remaining <= 15000 && remaining > 13000 && !trackEndFetchedRef.current) {
+        preloadNextTrackRef.current().catch(console.error);
       }
-    }, 1000);
+      
+      // Apply preloaded data at 3.5 seconds remaining
+      if (remaining <= 3500 && remaining > 1500 && !trackEndFetchedRef.current) {
+        trackEndFetchedRef.current = true;
+        if (!applyPreloadedDataRef.current()) {
+          fetchNowPlayingRef.current().catch(console.error);
+        }
+      }
+    }, 2000);
 
     return () => {
       if (progressIntervalRef.current) {
@@ -241,7 +255,7 @@ export function useSonosTrackTransition(
       }
       cleanupPreloadedImage();
     };
-  }, [isConnected, showWidget, setLocalProgress, preloadNextTrack, applyPreloadedData, fetchNowPlaying, cleanupPreloadedImage]);
+  }, [isConnected, showWidget, setLocalProgress, cleanupPreloadedImage]);
 
   // Handle image load for current album art
   const handleImageLoad = useCallback(() => {
