@@ -1,45 +1,40 @@
-import { useState, useEffect, useRef, memo } from 'react';
-import { useTvMode } from '@/contexts/TvModeContext';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
+
+// Generate array of seconds 00-59 for CSS animation
+const SECONDS_ARRAY = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
 function ClockComponent() {
-  const { isTvMode } = useTvMode();
   const [displayTime, setDisplayTime] = useState(new Date());
+  const [initialSecond, setInitialSecond] = useState(() => new Date().getSeconds());
   const internalTimeRef = useRef(Date.now());
-  const lastSyncRef = useRef(Date.now());
 
   useEffect(() => {
-    // In TV mode: update every 60 seconds to save resources (no seconds shown)
-    // In normal mode: update every second for smooth ticking
-    const tickInterval = isTvMode ? 60000 : 1000;
-    
-    const tick = () => {
-      internalTimeRef.current += tickInterval;
-      setDisplayTime(new Date(internalTimeRef.current));
-    };
-    
-    const intervalId = setInterval(tick, tickInterval);
-
-    // Sync with system time periodically
+    // Sync with system time every 30 seconds
     const syncInterval = setInterval(() => {
       const now = Date.now();
-      const drift = Math.abs(now - internalTimeRef.current);
-      
-      if (drift > 500) {
-        internalTimeRef.current = now;
-        lastSyncRef.current = now;
-        setDisplayTime(new Date(now));
-      }
+      internalTimeRef.current = now;
+      const newDate = new Date(now);
+      setDisplayTime(newDate);
+      setInitialSecond(newDate.getSeconds());
     }, 30000);
 
     // Initial sync
-    internalTimeRef.current = Date.now();
-    setDisplayTime(new Date(internalTimeRef.current));
+    const now = Date.now();
+    internalTimeRef.current = now;
+    const initialDate = new Date(now);
+    setDisplayTime(initialDate);
+    setInitialSecond(initialDate.getSeconds());
 
     return () => {
-      clearInterval(intervalId);
       clearInterval(syncInterval);
     };
-  }, [isTvMode]);
+  }, []);
+
+  // Calculate animation delay to start from current second
+  // Negative delay = start partway through the animation
+  const animationDelay = useMemo(() => {
+    return `-${initialSecond}s`;
+  }, [initialSecond]);
 
   return (
     <div className="flex flex-col items-end justify-center">
@@ -55,6 +50,27 @@ function ClockComponent() {
           hour: "2-digit",
           minute: "2-digit",
         })}
+        <span className="text-muted-foreground/40">:</span>
+        {/* CSS-animated seconds - no React re-renders */}
+        <span 
+          className="text-muted-foreground/60 inline-block overflow-hidden align-bottom"
+          style={{ 
+            height: '1em',
+            width: '2ch',
+          }}
+        >
+          <span 
+            className="flex flex-col"
+            style={{
+              animation: 'clock-seconds 60s steps(60) infinite',
+              animationDelay,
+            }}
+          >
+            {SECONDS_ARRAY.map((sec) => (
+              <span key={sec} style={{ height: '1em', lineHeight: '1em' }}>{sec}</span>
+            ))}
+          </span>
+        </span>
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
