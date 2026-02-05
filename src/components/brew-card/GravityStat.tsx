@@ -60,7 +60,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1.5 mt-1">
+      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1.5 mt-2">
         {/* Progress bar */}
         <div className="w-full px-1">
           <div 
