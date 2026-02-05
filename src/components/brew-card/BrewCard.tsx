@@ -1,8 +1,8 @@
 import { useMemo, memo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { BrewChart } from "../brew-chart";
+
+import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
 import { Share2 } from "lucide-react";
@@ -14,7 +14,7 @@ import { AbvStat } from "./AbvStat";
 import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
-import { useStaggeredRender } from "@/hooks/use-deferred-render";
+
 import { SyncedDataDialog } from "./SyncedDataDialog";
 import { useTvMode } from "@/contexts/TvModeContext";
 
@@ -39,8 +39,6 @@ function BrewCardComponent({
   const { isTvMode: tvModeContext } = useTvMode();
   const isTvMode = tvModeProp || tvModeContext;
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
-  // Staggered rendering for TV mode - each card renders with a delay
-  const shouldRenderContent = useStaggeredRender(cardIndex);
   
   // Memoize expensive calculations
   const devices = useMemo(() => 
@@ -57,34 +55,6 @@ function BrewCardComponent({
   
   // In TV mode, disable interactive features
   const showInteractiveElements = isAuthenticated && !isTvMode;
-
-  // Show skeleton card while waiting for staggered render
-  if (isTvMode && !shouldRenderContent) {
-    return (
-      <Card 
-        className="border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative"
-        style={{
-          // Simplified solid background for TV mode - no blur
-          background: 'hsl(222 18% 15%)',
-        }}
-      >
-        <div className="px-3 py-2 flex-shrink-0" style={{ height: `${CARD_HEADER_HEIGHT}px` }}>
-          <Skeleton className="h-6 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-        <div className="flex-1 p-2 min-h-0">
-          <Skeleton className="w-full h-full rounded-lg" />
-        </div>
-        <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px` }}>
-          <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </Card>
-    );
-  }
 
   return (
     <Card 
@@ -240,7 +210,7 @@ function BrewCardComponent({
               )}
             </div>
           ) : (
-            <BrewChart 
+            <LazyBrewChart 
               data={brew.sgData} 
               og={brew.originalGravity} 
               fg={brew.finalGravity} 
