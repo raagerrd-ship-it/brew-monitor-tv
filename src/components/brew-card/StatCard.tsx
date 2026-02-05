@@ -55,13 +55,13 @@ export function StatCard({
   const rowSpanClass = rowSpan === 2 ? 'row-span-2' : rowSpan === 3 ? 'row-span-3' : '';
   const gridClass = `${colSpanClass} ${rowSpanClass}`.trim();
 
-  const alignmentClass = centered ? 'items-center' : 'items-start';
-  const paddingClass = centered ? 'p-0.5' : 'p-1 pr-2';
-  const textAlignClass = centered ? 'text-center px-0.5' : 'pl-1.5';
+  // Always center content for a cleaner look
+  const paddingClass = 'p-2';
+  const textAlignClass = 'text-center';
 
   return (
     <div 
-      className={`rounded-xl ${paddingClass} flex flex-col ${alignmentClass} justify-center gap-0 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 min-h-0 ${
+      className={`rounded-xl ${paddingClass} flex flex-col items-center justify-center gap-0.5 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 min-h-0 ${
         clickable ? 'cursor-pointer hover:opacity-80' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
