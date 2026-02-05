@@ -30,7 +30,7 @@
 
 @keyframes progress-grow {
   from {
-    width: inherit;
+    width: var(--progress-start, 0%);
   }
   to {
     width: 100%;
