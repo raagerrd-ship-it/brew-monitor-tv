@@ -42,7 +42,7 @@ function ClockComponent() {
       <p 
         className="font-semibold tabular-nums tracking-tight text-foreground"
         style={{ 
-          fontSize: '36px',
+          fontSize: '24px',
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1.1,
         }}
@@ -58,7 +58,7 @@ function ClockComponent() {
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
-        style={{ fontSize: '14px' }}
+        style={{ fontSize: '11px' }}
       >
         {displayTime.toLocaleDateString("sv-SE", {
           weekday: "short",

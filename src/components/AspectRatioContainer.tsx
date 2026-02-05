@@ -2,9 +2,9 @@ import { ReactNode, useEffect, useState, createContext, useContext } from "react
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTvMode } from "@/contexts/TvModeContext";
 
-// Reference resolution - layout is designed for this size
-const REFERENCE_WIDTH = 1920;
-const REFERENCE_HEIGHT = 1080;
+// Reference resolution - layout is designed for 720p TV
+const REFERENCE_WIDTH = 1280;
+const REFERENCE_HEIGHT = 720;
 
 // Context to signal children that they're inside an aspect ratio container
 interface AspectRatioContextType {
@@ -103,34 +103,19 @@ export function AspectRatioContainer({
     );
   }
 
-  // TV Mode: Scale content to fit actual viewport while maintaining 1920x1080 design
+  // TV Mode: Use actual viewport dimensions, no scaling
   if (isTvMode) {
-    // Calculate scale to fit reference resolution into actual TV viewport
-    const scaleX = tvDimensions.width / REFERENCE_WIDTH;
-    const scaleY = tvDimensions.height / REFERENCE_HEIGHT;
-    const tvScale = Math.min(scaleX, scaleY);
-    
     return (
       <AspectRatioContext.Provider value={{ 
         isLocked: true, 
-        width: REFERENCE_WIDTH,
-        height: REFERENCE_HEIGHT,
-        scale: tvScale
+        width: tvDimensions.width,
+        height: tvDimensions.height,
+        scale: 1
       }}>
-        <div className="fixed inset-0 bg-background overflow-hidden flex items-center justify-center">
-          <div
-            style={{
-              width: REFERENCE_WIDTH,
-              height: REFERENCE_HEIGHT,
-              transform: `scale(${tvScale})`,
-              transformOrigin: 'center center',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-            className="flex flex-col"
-          >
-            {children}
-          </div>
+        <div 
+          className="fixed inset-0 bg-background overflow-hidden flex flex-col"
+        >
+          {children}
         </div>
       </AspectRatioContext.Provider>
     );

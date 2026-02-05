@@ -26,8 +26,8 @@ import { getControllerColor } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useTvMode } from "@/contexts/TvModeContext";
 
-// Fixed header height in pixels
-const HEADER_HEIGHT = 77;
+// Fixed header height in pixels (optimized for 720p)
+const HEADER_HEIGHT = 56;
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
   const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
