@@ -19,7 +19,7 @@ import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
 const CARD_HEADER_HEIGHT = 60;
-const CARD_STATS_HEIGHT = 140;
+const CARD_STATS_HEIGHT = 180; // Increased from 140px for taller stat cards
 
 function BrewCardComponent({
   brew,
@@ -215,7 +215,7 @@ function BrewCardComponent({
       </div>
       
       {/* Chart Area - constrained height to leave more room for stats */}
-      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden" style={{ maxHeight: '380px' }}>
+      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden" style={{ maxHeight: '420px' }}>
         <div className="flex-1 min-h-0">
           <BrewChart 
             data={brew.sgData} 
