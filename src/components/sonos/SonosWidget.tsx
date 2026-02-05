@@ -308,11 +308,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const newProgress = (current.position_ms ?? 0) + elapsed;
         const remaining = current.duration_ms - newProgress;
         
-        if (remaining <= 10000 && remaining > 9000 && !trackEndFetchedRef.current) {
+        if (remaining <= 15000 && remaining > 14000 && !trackEndFetchedRef.current) {
           preloadNextTrack();
         }
         
-        if (remaining <= 500 && remaining > -500 && !trackEndFetchedRef.current) {
+        if (remaining <= 1500 && remaining > 500 && !trackEndFetchedRef.current) {
           trackEndFetchedRef.current = true;
           if (!applyPreloadedData()) {
             fetchNowPlaying();
