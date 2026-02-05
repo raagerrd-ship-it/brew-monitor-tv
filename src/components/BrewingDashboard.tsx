@@ -48,7 +48,7 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [showDebug] = useState(true); // Toggle this to show/hide debug overlay - always show when enabled, regardless of TV mode for debugging
+  const [showDebug] = useState(false); // TEMP: Disabled to test performance without debug overlay
   const handleAlbumArtChange = useCallback((url: string | null) => {
     console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
