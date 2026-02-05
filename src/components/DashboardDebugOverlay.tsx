@@ -7,11 +7,18 @@ interface DebugEvent {
   details?: string;
 }
 
+interface LongTaskEntry {
+  duration: number;
+  source: string;
+  time: string;
+}
+
 interface LongTaskStats {
   count: number;
   totalDuration: number;
   maxDuration: number;
   lastSeen: string | null;
+  recentTasks: LongTaskEntry[];
 }
 
 interface DashboardDebugOverlayProps {
@@ -42,6 +49,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     totalDuration: 0,
     maxDuration: 0,
     lastSeen: null,
+    recentTasks: [],
   });
   
   
@@ -100,7 +108,13 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     return () => clearInterval(interval);
   }, []);
 
-  // Track Sonos changes
+  // addLog callback - must be before useEffects that use it
+  const addLog = useCallback((source: string, event: string, details?: string) => {
+    const now = new Date();
+    const timestamp = `${now.toLocaleTimeString('sv-SE')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+    setLogs(prev => [...prev.slice(-9), { timestamp, source, event, details }]);
+  }, []);
+
   useEffect(() => {
     if (sonosTrack !== lastSonosTrackRef.current) {
       if (lastSonosTrackRef.current !== null) {
@@ -110,7 +124,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     }
   }, [sonosTrack]);
 
-  // Long task detector with aggregation
+  // Long task detector with detailed attribution
   useEffect(() => {
     if (!('PerformanceObserver' in window)) return;
     
@@ -121,26 +135,45 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
         for (const entry of list.getEntries()) {
           if (entry.duration > 50) {
             const duration = Math.round(entry.duration);
+            const time = new Date().toLocaleTimeString('sv-SE');
+            
+            // Try to get detailed attribution
+            const attribution = (entry as any).attribution;
+            let source = 'unknown';
+            let details: string[] = [];
+            
+            if (attribution && attribution.length > 0) {
+              for (const attr of attribution) {
+                if (attr.containerType) details.push(`type:${attr.containerType}`);
+                if (attr.containerName) details.push(`name:${attr.containerName}`);
+                if (attr.containerSrc) {
+                  // Extract just the filename from the full URL
+                  const srcMatch = attr.containerSrc.match(/\/([^\/]+)$/);
+                  if (srcMatch) details.push(`src:${srcMatch[1]}`);
+                }
+                if (attr.name) details.push(attr.name);
+              }
+              source = details.length > 0 ? details.join(' ') : attribution[0]?.containerType || 'script';
+            }
+            
+            // Also check for any running frames/scripts via PerformanceEntry name
+            if (entry.name && entry.name !== 'self') {
+              source = entry.name;
+            }
+            
+            const taskEntry: LongTaskEntry = { duration, source, time };
             
             setLongTaskStats(prev => ({
               count: prev.count + 1,
               totalDuration: prev.totalDuration + duration,
               maxDuration: Math.max(prev.maxDuration, duration),
-              lastSeen: new Date().toLocaleTimeString('sv-SE'),
+              lastSeen: time,
+              recentTasks: [...prev.recentTasks.slice(-9), taskEntry],
             }));
             
-            // Only log to event log every 2 seconds max to avoid spam
-            if (now - longTaskThrottleRef.current > 2000) {
+            // Log significant tasks
+            if (duration > 100 || now - longTaskThrottleRef.current > 2000) {
               longTaskThrottleRef.current = now;
-              
-              // Try to get attribution if available
-              const attribution = (entry as any).attribution;
-              let source = 'unknown';
-              if (attribution && attribution.length > 0) {
-                const attr = attribution[0];
-                source = attr.containerType || attr.name || 'script';
-              }
-              
               addLog("PERF", `LONG_TASK ${duration}ms`, source);
             }
           }
@@ -152,7 +185,7 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     } catch (e) {
       return;
     }
-  }, []);
+  }, [addLog]);
 
   // Intercept realtime events only (removed console interception - it causes overhead)
   useEffect(() => {
@@ -169,11 +202,6 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     };
   }, []);
 
-  const addLog = useCallback((source: string, event: string, details?: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleTimeString('sv-SE')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
-    setLogs(prev => [...prev.slice(-9), { timestamp, source, event, details }]);
-  }, []);
 
   const uptime = Math.round((Date.now() - mountTimeRef.current) / 1000);
   const avgLongTask = longTaskStats.count > 0 
@@ -217,6 +245,23 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
           <div>Avg: {avgLongTask}ms</div>
           <div>Last: {longTaskStats.lastSeen || '-'}</div>
         </div>
+        
+        {/* Recent long tasks with sources */}
+        {longTaskStats.recentTasks.length > 0 && (
+          <div className="mt-2 border-t border-gray-700 pt-1">
+            <div className="text-[10px] text-gray-400 mb-1">Recent tasks (newest first):</div>
+            {longTaskStats.recentTasks.slice().reverse().slice(0, 5).map((task, i) => (
+              <div key={i} className="text-[9px] mb-0.5 flex gap-1">
+                <span className={task.duration > 200 ? 'text-red-400' : task.duration > 100 ? 'text-orange-400' : 'text-yellow-400'}>
+                  {task.duration}ms
+                </span>
+                <span className="text-gray-400">{task.time.split(':').slice(1).join(':')}</span>
+                <span className="text-white truncate flex-1">{task.source}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        
         {longTaskStats.count > 20 && (
           <div className="text-red-400 text-[10px] mt-1">
             ⚠️ Många long tasks = något blockerar huvudtråden
