@@ -55,7 +55,7 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
-  const showDebug = !isTvMode; // Disable debug overlay in TV mode to save memory
+  const showDebug = true; // Debug overlay now uses 5s intervals - safe for TV mode
   // Get aspect ratio context to determine sizing strategy
   // In TV mode, height will be actual viewport height, not reference 1080
   const { isLocked: isAspectRatioLocked, height: containerHeight, width: containerWidth } = useAspectRatio();

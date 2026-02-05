@@ -109,29 +109,44 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
 
-  // FPS counter - throttled to reduce overhead
+  // FPS counter - measure for 1 second every 5 seconds to save resources
   useEffect(() => {
-    let animationId: number;
-    let lastUpdate = performance.now();
+    let animationId: number | null = null;
+    let frameCount = 0;
+    let measureStartTime = 0;
     
-    const measureFps = () => {
-      frameCountRef.current++;
-      const now = performance.now();
+    const startMeasurement = () => {
+      frameCount = 0;
+      measureStartTime = performance.now();
       
-      // Only update state every second to reduce re-renders
-      if (now - lastUpdate >= 1000) {
-        const elapsed = now - lastFrameTimeRef.current;
-        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
-        frameCountRef.current = 0;
-        lastFrameTimeRef.current = now;
-        lastUpdate = now;
-      }
+      const countFrames = () => {
+        frameCount++;
+        const elapsed = performance.now() - measureStartTime;
+        
+        // Measure for 1 second, then stop
+        if (elapsed < 1000) {
+          animationId = requestAnimationFrame(countFrames);
+        } else {
+          setFps(Math.round((frameCount * 1000) / elapsed));
+          animationId = null;
+        }
+      };
       
-      animationId = requestAnimationFrame(measureFps);
+      animationId = requestAnimationFrame(countFrames);
     };
     
-    animationId = requestAnimationFrame(measureFps);
-    return () => cancelAnimationFrame(animationId);
+    // Start first measurement immediately
+    startMeasurement();
+    
+    // Then measure every 5 seconds
+    const interval = setInterval(startMeasurement, 5000);
+    
+    return () => {
+      clearInterval(interval);
+      if (animationId !== null) {
+        cancelAnimationFrame(animationId);
+      }
+    };
   }, []);
 
   // Memory monitor - less frequent
@@ -229,13 +244,13 @@ export const DashboardDebugOverlay = memo(function DashboardDebugOverlay({
     };
   }, [addLog]);
 
-  // Poll manual timings from global registry
+  // Poll manual timings from global registry - every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       if (window.__perfTimings && window.__perfTimings.length > 0) {
         setManualTimings([...window.__perfTimings]);
       }
-    }, 1000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
