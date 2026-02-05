@@ -103,19 +103,34 @@ export function AspectRatioContainer({
     );
   }
 
-  // TV Mode: Use actual viewport dimensions, no scaling
+  // TV Mode: Scale content to fit actual viewport while maintaining 1920x1080 design
   if (isTvMode) {
+    // Calculate scale to fit reference resolution into actual TV viewport
+    const scaleX = tvDimensions.width / REFERENCE_WIDTH;
+    const scaleY = tvDimensions.height / REFERENCE_HEIGHT;
+    const tvScale = Math.min(scaleX, scaleY);
+    
     return (
       <AspectRatioContext.Provider value={{ 
         isLocked: true, 
-        width: tvDimensions.width,
-        height: tvDimensions.height,
-        scale: 1  // Always 1 in TV mode - no transform overhead
+        width: REFERENCE_WIDTH,
+        height: REFERENCE_HEIGHT,
+        scale: tvScale
       }}>
-        <div 
-          className="fixed inset-0 bg-background overflow-hidden flex flex-col"
-        >
-          {children}
+        <div className="fixed inset-0 bg-background overflow-hidden flex items-center justify-center">
+          <div
+            style={{
+              width: REFERENCE_WIDTH,
+              height: REFERENCE_HEIGHT,
+              transform: `scale(${tvScale})`,
+              transformOrigin: 'center center',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+            className="flex flex-col"
+          >
+            {children}
+          </div>
         </div>
       </AspectRatioContext.Provider>
     );
