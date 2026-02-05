@@ -193,27 +193,17 @@ function BrewCardComponent({
       </div>
       
       {/* Chart Area - fills remaining space */}
-      {/* In TV mode, skip heavy Recharts and show simplified placeholder */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0">
-          {isTvMode ? (
-            <div className="h-full flex items-center justify-center text-muted-foreground/50">
-              <div className="text-center">
-                <p className="text-lg font-medium">Graf inaktiverad i TV-läge</p>
-                <p className="text-sm">för bättre prestanda</p>
-              </div>
-            </div>
-          ) : (
-            <LazyBrewChart 
-              data={brew.sgData} 
-              og={brew.originalGravity} 
-              fg={brew.finalGravity} 
-              singleView={true}
-              events={brew.events}
-              controllerId={brew.linked_controller_id}
-              chartIndex={cardIndex}
-            />
-          )}
+          <LazyBrewChart 
+            data={brew.sgData} 
+            og={brew.originalGravity} 
+            fg={brew.finalGravity} 
+            singleView={true}
+            events={brew.events}
+            controllerId={brew.linked_controller_id}
+            chartIndex={cardIndex}
+          />
         </div>
         
         {/* Active Fermentation Session - compact view, px-1 to match stats px-3 (p-2 + px-1 = px-3) */}
