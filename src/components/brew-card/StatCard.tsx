@@ -37,17 +37,17 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = '14px',
-  valueSize = '36px',
+  labelSize = '13px',
+  valueSize = '32px',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
-    borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.2),
+    borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.15),
     borderWidth: '1px',
     borderStyle: 'solid',
-    background: customBackground || `linear-gradient(135deg, ${colorWithOpacity(color, 0.03)} 0%, hsl(222 18% 15% / 0.5) 100%)`,
+    background: customBackground || `linear-gradient(145deg, ${colorWithOpacity(color, 0.06)} 0%, hsl(222 20% 12% / 0.7) 100%)`,
     boxShadow: isUpdated 
-      ? `0 0 25px ${colorWithOpacity(color, 0.5)}`
-      : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+      ? `0 0 30px ${colorWithOpacity(color, 0.5)}, inset 0 1px 0 hsl(0 0% 100% / 0.08)`
+      : '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
   };
 
   // Use explicit classes for Tailwind purging to work correctly
@@ -55,40 +55,48 @@ export function StatCard({
   const rowSpanClass = rowSpan === 2 ? 'row-span-2' : rowSpan === 3 ? 'row-span-3' : '';
   const gridClass = `${colSpanClass} ${rowSpanClass}`.trim();
 
-  // Always center content for a cleaner look
-  const paddingClass = 'p-2';
-  const textAlignClass = 'text-center';
-
   return (
     <div 
-      className={`rounded-xl ${paddingClass} flex flex-col items-center justify-center gap-0.5 relative overflow-hidden backdrop-blur-sm transition-all duration-1000 min-h-0 ${
-        clickable ? 'cursor-pointer hover:opacity-80' : ''
+      className={`rounded-xl p-3 flex flex-col items-center justify-center gap-1 relative overflow-hidden backdrop-blur-md transition-all duration-700 min-h-0 ${
+        clickable ? 'cursor-pointer hover:scale-[1.02] hover:shadow-lg' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
       onClick={onClick}
       title={title}
     >
+      {/* Top light reflection */}
+      <div 
+        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+        style={{
+          background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
+        }}
+      />
+      
       {icon && (
-        <div className="absolute top-1/2 -translate-y-1/2 opacity-10" style={{ width: '50%', height: '50%', right: '-10%' }}>
+        <div className="absolute top-1/2 -translate-y-1/2 opacity-[0.08]" style={{ width: '55%', height: '55%', right: '-8%' }}>
           {icon}
         </div>
       )}
+      
       <p 
-        className={`text-muted-foreground/60 tracking-wide z-10 font-normal ${textAlignClass}`}
-        style={{ fontSize: labelSize }}
+        className="text-muted-foreground/50 uppercase tracking-widest z-10 font-medium text-center"
+        style={{ fontSize: labelSize, letterSpacing: '0.1em' }}
       >
         {label}
       </p>
+      
       <p 
-        className={`font-bold leading-none z-10 ${textAlignClass} ${isUpdated ? 'animate-value-shimmer' : ''}`}
+        className={`font-semibold leading-none z-10 text-center tracking-tight ${isUpdated ? 'animate-value-shimmer' : ''}`}
         style={{ 
           color,
           fontSize: valueSize,
-          textShadow: `0 0 15px ${colorWithOpacity(color, 0.3)}`
+          textShadow: `0 0 20px ${colorWithOpacity(color, 0.35)}, 0 2px 4px hsl(0 0% 0% / 0.3)`,
+          letterSpacing: '-0.02em'
         }}
       >
         {value}
       </p>
+      
       {children}
     </div>
   );
