@@ -107,8 +107,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Fixed polling interval - 3 seconds for quick response
-    const POLL_INTERVAL = 3000;
+    // Fast polling interval - 1.5 seconds for minimal delay
+    const POLL_INTERVAL = 1500;
     console.log('[Sonos Debug] Starting polling with interval:', POLL_INTERVAL);
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
 
