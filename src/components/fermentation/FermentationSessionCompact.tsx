@@ -312,7 +312,7 @@ export function FermentationSessionCompact({
             variant="outline"
             className="shrink-0 text-lg font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
           >
-            {currentStepIndex + 1}/{totalSteps}
+            {currentStepIndex + 1} / {totalSteps}
           </Badge>
           {waitingForTemp && (
             <Badge 
