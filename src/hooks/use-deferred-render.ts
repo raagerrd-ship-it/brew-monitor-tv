@@ -59,8 +59,8 @@ export function useStaggeredRender(index: number): boolean {
   const [shouldRender, setShouldRender] = useState(isTvMode);
   
   useEffect(() => {
-    if (isTvMode) {
-      setShouldRender(true);
+    if (isTvMode || shouldRender) {
+      // Already rendering, nothing to do
       return;
     }
     
@@ -70,21 +70,25 @@ export function useStaggeredRender(index: number): boolean {
     const totalDelay = baseDelay + staggerDelay;
     
     if ('requestIdleCallback' in window) {
+      let cancelled = false;
+      
       const idleId = (window as any).requestIdleCallback(
-        () => setShouldRender(true),
-        { timeout: totalDelay + 500 } // Max wait time
+        () => {
+          if (!cancelled) setShouldRender(true);
+        },
+        { timeout: totalDelay + 500 }
       );
       
-      // Also set a minimum delay so components don't all fire at once
+      // Fallback timeout in case idle never fires
       const timeoutId = setTimeout(() => {
-        // Only trigger if idle callback hasn't fired yet
-        if (!shouldRender) {
+        if (!cancelled) {
           (window as any).cancelIdleCallback(idleId);
           setShouldRender(true);
         }
       }, totalDelay + 1000);
       
       return () => {
+        cancelled = true;
         (window as any).cancelIdleCallback(idleId);
         clearTimeout(timeoutId);
       };
@@ -92,7 +96,7 @@ export function useStaggeredRender(index: number): boolean {
       const timeoutId = setTimeout(() => setShouldRender(true), totalDelay);
       return () => clearTimeout(timeoutId);
     }
-  }, [index, isTvMode]);
+  }, [index, isTvMode]); // Removed shouldRender from deps to prevent loop
   
   return shouldRender;
 }
