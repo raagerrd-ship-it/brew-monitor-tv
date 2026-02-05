@@ -1,25 +1,29 @@
 import { useState, useEffect, useRef, memo } from 'react';
+import { useTvMode } from '@/contexts/TvModeContext';
 
 function ClockComponent() {
+  const { isTvMode } = useTvMode();
   const [displayTime, setDisplayTime] = useState(new Date());
   const internalTimeRef = useRef(Date.now());
   const lastSyncRef = useRef(Date.now());
 
   useEffect(() => {
-    // Increment internal time every second independently
-    // This makes the clock "smooth" even during page updates
-    const tickInterval = setInterval(() => {
-      internalTimeRef.current += 1000;
+    // In TV mode: update every 60 seconds to save resources (no seconds shown)
+    // In normal mode: update every second for smooth ticking
+    const tickInterval = isTvMode ? 60000 : 1000;
+    
+    const tick = () => {
+      internalTimeRef.current += tickInterval;
       setDisplayTime(new Date(internalTimeRef.current));
-    }, 1000);
+    };
+    
+    const intervalId = setInterval(tick, tickInterval);
 
-    // Sync with system time periodically (every 30 seconds)
-    // This corrects any drift without interrupting the smooth ticking
+    // Sync with system time periodically
     const syncInterval = setInterval(() => {
       const now = Date.now();
       const drift = Math.abs(now - internalTimeRef.current);
       
-      // Only sync if drift is more than 500ms to avoid visible jumps
       if (drift > 500) {
         internalTimeRef.current = now;
         lastSyncRef.current = now;
@@ -32,10 +36,10 @@ function ClockComponent() {
     setDisplayTime(new Date(internalTimeRef.current));
 
     return () => {
-      clearInterval(tickInterval);
+      clearInterval(intervalId);
       clearInterval(syncInterval);
     };
-  }, []);
+  }, [isTvMode]);
 
   return (
     <div className="flex flex-col items-end justify-center">
@@ -51,10 +55,15 @@ function ClockComponent() {
           hour: "2-digit",
           minute: "2-digit",
         })}
-        <span className="text-muted-foreground/40">:</span>
-        <span className="text-muted-foreground/60">
-          {displayTime.getSeconds().toString().padStart(2, '0')}
-        </span>
+        {/* Only show seconds in non-TV mode */}
+        {!isTvMode && (
+          <>
+            <span className="text-muted-foreground/40">:</span>
+            <span className="text-muted-foreground/60">
+              {displayTime.getSeconds().toString().padStart(2, '0')}
+            </span>
+          </>
+        )}
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
