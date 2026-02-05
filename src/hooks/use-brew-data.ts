@@ -415,8 +415,8 @@ export function useBrewData(): UseBrewDataReturn {
       }
 
       if (updatedReading.current_temp !== undefined) {
-        const newTempRounded = Math.round(updatedReading.current_temp);
-        const screenTempRounded = Math.round(currentBrew.currentTemp);
+        const newTempRounded = Number(updatedReading.current_temp.toFixed(1));
+        const screenTempRounded = Number(currentBrew.currentTemp.toFixed(1));
         if (newTempRounded !== screenTempRounded) changedFields.temp = true;
       }
 
@@ -442,16 +442,6 @@ export function useBrewData(): UseBrewDataReturn {
         }
       }
 
-      const newLastUpdate = updatedReading.last_update;
-      const screenLastUpdate = currentBrew.lastUpdateRaw;
-
-      if (
-        newLastUpdate !== screenLastUpdate &&
-        newLastUpdate !== undefined &&
-        screenLastUpdate !== undefined
-      ) {
-        changedFields.cardGlow = true;
-      }
 
       setBrews(prevBrews =>
         prevBrews.map(brew => {

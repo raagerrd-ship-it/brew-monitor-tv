@@ -33,7 +33,6 @@ function BrewCardComponent({
   isTvMode = false,
   cardIndex = 0,
 }: BrewCardProps) {
-  const hasCardGlow = updatedFields[brew.batch_id]?.cardGlow;
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   // Staggered rendering for TV mode - each card renders with a delay
   const shouldRenderContent = useStaggeredRender(cardIndex);
@@ -88,8 +87,6 @@ function BrewCardComponent({
         isTvMode ? '' : 'backdrop-blur-xl'
       } ${
         showInteractiveElements ? 'group' : ''
-      } ${
-        hasCardGlow ? 'ring-2 ring-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.4)]' : ''
       }`}
       style={{
         // Simplified solid background in TV mode - no gradients or blur
@@ -98,9 +95,7 @@ function BrewCardComponent({
           : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
         boxShadow: isTvMode
           ? '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)'
-          : hasCardGlow 
-            ? undefined 
-            : '0 12px 40px hsl(222 30% 3% / 0.7), 0 25px 60px hsl(222 30% 2% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
+          : '0 12px 40px hsl(222 30% 3% / 0.7), 0 25px 60px hsl(222 30% 2% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
       }}
     >
       {/* Glass highlight overlay - top edge (skip in TV mode) */}
