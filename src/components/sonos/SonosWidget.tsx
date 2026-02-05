@@ -70,15 +70,15 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Poll for now playing data
+  // Poll for now playing data - less frequently since realtime handles updates
   useEffect(() => {
     if (!isConnected || !showWidget) return;
 
     // Initial fetch
     fetchNowPlaying();
 
-    // Fast polling interval - 1.5 seconds for minimal delay
-    const POLL_INTERVAL = 1500;
+    // Slower polling interval - 5 seconds since realtime handles most updates
+    const POLL_INTERVAL = 5000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, POLL_INTERVAL);
 
     // Handle visibility changes
