@@ -18,7 +18,7 @@ import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout
-const CARD_HEADER_HEIGHT = 72;
+const CARD_HEADER_HEIGHT = 80;
 const CARD_STATS_HEIGHT = 220; // Increased for taller stat cards
 
 function BrewCardComponent({
