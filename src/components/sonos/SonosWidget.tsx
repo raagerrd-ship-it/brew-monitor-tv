@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useSonosTrackTransition } from "./hooks/useSonosTrackTransition";
+import { useSonosTrackTransition } from "./hooks";
 
 interface NowPlaying {
   track_name: string | null;
