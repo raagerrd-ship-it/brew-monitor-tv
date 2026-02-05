@@ -37,8 +37,8 @@ export function StatCard({
   rowSpan = 1,
   centered = false,
   customBackground,
-  labelSize = '13px',
-  valueSize = '32px',
+  labelSize = '12px',
+  valueSize = '42px',
 }: StatCardProps) {
   const baseStyles: CSSProperties = {
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.15),
@@ -86,12 +86,12 @@ export function StatCard({
       </p>
       
       <p 
-        className={`font-semibold leading-none z-10 text-center tracking-tight ${isUpdated ? 'animate-value-shimmer' : ''}`}
+        className={`font-black leading-none z-10 text-center ${isUpdated ? 'animate-value-shimmer' : ''}`}
         style={{ 
           color,
           fontSize: valueSize,
-          textShadow: `0 0 20px ${colorWithOpacity(color, 0.35)}, 0 2px 4px hsl(0 0% 0% / 0.3)`,
-          letterSpacing: '-0.02em'
+          textShadow: `0 0 25px ${colorWithOpacity(color, 0.4)}, 0 2px 6px hsl(0 0% 0% / 0.4)`,
+          letterSpacing: '-0.03em'
         }}
       >
         {value}
