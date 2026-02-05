@@ -148,8 +148,8 @@ export function BrewingDashboard() {
     appLoadTime
   } = useVersionCheck(60000);
 
-  // Monitor memory usage in TV mode - reload if above 90%
-  useMemoryMonitor(90, 30000, isTvMode);
+  // Monitor memory usage in TV mode - reload if above 90% (check every 60s to reduce overhead)
+  useMemoryMonitor(90, 60000, isTvMode);
 
   // Debug log for TV mode
   useEffect(() => {

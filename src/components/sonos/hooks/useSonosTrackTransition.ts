@@ -71,10 +71,19 @@ export function useSonosTrackTransition(
     preloadedDataRef.current = null;
   }, []);
 
-  // Fetch now playing data
+  // Fetch now playing data with timeout to prevent hanging
   const fetchNowPlaying = useCallback(async () => {
     try {
-      const response = await supabase.functions.invoke('sonos-now-playing');
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      
+      const response = await supabase.functions.invoke('sonos-now-playing', {
+        body: {},
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (response.data && !response.error) {
         if (response.data.track_name !== currentTrackRef.current) {
           trackEndFetchedRef.current = false;
@@ -87,7 +96,10 @@ export function useSonosTrackTransition(
         lastUpdateRef.current = Date.now();
       }
     } catch (error) {
-      console.error('[Sonos] Failed to fetch now playing:', error);
+      // Silently handle timeout/network errors to prevent console spam
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('[Sonos] Failed to fetch now playing:', error);
+      }
     }
   }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError]);
 

@@ -80,9 +80,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     // Initial fetch
     fetchNowPlaying();
 
-    // Poll every 3 seconds to detect track changes
-    // This is necessary because there's no server-side cron updating the DB
-    const SYNC_INTERVAL = 3000;
+    // Poll every 5 seconds to detect track changes
+    // Using 5s instead of 3s to reduce load on Cast hardware
+    const SYNC_INTERVAL = 5000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
 
     // Handle visibility changes
