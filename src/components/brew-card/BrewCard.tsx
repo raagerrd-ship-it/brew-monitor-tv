@@ -215,23 +215,17 @@ function BrewCardComponent({
       </div>
       
       {/* Chart Area - fills remaining space */}
-      {/* TEMP: Disable charts in TV mode to test if they cause long tasks */}
+      {/* Chart Area - fills remaining space */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0">
-          {isTvMode ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 text-sm">
-              📊 Graf inaktiverad för prestandatest
-            </div>
-          ) : (
-            <BrewChart 
-              data={brew.sgData} 
-              og={brew.originalGravity} 
-              fg={brew.finalGravity} 
-              singleView={true}
-              events={brew.events}
-              controllerId={brew.linked_controller_id}
-            />
-          )}
+          <BrewChart 
+            data={brew.sgData} 
+            og={brew.originalGravity} 
+            fg={brew.finalGravity} 
+            singleView={true}
+            events={brew.events}
+            controllerId={brew.linked_controller_id}
+          />
         </div>
         
         {/* Active Fermentation Session - compact view, px-1 to match stats px-3 (p-2 + px-1 = px-3) */}
