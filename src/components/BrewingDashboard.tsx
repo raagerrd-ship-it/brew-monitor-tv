@@ -212,20 +212,20 @@ export function BrewingDashboard() {
   // Reference dimensions for aspect-ratio locked mode (1920x1080)
   const REFERENCE_HEIGHT = 1080;
   
-  // Calculate container height - use fixed reference height when aspect ratio locked
+  // Calculate container height - always use full reference height, footer is positioned absolutely
   const getContainerHeight = () => {
     if (isAspectRatioLocked) {
-      return showTimerFooter ? `${REFERENCE_HEIGHT - TIMER_FOOTER_HEIGHT}px` : `${REFERENCE_HEIGHT}px`;
+      return `${REFERENCE_HEIGHT}px`;
     }
     return showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh';
   };
   
-  // Calculate content area height for brew cards
+  // Calculate content area height for brew cards (subtract footer space when active)
   const CONTENT_PADDING = 16; // 8px top + 8px bottom
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
-      const baseHeight = showTimerFooter ? REFERENCE_HEIGHT - TIMER_FOOTER_HEIGHT : REFERENCE_HEIGHT;
-      return baseHeight - HEADER_HEIGHT;
+      const footerSpace = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
+      return REFERENCE_HEIGHT - HEADER_HEIGHT - footerSpace;
     }
     return null; // Use CSS calc for non-locked mode
   };
