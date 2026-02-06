@@ -193,8 +193,8 @@ function BrewCardComponent({
       </div>
       
       {/* Chart Area - fills remaining space */}
-      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <LazyBrewChart 
             data={brew.sgData} 
             og={brew.originalGravity} 
@@ -208,8 +208,8 @@ function BrewCardComponent({
           />
         </div>
         
-        {/* Active Fermentation Session - compact view, px-1 to match stats px-3 (p-2 + px-1 = px-3) */}
-        <div className="mt-1 flex-shrink-0 px-1">
+        {/* Active Fermentation Session - overflow-visible so shadow isn't clipped */}
+        <div className="mt-1 flex-shrink-0 px-1 overflow-visible">
           <ActiveFermentationSession 
             brewId={brew.id} 
             compact 
