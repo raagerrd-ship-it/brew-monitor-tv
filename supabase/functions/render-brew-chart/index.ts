@@ -288,7 +288,8 @@ function generateChartSvg(
             current: tp.current_temp,
             target: tp.target_temp,
           }));
-          const allTemps = tempParsed.flatMap(tp => [tp.current, tp.target]);
+          const pillTemps = sgParsed.filter(sp => sp.temp !== undefined).map(sp => sp.temp!);
+          const allTemps = [...tempParsed.flatMap(tp => [tp.current, tp.target]), ...pillTemps];
           const tempMin = Math.min(...allTemps) - 0.5;
           const tempMax = Math.max(...allTemps) + 0.5;
           return MARGIN.top + PLOT_H - ((p.temp! - tempMin) / (tempMax - tempMin)) * PLOT_H;
