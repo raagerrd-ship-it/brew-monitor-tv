@@ -1379,6 +1379,31 @@ export default function Settings() {
               </div>
             </div>
 
+            {/* TV Remote Refresh */}
+            <div className="space-y-4">
+              <SectionHeader 
+                icon={Tv}
+                title="TV-läge"
+                description="Fjärrstyr anslutna TV-enheter"
+              />
+              <Card className="p-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await supabase
+                      .from('sync_settings')
+                      .update({ force_tv_refresh_at: new Date().toISOString() })
+                      .not('id', 'is', null);
+                    toast({ title: "TV-uppdatering skickad", description: "Alla TV-enheter laddas om inom kort." });
+                  }}
+                >
+                  <Tv className="h-4 w-4 mr-2" />
+                  Uppdatera TV:ar
+                </Button>
+              </Card>
+            </div>
+
             {/* Sonos Section */}
             <div className="space-y-4">
               <SectionHeader 

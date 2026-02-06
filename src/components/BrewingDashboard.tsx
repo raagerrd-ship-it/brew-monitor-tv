@@ -113,6 +113,36 @@ export function BrewingDashboard() {
   } = useVersionCheck(isTvMode ? 300000 : 60000);
 
 
+  // Listen for remote TV refresh trigger via force_tv_refresh_at
+  useEffect(() => {
+    if (!isTvMode) return;
+
+    const channel = supabase
+      .channel('tv-force-refresh')
+      .on(
+        'postgres_changes' as any,
+        { event: 'UPDATE', schema: 'public', table: 'sync_settings' },
+        (payload: any) => {
+          if (payload.new?.force_tv_refresh_at && payload.new.force_tv_refresh_at !== payload.old?.force_tv_refresh_at) {
+            console.log('[TV] Remote refresh triggered');
+            // Clear caches and reload
+            setTimeout(async () => {
+              if ('caches' in window) {
+                const names = await caches.keys();
+                await Promise.all(names.map(n => caches.delete(n)));
+              }
+              const params = new URLSearchParams(window.location.search);
+              params.set('v', Date.now().toString());
+              window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
+            }, 500);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isTvMode]);
+
   // Force overflow hidden on body in TV mode (Chromecast iframe)
   useEffect(() => {
     if (isTvMode) {
