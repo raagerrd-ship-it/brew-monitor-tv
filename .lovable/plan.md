@@ -1,42 +1,32 @@
 
 
-## Ta bort VitePWA — behall automatisk TV-uppdatering
+## Fix: Ta bort reload-logiken från emergency SW cleanup
 
-### Vad tas bort
+### Problem
+Emergency cleanup-scriptet i `index.html` gör `location.reload()` om det hittar en gammal Service Worker. I Lovable-previewen kan detta orsaka att gammal version visas eller att sidan laddar om i onödan.
 
-**1. `vite.config.ts`**
-- Ta bort `import { VitePWA } from 'vite-plugin-pwa'`
-- Ta bort hela `VitePWA({...})`-blocket fran plugins
+### Ändring
 
-**2. `package.json`**
-- Ta bort `vite-plugin-pwa` fran dependencies
+**`index.html`** — Förenkla cleanup-scriptet till att bara rensa SWs och cacher, utan reload:
 
-### Vad behalles (oforandrat)
-
-**`src/hooks/use-version-check.ts`** — Pollar `index.html` var 60:e sekund, jamfor resurshasharna, och gor hard reload med cache-rensning nar en ny version detekteras. Fungerar helt utan Service Worker.
-
-**`index.html`** — Emergency cleanup-scriptet som rensar kvarvarande gamla Service Workers vid forsta laddning.
-
-**`src/main.tsx`** — SW-unregister for TV-mode och `controllerchange`-lyssnaren som sakerhet.
-
-### TV-uppdateringsflode efter andringen
-
-```text
-useVersionCheck (var 60s)
-  |
-  +-- Hamtar /?_=timestamp (cache-busted)
-  |
-  +-- Jamfor script/CSS-hashar
-  |
-  +-- Om ny version:
-        1. Visar toast "Ny version tillganglig"
-        2. Vantar 2s
-        3. Rensar ev. kvarvarande SW-cacher
-        4. Hard reload med cache-busting parameter
+```html
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(r){r.unregister()});
+      if('caches' in window){caches.keys().then(function(n){n.forEach(function(c){caches.delete(c)})})}
+    });
+  }
+</script>
 ```
 
-### Sammanfattning
-- Tre andringar: `vite.config.ts` (ta bort plugin), `package.json` (ta bort dependency), inget annat
-- TV:n fortsatter uppdatera sig automatiskt via `useVersionCheck`
-- Ingen offline-funktionalitet pga borttagning av SW, men det anvands inte
+Borttaget:
+- `hadSW`-variabeln
+- `sessionStorage`-flaggan (`sw_cleared`)
+- `location.reload()`-anropet
 
+### Varför det fungerar
+- Inga nya SWs genereras (VitePWA borta)
+- Kvarvarande gamla SWs rensas tyst vid nästa laddning
+- `useVersionCheck` hanterar versionskontroll och reload separat
+- Ingen risk för reload-loop i preview/iframe
