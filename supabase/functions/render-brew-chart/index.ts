@@ -8,10 +8,9 @@ const corsHeaders = {
 
 // Chart dimensions - viewBox for scalability
 const WIDTH = 600;
-const HEIGHT = 300;
+const HEIGHT_FULL = 300;    // No fermentation session visible
+const HEIGHT_COMPACT = 220; // With fermentation session (less vertical space)
 const MARGIN = { top: 20, right: 15, bottom: 30, left: 50 };
-const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
-const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
 // Colors matching desktop chartConfig.ts (CSS variables resolved)
 // --beer-amber: 38 90% 60% → #e8a225
@@ -81,16 +80,7 @@ function smoothData(values: number[], windowSize: number): number[] {
   return result;
 }
 
-// Scale value to pixel coordinate
-function scaleX(val: number, min: number, max: number): number {
-  if (max === min) return MARGIN.left;
-  return MARGIN.left + ((val - min) / (max - min)) * PLOT_W;
-}
-
-function scaleY(val: number, min: number, max: number): number {
-  if (max === min) return MARGIN.top + PLOT_H / 2;
-  return MARGIN.top + PLOT_H - ((val - min) / (max - min)) * PLOT_H;
-}
+// scaleX and scaleY are defined inside generateChartSvg to close over dynamic PLOT_W/PLOT_H
 
 // Build smooth SVG path using monotone cubic interpolation (matches Recharts monotoneX)
 function buildSmoothPath(points: { x: number; y: number }[]): string {
@@ -180,7 +170,22 @@ function generateChartSvg(
   og: number,
   fg: number,
   tempHistory: TempHistoryPoint[] | null,
+  compact: boolean = false,
 ): string {
+  const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
+  const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
+  const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
+
+  // Scale helpers (close over dynamic PLOT_W/PLOT_H)
+  const scaleX = (val: number, min: number, max: number): number => {
+    if (max === min) return MARGIN.left;
+    return MARGIN.left + ((val - min) / (max - min)) * PLOT_W;
+  };
+  const scaleY = (val: number, min: number, max: number): number => {
+    if (max === min) return MARGIN.top + PLOT_H / 2;
+    return MARGIN.top + PLOT_H - ((val - min) / (max - min)) * PLOT_H;
+  };
+
   // Parse SG timestamps
   const sgParsed = sgData.map(p => ({
     t: new Date(p.date).getTime(),
@@ -376,7 +381,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { brewId } = await req.json();
+    const { brewId, compact } = await req.json();
     if (!brewId) {
       return new Response(
         JSON.stringify({ error: 'brewId is required' }),
@@ -424,11 +429,11 @@ serve(async (req) => {
     }
 
     // Generate SVG
-    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory);
+    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact);
 
     // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);
-    const fileName = `chart_${brewId}.svg`;
+    const fileName = `chart_${brewId}${compact ? '_compact' : ''}.svg`;
     const { error: uploadError } = await supabase.storage
       .from('chart-images')
       .upload(fileName, svgBytes, {

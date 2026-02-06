@@ -39,6 +39,8 @@ export interface BrewChartProps {
   chartIndex?: number;
   /** Brew ID for server-rendered chart in TV mode */
   brewId?: string;
+  /** Whether a fermentation session is active (affects TV chart aspect ratio) */
+  hasFermentationSession?: boolean;
 }
 
 export interface EventDisplay {
