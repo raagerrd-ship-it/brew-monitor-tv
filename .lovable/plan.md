@@ -1,50 +1,89 @@
 
 
-## Optimera låtbytet i TV-läge
+## Prediktiv forladdning av nasta lats bakgrund
 
-### Problem
-Vid varje låtbyte sker 3-4 kaskaderande re-renders av hela dashboarden:
-1. Bildstatus nollställs -> bakgrund försvinner kort
-2. Ny albumbild laddas -> bakgrund kommer tillbaka  
-3. Bakgrundsbearbetning startar (upp till 10s) -> ny bakgrund sätts
+### Oversikt
+Nar en lat narmar sig sitt slut (15s kvar) borjar vi forbereda nasta lats bakgrundsbild i forhand. Vid skip/snabbt byte behaller vi den gamla bakgrunden tills den nya ar helt klar -- det ar OK att det tar 10-15s.
 
-Detta orsakar "hängningar" på Chromecast-hårdvara.
+### Andringar
 
-### Lösning
+**1. Edge function: `sonos-now-playing`**
+- Extrahera `metadata.nextItem?.track` fran Sonos API:t (redan tillgangligt i `playbackMetadata`-svaret)
+- Hamta Spotify album art for nasta lat om det ar en lokal Sonos-URL (samma logik som for currentItem)
+- Lagg till `next_album_art_url` i svaret
 
-**1. Behåll gammal bakgrund tills ny är redo**
-- Sluta nollställa `albumArtUrl` och `processedBgUrl` till `null` mellan låtar
-- Behåll föregående bakgrund synlig tills den nya bilden och bakgrunden är helt redo
+**2. Databasschema: `sonos_now_playing`**
+- Lagg till kolumnen `next_album_art_url TEXT` (nullable) och `album_art_url_small TEXT` (om den inte redan finns)
 
-**2. Preloada bakgrundsbilden innan swap**  
-- När `prepare-album-background` returnerar en URL, ladda bilden i en dold `Image()` först
-- Byt `processedBgUrl` i state först när bilden faktiskt har laddats klart i browsern
-- Detta förhindrar en "tom ram" medan browsern hämtar den nya bakgrundsbilden
+**3. `SonosWidget.tsx` -- prediktiv forladdning**
+- Lagg till `NowPlaying.next_album_art_url`
+- Ny `useEffect` som overvakar `localProgress` och `duration_ms`:
+  - Nar `duration_ms - localProgress < 15000` (15s kvar), anropa `prepare-album-background` med `next_album_art_url`
+  - Spara resultatet i en `preloadedNextBgRef` (ref, inte state)
+  - Preloada bilden med `new Image()` sa den ar i browser-cache
+- Andra befintliga `prepare-album-background`-effekten:
+  - Nar ny lat detekteras, kolla forst om `preloadedNextBgRef.current` matchar nya latens `album_art_url`
+  - Om match: anvand den direkt (noll vantan)
+  - Om ingen match (skip, oforutsagbart byte): kor nuvarande reaktiva flodet som fallback -- gammal bakgrund ligger kvar tills ny ar redo
 
-**3. Batcha state-uppdateringar i widgeten**
-- I `useSonosTrackTransition`: sluta anropa `setImageLoaded(false)` vid nytt spår om vi är i TV-läge
-- Låt den nya bilden ladda "ovanpå" den gamla tyst - byt först vid `onLoad`
-- Färre state-ändringar = färre re-renders
+**4. `useSonosTrackTransition.ts`**
+- Utoka `NowPlaying`-interfacet med `next_album_art_url` -- ingen annan andring behovs
 
-**4. Separera albumart-notifiering från widgetens rendering**
-- Flytta `onAlbumArtChange`-logiken så den bara triggas när ny bild faktiskt laddats klart (inte vid varje `imageLoaded`-toggle)
-- Undvik att skicka `null` till parent mellan låtar
+### Flodesdiagram
 
-### Teknisk plan
+```text
+Normal latbyte:
+  -15s  -> Klient ser next_album_art_url, triggar prepare-album-background
+  -10s  -> Edge function processar bilden (eller cache hit)
+  -5s   -> Bild klar + preloadad i browser med new Image()
+   0s   -> Latbyte -> bakgrund swappas direkt fran ref
 
-**`useSonosTrackTransition.ts`** - Ändra `fetchNowPlaying` och `handleTrackUpdate`:
-- Ta bort `setImageLoaded(false)` vid nytt spår (behåll gammal bild tills ny laddats)
-- Lägg till en `pendingTrackRef` som håller reda på om vi väntar på ny bild
+Skip/snabbt byte (fallback):
+   0s   -> Ny lat detekteras, ingen preloadad bakgrund finns
+   0s   -> Gammal bakgrund behalls synlig
+   0-10s -> prepare-album-background kors reaktivt
+   10s  -> Ny bakgrund klar + preloadad -> swap
+```
 
-**`SonosWidget.tsx`** - Ändra effekten för `onAlbumArtChange` (rad 152-161):
-- Bara notifiera parent med ny URL, aldrig med `null` (behåll gammal)
-- Ändra `prepare-album-background`-effekten (rad 164-199): preloada bilden med `new Image()` innan `bgCallback` anropas
+### Tekniska detaljer
 
-**`BrewingDashboard.tsx`** - Ingen ändring behövs om widgeten slutar skicka `null`
+**Edge function andring** (sonos-now-playing):
+```javascript
+const nextItem = metadata.nextItem;
+const nextTrack = nextItem?.track;
+let nextAlbumArtUrl = nextTrack?.imageUrl || null;
+// Samma Spotify-logik som for currentItem om lokal URL
+nowPlaying.next_album_art_url = nextAlbumArtUrl;
+```
+
+**Widget prediktiv effekt** (SonosWidget.tsx):
+```javascript
+const preloadedNextBgRef = useRef<{ artUrl: string; bgUrl: string } | null>(null);
+const isPreloadingNextRef = useRef(false);
+
+useEffect(() => {
+  if (!nowPlaying?.next_album_art_url || !nowPlaying.duration_ms || localProgress === null) return;
+  const timeLeft = nowPlaying.duration_ms - localProgress;
+  if (timeLeft > 15000 || timeLeft < 0 || isPreloadingNextRef.current) return;
+  // Trigger prepare-album-background for next track...
+  // Store result in preloadedNextBgRef
+}, [localProgress, nowPlaying?.next_album_art_url, nowPlaying?.duration_ms]);
+```
+
+**Fallback i bakgrundseffekten**:
+```javascript
+// When new track detected, check preloaded ref first
+if (preloadedNextBgRef.current?.artUrl === nowPlaying.album_art_url) {
+  bgCallback(preloadedNextBgRef.current.bgUrl); // Instant!
+  preloadedNextBgRef.current = null;
+  return;
+}
+// Otherwise run reactive flow (takes 10-15s, old bg stays)
+```
 
 ### Sammanfattning
-- Bakgrunden blinkar inte längre vid låtbyte
-- Inga onödiga re-renders av hela dashboarden
-- Ny bakgrund visas först när den är helt redo (nedladdad till browser-cache)
-- Layout och utseende förblir oförändrat
+- Normal latbyte: bakgrund redo direkt (forladdad 15s i forvag)
+- Skip/snabbt byte: gammal bakgrund ligger kvar, ny visas nar den ar redo (10-15s)
+- Inga null-varden skickas till parent -- aldrig blank skarm
+- Inga extra re-renders: all forladdning sker via refs
 
