@@ -8,8 +8,8 @@ const corsHeaders = {
 
 // Chart dimensions - viewBox for scalability
 const WIDTH = 600;
-const HEIGHT_FULL = 300;    // No fermentation session visible
-const HEIGHT_COMPACT = 220; // With fermentation session (less vertical space)
+const HEIGHT_FULL = 340;    // No fermentation session visible
+const HEIGHT_COMPACT = 260; // With fermentation session (less vertical space)
 const MARGIN = { top: 8, right: 15, bottom: 30, left: 35 };
 
 // Colors matching desktop chartConfig.ts (CSS variables resolved)
