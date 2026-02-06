@@ -66,7 +66,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
           <div 
             className="w-full rounded-full overflow-hidden relative"
             style={{ 
-              height: isTvMode ? '6px' : '12px',
+              height: isTvMode ? '4px' : '12px',
               background: 'hsl(0 0% 0% / 0.5)',
               boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
             }}
@@ -91,7 +91,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         {/* OG and FG labels */}
         <div 
           className="flex justify-between text-muted-foreground/60 tabular-nums" 
-          style={{ fontSize: isTvMode ? '8px' : '11px' }}
+          style={{ fontSize: isTvMode ? '6px' : '11px' }}
         >
           <span>{brew.originalGravity.toFixed(3)}</span>
           <span className="text-muted-foreground/40">{progress.toFixed(0)}%</span>
@@ -102,7 +102,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         {!isInactive && (
           <p 
             className="font-medium text-muted-foreground/70 truncate leading-tight" 
-            style={{ fontSize: isTvMode ? '9px' : '12px' }}
+            style={{ fontSize: isTvMode ? '7px' : '12px' }}
           >
             {brew.fermentationRate !== null ? (
               <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
