@@ -346,8 +346,8 @@ function generateChartSvg(
   // SG line with glow effect
   const sgPathD = buildSmoothPath(sgPoints);
   const sgLineSvg = `
-    <path d="${sgPathD}" fill="none" stroke="${COLORS.sgGlow}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${sgPathD}" fill="none" stroke="${COLORS.sgLine}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${sgPathD}" fill="none" stroke="${COLORS.sgGlow}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${sgPathD}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
   `;
 
   // Current SG value label removed - shown in stat cards instead
