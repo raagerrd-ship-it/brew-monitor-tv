@@ -14,7 +14,7 @@ const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
  * Server-rendered chart image for TV mode.
  * Calls render-brew-chart edge function and displays result as static <img>.
  */
-function TvModeChart({ brewId }: { brewId: string }) {
+function TvModeChart({ brewId, compact = false }: { brewId: string; compact?: boolean }) {
   const [chartUrl, setChartUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -24,7 +24,7 @@ function TvModeChart({ brewId }: { brewId: string }) {
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brewId }),
+        body: JSON.stringify({ brewId, compact }),
       });
 
       if (!response.ok) throw new Error('Failed to render chart');
@@ -37,7 +37,7 @@ function TvModeChart({ brewId }: { brewId: string }) {
       console.error('[TvModeChart] Error:', e);
       setError(true);
     }
-  }, [brewId]);
+  }, [brewId, compact]);
 
   useEffect(() => {
     fetchChart();
@@ -76,7 +76,7 @@ export function LazyBrewChart(props: BrewChartProps) {
 
   // TV mode: skip Recharts entirely, use server-rendered image
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} />;
+    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} />;
   }
 
   return (

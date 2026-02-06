@@ -204,6 +204,7 @@ function BrewCardComponent({
             controllerId={brew.linked_controller_id}
             chartIndex={cardIndex}
             brewId={brew.id}
+            hasFermentationSession={!!brew.fermentationSession}
           />
         </div>
         
