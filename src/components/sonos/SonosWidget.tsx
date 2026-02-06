@@ -151,20 +151,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   useEffect(() => {
     const callback = onAlbumArtChangeRef.current;
-    if (callback) {
-      if (nowPlaying?.album_art_url && imageLoaded && !imageError) {
-        callback(nowPlaying.album_art_url);
-      } else {
-        callback(null);
-      }
+    if (callback && nowPlaying?.album_art_url && imageLoaded && !imageError) {
+      // Only notify parent with a valid URL, never with null
+      // This prevents the background from disappearing between tracks
+      callback(nowPlaying.album_art_url);
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
 
   // Request pre-processed background image from edge function when track changes
+  // Preload the image before notifying parent to prevent blank frames
   useEffect(() => {
     const bgCallback = onBackgroundUrlChangeRef.current;
     if (!bgCallback || !nowPlaying?.album_art_url) {
-      bgCallback?.(null);
+      // Don't send null - keep the old background visible
       return;
     }
 
@@ -186,7 +185,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         ]);
 
         if (!controller.signal.aborted && response.data?.backgroundUrl) {
-          bgCallback(response.data.backgroundUrl);
+          // Preload the image in a hidden Image() before updating state
+          const img = new Image();
+          img.onload = () => {
+            if (!controller.signal.aborted) {
+              bgCallback(response.data.backgroundUrl);
+            }
+          };
+          img.onerror = () => {
+            console.warn('[Sonos] Background image preload failed');
+          };
+          img.src = response.data.backgroundUrl;
         }
       } catch (error) {
         if (!controller.signal.aborted) {

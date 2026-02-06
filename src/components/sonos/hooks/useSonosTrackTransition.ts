@@ -65,7 +65,8 @@ export function useSonosTrackTransition(
         
         if (isNewTrack) {
           currentTrackRef.current = response.data.track_name;
-          setImageLoaded(false);
+          // Don't reset imageLoaded/imageError - keep old image visible
+          // until the new one loads via onLoad callback
           setImageError(false);
         }
         setNowPlaying(response.data);
@@ -81,19 +82,19 @@ export function useSonosTrackTransition(
     } finally {
       isFetchingRef.current = false;
     }
-  }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError]);
+  }, [setNowPlaying, setLocalProgress, setImageError]);
 
   // Handle track change from realtime
   const handleTrackUpdate = useCallback((newData: NowPlaying) => {
     if (newData.track_name !== currentTrackRef.current) {
       currentTrackRef.current = newData.track_name;
-      setImageLoaded(false);
+      // Don't reset imageLoaded - keep old image visible until new loads
       setImageError(false);
     }
     setNowPlaying(newData);
     setLocalProgress(newData.position_ms);
     lastUpdateRef.current = Date.now();
-  }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError]);
+  }, [setNowPlaying, setLocalProgress, setImageError]);
 
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
