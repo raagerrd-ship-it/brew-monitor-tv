@@ -274,13 +274,12 @@ export function BrewingDashboard() {
 
       {/* Header Bar */}
       <div 
-        className={`overflow-visible z-20 transition-all duration-500 ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} 
+        className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`} 
         style={{
           height: isMobile ? 'auto' : albumArtUrl && isTvMode ? 'auto' : `${HEADER_HEIGHT}px`,
           background: albumArtUrl && isTvMode 
-            ? 'hsl(222 20% 9% / 0.7)' 
+            ? 'hsl(222 20% 9% / 0.85)' 
             : 'hsl(222 20% 9%)',
-          backdropFilter: albumArtUrl && isTvMode ? 'blur(12px)' : undefined,
           borderBottom: '1px solid hsl(222 15% 16%)'
         }}
       >

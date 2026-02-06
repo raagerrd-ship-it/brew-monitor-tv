@@ -204,7 +204,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         />
       )}
       <div 
-        className="relative overflow-hidden rounded-xl animate-fade-in"
+        className={`relative overflow-hidden rounded-xl ${isTvMode ? '' : 'animate-fade-in'}`}
         style={{
           width: widgetWidth,
           height: widgetHeight,
@@ -232,8 +232,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             className="absolute inset-0 w-full h-full object-cover"
             style={{ 
               opacity: imageLoaded ? 1 : 0,
-              transition: 'opacity 600ms ease-out',
-              willChange: imageLoaded ? 'auto' : 'opacity',
+              ...(isTvMode ? {} : { transition: 'opacity 600ms ease-out', willChange: imageLoaded ? 'auto' : 'opacity' }),
             }}
             onLoad={handleImageLoad}
             onError={handleImageError}
@@ -262,7 +261,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           >
             <div 
               ref={textRef}
-              className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
+              className={`whitespace-nowrap font-semibold text-white ${isTvMode ? '' : 'drop-shadow-lg'} ${
                 shouldScroll && !isTvMode ? 'animate-marquee' : ''
               }`}
               style={{ fontSize: trackFontSize }}
@@ -272,7 +271,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           </div>
           {nowPlaying.artist_name && (
             <div 
-              className="truncate text-white/80 drop-shadow-md"
+              className={`truncate text-white/80 ${isTvMode ? '' : 'drop-shadow-md'}`}
               style={{ fontSize: artistFontSize }}
             >
               {nowPlaying.artist_name}
@@ -293,7 +292,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                 style={{
                   width: `${progressPercent}%`,
                   background: 'rgba(255, 255, 255, 0.9)',
-                  transition: 'width 300ms linear',
+                  ...(isTvMode ? {} : { transition: 'width 300ms linear' }),
                 }}
               />
             </div>
