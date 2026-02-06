@@ -49,46 +49,10 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [preloadedAlbumArt, setPreloadedAlbumArt] = useState<string | null>(null);
-  const preloadTimeoutRef = useRef<number | null>(null);
   
+  // Simple: the widget already loaded the image, just use the URL directly
   const handleAlbumArtChange = useCallback((url: string | null) => {
-    console.log('[TV Debug] Album art change:', url ? 'loaded' : 'cleared');
     setAlbumArtUrl(url);
-    
-    // Clear any pending preload
-    if (preloadTimeoutRef.current) {
-      clearTimeout(preloadTimeoutRef.current);
-      preloadTimeoutRef.current = null;
-    }
-    
-    if (!url) {
-      setPreloadedAlbumArt(null);
-      return;
-    }
-    
-    // Debounce preloading to prevent rapid image switches
-    preloadTimeoutRef.current = window.setTimeout(() => {
-      const img = new Image();
-      img.onload = () => {
-        console.log('[TV Debug] Album art preloaded successfully');
-        setPreloadedAlbumArt(url);
-      };
-      img.onerror = () => {
-        console.log('[TV Debug] Album art preload failed');
-        setPreloadedAlbumArt(null);
-      };
-      img.src = url;
-    }, 500);
-  }, []);
-  
-  // Cleanup preload timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (preloadTimeoutRef.current) {
-        clearTimeout(preloadTimeoutRef.current);
-      }
-    };
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -293,11 +257,11 @@ export function BrewingDashboard() {
       )}
       
       {/* Album art background - uses preloaded image for stability */}
-      {isTvMode && preloadedAlbumArt && (
+      {isTvMode && albumArtUrl && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
-            backgroundImage: `url(${preloadedAlbumArt})`,
+            backgroundImage: `url(${albumArtUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
             opacity: 0.2,

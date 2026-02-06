@@ -26,8 +26,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [localProgress, setLocalProgress] = useState<number | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [previousAlbumArt, setPreviousAlbumArt] = useState<string | null>(null);
-  const [showPreviousArt, setShowPreviousArt] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -42,9 +40,24 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   } = useSonosTrackTransition(
     isConnected,
     showWidget,
-    { nowPlaying, localProgress, imageLoaded, imageError, previousAlbumArt, showPreviousArt },
-    { setNowPlaying, setLocalProgress, setImageLoaded, setImageError, setPreviousAlbumArt, setShowPreviousArt }
+    { nowPlaying, localProgress, imageLoaded, imageError },
+    { setNowPlaying, setLocalProgress, setImageLoaded, setImageError }
   );
+
+  // JS-driven progress ticker (1s interval)
+  useEffect(() => {
+    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
+    
+    const timer = window.setInterval(() => {
+      setLocalProgress(prev => {
+        if (prev === null) return prev;
+        const next = prev + 1000;
+        return next > (nowPlaying.duration_ms ?? next) ? nowPlaying.duration_ms! : next;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -72,20 +85,15 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Polling interval - 5s for track changes (no server-side poller exists)
-  // This is required because realtime only works when DB is updated
+  // Polling interval - 5s for track changes
   useEffect(() => {
     if (!isConnected || !showWidget) return;
 
-    // Initial fetch
     fetchNowPlaying();
 
-    // Poll every 5 seconds to detect track changes
-    // Using 5s instead of 3s to reduce load on Cast hardware
     const SYNC_INTERVAL = 5000;
     pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
 
-    // Handle visibility changes
     const handleVisibility = () => {
       if (document.hidden) {
         if (pollIntervalRef.current) {
@@ -168,15 +176,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   if (!nowPlaying?.track_name) return null;
   if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
 
-  // Calculate progress for CSS animation
-  const initialProgress = (localProgress && nowPlaying.duration_ms) 
+  // Calculate progress percentage
+  const progressPercent = (localProgress && nowPlaying.duration_ms) 
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
     : 0;
-  const remainingMs = nowPlaying.duration_ms 
-    ? Math.max(0, nowPlaying.duration_ms - (localProgress ?? 0))
-    : 0;
 
-  // Fixed pixel sizes for scaled container (adjusted for 720p TV)
+  // Fixed pixel sizes for scaled container
   const trackFontSize = isTvMode ? '18px' : isMobile ? '0.8rem' : '14px';
   const artistFontSize = isTvMode ? '14px' : isMobile ? '0.7rem' : '12px';
   const progressHeight = isTvMode ? '5px' : isMobile ? '2px' : '3px';
@@ -200,116 +205,100 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       )}
       <div 
         className="relative overflow-hidden rounded-xl animate-fade-in"
-      style={{
-        width: widgetWidth,
-        height: widgetHeight,
-        contain: 'strict', // Isolate rendering for performance
-        boxShadow: isTvMode 
-          ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
-          : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
-      }}
-    >
-      {/* Fallback gradient background */}
-      <div 
-        className="absolute inset-0"
         style={{
-          background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
+          width: widgetWidth,
+          height: widgetHeight,
+          contain: 'strict',
+          boxShadow: isTvMode 
+            ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+            : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
         }}
-      />
-
-      {/* Previous album art for crossfade (underneath) */}
-      {previousAlbumArt && showPreviousArt && (
-        <img
-          src={previousAlbumArt}
-          alt=""
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ 
-            opacity: 1,
-            willChange: 'opacity',
-          }}
-        />
-      )}
-
-      {/* Current album art background (on top, fades in) */}
-      {nowPlaying.album_art_url && !imageError && (
-        <img
-          src={nowPlaying.album_art_url}
-          alt=""
-          decoding="async"
-          fetchPriority="high"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ 
-            opacity: imageLoaded ? 1 : 0,
-            transition: 'opacity 600ms ease-out',
-            willChange: imageLoaded ? 'auto' : 'opacity',
-          }}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-        />
-      )}
-
-      {/* Dark overlay for readability */}
-      {hasAlbumArt && (
+      >
+        {/* Fallback gradient background */}
         <div 
           className="absolute inset-0"
           style={{
-            background: 'linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)',
+            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
           }}
         />
-      )}
-      
-      {/* Content */}
-      <div 
-        className={`relative h-full flex flex-col justify-center ${
-          isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
-        }`}
-      >
-        <div 
-          ref={containerRef}
-          className="overflow-hidden"
-        >
+
+        {/* Album art background (fades in when loaded) */}
+        {nowPlaying.album_art_url && !imageError && (
+          <img
+            src={nowPlaying.album_art_url}
+            alt=""
+            decoding="async"
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ 
+              opacity: imageLoaded ? 1 : 0,
+              transition: 'opacity 600ms ease-out',
+              willChange: imageLoaded ? 'auto' : 'opacity',
+            }}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+          />
+        )}
+
+        {/* Dark overlay for readability */}
+        {hasAlbumArt && (
           <div 
-            ref={textRef}
-            className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
-              shouldScroll && !isTvMode ? 'animate-marquee' : ''
-            }`}
-            style={{ fontSize: trackFontSize }}
-          >
-            {nowPlaying.track_name}
-          </div>
-        </div>
-        {nowPlaying.artist_name && (
-          <div 
-            className="truncate text-white/80 drop-shadow-md"
-            style={{ fontSize: artistFontSize }}
-          >
-            {nowPlaying.artist_name}
-          </div>
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)',
+            }}
+          />
         )}
         
-        {/* Progress Bar - CSS animated, no JS updates */}
-        {nowPlaying.duration_ms && (
+        {/* Content */}
+        <div 
+          className={`relative h-full flex flex-col justify-center ${
+            isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
+          }`}
+        >
           <div 
-            className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
-            style={{
-              height: progressHeight,
-              background: 'rgba(255, 255, 255, 0.2)',
-            }}
+            ref={containerRef}
+            className="overflow-hidden"
           >
             <div 
-              key={`${nowPlaying.track_name}-${localProgress}`}
-              className="h-full rounded-full"
-              style={{
-                '--progress-start': `${initialProgress}%`,
-                width: `${initialProgress}%`,
-                background: 'rgba(255, 255, 255, 0.9)',
-                animation: remainingMs > 0 ? `progress-grow ${remainingMs}ms linear forwards` : 'none',
-              } as React.CSSProperties}
-            />
+              ref={textRef}
+              className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
+                shouldScroll && !isTvMode ? 'animate-marquee' : ''
+              }`}
+              style={{ fontSize: trackFontSize }}
+            >
+              {nowPlaying.track_name}
+            </div>
           </div>
-        )}
-      </div>
+          {nowPlaying.artist_name && (
+            <div 
+              className="truncate text-white/80 drop-shadow-md"
+              style={{ fontSize: artistFontSize }}
+            >
+              {nowPlaying.artist_name}
+            </div>
+          )}
+          
+          {/* Progress Bar - JS driven */}
+          {nowPlaying.duration_ms && (
+            <div 
+              className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
+              style={{
+                height: progressHeight,
+                background: 'rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div 
+                className="h-full rounded-full"
+                style={{
+                  width: `${progressPercent}%`,
+                  background: 'rgba(255, 255, 255, 0.9)',
+                  transition: 'width 300ms linear',
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
