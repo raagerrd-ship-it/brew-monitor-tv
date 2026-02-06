@@ -55,9 +55,7 @@ export function StatCard({
     ? `${Math.round(parseInt(valueSize) * 0.7)}px`
     : defaultValueSize;
 
-  const baseStyles: CSSProperties = isTvMode ? {
-    position: 'relative' as const,
-  } : {
+  const baseStyles: CSSProperties = {
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.15),
     borderWidth: '1px',
     borderStyle: 'solid',
@@ -79,17 +77,15 @@ export function StatCard({
       onClick={onClick}
       title={title}
     >
-      {/* Top light reflection - desktop only */}
-      {!isTvMode && (
-        <div 
-          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
-          style={{
-            background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
-          }}
-        />
-      )}
+      {/* Top light reflection */}
+      <div 
+        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+        style={{
+          background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
+        }}
+      />
       
-      {icon && (
+      {icon && !isTvMode && (
         <div className="absolute top-1/2 -translate-y-1/2 opacity-[0.08]" style={{ width: '55%', height: '55%', right: '-8%' }}>
           {icon}
         </div>
