@@ -47,7 +47,7 @@ export function DashboardHeader({
       style={{
         height: isMobile ? 'auto' : `${isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT_DESKTOP}px`,
         background: hasAlbumArtBackground && isTvMode
-          ? 'hsl(222 20% 9% / 0.85)'
+          ? 'hsl(222 20% 9% / 0.55)'
           : 'hsl(222 20% 9%)',
         borderBottom: '1px solid hsl(222 15% 16%)'
       }}
