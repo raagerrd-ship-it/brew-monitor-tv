@@ -72,7 +72,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
             }}
           >
             <div 
-              className="h-full rounded-full transition-all duration-700 ease-out"
+              className={`h-full rounded-full ${isTvMode ? '' : 'transition-all duration-700 ease-out'}`}
               style={{ 
                 width: `${progress}%`,
                 background: progressColor,

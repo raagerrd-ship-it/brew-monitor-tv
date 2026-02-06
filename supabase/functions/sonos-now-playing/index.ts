@@ -50,23 +50,26 @@ async function getSpotifyToken(clientId: string, clientSecret: string): Promise<
   }
 }
 
-// Fetch album art from Spotify
-async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise<string | null> {
+// Fetch album art from Spotify (returns both medium and small URLs)
+async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise<{ medium: string | null; small: string | null }> {
   try {
     const response = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     
-    if (!response.ok) return null;
+    if (!response.ok) return { medium: null, small: null };
     const track = await response.json();
     
     const images = track.album?.images;
     if (images && images.length > 0) {
-      return images[1]?.url || images[0]?.url;
+      return {
+        medium: images[1]?.url || images[0]?.url,
+        small: images[2]?.url || images[1]?.url || images[0]?.url,
+      };
     }
-    return null;
+    return { medium: null, small: null };
   } catch {
-    return null;
+    return { medium: null, small: null };
   }
 }
 
@@ -232,6 +235,7 @@ serve(async (req) => {
     
     // Get album art - prefer Sonos URL if it's a valid external URL
     let albumArtUrl = track?.imageUrl || container?.imageUrl || null;
+    let albumArtUrlSmall: string | null = null;
     
     // Only fetch Spotify art if we have a local Sonos URL
     if (albumArtUrl && (albumArtUrl.includes('192.168.') || albumArtUrl.includes('getaa'))) {
@@ -239,12 +243,12 @@ serve(async (req) => {
       const spotifyTrackId = extractSpotifyTrackId(trackUri);
       
       if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
-        // Get cached token or fetch new one
         const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
         if (spotifyToken) {
           const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
-          if (spotifyArt) {
-            albumArtUrl = spotifyArt;
+          if (spotifyArt.medium) {
+            albumArtUrl = spotifyArt.medium;
+            albumArtUrlSmall = spotifyArt.small;
           }
         }
       }
@@ -256,6 +260,7 @@ serve(async (req) => {
       artist_name: track?.artist?.name || null,
       album_name: track?.album?.name || null,
       album_art_url: albumArtUrl,
+      album_art_url_small: albumArtUrlSmall,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,

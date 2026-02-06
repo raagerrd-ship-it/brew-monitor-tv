@@ -58,7 +58,7 @@ function BrewCardComponent({
 
   return (
     <Card 
-      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative transition-all duration-500 ${
+      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${isTvMode ? '' : 'transition-all duration-500'} ${
         isTvMode ? '' : 'backdrop-blur-xl'
       } ${
         hasAlbumArtBackground ? 'backdrop-blur-md' : ''

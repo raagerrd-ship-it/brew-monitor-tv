@@ -33,7 +33,7 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
           height="8" 
           rx="1" 
           fill={batteryColor}
-          className="transition-all duration-500"
+          className={isBrewInactive(brew.status) ? '' : 'transition-all duration-500'}
           opacity="0.6"
         />
       )}

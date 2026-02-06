@@ -210,8 +210,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           height: widgetHeight,
           contain: 'strict',
           boxShadow: isTvMode 
-            ? '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+            ? 'none'
             : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+          border: isTvMode ? '1px solid rgba(255, 255, 255, 0.15)' : 'none',
         }}
       >
         {/* Fallback gradient background */}

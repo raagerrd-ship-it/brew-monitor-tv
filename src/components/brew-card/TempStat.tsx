@@ -40,7 +40,7 @@ function TempStatComponent({ brew, devices, updatedFields, isAuthenticated, onDe
         height="20" 
         fill={tempColor}
         clipPath={`url(#thermo-clip-${brew.batch_id})`}
-        className="transition-all duration-500"
+        className="transition-none"
         opacity="0.6"
       />
     </svg>
