@@ -110,10 +110,10 @@ serve(async (req) => {
       img.resize(400, 400);
       
       // Heavy gaussian blur (radius 40, sigma 20)
-      img.blur(40, 20);
+      img.blur(50, 25);
       
-      // Darken to ~30% brightness using modulate (brightness=30, saturation=100, hue=100)
-      img.modulate(new Percentage(30), new Percentage(100), new Percentage(100));
+      // Darken to ~40% brightness using modulate (brightness=40, saturation=100, hue=100)
+      img.modulate(new Percentage(40), new Percentage(100), new Percentage(100));
       
       // Write as JPEG with lower quality for smaller file size
       img.quality = 60;
