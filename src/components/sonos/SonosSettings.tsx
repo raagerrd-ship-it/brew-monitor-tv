@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Loader2, Music, ExternalLink, Unlink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,10 +21,29 @@ export function SonosSettings() {
   const [groups, setGroups] = useState<SonosGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
+  const [bgBlur, setBgBlur] = useState(40);
+  const [bgBrightness, setBgBrightness] = useState(0.4);
 
   useEffect(() => {
     loadSonosStatus();
+    loadBgSettings();
   }, []);
+
+  const loadBgSettings = async () => {
+    try {
+      const { data } = await (supabase as any)
+        .from('sonos_settings')
+        .select('bg_blur, bg_brightness')
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setBgBlur(data.bg_blur ?? 40);
+        setBgBrightness(data.bg_brightness ?? 0.4);
+      }
+    } catch (error) {
+      console.error('Failed to load bg settings:', error);
+    }
+  };
 
   const loadSonosStatus = async () => {
     setIsLoading(true);
@@ -94,7 +114,6 @@ export function SonosSettings() {
     const selectedGroup = groups.find(g => g.id === groupId);
     
     try {
-      // Update settings in database using any type
       const { data: existingSettings } = await (supabase as any)
         .from('sonos_settings')
         .select('id')
@@ -142,6 +161,41 @@ export function SonosSettings() {
     } catch (error) {
       console.error('Failed to update show on dashboard:', error);
     }
+  };
+
+  const updateBgSetting = async (field: 'bg_blur' | 'bg_brightness', value: number) => {
+    try {
+      const { data: existingSettings } = await (supabase as any)
+        .from('sonos_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingSettings) {
+        await (supabase as any)
+          .from('sonos_settings')
+          .update({ [field]: value })
+          .eq('id', existingSettings.id);
+      }
+    } catch (error) {
+      console.error(`Failed to update ${field}:`, error);
+    }
+  };
+
+  const handleBlurChange = (value: number[]) => {
+    setBgBlur(value[0]);
+  };
+
+  const handleBlurCommit = (value: number[]) => {
+    updateBgSetting('bg_blur', value[0]);
+  };
+
+  const handleBrightnessChange = (value: number[]) => {
+    setBgBrightness(value[0]);
+  };
+
+  const handleBrightnessCommit = (value: number[]) => {
+    updateBgSetting('bg_brightness', value[0]);
   };
 
   if (isLoading) {
@@ -221,6 +275,44 @@ export function SonosSettings() {
               checked={showOnDashboard}
               onCheckedChange={handleShowOnDashboardChange}
             />
+          </div>
+
+          {/* Background Blur */}
+          <div className="space-y-3 p-4 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label>Bakgrundsoskärpa (TV-läge)</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
+            </div>
+            <Slider
+              value={[bgBlur]}
+              min={0}
+              max={100}
+              step={5}
+              onValueChange={handleBlurChange}
+              onValueCommit={handleBlurCommit}
+            />
+            <p className="text-xs text-muted-foreground">
+              Hur suddig albumomslagets bakgrund blir i TV-läge
+            </p>
+          </div>
+
+          {/* Background Brightness */}
+          <div className="space-y-3 p-4 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label>Bakgrundsljusstyrka (TV-läge)</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+            </div>
+            <Slider
+              value={[bgBrightness]}
+              min={0.1}
+              max={1.0}
+              step={0.05}
+              onValueChange={handleBrightnessChange}
+              onValueCommit={handleBrightnessCommit}
+            />
+            <p className="text-xs text-muted-foreground">
+              Hur ljus albumomslagets bakgrund är i TV-läge
+            </p>
           </div>
         </>
       )}

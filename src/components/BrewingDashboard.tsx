@@ -45,10 +45,42 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [bgBlur, setBgBlur] = useState(40);
+  const [bgBrightness, setBgBrightness] = useState(0.4);
   
   // Simple: the widget already loaded the image, just use the URL directly
   const handleAlbumArtChange = useCallback((url: string | null) => {
     setAlbumArtUrl(url);
+  }, []);
+
+  // Load and subscribe to Sonos background settings
+  useEffect(() => {
+    const loadBgSettings = async () => {
+      const { data } = await (supabase as any)
+        .from('sonos_settings')
+        .select('bg_blur, bg_brightness')
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setBgBlur(data.bg_blur ?? 40);
+        setBgBrightness(data.bg_brightness ?? 0.4);
+      }
+    };
+    loadBgSettings();
+
+    const channel = supabase
+      .channel('sonos-bg-settings')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sonos_settings' },
+        (payload: any) => {
+          if (payload.new?.bg_blur !== undefined) setBgBlur(payload.new.bg_blur);
+          if (payload.new?.bg_brightness !== undefined) setBgBrightness(payload.new.bg_brightness);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -296,7 +328,7 @@ export function BrewingDashboard() {
             backgroundImage: `url(${albumArtUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
-            filter: 'blur(40px) brightness(0.4)',
+            filter: `blur(${bgBlur}px) brightness(${bgBrightness})`,
             transform: 'scale(1.15)',
             contain: 'strict',
           }}

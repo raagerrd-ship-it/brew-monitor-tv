@@ -763,6 +763,8 @@ export type Database = {
       }
       sonos_settings: {
         Row: {
+          bg_blur: number
+          bg_brightness: number
           created_at: string
           id: string
           selected_group_id: string | null
@@ -771,6 +773,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bg_blur?: number
+          bg_brightness?: number
           created_at?: string
           id?: string
           selected_group_id?: string | null
@@ -779,6 +783,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bg_blur?: number
+          bg_brightness?: number
           created_at?: string
           id?: string
           selected_group_id?: string | null
