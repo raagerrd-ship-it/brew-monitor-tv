@@ -1,35 +1,42 @@
 
 
-## Fix: Preview visar flera månader gammal version (PWA-cache)
+## Ta bort VitePWA — behall automatisk TV-uppdatering
 
-### Orsak
-PWA:ns Service Worker (Workbox) har cachat gamla JS/CSS/HTML-filer och serverar dem i preview. Utan `skipWaiting` och `clientsClaim` fastnar den gamla Service Workern och blockerar nya versioner.
+### Vad tas bort
 
-### Losning — tva andringar
+**1. `vite.config.ts`**
+- Ta bort `import { VitePWA } from 'vite-plugin-pwa'`
+- Ta bort hela `VitePWA({...})`-blocket fran plugins
 
-**1. `vite.config.ts`** — Lagg till `skipWaiting` och `clientsClaim`
+**2. `package.json`**
+- Ta bort `vite-plugin-pwa` fran dependencies
 
-I workbox-konfigurationen, lagg till dessa tva rader sa att en ny Service Worker tar over omedelbart istallet for att vanta:
+### Vad behalles (oforandrat)
+
+**`src/hooks/use-version-check.ts`** — Pollar `index.html` var 60:e sekund, jamfor resurshasharna, och gor hard reload med cache-rensning nar en ny version detekteras. Fungerar helt utan Service Worker.
+
+**`index.html`** — Emergency cleanup-scriptet som rensar kvarvarande gamla Service Workers vid forsta laddning.
+
+**`src/main.tsx`** — SW-unregister for TV-mode och `controllerchange`-lyssnaren som sakerhet.
+
+### TV-uppdateringsflode efter andringen
 
 ```text
-workbox: {
-  skipWaiting: true,
-  clientsClaim: true,
-  globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-  runtimeCaching: [ ...befintlig config oforandrad... ]
-}
+useVersionCheck (var 60s)
+  |
+  +-- Hamtar /?_=timestamp (cache-busted)
+  |
+  +-- Jamfor script/CSS-hashar
+  |
+  +-- Om ny version:
+        1. Visar toast "Ny version tillganglig"
+        2. Vantar 2s
+        3. Rensar ev. kvarvarande SW-cacher
+        4. Hard reload med cache-busting parameter
 ```
 
-**2. `src/hooks/use-version-check.ts`** — Forbattra reload-logiken
-
-Uppdatera setTimeout-callbacken sa att den:
-1. Hamtar aktiv SW-registrering
-2. Om `registration.waiting` finns: skickar `SKIP_WAITING`-meddelande och vantar pa aktivering (max 3s timeout)
-3. Sedan rensar cacher och laddar om som idag
-
-### Paverkan
-- Inga nya beroenden
-- Inga nya filer
-- Normal anvandning: ingen synlig forandring
-- Efter publicering/rebuild: preview visar alltid senaste versionen direkt
+### Sammanfattning
+- Tre andringar: `vite.config.ts` (ta bort plugin), `package.json` (ta bort dependency), inget annat
+- TV:n fortsatter uppdatera sig automatiskt via `useVersionCheck`
+- Ingen offline-funktionalitet pga borttagning av SW, men det anvands inte
 
