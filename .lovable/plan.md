@@ -1,53 +1,74 @@
 
 
-## Delad header mellan Dashboard och Settings + full bredd
+## Optimering av bakgrundsprocesser + borttagning av FPS/minnesovervakning
 
 ### Oversikt
-Extrahera dashboard-headern till en delad komponent som anvands pa bade Dashboard och Settings. Settings-sidan far full bredd istallet for `max-w-4xl`.
+Ta bort FPS-raknaren och minnesovervakningen helt, samt optimera ovriga bakgrundsprocesser for battre prestanda i TV-laget.
 
-### Andringar
+### 1. Ta bort FPS-raknaren (4 filer)
 
-**1. Skapa `src/components/DashboardHeader.tsx`** (ny fil)
-- Extrahera header-JSX fran `BrewingDashboard.tsx` (rad 298-355): Logo, RaptControllerBar, Clock, Settings-kugghjul
-- Extrahera aven `RaptControllerBar`-subkomponenten (den ar redan memo:ad)
-- Props: `controllers`, `pills`, `onControllerClick?` (valfritt — pa Settings klickar man inte pa controllers), `hasAlbumArtBackground` (for transparens i TV-mode)
-- Headern hamtar INTE egen data — den tar emot allt via props
-- Settings-kugghjulet markeras visuellt aktivt nar man ar pa `/settings` (via `useLocation`)
-- "Logga ut"-knappen laggs till i headern (hoger sida, bredvid kugghjulet, bara synlig pa `/settings`)
+FPS-raknaren anvander kontinuerlig `requestAnimationFrame` och en Supabase realtime-kanal + databasfraga bara for att visa/dolja den. Allt detta tas bort:
 
-**2. Uppdatera `src/components/BrewingDashboard.tsx`**
-- Ersatt inline header-JSX med `<DashboardHeader />`
-- Skicka controllers, pills, onControllerClick, och albumArtUrl som props
-- Ta bort `RaptControllerBar` fran denna fil (den flyttas till DashboardHeader)
+- **Radera** `src/components/FpsCounter.tsx`
+- **Radera** `src/contexts/FpsCounterContext.tsx`
+- **`src/App.tsx`**: Ta bort import av `FpsCounterProvider` och `FpsCounter`, ta bort `<FpsCounterProvider>`-wrappern (rad 8-9, 11, 58, 76, 78)
+- **`src/pages/Settings.tsx`**: Ta bort import av `useFpsCounter` (rad 28), ta bort all UI-kod for FPS-toggle (sokningen: "FPS-raknare" eller "show_fps_counter")
 
-**3. Uppdatera `src/pages/Settings.tsx`**
-- Importera `DashboardHeader`
-- Hamta controllers och pills via Supabase-queries (liknande befintlig `loadAvailableControllers` — den finns redan i Settings!)
-- Formatera controllers-datan till `TempController[]`-typen som headern forvantar
-- Ta bort "Tillbaka till Dashboard"-knappen (logotypen i headern gar till `/`)
-- Ta bort den separata "Logga ut"-knappen fran sidinnehallet
-- Byt `container mx-auto max-w-4xl` till `w-full px-6` for full bredd
-- Behall `overflow-y-auto` for scrollning under headern
-- Lagg till `pt-[56px]` eller liknande offset for headerns hojd
+### 2. Ta bort use-memory-monitor (2 filer)
 
-**4. Layout-struktur**
+Minnesovervakningen kollar heapen var 60:e sekund och laddar om sidan vid 90%. I praktiken ar det sallsynt att den triggas, och auto-reload vid versionscheck hanterar redan periodiska omladdningar.
 
-```text
-+----------------------------------------------------------+
-| [Logo -> /]  [RAPT Controllers]  [Klocka] [Logga ut] [*] |  <- Delad header (56px)
-+----------------------------------------------------------+
-| [Tabs: Synk | Automatik | Enheter | Ol ]                |
-|                                                          |
-|  (Full bredd installningsinnehall med px-6 padding)      |
-|                                                          |
-+----------------------------------------------------------+
-```
+- **Radera** `src/hooks/use-memory-monitor.ts`
+- **`src/components/BrewingDashboard.tsx`**: Ta bort import (rad 20) och anropet `useMemoryMonitor(90, 60000, isTvMode)` (rad 118)
 
-### Tekniska detaljer
+### 3. Optimera klockan i TV-lage (1 fil)
 
-- `DashboardHeader` anvander `useLocation()` for att avgora om kugghjulet ska vara "aktivt" (opacity 100% pa `/settings`)
-- Logo-komponenten gor redan `onClick={() => navigate('/')}` eller liknande — verifiera och lagg till om det saknas
-- Controllers/pills-data i Settings hamtas fran befintliga `availableControllers`-state + `loadAvailableControllers()`
-- Pills-data behover aven hamtas i Settings (finns inte idag) — lagg till en enkel query mot `selected_rapt_pills` + `rapt_pills`
-- Logga ut-knappen visas bara nar man ar pa `/settings` (inte pa dashboard)
+Klockan uppdateras varje sekund pa alla enheter. I TV-lage behover sekunderna inte visas.
+
+- **`src/components/Clock.tsx`**: I TV-lage, uppdatera intervallet till 60 sekunder och dolj sekunderna. Behall 1-sekundsintervall for desktop.
+
+### 4. Optimera extern timer-backup-polling (1 fil)
+
+`use-external-timer.ts` pollar cachen var 10:e sekund som backup. Eftersom realtime-prenumeration ar aktiv kan detta okas till 60 sekunder.
+
+- **`src/hooks/use-external-timer.ts`**: Andra `setInterval` fran 10000 till 60000 (rad 343)
+
+### 5. Forenkla glow-effekt-timeout (1 fil)
+
+`use-brew-data.ts` har en 120-sekunders timeout for glow-effekter (rad 514-520). I TV-lage kan denna stangas av helt for att spara minnesanvandning (farre timers).
+
+- **`src/hooks/use-brew-data.ts`**: Skicka in `isTvMode` och skippa `setUpdatedFields` + timeout helt i TV-lage
+
+### 6. Ta bort DashboardDebugOverlay och TvDebugOverlay (3 filer)
+
+Debug-overlayen ar redan hardkodad till `showDebug = false` (rad 62 i BrewingDashboard). Den importeras i onodan och innehaller tung logik (PerformanceObserver, console.error-interceptor, globala `__perfTimings`).
+
+- **Radera** `src/components/DashboardDebugOverlay.tsx`
+- **Radera** `src/components/TvDebugOverlay.tsx`
+- **`src/components/BrewingDashboard.tsx`**: Ta bort importer (rad 8-9), ta bort `showDebug`-variabeln och hela JSX-blocket for `TvDebugOverlay` (rad 62, 263-265)
+
+### Sammanfattning av borttagna processer
+
+| Process | Intervall | Borttagen/Andrad |
+|---|---|---|
+| FPS-raknare (requestAnimationFrame-loop) | Kontinuerlig | Borttagen |
+| FPS realtime-kanal (fps-counter-settings) | Realtid | Borttagen |
+| Minnesovervakning (heap check) | 60s | Borttagen |
+| Debug overlay (PerformanceObserver + console.error) | Kontinuerlig | Borttagen |
+| Klocka (sekund-uppdatering) | 1s | 60s i TV-lage |
+| Timer backup-poll | 10s | 60s |
+| Glow-effekt timers | 120s per uppdatering | Av i TV-lage |
+
+### Kvarstaende processer (oforandrade)
+
+| Process | Intervall | Anledning |
+|---|---|---|
+| Realtime: brew_readings | Realtid (2s batch i TV) | Karnfunktion |
+| Realtime: rapt_pills | Realtid (2s batch i TV) | Karnfunktion |
+| Realtime: rapt_temp_controllers | Realtid (2s batch i TV) | Karnfunktion |
+| Realtime: selected_brews/pills/controllers | Realtid | Fjarrstyrning |
+| Realtime: fermentation_sessions | Realtid | Karnfunktion |
+| Realtime: cached_external_timer | Realtid | Timer-visning |
+| Sonos polling | 5s | Musikvisning i TV |
+| Versionscheck | 300s (TV) / 60s (desktop) | Auto-uppdatering |
 
