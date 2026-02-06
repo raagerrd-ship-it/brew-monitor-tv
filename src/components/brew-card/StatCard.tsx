@@ -55,13 +55,15 @@ export function StatCard({
     ? `${Math.round(parseInt(valueSize) * 0.7)}px`
     : defaultValueSize;
 
-  const baseStyles: CSSProperties = {
+  const baseStyles: CSSProperties = isTvMode ? {
+    position: 'relative' as const,
+  } : {
     borderColor: isUpdated ? colorWithOpacity(color, 0.5) : colorWithOpacity(color, 0.15),
     borderWidth: '1px',
     borderStyle: 'solid',
     background: customBackground || `linear-gradient(145deg, ${colorWithOpacity(color, 0.06)} 0%, hsl(222 20% 12% / 0.7) 100%)`,
     boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
-    position: 'relative',
+    position: 'relative' as const,
   };
 
   const colSpanClass = colSpan === 2 ? 'col-span-2' : colSpan === 3 ? 'col-span-3' : '';
@@ -77,13 +79,15 @@ export function StatCard({
       onClick={onClick}
       title={title}
     >
-      {/* Top light reflection */}
-      <div 
-        className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
-        style={{
-          background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
-        }}
-      />
+      {/* Top light reflection - desktop only */}
+      {!isTvMode && (
+        <div 
+          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
+          style={{
+            background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
+          }}
+        />
+      )}
       
       {icon && (
         <div className="absolute top-1/2 -translate-y-1/2 opacity-[0.08]" style={{ width: '55%', height: '55%', right: '-8%' }}>
