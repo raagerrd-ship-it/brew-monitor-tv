@@ -286,8 +286,8 @@ export function SonosSettings() {
             <Slider
               value={[bgBlur]}
               min={0}
-              max={100}
-              step={5}
+              max={25}
+              step={1}
               onValueChange={handleBlurChange}
               onValueCommit={handleBlurCommit}
             />
