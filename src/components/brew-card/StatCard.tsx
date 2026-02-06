@@ -70,7 +70,7 @@ export function StatCard({
 
   return (
     <div 
-      className={`rounded-xl ${isTvMode ? 'p-2' : 'p-3'} flex flex-col items-center justify-center gap-0.5 relative overflow-visible backdrop-blur-md transition-all duration-700 min-h-0 ${
+      className={`rounded-xl ${isTvMode ? 'p-2' : 'p-3'} flex flex-col items-center justify-center gap-0.5 relative overflow-visible ${isTvMode ? '' : 'backdrop-blur-md transition-all duration-700'} min-h-0 ${
         clickable ? 'cursor-pointer hover:scale-[1.02] hover:shadow-lg' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
