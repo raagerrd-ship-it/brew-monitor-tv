@@ -60,3 +60,6 @@ verify_jwt = false
 
 [functions.prepare-album-background]
 verify_jwt = false
+
+[functions.render-brew-chart]
+verify_jwt = false
