@@ -154,8 +154,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   useEffect(() => {
     const callback = onAlbumArtChangeRef.current;
     if (callback && nowPlaying?.album_art_url && imageLoaded && !imageError) {
-      // Only notify parent with a valid URL, never with null
-      // This prevents the background from disappearing between tracks
       callback(nowPlaying.album_art_url);
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
