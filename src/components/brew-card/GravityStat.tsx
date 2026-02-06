@@ -55,7 +55,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       customBackground={customBackground}
       labelSize="18px"
       valueSize="48px"
-      className="gap-0.5"
+      className="gap-0.5 !py-1.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
