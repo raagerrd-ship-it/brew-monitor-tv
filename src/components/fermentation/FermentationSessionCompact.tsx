@@ -330,8 +330,8 @@ export function FermentationSessionCompact({
           <div className="flex-1" />
           <Badge 
             variant="outline"
-            className="shrink-0 font-medium border-primary/30 bg-primary/5 px-1.5 py-0"
-            style={{ fontSize: '12px' }}
+            className="shrink-0 font-medium border-primary/30 bg-primary/5 px-2 py-0.5"
+            style={{ fontSize: '14px' }}
           >
             {currentStepIndex + 1} / {totalSteps}
           </Badge>

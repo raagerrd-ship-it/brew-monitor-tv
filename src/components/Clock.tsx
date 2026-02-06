@@ -55,10 +55,11 @@ function ClockComponent() {
         <span className="text-muted-foreground/40">:</span>
         {/* CSS-animated seconds - no React re-renders */}
         <span 
-          className="text-muted-foreground/60 inline-block overflow-hidden align-bottom"
+          className="text-muted-foreground/60 inline-block overflow-hidden"
           style={{ 
             height: '1em',
             width: '2ch',
+            verticalAlign: 'baseline',
           }}
         >
           <span 
