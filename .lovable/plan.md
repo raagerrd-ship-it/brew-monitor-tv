@@ -1,88 +1,50 @@
 
 
-# Server-renderade grafer for TV-mode (forenklad caching)
+## Optimera låtbytet i TV-läge
 
-## Princip
-En bild per bryggning. Filen heter `chart_{brew_id}.jpg` och skrivs over (upsert) varje gang. Ingen timestamp i filnamnet, ingen cleanup behövs. Klienten lagger till `?t=...` som query-param for att tvinga browser-cache-busting.
+### Problem
+Vid varje låtbyte sker 3-4 kaskaderande re-renders av hela dashboarden:
+1. Bildstatus nollställs -> bakgrund försvinner kort
+2. Ny albumbild laddas -> bakgrund kommer tillbaka  
+3. Bakgrundsbearbetning startar (upp till 10s) -> ny bakgrund sätts
 
-## Andringar
+Detta orsakar "hängningar" på Chromecast-hårdvara.
 
-### Steg 1: Skapa Storage bucket `chart-images`
-- Public bucket for att Chromecast ska kunna ladda bilden direkt
-- Separerat fran album-backgrounds for tydlighet
+### Lösning
 
-### Steg 2: Ny edge function `render-brew-chart`
-**Fil:** `supabase/functions/render-brew-chart/index.ts`
+**1. Behåll gammal bakgrund tills ny är redo**
+- Sluta nollställa `albumArtUrl` och `processedBgUrl` till `null` mellan låtar
+- Behåll föregående bakgrund synlig tills den nya bilden och bakgrunden är helt redo
 
-**Input:** `{ brewId: string }`
+**2. Preloada bakgrundsbilden innan swap**  
+- När `prepare-album-background` returnerar en URL, ladda bilden i en dold `Image()` först
+- Byt `processedBgUrl` i state först när bilden faktiskt har laddats klart i browsern
+- Detta förhindrar en "tom ram" medan browsern hämtar den nya bakgrundsbilden
 
-**Logik:**
-1. Hamta bryggdata fran `brew_readings` (sg_data, og, fg)
-2. Hamta controller-temp fran `get_temp_history_sampled` om `linked_controller_id` finns
-3. Downsampla till max 60 punkter
-4. Bygg SVG-strang manuellt (paths for SG-linje, controller-temp, target-temp, axlar, labels)
-5. Konvertera till JPEG via `magick-wasm` (redan anvant i `prepare-album-background`)
-6. Ladda upp till `chart-images/chart_{brew_id}.jpg` med `upsert: true`
-7. Returnera `{ chartUrl: "...public URL" }`
+**3. Batcha state-uppdateringar i widgeten**
+- I `useSonosTrackTransition`: sluta anropa `setImageLoaded(false)` vid nytt spår om vi är i TV-läge
+- Låt den nya bilden ladda "ovanpå" den gamla tyst - byt först vid `onLoad`
+- Färre state-ändringar = färre re-renders
 
-**Bildstorlek:** 600x300px
+**4. Separera albumart-notifiering från widgetens rendering**
+- Flytta `onAlbumArtChange`-logiken så den bara triggas när ny bild faktiskt laddats klart (inte vid varje `imageLoaded`-toggle)
+- Undvik att skicka `null` till parent mellan låtar
 
-**Farger (fran befintliga chartConfig):**
-- Bakgrund: mork (`hsl(222 20% 12%)`)
-- SG-linje: bla
-- Controller-temp: orange area
-- Target-temp: streckad orange
-- Pill-temp: svag orange linje
+### Teknisk plan
 
-### Steg 3: Uppdatera LazyBrewChart for TV-mode
-**Fil:** `src/components/brew-chart/LazyBrewChart.tsx`
+**`useSonosTrackTransition.ts`** - Ändra `fetchNowPlaying` och `handleTrackUpdate`:
+- Ta bort `setImageLoaded(false)` vid nytt spår (behåll gammal bild tills ny laddats)
+- Lägg till en `pendingTrackRef` som håller reda på om vi väntar på ny bild
 
-I TV-mode:
-- Ladda INTE Recharts alls (skippa lazy import)
-- Anropa `render-brew-chart` edge function med brewId
-- Visa resultat-URL:en som en vanlig `<img>` tagg
-- Uppdatera var 15:e minut genom att anropa igen (bilden skrivs over pa servern)
-- Cache-bust med `?t={timestamp}` pa img-URL:en
+**`SonosWidget.tsx`** - Ändra effekten för `onAlbumArtChange` (rad 152-161):
+- Bara notifiera parent med ny URL, aldrig med `null` (behåll gammal)
+- Ändra `prepare-album-background`-effekten (rad 164-199): preloada bilden med `new Image()` innan `bgCallback` anropas
 
-### Steg 4: Skicka brewId till LazyBrewChart
-**Fil:** `src/components/brew-chart/types.ts`
-- Lagg till `brewId?: string` i `BrewChartProps`
+**`BrewingDashboard.tsx`** - Ingen ändring behövs om widgeten slutar skicka `null`
 
-**Fil:** `src/components/brew-card/BrewCard.tsx`
-- Skicka `brewId={brew.id}` till `LazyBrewChart`
-
-### Steg 5: config.toml
-- Lagg till `[functions.render-brew-chart]` med `verify_jwt = false`
-
-## Cache-strategi
-
-| Aspekt | Detalj |
-|--------|--------|
-| Filnamn | `chart_{brew_id}.jpg` (en fil per bryggning) |
-| Uppdatering | Upsert -- skriver over varje gang |
-| Klient-refresh | Var 15:e minut, `?t=` for cache-bust |
-| Cleanup | Behövs ej -- en fil per bryggning, skrivs over |
-| Storlek | ~15-25KB per bild, max ~10 filer totalt |
-
-## Teknisk detalj: SVG-generering
-
-Manuell SVG-konstruktion utan Recharts (som kraver browser-DOM):
-
-```text
-1. Berakna x/y-skalning fran data-range till pixel-koordinater
-2. Bygg <path d="M x0,y0 L x1,y1 ..."> for varje dataserie
-3. Lagg till <line>-element for axlar och grid
-4. Lagg till <text> for dag-labels och varden
-5. Wrappa i <svg width="600" height="300">
-6. Mata in SVG-strang till magick-wasm -> JPEG
-```
-
-## Resultat pa Chromecast
-
-| Fore | Efter |
-|------|-------|
-| ~50-100 SVG DOM-noder per graf | 1 `<img>` element |
-| Recharts JS-bundle laddas | Recharts laddas INTE i TV-mode |
-| GPU kompositerar SVG varje frame | Statisk rasterbild, noll GPU-arbete |
-| Realtidsuppdatering | 15-minutersintervall (tillrackligt for jamning) |
+### Sammanfattning
+- Bakgrunden blinkar inte längre vid låtbyte
+- Inga onödiga re-renders av hela dashboarden
+- Ny bakgrund visas först när den är helt redo (nedladdad till browser-cache)
+- Layout och utseende förblir oförändrat
 
