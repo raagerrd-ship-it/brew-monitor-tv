@@ -343,7 +343,7 @@ export function BrewingDashboard() {
           className="absolute z-10"
           style={{
             top: `${HEADER_HEIGHT + 8}px`,
-            right: '24px',
+            right: '12px',
           }}
         >
           <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} onBackgroundUrlChange={handleBackgroundUrlChange} />
