@@ -39,7 +39,7 @@ interface TempHistoryPoint {
   target_temp: number;
 }
 
-// Downsample array to max N points using largest-triangle-three-bucket
+// Downsample array to max N points
 function downsample<T>(data: T[], maxPoints: number, getX: (d: T) => number, getY: (d: T) => number): T[] {
   if (data.length <= maxPoints) return data;
   
@@ -49,14 +49,36 @@ function downsample<T>(data: T[], maxPoints: number, getX: (d: T) => number, get
   for (let i = 0; i < maxPoints - 2; i++) {
     const start = Math.floor(i * bucketSize) + 1;
     const end = Math.min(Math.floor((i + 1) * bucketSize) + 1, data.length - 1);
-    
-    // Pick point with max area (simplified: just pick middle)
     const mid = Math.floor((start + end) / 2);
     sampled.push(data[mid]);
   }
   
   sampled.push(data[data.length - 1]);
   return sampled;
+}
+
+// Moving average smoothing (matches desktop getOptimalWindowSize + calculateMovingAverage)
+function smoothData(values: number[], windowSize: number): number[] {
+  if (windowSize < 2) return values;
+  const halfWindow = Math.floor(windowSize / 2);
+  const result: number[] = new Array(values.length);
+  
+  let sum = 0;
+  const firstEnd = Math.min(values.length, halfWindow + 1);
+  for (let j = 0; j < firstEnd; j++) sum += values[j];
+  
+  for (let i = 0; i < values.length; i++) {
+    if (i > 0) {
+      const newIdx = i + halfWindow;
+      if (newIdx < values.length) sum += values[newIdx];
+      const oldIdx = i - halfWindow - 1;
+      if (oldIdx >= 0) sum -= values[oldIdx];
+    }
+    const windowStart = Math.max(0, i - halfWindow);
+    const windowEnd = Math.min(values.length, i + halfWindow + 1);
+    result[i] = sum / (windowEnd - windowStart);
+  }
+  return result;
 }
 
 // Scale value to pixel coordinate
@@ -70,7 +92,68 @@ function scaleY(val: number, min: number, max: number): number {
   return MARGIN.top + PLOT_H - ((val - min) / (max - min)) * PLOT_H;
 }
 
-// Build SVG path from points
+// Build smooth SVG path using monotone cubic interpolation (matches Recharts monotoneX)
+function buildSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  if (points.length === 2) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
+  
+  // Monotone cubic Hermite spline (Fritsch-Carlson)
+  const n = points.length;
+  const dx: number[] = [];
+  const dy: number[] = [];
+  const m: number[] = [];
+  
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(points[i + 1].x - points[i].x);
+    dy.push(points[i + 1].y - points[i].y);
+    m.push(dx[i] === 0 ? 0 : dy[i] / dx[i]);
+  }
+  
+  // Compute tangents
+  const tangents: number[] = new Array(n);
+  tangents[0] = m[0];
+  tangents[n - 1] = m[n - 2];
+  
+  for (let i = 1; i < n - 1; i++) {
+    if (m[i - 1] * m[i] <= 0) {
+      tangents[i] = 0;
+    } else {
+      tangents[i] = (m[i - 1] + m[i]) / 2;
+    }
+  }
+  
+  // Fritsch-Carlson monotonicity
+  for (let i = 0; i < n - 1; i++) {
+    if (Math.abs(m[i]) < 1e-10) {
+      tangents[i] = 0;
+      tangents[i + 1] = 0;
+    } else {
+      const alpha = tangents[i] / m[i];
+      const beta = tangents[i + 1] / m[i];
+      const s = alpha * alpha + beta * beta;
+      if (s > 9) {
+        const tau = 3 / Math.sqrt(s);
+        tangents[i] = tau * alpha * m[i];
+        tangents[i + 1] = tau * beta * m[i];
+      }
+    }
+  }
+  
+  // Build cubic bezier path
+  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const seg = dx[i] / 3;
+    const cp1x = points[i].x + seg;
+    const cp1y = points[i].y + tangents[i] * seg;
+    const cp2x = points[i + 1].x - seg;
+    const cp2y = points[i + 1].y - tangents[i + 1] * seg;
+    d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${points[i + 1].x.toFixed(1)},${points[i + 1].y.toFixed(1)}`;
+  }
+  return d;
+}
+
+// Build straight-line SVG path
 function buildPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -115,16 +198,18 @@ function generateChartSvg(
   const tMin = sgParsed[0].t;
   const tMax = sgParsed[sgParsed.length - 1].t;
 
-  // SG range with padding
+  // SG range with padding (matches desktop: fg - 0.001, og + 0.001)
   const sgValues = sgParsed.map(p => p.sg);
-  const sgMin = Math.min(...sgValues, fg) - 0.002;
-  const sgMax = Math.max(...sgValues, og) + 0.002;
+  const sgMin = Math.min(...sgValues, fg) - 0.001;
+  const sgMax = Math.max(...sgValues, og) + 0.001;
 
-  // Downsample SG
-  const sgDown = downsample(sgParsed, 60, p => p.t, p => p.sg);
-  const sgPoints = sgDown.map(p => ({
+  // Downsample SG, then apply moving average smoothing (matches desktop)
+  const sgDown = downsample(sgParsed, 80, p => p.t, p => p.sg);
+  const windowSize = Math.max(3, Math.floor(sgDown.length * 0.08));
+  const smoothedSgValues = smoothData(sgDown.map(p => p.sg), windowSize);
+  const sgPoints = sgDown.map((p, i) => ({
     x: scaleX(p.t, tMin, tMax),
-    y: scaleY(p.sg, sgMin, sgMax),
+    y: scaleY(smoothedSgValues[i], sgMin, sgMax),
   }));
 
   // Temperature range (from controller data if available)
@@ -137,10 +222,10 @@ function generateChartSvg(
     })).filter(p => p.t >= tMin && p.t <= tMax);
 
     if (tempParsed.length > 0) {
-      const tempDown = downsample(tempParsed, 60, p => p.t, p => p.current);
+      const tempDown = downsample(tempParsed, 80, p => p.t, p => p.current);
       const allTemps = tempDown.flatMap(p => [p.current, p.target]);
-      const tempMin = Math.min(...allTemps) - 1;
-      const tempMax = Math.max(...allTemps) + 1;
+      const tempMin = Math.min(...allTemps) - 0.5;
+      const tempMax = Math.max(...allTemps) + 0.5;
 
       // Right Y-axis for temp
       const tempScaleY = (v: number) => {
@@ -148,17 +233,19 @@ function generateChartSvg(
         return MARGIN.top + PLOT_H - ((v - tempMin) / (tempMax - tempMin)) * PLOT_H;
       };
 
-      // Controller temp area
-      const ctrlPoints = tempDown.map(p => ({
+      // Controller temp - smooth with moving average, then smooth curves
+      const ctrlSmoothed = smoothData(tempDown.map(p => p.current), Math.max(3, Math.floor(tempDown.length * 0.08)));
+      const ctrlPoints = tempDown.map((p, i) => ({
         x: scaleX(p.t, tMin, tMax),
-        y: tempScaleY(p.current),
+        y: tempScaleY(ctrlSmoothed[i]),
       }));
       const baseY = MARGIN.top + PLOT_H;
-      const areaPath = buildPath(ctrlPoints) + 
+      const ctrlSmoothD = buildSmoothPath(ctrlPoints);
+      const areaPath = ctrlSmoothD + 
         ` L${ctrlPoints[ctrlPoints.length - 1].x.toFixed(1)},${baseY} L${ctrlPoints[0].x.toFixed(1)},${baseY} Z`;
       
       tempSvgParts += `<path d="${areaPath}" fill="${COLORS.controllerArea}" stroke="none"/>`;
-      tempSvgParts += `<path d="${buildPath(ctrlPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1.5"/>`;
+      tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1.5"/>`;
 
       // Target temp (step-after)
       const targetPoints = tempDown.map(p => ({
@@ -190,8 +277,8 @@ function generateChartSvg(
             target: tp.target_temp,
           }));
           const allTemps = tempParsed.flatMap(tp => [tp.current, tp.target]);
-          const tempMin = Math.min(...allTemps) - 1;
-          const tempMax = Math.max(...allTemps) + 1;
+          const tempMin = Math.min(...allTemps) - 0.5;
+          const tempMax = Math.max(...allTemps) + 0.5;
           return MARGIN.top + PLOT_H - ((p.temp! - tempMin) / (tempMax - tempMin)) * PLOT_H;
         }
         return 0; // Skip if no temp scale
@@ -200,7 +287,7 @@ function generateChartSvg(
 
   let pillTempSvg = '';
   if (pillTempPoints.length > 0 && tempHistory && tempHistory.length > 0) {
-    pillTempSvg = `<path d="${buildPath(pillTempPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`;
+    pillTempSvg = `<path d="${buildSmoothPath(pillTempPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`;
   }
 
   // Grid lines
@@ -255,7 +342,7 @@ function generateChartSvg(
   }
 
   // SG line with glow effect
-  const sgPathD = buildPath(sgPoints);
+  const sgPathD = buildSmoothPath(sgPoints);
   const sgLineSvg = `
     <path d="${sgPathD}" fill="none" stroke="${COLORS.sgGlow}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="${sgPathD}" fill="none" stroke="${COLORS.sgLine}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -324,7 +411,7 @@ serve(async (req) => {
         p_controller_id: brew.linked_controller_id,
         p_start_time: startTime,
         p_end_time: endTime,
-        p_sample_interval_minutes: 30,
+        p_sample_interval_minutes: 15,
       });
 
       if (tempData && tempData.length > 0) {
