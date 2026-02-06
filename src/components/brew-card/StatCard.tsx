@@ -43,16 +43,16 @@ export function StatCard({
 }: StatCardProps) {
   const { isTvMode } = useTvMode();
   
-  // Default sizes with TV mode adjustments (~50% smaller for native 720p)
-  const defaultLabelSize = isTvMode ? '7px' : '12px';
-  const defaultValueSize = isTvMode ? '20px' : '42px';
+  // Sizes: same for both TV (720p native) and desktop (1080p scaled)
+  const defaultLabelSize = '7px';
+  const defaultValueSize = '20px';
   
-  // Apply TV scaling to custom sizes too (0.5x for 720p native)
+  // Apply scaling to custom sizes too (0.5x from original design sizes)
   const finalLabelSize = labelSize 
-    ? (isTvMode ? `${Math.round(parseInt(labelSize) * 0.5)}px` : labelSize)
+    ? `${Math.round(parseInt(labelSize) * 0.5)}px`
     : defaultLabelSize;
   const finalValueSize = valueSize 
-    ? (isTvMode ? `${Math.round(parseInt(valueSize) * 0.5)}px` : valueSize)
+    ? `${Math.round(parseInt(valueSize) * 0.5)}px`
     : defaultValueSize;
 
   const baseStyles: CSSProperties = {

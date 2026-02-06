@@ -475,7 +475,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
             }} />
                 
                 <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-              fontSize: isMobile ? undefined : isTvMode ? '13px' : '24px',
+              fontSize: isMobile ? undefined : '13px',
               color: linkedPill?.color || 'hsl(var(--foreground))'
             }}>
                   {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
@@ -493,7 +493,7 @@ const RaptControllerBar = memo(function RaptControllerBar({
                 }} />}
                     </div>
                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
-                fontSize: isMobile ? undefined : isTvMode ? '11px' : '20px',
+                fontSize: isMobile ? undefined : '11px',
                 color: linkedPill.color
               }}>
                       {linkedPill.battery_level}%
