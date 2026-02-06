@@ -719,11 +719,13 @@ export type Database = {
       sonos_now_playing: {
         Row: {
           album_art_url: string | null
+          album_art_url_small: string | null
           album_name: string | null
           artist_name: string | null
           duration_ms: number | null
           group_id: string
           id: string
+          next_album_art_url: string | null
           playback_state: string
           position_ms: number | null
           track_name: string | null
@@ -731,11 +733,13 @@ export type Database = {
         }
         Insert: {
           album_art_url?: string | null
+          album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
           duration_ms?: number | null
           group_id: string
           id?: string
+          next_album_art_url?: string | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
@@ -743,11 +747,13 @@ export type Database = {
         }
         Update: {
           album_art_url?: string | null
+          album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
           duration_ms?: number | null
           group_id?: string
           id?: string
+          next_album_art_url?: string | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
