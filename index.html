@@ -28,13 +28,8 @@
     <script>
       if('serviceWorker' in navigator){
         navigator.serviceWorker.getRegistrations().then(function(regs){
-          var hadSW=regs.length>0;
           regs.forEach(function(r){r.unregister()});
           if('caches' in window){caches.keys().then(function(n){n.forEach(function(c){caches.delete(c)})})}
-          if(hadSW && !sessionStorage.getItem('sw_cleared')){
-            sessionStorage.setItem('sw_cleared','1');
-            location.reload();
-          }
         });
       }
     </script>
