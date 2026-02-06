@@ -342,7 +342,7 @@ export function BrewingDashboard() {
         <div 
           className="absolute z-10"
           style={{
-            top: `${HEADER_HEIGHT + 16}px`,
+            top: `${HEADER_HEIGHT + 8}px`,
             right: '24px',
           }}
         >
