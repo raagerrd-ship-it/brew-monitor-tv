@@ -25,7 +25,8 @@ if ((isIframe || isTvParam || isChromecast) && 'serviceWorker' in navigator) {
 }
 
 // Auto-reload when a new Service Worker takes control (e.g. after publish)
-if ('serviceWorker' in navigator) {
+// Skip in TV mode since we handle updates via remote refresh button
+if ('serviceWorker' in navigator && !isIframe && !isTvParam && !isChromecast) {
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing) return;
