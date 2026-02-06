@@ -10,7 +10,7 @@ const corsHeaders = {
 const WIDTH = 600;
 const HEIGHT_FULL = 300;    // No fermentation session visible
 const HEIGHT_COMPACT = 220; // With fermentation session (less vertical space)
-const MARGIN = { top: 8, right: 15, bottom: 30, left: 50 };
+const MARGIN = { top: 8, right: 15, bottom: 30, left: 35 };
 
 // Colors matching desktop chartConfig.ts (CSS variables resolved)
 // --beer-amber: 38 90% 60% → #e8a225
