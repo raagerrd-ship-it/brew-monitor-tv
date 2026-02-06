@@ -47,20 +47,22 @@ function TvModeChart({ brewId }: { brewId: string }) {
 
   if (error || !chartUrl) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Skeleton className="w-full h-full rounded-lg" />
+      <div className="relative w-full h-full">
+        <Skeleton className="absolute inset-0 rounded-lg" />
       </div>
     );
   }
 
   return (
-    <img
-      src={chartUrl}
-      alt="Brew chart"
-      className="w-full h-full rounded-lg"
-      style={{ objectFit: 'fill' }}
-      loading="lazy"
-    />
+    <div className="relative w-full h-full">
+      <img
+        src={chartUrl}
+        alt="Brew chart"
+        className="absolute inset-0 w-full h-full rounded-lg"
+        style={{ objectFit: 'fill' }}
+        loading="lazy"
+      />
+    </div>
   );
 }
 
