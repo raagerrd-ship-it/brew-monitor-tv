@@ -19,7 +19,7 @@ import { SyncedDataDialog } from "./SyncedDataDialog";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
-const CARD_HEADER_HEIGHT = 64;
+const CARD_HEADER_HEIGHT = 80;
 const CARD_STATS_HEIGHT = 140;
 
 function BrewCardComponent({
