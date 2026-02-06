@@ -7,6 +7,7 @@ import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
+import { DashboardHeader, HEADER_HEIGHT } from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, Gauge } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, Gauge } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +26,7 @@ import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useFpsCounter } from "@/contexts/FpsCounterContext";
+import { TempController } from "@/types/brew";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -76,7 +78,8 @@ export default function Settings() {
     pill_temp: number | null,
     target_temp: number | null,
     cooling_enabled: boolean | null,
-    cooling_hysteresis: number | null
+    cooling_hysteresis: number | null,
+    linked_pill_id: string | null
   }>>([]);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [syncSteps, setSyncSteps] = useState<Array<{
@@ -95,6 +98,13 @@ export default function Settings() {
   const [visibleControllersCount, setVisibleControllersCount] = useState(0);
   const [visibleBrewsCount, setVisibleBrewsCount] = useState(0);
   const [externalLoginDialogOpen, setExternalLoginDialogOpen] = useState(false);
+  const [headerPillsData, setHeaderPillsData] = useState<Array<{
+    pill_id: string;
+    color: string;
+    name: string;
+    battery_level: number;
+    last_update: string | null;
+  }>>([]);
   
   // External auth for brew timer
   const { isAuthenticated: isExternalAuthenticated, user: externalUser, signOut: externalSignOut, isLoading: externalLoading } = useExternalAuth();
@@ -138,7 +148,28 @@ export default function Settings() {
     return { type: 'info' as const, count: visibleBrewsCount };
   }, [visibleBrewsCount]);
 
-  // Check authentication
+  // Convert availableControllers to TempController[] for the header
+  const headerControllers: TempController[] = useMemo(() => 
+    availableControllers.map(c => ({
+      id: c.id,
+      controller_id: c.controller_id,
+      name: c.name,
+      current_temp: c.current_temp,
+      pill_temp: c.pill_temp,
+      target_temp: c.target_temp,
+      last_update: null,
+      min_target_temp: null,
+      max_target_temp: null,
+      cooling_enabled: c.cooling_enabled,
+      heating_enabled: null,
+      heating_utilisation: null,
+      linked_pill_id: c.linked_pill_id,
+    })),
+    [availableControllers]
+  );
+
+  const headerPills = headerPillsData;
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
@@ -167,6 +198,7 @@ export default function Settings() {
     loadApiSettings();
     loadAutoCoolingSettings();
     loadAvailableControllers();
+    loadHeaderPills();
     loadDeviceCounts();
     loadBrewCounts();
     
@@ -257,7 +289,8 @@ export default function Settings() {
                       pill_temp: updatedController.pill_temp,
                       target_temp: updatedController.target_temp,
                       cooling_enabled: updatedController.cooling_enabled,
-                      cooling_hysteresis: updatedController.cooling_hysteresis
+                      cooling_hysteresis: updatedController.cooling_hysteresis,
+                      linked_pill_id: updatedController.linked_pill_id ?? c.linked_pill_id
                     }
                   : c
               )
@@ -287,7 +320,8 @@ export default function Settings() {
                   pill_temp: newData.pill_temp ?? updated[index].pill_temp,
                   target_temp: newData.target_temp ?? updated[index].target_temp,
                   cooling_enabled: newData.cooling_enabled ?? updated[index].cooling_enabled,
-                  cooling_hysteresis: newData.cooling_hysteresis ?? updated[index].cooling_hysteresis
+                  cooling_hysteresis: newData.cooling_hysteresis ?? updated[index].cooling_hysteresis,
+                  linked_pill_id: newData.linked_pill_id ?? updated[index].linked_pill_id
                 };
                 return updated;
               }
@@ -404,7 +438,7 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, cooling_hysteresis')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, cooling_hysteresis, linked_pill_id')
           .in('controller_id', controllerIds);
 
         if (controllers) {
@@ -416,12 +450,36 @@ export default function Settings() {
             pill_temp: c.pill_temp,
             target_temp: c.target_temp,
             cooling_enabled: c.cooling_enabled,
-            cooling_hysteresis: c.cooling_hysteresis
+            cooling_hysteresis: c.cooling_hysteresis,
+            linked_pill_id: c.linked_pill_id
           })));
         }
       }
     } catch (error) {
       console.error('Error loading available controllers:', error);
+    }
+  };
+
+  const loadHeaderPills = async () => {
+    try {
+      const { data: selected } = await supabase
+        .from('selected_rapt_pills')
+        .select('pill_id')
+        .eq('is_visible', true);
+
+      if (selected && selected.length > 0) {
+        const pillIds = selected.map(s => s.pill_id);
+        const { data: pills } = await supabase
+          .from('rapt_pills')
+          .select('pill_id, color, name, battery_level, last_update')
+          .in('pill_id', pillIds);
+
+        if (pills) {
+          setHeaderPillsData(pills);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading header pills:', error);
     }
   };
 
@@ -914,28 +972,14 @@ export default function Settings() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5">
-      <div className="container mx-auto max-w-4xl pb-8">
-        <div className="py-4 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-            className="mb-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Tillbaka till Dashboard
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="mb-4"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Logga ut
-          </Button>
-        </div>
+    <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+      <DashboardHeader
+        controllers={headerControllers}
+        pills={headerPills}
+        onLogout={handleLogout}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
         <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6">
@@ -1778,6 +1822,7 @@ export default function Settings() {
             <BrewManagement />
           </TabsContent>
         </Tabs>
+        </div>
       </div>
       
       <ExternalLoginDialog 
