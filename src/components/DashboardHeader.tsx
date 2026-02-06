@@ -9,8 +9,8 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 
-const HEADER_HEIGHT_DESKTOP = 70;
-const HEADER_HEIGHT_TV = 70;
+const HEADER_HEIGHT_DESKTOP = 60;
+const HEADER_HEIGHT_TV = 60;
 const HEADER_HEIGHT = HEADER_HEIGHT_DESKTOP;
 export { HEADER_HEIGHT, HEADER_HEIGHT_TV, HEADER_HEIGHT_DESKTOP };
 
