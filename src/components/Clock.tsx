@@ -55,10 +55,12 @@ function ClockComponent() {
         <span className="text-muted-foreground/40">:</span>
         {/* CSS-animated seconds - no React re-renders */}
         <span 
-          className="text-muted-foreground/60 inline-flex overflow-hidden"
+          className="text-muted-foreground/60 inline-block overflow-hidden"
           style={{ 
-            height: '1.1em',
+            height: '1em',
             width: '2ch',
+            lineHeight: '1em',
+            verticalAlign: 'text-bottom',
           }}
         >
           <span 
@@ -66,6 +68,7 @@ function ClockComponent() {
             style={{
               animation: 'clock-seconds 60s steps(60) infinite',
               animationDelay,
+              lineHeight: '1em',
             }}
           >
             {SECONDS_ARRAY.map((sec) => (
