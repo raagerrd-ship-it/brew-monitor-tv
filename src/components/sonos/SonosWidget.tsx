@@ -7,6 +7,7 @@ interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
   album_art_url: string | null;
+  next_album_art_url?: string | null;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
@@ -32,7 +33,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [shouldScroll, setShouldScroll] = useState(false);
   const pollIntervalRef = useRef<number | null>(null);
   const lastBgRequestRef = useRef<string | null>(null);
-
+  const preloadedNextBgRef = useRef<{ artUrl: string; bgUrl: string } | null>(null);
+  const isPreloadingNextRef = useRef(false);
   // Use the transition hook for track management
   const { 
     fetchNowPlaying, 
@@ -159,18 +161,24 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
 
   // Request pre-processed background image from edge function when track changes
-  // Preload the image before notifying parent to prevent blank frames
+  // Check preloaded ref first for instant swap, otherwise reactive fallback
   useEffect(() => {
     const bgCallback = onBackgroundUrlChangeRef.current;
-    if (!bgCallback || !nowPlaying?.album_art_url) {
-      // Don't send null - keep the old background visible
-      return;
-    }
+    if (!bgCallback || !nowPlaying?.album_art_url) return;
 
     // Only request if this is a new album art URL
     if (nowPlaying.album_art_url === lastBgRequestRef.current) return;
     lastBgRequestRef.current = nowPlaying.album_art_url;
 
+    // Check if we already preloaded this background
+    if (preloadedNextBgRef.current?.artUrl === nowPlaying.album_art_url) {
+      console.log('[Sonos] Using preloaded background - instant swap');
+      bgCallback(preloadedNextBgRef.current.bgUrl);
+      preloadedNextBgRef.current = null;
+      return;
+    }
+
+    // Fallback: reactive processing (old background stays visible until ready)
     const controller = new AbortController();
     
     (async () => {
@@ -185,7 +193,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         ]);
 
         if (!controller.signal.aborted && response.data?.backgroundUrl) {
-          // Preload the image in a hidden Image() before updating state
           const img = new Image();
           img.onload = () => {
             if (!controller.signal.aborted) {
@@ -206,6 +213,55 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
     return () => { controller.abort(); };
   }, [nowPlaying?.album_art_url]);
+
+  // Predictive preloading: prepare next track's background 15s before song ends
+  useEffect(() => {
+    if (!nowPlaying?.next_album_art_url || !nowPlaying.duration_ms || localProgress === null) return;
+    
+    const timeLeft = nowPlaying.duration_ms - localProgress;
+    // Only trigger between 15s and 3s remaining, and not if already preloading
+    if (timeLeft > 15000 || timeLeft < 3000 || isPreloadingNextRef.current) return;
+    // Don't preload if it matches the current track's art
+    if (nowPlaying.next_album_art_url === nowPlaying.album_art_url) return;
+    // Don't preload if we already have this one cached
+    if (preloadedNextBgRef.current?.artUrl === nowPlaying.next_album_art_url) return;
+
+    isPreloadingNextRef.current = true;
+    const nextArtUrl = nowPlaying.next_album_art_url;
+    console.log('[Sonos] Predictive preloading background for next track');
+
+    (async () => {
+      try {
+        const response = await Promise.race([
+          supabase.functions.invoke('prepare-album-background', {
+            body: { imageUrl: nextArtUrl },
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 12000)
+          ),
+        ]);
+
+        if (response.data?.backgroundUrl) {
+          // Preload into browser cache
+          const img = new Image();
+          img.onload = () => {
+            preloadedNextBgRef.current = { artUrl: nextArtUrl, bgUrl: response.data.backgroundUrl };
+            isPreloadingNextRef.current = false;
+            console.log('[Sonos] Next background preloaded and cached');
+          };
+          img.onerror = () => {
+            isPreloadingNextRef.current = false;
+          };
+          img.src = response.data.backgroundUrl;
+        } else {
+          isPreloadingNextRef.current = false;
+        }
+      } catch (error) {
+        console.warn('[Sonos] Predictive preload failed:', error);
+        isPreloadingNextRef.current = false;
+      }
+    })();
+  }, [localProgress, nowPlaying?.next_album_art_url, nowPlaying?.duration_ms, nowPlaying?.album_art_url]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {

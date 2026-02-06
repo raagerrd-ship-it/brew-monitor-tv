@@ -233,34 +233,44 @@ serve(async (req) => {
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
     
-    // Get album art - prefer Sonos URL if it's a valid external URL
-    let albumArtUrl = track?.imageUrl || container?.imageUrl || null;
-    let albumArtUrlSmall: string | null = null;
-    
-    // Only fetch Spotify art if we have a local Sonos URL
-    if (albumArtUrl && (albumArtUrl.includes('192.168.') || albumArtUrl.includes('getaa'))) {
-      const trackUri = track?.id?.objectId || currentItem?.id?.objectId;
-      const spotifyTrackId = extractSpotifyTrackId(trackUri);
-      
-      if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
-        const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
-        if (spotifyToken) {
-          const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
-          if (spotifyArt.medium) {
-            albumArtUrl = spotifyArt.medium;
-            albumArtUrlSmall = spotifyArt.small;
+    // Helper to resolve album art (handles local Sonos URLs -> Spotify)
+    async function resolveAlbumArt(
+      imgUrl: string | null,
+      objectId: string | undefined
+    ): Promise<{ medium: string | null; small: string | null }> {
+      if (!imgUrl) return { medium: null, small: null };
+      if (imgUrl.includes('192.168.') || imgUrl.includes('getaa')) {
+        const spotifyTrackId = extractSpotifyTrackId(objectId);
+        if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
+          const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
+          if (spotifyToken) {
+            const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
+            if (spotifyArt.medium) return spotifyArt;
           }
         }
       }
+      return { medium: imgUrl, small: null };
     }
+
+    // Resolve current and next track art in parallel
+    const nextItem = metadata.nextItem;
+    const nextTrack = nextItem?.track;
+    const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
+    const rawNextArt = nextTrack?.imageUrl || null;
+
+    const [currentArt, nextArt] = await Promise.all([
+      resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId),
+      resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
+    ]);
 
     const nowPlaying = {
       group_id: groupId,
       track_name: track?.name || container?.name || null,
       artist_name: track?.artist?.name || null,
       album_name: track?.album?.name || null,
-      album_art_url: albumArtUrl,
-      album_art_url_small: albumArtUrlSmall,
+      album_art_url: currentArt.medium,
+      album_art_url_small: currentArt.small,
+      next_album_art_url: nextArt.medium,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,

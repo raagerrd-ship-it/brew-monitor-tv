@@ -5,6 +5,7 @@ interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
   album_art_url: string | null;
+  next_album_art_url?: string | null;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
