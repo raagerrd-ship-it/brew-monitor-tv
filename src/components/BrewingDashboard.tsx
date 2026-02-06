@@ -336,7 +336,7 @@ export function BrewingDashboard() {
               {controllers.length > 0 && <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />}
             </div>
             
-            <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
               <Clock />
               
               {!isTvMode && <div className="relative flex items-center justify-center" style={{

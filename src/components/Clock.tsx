@@ -23,7 +23,7 @@ function ClockComponent() {
   const [hm, sec] = [time.slice(0, 5), time.slice(6, 8)];
 
   return (
-    <div className="flex flex-col items-end justify-center">
+    <div className="flex flex-col items-end justify-center h-full">
       <p 
         className="font-semibold tabular-nums tracking-tight text-foreground"
         style={{ 
