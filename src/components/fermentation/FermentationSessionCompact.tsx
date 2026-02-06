@@ -280,12 +280,12 @@ export function FermentationSessionCompact({
 
   return (
     <div 
-      className="relative flex items-center gap-4 px-5 py-4 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+      className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
       style={{
         background: getBackgroundStyle(visualState),
         border: `1px solid ${getBorderColor(visualState)}`,
         boxShadow: getBoxShadow(visualState),
-        minHeight: '104px',
+        minHeight: '72px',
       }}
     >
       {/* Top light reflection - glassmorphism effect */}
@@ -316,10 +316,11 @@ export function FermentationSessionCompact({
       
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5">
           <span 
-            className="text-xl font-bold tracking-tight truncate"
+            className="font-bold tracking-tight truncate"
             style={{ 
+              fontSize: '14px',
               color: 'hsl(var(--primary))',
               textShadow: '0 0 20px hsl(var(--primary) / 0.4), 0 2px 6px hsl(0 0% 0% / 0.4)',
             }}
@@ -329,7 +330,8 @@ export function FermentationSessionCompact({
           <div className="flex-1" />
           <Badge 
             variant="outline"
-            className="shrink-0 text-lg font-medium border-primary/30 bg-primary/5 px-2.5 py-0.5"
+            className="shrink-0 font-medium border-primary/30 bg-primary/5 px-1.5 py-0"
+            style={{ fontSize: '12px' }}
           >
             {currentStepIndex + 1} / {totalSteps}
           </Badge>
@@ -407,7 +409,7 @@ export function FermentationSessionCompact({
         </div>
         
         {currentStep && (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-1.5 text-lg">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1" style={{ fontSize: '12px' }}>
             {/* Temperature display */}
             <TemperatureDisplay
               currentStep={currentStep}
