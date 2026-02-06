@@ -57,10 +57,9 @@ function ClockComponent() {
         <span 
           className="text-muted-foreground/60 inline-block overflow-hidden"
           style={{ 
-            height: '1em',
+            height: '18px',
             width: '2ch',
-            lineHeight: '1em',
-            verticalAlign: 'text-bottom',
+            verticalAlign: 'bottom',
           }}
         >
           <span 
@@ -68,11 +67,10 @@ function ClockComponent() {
             style={{
               animation: 'clock-seconds 60s steps(60) infinite',
               animationDelay,
-              lineHeight: '1em',
             }}
           >
             {SECONDS_ARRAY.map((sec) => (
-              <span key={sec} style={{ height: '1em', lineHeight: '1em' }}>{sec}</span>
+              <span key={sec} className="block" style={{ height: '18px', lineHeight: '18px' }}>{sec}</span>
             ))}
           </span>
         </span>
