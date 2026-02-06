@@ -37,6 +37,8 @@ export interface BrewChartProps {
   controllerId?: string | null;
   /** Index for staggered rendering - prevents all charts from loading at once */
   chartIndex?: number;
+  /** Brew ID for server-rendered chart in TV mode */
+  brewId?: string;
 }
 
 export interface EventDisplay {

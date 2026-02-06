@@ -203,6 +203,7 @@ function BrewCardComponent({
             events={brew.events}
             controllerId={brew.linked_controller_id}
             chartIndex={cardIndex}
+            brewId={brew.id}
           />
         </div>
         
