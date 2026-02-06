@@ -11,7 +11,7 @@ import { Settings, Loader2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useVersionCheck } from "@/hooks/use-version-check";
+
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
@@ -107,10 +107,7 @@ export function BrewingDashboard() {
     loadCoolerController();
   }, []);
 
-  // Check for new app versions - disabled in TV mode (use remote refresh button instead)
-  const {
-    appLoadTime
-  } = useVersionCheck(isTvMode ? 0 : 60000);
+  const appLoadTime = useMemo(() => new Date(), []);
 
 
   // Listen for remote TV refresh trigger via force_tv_refresh_at
