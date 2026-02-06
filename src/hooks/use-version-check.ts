@@ -69,21 +69,43 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
           // Wait for toast to show, then clear caches and reload
           setTimeout(async () => {
             try {
-              // 1. Clear all Service Worker caches
+              // 1. Signal waiting Service Worker to activate immediately
+              if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration?.waiting) {
+                  console.log('Found waiting SW, sending SKIP_WAITING...');
+                  registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                  await new Promise<void>(resolve => {
+                    const onControllerChange = () => {
+                      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+                      console.log('New SW activated');
+                      resolve();
+                    };
+                    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+                    setTimeout(() => {
+                      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+                      console.log('SW activation timeout, proceeding anyway');
+                      resolve();
+                    }, 3000);
+                  });
+                }
+              }
+
+              // 2. Clear all Service Worker caches
               if ('caches' in window) {
                 const cacheNames = await caches.keys();
                 await Promise.all(cacheNames.map(name => caches.delete(name)));
                 console.log('Service Worker caches cleared:', cacheNames);
               }
               
-              // 2. Unregister all Service Workers
+              // 3. Unregister all Service Workers
               if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
                 await Promise.all(registrations.map(reg => reg.unregister()));
                 console.log('Service Workers unregistered:', registrations.length);
               }
               
-              // 3. Force hard reload while preserving existing query params (like ?tv=true)
+              // 4. Force hard reload while preserving existing query params (like ?tv=true)
               const currentParams = new URLSearchParams(window.location.search);
               currentParams.set('v', Date.now().toString());
               window.location.href = window.location.origin + window.location.pathname + '?' + currentParams.toString();
