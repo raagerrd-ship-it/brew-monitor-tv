@@ -107,10 +107,10 @@ export function BrewingDashboard() {
     loadCoolerController();
   }, []);
 
-  // Check for new app versions - 5 min in TV mode to reduce CPU, 60s otherwise
+  // Check for new app versions - disabled in TV mode (use remote refresh button instead)
   const {
     appLoadTime
-  } = useVersionCheck(isTvMode ? 300000 : 60000);
+  } = useVersionCheck(isTvMode ? 0 : 60000);
 
 
   // Listen for remote TV refresh trigger via force_tv_refresh_at

@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 
 // Check for new app versions by comparing the HTML content
-export const useVersionCheck = (checkInterval = 60000) => { // Default: check every minute
+export const useVersionCheck = (checkInterval = 60000) => { // Default: check every minute. Pass 0 to disable.
   const lastHtmlHash = useRef<string | null>(null);
   const appLoadTime = useRef(new Date());
   const isFirstCheck = useRef(true);
 
   useEffect(() => {
+    if (checkInterval <= 0) return; // Disabled
     const hashString = async (str: string): Promise<string> => {
       const encoder = new TextEncoder();
       const data = encoder.encode(str);
