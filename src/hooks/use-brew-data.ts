@@ -4,7 +4,6 @@ import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
 import { calculateFermentationRate } from '@/lib/brew-utils';
-import { useRealtimeSubscription } from './use-realtime-subscription';
 import { useTvMode } from '@/contexts/TvModeContext';
 
 interface UseBrewDataReturn {
@@ -550,60 +549,78 @@ export function useBrewData(): UseBrewDataReturn {
     }
   }, [loadRaptData]);
 
-  // Realtime subscriptions
-  useRealtimeSubscription({
-    table: 'brew_readings',
-    onPayload: handleBrewUpdate,
-  });
+  // Consolidated realtime: 2 channels instead of 7
+  // Channel 1: Data updates (need payload for in-place state updates)
+  useEffect(() => {
+    const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
 
-  useRealtimeSubscription({
-    table: 'rapt_pills',
-    onPayload: handlePillUpdate,
-  });
+    const dispatch = (table: string, payload: any) => {
+      if (isTvMode) {
+        batchRef.pending.set(table, payload);
+        if (!batchRef.timer) {
+          batchRef.timer = setTimeout(() => {
+            const entries = new Map(batchRef.pending);
+            batchRef.pending.clear();
+            batchRef.timer = null;
+            entries.forEach((p, t) => {
+              if (t === 'brew_readings') handleBrewUpdate(p);
+              else if (t === 'rapt_pills') handlePillUpdate(p);
+              else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
+            });
+          }, 2000);
+        }
+      } else {
+        if (table === 'brew_readings') handleBrewUpdate(payload);
+        else if (table === 'rapt_pills') handlePillUpdate(payload);
+        else if (table === 'rapt_temp_controllers') handleControllerUpdate(payload);
+      }
+    };
 
-  useRealtimeSubscription({
-    table: 'rapt_temp_controllers',
-    onPayload: handleControllerUpdate,
-  });
+    const channel = supabase
+      .channel(`data-updates-${Date.now()}`)
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_pills' }, (p: any) => dispatch('rapt_pills', p))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
+      .subscribe();
 
-  useRealtimeSubscription({
-    table: 'selected_rapt_pills',
-    onPayload: () => {
-      sonnerToast('Inställningar uppdaterade', {
-        description: 'RAPT Pill-listan har ändrats från en annan enhet',
-        duration: 5000,
-      });
-      loadRaptData();
-    },
-  });
+    return () => {
+      if (batchRef.timer) clearTimeout(batchRef.timer);
+      supabase.removeChannel(channel);
+    };
+  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, isTvMode]);
 
-  useRealtimeSubscription({
-    table: 'selected_rapt_temp_controllers',
-    onPayload: () => {
-      sonnerToast('Inställningar uppdaterade', {
-        description: 'RAPT-kontrollerlistan har ändrats från en annan enhet',
-        duration: 5000,
-      });
-      loadRaptData();
-    },
-  });
+  // Channel 2: Config/session changes (just trigger reload, no payload needed)
+  useEffect(() => {
+    let debounceTimer: NodeJS.Timeout | null = null;
 
-  useRealtimeSubscription({
-    table: 'selected_brews',
-    onPayload: () => {
-      sonnerToast('Inställningar uppdaterade', {
-        description: 'Öllistan har ändrats från en annan enhet',
-        duration: 5000,
-      });
-      loadBrews();
-    },
-  });
+    const handleConfigChange = (table: string) => {
+      if (table === 'selected_brews') {
+        sonnerToast('Inställningar uppdaterade', { description: 'Öllistan har ändrats från en annan enhet', duration: 5000 });
+        loadBrews();
+      } else if (table === 'selected_rapt_pills') {
+        sonnerToast('Inställningar uppdaterade', { description: 'RAPT Pill-listan har ändrats från en annan enhet', duration: 5000 });
+        loadRaptData();
+      } else if (table === 'selected_rapt_temp_controllers') {
+        sonnerToast('Inställningar uppdaterade', { description: 'RAPT-kontrollerlistan har ändrats från en annan enhet', duration: 5000 });
+        loadRaptData();
+      } else if (table === 'fermentation_sessions') {
+        loadBrews();
+      }
+    };
 
-  // Reload brews when fermentation sessions change (start/stop/update)
-  useRealtimeSubscription({
-    table: 'fermentation_sessions',
-    onPayload: loadBrews,
-  });
+    const channel = supabase
+      .channel(`config-updates-${Date.now()}`)
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_brews' }, () => handleConfigChange('selected_brews'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [loadBrews, loadRaptData]);
 
   // Initial data load - single parallel load
   useEffect(() => {
