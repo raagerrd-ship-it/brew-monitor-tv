@@ -6,25 +6,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Chart dimensions
+// Chart dimensions - viewBox for scalability
 const WIDTH = 600;
 const HEIGHT = 300;
-const MARGIN = { top: 25, right: 15, bottom: 35, left: 50 };
+const MARGIN = { top: 20, right: 15, bottom: 30, left: 50 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
-// Colors (matching chartConfig)
+// Colors matching desktop chartConfig.ts (CSS variables resolved)
+// --beer-amber: 38 90% 60% → #e8a225
+// --temp-blue: 200 70% 50% → #268bd2
 const COLORS = {
-  bg: '#1a1d2e',        // hsl(222 20% 12%)
-  sgLine: '#3b82f6',     // blue
-  sgGlow: '#3b82f680',
-  controllerArea: '#f59e0b40', // orange area fill
-  controllerLine: '#f59e0b',   // orange
-  targetLine: '#f59e0b80',     // orange dashed
-  pillTempLine: '#f59e0b4d',   // faint orange
-  grid: '#2a2d3e',       // subtle grid
-  axisText: '#6b7280',   // muted text
-  labelText: '#9ca3af',  // slightly brighter
+  sgLine: '#e8a225',         // beer-amber
+  sgGlow: '#e8a22599',       // beer-amber glow
+  controllerArea: '#268bd214', // temp-blue 0.08
+  controllerLine: '#268bd2',   // temp-blue
+  targetLine: '#268bd280',     // temp-blue 0.5
+  pillTempLine: '#268bd24d',   // temp-blue 0.3
+  grid: '#3a3d4e',
+  axisText: '#6b7280',
 };
 
 interface SgDataPoint {
@@ -106,8 +106,7 @@ function generateChartSvg(
   }));
 
   if (sgParsed.length === 0) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}">
-      <rect width="${WIDTH}" height="${HEIGHT}" fill="${COLORS.bg}"/>
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%" height="100%">
       <text x="${WIDTH/2}" y="${HEIGHT/2}" fill="${COLORS.axisText}" text-anchor="middle" font-size="14" font-family="sans-serif">Ingen data</text>
     </svg>`;
   }
@@ -266,7 +265,7 @@ function generateChartSvg(
   const lastSg = sgDown[sgDown.length - 1];
   const currentSgLabel = `<text x="${sgPoints[sgPoints.length - 1].x - 5}" y="${sgPoints[sgPoints.length - 1].y - 8}" fill="${COLORS.sgLine}" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="end">${lastSg.sg.toFixed(3)}</text>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
