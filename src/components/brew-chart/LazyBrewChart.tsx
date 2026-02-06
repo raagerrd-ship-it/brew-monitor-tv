@@ -57,7 +57,8 @@ function TvModeChart({ brewId }: { brewId: string }) {
     <img
       src={chartUrl}
       alt="Brew chart"
-      className="w-full h-full object-contain rounded-lg"
+      className="w-full h-full rounded-lg"
+      style={{ objectFit: 'fill' }}
       loading="lazy"
     />
   );
