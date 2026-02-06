@@ -114,7 +114,7 @@ function BrewCardComponent({
               <h2 
                 className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
                 style={{ 
-                  fontSize: isTvMode ? '18px' : '28px',
+                  fontSize: isTvMode ? '14px' : '28px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
                   letterSpacing: '-0.02em'
                 }}
@@ -136,7 +136,7 @@ function BrewCardComponent({
               </h2>
               <p 
                 className="text-muted-foreground/60 truncate font-medium" 
-                style={{ fontSize: isTvMode ? '11px' : '16px', letterSpacing: '0.02em' }}
+                style={{ fontSize: isTvMode ? '9px' : '16px', letterSpacing: '0.02em' }}
               >
                 {brew.batch_id.startsWith('custom_') ? (
                   <>
@@ -174,7 +174,7 @@ function BrewCardComponent({
             <span
               className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
               style={{ 
-                fontSize: isTvMode ? '11px' : '16px',
+                fontSize: isTvMode ? '9px' : '16px',
                 background: isCompletedOrConditioning 
                   ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
                   : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
