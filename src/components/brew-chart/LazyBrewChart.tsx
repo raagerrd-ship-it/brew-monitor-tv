@@ -8,13 +8,13 @@ const BrewChartLazy = lazy(() =>
   import('./BrewChart').then(module => ({ default: module.BrewChart }))
 );
 
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes fallback
 
 /**
  * Server-rendered chart image for TV mode.
- * Calls render-brew-chart edge function and displays result as static <img>.
+ * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
-function TvModeChart({ brewId, compact = false }: { brewId: string; compact?: boolean }) {
+function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null }) {
   const [chartUrl, setChartUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -30,7 +30,6 @@ function TvModeChart({ brewId, compact = false }: { brewId: string; compact?: bo
       if (!response.ok) throw new Error('Failed to render chart');
       
       const data = await response.json();
-      // Cache-bust with timestamp
       setChartUrl(`${data.chartUrl}?t=${Date.now()}`);
       setError(false);
     } catch (e) {
@@ -39,11 +38,12 @@ function TvModeChart({ brewId, compact = false }: { brewId: string; compact?: bo
     }
   }, [brewId, compact]);
 
+  // Refresh when data changes (lastUpdateRaw) or on interval as fallback
   useEffect(() => {
     fetchChart();
     const interval = setInterval(fetchChart, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchChart]);
+  }, [fetchChart, lastUpdateRaw]);
 
   if (error || !chartUrl) {
     return (
@@ -76,7 +76,7 @@ export function LazyBrewChart(props: BrewChartProps) {
 
   // TV mode: skip Recharts entirely, use server-rendered image
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} />;
+    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} />;
   }
 
   return (

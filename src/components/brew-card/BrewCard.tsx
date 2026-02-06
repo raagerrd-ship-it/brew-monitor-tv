@@ -205,6 +205,7 @@ function BrewCardComponent({
             chartIndex={cardIndex}
             brewId={brew.id}
             hasFermentationSession={!!brew.fermentationSession}
+            lastUpdateRaw={brew.lastUpdateRaw}
           />
         </div>
         

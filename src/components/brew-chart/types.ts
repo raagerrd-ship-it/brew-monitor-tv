@@ -41,6 +41,8 @@ export interface BrewChartProps {
   brewId?: string;
   /** Whether a fermentation session is active (affects TV chart aspect ratio) */
   hasFermentationSession?: boolean;
+  /** Raw last_update timestamp - used to trigger chart refresh when data changes */
+  lastUpdateRaw?: string | null;
 }
 
 export interface EventDisplay {
