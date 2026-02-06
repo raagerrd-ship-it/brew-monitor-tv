@@ -9,6 +9,15 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
 
   useEffect(() => {
     if (checkInterval <= 0) return; // Disabled
+    
+    // Extra safety: also disable in iframes (Chromecast casting) and TV user agents
+    const isIframe = window.self !== window.top;
+    const isChromecast = navigator.userAgent.toLowerCase().includes('crkey');
+    const isTvParam = new URLSearchParams(window.location.search).get('tv') === 'true';
+    if (isIframe || isChromecast || isTvParam) {
+      console.log('[VersionCheck] Disabled: iframe/TV detected');
+      return;
+    }
     const hashString = async (str: string): Promise<string> => {
       const encoder = new TextEncoder();
       const data = encoder.encode(str);
