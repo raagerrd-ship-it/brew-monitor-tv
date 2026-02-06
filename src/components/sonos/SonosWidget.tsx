@@ -303,9 +303,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           width: widgetWidth,
           height: widgetHeight,
           contain: 'strict',
-          boxShadow: isTvMode 
-            ? 'none'
-            : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)',
           border: isTvMode ? '1px solid rgba(255, 255, 255, 0.15)' : 'none',
         }}
       >
@@ -356,7 +354,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           >
             <div 
               ref={textRef}
-              className={`whitespace-nowrap font-semibold text-white ${isTvMode ? '' : 'drop-shadow-lg'} ${
+              className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
                 shouldScroll && !isTvMode ? 'animate-marquee' : ''
               }`}
               style={{ fontSize: trackFontSize }}
@@ -366,7 +364,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           </div>
           {nowPlaying.artist_name && (
             <div 
-              className={`truncate text-white/80 ${isTvMode ? '' : 'drop-shadow-md'}`}
+              className={`truncate text-white/80 drop-shadow-md`}
               style={{ fontSize: artistFontSize }}
             >
               {nowPlaying.artist_name}
