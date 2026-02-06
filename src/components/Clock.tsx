@@ -45,7 +45,7 @@ function ClockComponent() {
         style={{ 
           fontSize: '18px',
           fontVariantNumeric: 'tabular-nums',
-          lineHeight: 1.1,
+          lineHeight: 1,
         }}
       >
         {displayTime.toLocaleTimeString("sv-SE", {
