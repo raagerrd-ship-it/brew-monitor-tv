@@ -6,21 +6,19 @@ function ClockComponent() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    // Update every second
+    // In TV mode, update every 60s (no seconds shown). Otherwise every second.
+    const intervalMs = isTvMode ? 60000 : 1000;
     const interval = setInterval(() => {
       setNow(new Date());
-    }, 1000);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [isTvMode]);
 
   const time = now.toLocaleTimeString("sv-SE", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
+    ...(isTvMode ? {} : { second: "2-digit" }),
   });
-
-  // Split "HH:MM:SS" into parts
-  const [hm, sec] = [time.slice(0, 5), time.slice(6, 8)];
 
   return (
     <div className="flex flex-col items-end justify-center h-full">
@@ -32,9 +30,13 @@ function ClockComponent() {
           lineHeight: 1,
         }}
       >
-        {hm}
-        <span className="text-muted-foreground/40">:</span>
-        <span className="text-muted-foreground/60">{sec}</span>
+        {isTvMode ? time : (
+          <>
+            {time.slice(0, 5)}
+            <span className="text-muted-foreground/40">:</span>
+            <span className="text-muted-foreground/60">{time.slice(6, 8)}</span>
+          </>
+        )}
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 

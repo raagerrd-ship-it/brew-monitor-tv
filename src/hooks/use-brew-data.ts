@@ -5,6 +5,7 @@ import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
 import { calculateFermentationRate } from '@/lib/brew-utils';
 import { useRealtimeSubscription } from './use-realtime-subscription';
+import { useTvMode } from '@/contexts/TvModeContext';
 
 interface UseBrewDataReturn {
   brews: BrewData[];
@@ -52,6 +53,7 @@ export function useBrewData(): UseBrewDataReturn {
   const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
+  const { isTvMode } = useTvMode();
 
   // Ref for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
@@ -505,7 +507,8 @@ export function useBrewData(): UseBrewDataReturn {
         })
       );
 
-      if (Object.keys(changedFields).length > 0) {
+      // Skip glow effects in TV mode to save memory (no timers)
+      if (Object.keys(changedFields).length > 0 && !isTvMode) {
         setUpdatedFields(prev => ({
           ...prev,
           [updatedReading.batch_id]: changedFields,

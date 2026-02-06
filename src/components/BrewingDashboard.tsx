@@ -5,8 +5,6 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
 import { DashboardHeader, HEADER_HEIGHT } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
-import { DashboardDebugOverlay } from "./DashboardDebugOverlay";
-import { TvDebugOverlay } from "./TvDebugOverlay";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2 } from "lucide-react";
@@ -17,7 +15,7 @@ import { useVersionCheck } from "@/hooks/use-version-check";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
-import { useMemoryMonitor } from "@/hooks/use-memory-monitor";
+
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
@@ -59,7 +57,7 @@ export function BrewingDashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
-  const showDebug = false; // Debug disabled for TV performance
+  
   // Get aspect ratio context to determine sizing strategy
   // In TV mode, height will be actual viewport height, not reference 1080
   const { isLocked: isAspectRatioLocked, height: containerHeight, width: containerWidth } = useAspectRatio();
@@ -114,8 +112,6 @@ export function BrewingDashboard() {
     appLoadTime
   } = useVersionCheck(isTvMode ? 300000 : 60000);
 
-  // Monitor memory usage in TV mode - reload if above 90% (check every 60s to reduce overhead)
-  useMemoryMonitor(90, 60000, isTvMode);
 
   // Force overflow hidden on body in TV mode (Chromecast iframe)
   useEffect(() => {
@@ -259,10 +255,6 @@ export function BrewingDashboard() {
     height: getContainerHeight(),
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
-      {/* Debug overlay - only in TV mode */}
-      {showDebug && isTvMode && (
-        <TvDebugOverlay />
-      )}
       
       {/* Album art background - uses server-processed image (blur+darken baked in) */}
       {isTvMode && processedBgUrl && (
