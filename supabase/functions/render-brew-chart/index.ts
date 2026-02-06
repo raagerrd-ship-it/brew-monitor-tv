@@ -355,9 +355,7 @@ function generateChartSvg(
     <path d="${sgPathD}" fill="none" stroke="${COLORS.sgLine}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
   `;
 
-  // Current SG value label
-  const lastSg = sgDown[sgDown.length - 1];
-  const currentSgLabel = `<text x="${sgPoints[sgPoints.length - 1].x - 5}" y="${sgPoints[sgPoints.length - 1].y - 8}" fill="${COLORS.sgLine}" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="end">${lastSg.sg.toFixed(3)}</text>`;
+  // Current SG value label removed - shown in stat cards instead
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
     ${gridSvg}
@@ -367,7 +365,6 @@ function generateChartSvg(
     ${tempSvgParts}
     ${pillTempSvg}
     ${sgLineSvg}
-    ${currentSgLabel}
   </svg>`;
 }
 
