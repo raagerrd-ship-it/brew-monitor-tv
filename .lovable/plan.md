@@ -1,24 +1,24 @@
 
 
-## Ta bort onödig CSS-blur från ölkorten
+## Öka blur kraftigt på albumomslag-bakgrunden
 
-Ölkorten lägger på `backdrop-blur-md` via CSS när albumomslaget visas som bakgrund. Eftersom bakgrundsbilden redan är förbehandlad (blurrad och mörkad) på servern är detta onödigt och belastar GPU/CPU i onödan på TV-hårdvaran.
+Bakgrunden ser knappt suddig ut på TV:n. Ökar blur-parametrarna markant.
 
 ### Ändring
 
-**`src/components/brew-card/BrewCard.tsx`** (rad 63-64)
-- Ta bort den villkorliga `backdrop-blur-md`-klassen som läggs till när `hasAlbumArtBackground` är true
-- Behåll `backdrop-blur-xl` som redan är villkorad till icke-TV-läge (rad 62)
+**`supabase/functions/prepare-album-background/index.ts`**
 
-Före:
-```
-${isTvMode ? '' : 'backdrop-blur-xl'} ${hasAlbumArtBackground ? 'backdrop-blur-md' : ''}
-```
+Ändra blur från `(50, 25)` till `(80, 40)` — en kraftig ökning:
 
-Efter:
 ```
-${isTvMode ? '' : 'backdrop-blur-xl'}
+// Före
+img.blur(50, 25);
+
+// Efter
+img.blur(80, 40);
 ```
 
-Detta sparar GPU-cykler på Chromecast-hårdvaran utan visuell skillnad, eftersom bakgrundsbilden redan är suddig.
+### Efterarbete
+- Deploya funktionen
+- Cachade bilder i `album-backgrounds`-bucketen måste rensas så nya genereras med den kraftigare blurren
 
