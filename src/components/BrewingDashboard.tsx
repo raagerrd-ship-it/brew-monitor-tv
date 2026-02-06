@@ -119,11 +119,17 @@ export function BrewingDashboard() {
   // Monitor memory usage in TV mode - reload if above 90% (check every 60s to reduce overhead)
   useMemoryMonitor(90, 60000, isTvMode);
 
-  // Debug log for TV mode
+  // Force overflow hidden on body in TV mode (Chromecast iframe)
   useEffect(() => {
     if (isTvMode) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
       console.log('[TV Debug] Dashboard mounted in TV mode');
       console.log('[TV Debug] Brews:', brews.length, 'Controllers:', controllers.length);
+      return () => {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+      };
     }
   }, [isTvMode, brews.length, controllers.length]);
 
