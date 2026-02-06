@@ -61,8 +61,6 @@ function BrewCardComponent({
       className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${isTvMode ? '' : 'transition-all duration-500'} ${
         isTvMode ? '' : 'backdrop-blur-xl'
       } ${
-        hasAlbumArtBackground ? 'backdrop-blur-md' : ''
-      } ${
         showInteractiveElements ? 'group' : ''
       }`}
       style={{
