@@ -223,7 +223,14 @@ function generateChartSvg(
 
     if (tempParsed.length > 0) {
       const tempDown = downsample(tempParsed, 80, p => p.t, p => p.current);
-      const allTemps = tempDown.flatMap(p => [p.current, p.target]);
+      // Include pill temp values from SG data in temp range calculation
+      const pillTemps = sgParsed
+        .filter(p => p.temp !== undefined && p.temp !== null)
+        .map(p => p.temp!);
+      const allTemps = [
+        ...tempDown.flatMap(p => [p.current, p.target]),
+        ...pillTemps,
+      ];
       const tempMin = Math.min(...allTemps) - 0.5;
       const tempMax = Math.max(...allTemps) + 0.5;
 
