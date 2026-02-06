@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 
+import { useTvMode } from "@/contexts/TvModeContext";
 // Generate array of seconds 00-59 for CSS animation
 const SECONDS_ARRAY = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
 function ClockComponent() {
+  const { isTvMode } = useTvMode();
   const [displayTime, setDisplayTime] = useState(new Date());
   const [initialSecond, setInitialSecond] = useState(() => new Date().getSeconds());
   const internalTimeRef = useRef(Date.now());
@@ -41,7 +43,7 @@ function ClockComponent() {
       <p 
         className="font-semibold tabular-nums tracking-tight text-foreground"
         style={{ 
-          fontSize: '24px',
+          fontSize: isTvMode ? '16px' : '24px',
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1.1,
         }}
@@ -74,7 +76,7 @@ function ClockComponent() {
       </p>
       <p 
         className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
-        style={{ fontSize: '11px' }}
+        style={{ fontSize: isTvMode ? '8px' : '11px' }}
       >
         {displayTime.toLocaleDateString("sv-SE", {
           weekday: "short",
