@@ -5,7 +5,7 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -111,8 +111,15 @@ export function BrewingDashboard() {
 
 
   // Listen for remote TV refresh trigger via force_tv_refresh_at
+  // Track last known value locally since payload.old may not include non-PK columns
+  const lastKnownRefreshAt = useRef<string | null>(null);
   useEffect(() => {
     if (!isTvMode) return;
+
+    // Initialize with current value from DB
+    supabase.from('sync_settings').select('force_tv_refresh_at').limit(1).maybeSingle().then(({ data }) => {
+      lastKnownRefreshAt.current = data?.force_tv_refresh_at ?? null;
+    });
 
     const channel = supabase
       .channel('tv-force-refresh')
@@ -120,9 +127,10 @@ export function BrewingDashboard() {
         'postgres_changes' as any,
         { event: 'UPDATE', schema: 'public', table: 'sync_settings' },
         (payload: any) => {
-          if (payload.new?.force_tv_refresh_at && payload.new.force_tv_refresh_at !== payload.old?.force_tv_refresh_at) {
+          const newVal = payload.new?.force_tv_refresh_at;
+          if (newVal && newVal !== lastKnownRefreshAt.current) {
             console.log('[TV] Remote refresh triggered');
-            // Clear caches and reload
+            lastKnownRefreshAt.current = newVal;
             setTimeout(async () => {
               if ('caches' in window) {
                 const names = await caches.keys();
