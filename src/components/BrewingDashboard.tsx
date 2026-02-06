@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
-import { DashboardHeader, HEADER_HEIGHT } from "./DashboardHeader";
+import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -251,6 +251,7 @@ export function BrewingDashboard() {
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
   // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
+  const activeHeaderHeight = isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT;
   
   // Use actual container height from context (viewport in TV mode, 1080 in desktop preview)
   const actualContainerHeight = containerHeight;
@@ -268,7 +269,7 @@ export function BrewingDashboard() {
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
       const footerSpace = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
-      return actualContainerHeight - HEADER_HEIGHT - footerSpace;
+      return actualContainerHeight - activeHeaderHeight - footerSpace;
     }
     return null; // Use CSS calc for non-locked mode
   };
@@ -352,7 +353,7 @@ export function BrewingDashboard() {
           </div> : <div 
             className={`${gridLayout} w-full px-4 py-2`} 
             style={{ 
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${HEADER_HEIGHT}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
             }}
           >
             {brews.map((brew, index) => <div 
@@ -372,7 +373,7 @@ export function BrewingDashboard() {
         <div 
           className="absolute z-10"
           style={{
-            top: `${HEADER_HEIGHT + 8}px`,
+            top: `${activeHeaderHeight + 8}px`,
             right: '12px',
           }}
         >

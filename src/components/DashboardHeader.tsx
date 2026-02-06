@@ -9,8 +9,10 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
 
-const HEADER_HEIGHT = 56;
-export { HEADER_HEIGHT };
+const HEADER_HEIGHT_DESKTOP = 70;
+const HEADER_HEIGHT_TV = 56;
+const HEADER_HEIGHT = HEADER_HEIGHT_DESKTOP;
+export { HEADER_HEIGHT, HEADER_HEIGHT_TV, HEADER_HEIGHT_DESKTOP };
 
 interface DashboardHeaderProps {
   controllers: TempController[];
@@ -43,7 +45,7 @@ export function DashboardHeader({
     <div
       className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`}
       style={{
-        height: isMobile ? 'auto' : hasAlbumArtBackground && isTvMode ? 'auto' : `${HEADER_HEIGHT}px`,
+        height: isMobile ? 'auto' : hasAlbumArtBackground && isTvMode ? 'auto' : `${isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT_DESKTOP}px`,
         background: hasAlbumArtBackground && isTvMode
           ? 'hsl(222 20% 9% / 0.85)'
           : 'hsl(222 20% 9%)',
