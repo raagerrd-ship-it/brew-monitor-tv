@@ -1,42 +1,34 @@
 
-# Stabilare Sonos-widget: JS progressbar + lazy album art
+
+# Chromecast-optimering: Ta bort GPU-tunga operationer
 
 ## Sammanfattning
-Tva andringar:
-1. **Byt tillbaka till en JS-driven progressbar** som uppdateras med `setInterval` istallet for CSS-animation. Enklare, fungerar och behover inte vara exakt.
-2. **Gor album art "lazy"** - visa lat/artist direkt, ladda in bilden i bakgrunden utan att blockera. Om bilden inte hinner laddas gar det bra, den visas nar den ar klar.
+Koden har fortfarande flera CSS-effekter som belastar GPU:n pa Chromecast. Alla transitions, blurs och shadows ska bort i TV-mode. Album art visas direkt (opacity 0 eller 1, ingen fade).
 
-## Detaljerade andringar
+## Andringar
 
-### 1. JS Progressbar (`SonosWidget.tsx`)
-- Ta bort CSS-animationslogiken (`progress-grow`, `--progress-start`, `remainingMs`)
-- Lagg till en `useEffect` med `setInterval` (var 1 sekund) som okar `localProgress` med 1000ms
-- Aterstartar vid ny data fran polling
-- Progressbaren visar bara `width: ${percent}%` med en enkel CSS transition (300ms)
+### 1. SonosWidget.tsx - Ta bort transitions och skuggor i TV-mode
 
-### 2. Album art som icke-blockerande (`SonosWidget.tsx` + `useSonosTrackTransition.ts`)
-- Vid latbyte: uppdatera lat/artist DIREKT, men lat `imageLoaded` vara `false` tills bilden faktiskt laddats
-- Ta bort crossfade-logiken (`previousAlbumArt`, `showPreviousArt`) - den lagger till komplexitet och extra state-uppdateringar som belastar hardvaran
-- Bilden visas mjukt nar den laddats (befintlig `opacity` transition), men widgeten visar gradient-bakgrund under tiden
-- I `BrewingDashboard.tsx`: Simplify `handleAlbumArtChange` - ta bort den separata Image-preloaden som skapar dubbel bildladdning
+- **Album art img**: Ta bort `transition: 'opacity 600ms ease-out'` och `willChange`. Anvand `opacity: imageLoaded ? 1 : 0` utan transition (omedelbar visning).
+- **Text**: Ta bort `drop-shadow-lg` och `drop-shadow-md` i TV-mode. Texten ar vit mot mork bakgrund, skugga behovs inte.
+- **Widget-container**: Ta bort `animate-fade-in` i TV-mode.
+- **Progressbar**: Ta bort `transition: 'width 300ms linear'` i TV-mode. Vid 1-3 fps syns transitions anda inte.
 
-### Tekniska detaljer
+### 2. BrewingDashboard.tsx - Ta bort backdropFilter och transition
 
-**SonosWidget.tsx:**
-- Ta bort state: `previousAlbumArt`, `showPreviousArt`
-- Lagg till `useEffect` for JS progress-ticker (1s intervall)
-- Forenkla renderingen: ta bort crossfade `<img>`, ta bort CSS animation-props
+- **Header** (rad 277-284): Ta bort `backdropFilter: 'blur(12px)'` helt i TV-mode. Blur ar extremt GPU-tung. Anvand en solid bakgrund med hogre opacitet istallet (t.ex. `hsl(222 20% 9% / 0.85)`).
+- **Header**: Ta bort `transition-all duration-500` i TV-mode.
 
-**useSonosTrackTransition.ts:**
-- Ta bort `setPreviousAlbumArt` och `setShowPreviousArt` fran alla callbacks
-- Ta bort crossfade-logiken i `applyPreloadedData` och `handleImageLoad`
-- Farre state-uppdateringar = farre re-renders = stabilare pa Chromecast
+### Teknisk sammanfattning
 
-**BrewingDashboard.tsx:**
-- Forenkla `handleAlbumArtChange` - satt `preloadedAlbumArt` direkt utan extra Image-objekt (bilden ar redan laddad i widgeten)
+| Vad | Problem | Atgard |
+|-----|---------|--------|
+| Album art opacity | 600ms CSS transition + willChange | Omedelbar (ingen transition) i TV-mode |
+| Text drop-shadow | GPU filter | Ta bort i TV-mode |
+| Widget animate-fade-in | CSS animation | Ta bort i TV-mode |
+| Progress bar transition | 300ms CSS transition | Ta bort i TV-mode |
+| Header backdropFilter blur | Extremt GPU-tung | Solid bakgrund i TV-mode |
+| Header transition-all | Onodig transition | Ta bort i TV-mode |
 
 ### Resultat
-- Farre state-variabler (2 borttagna)
-- Farre re-renders vid latbyte (2-3 farre setState-anrop)
-- Progressbaren fungerar tillforlitligt med enkel JS
-- Album art visas nar den hinner, utan att blockera nagon annan uppdatering
+Inga CSS transitions, filters eller animations kvar i TV-mode. Chromecast renderar bara statiska lager som uppdateras vid state-andringar.
