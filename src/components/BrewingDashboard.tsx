@@ -45,14 +45,10 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [processedBgUrl, setProcessedBgUrl] = useState<string | null>(null);
   
   // Simple: the widget already loaded the image, just use the URL directly
   const handleAlbumArtChange = useCallback((url: string | null) => {
     setAlbumArtUrl(url);
-  }, []);
-  const handleBackgroundUrlChange = useCallback((url: string | null) => {
-    setProcessedBgUrl(url);
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -292,27 +288,16 @@ export function BrewingDashboard() {
     background: albumArtUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
   }}>
       
-      {/* Album art background - uses server-processed image (blur+darken baked in) */}
-      {isTvMode && processedBgUrl && (
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{ 
-            backgroundImage: `url(${processedBgUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-            contain: 'strict',
-          }}
-        />
-      )}
-      {/* Fallback: unprocessed album art with opacity while waiting for processed version */}
-      {isTvMode && albumArtUrl && !processedBgUrl && (
+      {/* Album art background - CSS blur on original image */}
+      {isTvMode && albumArtUrl && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
             backgroundImage: `url(${albumArtUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
-            opacity: 0.2,
+            filter: 'blur(40px) brightness(0.4)',
+            transform: 'scale(1.15)',
             contain: 'strict',
           }}
         />
@@ -382,7 +367,7 @@ export function BrewingDashboard() {
             right: '12px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} onBackgroundUrlChange={handleBackgroundUrlChange} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
         </div>
       )}
 
