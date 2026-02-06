@@ -338,10 +338,10 @@ export function useExternalTimer() {
       )
       .subscribe();
 
-    // Also poll every 10 seconds as backup in case realtime doesn't work
+    // Also poll every 60 seconds as backup in case realtime doesn't work
     const pollInterval = setInterval(() => {
       fetchFromCache();
-    }, 10000);
+    }, 60000);
 
     return () => {
       supabase.removeChannel(channel);

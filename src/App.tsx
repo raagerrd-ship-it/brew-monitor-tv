@@ -6,9 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider, useTvMode } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
-import { FpsCounterProvider } from "@/contexts/FpsCounterContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
-import { FpsCounter } from "@/components/FpsCounter";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
@@ -55,27 +53,24 @@ function AppContent() {
   const { isTvMode } = useTvMode();
   
   return (
-    <FpsCounterProvider>
-      <ExternalAuthProvider>
+    <ExternalAuthProvider>
+      
+      <Routes>
+        {/* Brew page without aspect ratio lock */}
+        <Route path="/brew/:id" element={<Brew />} />
         
-        <Routes>
-          {/* Brew page without aspect ratio lock */}
-          <Route path="/brew/:id" element={<Brew />} />
-          
-          {/* All other routes with aspect ratio lock using layout */}
-          <Route element={<AspectRatioLayout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/install" element={<Install />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/sonos-callback" element={<SonosCallback />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-        {/* <FpsCounter /> */}{/* TEMP: Disabled for performance testing */}
-      </ExternalAuthProvider>
-    </FpsCounterProvider>
+        {/* All other routes with aspect ratio lock using layout */}
+        <Route element={<AspectRatioLayout />}>
+          <Route path="/" element={<Index />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/install" element={<Install />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/sonos-callback" element={<SonosCallback />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </ExternalAuthProvider>
   );
 }
 
