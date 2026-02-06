@@ -267,7 +267,6 @@ function generateChartSvg(
   const currentSgLabel = `<text x="${sgPoints[sgPoints.length - 1].x - 5}" y="${sgPoints[sgPoints.length - 1].y - 8}" fill="${COLORS.sgLine}" font-size="11" font-weight="bold" font-family="sans-serif" text-anchor="end">${lastSg.sg.toFixed(3)}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-    <rect width="${WIDTH}" height="${HEIGHT}" rx="8" fill="${COLORS.bg}"/>
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
