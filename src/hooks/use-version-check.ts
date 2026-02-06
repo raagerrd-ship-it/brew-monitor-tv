@@ -31,20 +31,23 @@ export const useVersionCheck = (checkInterval = 60000) => { // Default: check ev
         
         const html = await response.text();
         
-        // Extract ALL script tags including their full src attributes with timestamps
-        // This catches both bundle hash changes and Vite timestamp changes (?t=xxx)
-        const scriptMatches = html.match(/<script[^>]*src="([^"]*)"[^>]*>/g);
+        // Extract script src attributes
+        const scriptMatches = html.match(/<script[^>]*src="([^"]*)"[^>]*>/g) || [];
+        const linkMatches = html.match(/<link[^>]*href="([^"]*)"[^>]*>/g) || [];
         
-        // Also extract link tags for CSS changes
-        const linkMatches = html.match(/<link[^>]*href="([^"]*)"[^>]*>/g);
+        // Extract just the file paths without query parameters (strips Vite's ?t=xxx timestamps)
+        // This prevents false positives from dev server timestamp changes
+        const extractPath = (tag: string) => {
+          const match = tag.match(/(?:src|href)="([^"?]+)/);
+          return match ? match[1] : '';
+        };
         
-        // Combine all resource references for comparison
-        const resourcesString = [
-          ...(scriptMatches || []),
-          ...(linkMatches || [])
-        ].join('|');
+        const resourcePaths = [
+          ...scriptMatches.map(extractPath),
+          ...linkMatches.map(extractPath)
+        ].filter(Boolean).join('|');
         
-        const resourcesHash = await hashString(resourcesString);
+        const resourcesHash = await hashString(resourcePaths);
         
         if (isFirstCheck.current) {
           lastHtmlHash.current = resourcesHash;
