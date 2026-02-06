@@ -48,6 +48,29 @@ serve(async (req) => {
       );
     }
 
+    // Reject local/private network URLs that the edge function can't reach
+    try {
+      const parsed = new URL(imageUrl);
+      const host = parsed.hostname;
+      if (
+        host === 'localhost' ||
+        host.startsWith('127.') ||
+        host.startsWith('10.') ||
+        host.startsWith('192.168.') ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+      ) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot fetch images from local network addresses' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid imageUrl' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
