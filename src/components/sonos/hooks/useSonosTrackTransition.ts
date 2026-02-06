@@ -56,6 +56,7 @@ export function useSonosTrackTransition(
   const trackEndFetchedRef = useRef<boolean>(false);
   const lastUpdateRef = useRef<number>(Date.now());
   const nowPlayingRef = useRef(nowPlaying);
+  const isFetchingRef = useRef(false);
   
   // Keep ref in sync
   nowPlayingRef.current = nowPlaying;
@@ -71,23 +72,37 @@ export function useSonosTrackTransition(
     preloadedDataRef.current = null;
   }, []);
 
-  // Fetch now playing data with timeout to prevent hanging
+  // Fetch now playing data with timeout and concurrency guard
   const fetchNowPlaying = useCallback(async () => {
+    // Guard against overlapping requests
+    if (isFetchingRef.current) {
+      console.log('[Sonos] Skipping fetch - previous request still in progress');
+      return;
+    }
+    isFetchingRef.current = true;
+    
     try {
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
-      
-      const response = await supabase.functions.invoke('sonos-now-playing', {
-        body: {},
-      });
-      
-      clearTimeout(timeoutId);
+      // Use Promise.race for real timeout since AbortController doesn't work with supabase.functions.invoke
+      const response = await Promise.race([
+        supabase.functions.invoke('sonos-now-playing', { body: {} }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: sonos-now-playing took >8s')), 8000)
+        )
+      ]);
       
       if (response.data && !response.error) {
-        if (response.data.track_name !== currentTrackRef.current) {
+        const isNewTrack = response.data.track_name !== currentTrackRef.current;
+        
+        if (isNewTrack) {
           trackEndFetchedRef.current = false;
           currentTrackRef.current = response.data.track_name;
+        }
+        
+        // Batch all state updates together to minimize re-renders
+        // React 18 batches in event handlers but NOT in async callbacks,
+        // so we use unstable_batchedUpdates pattern via sequential sets
+        // within the same microtask
+        if (isNewTrack) {
           setImageLoaded(false);
           setImageError(false);
         }
@@ -96,10 +111,13 @@ export function useSonosTrackTransition(
         lastUpdateRef.current = Date.now();
       }
     } catch (error) {
-      // Silently handle timeout/network errors to prevent console spam
-      if (error instanceof Error && error.name !== 'AbortError') {
+      if (error instanceof Error && error.message.startsWith('Timeout')) {
+        console.warn('[Sonos]', error.message);
+      } else {
         console.error('[Sonos] Failed to fetch now playing:', error);
       }
+    } finally {
+      isFetchingRef.current = false;
     }
   }, [setNowPlaying, setLocalProgress, setImageLoaded, setImageError]);
 
@@ -110,11 +128,13 @@ export function useSonosTrackTransition(
     
     console.log('[Sonos] Pre-loading next track...');
     try {
-      const response = await supabase.functions.invoke('sonos-now-playing', {
-        body: { peek_next: true }
-      });
+      const response = await Promise.race([
+        supabase.functions.invoke('sonos-now-playing', { body: { peek_next: true } }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: preload took >8s')), 8000)
+        )
+      ]);
       if (response.data?.track_name && response.data.track_name !== current.track_name) {
-        // Clean up any existing preloaded image first
         cleanupPreloadedImage();
         
         preloadedDataRef.current = response.data;
@@ -130,7 +150,7 @@ export function useSonosTrackTransition(
         }
       }
     } catch (error) {
-      console.error('[Sonos] Failed to preload next track:', error);
+      console.warn('[Sonos] Preload failed (timeout or network):', error instanceof Error ? error.message : error);
     }
   }, [cleanupPreloadedImage]);
 
@@ -153,7 +173,6 @@ export function useSonosTrackTransition(
       if (currentAlbumArtRef.current && currentAlbumArtRef.current !== preloadedData.album_art_url) {
         setPreviousAlbumArt(currentAlbumArtRef.current);
         setShowPreviousArt(true);
-        // Clear previous art after crossfade to free memory
         setTimeout(() => {
           setPreviousAlbumArt(null);
           setShowPreviousArt(false);
@@ -169,6 +188,7 @@ export function useSonosTrackTransition(
         preloadedImage.onerror = null;
       }
       
+      // Batch all state updates
       setImageLoaded(imageIsReady);
       setImageError(false);
       setNowPlaying(preloadedData);
@@ -202,9 +222,9 @@ export function useSonosTrackTransition(
         setImageLoaded(false);
         setImageError(false);
       }
-      // Clear preload refs
       cleanupPreloadedImage();
     }
+    // Batch remaining state updates
     setNowPlaying(newData);
     setLocalProgress(newData.position_ms);
     lastUpdateRef.current = Date.now();
