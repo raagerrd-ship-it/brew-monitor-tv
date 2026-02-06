@@ -110,7 +110,7 @@ serve(async (req) => {
       img.resize(400, 400);
       
       // Heavy gaussian blur (radius 40, sigma 20)
-      img.blur(50, 25);
+      img.blur(80, 40);
       
       // Darken to ~40% brightness using modulate (brightness=40, saturation=100, hue=100)
       img.modulate(new Percentage(40), new Percentage(100), new Percentage(100));
