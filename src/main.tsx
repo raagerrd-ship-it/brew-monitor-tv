@@ -14,7 +14,6 @@ if ((isIframe || isTvParam || isChromecast) && 'serviceWorker' in navigator) {
       console.log('[TV] Service worker unregistered');
     }
   });
-  // Also clear SW caches
   if ('caches' in window) {
     caches.keys().then((names) => {
       for (const name of names) {
@@ -23,6 +22,17 @@ if ((isIframe || isTvParam || isChromecast) && 'serviceWorker' in navigator) {
       if (names.length > 0) console.log('[TV] SW caches cleared');
     });
   }
+}
+
+// Auto-reload when a new Service Worker takes control (e.g. after publish)
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    console.log('[SW] New service worker activated, reloading...');
+    window.location.reload();
+  });
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
