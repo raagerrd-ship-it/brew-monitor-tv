@@ -60,17 +60,19 @@ function ClockComponent() {
             height: '18px',
             width: '2ch',
             verticalAlign: 'bottom',
+            position: 'relative',
           }}
         >
           <span 
-            className="flex flex-col"
+            className="block"
             style={{
               animation: 'clock-seconds 60s steps(60) infinite',
               animationDelay,
+              willChange: 'transform',
             }}
           >
             {SECONDS_ARRAY.map((sec) => (
-              <span key={sec} className="block" style={{ height: '18px', lineHeight: '18px' }}>{sec}</span>
+              <span key={sec} className="block" style={{ height: '18px', lineHeight: '18px', textAlign: 'right' }}>{sec}</span>
             ))}
           </span>
         </span>
