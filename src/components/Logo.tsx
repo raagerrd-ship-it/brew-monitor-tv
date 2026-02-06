@@ -6,7 +6,7 @@ function LogoComponent() {
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
 
-  const fontSize = isMobile ? '28px' : '28px';
+  const fontSize = isMobile ? '28px' : '30px';
 
   // Different text based on TV mode
   const firstPart = "Brygg";
