@@ -1,170 +1,93 @@
 
-# Plan: Förhindra TV-krasch med Albumartbakgrund
+# Analys: Varfor sidan hanger sig vid latbyte
 
-## Problemanalys
+## Identifierade orsaker
 
-Utifrån sessionsreplayet och koden har jag identifierat följande potentiella kraschorsaker:
+### 1. AbortController gor ingenting (KRITISKT)
+I `useSonosTrackTransition.ts` rad 78-83 skapas en `AbortController` med 8 sekunders timeout, men den skickas aldrig vidare till `supabase.functions.invoke()`. Supabase JS-klienten stodjer inte `signal` via options-objektet pa det sattet. Det betyder att om edge-funktionen hangs (t.ex. Sonos API svarar sakta), vantar browsern i upp till 60+ sekunder utan att avbryta.
 
-1. **Ohanteradepromise-fel i async-funktioner** - Edge function-anropen i SonosWidget och useSonosTrackTransition saknar fullständig felhantering
-2. **Bildladdningsfel utan recovery** - När albumart-bilden ändras snabbt kan det orsaka minnesläckor
-3. **CSS filter på stora bilder** - `blur(8px)` på en bakgrundsbild som täcker hela skärmen är CPU-intensivt på Chromecast
-4. **Ingen preloading av bakgrundsbild** - Bilden laddas direkt som bakgrund utan att först laddas i minnet
+### 2. Edge-funktionen gor manga sekventiella anrop
+`sonos-now-playing` edge-funktionen gor upp till 4-6 natluftsanrop i serie:
+- 2x DB-querys (tokens + settings)
+- Eventuell token-refresh mot Sonos OAuth
+- 2x Sonos API (metadata + playback) parallellt
+- Eventuellt Spotify token + Spotify track API
 
-## Åtgärder
+Om Sonos API ar tragt (vanligt), kan hela anropet ta 5-15 sekunder. Under den tiden blockeras pollingintervallet.
 
-### 1. Ta bort blur-filter från bakgrundsbilden
-CSS blur-filter på stora bilder är extremt resurskrävande. Vi ersätter det med en mörkare overlay istället.
+### 3. Ingen skydd mot overlappande anrop
+Om `fetchNowPlaying` tar 8 sekunder och polling-intervallet ar 5 sekunder, startas ett nytt anrop innan det forra avslutas. Pa Chromecast med begransad bandbredd och CPU leder detta till att anrop staplas pa varandra.
 
-**Fil:** `src/components/BrewingDashboard.tsx`
-```tsx
-// Ändra från:
-style={{ 
-  backgroundImage: `url(${albumArtUrl})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center center',
-  filter: 'blur(8px)',  // Ta bort detta
-  opacity: 0.3,
-}}
+### 4. State-kaskad vid latbyte (6+ re-renders)
+Nar en lat byter triggas foljande state-uppdateringar i snabb foljd:
+1. `setNowPlaying(data)` 
+2. `setLocalProgress(data.position_ms)`
+3. `setImageLoaded(false)`
+4. `setImageError(false)`
+5. `setAlbumArtUrl(url)` (via onAlbumArtChange callback)
+6. `setPreloadedAlbumArt(url)` (efter preload timeout)
 
-// Till:
-style={{ 
-  backgroundImage: `url(${albumArtUrl})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center center',
-  opacity: 0.2,  // Minska opacitet istället för blur
-}}
-```
+Varje uppdatering triggar en re-render av hela BrewingDashboard inklusive alla BrewCards och grafer.
 
-### 2. Lägg till robust felhantering i fetchNowPlaying
-Wrap alla async-operationer i try-catch för att förhindra ohanteradefel som kan krascha appen.
+### 5. Version-check gor tung krypto-operation
+`useVersionCheck` gor `fetch('/?_=...')` + `crypto.subtle.digest('SHA-256', ...)` var 60:e sekund. Om detta sammanfaller med ett latbyte pa Chromecast-hardvara kan det bidra till frysningen.
+
+## Atgardsplan
+
+### Steg 1: Fixa AbortController sa timeout faktiskt fungerar
+Ersatt `supabase.functions.invoke()` med en ratt `fetch()`-anrop som accepterar AbortSignal, eller wrappa invoke i en Promise.race med timeout.
 
 **Fil:** `src/components/sonos/hooks/useSonosTrackTransition.ts`
-```tsx
+
+```typescript
 const fetchNowPlaying = useCallback(async () => {
+  if (isFetchingRef.current) return; // Guard mot overlapp
+  isFetchingRef.current = true;
+  
   try {
-    const response = await supabase.functions.invoke('sonos-now-playing');
-    if (response.data && !response.error) {
-      // ... existing logic
-    }
+    const response = await Promise.race([
+      supabase.functions.invoke('sonos-now-playing', { body: {} }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      )
+    ]);
+    // ... hantera svar
   } catch (error) {
-    // Logga men krascha inte
-    console.error('[Sonos] Failed to fetch now playing:', error);
+    // Timeout eller natverksfel - tyst hantering
+  } finally {
+    isFetchingRef.current = false;
   }
-}, [/* deps */]);
+}, [...]);
 ```
 
-### 3. Preloada bakgrundsbilden innan visning
-Skapa en Image-instans för att ladda bilden i minnet innan den används som CSS-bakgrund.
+### Steg 2: Lagg till guard mot overlappande anrop
+Lagg till en `isFetchingRef` som forhindrar att ett nytt `fetchNowPlaying` startas om det forra inte avslutas.
+
+### Steg 3: Batcha state-uppdateringar vid latbyte
+Samla alla state-uppdateringar i en enda uppdatering istallet for 4-6 separata `setState`-anrop. React 18 batchar automatiskt i event handlers, men INTE i async callbacks.
+
+**Fil:** `src/components/sonos/hooks/useSonosTrackTransition.ts`
+
+Anropa `ReactDOM.flushSync` eller batcha manuellt genom att anvanda ett enda state-objekt istallet for separata states.
+
+### Steg 4: Debounca onAlbumArtChange-callbacken
+Oka debounce fran 100ms till 500ms for att ge hardvaran tid att stabilisera sig.
+
+### Steg 5: Inaktivera version-check i TV-mode
+Version-checken gor onodigt tunga operationer (fetch + SHA-256 hash) som kan sammanfalla med latbyten.
 
 **Fil:** `src/components/BrewingDashboard.tsx`
-```tsx
-// Ny state för preloaded bild
-const [preloadedAlbumArt, setPreloadedAlbumArt] = useState<string | null>(null);
 
-// Preload-logik i handleAlbumArtChange
-const handleAlbumArtChange = useCallback((url: string | null) => {
-  if (!url) {
-    setPreloadedAlbumArt(null);
-    return;
-  }
-  
-  // Preloada bilden innan den visas
-  const img = new Image();
-  img.onload = () => setPreloadedAlbumArt(url);
-  img.onerror = () => setPreloadedAlbumArt(null);
-  img.src = url;
-}, []);
-```
+Minska frekvensen i TV-mode till var 5:e minut istallet for var minut.
 
-### 4. Skydda mot snabba bildbyten (debounce)
-Förhindra att flera bildbyten sker samtidigt genom att throttla uppdateringar.
+## Teknisk sammanfattning
 
-**Fil:** `src/components/BrewingDashboard.tsx`
-```tsx
-const preloadTimeoutRef = useRef<number | null>(null);
+| Problem | Atgard | Fil |
+|---------|--------|-----|
+| AbortController gor inget | Anvand Promise.race med timeout | useSonosTrackTransition.ts |
+| Overlappande anrop | Lagg till isFetchingRef guard | useSonosTrackTransition.ts |
+| 6+ re-renders vid latbyte | Batcha state-uppdateringar | useSonosTrackTransition.ts |
+| Snabb albumart-debounce | Oka fran 100ms till 500ms | BrewingDashboard.tsx |
+| Version-check i TV-mode | Oka intervall till 5 min | BrewingDashboard.tsx |
 
-const handleAlbumArtChange = useCallback((url: string | null) => {
-  // Rensa tidigare timeout
-  if (preloadTimeoutRef.current) {
-    clearTimeout(preloadTimeoutRef.current);
-  }
-  
-  if (!url) {
-    setPreloadedAlbumArt(null);
-    return;
-  }
-  
-  // Debounce för att förhindra snabba byten
-  preloadTimeoutRef.current = window.setTimeout(() => {
-    const img = new Image();
-    img.onload = () => setPreloadedAlbumArt(url);
-    img.onerror = () => setPreloadedAlbumArt(null);
-    img.src = url;
-  }, 100);
-}, []);
-```
-
-### 5. Förbättra felhantering i SonosWidget
-Lägg till ytterligare skydd i komponenten.
-
-**Fil:** `src/components/sonos/SonosWidget.tsx`
-```tsx
-// Wrap alla async-operationer
-const checkConnection = async () => {
-  try {
-    const { data: settings, error: settingsError } = await (supabase as any)
-      .from('sonos_settings')
-      .select('show_on_dashboard, selected_group_id')
-      .limit(1)
-      .maybeSingle();
-    // ... rest of logic
-  } catch (error) {
-    console.error('[Sonos] Failed to check connection:', error);
-    setIsConnected(false);
-  }
-};
-```
-
-### 6. Använd contain: strict på bakgrundscontainern
-Isolera bakgrundsbilden från övriga renderingar.
-
-**Fil:** `src/components/BrewingDashboard.tsx`
-```tsx
-{isTvMode && preloadedAlbumArt && (
-  <div 
-    className="absolute inset-0 pointer-events-none"
-    style={{ 
-      backgroundImage: `url(${preloadedAlbumArt})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center center',
-      opacity: 0.2,
-      contain: 'strict',  // Isolera rendering
-    }}
-  />
-)}
-```
-
-## Sammanfattning av ändringar
-
-| Fil | Ändring |
-|-----|---------|
-| `src/components/BrewingDashboard.tsx` | Ta bort blur, lägg till preloading med debounce, använd contain: strict |
-| `src/components/sonos/hooks/useSonosTrackTransition.ts` | Förbättrad try-catch i alla async-funktioner |
-| `src/components/sonos/SonosWidget.tsx` | Förbättrad felhantering i checkConnection |
-
-## Tekniska detaljer
-
-**Varför blur(8px) är problematiskt på TV:**
-- CSS blur kräver att varje pixel bearbetas med en Gaussian kernel
-- På 720p/1080p bilder betyder det miljontals operationer per frame
-- Chromecast har begränsad GPU-kapacitet för CSS-filter
-
-**Varför preloading hjälper:**
-- Förhindrar "torn" rendering där bilden delvis visas
-- Ger appen möjlighet att hantera laddningsfel graciöst
-- Minskar risken för minnesläckor vid snabba byten
-
-**Varför contain: strict hjälper:**
-- Isolerar bakgrundscontainern från övriga DOM-ändringar
-- Förhindrar att bakgrundsbyten triggar omrendering av hela appen
-- Optimerar GPU-lager hantering
+Dessa andringar fokuserar pa att forhindra att asynkrona operationer overlappar varandra och att minska antalet re-renders vid latbyten - de tva huvudsakliga orsakerna till frysningen.
