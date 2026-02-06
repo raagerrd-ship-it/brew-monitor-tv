@@ -357,7 +357,7 @@ function generateChartSvg(
 
   // Current SG value label removed - shown in stat cards instead
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
