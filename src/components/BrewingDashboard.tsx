@@ -79,7 +79,7 @@ export function BrewingDashboard() {
         setPreloadedAlbumArt(null);
       };
       img.src = url;
-    }, 100);
+    }, 500);
   }, []);
   
   // Cleanup preload timeout on unmount
@@ -143,10 +143,10 @@ export function BrewingDashboard() {
     loadCoolerController();
   }, []);
 
-  // Check for new app versions every 60 seconds
+  // Check for new app versions - 5 min in TV mode to reduce CPU, 60s otherwise
   const {
     appLoadTime
-  } = useVersionCheck(60000);
+  } = useVersionCheck(isTvMode ? 300000 : 60000);
 
   // Monitor memory usage in TV mode - reload if above 90% (check every 60s to reduce overhead)
   useMemoryMonitor(90, 60000, isTvMode);
