@@ -57,3 +57,6 @@ verify_jwt = false
 
 [functions.public-brew]
 verify_jwt = false
+
+[functions.prepare-album-background]
+verify_jwt = false

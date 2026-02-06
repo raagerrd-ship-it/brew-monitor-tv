@@ -49,10 +49,14 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [processedBgUrl, setProcessedBgUrl] = useState<string | null>(null);
   
   // Simple: the widget already loaded the image, just use the URL directly
   const handleAlbumArtChange = useCallback((url: string | null) => {
     setAlbumArtUrl(url);
+  }, []);
+  const handleBackgroundUrlChange = useCallback((url: string | null) => {
+    setProcessedBgUrl(url);
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -256,8 +260,20 @@ export function BrewingDashboard() {
         <TvDebugOverlay />
       )}
       
-      {/* Album art background - uses preloaded image for stability */}
-      {isTvMode && albumArtUrl && (
+      {/* Album art background - uses server-processed image (blur+darken baked in) */}
+      {isTvMode && processedBgUrl && (
+        <div 
+          className="absolute inset-0 pointer-events-none"
+          style={{ 
+            backgroundImage: `url(${processedBgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
+            contain: 'strict',
+          }}
+        />
+      )}
+      {/* Fallback: unprocessed album art with opacity while waiting for processed version */}
+      {isTvMode && albumArtUrl && !processedBgUrl && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
@@ -386,7 +402,7 @@ export function BrewingDashboard() {
             right: '24px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} onBackgroundUrlChange={handleBackgroundUrlChange} />
         </div>
       )}
 

@@ -16,10 +16,11 @@ interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
+  onBackgroundUrlChange?: (url: string | null) => void;
   showDebug?: boolean;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, onBackgroundUrlChange, showDebug = false }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -30,6 +31,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
   const pollIntervalRef = useRef<number | null>(null);
+  const lastBgRequestRef = useRef<string | null>(null);
 
   // Use the transition hook for track management
   const { 
@@ -144,6 +146,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   // Notify parent about album art changes
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
+  const onBackgroundUrlChangeRef = useRef(onBackgroundUrlChange);
+  onBackgroundUrlChangeRef.current = onBackgroundUrlChange;
 
   useEffect(() => {
     const callback = onAlbumArtChangeRef.current;
@@ -155,6 +159,44 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     }
   }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
+
+  // Request pre-processed background image from edge function when track changes
+  useEffect(() => {
+    const bgCallback = onBackgroundUrlChangeRef.current;
+    if (!bgCallback || !nowPlaying?.album_art_url) {
+      bgCallback?.(null);
+      return;
+    }
+
+    // Only request if this is a new album art URL
+    if (nowPlaying.album_art_url === lastBgRequestRef.current) return;
+    lastBgRequestRef.current = nowPlaying.album_art_url;
+
+    const controller = new AbortController();
+    
+    (async () => {
+      try {
+        const response = await Promise.race([
+          supabase.functions.invoke('prepare-album-background', {
+            body: { imageUrl: nowPlaying.album_art_url },
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 10000)
+          ),
+        ]);
+
+        if (!controller.signal.aborted && response.data?.backgroundUrl) {
+          bgCallback(response.data.backgroundUrl);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.warn('[Sonos] Background preparation failed:', error);
+        }
+      }
+    })();
+
+    return () => { controller.abort(); };
+  }, [nowPlaying?.album_art_url]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
