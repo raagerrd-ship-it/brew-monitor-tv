@@ -199,9 +199,9 @@ function generateChartSvg(
     </svg>`;
   }
 
-  // Time range from SG data
-  const tMin = sgParsed[0].t;
-  const tMax = sgParsed[sgParsed.length - 1].t;
+  // Time range from SG data (will be expanded to include controller data below)
+  let tMin = sgParsed[0].t;
+  let tMax = sgParsed[sgParsed.length - 1].t;
 
   // SG range with padding (matches desktop: fg - 0.001, og + 0.001)
   const sgValues = sgParsed.map(p => p.sg);
@@ -224,7 +224,13 @@ function generateChartSvg(
       t: new Date(p.recorded_at).getTime(),
       current: p.current_temp,
       target: p.target_temp,
-    })).filter(p => p.t >= tMin && p.t <= tMax);
+    }));
+
+    // Expand time range to include all controller data
+    if (tempParsed.length > 0) {
+      tMin = Math.min(tMin, tempParsed[0].t);
+      tMax = Math.max(tMax, tempParsed[tempParsed.length - 1].t);
+    }
 
     if (tempParsed.length > 0) {
       const tempDown = downsample(tempParsed, 80, p => p.t, p => p.current);
@@ -414,8 +420,11 @@ serve(async (req) => {
     // Fetch controller temp history if linked
     let tempHistory: TempHistoryPoint[] | null = null;
     if (brew.linked_controller_id && sgData.length > 0) {
-      const startTime = brew.fermentation_start || sgData[0].date;
-      const endTime = sgData[sgData.length - 1].date;
+      // Use earliest possible start and current time as end to capture all data
+      const startTime = brew.fermentation_start && sgData[0]?.date
+        ? (new Date(brew.fermentation_start) < new Date(sgData[0].date) ? brew.fermentation_start : sgData[0].date)
+        : (brew.fermentation_start || sgData[0].date);
+      const endTime = new Date().toISOString(); // Use current time to capture latest controller data
       
       const { data: tempData } = await supabase.rpc('get_temp_history_sampled', {
         p_controller_id: brew.linked_controller_id,
