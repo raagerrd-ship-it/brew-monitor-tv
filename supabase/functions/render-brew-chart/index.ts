@@ -341,18 +341,7 @@ function generateChartSvg(
     yAxisSvg += `<text x="${MARGIN.left - 5}" y="${y + 3}" fill="${COLORS.axisText}" font-size="9" font-family="sans-serif" text-anchor="end">${v.toFixed(3)}</text>`;
   }
 
-  // OG/FG reference lines
-  const ogY = scaleY(og, sgMin, sgMax);
-  const fgY = scaleY(fg, sgMin, sgMax);
-  let refLines = '';
-  if (og > 0) {
-    refLines += `<line x1="${MARGIN.left}" y1="${ogY}" x2="${WIDTH - MARGIN.right}" y2="${ogY}" stroke="${COLORS.sgLine}40" stroke-width="0.5" stroke-dasharray="3 3"/>`;
-    refLines += `<text x="${MARGIN.left + 3}" y="${ogY - 4}" fill="${COLORS.sgLine}80" font-size="8" font-family="sans-serif">OG</text>`;
-  }
-  if (fg > 0 && fg < og) {
-    refLines += `<line x1="${MARGIN.left}" y1="${fgY}" x2="${WIDTH - MARGIN.right}" y2="${fgY}" stroke="${COLORS.sgLine}40" stroke-width="0.5" stroke-dasharray="3 3"/>`;
-    refLines += `<text x="${MARGIN.left + 3}" y="${fgY - 4}" fill="${COLORS.sgLine}80" font-size="8" font-family="sans-serif">FG</text>`;
-  }
+  // OG/FG reference lines removed for cleaner TV display
 
   // SG line with glow effect
   const sgPathD = buildSmoothPath(sgPoints);
@@ -367,7 +356,6 @@ function generateChartSvg(
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
-    ${refLines}
     ${tempSvgParts}
     ${pillTempSvg}
     ${sgLineSvg}
