@@ -1,7 +1,7 @@
 import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSonosTrackTransition } from "./hooks";
-import { SonosDebugOverlay } from "./SonosDebugOverlay";
+
 
 interface NowPlaying {
   track_name: string | null;
@@ -297,17 +297,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   return (
     <>
-      {showDebug && (
-        <SonosDebugOverlay
-          trackName={nowPlaying.track_name}
-          artistName={nowPlaying.artist_name}
-          playbackState={nowPlaying.playback_state}
-          positionMs={localProgress}
-          durationMs={nowPlaying.duration_ms}
-          imageLoaded={imageLoaded}
-          imageError={imageError}
-        />
-      )}
       <div 
         className={`relative overflow-hidden rounded-xl ${isTvMode ? '' : 'animate-fade-in'}`}
         style={{
