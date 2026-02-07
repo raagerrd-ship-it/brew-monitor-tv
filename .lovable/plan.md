@@ -1,44 +1,54 @@
 
 
-## Rullande bildbuffe for bakgrundsverifiering
+# Adaptiv bakgrundsljusstyrka - Alltid samma upplevda ljusnivå
 
-### Problem
-Den nuvarande safeguard-logiken (rad 297-302) jamfor bara `bgSentRef` mot `displayedArtUrl`, vilket inte fanger upp fall dar bakgrunden hamnat ur synk med widgetens aktuella bild -- t.ex. efter cooldown-perioden eller missade realtime-events.
+## Problem
+Nuvarande lösning applicerar en fast mörk overlay (t.ex. 40% svart) ovanpå bakgrundsbilden. Men en ljus albumomslag + 40% overlay ser fortfarande mycket ljusare ut än ett mörkt albumomslag + 40% overlay. Resultatet är inkonsekvent ljusstyrka mellan låtar.
 
-### Losning
-Ersatt den enkla `bgSentRef` (en enda URL) med en rullande buffer av 3-4 giltiga bakgrunds-URL:er. Vid varje 5s-poll kontrolleras om den senast skickade bakgrunden tillhor buffern. Om inte, skickas ratt bakgrund till dashboarden.
+## Lösning
+Flytta ljusstyrkenormaliseringen tillbaka till serversidan (AI-generering) så att varje bakgrundsbild kommer ut med samma upplevda ljusnivå, oavsett originalet. Klientsidans overlay behålls som en enkel "dimmer" ovanpå det redan normaliserade resultatet.
 
-### Tekniska detaljer
+## Hur det fungerar
 
-**Fil: `src/components/sonos/SonosWidget.tsx`**
+1. **AI-prompten uppdateras** i edge-funktionen `sync-sonos-now-playing` för att instruera AI:n att:
+   - Analysera bildens genomsnittliga ljusnivå
+   - Normalisera den till en konsekvent mål-ljusstyrka (t.ex. 25-30% perceived brightness)
+   - Sedan applicera blur
+   - Göra den översta kanten mörkare för header-läsbarhet
 
-1. **Ny ref** -- `validBgBufferRef = useRef<string[]>([])` -- en array med max 4 URL:er (rullande).
+2. **Cache-invalidering**: Filnamns-suffixet ändras från `-v4.jpg` till `-v5.jpg` så att alla bilder regenereras med den nya logiken.
 
-2. **Uppdatera buffern** vid varje tillfalle dar en ny bakgrund skapas eller tas emot:
-   - `handleNewImageLoaded` (rad 399-406): lagg till `bg_image_url` i buffern
-   - Early swap (rad 164-181): lagg till ny `bg_image_url`
-   - Predictive poll track change (rad 106-139): lagg till ny `bg_image_url`
-   - 5s poll track change (rad 263-280): lagg till ny `bg_image_url`
-   - Realtime callback (rad 351-392): lagg till ny `bg_image_url` nar den accepteras
+3. **Klient-overlay bevaras** som en extra dimmer som användaren kan styra via inställningarna — men nu utgår den från en redan normaliserad bas.
 
-   En hjalpfunktion `pushToBgBuffer(url)` trimmar buffern till max 4 entries och undviker dubbletter.
+## Tekniska detaljer
 
-3. **Uppgraderad safeguard** i 5s-pollingen (rad 297-302):
-   - Hamta den forvantat korrekta bakgrunden: `nowPlaying.bg_image_url || displayedArtUrl`
-   - Om `bgSentRef.current` inte matchar denna URL OCH URL:en finns i buffern (dvs den ar giltig/kand), skicka den via `onAlbumArtChangeRef` och uppdatera `bgSentRef`
-   - Om URL:en inte ens finns i buffern, lagg till den forst och skicka sedan
+### Fil: `supabase/functions/sync-sonos-now-playing/index.ts`
 
-4. **Buffern representerar**:
-   - Position 0: aldsta kanda bakgrund
-   - Position 1: foregaende lat
-   - Position 2: nuvarande lat (den som spelas)
-   - Position 3: nasta lat (om forladdad)
+**AI-prompt** (rad 110) ändras från:
+```
+Apply a Gaussian blur of Xpx. Keep the original brightness and colors - do NOT adjust brightness. Scale to 1280x720. Output as JPEG.
+```
+Till:
+```
+1. Analyze the average perceived brightness of this image.
+2. Adjust the overall brightness so the result has a consistent, low perceived brightness around 25-30% (dark but with visible color detail). If the image is already dark, brighten it slightly. If it is bright, darken it significantly.
+3. Apply a Gaussian blur of Xpx.
+4. Make the top ~85px edge approximately 40-50% darker than the rest for header readability.
+5. Scale to 1280x720. Output as JPEG.
+```
 
-   Nar en ny URL laggs till och buffern overstiger 4, tas den aldsta bort.
+**Cache-suffix** (rad i `resolveBackground` / `simpleHash`-anropet) ändras:
+```
+const fileName = `${hash}-${blur}-v5.jpg`;
+```
 
-### Resultat
-- Bakgrunden verifieras var 5:e sekund mot en kand lista av giltiga URL:er
-- Om den hamnat ur synk (t.ex. stuck pa gammal bild) korrigeras den automatiskt
-- Ingen extra nätverkstrafik -- allt baseras pa redan kanda URL:er i minnet
-- Minimal CPU-paverkan -- bara en enkel array-lookup per poll
+### Fil: `src/components/BrewingDashboard.tsx`
+- Standardvärdet för `bgBrightness` kan justeras till ~0.6-0.7 eftersom bilden nu redan är normaliserad till en låg nivå. Overlay-slidern fungerar sedan som finjustering.
 
+### Fil: `src/components/sonos/SonosSettings.tsx`
+- Uppdatera beskrivningstexten för slidern så det framgår att ljusstyrkan nu är normaliserad automatiskt och att slidern är en finjustering.
+
+## Sammanfattning
+- 1 edge-funktion uppdateras (ny AI-prompt + cache-bust)
+- 2 frontend-filer uppdateras (nytt default-värde + uppdaterad beskrivning)
+- Alla befintliga bakgrunder regenereras automatiskt vid nästa synk tack vare nytt filnamns-suffix
