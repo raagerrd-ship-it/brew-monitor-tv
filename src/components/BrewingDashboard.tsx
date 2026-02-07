@@ -435,7 +435,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Floating Sonos widget - positioned top-right over brew cards */}
-      {!isMobile && (
+      {(!isMobile || isTvMode) && (
         <div 
           className="absolute z-10"
           style={{
