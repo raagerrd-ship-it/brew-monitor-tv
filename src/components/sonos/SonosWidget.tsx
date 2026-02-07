@@ -121,33 +121,39 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     };
 
     const ticker = window.setInterval(() => {
-      const prev = localProgressRef.current;
-      if (prev === null) return;
-      const next = Math.min(prev + 1000, duration);
-      localProgressRef.current = next;
-      setLocalProgress(next);
+      try {
+        const prev = localProgressRef.current;
+        if (prev === null) return;
+        const next = Math.min(prev + 1000, duration);
+        localProgressRef.current = next;
+        setLocalProgress(next);
 
-      const timeRemaining = duration - next;
+        const timeRemaining = duration - next;
 
-      // Prefetch: trigger server sync ~30s before end (once per track)
-      if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
-        prefetchTriggeredForTrackRef.current = trackName;
-        console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          signal: AbortSignal.timeout(15000),
-        }).catch(() => {});
-      }
+        // Prefetch: trigger server sync ~30s before end (once per track)
+        if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
+          prefetchTriggeredForTrackRef.current = trackName;
+          console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 15000);
+          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }).catch(() => {}).finally(() => clearTimeout(t));
+        }
 
-      // Predictive poll: schedule when <10s remain (once per track)
-      if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
-        predictiveScheduledRef.current = true;
-        const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
-        predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
+        // Predictive poll: schedule when <10s remain (once per track)
+        if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
+          predictiveScheduledRef.current = true;
+          const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
+          predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
+        }
+      } catch (err) {
+        console.error('[Sonos] Ticker error:', err);
       }
     }, 1000);
 
