@@ -78,7 +78,6 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 async function generateBackground(
   artUrl: string,
   blur: number,
-  brightness: number,
   apiKey: string,
 ): Promise<string | null> {
   // Skip private/local URLs
@@ -95,7 +94,6 @@ async function generateBackground(
       return null;
     }
 
-    const brightnessPercent = Math.round(brightness * 100);
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -109,7 +107,7 @@ async function generateBackground(
           content: [
             {
               type: 'text',
-              text: `Apply a Gaussian blur of ${blur}px. Then adjust the overall brightness so the OUTPUT image has an absolute average luminance of exactly ${brightnessPercent}% (where 0% = pure black, 100% = pure white). This is an absolute target for the output - do NOT base it on the input brightness. For example, if the target is 40%, the output should look the same brightness whether the input was a bright white album cover or a dark black one. Multiply all pixel values by whatever factor is needed to hit this absolute target. IMPORTANT: Additionally darken the top ~85 pixels with a subtle gradient overlay making the top edge about 40-50% darker than the target brightness, fading smoothly to the target level by 85px. Do NOT make it fully black - just noticeably darker for text readability. Scale to 1280x720. Output as JPEG.`,
+              text: `Apply a Gaussian blur of ${blur}px. Keep the original brightness and colors - do NOT adjust brightness. Scale to 1280x720. Output as JPEG.`,
             },
             {
               type: 'image_url',
@@ -215,13 +213,12 @@ async function resolveBackground(
   artUrl: string | null,
   trackId: string,
   blur: number,
-  brightness: number,
   apiKey: string,
 ): Promise<string | null> {
   if (!artUrl) return null;
 
   const hash = simpleHash(trackId || artUrl);
-  const fileName = `${hash}-${blur}-${Math.round(brightness * 100)}-v3.jpg`;
+  const fileName = `${hash}-${blur}-v4.jpg`;
 
   // Check cache
   const existing = await backgroundExists(supabase, fileName);
@@ -232,7 +229,7 @@ async function resolveBackground(
 
   // Generate new background
   console.log(`[SonosSync] Generating BG: ${fileName}`);
-  const base64 = await generateBackground(artUrl, blur, brightness, apiKey);
+  const base64 = await generateBackground(artUrl, blur, apiKey);
   if (!base64) return null;
 
   const publicUrl = await uploadBackground(supabase, base64, fileName);
@@ -272,7 +269,6 @@ serve(async (req) => {
     }
 
     const bgBlur = settings?.bg_blur ?? 40;
-    const bgBrightness = settings?.bg_brightness ?? 0.4;
 
     // Check if token is expired and refresh if needed
     const isExpired = new Date(tokenData.expires_at) < new Date();
@@ -412,10 +408,10 @@ serve(async (req) => {
 
       const [currentBg, nextBg] = await Promise.all([
         currentArt.medium
-          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgBlur, bgBrightness, LOVABLE_API_KEY)
+          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgBlur, LOVABLE_API_KEY)
           : Promise.resolve(null),
         nextArt.medium
-          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgBlur, bgBrightness, LOVABLE_API_KEY)
+          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgBlur, LOVABLE_API_KEY)
           : Promise.resolve(null),
       ]);
 

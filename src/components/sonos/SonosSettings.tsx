@@ -264,7 +264,7 @@ export function SonosSettings() {
               onValueChange={(v) => setBgBrightness(v[0])}
             />
             <p className="text-xs text-muted-foreground">
-              Hur ljus albumomslagets bakgrund är i TV-läge
+              Hur ljus bakgrunden är – styrs med ett jämnt overlay för konsekvent resultat oavsett albumomslag
             </p>
           </div>
 
