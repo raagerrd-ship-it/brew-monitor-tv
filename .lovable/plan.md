@@ -1,45 +1,64 @@
 
 
-## Flytta Sonos-polling till server-side cron
+## Ytterligare optimeringar av klientens resurser
 
-### Problem
-Sonos-widgeten pollar edge function `sonos-now-playing` var 5:e sekund fran klienten. Det ger ~720 nätverksanrop per timme och belastar CPU:n med fetch-loopar.
+### 1. Ta bort chart-polling i TV-läge
 
-### Lösning
-Skapa ett cron-job som hämtar Sonos now-playing-data var 5:e sekund och skriver till `sonos_now_playing`-tabellen. Klienten lyssnar redan på realtime-uppdateringar för denna tabell, så det enda som behövs är att ta bort klientens polling-loop.
+**Problem:** Varje ölkort i TV-läge pollar `render-brew-chart` edge function var 15:e minut. Med 3 öl = 3 extra nätverksanrop var 15:e minut.
 
-### Steg
+**Lösning:** Ta bort `setInterval` i `LazyBrewChart`. Diagrambilden uppdateras redan när `lastUpdateRaw` ändras (via realtime), vilket triggar ett nytt `fetchChart`-anrop. 15-minutersintervallet är onödigt eftersom data bara ändras när cron-jobbet skriver ny data (som redan triggar realtime-uppdateringen).
 
-**1. Ny edge function: `sync-sonos-now-playing`**
-- Hämtar data från Sonos API (samma logik som nuvarande `sonos-now-playing`)
-- Skriver/uppdaterar resultatet till `sonos_now_playing`-tabellen i databasen
-- Returnerar OK
+### 2. Konsolidera realtime-kanaler
 
-**2. Ny databas-funktion + cron-job**
-- Skapa en trigger-funktion `trigger_sonos_now_playing_sync()` som anropar edge function
-- Schemalägg med pg_cron: kör var 5:e sekund (pg_cron stödjer minst 1 minut, så vi kör var minut och edge-funktionen kollar intern timing)
-- Alternativ: kör var minut - acceptera 1 minut fördröjning på låtbyte istället för 5 sekunder
+**Problem:** Det finns flera separata WebSocket-kanaler utöver de två konsoliderade (`data-updates` och `config-updates`):
+- `sonos-now-playing` (SonosWidget)
+- `sonos-bg-settings` (BrewingDashboard)
+- `cached-timer-updates` (use-external-timer)
+- `tv-force-refresh` (BrewingDashboard, bara TV-läge)
 
-**3. Uppdatera `SonosWidget.tsx`**
-- Ta bort `setInterval`-polling (rad 88-120)
-- Behåll realtime-subscription (rad 122-142) - den hanterar redan uppdateringar
-- Gör initial fetch via en enkel databasläsning från `sonos_now_playing` istället for edge function-anrop
-- Behåll lokal progress-ticker (1s interval for progress bar)
+Varje kanal = en egen WebSocket-anslutning som belastar CPU och minne.
 
-**4. Uppdatera `useSonosTrackTransition.ts`**
-- Ändra `fetchNowPlaying` till att läsa från databasen istället för att anropa edge function
+**Lösning:** Konsolidera dessa till de befintliga kanalerna:
+- Flytta `sonos_now_playing` och `sonos_settings` till `data-updates`-kanalen i `use-brew-data.ts`
+- Flytta `cached_external_timer` och `sync_settings` (force refresh) till `config-updates`-kanalen
+- Ta bort de separata kanalerna i respektive komponent och istället exponera callbacks via props eller context
 
-### Teknisk detalj
+### 3. Ta bort backup-polling för extern timer
 
-pg_cron kan bara köra minst var minut. Två alternativ:
+**Problem:** `use-external-timer.ts` pollar `fetchFromCache()` var 60:e sekund som backup. Realtime-kanalen fungerar redan pålitligt.
 
-- **Alt A (rekommenderat)**: Cron var minut. Acceptera ~1 minut max fördröjning vid låtbyte. Progress bar fungerar lokalt ändå. Enklast och billigast.
-- **Alt B**: Cron var minut men edge function gör 12 iterationer med 5s sleep internt. Mer komplext, mer edge function-tid.
+**Lösning:** Ta bort 60-sekunders `setInterval` helt. Realtime-prenumerationen räcker.
 
-Alt A rekommenderas - 1 minuts fördröjning märks knappt och sparar mest resurser.
+### Tekniska detaljer
+
+**Fil: `src/components/brew-chart/LazyBrewChart.tsx`**
+- Ta bort `setInterval(fetchChart, REFRESH_INTERVAL_MS)` (rad 44)
+- Behåll bara `fetchChart()` vid mount och vid `lastUpdateRaw`-ändring
+
+**Fil: `src/hooks/use-brew-data.ts`**
+- Lägg till `.on('postgres_changes', { table: 'sonos_now_playing' }, ...)` i `data-updates`-kanalen
+- Lägg till `.on('postgres_changes', { table: 'sonos_settings' }, ...)` i `data-updates`-kanalen  
+- Lägg till `.on('postgres_changes', { table: 'cached_external_timer' }, ...)` i `config-updates`-kanalen
+- Lägg till `.on('postgres_changes', { table: 'sync_settings' }, ...)` i `config-updates`-kanalen
+- Exponera callbacks via return-objektet
+
+**Fil: `src/components/sonos/SonosWidget.tsx`**
+- Ta bort den separata `sonos-now-playing` realtime-kanalen (rad 98-113)
+- Ta emot uppdateringar via prop/callback istället
+
+**Fil: `src/components/BrewingDashboard.tsx`**
+- Ta bort den separata `sonos-bg-settings` kanalen (rad 71-83)
+- Ta bort den separata `tv-force-refresh` kanalen (rad 144-177)
+- Prenumerera på dessa via `use-brew-data` hookens callbacks
+
+**Fil: `src/hooks/use-external-timer.ts`**
+- Ta bort `setInterval(fetchFromCache, 60000)` (rad 342-344)
+- Ta bort den separata `cached-timer-updates` kanalen (rad 326-339)
+- Ta emot uppdateringar via prop/callback
 
 ### Resultat
-- Klientens nätverksanrop minskar med ~720/timme
-- CPU-belastning minskar (inga fetch-loopar)
-- Sonos-data uppdateras ändå via realtime-subscription
+- 4 färre WebSocket-kanaler (4 borttagna, 0 nya)
+- Tar bort chart-polling (3 nätverksanrop / 15 min)
+- Tar bort timer backup-polling (1 anrop / minut)
+- Totalt: enklare arkitektur och lägre CPU/nätverksbelastning
 
