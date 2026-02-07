@@ -303,6 +303,14 @@ serve(async (req) => {
     const SPOTIFY_CLIENT_ID = settings?.spotify_client_id || Deno.env.get('SPOTIFY_CLIENT_ID');
     const SPOTIFY_CLIENT_SECRET = settings?.spotify_client_secret || Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
+    // Auto-populate DB with env var values if DB fields are empty
+    if (settings && !settings.spotify_client_id && SPOTIFY_CLIENT_ID) {
+      supabase.from('sonos_settings').update({
+        spotify_client_id: SPOTIFY_CLIENT_ID,
+        spotify_client_secret: SPOTIFY_CLIENT_SECRET || null,
+      }).eq('id', settings.id).then(() => {});
+    }
+
     // Check if token is expired and refresh if needed
     const isExpired = new Date(tokenData.expires_at) < new Date();
     let accessToken = tokenData.access_token;
