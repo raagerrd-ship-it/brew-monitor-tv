@@ -30,6 +30,7 @@ const PREDICTIVE_MARGIN_MS = 500;
 const PREDICTIVE_RETRY_INTERVAL_MS = 1000;
 const PREDICTIVE_MAX_RETRIES = 3;
 const PREDICTIVE_COOLDOWN_MS = 3000;
+const PREFETCH_THRESHOLD_MS = 30000; // Trigger server sync 30s before track ends
 
 export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false, onRealtimeRef }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -46,6 +47,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   onAlbumArtChangeRef.current = onAlbumArtChange;
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
+  const prefetchTriggeredForTrackRef = useRef<string | null>(null);
 
   const { fetchNowPlaying, handleTrackUpdate } = useSonosTrackTransition({
     setNowPlaying,
@@ -126,6 +128,29 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
     const timer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
     return () => clearTimeout(timer);
+  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms, localProgress]);
+
+  // Prefetch: trigger server sync ~30s before track ends to generate next track's AI background
+  useEffect(() => {
+    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
+    if (localProgress === null) return;
+
+    const timeRemaining = nowPlaying.duration_ms - localProgress;
+    if (timeRemaining > PREFETCH_THRESHOLD_MS || timeRemaining < 0) return;
+    if (prefetchTriggeredForTrackRef.current === nowPlaying.track_name) return;
+
+    prefetchTriggeredForTrackRef.current = nowPlaying.track_name;
+    console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
+
+    // Fire-and-forget server sync to ensure next track art + AI bg is ready
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => {});
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms, localProgress]);
 
   // 5s client polling for playback position (only while PLAYING)
