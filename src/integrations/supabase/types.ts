@@ -778,6 +778,7 @@ export type Database = {
           show_on_dashboard: boolean
           spotify_client_id: string | null
           spotify_client_secret: string | null
+          track_change_offset_seconds: number
           updated_at: string
         }
         Insert: {
@@ -790,6 +791,7 @@ export type Database = {
           show_on_dashboard?: boolean
           spotify_client_id?: string | null
           spotify_client_secret?: string | null
+          track_change_offset_seconds?: number
           updated_at?: string
         }
         Update: {
@@ -802,6 +804,7 @@ export type Database = {
           show_on_dashboard?: boolean
           spotify_client_id?: string | null
           spotify_client_secret?: string | null
+          track_change_offset_seconds?: number
           updated_at?: string
         }
         Relationships: []
