@@ -24,6 +24,7 @@ export function SonosSettings() {
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
   const [bgBrightness, setBgBrightness] = useState(0.4);
+  const [trackChangeOffset, setTrackChangeOffset] = useState(0);
 
   useEffect(() => {
     loadSonosStatus();
@@ -36,7 +37,7 @@ export function SonosSettings() {
         fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
         (supabase as any)
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name')
+          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -59,6 +60,7 @@ export function SonosSettings() {
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
         setBgBrightness(settings.bg_brightness ?? 0.4);
+        setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
       }
     } catch (error) {
       console.error('Failed to load Sonos status:', error);
@@ -114,6 +116,7 @@ export function SonosSettings() {
         show_on_dashboard: showOnDashboard,
         bg_blur: bgBlur,
         bg_brightness: bgBrightness,
+        track_change_offset_seconds: trackChangeOffset,
       };
 
       const { data: existing } = await (supabase as any)
@@ -262,6 +265,23 @@ export function SonosSettings() {
             </p>
           </div>
 
+          {/* Track Change Offset */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Synk-justering vid låtbyte</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset}s</span>
+            </div>
+            <Slider
+              value={[trackChangeOffset]}
+              min={0}
+              max={10}
+              step={1}
+              onValueChange={(v) => setTrackChangeOffset(v[0])}
+            />
+            <p className="text-xs text-muted-foreground">
+              Antal sekunder innan beräknat låtslut som prediktiv polling triggas (0 = exakt vid beräknat slut)
+            </p>
+          </div>
 
           <Button onClick={saveAllSettings} className="w-full">
             Spara Sonos-inställningar

@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings ADD COLUMN track_change_offset_seconds integer NOT NULL DEFAULT 0;
