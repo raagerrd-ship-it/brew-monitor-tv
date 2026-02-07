@@ -309,12 +309,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
 
-        // Safeguard: verify background matches widget's current image using rolling buffer
-        const expectedBgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
-        if (expectedBgUrl && bgSentRef.current !== expectedBgUrl) {
-          pushToBgBuffer(expectedBgUrl);
-          onAlbumArtChangeRef.current?.(expectedBgUrl);
-          bgSentRef.current = expectedBgUrl;
+        // Safeguard: only correct background if current bgSentRef is NOT a known valid URL
+        // This prevents stale closures from reverting a recently-updated background
+        if (bgSentRef.current && !validBgBufferRef.current.includes(bgSentRef.current)) {
+          const expectedBgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
+          if (expectedBgUrl) {
+            pushToBgBuffer(expectedBgUrl);
+            onAlbumArtChangeRef.current?.(expectedBgUrl);
+            bgSentRef.current = expectedBgUrl;
+          }
+        } else if (!bgSentRef.current && displayedArtUrl) {
+          // Initial case: no bg sent yet but widget has art
+          const bgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
+          pushToBgBuffer(bgUrl);
+          onAlbumArtChangeRef.current?.(bgUrl);
+          bgSentRef.current = bgUrl;
         }
       } catch {
         // ignore
