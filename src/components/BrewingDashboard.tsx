@@ -47,7 +47,6 @@ export function BrewingDashboard() {
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
-  const [bgBrightness, setBgBrightness] = useState(0.65);
   const [bgContrast, setBgContrast] = useState(1.0);
   
   // Preload background image before showing to prevent black flashes
@@ -68,15 +67,14 @@ export function BrewingDashboard() {
     img.src = url;
   }, []);
 
-  // Load bg_brightness from sonos_settings for client-side overlay
+  // Load bg_contrast from sonos_settings
   useEffect(() => {
     (supabase as any)
       .from('sonos_settings')
-      .select('bg_brightness, bg_contrast')
+      .select('bg_contrast')
       .limit(1)
       .maybeSingle()
       .then(({ data }: any) => {
-        if (data?.bg_brightness != null) setBgBrightness(data.bg_brightness);
         if (data?.bg_contrast != null) setBgContrast(data.bg_contrast);
       });
   }, []);
@@ -147,9 +145,6 @@ export function BrewingDashboard() {
   // Sonos settings changes - update brightness overlay in realtime
   useEffect(() => {
     onSonosSettingsChange.current = (payload: any) => {
-      if (payload.new?.bg_brightness != null) {
-        setBgBrightness(payload.new.bg_brightness);
-      }
       if (payload.new?.bg_contrast != null) {
         setBgContrast(payload.new.bg_contrast);
       }
@@ -367,21 +362,6 @@ export function BrewingDashboard() {
               transform: 'scale(1.15)',
               contain: 'strict',
               filter: bgContrast !== 1.0 ? `contrast(${bgContrast})` : undefined,
-            }}
-          />
-          {/* Deterministic brightness overlay - consistent regardless of album art */}
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{ 
-              background: `rgba(0, 0, 0, ${1 - bgBrightness})`,
-            }}
-          />
-          {/* Header gradient for text readability */}
-          <div 
-            className="absolute inset-x-0 top-0 pointer-events-none"
-            style={{ 
-              height: '85px',
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 100%)',
             }}
           />
         </>
