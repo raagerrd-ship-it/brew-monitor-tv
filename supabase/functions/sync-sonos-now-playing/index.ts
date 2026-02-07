@@ -30,14 +30,19 @@ async function getSpotifyToken(clientId: string, clientSecret: string): Promise<
       },
       body: 'grant_type=client_credentials',
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'no body');
+      console.error(`[SonosSync] Spotify token error: ${response.status} - ${errorBody}`);
+      return null;
+    }
     const data = await response.json();
     cachedSpotifyToken = {
       token: data.access_token,
       expiresAt: Date.now() + (data.expires_in - 100) * 1000,
     };
     return data.access_token;
-  } catch {
+  } catch (error) {
+    console.error('[SonosSync] Spotify token fetch failed:', error);
     return null;
   }
 }
