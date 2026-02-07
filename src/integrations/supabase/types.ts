@@ -771,6 +771,7 @@ export type Database = {
         Row: {
           bg_blur: number
           bg_brightness: number
+          bg_contrast: number
           created_at: string
           id: string
           prefetch_seconds: number
@@ -785,6 +786,7 @@ export type Database = {
         Insert: {
           bg_blur?: number
           bg_brightness?: number
+          bg_contrast?: number
           created_at?: string
           id?: string
           prefetch_seconds?: number
@@ -799,6 +801,7 @@ export type Database = {
         Update: {
           bg_blur?: number
           bg_brightness?: number
+          bg_contrast?: number
           created_at?: string
           id?: string
           prefetch_seconds?: number

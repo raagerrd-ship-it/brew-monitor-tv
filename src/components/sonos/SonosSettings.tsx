@@ -24,6 +24,7 @@ export function SonosSettings() {
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
   const [bgBrightness, setBgBrightness] = useState(0.65);
+  const [bgContrast, setBgContrast] = useState(1.0);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
   const [prefetchSeconds, setPrefetchSeconds] = useState(30);
 
@@ -61,6 +62,7 @@ export function SonosSettings() {
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
         setBgBrightness(settings.bg_brightness ?? 0.65);
+        setBgContrast(settings.bg_contrast ?? 1.0);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
         setPrefetchSeconds(settings.prefetch_seconds ?? 30);
       }
@@ -118,6 +120,7 @@ export function SonosSettings() {
         show_on_dashboard: showOnDashboard,
         bg_blur: bgBlur,
         bg_brightness: bgBrightness,
+        bg_contrast: bgContrast,
         track_change_offset_seconds: trackChangeOffset,
         prefetch_seconds: prefetchSeconds,
       };
@@ -265,6 +268,24 @@ export function SonosSettings() {
             />
             <p className="text-xs text-muted-foreground">
               Bakgrundens ljusstyrka normaliseras automatiskt av AI:n. Denna slider finjusterar det slutliga resultatet
+            </p>
+          </div>
+
+          {/* Background Contrast */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Bakgrundskontrast (TV-läge)</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgContrast * 100)}%</span>
+            </div>
+            <Slider
+              value={[bgContrast]}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onValueChange={(v) => setBgContrast(v[0])}
+            />
+            <p className="text-xs text-muted-foreground">
+              Justera kontrasten på bakgrundsbilden. Lägre värden ger en mer dämpad bakgrund
             </p>
           </div>
 
