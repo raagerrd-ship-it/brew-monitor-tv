@@ -26,44 +26,40 @@ export function SonosSettings() {
 
   useEffect(() => {
     loadSonosStatus();
-    loadBgSettings();
   }, []);
-
-  const loadBgSettings = async () => {
-    try {
-      const { data } = await (supabase as any)
-        .from('sonos_settings')
-        .select('bg_blur, bg_brightness')
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        setBgBlur(data.bg_blur ?? 40);
-        setBgBrightness(data.bg_brightness ?? 0.4);
-      }
-    } catch (error) {
-      console.error('Failed to load bg settings:', error);
-    }
-  };
 
   const loadSonosStatus = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
+      // Fetch groups from edge function and settings from DB in parallel
+      const [groupsResponse, settingsResult] = await Promise.all([
+        fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
+        (supabase as any)
+          .from('sonos_settings')
+          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name')
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (groupsResponse.ok) {
+        const data = await groupsResponse.json();
         if (data?.connected) {
           setIsConnected(true);
           setGroups(data.groups || []);
-          setSelectedGroupId(data.selectedGroupId);
-          setShowOnDashboard(data.showOnDashboard ?? true);
         } else {
           setIsConnected(false);
         }
       } else {
         setIsConnected(false);
+      }
+
+      // Use DB as single source of truth for settings
+      const settings = settingsResult.data;
+      if (settings) {
+        setSelectedGroupId(settings.selected_group_id);
+        setShowOnDashboard(settings.show_on_dashboard ?? true);
+        setBgBlur(settings.bg_blur ?? 40);
+        setBgBrightness(settings.bg_brightness ?? 0.4);
       }
     } catch (error) {
       console.error('Failed to load Sonos status:', error);
@@ -120,11 +116,6 @@ export function SonosSettings() {
   const saveAllSettings = async () => {
     try {
       const selectedGroup = groups.find(g => g.id === selectedGroupId);
-      const { data: existingSettings } = await (supabase as any)
-        .from('sonos_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
 
       const settingsData = {
         selected_group_id: selectedGroupId,
@@ -134,13 +125,29 @@ export function SonosSettings() {
         bg_brightness: bgBrightness,
       };
 
-      if (existingSettings) {
-        await (supabase as any)
+      // Always upsert - if row exists update it, otherwise insert
+      const { data: existing } = await (supabase as any)
+        .from('sonos_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        ({ error } = await (supabase as any)
           .from('sonos_settings')
           .update(settingsData)
-          .eq('id', existingSettings.id);
+          .eq('id', existing.id));
       } else {
-        await (supabase as any).from('sonos_settings').insert(settingsData);
+        ({ error } = await (supabase as any)
+          .from('sonos_settings')
+          .insert(settingsData));
+      }
+
+      if (error) {
+        console.error('Failed to save sonos settings:', error);
+        toast.error('Kunde inte spara: ' + error.message);
+        return;
       }
 
       toast.success('Sonos-inställningar sparade');
