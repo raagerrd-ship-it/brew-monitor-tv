@@ -25,6 +25,11 @@ interface SonosWidgetProps {
 
 const PLAYBACK_POLL_INTERVAL = 5000;
 const PLAYBACK_POLL_TIMEOUT = 8000;
+const PREDICTIVE_THRESHOLD_MS = 10000;
+const PREDICTIVE_MARGIN_MS = 500;
+const PREDICTIVE_RETRY_INTERVAL_MS = 1000;
+const PREDICTIVE_MAX_RETRIES = 3;
+const PREDICTIVE_COOLDOWN_MS = 3000;
 
 export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false, onRealtimeRef }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -39,6 +44,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
+  const lastPredictivePollRef = useRef<number>(0);
+  const predictiveScheduledRef = useRef(false);
 
   const { fetchNowPlaying, handleTrackUpdate } = useSonosTrackTransition({
     setNowPlaying,
@@ -60,12 +67,76 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return () => clearInterval(timer);
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 
+  // Predictive end-of-track poll
+  useEffect(() => {
+    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
+    if (localProgress === null) return;
+
+    const timeRemaining = nowPlaying.duration_ms - localProgress;
+    if (timeRemaining > PREDICTIVE_THRESHOLD_MS || timeRemaining < 0) {
+      predictiveScheduledRef.current = false;
+      return;
+    }
+    if (predictiveScheduledRef.current) return;
+    predictiveScheduledRef.current = true;
+
+    const pollForNewTrack = async (retriesLeft: number) => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-playback-status`,
+          {
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeout);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.ok) return;
+
+        lastPredictivePollRef.current = Date.now();
+
+        const trackChanged = data.trackName && data.trackName !== nowPlaying.track_name;
+        if (trackChanged) {
+          setLocalProgress(data.positionMillis);
+          setNowPlaying(prev => prev ? {
+            ...prev,
+            track_name: data.trackName,
+            artist_name: data.artistName ?? prev.artist_name,
+            album_name: data.albumName ?? prev.album_name,
+            playback_state: data.playbackState,
+            position_ms: data.positionMillis,
+          } : prev);
+        } else if (retriesLeft > 0) {
+          setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
+        } else {
+          // Update position even if track didn't change
+          setLocalProgress(data.positionMillis);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
+    const timer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
+    return () => clearTimeout(timer);
+  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms, localProgress]);
+
   // 5s client polling for playback position (only while PLAYING)
   useEffect(() => {
     if (!isConnected || !showWidget) return;
     if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
 
     const poll = async () => {
+      // Skip if a predictive poll just ran
+      if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
 
@@ -88,7 +159,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         setLocalProgress(data.positionMillis);
 
-        // Update track/artist/album if changed (faster than waiting for realtime)
         if (data.trackName) {
           setNowPlaying(prev => {
             if (!prev) return prev;
@@ -109,18 +179,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           });
         }
 
-        // If state changed to non-playing, update local state
         if (data.playbackState !== 'PLAYBACK_STATE_PLAYING') {
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
       } catch {
-        // Abort or network error - ignore
+        // ignore
       } finally {
         clearTimeout(timeout);
       }
     };
 
-    // Poll immediately on start, then every 5s
     poll();
     const interval = setInterval(poll, PLAYBACK_POLL_INTERVAL);
     return () => clearInterval(interval);
