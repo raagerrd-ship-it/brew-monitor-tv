@@ -163,7 +163,7 @@ export function SonosSettings() {
     }
   };
 
-  const updateBgSetting = async (field: 'bg_blur' | 'bg_brightness', value: number) => {
+  const saveBgSettings = async () => {
     try {
       const { data: existingSettings } = await (supabase as any)
         .from('sonos_settings')
@@ -174,11 +174,13 @@ export function SonosSettings() {
       if (existingSettings) {
         await (supabase as any)
           .from('sonos_settings')
-          .update({ [field]: value })
+          .update({ bg_blur: bgBlur, bg_brightness: bgBrightness })
           .eq('id', existingSettings.id);
       }
+      toast.success('Bakgrundsinställningar sparade');
     } catch (error) {
-      console.error(`Failed to update ${field}:`, error);
+      console.error('Failed to save bg settings:', error);
+      toast.error('Kunde inte spara inställningar');
     }
   };
 
@@ -186,16 +188,8 @@ export function SonosSettings() {
     setBgBlur(value[0]);
   };
 
-  const handleBlurCommit = (value: number[]) => {
-    updateBgSetting('bg_blur', value[0]);
-  };
-
   const handleBrightnessChange = (value: number[]) => {
     setBgBrightness(value[0]);
-  };
-
-  const handleBrightnessCommit = (value: number[]) => {
-    updateBgSetting('bg_brightness', value[0]);
   };
 
   if (isLoading) {
@@ -277,42 +271,47 @@ export function SonosSettings() {
             />
           </div>
 
-          {/* Background Blur */}
-          <div className="space-y-3 p-4 rounded-lg border">
-            <div className="flex items-center justify-between">
-              <Label>Bakgrundsoskärpa (TV-läge)</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
+          {/* Background Settings */}
+          <div className="space-y-4 p-4 rounded-lg border">
+            {/* Background Blur */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Bakgrundsoskärpa (TV-läge)</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
+              </div>
+              <Slider
+                value={[bgBlur]}
+                min={0}
+                max={60}
+                step={1}
+                onValueChange={handleBlurChange}
+              />
+              <p className="text-xs text-muted-foreground">
+                Hur suddig albumomslagets bakgrund blir i TV-läge
+              </p>
             </div>
-            <Slider
-              value={[bgBlur]}
-              min={0}
-              max={60}
-              step={1}
-              onValueChange={handleBlurChange}
-              onValueCommit={handleBlurCommit}
-            />
-            <p className="text-xs text-muted-foreground">
-              Hur suddig albumomslagets bakgrund blir i TV-läge
-            </p>
-          </div>
 
-          {/* Background Brightness */}
-          <div className="space-y-3 p-4 rounded-lg border">
-            <div className="flex items-center justify-between">
-              <Label>Bakgrundsljusstyrka (TV-läge)</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+            {/* Background Brightness */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Bakgrundsljusstyrka (TV-läge)</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+              </div>
+              <Slider
+                value={[bgBrightness]}
+                min={0.1}
+                max={1.0}
+                step={0.05}
+                onValueChange={handleBrightnessChange}
+              />
+              <p className="text-xs text-muted-foreground">
+                Hur ljus albumomslagets bakgrund är i TV-läge
+              </p>
             </div>
-            <Slider
-              value={[bgBrightness]}
-              min={0.1}
-              max={1.0}
-              step={0.05}
-              onValueChange={handleBrightnessChange}
-              onValueCommit={handleBrightnessCommit}
-            />
-            <p className="text-xs text-muted-foreground">
-              Hur ljus albumomslagets bakgrund är i TV-läge
-            </p>
+
+            <Button onClick={saveBgSettings} className="w-full">
+              Spara bakgrundsinställningar
+            </Button>
           </div>
         </>
       )}
