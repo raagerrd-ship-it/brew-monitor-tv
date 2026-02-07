@@ -86,28 +86,8 @@ function BrewCardComponent({
         />
       )}
       
-      {/* Label image as faded background in top-left corner */}
-      {hasLabel && (
-        <div
-          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
-        >
-          <img
-            src={brew.label_image_url}
-            alt=""
-            className="absolute top-0 left-0 object-cover"
-            style={{
-              width: '200px',
-              height: '200px',
-              opacity: 0.35,
-              WebkitMaskImage: 'radial-gradient(ellipse at 0% 0%, black 15%, transparent 65%)',
-              maskImage: 'radial-gradient(ellipse at 0% 0%, black 15%, transparent 65%)',
-            }}
-          />
-        </div>
-      )}
-      
       {/* Header - fixed height */}
-      <div className={`py-2 flex-shrink-0 relative z-[1] ${hasLabel ? 'pl-5 pr-3' : 'px-3'}`} style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
+      <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
@@ -116,6 +96,19 @@ function BrewCardComponent({
           }}
         />
         <div className="flex items-center justify-between gap-2 h-full">
+          {/* Label image thumbnail */}
+          {brew.label_image_url && (
+            <div 
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30"
+              style={{ width: '60px', height: '60px' }}
+            >
+              <img
+                src={brew.label_image_url}
+                alt={`${brew.name} etikett`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          )}
             <div className="min-w-0 flex-1 overflow-hidden">
               <h2 
                 className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
