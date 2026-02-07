@@ -169,7 +169,7 @@ export function BrewingDashboard() {
       } catch {
         // Ignore polling errors
       }
-    }, 30000);
+    }, 10000);
 
     return () => {
       onSyncSettingsChange.current = null;
