@@ -44,12 +44,22 @@ export function BrewingDashboard() {
     currentControllerId: null,
     currentPillId: null
   });
-  const [bgImageUrl, setBgImageUrl] = useState<string | null>(null);
+  const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
+  const preloadingUrlRef = useRef<string | null>(null);
   
-  // Simple: the widget sends the pre-processed bg_image_url (or album art as fallback)
+  // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
-    setBgImageUrl(url);
-  }, []);
+    if (!url) return; // Never clear – keep last image visible
+    if (url === visibleBgUrl || url === preloadingUrlRef.current) return;
+    preloadingUrlRef.current = url;
+    const img = new Image();
+    img.onload = () => {
+      setVisibleBgUrl(url);
+      preloadingUrlRef.current = null;
+    };
+    img.onerror = () => { preloadingUrlRef.current = null; };
+    img.src = url;
+  }, [visibleBgUrl]);
 
   // No longer need to load bg settings client-side - handled server-side now
   const navigate = useNavigate();
@@ -322,11 +332,11 @@ export function BrewingDashboard() {
   }}>
       
       {/* Album art background - pre-processed server-side with header fade baked in */}
-      {bgImageUrl && (
+      {visibleBgUrl && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
-            backgroundImage: `url(${bgImageUrl})`,
+            backgroundImage: `url(${visibleBgUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
             transform: 'scale(1.15)',
@@ -340,7 +350,7 @@ export function BrewingDashboard() {
         controllers={controllers}
         pills={pills}
         onControllerClick={handleControllerClick}
-        hasAlbumArtBackground={!!bgImageUrl}
+        hasAlbumArtBackground={!!visibleBgUrl}
       />
 
       {/* Main Display Area */}
@@ -366,7 +376,7 @@ export function BrewingDashboard() {
             <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
-                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl} />
+                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} />
                   </div>)}
               </div>
             </div>
@@ -383,7 +393,7 @@ export function BrewingDashboard() {
                 height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
               }}
             >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} />
               </div>)}
           </div>}
       </div>
