@@ -52,6 +52,7 @@ function BrewCardComponent({
   );
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
+  const hasLabel = !!brew.label_image_url;
   
   // In TV mode, disable interactive features
   const showInteractiveElements = isAuthenticated && !isTvMode;
@@ -86,16 +87,16 @@ function BrewCardComponent({
       )}
       
       {/* Label image as faded background in top-left corner */}
-      {brew.label_image_url && (
+      {hasLabel && (
         <div
-          className="absolute top-0 left-0 pointer-events-none z-0 rounded-tl-lg overflow-hidden"
+          className="absolute top-0 left-0 pointer-events-none z-0"
           style={{
             width: '160px',
             height: '160px',
-            opacity: 0.22,
-            maskImage: 'linear-gradient(to right, black 30%, transparent 100%), linear-gradient(to bottom, black 30%, transparent 100%)',
+            opacity: 0.3,
+            maskImage: 'linear-gradient(to right, black 20%, transparent 95%), linear-gradient(to bottom, black 20%, transparent 95%)',
             maskComposite: 'intersect',
-            WebkitMaskImage: 'linear-gradient(to right, black 30%, transparent 100%), linear-gradient(to bottom, black 30%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 20%, transparent 95%), linear-gradient(to bottom, black 20%, transparent 95%)',
             WebkitMaskComposite: 'source-in',
           }}
         >
@@ -108,7 +109,7 @@ function BrewCardComponent({
       )}
       
       {/* Header - fixed height */}
-      <div className="px-3 py-2 flex-shrink-0 relative z-[1]" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
+      <div className={`py-2 flex-shrink-0 relative z-[1] ${hasLabel ? 'pl-5 pr-3' : 'px-3'}`} style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
