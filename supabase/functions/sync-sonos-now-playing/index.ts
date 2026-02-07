@@ -405,14 +405,22 @@ serve(async (req) => {
     ): Promise<{ medium: string | null; small: string | null }> {
       if (!imgUrl) return { medium: null, small: null };
       if (imgUrl.includes('192.168.') || imgUrl.includes('getaa')) {
+        console.log(`[SonosSync] Private art URL, objectId: ${objectId}`);
         const spotifyTrackId = extractSpotifyTrackId(objectId);
+        console.log(`[SonosSync] Extracted Spotify track ID: ${spotifyTrackId}`);
         if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
           const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
+          console.log(`[SonosSync] Spotify token: ${spotifyToken ? 'ok' : 'FAILED'}`);
           if (spotifyToken) {
             const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
+            console.log(`[SonosSync] Spotify art resolved: ${spotifyArt.medium ? 'yes' : 'no'}`);
             if (spotifyArt.medium) return spotifyArt;
           }
+        } else {
+          console.log(`[SonosSync] Missing: trackId=${!!spotifyTrackId} clientId=${!!SPOTIFY_CLIENT_ID} secret=${!!SPOTIFY_CLIENT_SECRET}`);
         }
+        // Private URL and no Spotify fallback - return null to avoid broken images
+        return { medium: null, small: null };
       }
       return { medium: imgUrl, small: null };
     }
