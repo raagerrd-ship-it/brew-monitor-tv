@@ -102,6 +102,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (trackChanged) {
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
+          // Update text immediately
           setNowPlaying(prev => prev ? {
             ...prev,
             track_name: data.trackName,
@@ -110,6 +111,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             playback_state: data.playbackState,
             position_ms: data.positionMillis,
           } : prev);
+          // Refetch from DB to get pre-generated image URLs
+          fetchNowPlaying();
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
