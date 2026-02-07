@@ -44,6 +44,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
   const [prefetchStatus, setPrefetchStatus] = useState<'idle' | 'fetching' | 'ready' | 'loaded'>('idle');
+  const [currentArtStatus, setCurrentArtStatus] = useState<'displayed' | 'detecting' | 'loading'>('displayed');
 
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
@@ -119,6 +120,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         const trackChanged = data.trackName && data.trackName !== trackName;
         if (trackChanged) {
+          setCurrentArtStatus('detecting'); // Red dot: new track detected
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
           trackChangedAtRef.current = Date.now();
@@ -431,9 +433,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const incomingArtUrl = nowPlaying?.album_art_url ?? null;
   const isNewArtPending = incomingArtUrl && incomingArtUrl !== displayedArtUrl && !imageError;
 
+  // Track art loading status for debug dot
+  useEffect(() => {
+    if (isNewArtPending && currentArtStatus !== 'detecting') {
+      setCurrentArtStatus('loading');
+    }
+  }, [isNewArtPending, currentArtStatus]);
+
   const handleNewImageLoaded = () => {
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
+    setCurrentArtStatus('displayed'); // Green dot: image displayed
     // Only send bg if bgSentRef isn't already a valid (more recent) bg in the buffer
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     if (!bgSentRef.current || !validBgBufferRef.current.includes(bgSentRef.current) || bgSentRef.current === bgUrl) {
@@ -630,16 +640,18 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                   {Math.max(0, Math.round((nowPlaying.duration_ms - localProgress) / 1000))}s
                 </span>
               )}
-              {/* Current art status: orange=loading, green=displayed */}
-              {(isNewArtPending || displayedArtUrl) && (
+              {/* Current art status: red=new track detected, orange=loading image, green=displayed */}
+              {displayedArtUrl && (
                 <div
-                  title={isNewArtPending ? 'Current: loading' : 'Current: displayed'}
+                  title={`Current: ${currentArtStatus}`}
                   className="rounded-full"
                   style={{
                     width: 8,
                     height: 8,
-                    background: isNewArtPending ? '#f97316' : '#22c55e',
-                    boxShadow: `0 0 4px ${isNewArtPending ? '#f97316' : '#22c55e'}`,
+                    background: currentArtStatus === 'detecting' ? '#ef4444'
+                      : currentArtStatus === 'loading' ? '#f97316'
+                      : '#22c55e',
+                    boxShadow: `0 0 4px ${currentArtStatus === 'detecting' ? '#ef4444' : currentArtStatus === 'loading' ? '#f97316' : '#22c55e'}`,
                   }}
                 />
               )}
