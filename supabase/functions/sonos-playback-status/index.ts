@@ -71,10 +71,15 @@ serve(async (req) => {
       }).eq('id', tokenData.id).then(() => {});
     }
 
-    // Single Sonos API call - just playback status
-    const playbackResponse = await fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    // Parallel fetch: playback status + metadata
+    const [playbackResponse, metadataResponse] = await Promise.all([
+      fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      }),
+      fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      }),
+    ]);
 
     if (!playbackResponse.ok) {
       return new Response(JSON.stringify({ ok: false, reason: 'playback_fetch_failed' }), {
@@ -82,12 +87,19 @@ serve(async (req) => {
       });
     }
 
-    const playbackData = await playbackResponse.json();
+    const [playbackData, metadata] = await Promise.all([
+      playbackResponse.json(),
+      metadataResponse.ok ? metadataResponse.json() : null,
+    ]);
+
+    const track = metadata?.currentItem?.track;
 
     return new Response(JSON.stringify({
       ok: true,
       playbackState: playbackData.playbackState || 'IDLE',
       positionMillis: playbackData.positionMillis || 0,
+      trackName: track?.name || null,
+      artistName: track?.artist?.name || null,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

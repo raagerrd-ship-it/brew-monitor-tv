@@ -87,6 +87,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         setLocalProgress(data.positionMillis);
 
+        // Update track/artist if changed (faster than waiting for realtime)
+        if (data.trackName) {
+          setNowPlaying(prev => {
+            if (!prev) return prev;
+            const trackChanged = prev.track_name !== data.trackName;
+            const artistChanged = prev.artist_name !== data.artistName;
+            if (!trackChanged && !artistChanged && data.playbackState === prev.playback_state) {
+              return prev;
+            }
+            return {
+              ...prev,
+              track_name: data.trackName,
+              artist_name: data.artistName ?? prev.artist_name,
+              playback_state: data.playbackState,
+              position_ms: data.positionMillis,
+            };
+          });
+        }
+
         // If state changed to non-playing, update local state
         if (data.playbackState !== 'PLAYBACK_STATE_PLAYING') {
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
