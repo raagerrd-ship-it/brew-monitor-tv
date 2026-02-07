@@ -18,9 +18,10 @@ interface SonosWidgetProps {
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
   showDebug?: boolean;
+  onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
-export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false }: SonosWidgetProps) {
+export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false, onRealtimeRef }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -91,27 +92,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     fetchNowPlaying();
   }, [isConnected, showWidget, fetchNowPlaying]);
 
-  // Subscribe to realtime updates
+  // Wire up realtime callback from consolidated channel
   useEffect(() => {
-    if (!isConnected || !showWidget) return;
-
-    const channel = supabase
-      .channel('sonos-now-playing')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'sonos_now_playing' },
-        (payload) => {
-          if (payload.new) {
-            handleTrackUpdate(payload.new as NowPlaying);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+    if (!onRealtimeRef || !isConnected || !showWidget) return;
+    onRealtimeRef.current = (payload: any) => {
+      if (payload.new) {
+        handleTrackUpdate(payload.new as NowPlaying);
+      }
     };
-  }, [isConnected, showWidget, handleTrackUpdate]);
+    return () => { if (onRealtimeRef) onRealtimeRef.current = null; };
+  }, [onRealtimeRef, isConnected, showWidget, handleTrackUpdate]);
 
   // Notify parent about album art changes
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);

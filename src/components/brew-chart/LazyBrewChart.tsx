@@ -8,7 +8,7 @@ const BrewChartLazy = lazy(() =>
   import('./BrewChart').then(module => ({ default: module.BrewChart }))
 );
 
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes fallback
+
 
 /**
  * Server-rendered chart image for TV mode.
@@ -38,11 +38,9 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
     }
   }, [brewId, compact]);
 
-  // Refresh when data changes (lastUpdateRaw) or on interval as fallback
+  // Refresh when data changes (lastUpdateRaw) - no polling needed
   useEffect(() => {
     fetchChart();
-    const interval = setInterval(fetchChart, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
   }, [fetchChart, lastUpdateRaw]);
 
   if (error || !chartUrl) {

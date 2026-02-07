@@ -944,6 +944,7 @@ export type Database = {
       }
       trigger_full_brew_sync: { Args: never; Returns: undefined }
       trigger_rapt_quick_sync: { Args: never; Returns: undefined }
+      trigger_sonos_now_playing_sync: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
