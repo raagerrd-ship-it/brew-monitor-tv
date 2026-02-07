@@ -135,8 +135,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               next_bg_image_url: null,
             };
           });
-          // Delayed refetch from DB to pick up new art URLs once cron has updated
-          setTimeout(() => fetchNowPlaying(), 5000);
+          // Don't refetch from DB here - it likely has stale data. Realtime will deliver updates.
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
@@ -262,8 +261,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
               const newArtUrl = prev.next_album_art_url || prev.album_art_url;
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
-              // Delayed refetch from DB to pick up new art URLs
-              setTimeout(() => fetchNowPlaying(), 5000);
+              // Don't refetch from DB here - it likely has stale data.
               return {
                 ...prev,
                 track_name: data.trackName,
@@ -343,16 +341,43 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     fetchNowPlaying();
   }, [isConnected, showWidget, fetchNowPlaying]);
 
-  // Wire up realtime callback
+  // Wire up realtime callback - only apply if track matches or is newer
   useEffect(() => {
     if (!onRealtimeRef || !isConnected || !showWidget) return;
     onRealtimeRef.current = (payload: any) => {
       if (payload.new) {
-        handleTrackUpdate(payload.new as NowPlaying);
+        const incoming = payload.new as NowPlaying;
+        setNowPlaying(prev => {
+          if (!prev) return incoming;
+          // If realtime has older/different track than what we already show via poll, ignore it
+          // UNLESS it brings new art URLs for the same track we're showing
+          if (incoming.track_name !== prev.track_name) {
+            // DB is behind our local state - skip this update
+            console.log(`[Sonos] Ignoring stale realtime: DB has "${incoming.track_name}", local has "${prev.track_name}"`);
+            return prev;
+          }
+          // Same track - merge in any new art URLs we might be missing
+          const updatedBg = incoming.bg_image_url || prev.bg_image_url;
+          const bgChanged = updatedBg !== prev.bg_image_url;
+          if (bgChanged) {
+            onAlbumArtChangeRef.current?.(updatedBg);
+          }
+          return {
+            ...prev,
+            ...incoming,
+            // Keep local art if incoming has none
+            album_art_url: incoming.album_art_url || prev.album_art_url,
+            bg_image_url: updatedBg,
+          };
+        });
+        if (incoming.position_ms != null) {
+          localProgressRef.current = incoming.position_ms;
+          setLocalProgress(incoming.position_ms);
+        }
       }
     };
     return () => { if (onRealtimeRef) onRealtimeRef.current = null; };
-  }, [onRealtimeRef, isConnected, showWidget, handleTrackUpdate]);
+  }, [onRealtimeRef, isConnected, showWidget, setLocalProgress]);
 
   // Two-image approach: when new album_art_url arrives, preload it hidden
   // then swap displayedArtUrl once loaded
