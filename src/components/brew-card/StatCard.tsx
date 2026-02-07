@@ -1,6 +1,5 @@
 import { ReactNode, CSSProperties } from "react";
 import { colorWithOpacity } from "./utils";
-import { useTvMode } from "@/contexts/TvModeContext";
 
 interface StatCardProps {
   label: string;
@@ -32,7 +31,6 @@ export function StatCard({
   onClick,
   clickable = false,
   title,
-  icon,
   children,
   colSpan = 1,
   rowSpan = 1,
@@ -41,13 +39,9 @@ export function StatCard({
   labelSize,
   valueSize,
 }: StatCardProps) {
-  const { isTvMode } = useTvMode();
-  
-  // Sizes: same for both TV (720p native) and desktop (1080p scaled)
   const defaultLabelSize = '9px';
   const defaultValueSize = '28px';
   
-  // Apply scaling to custom sizes too (0.7x from original design sizes)
   const finalLabelSize = labelSize 
     ? `${Math.round(parseInt(labelSize) * 0.7)}px`
     : defaultLabelSize;
@@ -70,7 +64,7 @@ export function StatCard({
 
   return (
     <div 
-      className={`rounded-xl ${isTvMode ? 'p-2' : 'p-3'} flex flex-col items-center justify-center gap-0.5 relative overflow-visible ${isTvMode ? '' : 'backdrop-blur-md transition-all duration-700'} min-h-0 ${
+      className={`rounded-xl p-2 flex flex-col items-center justify-center gap-0.5 relative overflow-visible min-h-0 ${
         clickable ? 'cursor-pointer' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
@@ -84,12 +78,6 @@ export function StatCard({
           background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
         }}
       />
-      
-      {icon && !isTvMode && (
-        <div className="absolute top-1/2 -translate-y-1/2 opacity-[0.08]" style={{ width: '55%', height: '55%', right: '-8%' }}>
-          {icon}
-        </div>
-      )}
       
       <p 
         className="text-muted-foreground/50 uppercase tracking-widest z-10 font-medium text-center"

@@ -262,7 +262,7 @@ export default function Brew() {
             onShareBrew={() => {}}
             onEventsChange={() => {}}
             onDeviceLinkOpen={() => {}}
-            isTvMode={false}
+            
             cardIndex={0}
           />
         </div>

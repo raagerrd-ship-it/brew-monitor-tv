@@ -318,11 +318,11 @@ export function BrewingDashboard() {
   
   return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: getContainerHeight(),
-    background: bgImageUrl && isTvMode ? 'transparent' : 'hsl(var(--background))'
+    background: bgImageUrl ? 'transparent' : 'hsl(var(--background))'
   }}>
       
       {/* Album art background - pre-processed server-side, no CSS filters needed */}
-      {isTvMode && bgImageUrl && (
+      {bgImageUrl && (
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{ 
@@ -334,15 +334,13 @@ export function BrewingDashboard() {
           }}
         />
       )}
-      {/* Version indicator */}
-      
 
       {/* Header Bar */}
       <DashboardHeader
         controllers={controllers}
         pills={pills}
         onControllerClick={handleControllerClick}
-        hasAlbumArtBackground={!!bgImageUrl && isTvMode}
+        hasAlbumArtBackground={!!bgImageUrl}
       />
 
       {/* Main Display Area */}
@@ -368,7 +366,7 @@ export function BrewingDashboard() {
             <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
-                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl && isTvMode} />
+                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl} />
                   </div>)}
               </div>
             </div>
@@ -385,13 +383,13 @@ export function BrewingDashboard() {
                 height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
               }}
             >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} isTvMode={isTvMode} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl && isTvMode} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!bgImageUrl} />
               </div>)}
           </div>}
       </div>
 
-      {/* Floating Sonos widget - positioned top-right over brew cards in TV mode */}
-      {isTvMode && (
+      {/* Floating Sonos widget - positioned top-right over brew cards */}
+      {!isMobile && (
         <div 
           className="absolute z-10"
           style={{
@@ -399,7 +397,7 @@ export function BrewingDashboard() {
             right: '12px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug />
+          <SonosWidget isMobile={false} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug />
         </div>
       )}
 

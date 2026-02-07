@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2, CheckCircle2, Check } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
-import { useTvMode } from "@/contexts/TvModeContext";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, PulseOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
@@ -79,7 +78,6 @@ export function FermentationSessionCompact({
   onAcknowledge,
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
-  const { isTvMode } = useTvMode();
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
   const progress = useFermentationProgress({
@@ -242,8 +240,8 @@ export function FermentationSessionCompact({
               Klar
             </Badge>
             
-            {/* Acknowledge button - hidden in TV mode */}
-            {!isTvMode && onAcknowledge && (
+            {/* Acknowledge button */}
+            {onAcknowledge && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -300,7 +298,7 @@ export function FermentationSessionCompact({
       {currentStep?.step_type === 'wait_for_gravity_stable' && (
         <ProgressOverlay progress={stabilityProgress} color="purple" />
       )}
-      {!isTvMode && <PulseOverlay active={waitingForTemp} color="blue" />}
+      
       <ShimmerOverlay />
       
       {/* Status icon */}
@@ -310,7 +308,7 @@ export function FermentationSessionCompact({
           waitingForTemp={waitingForTemp}
           isRamping={isRamping}
           isRampingUp={isRampingUp}
-          isTvMode={isTvMode}
+          isTvMode={true}
         />
       </div>
       
@@ -338,7 +336,7 @@ export function FermentationSessionCompact({
           {waitingForTemp && (
             <Badge 
               variant="outline"
-              className={`shrink-0 text-xs font-medium flex items-center gap-0.5 px-1.5 py-0 ${isTvMode ? '' : 'animate-pulse'}`}
+              className="shrink-0 text-xs font-medium flex items-center gap-0.5 px-1.5 py-0"
               style={{
                 borderColor: 'hsl(200 90% 50% / 0.4)',
                 background: 'hsl(200 90% 50% / 0.15)',
@@ -356,8 +354,8 @@ export function FermentationSessionCompact({
             <ProgressBadge progress={stabilityProgress} color="purple" />
           )}
           
-          {/* Skip button - right aligned, hidden in TV mode */}
-          {!isTvMode && (waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
+          {/* Skip button - right aligned */}
+          {(waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
             <>
               <Button
                 variant="ghost"

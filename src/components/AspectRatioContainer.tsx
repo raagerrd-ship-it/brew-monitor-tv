@@ -103,56 +103,19 @@ export function AspectRatioContainer({
     );
   }
 
-  // TV Mode: Use actual viewport dimensions, no scaling
-  if (isTvMode) {
-    return (
-      <AspectRatioContext.Provider value={{ 
-        isLocked: true, 
-        width: tvDimensions.width,
-        height: tvDimensions.height,
-        scale: 1
-      }}>
-        <div 
-          className="fixed inset-0 overflow-hidden flex flex-col"
-          style={{ background: 'transparent' }}
-        >
-          {children}
-        </div>
-      </AspectRatioContext.Provider>
-    );
-  }
-
-  // Desktop: Scaled preview of TV layout with letterbox/pillarbox
+  // Desktop & TV: Full viewport, no scaling
   return (
     <AspectRatioContext.Provider value={{ 
       isLocked: true, 
-      width: REFERENCE_WIDTH, 
-      height: REFERENCE_HEIGHT,
-      scale: dimensions.scale 
+      width: tvDimensions.width,
+      height: tvDimensions.height,
+      scale: 1
     }}>
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div
-          style={{
-            width: dimensions.width,
-            height: dimensions.height,
-          }}
-          className="relative bg-background overflow-hidden"
-        >
-          {/* Scaled content container for desktop preview */}
-          <div
-            style={{
-              width: REFERENCE_WIDTH,
-              height: REFERENCE_HEIGHT,
-              transform: `scale(${dimensions.scale})`,
-              transformOrigin: 'top left',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-            className="flex flex-col"
-          >
-            {children}
-          </div>
-        </div>
+      <div 
+        className="fixed inset-0 overflow-hidden flex flex-col"
+        style={{ background: 'transparent' }}
+      >
+        {children}
       </div>
     </AspectRatioContext.Provider>
   );
