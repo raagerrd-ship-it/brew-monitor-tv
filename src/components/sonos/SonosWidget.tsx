@@ -43,6 +43,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
+  const [prefetchStatus, setPrefetchStatus] = useState<'idle' | 'fetching' | 'ready' | 'loaded'>('idle');
 
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
@@ -133,6 +134,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         // Prefetch: trigger server sync ~30s before end (once per track)
         if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
           prefetchTriggeredForTrackRef.current = trackName;
+          setPrefetchStatus('fetching');
           console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
           const controller = new AbortController();
           const t = setTimeout(() => controller.abort(), 15000);
@@ -143,6 +145,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               'Content-Type': 'application/json',
             },
             signal: controller.signal,
+          }).then(res => {
+            if (res.ok) setPrefetchStatus('ready');
           }).catch(() => {}).finally(() => clearTimeout(t));
         }
 
@@ -161,6 +165,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       clearInterval(ticker);
       if (predictiveTimer) clearTimeout(predictiveTimer);
       predictiveScheduledRef.current = false;
+      setPrefetchStatus('idle');
     };
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 
@@ -388,6 +393,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             src={nowPlaying.next_album_art_url}
             alt=""
             decoding="async"
+            onLoad={() => { if (prefetchStatus === 'ready') setPrefetchStatus('loaded'); }}
             style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
           />
         )}
@@ -398,6 +404,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             src={nowPlaying.next_bg_image_url}
             alt=""
             decoding="async"
+            onLoad={() => { if (prefetchStatus === 'ready') setPrefetchStatus('loaded'); }}
             style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
           />
         )}
@@ -459,6 +466,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                 }}
               />
             </div>
+          )}
+          {/* Debug: Prefetch status indicator */}
+          {showDebug && prefetchStatus !== 'idle' && (
+            <div
+              className="absolute top-1 right-1 rounded-full"
+              title={`Prefetch: ${prefetchStatus}`}
+              style={{
+                width: isTvMode ? 8 : 6,
+                height: isTvMode ? 8 : 6,
+                background: prefetchStatus === 'fetching' ? '#f97316'
+                  : prefetchStatus === 'ready' ? '#eab308'
+                  : '#22c55e',
+                boxShadow: `0 0 4px ${prefetchStatus === 'fetching' ? '#f97316' : prefetchStatus === 'ready' ? '#eab308' : '#22c55e'}`,
+              }}
+            />
           )}
         </div>
       </div>
