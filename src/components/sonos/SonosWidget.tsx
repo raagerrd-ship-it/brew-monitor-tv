@@ -135,8 +135,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               next_bg_image_url: null,
             };
           });
-          // Don't call fetchNowPlaying() here - DB still has stale data from previous track.
-          // The 5s poll or realtime event will naturally update duration_ms etc.
+          // Delayed refetch from DB to pick up new art URLs once cron has updated
+          setTimeout(() => fetchNowPlaying(), 5000);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
@@ -262,6 +262,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
               const newArtUrl = prev.next_album_art_url || prev.album_art_url;
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+              // Delayed refetch from DB to pick up new art URLs
+              setTimeout(() => fetchNowPlaying(), 5000);
               return {
                 ...prev,
                 track_name: data.trackName,
