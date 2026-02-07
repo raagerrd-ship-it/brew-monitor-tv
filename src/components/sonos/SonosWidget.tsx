@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSonosTrackTransition } from "./hooks";
 
@@ -37,6 +37,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [localProgress, setLocalProgress] = useState<number | null>(null);
+  const localProgressRef = useRef<number | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
@@ -49,38 +50,31 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const predictiveScheduledRef = useRef(false);
   const prefetchTriggeredForTrackRef = useRef<string | null>(null);
 
+  const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
+    if (typeof val === 'function') {
+      setLocalProgress(prev => {
+        const next = val(prev);
+        localProgressRef.current = next;
+        return next;
+      });
+    } else {
+      localProgressRef.current = val;
+      setLocalProgress(val);
+    }
+  }, []);
+
   const { fetchNowPlaying, handleTrackUpdate } = useSonosTrackTransition({
     setNowPlaying,
-    setLocalProgress,
+    setLocalProgress: setLocalProgressWithRef,
   });
 
-  // JS-driven progress ticker (1s interval) - smooth between 5s polls
+  // Consolidated 1s ticker: progress + predictive scheduling + prefetch trigger
   useEffect(() => {
     if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
 
-    const timer = window.setInterval(() => {
-      setLocalProgress(prev => {
-        if (prev === null) return prev;
-        const next = prev + 1000;
-        return next > (nowPlaying.duration_ms ?? next) ? nowPlaying.duration_ms! : next;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
-
-  // Predictive end-of-track poll
-  useEffect(() => {
-    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
-    if (localProgress === null) return;
-
-    const timeRemaining = nowPlaying.duration_ms - localProgress;
-    if (timeRemaining > PREDICTIVE_THRESHOLD_MS || timeRemaining < 0) {
-      predictiveScheduledRef.current = false;
-      return;
-    }
-    if (predictiveScheduledRef.current) return;
-    predictiveScheduledRef.current = true;
+    const duration = nowPlaying.duration_ms;
+    const trackName = nowPlaying.track_name;
+    let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
@@ -103,8 +97,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         lastPredictivePollRef.current = Date.now();
 
-        const trackChanged = data.trackName && data.trackName !== nowPlaying.track_name;
+        const trackChanged = data.trackName && data.trackName !== trackName;
         if (trackChanged) {
+          localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
           setNowPlaying(prev => prev ? {
             ...prev,
@@ -115,9 +110,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             position_ms: data.positionMillis,
           } : prev);
         } else if (retriesLeft > 0) {
-          setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
+          predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
-          // Update position even if track didn't change
+          localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
         }
       } catch {
@@ -125,33 +120,43 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       }
     };
 
-    const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
-    const timer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
-    return () => clearTimeout(timer);
-  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms, localProgress]);
+    const ticker = window.setInterval(() => {
+      const prev = localProgressRef.current;
+      if (prev === null) return;
+      const next = Math.min(prev + 1000, duration);
+      localProgressRef.current = next;
+      setLocalProgress(next);
 
-  // Prefetch: trigger server sync ~30s before track ends to generate next track's AI background
-  useEffect(() => {
-    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
-    if (localProgress === null) return;
+      const timeRemaining = duration - next;
 
-    const timeRemaining = nowPlaying.duration_ms - localProgress;
-    if (timeRemaining > PREFETCH_THRESHOLD_MS || timeRemaining < 0) return;
-    if (prefetchTriggeredForTrackRef.current === nowPlaying.track_name) return;
+      // Prefetch: trigger server sync ~30s before end (once per track)
+      if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
+        prefetchTriggeredForTrackRef.current = trackName;
+        console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(15000),
+        }).catch(() => {});
+      }
 
-    prefetchTriggeredForTrackRef.current = nowPlaying.track_name;
-    console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
+      // Predictive poll: schedule when <10s remain (once per track)
+      if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
+        predictiveScheduledRef.current = true;
+        const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
+        predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
+      }
+    }, 1000);
 
-    // Fire-and-forget server sync to ensure next track art + AI bg is ready
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(15000),
-    }).catch(() => {});
-  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms, localProgress]);
+    return () => {
+      clearInterval(ticker);
+      if (predictiveTimer) clearTimeout(predictiveTimer);
+      predictiveScheduledRef.current = false;
+    };
+  }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 
   // 5s client polling for playback position (only while PLAYING)
   useEffect(() => {
@@ -182,6 +187,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const data = await response.json();
         if (!data.ok) return;
 
+        localProgressRef.current = data.positionMillis;
         setLocalProgress(data.positionMillis);
 
         if (data.trackName) {
