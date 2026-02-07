@@ -53,7 +53,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const trackChangeOffsetRef = useRef<number>(0);
   const earlySwapDoneRef = useRef(false);
   const bgSentRef = useRef<string | null>(null);
+  const validBgBufferRef = useRef<string[]>([]);
   const trackChangedAtRef = useRef<number>(0);
+
+  // Rolling buffer: track last 4 known-valid bg URLs to verify sync
+  const pushToBgBuffer = useCallback((url: string | null | undefined) => {
+    if (!url) return;
+    const buf = validBgBufferRef.current;
+    if (buf[buf.length - 1] === url) return; // already latest
+    const idx = buf.indexOf(url);
+    if (idx !== -1) buf.splice(idx, 1); // remove duplicate
+    buf.push(url);
+    if (buf.length > 4) buf.shift(); // trim oldest
+  }, []);
 
   const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
     if (typeof val === 'function') {
@@ -123,6 +135,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
+            pushToBgBuffer(newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             return {
               ...prev,
@@ -169,6 +182,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             setPrefetchStatus('loaded');
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
+            pushToBgBuffer(newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             return {
               ...prev,
@@ -264,6 +278,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               trackChangedAtRef.current = Date.now();
               const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
               const newArtUrl = prev.next_album_art_url || prev.album_art_url;
+              pushToBgBuffer(newBgUrl || newArtUrl);
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
               // Don't refetch from DB here - it likely has stale data.
               return {
@@ -294,11 +309,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
 
-        // Safeguard: if widget shows art but background hasn't been sent, send it now
-        if (displayedArtUrl && bgSentRef.current !== displayedArtUrl) {
-          const bgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
-          onAlbumArtChangeRef.current?.(bgUrl);
-          bgSentRef.current = displayedArtUrl;
+        // Safeguard: verify background matches widget's current image using rolling buffer
+        const expectedBgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
+        if (expectedBgUrl && bgSentRef.current !== expectedBgUrl) {
+          pushToBgBuffer(expectedBgUrl);
+          onAlbumArtChangeRef.current?.(expectedBgUrl);
+          bgSentRef.current = expectedBgUrl;
         }
       } catch {
         // ignore
@@ -357,8 +373,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
           if (msSinceTrackChange < 15000) {
             // Only accept bg_image_url if it's genuinely new (not stale from previous track)
-            if (incoming.track_name === prev.track_name && incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url) {
+          if (incoming.track_name === prev.track_name && incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url) {
               const updatedBg = incoming.bg_image_url;
+              pushToBgBuffer(updatedBg);
               onAlbumArtChangeRef.current?.(updatedBg);
               return { ...prev, bg_image_url: updatedBg, next_album_art_url: incoming.next_album_art_url || prev.next_album_art_url, next_bg_image_url: incoming.next_bg_image_url || prev.next_bg_image_url };
             }
@@ -373,6 +390,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           const updatedBg = incoming.bg_image_url || prev.bg_image_url;
           const bgChanged = updatedBg !== prev.bg_image_url;
           if (bgChanged) {
+            pushToBgBuffer(updatedBg);
             onAlbumArtChangeRef.current?.(updatedBg);
           }
           return {
@@ -401,6 +419,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     setImageError(false);
     // Send bg_image_url for dashboard background (pre-processed, no CSS filter needed)
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
+    pushToBgBuffer(bgUrl);
     onAlbumArtChangeRef.current?.(bgUrl);
     bgSentRef.current = incomingArtUrl;
   };
@@ -439,6 +458,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     if (shouldHide) {
       onAlbumArtChangeRef.current?.(null);
       bgSentRef.current = null;
+      validBgBufferRef.current = [];
     }
   }, [shouldHide]);
 
