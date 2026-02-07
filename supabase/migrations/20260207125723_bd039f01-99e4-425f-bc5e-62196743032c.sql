@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings ADD COLUMN prefetch_seconds integer NOT NULL DEFAULT 30;
