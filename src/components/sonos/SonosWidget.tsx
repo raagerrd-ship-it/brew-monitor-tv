@@ -352,14 +352,24 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.playback_state]);
 
   // Check if connected and fetch initial data
+  // Combined init: fetch settings + now playing in parallel
   useEffect(() => {
-    const checkConnection = async () => {
+    const init = async () => {
       try {
-        const { data: settings, error: settingsError } = await (supabase as any)
-          .from('sonos_settings')
-          .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
-          .limit(1)
-          .maybeSingle();
+        const [settingsResult, nowPlayingResult] = await Promise.all([
+          (supabase as any)
+            .from('sonos_settings')
+            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
+            .limit(1)
+            .maybeSingle(),
+          (supabase as any)
+            .from('sonos_now_playing')
+            .select('track_name, artist_name, album_art_url, next_album_art_url, bg_image_url, next_bg_image_url, duration_ms, position_ms, playback_state')
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        const { data: settings, error: settingsError } = settingsResult;
 
         if (settingsError || !settings?.selected_group_id) {
           setIsConnected(false);
@@ -369,20 +379,20 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
         trackChangeOffsetRef.current = Number(settings?.track_change_offset_seconds) || 0;
+
+        // Apply now playing data immediately (skip the second render cycle)
+        const { data: npData, error: npError } = nowPlayingResult;
+        if (npData && !npError && (settings?.show_on_dashboard ?? true)) {
+          handleTrackUpdate(npData);
+        }
       } catch (error) {
-        console.error('[Sonos] Failed to check connection:', error);
+        console.error('[Sonos] Failed to init:', error);
         setIsConnected(false);
       }
     };
 
-    checkConnection();
-  }, []);
-
-  // Initial fetch from database
-  useEffect(() => {
-    if (!isConnected || !showWidget) return;
-    fetchNowPlaying();
-  }, [isConnected, showWidget, fetchNowPlaying]);
+    init();
+  }, [handleTrackUpdate]);
 
   // Wire up realtime callback - only apply if track matches or is newer
   useEffect(() => {
