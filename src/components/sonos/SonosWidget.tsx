@@ -120,7 +120,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         const trackChanged = data.trackName && data.trackName !== trackName;
         if (trackChanged) {
-          setCurrentArtStatus('detecting'); // Red dot: new track detected
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
           trackChangedAtRef.current = Date.now();
@@ -129,6 +128,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             if (!prev) return prev;
             if (alreadySwapped) {
               // Images already swapped by early swap — only update text metadata
+              setCurrentArtStatus('displayed');
               return {
                 ...prev,
                 track_name: data.trackName,
@@ -143,6 +143,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             pushToBgBuffer(newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             bgSentRef.current = newBgUrl || newArtUrl;
+            // If art URL didn't actually change, stay green; otherwise go to detecting
+            const artActuallyChanged = newArtUrl && stripQuery(newArtUrl) !== stripQuery(prev.album_art_url || '');
+            setCurrentArtStatus(artActuallyChanged ? 'detecting' : 'displayed');
             return {
               ...prev,
               track_name: data.trackName,
@@ -288,7 +291,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               pushToBgBuffer(newBgUrl || newArtUrl);
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
               bgSentRef.current = newBgUrl || newArtUrl;
-              // Don't refetch from DB here - it likely has stale data.
+              const artActuallyChanged = newArtUrl && stripQuery(newArtUrl) !== stripQuery(prev.album_art_url || '');
+              setCurrentArtStatus(artActuallyChanged ? 'detecting' : 'displayed');
               return {
                 ...prev,
                 track_name: data.trackName,
