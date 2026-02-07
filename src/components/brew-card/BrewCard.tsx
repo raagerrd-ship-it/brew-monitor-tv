@@ -89,19 +89,19 @@ function BrewCardComponent({
       {/* Label image as faded background in top-left corner */}
       {hasLabel && (
         <div
-          className="absolute top-0 left-0 pointer-events-none z-0"
-          style={{
-            width: '180px',
-            height: '180px',
-            opacity: 0.35,
-            WebkitMaskImage: 'radial-gradient(ellipse at 0% 0%, black 20%, transparent 70%)',
-            maskImage: 'radial-gradient(ellipse at 0% 0%, black 20%, transparent 70%)',
-          }}
+          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
         >
           <img
             src={brew.label_image_url}
             alt=""
-            className="w-full h-full object-cover"
+            className="absolute top-0 left-0 object-cover"
+            style={{
+              width: '200px',
+              height: '200px',
+              opacity: 0.35,
+              WebkitMaskImage: 'radial-gradient(ellipse at 0% 0%, black 15%, transparent 65%)',
+              maskImage: 'radial-gradient(ellipse at 0% 0%, black 15%, transparent 65%)',
+            }}
           />
         </div>
       )}
