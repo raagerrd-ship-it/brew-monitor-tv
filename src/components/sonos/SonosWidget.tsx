@@ -121,7 +121,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               next_bg_image_url: null,
             };
           });
-          fetchNowPlaying();
+          // Don't call fetchNowPlaying() here - DB still has stale data from previous track.
+          // The 5s poll or realtime event will naturally update duration_ms etc.
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
