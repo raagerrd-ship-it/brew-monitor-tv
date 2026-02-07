@@ -102,16 +102,24 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (trackChanged) {
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
-          // Update text immediately
-          setNowPlaying(prev => prev ? {
-            ...prev,
-            track_name: data.trackName,
-            artist_name: data.artistName ?? prev.artist_name,
-            album_name: data.albumName ?? prev.album_name,
-            playback_state: data.playbackState,
-            position_ms: data.positionMillis,
-          } : prev);
-          // Refetch from DB to get pre-generated image URLs
+          // Use pre-fetched next track images immediately (already cached in browser)
+          setNowPlaying(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              track_name: data.trackName,
+              artist_name: data.artistName ?? prev.artist_name,
+              album_name: data.albumName ?? prev.album_name,
+              playback_state: data.playbackState,
+              position_ms: data.positionMillis,
+              // Swap in pre-fetched images
+              album_art_url: prev.next_album_art_url || prev.album_art_url,
+              bg_image_url: prev.next_bg_image_url || prev.bg_image_url,
+              next_album_art_url: null,
+              next_bg_image_url: null,
+            };
+          });
+          // Also refetch DB in background for any remaining data
           fetchNowPlaying();
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
