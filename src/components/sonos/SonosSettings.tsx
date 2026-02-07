@@ -272,14 +272,14 @@ export function SonosSettings() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Synk-justering vid låtbyte</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset}s</span>
+              <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
             </div>
             <Slider
               value={[trackChangeOffset]}
               min={0}
               max={4}
-              step={0.5}
-              onValueChange={(v) => setTrackChangeOffset(v[0])}
+              step={0.1}
+              onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
             />
             <p className="text-xs text-muted-foreground">
               Sekunder innan beräknat låtslut som prediktiv polling triggas
