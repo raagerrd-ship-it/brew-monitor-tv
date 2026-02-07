@@ -47,13 +47,13 @@ export function DashboardHeader({
       style={{
         height: isMobile ? 'auto' : `${isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT_DESKTOP}px`,
         background: hasAlbumArtBackground && isTvMode
-          ? 'hsl(222 20% 9% / 0.55)'
+          ? 'transparent'
           : 'hsl(222 20% 9%)',
-        borderBottom: '1px solid hsl(222 15% 16%)'
+        borderBottom: hasAlbumArtBackground && isTvMode ? 'none' : '1px solid hsl(222 15% 16%)'
       }}
     >
-      {/* Subtle top highlight - desktop only */}
-      {!isMobile && <div className="absolute inset-x-0 top-0 h-px" style={{
+      {/* Subtle top highlight - desktop only, hidden in TV mode with album art */}
+      {!isMobile && !(isTvMode && hasAlbumArtBackground) && <div className="absolute inset-x-0 top-0 h-px" style={{
         background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)'
       }} />}
 
