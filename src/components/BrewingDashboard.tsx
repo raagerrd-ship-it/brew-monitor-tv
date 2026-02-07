@@ -321,28 +321,18 @@ export function BrewingDashboard() {
     background: 'transparent'
   }}>
       
-      {/* Album art background - pre-processed server-side */}
+      {/* Album art background - pre-processed server-side with header fade baked in */}
       {bgImageUrl && (
-        <>
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{ 
-              backgroundImage: `url(${bgImageUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center center',
-              transform: 'scale(1.15)',
-              contain: 'strict',
-            }}
-          />
-          {/* Dark fade at top for header readability */}
-          <div 
-            className="absolute inset-x-0 top-0 pointer-events-none z-10"
-            style={{ 
-              height: '85px',
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)',
-            }}
-          />
-        </>
+        <div 
+          className="absolute inset-0 pointer-events-none"
+          style={{ 
+            backgroundImage: `url(${bgImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
+            transform: 'scale(1.15)',
+            contain: 'strict',
+          }}
+        />
       )}
 
       {/* Header Bar */}
