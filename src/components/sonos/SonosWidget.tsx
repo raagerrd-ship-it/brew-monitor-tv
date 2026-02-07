@@ -162,7 +162,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
           setNowPlaying(prev => {
             if (!prev?.next_album_art_url) return prev;
-            earlySwapDoneRef.current = true;
+          earlySwapDoneRef.current = true;
+            setPrefetchStatus('loaded');
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
