@@ -85,8 +85,30 @@ function BrewCardComponent({
         />
       )}
       
+      {/* Label image as faded background in top-left corner */}
+      {brew.label_image_url && (
+        <div
+          className="absolute top-0 left-0 pointer-events-none z-0 rounded-tl-lg overflow-hidden"
+          style={{
+            width: '160px',
+            height: '160px',
+            opacity: 0.22,
+            maskImage: 'linear-gradient(to right, black 30%, transparent 100%), linear-gradient(to bottom, black 30%, transparent 100%)',
+            maskComposite: 'intersect',
+            WebkitMaskImage: 'linear-gradient(to right, black 30%, transparent 100%), linear-gradient(to bottom, black 30%, transparent 100%)',
+            WebkitMaskComposite: 'source-in',
+          }}
+        >
+          <img
+            src={brew.label_image_url}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      
       {/* Header - fixed height */}
-      <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
+      <div className="px-3 py-2 flex-shrink-0 relative z-[1]" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
@@ -95,19 +117,6 @@ function BrewCardComponent({
           }}
         />
         <div className="flex items-center justify-between gap-2 h-full">
-          {/* Label image thumbnail if exists */}
-          {brew.label_image_url && (
-            <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30"
-              style={{ width: isTvMode ? '40px' : '64px', height: isTvMode ? '40px' : '64px' }}
-            >
-              <img
-                src={brew.label_image_url}
-                alt={`${brew.name} etikett`}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          )}
             <div className="min-w-0 flex-1 overflow-hidden">
               <h2 
                 className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
