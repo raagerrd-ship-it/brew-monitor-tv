@@ -344,7 +344,7 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-      <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-hidden'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
+      <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
         {brews.length === 0 ? <div className="flex items-center justify-center h-full p-4">
             <Card className="max-w-2xl w-full p-8 text-center">
               <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
