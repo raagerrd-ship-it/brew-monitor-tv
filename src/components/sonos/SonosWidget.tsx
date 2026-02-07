@@ -137,6 +137,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             pushToBgBuffer(newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+            bgSentRef.current = newBgUrl || newArtUrl;
             return {
               ...prev,
               track_name: data.trackName,
@@ -184,6 +185,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             pushToBgBuffer(newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+            bgSentRef.current = newBgUrl || newArtUrl;
             return {
               ...prev,
               album_art_url: newArtUrl,
@@ -280,6 +282,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               const newArtUrl = prev.next_album_art_url || prev.album_art_url;
               pushToBgBuffer(newBgUrl || newArtUrl);
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+              bgSentRef.current = newBgUrl || newArtUrl;
               // Don't refetch from DB here - it likely has stale data.
               return {
                 ...prev,
@@ -426,11 +429,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const handleNewImageLoaded = () => {
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
-    // Send bg_image_url for dashboard background (pre-processed, no CSS filter needed)
+    // Only send bg if bgSentRef isn't already a valid (more recent) bg in the buffer
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
-    pushToBgBuffer(bgUrl);
-    onAlbumArtChangeRef.current?.(bgUrl);
-    bgSentRef.current = incomingArtUrl;
+    if (!bgSentRef.current || !validBgBufferRef.current.includes(bgSentRef.current) || bgSentRef.current === bgUrl) {
+      pushToBgBuffer(bgUrl);
+      onAlbumArtChangeRef.current?.(bgUrl);
+      bgSentRef.current = bgUrl;
+    }
   };
 
   const handleNewImageError = () => {
