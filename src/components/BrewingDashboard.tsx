@@ -318,7 +318,7 @@ export function BrewingDashboard() {
   
   return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: getContainerHeight(),
-    background: bgImageUrl ? 'transparent' : 'hsl(var(--background))'
+    background: 'transparent'
   }}>
       
       {/* Album art background - pre-processed server-side, no CSS filters needed */}
