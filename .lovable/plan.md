@@ -1,45 +1,20 @@
 
-## Omedelbar bakgrundsswap vid låtbyte
 
-### Problem
-Vid låtbyte swappar widgeten korrekt `next_album_art_url` och `next_bg_image_url` till aktiva fält i state. Men dashboardens bakgrundsbild (`onAlbumArtChange`) uppdateras bara inuti `handleNewImageLoaded` -- efter att albumbilden triggat sitt `onLoad`-event. Det ger en fördröjning trots att bakgrundsbilden redan är cachad.
+## Fix: Widget disappears after track change
 
-### Lösning
-Uppdatera `onAlbumArtChange` direkt i trackChange-logiken (runt rad 105-121 i `SonosWidget.tsx`), istället för att vänta på albumbildens `onLoad`.
+### Root Cause
+`pollForNewTrack` correctly updates state with new track metadata and swapped images, then immediately calls `fetchNowPlaying()` (line 124). But the database still contains the **previous track's data** because the 60s cron job hasn't synced yet. `fetchNowPlaying` blindly overwrites the entire `nowPlaying` state with this stale data, causing the widget to show the old track momentarily and then hide (since that track is no longer playing).
 
-### Tekniska ändringar
+### Fix
 
 **`src/components/sonos/SonosWidget.tsx`**
 
-1. I `pollForNewTrack` (rad 102-121), efter att ha swappat `next_bg_image_url` till `bg_image_url`, anropa `onAlbumArtChangeRef.current` direkt med den nya bg-URL:en:
+Remove the `fetchNowPlaying()` call on line 124 (inside the `trackChanged` branch of `pollForNewTrack`). The predictive poll already provides all needed text metadata (track, artist, album, playback state, position) and the images are swapped from pre-fetched state. The next regular 5s poll or realtime event will naturally fill in any missing data (like `duration_ms` for the new track) without the destructive overwrite.
 
-```typescript
-if (trackChanged) {
-  localProgressRef.current = data.positionMillis;
-  setLocalProgress(data.positionMillis);
-  setNowPlaying(prev => {
-    if (!prev) return prev;
-    const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
-    const newArtUrl = prev.next_album_art_url || prev.album_art_url;
-    // Immediately update dashboard background
-    onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
-    return {
-      ...prev,
-      track_name: data.trackName,
-      artist_name: data.artistName ?? prev.artist_name,
-      album_name: data.albumName ?? prev.album_name,
-      playback_state: data.playbackState,
-      position_ms: data.positionMillis,
-      album_art_url: newArtUrl,
-      bg_image_url: newBgUrl,
-      next_album_art_url: null,
-      next_bg_image_url: null,
-    };
-  });
-  fetchNowPlaying();
-}
-```
+**`src/components/sonos/hooks/useSonosTrackTransition.ts`**
 
-2. Samma mönster i 5s-pollingens trackChange-hantering (runt rad 215-232) -- om den detekterar ett spårbyte bör den också swappa bilder direkt.
+No changes needed, but worth noting: `fetchNowPlaying` uses `setNowPlaying(data)` (direct set, not functional update), which is why it destroys the carefully-constructed state from the predictive poll.
 
-Det är allt -- inga andra filer behöver ändras. Bakgrundsbilden finns redan i browser-cachen tack vare preload-elementen, så CSS `background-image` bör visa den omedelbart.
+### What about `duration_ms`?
+The playback-status API doesn't return duration. After removing the immediate `fetchNowPlaying`, the widget will use the old track's `duration_ms` until the next realtime update or DB sync. The progress bar may be slightly off for a few seconds, but the widget won't crash. This is a much better tradeoff than the widget disappearing entirely.
+
