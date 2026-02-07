@@ -1,70 +1,37 @@
 
 
-## Synk-justering: Visa nasta lat tidigare an beraknat
+## Adaptiv bakgrundsljusstyrka for Sonos-bakgrundsbilder
 
-### Vad anvandaren vill
-Slidern "Synk-justering vid latbyte" ska styra nar **text och bild** byter till nasta lat visuellt -- X sekunder **innan** laten faktiskt beraknas ta slut. Detta kompenserar for eventuell fordrojning i Sonos-systemet sa att det ser ut som att bytet sker exakt nar musiken byter.
+### Problem
+Idag appliceras ljusstyrkan som en fast procentsats ("reduce brightness to 40%") oavsett hur ljus originalbilden ar. Det gor att ljusa albumomslag ser bra ut, men morka omslag blir nastan helt svarta.
 
-### Hur det fungerar idag
-- Widgeten beraknar `timeRemaining = duration - localProgress`
-- Nar `timeRemaining <= 10s`: en prediktiv poll schemalaggas vid latslut + 500ms
-- Bildbyte sker forst nar den prediktiva pollen bekraftar att laten faktiskt bytt
-
-### Ny logik
-
-Ladda in `track_change_offset_seconds` fran databasen i `SonosWidget` (hamtas i samma `checkConnection`-fraga som redan gor `select` mot `sonos_settings`).
-
-I den konsoliderade 1s-tickern, lagg till en ny kontroll:
-
-**Nar `timeRemaining <= offsetMs` OCH `next_album_art_url` finns (prefetchen ar klar):**
-- Byt `album_art_url` till `next_album_art_url` och `bg_image_url` till `next_bg_image_url` i `nowPlaying`-state
-- Uppdatera dashboard-bakgrunden via `onAlbumArtChangeRef`
-- Markera att bytet redan skett (ny ref `earlySwapDoneRef`) sa det bara gors en gang per lat
-
-Texten (artist/latnamn) kan inte bytas forran den prediktiva pollen returnerar den nya latens metadata -- men bilden kan bytas tidigt, vilket gor att overgangen kanns snabbare.
-
-Om offset ar 0 (standard) sker inget tidigt byte -- allt fungerar som forut.
+### Losning
+Andra AI-prompten i `sync-sonos-now-playing` sa att den instrueras att analysera bildens faktiska ljusniva och justera adaptivt. Malet ar att den fardiga bilden alltid landar pa ungefar samma upplevda ljusniva -- en ljus bild morklaggs mer, en redan mork bild justeras mindre.
 
 ### Tekniska detaljer
 
-**`src/components/sonos/SonosWidget.tsx`**
+**`supabase/functions/sync-sonos-now-playing/index.ts`**
 
-1. Utoka `checkConnection`-queryn fran `select('show_on_dashboard, selected_group_id')` till att ocksa inkludera `track_change_offset_seconds`
-2. Spara vardet i en ny `useRef` (t.ex. `trackChangeOffsetRef`) -- ref for att undvika omrenderingar
-3. I tickern (runt rad 145), efter `timeRemaining`-berakningen, lagg till:
+I funktionen `generateBackground` (rad 78-137), andra prompten fran:
 
 ```text
-if (offsetMs > 0 
-    && timeRemaining <= offsetMs 
-    && timeRemaining > 0
-    && !earlySwapDoneRef.current
-    && nowPlaying har next_album_art_url) {
-  
-  earlySwapDoneRef.current = true;
-  
-  // Byt bild och bakgrund tidigt
-  setNowPlaying(prev => ({
-    ...prev,
-    album_art_url: prev.next_album_art_url || prev.album_art_url,
-    bg_image_url: prev.next_bg_image_url || prev.bg_image_url,
-    next_album_art_url: null,
-    next_bg_image_url: null,
-  }));
-  
-  // Uppdatera dashboard-bakgrund
-  onAlbumArtChangeRef.current?.(next_bg || next_art);
-}
+Apply a Gaussian blur of {blur}px and reduce brightness to {brightnessPercent}%.
 ```
 
-4. Aterstall `earlySwapDoneRef.current = false` i tickerns cleanup (nar `track_name` andras)
+Till:
 
-5. I `pollForNewTrack` (trackChanged-branchen): kontrollera om bilden redan bytts via `earlySwapDoneRef` -- om ja, anvand bara text-metadata fran pollen utan att skriva over bilderna igen
+```text
+Apply a Gaussian blur of {blur}px. Analyze the image's overall brightness and 
+adjust it so the final output has an average perceived brightness of approximately 
+{brightnessPercent}% of maximum. Bright images should be darkened significantly, 
+while already dark images should be darkened less or not at all. The goal is a 
+consistent output brightness regardless of the input. Scale to 1280x720. Output as JPEG.
+```
 
-**`src/components/sonos/SonosSettings.tsx`**
+Dessutom andras cache-nyckeln (rad 224) sa att `brightness`-vardet ingar i filnamnet. Detta ar redan fallet (`${hash}-${blur}-${Math.round(brightness * 100)}.jpg`), sa befintliga cachade bilder med den gamla prompten kommer automatiskt att genereras om nar anvandaren andrar ljusstyrka -- men for att tvinga omgenerering aven vid samma varde behover vi lagga till en versionstagg i filnamnet, t.ex. `${hash}-${blur}-${Math.round(brightness * 100)}-v2.jpg`.
 
-Uppdatera beskrivningstexten under slidern fran "Sekunder innan beraknat latslut som prediktiv polling triggas" till "Sekunder innan beraknat latslut som bild och bakgrund byter till nasta lat"
-
-### Kant-fall
-- Om `prefetch_seconds < track_change_offset_seconds`: bilden kanske inte ar redo annu. Darfor kravet att `next_album_art_url` maste finnas innan bytet sker -- annars vantar den tills den prediktiva pollen gor bytet som vanligt.
-- Korta latar (< offset): `timeRemaining`-kontrollen handar att det inte triggas for tidigt since vi kravet `timeRemaining > 0`.
+**Sammanfattning av andringar:**
+- En fil andras: `supabase/functions/sync-sonos-now-playing/index.ts`
+- Prompten i `generateBackground` skrivs om for adaptiv ljusstyrka
+- Cache-filnamnet far en versionstagning (`-v2`) for att invalidera gamla bilder
 
