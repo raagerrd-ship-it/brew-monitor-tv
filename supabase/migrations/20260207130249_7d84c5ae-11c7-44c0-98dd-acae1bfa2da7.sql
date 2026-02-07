@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings ALTER COLUMN track_change_offset_seconds TYPE numeric USING track_change_offset_seconds::numeric;
