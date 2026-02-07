@@ -35,7 +35,7 @@ export function useSonosTrackTransition(
     try {
       const { data, error } = await (supabase as any)
         .from('sonos_now_playing')
-        .select('track_name, artist_name, album_art_url, next_album_art_url, duration_ms, position_ms, playback_state')
+        .select('track_name, artist_name, album_art_url, next_album_art_url, bg_image_url, next_bg_image_url, duration_ms, position_ms, playback_state')
         .limit(1)
         .maybeSingle();
 

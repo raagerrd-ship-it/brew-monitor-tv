@@ -722,10 +722,12 @@ export type Database = {
           album_art_url_small: string | null
           album_name: string | null
           artist_name: string | null
+          bg_image_url: string | null
           duration_ms: number | null
           group_id: string
           id: string
           next_album_art_url: string | null
+          next_bg_image_url: string | null
           playback_state: string
           position_ms: number | null
           track_name: string | null
@@ -736,10 +738,12 @@ export type Database = {
           album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
+          bg_image_url?: string | null
           duration_ms?: number | null
           group_id: string
           id?: string
           next_album_art_url?: string | null
+          next_bg_image_url?: string | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
@@ -750,10 +754,12 @@ export type Database = {
           album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
+          bg_image_url?: string | null
           duration_ms?: number | null
           group_id?: string
           id?: string
           next_album_art_url?: string | null
+          next_bg_image_url?: string | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
