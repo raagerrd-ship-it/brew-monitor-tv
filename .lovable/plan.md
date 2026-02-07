@@ -1,28 +1,44 @@
 
-## Fix: Ta bort ljusskillnad vid header-gränsen
 
-### Orsak
-Innehållsytan under headern har `overflow-hidden` (rad 347 i BrewingDashboard.tsx), vilket klipper brew-kortens stora box-shadows (`0 8px 24px`, `0 20px 40px`) vid kanten. Dessa mörka skuggor lägger ett mörkt lager OVANPA bakgrundsbilden i innehållsytan, men inte i headern - vilket skapar en synlig horisontell gräns vid exakt 60px.
+## Rullande bildbuffe for bakgrundsverifiering
 
-### Lösning
-Flytta bakgrundsbilden fran BrewingDashboard-containern till **inuti** innehallsytan sa att skuggorna och bakgrunden hamnar i samma stacking context. Alternativt (enklare): ta bort `overflow-hidden` fran innehallsdiven pa desktop, eller ändra brew-kortens box-shadow sa den inte sprider sig uppat.
+### Problem
+Den nuvarande safeguard-logiken (rad 297-302) jamfor bara `bgSentRef` mot `displayedArtUrl`, vilket inte fanger upp fall dar bakgrunden hamnat ur synk med widgetens aktuella bild -- t.ex. efter cooldown-perioden eller missade realtime-events.
 
-**Rekommenderad approach**: Byt `overflow-hidden` till `overflow-visible` pa desktop-innehallsytan. Headern har redan `z-20` sa inget innehall kan hamna ovanpa den visuellt. Detta lat skuggorna sprida sig fritt uppat ocksa, sa att morkningseffekten blir jämn over hela sidan.
+### Losning
+Ersatt den enkla `bgSentRef` (en enda URL) med en rullande buffer av 3-4 giltiga bakgrunds-URL:er. Vid varje 5s-poll kontrolleras om den senast skickade bakgrunden tillhor buffern. Om inte, skickas ratt bakgrund till dashboarden.
 
-### Filer som ändras
+### Tekniska detaljer
 
-| Fil | Andring |
-|-----|---------|
-| `src/components/BrewingDashboard.tsx` | Rad 347: Byt `overflow-hidden` till `overflow-visible` for desktop-grenen sa att brew-kortens skuggor kan sprida sig fritt och inte klipps vid headergränsen |
+**Fil: `src/components/sonos/SonosWidget.tsx`**
 
-### Teknisk detalj
-Rad 347 idag:
-```tsx
-<div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-hidden'}`}
-```
-Andras till:
-```tsx
-<div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-visible'}`}
-```
+1. **Ny ref** -- `validBgBufferRef = useRef<string[]>([])` -- en array med max 4 URL:er (rullande).
 
-Detta ar en minimal andring som later kortens skuggor sprida sig jämnt over hela viewporten istället for att klippas vid innehallsytans överkant.
+2. **Uppdatera buffern** vid varje tillfalle dar en ny bakgrund skapas eller tas emot:
+   - `handleNewImageLoaded` (rad 399-406): lagg till `bg_image_url` i buffern
+   - Early swap (rad 164-181): lagg till ny `bg_image_url`
+   - Predictive poll track change (rad 106-139): lagg till ny `bg_image_url`
+   - 5s poll track change (rad 263-280): lagg till ny `bg_image_url`
+   - Realtime callback (rad 351-392): lagg till ny `bg_image_url` nar den accepteras
+
+   En hjalpfunktion `pushToBgBuffer(url)` trimmar buffern till max 4 entries och undviker dubbletter.
+
+3. **Uppgraderad safeguard** i 5s-pollingen (rad 297-302):
+   - Hamta den forvantat korrekta bakgrunden: `nowPlaying.bg_image_url || displayedArtUrl`
+   - Om `bgSentRef.current` inte matchar denna URL OCH URL:en finns i buffern (dvs den ar giltig/kand), skicka den via `onAlbumArtChangeRef` och uppdatera `bgSentRef`
+   - Om URL:en inte ens finns i buffern, lagg till den forst och skicka sedan
+
+4. **Buffern representerar**:
+   - Position 0: aldsta kanda bakgrund
+   - Position 1: foregaende lat
+   - Position 2: nuvarande lat (den som spelas)
+   - Position 3: nasta lat (om forladdad)
+
+   Nar en ny URL laggs till och buffern overstiger 4, tas den aldsta bort.
+
+### Resultat
+- Bakgrunden verifieras var 5:e sekund mot en kand lista av giltiga URL:er
+- Om den hamnat ur synk (t.ex. stuck pa gammal bild) korrigeras den automatiskt
+- Ingen extra nätverkstrafik -- allt baseras pa redan kanda URL:er i minnet
+- Minimal CPU-paverkan -- bara en enkel array-lookup per poll
+
