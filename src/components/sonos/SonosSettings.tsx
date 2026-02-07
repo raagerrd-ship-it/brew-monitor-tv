@@ -25,6 +25,7 @@ export function SonosSettings() {
   const [bgBlur, setBgBlur] = useState(40);
   const [bgBrightness, setBgBrightness] = useState(0.4);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
+  const [prefetchSeconds, setPrefetchSeconds] = useState(30);
 
   useEffect(() => {
     loadSonosStatus();
@@ -37,7 +38,7 @@ export function SonosSettings() {
         fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
         (supabase as any)
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
+          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -61,6 +62,7 @@ export function SonosSettings() {
         setBgBlur(settings.bg_blur ?? 40);
         setBgBrightness(settings.bg_brightness ?? 0.4);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
+        setPrefetchSeconds(settings.prefetch_seconds ?? 30);
       }
     } catch (error) {
       console.error('Failed to load Sonos status:', error);
@@ -117,6 +119,7 @@ export function SonosSettings() {
         bg_blur: bgBlur,
         bg_brightness: bgBrightness,
         track_change_offset_seconds: trackChangeOffset,
+        prefetch_seconds: prefetchSeconds,
       };
 
       const { data: existing } = await (supabase as any)
@@ -274,12 +277,30 @@ export function SonosSettings() {
             <Slider
               value={[trackChangeOffset]}
               min={0}
-              max={10}
-              step={1}
+              max={4}
+              step={0.5}
               onValueChange={(v) => setTrackChangeOffset(v[0])}
             />
             <p className="text-xs text-muted-foreground">
-              Antal sekunder innan beräknat låtslut som prediktiv polling triggas (0 = exakt vid beräknat slut)
+              Sekunder innan beräknat låtslut som prediktiv polling triggas
+            </p>
+          </div>
+
+          {/* Prefetch Threshold */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Förladdning av albumomslag</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{prefetchSeconds}s</span>
+            </div>
+            <Slider
+              value={[prefetchSeconds]}
+              min={10}
+              max={60}
+              step={5}
+              onValueChange={(v) => setPrefetchSeconds(v[0])}
+            />
+            <p className="text-xs text-muted-foreground">
+              Hur långt innan låtslut som nästa låts omslag och bakgrund förladdas
             </p>
           </div>
 
