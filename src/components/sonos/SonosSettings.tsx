@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Music, ExternalLink, Unlink } from "lucide-react";
+import { Loader2, Music, ExternalLink, Unlink, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -23,6 +24,9 @@ export function SonosSettings() {
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
   const [bgBrightness, setBgBrightness] = useState(0.4);
+  const [spotifyClientId, setSpotifyClientId] = useState("");
+  const [spotifyClientSecret, setSpotifyClientSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
     loadSonosStatus();
@@ -31,12 +35,11 @@ export function SonosSettings() {
   const loadSonosStatus = async () => {
     setIsLoading(true);
     try {
-      // Fetch groups from edge function and settings from DB in parallel
       const [groupsResponse, settingsResult] = await Promise.all([
         fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
         (supabase as any)
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name')
+          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name, spotify_client_id, spotify_client_secret')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -53,13 +56,14 @@ export function SonosSettings() {
         setIsConnected(false);
       }
 
-      // Use DB as single source of truth for settings
       const settings = settingsResult.data;
       if (settings) {
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
         setBgBrightness(settings.bg_brightness ?? 0.4);
+        setSpotifyClientId(settings.spotify_client_id || "");
+        setSpotifyClientSecret(settings.spotify_client_secret || "");
       }
     } catch (error) {
       console.error('Failed to load Sonos status:', error);
@@ -105,14 +109,6 @@ export function SonosSettings() {
     }
   };
 
-  const handleGroupChange = (groupId: string) => {
-    setSelectedGroupId(groupId);
-  };
-
-  const handleShowOnDashboardChange = (checked: boolean) => {
-    setShowOnDashboard(checked);
-  };
-
   const saveAllSettings = async () => {
     try {
       const selectedGroup = groups.find(g => g.id === selectedGroupId);
@@ -123,9 +119,10 @@ export function SonosSettings() {
         show_on_dashboard: showOnDashboard,
         bg_blur: bgBlur,
         bg_brightness: bgBrightness,
+        spotify_client_id: spotifyClientId || null,
+        spotify_client_secret: spotifyClientSecret || null,
       };
 
-      // Always upsert - if row exists update it, otherwise insert
       const { data: existing } = await (supabase as any)
         .from('sonos_settings')
         .select('id')
@@ -155,14 +152,6 @@ export function SonosSettings() {
       console.error('Failed to save settings:', error);
       toast.error('Kunde inte spara inställningar');
     }
-  };
-
-  const handleBlurChange = (value: number[]) => {
-    setBgBlur(value[0]);
-  };
-
-  const handleBrightnessChange = (value: number[]) => {
-    setBgBrightness(value[0]);
   };
 
   if (isLoading) {
@@ -212,7 +201,7 @@ export function SonosSettings() {
           {/* Group Selection */}
           <div className="space-y-2">
             <Label htmlFor="sonos-group">Rum att visa</Label>
-            <Select value={selectedGroupId || ''} onValueChange={handleGroupChange}>
+            <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
               <SelectTrigger id="sonos-group">
                 <SelectValue placeholder="Välj rum..." />
               </SelectTrigger>
@@ -240,7 +229,7 @@ export function SonosSettings() {
             <Switch
               id="show-on-dashboard"
               checked={showOnDashboard}
-              onCheckedChange={handleShowOnDashboardChange}
+              onCheckedChange={setShowOnDashboard}
             />
           </div>
 
@@ -255,7 +244,7 @@ export function SonosSettings() {
               min={0}
               max={60}
               step={1}
-              onValueChange={handleBlurChange}
+              onValueChange={(v) => setBgBlur(v[0])}
             />
             <p className="text-xs text-muted-foreground">
               Hur suddig albumomslagets bakgrund blir i TV-läge
@@ -273,11 +262,52 @@ export function SonosSettings() {
               min={0.1}
               max={1.0}
               step={0.05}
-              onValueChange={handleBrightnessChange}
+              onValueChange={(v) => setBgBrightness(v[0])}
             />
             <p className="text-xs text-muted-foreground">
               Hur ljus albumomslagets bakgrund är i TV-läge
             </p>
+          </div>
+
+          {/* Spotify API Settings */}
+          <div className="space-y-3 pt-2 border-t">
+            <Label className="text-base font-medium">Spotify API (albumomslag)</Label>
+            <p className="text-xs text-muted-foreground">
+              Behövs för att hämta albumomslag. Skapa en app på{' '}
+              <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                Spotify Developer Dashboard
+              </a>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="spotify-client-id">Client ID</Label>
+              <Input
+                id="spotify-client-id"
+                value={spotifyClientId}
+                onChange={(e) => setSpotifyClientId(e.target.value)}
+                placeholder="Spotify Client ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="spotify-client-secret">Client Secret</Label>
+              <div className="relative">
+                <Input
+                  id="spotify-client-secret"
+                  type={showSecret ? "text" : "password"}
+                  value={spotifyClientSecret}
+                  onChange={(e) => setSpotifyClientSecret(e.target.value)}
+                  placeholder="Spotify Client Secret"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowSecret(!showSecret)}
+                >
+                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
           </div>
 
           <Button onClick={saveAllSettings} className="w-full">

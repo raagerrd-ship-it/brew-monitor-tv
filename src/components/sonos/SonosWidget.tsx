@@ -5,6 +5,7 @@ import { useSonosTrackTransition } from "./hooks";
 interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
+  album_name?: string | null;
   album_art_url: string | null;
   next_album_art_url?: string | null;
   bg_image_url?: string | null;
@@ -87,19 +88,21 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         setLocalProgress(data.positionMillis);
 
-        // Update track/artist if changed (faster than waiting for realtime)
+        // Update track/artist/album if changed (faster than waiting for realtime)
         if (data.trackName) {
           setNowPlaying(prev => {
             if (!prev) return prev;
             const trackChanged = prev.track_name !== data.trackName;
             const artistChanged = prev.artist_name !== data.artistName;
-            if (!trackChanged && !artistChanged && data.playbackState === prev.playback_state) {
+            const albumChanged = prev.album_name !== data.albumName;
+            if (!trackChanged && !artistChanged && !albumChanged && data.playbackState === prev.playback_state) {
               return prev;
             }
             return {
               ...prev,
               track_name: data.trackName,
               artist_name: data.artistName ?? prev.artist_name,
+              album_name: data.albumName ?? prev.album_name,
               playback_state: data.playbackState,
               position_ms: data.positionMillis,
             };

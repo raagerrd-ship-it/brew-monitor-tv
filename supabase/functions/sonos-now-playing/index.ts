@@ -84,8 +84,6 @@ serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const SONOS_CLIENT_ID = Deno.env.get('SONOS_CLIENT_ID');
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
-  const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID');
-  const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -93,11 +91,13 @@ serve(async (req) => {
     // Parallel fetch: tokens and settings
     const [tokenResult, settingsResult] = await Promise.all([
       supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id, spotify_client_id, spotify_client_secret').limit(1).single(),
     ]);
 
     const tokenData = tokenResult.data;
     const settings = settingsResult.data;
+    const SPOTIFY_CLIENT_ID = settings?.spotify_client_id || Deno.env.get('SPOTIFY_CLIENT_ID');
+    const SPOTIFY_CLIENT_SECRET = settings?.spotify_client_secret || Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
     if (!tokenData) {
       return new Response(
