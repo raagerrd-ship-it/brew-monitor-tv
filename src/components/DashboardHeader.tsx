@@ -48,8 +48,8 @@ export function DashboardHeader({
         height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
         background: hasAlbumArtBackground
           ? 'transparent'
-          : 'hsl(222 20% 9%)',
-        borderBottom: hasAlbumArtBackground ? 'none' : '1px solid hsl(222 15% 16%)'
+          : 'hsl(var(--background))',
+        borderBottom: hasAlbumArtBackground ? 'none' : '1px solid hsl(222 15% 14%)'
       }}
     >
       {/* Subtle top highlight - desktop only, hidden in TV mode with album art */}
