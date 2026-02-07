@@ -52,6 +52,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const prefetchTriggeredForTrackRef = useRef<string | null>(null);
   const trackChangeOffsetRef = useRef<number>(0);
   const earlySwapDoneRef = useRef(false);
+  const bgSentRef = useRef<string | null>(null);
 
   const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
     if (typeof val === 'function') {
@@ -288,6 +289,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (data.playbackState !== 'PLAYBACK_STATE_PLAYING') {
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
+
+        // Safeguard: if widget shows art but background hasn't been sent, send it now
+        if (displayedArtUrl && bgSentRef.current !== displayedArtUrl) {
+          const bgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
+          onAlbumArtChangeRef.current?.(bgUrl);
+          bgSentRef.current = displayedArtUrl;
+        }
       } catch {
         // ignore
       } finally {
@@ -353,7 +361,9 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
     // Send bg_image_url for dashboard background (pre-processed, no CSS filter needed)
-    onAlbumArtChangeRef.current?.(nowPlaying?.bg_image_url || incomingArtUrl);
+    const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
+    onAlbumArtChangeRef.current?.(bgUrl);
+    bgSentRef.current = incomingArtUrl;
   };
 
   const handleNewImageError = () => {
@@ -389,6 +399,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   useEffect(() => {
     if (shouldHide) {
       onAlbumArtChangeRef.current?.(null);
+      bgSentRef.current = null;
     }
   }, [shouldHide]);
 
