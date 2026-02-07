@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useTvMode } from '@/contexts/TvModeContext';
 import type { BrewChartProps } from './types';
 
 // Lazy load the heavy recharts-based BrewChart component
@@ -65,15 +64,12 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
 }
 
 /**
- * Lazy-loaded wrapper for BrewChart.
- * In TV mode: renders a server-generated static image (no Recharts).
- * In normal mode: lazy-loads Recharts (~150KB).
+ * Always renders server-generated static chart images.
+ * Falls back to lazy-loaded Recharts only if no brewId is available.
  */
 export function LazyBrewChart(props: BrewChartProps) {
-  const { isTvMode } = useTvMode();
-
-  // TV mode: skip Recharts entirely, use server-rendered image
-  if (isTvMode && props.brewId) {
+  // Always use server-rendered chart images (saves ~150KB Recharts JS)
+  if (props.brewId) {
     return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} />;
   }
 

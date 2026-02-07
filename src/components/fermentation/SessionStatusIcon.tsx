@@ -27,7 +27,7 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
   if (waitingForTemp) {
     return (
       <div 
-        className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
+        className="p-1.5 rounded-full"
         style={{ 
           background: 'linear-gradient(135deg, hsl(200 90% 50% / 0.3) 0%, hsl(200 90% 50% / 0.15) 100%)',
           boxShadow: '0 0 12px hsl(200 90% 50% / 0.4)'
@@ -42,7 +42,7 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
     const RampIcon = isRampingUp ? ArrowUp : ArrowDown;
     return (
       <div 
-        className={isTvMode ? 'p-1.5 rounded-full' : 'p-1.5 rounded-full animate-pulse'}
+        className="p-1.5 rounded-full"
         style={{ 
           background: 'linear-gradient(135deg, hsl(38 92% 50% / 0.3) 0%, hsl(38 92% 50% / 0.15) 100%)',
           boxShadow: '0 0 12px hsl(38 92% 50% / 0.4)'
@@ -56,16 +56,6 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
   // Active/running state
   return (
     <div className="relative flex items-center justify-center w-7 h-7">
-      {/* Pulsing ring - disabled in TV mode */}
-      {!isTvMode && (
-        <div 
-          className="absolute inset-0 rounded-full animate-ping"
-          style={{ 
-            background: 'hsl(142 70% 45% / 0.3)',
-            animationDuration: '2s',
-          }}
-        />
-      )}
       {/* Solid indicator */}
       <div 
         className="relative w-3 h-3 rounded-full"

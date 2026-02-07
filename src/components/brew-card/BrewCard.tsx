@@ -16,7 +16,6 @@ import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 
 import { SyncedDataDialog } from "./SyncedDataDialog";
-import { useTvMode } from "@/contexts/TvModeContext";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
@@ -31,13 +30,9 @@ function BrewCardComponent({
   onShareBrew,
   onEventsChange,
   onDeviceLinkOpen,
-  isTvMode: tvModeProp = false,
   cardIndex = 0,
   hasAlbumArtBackground = false,
 }: BrewCardProps) {
-  // Use context if not passed as prop
-  const { isTvMode: tvModeContext } = useTvMode();
-  const isTvMode = tvModeProp || tvModeContext;
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   
   // Memoize expensive calculations
@@ -54,37 +49,20 @@ function BrewCardComponent({
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
   const hasLabel = !!brew.label_image_url;
   
-  // In TV mode, disable interactive features
-  const showInteractiveElements = isAuthenticated && !isTvMode;
+  const showInteractiveElements = isAuthenticated;
 
   return (
     <Card 
-      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${isTvMode ? '' : 'transition-all duration-500'} ${
-        isTvMode ? '' : 'backdrop-blur-xl'
-      } ${
+      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${
         showInteractiveElements ? 'group' : ''
       }`}
       style={{
-        // When album art background is showing, make cards semi-transparent
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
-          : isTvMode 
-            ? 'hsl(222 18% 15%)' 
-            : 'linear-gradient(180deg, hsl(222 18% 18% / 0.65) 0%, hsl(222 20% 12% / 0.75) 100%)',
-        boxShadow: isTvMode
-          ? '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)'
-          : '0 12px 40px hsl(222 30% 3% / 0.7), 0 25px 60px hsl(222 30% 2% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
+          : 'hsl(222 18% 15%)',
+        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
-      {/* Glass highlight overlay - top edge (skip in TV mode) */}
-      {!isTvMode && (
-        <div 
-          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
-          style={{
-            background: 'linear-gradient(90deg, transparent 10%, hsl(0 0% 100% / 0.08) 30%, hsl(0 0% 100% / 0.12) 50%, hsl(0 0% 100% / 0.08) 70%, transparent 90%)'
-          }}
-        />
-      )}
       
       {/* Header - fixed height */}
       <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
@@ -123,7 +101,7 @@ function BrewCardComponent({
                   <span
                     className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider"
                     style={{
-                      fontSize: isTvMode ? '7px' : '10px',
+                      fontSize: '7px',
                       background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
                       color: 'hsl(var(--accent-foreground) / 0.9)',
                       border: '1px solid hsl(var(--accent) / 0.4)',

@@ -1,16 +1,12 @@
 import { memo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useTvMode } from "@/contexts/TvModeContext";
 
 function LogoComponent() {
   const isMobile = useIsMobile();
-  const { isTvMode } = useTvMode();
-
   const fontSize = isMobile ? '28px' : '30px';
 
-  // Different text based on TV mode
   const firstPart = "Brygg";
-  const secondPart = isTvMode ? "övervakareTV" : "övervakare";
+  const secondPart = "övervakare";
 
   return (
     <span 

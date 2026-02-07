@@ -45,15 +45,15 @@ export function DashboardHeader({
     <div
       className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`}
       style={{
-        height: isMobile ? 'auto' : `${isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT_DESKTOP}px`,
-        background: hasAlbumArtBackground && isTvMode
+        height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
+        background: hasAlbumArtBackground
           ? 'transparent'
           : 'hsl(222 20% 9%)',
-        borderBottom: hasAlbumArtBackground && isTvMode ? 'none' : '1px solid hsl(222 15% 16%)'
+        borderBottom: hasAlbumArtBackground ? 'none' : '1px solid hsl(222 15% 16%)'
       }}
     >
       {/* Subtle top highlight - desktop only, hidden in TV mode with album art */}
-      {!isMobile && !(isTvMode && hasAlbumArtBackground) && <div className="absolute inset-x-0 top-0 h-px" style={{
+      {!isMobile && !hasAlbumArtBackground && <div className="absolute inset-x-0 top-0 h-px" style={{
         background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)'
       }} />}
 
@@ -105,13 +105,11 @@ export function DashboardHeader({
               </Button>
             )}
 
-            {!isTvMode && (
-              <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
-                  <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
-                </Button>
-              </div>
-            )}
+            <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
+              </Button>
+            </div>
           </div>
         </>
       )}
@@ -144,9 +142,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide`} style={{
-        background: isTvMode ? 'hsl(222 20% 11% / 0.5)' : 'hsl(222 20% 11%)',
-        border: isTvMode ? '1px solid hsl(222 15% 18% / 0.3)' : '1px solid hsl(222 15% 18%)',
-        boxShadow: isTvMode ? 'none' : '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.04)'
+        background: 'hsl(222 20% 11% / 0.5)',
+        border: '1px solid hsl(222 15% 18% / 0.3)',
       }}>
         {controllers.map((controller, index) => {
           const controllerColor = getControllerColor(controller.name);
@@ -156,15 +153,15 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             <div key={controller.id} className="flex items-center">
               {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-2'} w-px`} style={{ background: 'hsl(222 15% 20%)' }} />}
 
-              <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} ${isTvMode ? '' : 'cursor-pointer transition-all duration-200'}`} style={{ background: 'transparent' }}
-                onClick={isTvMode ? undefined : () => onControllerClick(controller)}
-                onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
-                onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
+              <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} cursor-pointer`} style={{ background: 'transparent' }}
+                onClick={() => onControllerClick(controller)}
+                onMouseEnter={!isMobile ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
+                onMouseLeave={!isMobile ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+                title={!isMobile ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
               >
                 <AirVent style={{
-                  width: isMobile ? '1rem' : isTvMode ? '1rem' : '1.25rem',
-                  height: isMobile ? '1rem' : isTvMode ? '1rem' : '1.25rem',
+                  width: isMobile ? '1rem' : '1rem',
+                  height: isMobile ? '1rem' : '1rem',
                   color: controllerColor,
                   flexShrink: 0,
                   opacity: 0.7
@@ -181,11 +178,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
                     <div className="relative flex items-center">
                       <Pill style={{
-                        width: isMobile ? '0.7rem' : isTvMode ? '0.7rem' : '1rem',
-                        height: isMobile ? '0.7rem' : isTvMode ? '0.7rem' : '1rem',
+                        width: isMobile ? '0.7rem' : '0.7rem',
+                        height: isMobile ? '0.7rem' : '0.7rem',
                         flexShrink: 0
-                      }} color={linkedPill.color} strokeWidth={2} className={isPillStale && !isMobile && !isTvMode ? 'animate-pulse' : ''} />
-                      {isPillStale && !isMobile && !isTvMode && <div className="absolute -top-0.5 -right-0.5 rounded-full w-1.5 h-1.5" style={{ backgroundColor: 'hsl(25 95% 53%)' }} />}
+                      }} color={linkedPill.color} strokeWidth={2} />
                     </div>
                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
                       fontSize: isMobile ? undefined : '14px',

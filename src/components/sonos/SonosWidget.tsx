@@ -410,25 +410,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
     : 0;
 
-  // Fixed pixel sizes for scaled container
-  const trackFontSize = isTvMode ? '18px' : isMobile ? '0.8rem' : '14px';
-  const artistFontSize = isTvMode ? '14px' : isMobile ? '0.7rem' : '12px';
-  const progressHeight = isTvMode ? '5px' : isMobile ? '2px' : '3px';
-  const widgetHeight = isTvMode ? '130px' : isMobile ? '56px' : '70px';
-  const widgetWidth = isTvMode ? '280px' : isMobile ? '140px' : '200px';
+  // Fixed pixel sizes - always use TV sizes
+  const trackFontSize = isMobile ? '0.8rem' : '18px';
+  const artistFontSize = isMobile ? '0.7rem' : '14px';
+  const progressHeight = isMobile ? '2px' : '5px';
+  const widgetHeight = isMobile ? '56px' : '130px';
+  const widgetWidth = isMobile ? '140px' : '280px';
 
   const hasAlbumArt = !!displayedArtUrl;
 
   return (
     <>
       <div
-        className={`relative overflow-hidden rounded-xl ${isTvMode ? '' : 'animate-fade-in'}`}
+        className="relative overflow-hidden rounded-xl"
         style={{
           width: widgetWidth,
           height: widgetHeight,
           contain: 'strict',
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)',
-          border: isTvMode ? '1px solid rgba(255, 255, 255, 0.15)' : 'none',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
         }}
       >
         {/* Fallback gradient background */}
@@ -498,7 +498,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         {/* Content */}
         <div
           className={`relative h-full flex flex-col justify-center ${
-            isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
+            isMobile ? 'px-3 py-2' : 'px-5 py-3'
           }`}
         >
           <div
@@ -507,9 +507,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           >
             <div
               ref={textRef}
-              className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
-                shouldScroll && !isTvMode ? 'animate-marquee' : ''
-              }`}
+              className="whitespace-nowrap font-semibold text-white drop-shadow-lg"
               style={{ fontSize: trackFontSize }}
             >
               {nowPlaying.track_name}
@@ -527,7 +525,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           {/* Progress Bar */}
           {nowPlaying.duration_ms && (
             <div
-              className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
+              className="w-full rounded-full overflow-hidden mt-3"
               style={{
                 height: progressHeight,
                 background: 'rgba(255, 255, 255, 0.2)',
@@ -538,7 +536,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                 style={{
                   width: `${progressPercent}%`,
                   background: 'rgba(255, 255, 255, 0.9)',
-                  ...(isTvMode ? {} : { transition: 'width 300ms linear' }),
+                  
                 }}
               />
             </div>
@@ -549,7 +547,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               {nowPlaying.duration_ms && localProgress !== null && (
                 <span
                   className="text-white/70 font-mono"
-                  style={{ fontSize: isTvMode ? '10px' : '8px', lineHeight: 1 }}
+                  style={{ fontSize: '10px', lineHeight: 1 }}
                 >
                   {Math.max(0, Math.round((nowPlaying.duration_ms - localProgress) / 1000))}s
                 </span>
@@ -560,8 +558,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                   title={isNewArtPending ? 'Current: loading' : 'Current: displayed'}
                   className="rounded-full"
                   style={{
-                    width: isTvMode ? 8 : 6,
-                    height: isTvMode ? 8 : 6,
+                    width: 8,
+                    height: 8,
                     background: isNewArtPending ? '#f97316' : '#22c55e',
                     boxShadow: `0 0 4px ${isNewArtPending ? '#f97316' : '#22c55e'}`,
                   }}
@@ -573,8 +571,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                   title={`Next: ${prefetchStatus}`}
                   className="rounded-full"
                   style={{
-                    width: isTvMode ? 8 : 6,
-                    height: isTvMode ? 8 : 6,
+                    width: 8,
+                    height: 8,
                     background: prefetchStatus === 'fetching' ? '#f97316'
                       : prefetchStatus === 'ready' ? '#eab308'
                       : '#22c55e',

@@ -1,7 +1,6 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
-import { useTvMode } from "@/contexts/TvModeContext";
 
 interface GravityStatProps {
   brew: BrewData;
@@ -10,7 +9,6 @@ interface GravityStatProps {
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
-  const { isTvMode } = useTvMode();
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
   const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
@@ -66,13 +64,13 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
           <div 
             className="w-full rounded-full overflow-hidden relative"
             style={{ 
-              height: isTvMode ? '6px' : '12px',
+              height: '6px',
               background: 'hsl(0 0% 0% / 0.5)',
               boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
             }}
           >
             <div 
-              className={`h-full rounded-full ${isTvMode ? '' : 'transition-all duration-700 ease-out'}`}
+              className="h-full rounded-full"
               style={{ 
                 width: `${progress}%`,
                 background: progressColor,
@@ -91,7 +89,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         {/* OG and FG labels */}
         <div 
           className="flex justify-between text-muted-foreground/60 tabular-nums" 
-          style={{ fontSize: isTvMode ? '7px' : '11px' }}
+          style={{ fontSize: '7px' }}
         >
           <span>{brew.originalGravity.toFixed(3)}</span>
           <span className="text-muted-foreground/40">{progress.toFixed(0)}%</span>
@@ -102,7 +100,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         {!isInactive && (
           <p 
             className="font-medium text-muted-foreground/70 truncate leading-tight" 
-            style={{ fontSize: isTvMode ? '8px' : '12px' }}
+            style={{ fontSize: '8px' }}
           >
             {brew.fermentationRate !== null ? (
               <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
