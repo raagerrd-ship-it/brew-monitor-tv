@@ -467,20 +467,38 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               />
             </div>
           )}
-          {/* Debug: Prefetch status indicator */}
-          {showDebug && prefetchStatus !== 'idle' && (
-            <div
-              className="absolute top-1 right-1 rounded-full"
-              title={`Prefetch: ${prefetchStatus}`}
-              style={{
-                width: isTvMode ? 8 : 6,
-                height: isTvMode ? 8 : 6,
-                background: prefetchStatus === 'fetching' ? '#f97316'
-                  : prefetchStatus === 'ready' ? '#eab308'
-                  : '#22c55e',
-                boxShadow: `0 0 4px ${prefetchStatus === 'fetching' ? '#f97316' : prefetchStatus === 'ready' ? '#eab308' : '#22c55e'}`,
-              }}
-            />
+          {/* Debug: Status indicators - left=current art, right=next track prefetch */}
+          {showDebug && (
+            <div className="absolute top-1 right-1 flex gap-1">
+              {/* Current art status: orange=loading, green=displayed */}
+              {(isNewArtPending || displayedArtUrl) && (
+                <div
+                  title={isNewArtPending ? 'Current: loading' : 'Current: displayed'}
+                  className="rounded-full"
+                  style={{
+                    width: isTvMode ? 8 : 6,
+                    height: isTvMode ? 8 : 6,
+                    background: isNewArtPending ? '#f97316' : '#22c55e',
+                    boxShadow: `0 0 4px ${isNewArtPending ? '#f97316' : '#22c55e'}`,
+                  }}
+                />
+              )}
+              {/* Next track prefetch status */}
+              {prefetchStatus !== 'idle' && (
+                <div
+                  title={`Next: ${prefetchStatus}`}
+                  className="rounded-full"
+                  style={{
+                    width: isTvMode ? 8 : 6,
+                    height: isTvMode ? 8 : 6,
+                    background: prefetchStatus === 'fetching' ? '#f97316'
+                      : prefetchStatus === 'ready' ? '#eab308'
+                      : '#22c55e',
+                    boxShadow: `0 0 4px ${prefetchStatus === 'fetching' ? '#f97316' : prefetchStatus === 'ready' ? '#eab308' : '#22c55e'}`,
+                  }}
+                />
+              )}
+            </div>
           )}
         </div>
       </div>
