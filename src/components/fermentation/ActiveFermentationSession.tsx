@@ -24,7 +24,6 @@ import {
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { useDeferredRender } from "@/hooks/use-deferred-render";
 import { useTvMode } from "@/contexts/TvModeContext";
 
@@ -225,36 +224,8 @@ export function ActiveFermentationSession({
     }
   }, [loadSession, preloadedSession, compact]);
 
-  // Realtime subscription for session updates
-  // Disabled in TV mode since data is refreshed via version check page reload
-  useRealtimeSubscription({
-    table: 'fermentation_sessions',
-    filter: controllerId 
-      ? `controller_id=eq.${controllerId}` 
-      : brewId 
-        ? `brew_id=eq.${brewId}` 
-        : undefined,
-    onPayload: loadSession,
-    enabled: !!(controllerId || brewId) && !isTvMode,
-  });
-
-  // Realtime subscription for controller temp updates
-  // Disabled in TV mode since data is refreshed via version check page reload
-  useRealtimeSubscription({
-    table: 'rapt_temp_controllers',
-    filter: session?.controller_id ? `controller_id=eq.${session.controller_id}` : undefined,
-    event: 'UPDATE',
-    onPayload: (payload: any) => {
-      if (payload.new) {
-        setControllerData({
-          current_temp: payload.new.current_temp,
-          target_temp: payload.new.target_temp,
-          name: payload.new.name
-        });
-      }
-    },
-    enabled: !!session?.controller_id && !isTvMode,
-  });
+  // Realtime subscriptions removed - data is updated via consolidated
+  // 'data-updates' channel in use-brew-data.ts which triggers preloadedSession updates
 
   const handlePauseResume = useCallback(async () => {
     if (!session) return;
