@@ -48,6 +48,7 @@ export function BrewingDashboard() {
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
   const [bgBrightness, setBgBrightness] = useState(0.65);
+  const [bgContrast, setBgContrast] = useState(1.0);
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
@@ -71,11 +72,12 @@ export function BrewingDashboard() {
   useEffect(() => {
     (supabase as any)
       .from('sonos_settings')
-      .select('bg_brightness')
+      .select('bg_brightness, bg_contrast')
       .limit(1)
       .maybeSingle()
       .then(({ data }: any) => {
         if (data?.bg_brightness != null) setBgBrightness(data.bg_brightness);
+        if (data?.bg_contrast != null) setBgContrast(data.bg_contrast);
       });
   }, []);
 
@@ -147,6 +149,9 @@ export function BrewingDashboard() {
     onSonosSettingsChange.current = (payload: any) => {
       if (payload.new?.bg_brightness != null) {
         setBgBrightness(payload.new.bg_brightness);
+      }
+      if (payload.new?.bg_contrast != null) {
+        setBgContrast(payload.new.bg_contrast);
       }
     };
     return () => { onSonosSettingsChange.current = null; };
@@ -361,6 +366,7 @@ export function BrewingDashboard() {
               backgroundPosition: 'center center',
               transform: 'scale(1.15)',
               contain: 'strict',
+              filter: bgContrast !== 1.0 ? `contrast(${bgContrast})` : undefined,
             }}
           />
           {/* Deterministic brightness overlay - consistent regardless of album art */}

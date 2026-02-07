@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings ADD COLUMN bg_contrast numeric NOT NULL DEFAULT 1.0;
