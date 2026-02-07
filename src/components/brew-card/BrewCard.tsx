@@ -1,6 +1,7 @@
 import { useMemo, memo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
@@ -34,6 +35,7 @@ function BrewCardComponent({
   hasAlbumArtBackground = false,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
+  const { isTvMode } = useTvMode();
   
   // Memoize expensive calculations
   const devices = useMemo(() => 
@@ -49,7 +51,7 @@ function BrewCardComponent({
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
   const hasLabel = !!brew.label_image_url;
   
-  const showInteractiveElements = isAuthenticated;
+  const showInteractiveElements = isAuthenticated && !isTvMode;
 
   return (
     <Card 
@@ -192,7 +194,7 @@ function BrewCardComponent({
             brewId={brew.id} 
             compact 
             preloadedSession={brew.fermentationSession}
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={showInteractiveElements}
             currentSg={brew.currentSG}
             originalGravity={brew.originalGravity}
             sgData={brew.sgData}
@@ -206,14 +208,14 @@ function BrewCardComponent({
           <GravityStat 
             brew={brew} 
             updatedFields={updatedFields} 
-            onSyncedDataClick={() => setSyncedDataOpen(true)}
+            onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}
           />
           <AbvStat brew={brew} updatedFields={updatedFields} />
           <TempStat 
             brew={brew} 
             devices={devices} 
             updatedFields={updatedFields} 
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={showInteractiveElements}
             onDeviceLinkOpen={onDeviceLinkOpen}
           />
           <AttenuationStat brew={brew} updatedFields={updatedFields} />
