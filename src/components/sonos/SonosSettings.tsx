@@ -282,7 +282,7 @@ export function SonosSettings() {
               onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
             />
             <p className="text-xs text-muted-foreground">
-              Sekunder innan beräknat låtslut som prediktiv polling triggas
+              Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
             </p>
           </div>
 
