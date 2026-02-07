@@ -107,7 +107,7 @@ async function generateBackground(
           content: [
             {
               type: 'text',
-              text: `Apply a Gaussian blur of ${blur}px. Keep the original brightness and colors - do NOT adjust brightness. Scale to 1280x720. Output as JPEG.`,
+              text: `1. Analyze the average perceived brightness of this image.\n2. Adjust the overall brightness so the result has a consistent, low perceived brightness around 25-30% (dark but with visible color detail). If the image is already dark, brighten it slightly toward that range. If it is bright, darken it significantly.\n3. Apply a Gaussian blur of ${blur}px.\n4. Make the top ~85px edge approximately 40-50% darker than the rest for header readability.\n5. Scale to 1280x720. Output as JPEG.`,
             },
             {
               type: 'image_url',
@@ -218,7 +218,7 @@ async function resolveBackground(
   if (!artUrl) return null;
 
   const hash = simpleHash(trackId || artUrl);
-  const fileName = `${hash}-${blur}-v4.jpg`;
+  const fileName = `${hash}-${blur}-v5.jpg`;
 
   // Check cache
   const existing = await backgroundExists(supabase, fileName);

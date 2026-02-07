@@ -47,7 +47,7 @@ export function BrewingDashboard() {
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
-  const [bgBrightness, setBgBrightness] = useState(0.4);
+  const [bgBrightness, setBgBrightness] = useState(0.65);
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
