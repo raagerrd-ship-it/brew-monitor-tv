@@ -23,7 +23,7 @@ export function SonosSettings() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
-  const [bgBrightness, setBgBrightness] = useState(0.4);
+  const [bgBrightness, setBgBrightness] = useState(0.65);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
   const [prefetchSeconds, setPrefetchSeconds] = useState(30);
 
@@ -60,7 +60,7 @@ export function SonosSettings() {
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
-        setBgBrightness(settings.bg_brightness ?? 0.4);
+        setBgBrightness(settings.bg_brightness ?? 0.65);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
         setPrefetchSeconds(settings.prefetch_seconds ?? 30);
       }
@@ -264,7 +264,7 @@ export function SonosSettings() {
               onValueChange={(v) => setBgBrightness(v[0])}
             />
             <p className="text-xs text-muted-foreground">
-              Hur ljus bakgrunden är – styrs med ett jämnt overlay för konsekvent resultat oavsett albumomslag
+              Bakgrundens ljusstyrka normaliseras automatiskt av AI:n. Denna slider finjusterar det slutliga resultatet
             </p>
           </div>
 
