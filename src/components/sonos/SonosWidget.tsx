@@ -467,9 +467,17 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               />
             </div>
           )}
-          {/* Debug: Status indicators - left=current art, right=next track prefetch */}
+          {/* Debug: Status indicators + time remaining */}
           {showDebug && (
-            <div className="absolute top-1 right-1 flex gap-1">
+            <div className="absolute top-1 right-1 flex items-center gap-1">
+              {nowPlaying.duration_ms && localProgress !== null && (
+                <span
+                  className="text-white/70 font-mono"
+                  style={{ fontSize: isTvMode ? '10px' : '8px', lineHeight: 1 }}
+                >
+                  {Math.max(0, Math.round((nowPlaying.duration_ms - localProgress) / 1000))}s
+                </span>
+              )}
               {/* Current art status: orange=loading, green=displayed */}
               {(isNewArtPending || displayedArtUrl) && (
                 <div
