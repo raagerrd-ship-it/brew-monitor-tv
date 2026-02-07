@@ -113,7 +113,8 @@ export function AspectRatioContainer({
         scale: 1
       }}>
         <div 
-          className="fixed inset-0 bg-background overflow-hidden flex flex-col"
+          className="fixed inset-0 overflow-hidden flex flex-col"
+          style={{ background: 'transparent' }}
         >
           {children}
         </div>
