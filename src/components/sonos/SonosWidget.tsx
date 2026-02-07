@@ -53,6 +53,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const trackChangeOffsetRef = useRef<number>(0);
   const earlySwapDoneRef = useRef(false);
   const bgSentRef = useRef<string | null>(null);
+  const trackChangedAtRef = useRef<number>(0);
 
   const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
     if (typeof val === 'function') {
@@ -105,6 +106,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (trackChanged) {
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
+          trackChangedAtRef.current = Date.now();
           const alreadySwapped = earlySwapDoneRef.current;
           setNowPlaying(prev => {
             if (!prev) return prev;
@@ -160,6 +162,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         // Early swap: switch images before track ends based on user offset
         const offsetMs = trackChangeOffsetRef.current * 1000;
         if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
+          trackChangedAtRef.current = Date.now();
           setNowPlaying(prev => {
             if (!prev?.next_album_art_url) return prev;
           earlySwapDoneRef.current = true;
@@ -258,6 +261,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               return prev;
             }
             if (trackChanged) {
+              trackChangedAtRef.current = Date.now();
               const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
               const newArtUrl = prev.next_album_art_url || prev.album_art_url;
               onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
@@ -349,14 +353,23 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         const incoming = payload.new as NowPlaying;
         setNowPlaying(prev => {
           if (!prev) return incoming;
-          // If realtime has older/different track than what we already show via poll, ignore it
-          // UNLESS it brings new art URLs for the same track we're showing
+          // After a local track change, ignore ALL realtime for 15s to let server catch up
+          const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
+          if (msSinceTrackChange < 15000) {
+            // Only accept bg_image_url if it's genuinely new (not stale from previous track)
+            if (incoming.track_name === prev.track_name && incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url) {
+              const updatedBg = incoming.bg_image_url;
+              onAlbumArtChangeRef.current?.(updatedBg);
+              return { ...prev, bg_image_url: updatedBg, next_album_art_url: incoming.next_album_art_url || prev.next_album_art_url, next_bg_image_url: incoming.next_bg_image_url || prev.next_bg_image_url };
+            }
+            console.log(`[Sonos] Ignoring realtime during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}"`);
+            return prev;
+          }
           if (incoming.track_name !== prev.track_name) {
-            // DB is behind our local state - skip this update
             console.log(`[Sonos] Ignoring stale realtime: DB has "${incoming.track_name}", local has "${prev.track_name}"`);
             return prev;
           }
-          // Same track - merge in any new art URLs we might be missing
+          // Same track - merge in any new art URLs
           const updatedBg = incoming.bg_image_url || prev.bg_image_url;
           const bgChanged = updatedBg !== prev.bg_image_url;
           if (bgChanged) {
@@ -365,7 +378,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
           return {
             ...prev,
             ...incoming,
-            // Keep local art if incoming has none
             album_art_url: incoming.album_art_url || prev.album_art_url,
             bg_image_url: updatedBg,
           };
