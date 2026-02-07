@@ -123,7 +123,7 @@ export function BrewingDashboard() {
     return () => { onSonosSettingsChange.current = null; };
   }, [onSonosSettingsChange]);
 
-  // TV force refresh via consolidated channel
+  // TV force refresh via consolidated channel + polling fallback
   useEffect(() => {
     if (!isTvMode) return;
 
@@ -132,24 +132,49 @@ export function BrewingDashboard() {
       lastKnownRefreshAt.current = data?.force_tv_refresh_at ?? null;
     });
 
+    const triggerRefresh = (newVal: string) => {
+      console.log('[TV] Remote refresh triggered');
+      lastKnownRefreshAt.current = newVal;
+      setTimeout(async () => {
+        if ('caches' in window) {
+          const names = await caches.keys();
+          await Promise.all(names.map(n => caches.delete(n)));
+        }
+        const params = new URLSearchParams(window.location.search);
+        params.set('v', Date.now().toString());
+        window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
+      }, 500);
+    };
+
+    // Realtime callback
     onSyncSettingsChange.current = (payload: any) => {
       const newVal = payload.new?.force_tv_refresh_at;
       if (newVal && newVal !== lastKnownRefreshAt.current) {
-        console.log('[TV] Remote refresh triggered');
-        lastKnownRefreshAt.current = newVal;
-        setTimeout(async () => {
-          if ('caches' in window) {
-            const names = await caches.keys();
-            await Promise.all(names.map(n => caches.delete(n)));
-          }
-          const params = new URLSearchParams(window.location.search);
-          params.set('v', Date.now().toString());
-          window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
-        }, 500);
+        triggerRefresh(newVal);
       }
     };
 
-    return () => { onSyncSettingsChange.current = null; };
+    // Polling fallback every 30s in case realtime drops
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('sync_settings')
+          .select('force_tv_refresh_at')
+          .limit(1)
+          .maybeSingle();
+        const newVal = data?.force_tv_refresh_at;
+        if (newVal && newVal !== lastKnownRefreshAt.current) {
+          triggerRefresh(newVal);
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 30000);
+
+    return () => {
+      onSyncSettingsChange.current = null;
+      clearInterval(pollInterval);
+    };
   }, [isTvMode, onSyncSettingsChange]);
 
   // Force overflow hidden on body in TV mode (Chromecast iframe)
