@@ -1,64 +1,62 @@
 
 
-## Ytterligare optimeringar av klientens resurser
+## Analys: Klientens kvarvarande tunga operationer
 
-### 1. Ta bort chart-polling i TV-läge
+### Sammanfattning
 
-**Problem:** Varje ölkort i TV-läge pollar `render-brew-chart` edge function var 15:e minut. Med 3 öl = 3 extra nätverksanrop var 15:e minut.
+Applikationen ar redan valoptimerad efter de senaste andringarna. Jag har gatt igenom alla filer och identifierat alla `setInterval`, realtime-kanaler, och natverksanrop. De flesta ar nodvandiga eller redan avgransade till dialoger/installningssidor.
 
-**Lösning:** Ta bort `setInterval` i `LazyBrewChart`. Diagrambilden uppdateras redan när `lastUpdateRaw` ändras (via realtime), vilket triggar ett nytt `fetchChart`-anrop. 15-minutersintervallet är onödigt eftersom data bara ändras när cron-jobbet skriver ny data (som redan triggar realtime-uppdateringen).
+### Redan optimerat (inget att gora)
 
-### 2. Konsolidera realtime-kanaler
+- Sonos-polling: flyttad till server-side cron
+- Chart-polling (15 min): borttagen
+- Timer backup-polling (60s): borttagen
+- Realtime-kanaler: konsoliderade fran 7 till 2
+- TV-mode: server-renderade chart-bilder, glow avaktiverat, batchade uppdateringar
 
-**Problem:** Det finns flera separata WebSocket-kanaler utöver de två konsoliderade (`data-updates` och `config-updates`):
-- `sonos-now-playing` (SonosWidget)
-- `sonos-bg-settings` (BrewingDashboard)
-- `cached-timer-updates` (use-external-timer)
-- `tv-force-refresh` (BrewingDashboard, bara TV-läge)
+### Kvarvarande intervaller (alla nodvandiga)
 
-Varje kanal = en egen WebSocket-anslutning som belastar CPU och minne.
+| Komponent | Intervall | Syfte | Kommentar |
+|-----------|-----------|-------|-----------|
+| Clock | 1s | Visa aktuell tid | Nodvandig |
+| SonosWidget progress | 1s | Progress bar for lat | Nodvandig, aktiv bara vid uppspelning |
+| Timer countdown | 1s | Visa nedrakning | Nodvandig, aktiv bara nar timer kors |
+| Fermentation progress tick | 5s (30s TV) | Uppdatera steg-progress | Rimlig, uppdaterar bara vid minutbyte |
+| ExternalAuth refresh | 30 min | Fornya session-token | Nodvandig for att halla sessionen vid liv |
+| Controller temp (chart) | 5 min (TV) | Hamta controller-temp for chart | Laddas aldrig i TV-mode (server-bild) |
+| AutoCoolingCountdown | 250ms | Visa nedrakning i dialog | Bara aktiv inuti RaptControllerDialog |
 
-**Lösning:** Konsolidera dessa till de befintliga kanalerna:
-- Flytta `sonos_now_playing` och `sonos_settings` till `data-updates`-kanalen i `use-brew-data.ts`
-- Flytta `cached_external_timer` och `sync_settings` (force refresh) till `config-updates`-kanalen
-- Ta bort de separata kanalerna i respektive komponent och istället exponera callbacks via props eller context
+### Enda kvarvarande optimeringsmojlighet
 
-### 3. Ta bort backup-polling för extern timer
+**Duplicerade fermenterings-realtime-kanaler**
 
-**Problem:** `use-external-timer.ts` pollar `fetchFromCache()` var 60:e sekund som backup. Realtime-kanalen fungerar redan pålitligt.
+`ActiveFermentationSession` skapar **2 extra realtime-kanaler per olkort** (i vanligt lage, ej TV) via `useRealtimeSubscription`:
+- En for `fermentation_sessions` (filter: `brew_id=eq.X`)
+- En for `rapt_temp_controllers` (filter: `controller_id=eq.X`)
 
-**Lösning:** Ta bort 60-sekunders `setInterval` helt. Realtime-prenumerationen räcker.
+Med 3 ol = 6 extra WebSocket-kanaler. Dessa tabeller overvakas redan av de konsoliderade kanalerna i `use-brew-data.ts`.
 
-### Tekniska detaljer
+Dock:
+- I TV-mode ar dessa redan avaktiverade (`enabled: !isTvMode`)
+- De konsoliderade kanalerna i `use-brew-data.ts` hanterar redan uppdateringar for dessa tabeller och uppdaterar state direkt
+- De filtrerade kanalerna i `ActiveFermentationSession` anvands for att trigga `loadSession()`, men sessionsdata laddas redan i `loadBrewsInternal()` som del av preloaded session
 
-**Fil: `src/components/brew-chart/LazyBrewChart.tsx`**
-- Ta bort `setInterval(fetchChart, REFRESH_INTERVAL_MS)` (rad 44)
-- Behåll bara `fetchChart()` vid mount och vid `lastUpdateRaw`-ändring
+**Mojlig atgard:** Ta bort `useRealtimeSubscription`-anropen i `ActiveFermentationSession` helt. Komponenten anvander redan `preloadedSession` som uppdateras via de konsoliderade kanalerna. Nar `brew_readings` eller `rapt_temp_controllers` uppdateras i realtime, uppdateras `preloadedSession` via `handleBrewUpdate` -> `loadBrews()` -> ny `fermentationSession` prop.
 
-**Fil: `src/hooks/use-brew-data.ts`**
-- Lägg till `.on('postgres_changes', { table: 'sonos_now_playing' }, ...)` i `data-updates`-kanalen
-- Lägg till `.on('postgres_changes', { table: 'sonos_settings' }, ...)` i `data-updates`-kanalen  
-- Lägg till `.on('postgres_changes', { table: 'cached_external_timer' }, ...)` i `config-updates`-kanalen
-- Lägg till `.on('postgres_changes', { table: 'sync_settings' }, ...)` i `config-updates`-kanalen
-- Exponera callbacks via return-objektet
+### Teknisk detalj
 
-**Fil: `src/components/sonos/SonosWidget.tsx`**
-- Ta bort den separata `sonos-now-playing` realtime-kanalen (rad 98-113)
-- Ta emot uppdateringar via prop/callback istället
+**Fil: `src/components/fermentation/ActiveFermentationSession.tsx`**
+- Ta bort `useRealtimeSubscription` for `fermentation_sessions` (rad 230-239)
+- Ta bort `useRealtimeSubscription` for `rapt_temp_controllers` (rad 243-257)
+- Ta bort `import { useRealtimeSubscription }` (rad 27)
+- Uppdatera `controllerData` via preloaded session-data istallet (redan delvis gjort)
 
-**Fil: `src/components/BrewingDashboard.tsx`**
-- Ta bort den separata `sonos-bg-settings` kanalen (rad 71-83)
-- Ta bort den separata `tv-force-refresh` kanalen (rad 144-177)
-- Prenumerera på dessa via `use-brew-data` hookens callbacks
+**Resultat:**
+- 2 farre WebSocket-kanaler per olkort (6 totalt med 3 ol) i vanligt lage
+- Ingen funktionalitetsforlust - data uppdateras redan via konsoliderade kanaler
+- Marginell forbattring - mest relevant for enheter med begransade resurser
 
-**Fil: `src/hooks/use-external-timer.ts`**
-- Ta bort `setInterval(fetchFromCache, 60000)` (rad 342-344)
-- Ta bort den separata `cached-timer-updates` kanalen (rad 326-339)
-- Ta emot uppdateringar via prop/callback
+### Slutsats
 
-### Resultat
-- 4 färre WebSocket-kanaler (4 borttagna, 0 nya)
-- Tar bort chart-polling (3 nätverksanrop / 15 min)
-- Tar bort timer backup-polling (1 anrop / minut)
-- Totalt: enklare arkitektur och lägre CPU/nätverksbelastning
+Applikationen ar i stort sett fullt optimerad. Den enda aterstaende forandringen ar att ta bort 6 duplicerade realtime-kanaler, vilket ger en marginell forbattring. Alla andra intervaller och operationer ar antingen nodvandiga eller redan avgransade till specifika vyer.
 
