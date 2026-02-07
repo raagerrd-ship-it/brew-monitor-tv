@@ -56,16 +56,19 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const validBgBufferRef = useRef<string[]>([]);
   const trackChangedAtRef = useRef<number>(0);
 
-  // Rolling buffer: track last 4 known-valid bg URLs to verify sync
+  // Strip query params for comparison (cache-bust parameters cause false mismatches)
+  const stripQuery = useCallback((url: string) => url.split('?')[0], []);
+
+  // Rolling buffer: track last 6 known-valid bg URLs to verify sync
   const pushToBgBuffer = useCallback((url: string | null | undefined) => {
     if (!url) return;
     const buf = validBgBufferRef.current;
-    if (buf[buf.length - 1] === url) return; // already latest
-    const idx = buf.indexOf(url);
-    if (idx !== -1) buf.splice(idx, 1); // remove duplicate
+    const stripped = stripQuery(url);
+    // Check if already present (ignoring query params)
+    if (buf.some(u => stripQuery(u) === stripped)) return;
     buf.push(url);
-    if (buf.length > 4) buf.shift(); // trim oldest
-  }, []);
+    if (buf.length > 6) buf.shift();
+  }, [stripQuery]);
 
   const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
     if (typeof val === 'function') {
@@ -313,8 +316,10 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         }
 
         // Safeguard: only correct background if current bgSentRef is NOT a known valid URL
-        // This prevents stale closures from reverting a recently-updated background
-        if (bgSentRef.current && !validBgBufferRef.current.includes(bgSentRef.current)) {
+        // Compare without query params to avoid cache-bust false positives
+        const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
+        const isKnownValid = sentStripped && validBgBufferRef.current.some(u => stripQuery(u) === sentStripped);
+        if (bgSentRef.current && !isKnownValid) {
           const expectedBgUrl = nowPlaying?.bg_image_url || displayedArtUrl;
           if (expectedBgUrl) {
             pushToBgBuffer(expectedBgUrl);

@@ -45,21 +45,26 @@ export function BrewingDashboard() {
     currentPillId: null
   });
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
+  const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
     if (!url) return; // Never clear – keep last image visible
-    if (url === visibleBgUrl || url === preloadingUrlRef.current) return;
+    const baseUrl = url.split('?')[0];
+    // Skip if same base URL (ignore cache-bust query params)
+    if (baseUrl === visibleBgBaseRef.current) return;
+    if (url === preloadingUrlRef.current) return;
     preloadingUrlRef.current = url;
     const img = new Image();
     img.onload = () => {
+      visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
     };
     img.onerror = () => { preloadingUrlRef.current = null; };
     img.src = url;
-  }, [visibleBgUrl]);
+  }, []);
 
   // No longer need to load bg settings client-side - handled server-side now
   const navigate = useNavigate();
