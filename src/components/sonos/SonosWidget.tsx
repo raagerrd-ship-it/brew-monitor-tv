@@ -2,7 +2,6 @@ import { memo, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSonosTrackTransition } from "./hooks";
 
-
 interface NowPlaying {
   track_name: string | null;
   artist_name: string | null;
@@ -21,34 +20,32 @@ interface SonosWidgetProps {
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
+const PLAYBACK_POLL_INTERVAL = 5000;
+const PLAYBACK_POLL_TIMEOUT = 8000;
+
 export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMode = false, onAlbumArtChange, showDebug = false, onRealtimeRef }: SonosWidgetProps) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [showWidget, setShowWidget] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [localProgress, setLocalProgress] = useState<number | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
-  
-  // Use the transition hook for track management
-  const { 
-    fetchNowPlaying, 
-    handleTrackUpdate, 
-    handleImageLoad, 
-    handleImageError 
-  } = useSonosTrackTransition(
-    isConnected,
-    showWidget,
-    { nowPlaying, localProgress, imageLoaded, imageError },
-    { setNowPlaying, setLocalProgress, setImageLoaded, setImageError }
-  );
 
-  // JS-driven progress ticker (1s interval)
+  const onAlbumArtChangeRef = useRef(onAlbumArtChange);
+  onAlbumArtChangeRef.current = onAlbumArtChange;
+
+  const { fetchNowPlaying, handleTrackUpdate } = useSonosTrackTransition({
+    setNowPlaying,
+    setLocalProgress,
+  });
+
+  // JS-driven progress ticker (1s interval) - smooth between 5s polls
   useEffect(() => {
     if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
-    
+
     const timer = window.setInterval(() => {
       setLocalProgress(prev => {
         if (prev === null) return prev;
@@ -56,9 +53,54 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         return next > (nowPlaying.duration_ms ?? next) ? nowPlaying.duration_ms! : next;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
+
+  // 5s client polling for playback position (only while PLAYING)
+  useEffect(() => {
+    if (!isConnected || !showWidget) return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
+
+    const poll = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
+
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-playback-status`,
+          {
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeout);
+
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.ok) return;
+
+        setLocalProgress(data.positionMillis);
+
+        // If state changed to non-playing, update local state
+        if (data.playbackState !== 'PLAYBACK_STATE_PLAYING') {
+          setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
+        }
+      } catch {
+        // Abort or network error - ignore
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    // Poll immediately on start, then every 5s
+    poll();
+    const interval = setInterval(poll, PLAYBACK_POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.playback_state]);
 
   // Check if connected and fetch initial data
   useEffect(() => {
@@ -86,13 +128,13 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Initial fetch from database (one-time, no polling)
+  // Initial fetch from database
   useEffect(() => {
     if (!isConnected || !showWidget) return;
     fetchNowPlaying();
   }, [isConnected, showWidget, fetchNowPlaying]);
 
-  // Wire up realtime callback from consolidated channel
+  // Wire up realtime callback
   useEffect(() => {
     if (!onRealtimeRef || !isConnected || !showWidget) return;
     onRealtimeRef.current = (payload: any) => {
@@ -103,16 +145,28 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return () => { if (onRealtimeRef) onRealtimeRef.current = null; };
   }, [onRealtimeRef, isConnected, showWidget, handleTrackUpdate]);
 
-  // Notify parent about album art changes
-  const onAlbumArtChangeRef = useRef(onAlbumArtChange);
-  onAlbumArtChangeRef.current = onAlbumArtChange;
-  useEffect(() => {
-    const callback = onAlbumArtChangeRef.current;
-    if (callback && nowPlaying?.album_art_url && imageLoaded && !imageError) {
-      callback(nowPlaying.album_art_url);
-    }
-  }, [nowPlaying?.album_art_url, imageLoaded, imageError]);
+  // Two-image approach: when new album_art_url arrives, preload it hidden
+  // then swap displayedArtUrl once loaded
+  const incomingArtUrl = nowPlaying?.album_art_url ?? null;
+  const isNewArtPending = incomingArtUrl && incomingArtUrl !== displayedArtUrl && !imageError;
 
+  const handleNewImageLoaded = () => {
+    setDisplayedArtUrl(incomingArtUrl);
+    setImageError(false);
+    onAlbumArtChangeRef.current?.(incomingArtUrl);
+  };
+
+  const handleNewImageError = () => {
+    // If new image fails, keep old displayedArtUrl
+    setImageError(true);
+  };
+
+  // If first load and no displayedArtUrl yet, set it directly when data arrives
+  useEffect(() => {
+    if (incomingArtUrl && !displayedArtUrl && !imageError) {
+      // First image - will be set via onLoad of the preloader
+    }
+  }, [incomingArtUrl, displayedArtUrl, imageError]);
 
   // Check if text needs scrolling (marquee)
   useEffect(() => {
@@ -135,7 +189,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
 
   // Calculate progress percentage
-  const progressPercent = (localProgress && nowPlaying.duration_ms) 
+  const progressPercent = (localProgress && nowPlaying.duration_ms)
     ? Math.min((localProgress / nowPlaying.duration_ms) * 100, 100)
     : 0;
 
@@ -146,11 +200,11 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const widgetHeight = isTvMode ? '130px' : isMobile ? '56px' : '70px';
   const widgetWidth = isTvMode ? '280px' : isMobile ? '140px' : '200px';
 
-  const hasAlbumArt = nowPlaying.album_art_url && imageLoaded && !imageError;
+  const hasAlbumArt = !!displayedArtUrl;
 
   return (
     <>
-      <div 
+      <div
         className={`relative overflow-hidden rounded-xl ${isTvMode ? '' : 'animate-fade-in'}`}
         style={{
           width: widgetWidth,
@@ -161,51 +215,68 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         }}
       >
         {/* Fallback gradient background */}
-        <div 
+        <div
           className="absolute inset-0"
           style={{
             background: 'linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)',
           }}
         />
 
-        {/* Album art background (fades in when loaded) */}
-        {nowPlaying.album_art_url && !imageError && (
+        {/* Image 1: Currently displayed album art (always visible) */}
+        {displayedArtUrl && (
           <img
-            src={nowPlaying.album_art_url}
+            src={displayedArtUrl}
             alt=""
             decoding="async"
-            fetchPriority="high"
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ 
-              opacity: imageLoaded ? 1 : 0,
-              ...(isTvMode ? {} : { transition: 'opacity 600ms ease-out', willChange: imageLoaded ? 'auto' : 'opacity' }),
-            }}
-            onLoad={handleImageLoad}
-            onError={handleImageError}
+            style={{ opacity: 1 }}
+          />
+        )}
+
+        {/* Image 2: New album art preloader (hidden until loaded, then swaps) */}
+        {isNewArtPending && (
+          <img
+            src={incomingArtUrl!}
+            alt=""
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, pointerEvents: 'none' }}
+            onLoad={handleNewImageLoaded}
+            onError={handleNewImageError}
+          />
+        )}
+
+        {/* Preload next track's album art (hidden, just for browser cache) */}
+        {nowPlaying.next_album_art_url && nowPlaying.next_album_art_url !== displayedArtUrl && nowPlaying.next_album_art_url !== incomingArtUrl && (
+          <img
+            src={nowPlaying.next_album_art_url}
+            alt=""
+            decoding="async"
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
           />
         )}
 
         {/* Dark overlay for readability */}
         {hasAlbumArt && (
-          <div 
+          <div
             className="absolute inset-0"
             style={{
               background: 'linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)',
             }}
           />
         )}
-        
+
         {/* Content */}
-        <div 
+        <div
           className={`relative h-full flex flex-col justify-center ${
             isTvMode ? 'px-5 py-3' : isMobile ? 'px-3 py-2' : 'px-4 py-2'
           }`}
         >
-          <div 
+          <div
             ref={containerRef}
             className="overflow-hidden"
           >
-            <div 
+            <div
               ref={textRef}
               className={`whitespace-nowrap font-semibold text-white drop-shadow-lg ${
                 shouldScroll && !isTvMode ? 'animate-marquee' : ''
@@ -216,24 +287,24 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             </div>
           </div>
           {nowPlaying.artist_name && (
-            <div 
-              className={`truncate text-white/80 drop-shadow-md`}
+            <div
+              className="truncate text-white/80 drop-shadow-md"
               style={{ fontSize: artistFontSize }}
             >
               {nowPlaying.artist_name}
             </div>
           )}
-          
-          {/* Progress Bar - JS driven */}
+
+          {/* Progress Bar */}
           {nowPlaying.duration_ms && (
-            <div 
+            <div
               className={`w-full rounded-full overflow-hidden ${isTvMode ? 'mt-3' : 'mt-2'}`}
               style={{
                 height: progressHeight,
                 background: 'rgba(255, 255, 255, 0.2)',
               }}
             >
-              <div 
+              <div
                 className="h-full rounded-full"
                 style={{
                   width: `${progressPercent}%`,
