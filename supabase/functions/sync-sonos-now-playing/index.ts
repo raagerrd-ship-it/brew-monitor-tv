@@ -109,7 +109,7 @@ async function generateBackground(
           content: [
             {
               type: 'text',
-              text: `Apply a Gaussian blur of ${blur}px. Analyze the image's overall brightness and adjust it so the final output has an average perceived brightness of approximately ${brightnessPercent}% of maximum. Bright images should be darkened significantly, while already dark images should be darkened less or not at all. The goal is a consistent output brightness regardless of the input. IMPORTANT: You MUST apply a visible dark gradient overlay at the TOP of the image. The top ~15% of the image should have a smooth gradient going from approximately 60% black opacity at the very top edge, fading to fully transparent. This dark band at the top is critical for text readability - it should be clearly noticeable as a darker area at the top of the image. Scale to 1280x720. Output as JPEG.`,
+              text: `Apply a Gaussian blur of ${blur}px. Analyze the image's overall brightness and adjust it so the final output has an average perceived brightness of approximately ${brightnessPercent}% of maximum. Bright images should be darkened significantly, while already dark images should be darkened less or not at all. The goal is a consistent output brightness regardless of the input. Scale to 1280x720. Output as JPEG.`,
             },
             {
               type: 'image_url',
