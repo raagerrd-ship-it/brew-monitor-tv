@@ -30,7 +30,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const textRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
-  const pollIntervalRef = useRef<number | null>(null);
+  
   // Use the transition hook for track management
   const { 
     fetchNowPlaying, 
@@ -85,38 +85,10 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     checkConnection();
   }, []);
 
-  // Polling interval - 5s for track changes
+  // Initial fetch from database (one-time, no polling)
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-
     fetchNowPlaying();
-
-    const SYNC_INTERVAL = 5000;
-    pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      } else {
-        fetchNowPlaying();
-        if (!pollIntervalRef.current) {
-          pollIntervalRef.current = window.setInterval(fetchNowPlaying, SYNC_INTERVAL);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, [isConnected, showWidget, fetchNowPlaying]);
 
   // Subscribe to realtime updates

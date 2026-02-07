@@ -45,41 +45,30 @@ export function useSonosTrackTransition(
   
   nowPlayingRef.current = nowPlaying;
 
-  // Fetch now playing data with timeout and concurrency guard
+  // Fetch now playing data from database (not edge function)
   const fetchNowPlaying = useCallback(async () => {
-    if (isFetchingRef.current) {
-      console.log('[Sonos] Skipping fetch - previous request still in progress');
-      return;
-    }
+    if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     
     try {
-      const response = await Promise.race([
-        supabase.functions.invoke('sonos-now-playing', { body: {} }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout: sonos-now-playing took >8s')), 8000)
-        )
-      ]);
+      const { data, error } = await (supabase as any)
+        .from('sonos_now_playing')
+        .select('track_name, artist_name, album_art_url, next_album_art_url, duration_ms, position_ms, playback_state')
+        .limit(1)
+        .maybeSingle();
       
-      if (response.data && !response.error) {
-        const isNewTrack = response.data.track_name !== currentTrackRef.current;
-        
+      if (data && !error) {
+        const isNewTrack = data.track_name !== currentTrackRef.current;
         if (isNewTrack) {
-          currentTrackRef.current = response.data.track_name;
-          // Don't reset imageLoaded/imageError - keep old image visible
-          // until the new one loads via onLoad callback
+          currentTrackRef.current = data.track_name;
           setImageError(false);
         }
-        setNowPlaying(response.data);
-        setLocalProgress(response.data.position_ms);
+        setNowPlaying(data);
+        setLocalProgress(data.position_ms);
         lastUpdateRef.current = Date.now();
       }
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Timeout')) {
-        console.warn('[Sonos]', error.message);
-      } else {
-        console.error('[Sonos] Failed to fetch now playing:', error);
-      }
+      console.error('[Sonos] Failed to fetch from DB:', error);
     } finally {
       isFetchingRef.current = false;
     }

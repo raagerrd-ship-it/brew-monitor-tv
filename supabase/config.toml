@@ -52,6 +52,9 @@ verify_jwt = false
 [functions.sonos-now-playing]
 verify_jwt = false
 
+[functions.sync-sonos-now-playing]
+verify_jwt = false
+
 [functions.sonos-groups]
 verify_jwt = false
 
