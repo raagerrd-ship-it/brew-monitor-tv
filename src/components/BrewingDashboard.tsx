@@ -47,6 +47,7 @@ export function BrewingDashboard() {
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
+  const [bgBrightness, setBgBrightness] = useState(0.4);
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
@@ -66,7 +67,18 @@ export function BrewingDashboard() {
     img.src = url;
   }, []);
 
-  // No longer need to load bg settings client-side - handled server-side now
+  // Load bg_brightness from sonos_settings for client-side overlay
+  useEffect(() => {
+    (supabase as any)
+      .from('sonos_settings')
+      .select('bg_brightness')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data?.bg_brightness != null) setBgBrightness(data.bg_brightness);
+      });
+  }, []);
+
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
@@ -130,10 +142,12 @@ export function BrewingDashboard() {
   // Wire up consolidated realtime callbacks
   const lastKnownRefreshAt = useRef<string | null>(null);
   
-  // Sonos settings changes via consolidated channel (no longer need bg settings client-side)
+  // Sonos settings changes - update brightness overlay in realtime
   useEffect(() => {
-    onSonosSettingsChange.current = (_payload: any) => {
-      // Settings changes are now handled server-side for bg generation
+    onSonosSettingsChange.current = (payload: any) => {
+      if (payload.new?.bg_brightness != null) {
+        setBgBrightness(payload.new.bg_brightness);
+      }
     };
     return () => { onSonosSettingsChange.current = null; };
   }, [onSonosSettingsChange]);
@@ -336,18 +350,35 @@ export function BrewingDashboard() {
     background: 'transparent'
   }}>
       
-      {/* Album art background - pre-processed server-side with header fade baked in */}
+      {/* Album art background - blur applied server-side, brightness via overlay */}
       {visibleBgUrl && (
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{ 
-            backgroundImage: `url(${visibleBgUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-            transform: 'scale(1.15)',
-            contain: 'strict',
-          }}
-        />
+        <>
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{ 
+              backgroundImage: `url(${visibleBgUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center center',
+              transform: 'scale(1.15)',
+              contain: 'strict',
+            }}
+          />
+          {/* Deterministic brightness overlay - consistent regardless of album art */}
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{ 
+              background: `rgba(0, 0, 0, ${1 - bgBrightness})`,
+            }}
+          />
+          {/* Header gradient for text readability */}
+          <div 
+            className="absolute inset-x-0 top-0 pointer-events-none"
+            style={{ 
+              height: '85px',
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 100%)',
+            }}
+          />
+        </>
       )}
 
       {/* Header Bar */}
