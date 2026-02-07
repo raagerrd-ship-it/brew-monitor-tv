@@ -35,7 +35,7 @@ const initialState: ExternalTimerState = {
   progress: 0,
 };
 
-export function useExternalTimer() {
+export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
   const { user, session, isAuthenticated } = useExternalAuth();
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -322,32 +322,14 @@ export function useExternalTimer() {
     // handles syncing from external API to cache every 10 seconds
     fetchFromCache();
 
-    // Subscribe to cache updates via realtime
-    const channel = supabase
-      .channel('cached-timer-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cached_external_timer',
-        },
-        () => {
-          fetchFromCache();
-        }
-      )
-      .subscribe();
-
-    // Also poll every 60 seconds as backup in case realtime doesn't work
-    const pollInterval = setInterval(() => {
-      fetchFromCache();
-    }, 60000);
-
+    // Wire up consolidated realtime callback
+    if (onCachedTimerChangeRef) {
+      onCachedTimerChangeRef.current = () => fetchFromCache();
+    }
     return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+      if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
-  }, [fetchFromCache]);
+  }, [fetchFromCache, onCachedTimerChangeRef]);
 
   // Update remaining seconds every second when timer is active and not paused
   // pausedByMilestone should also stop the countdown

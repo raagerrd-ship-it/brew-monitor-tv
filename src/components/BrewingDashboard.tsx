@@ -53,7 +53,7 @@ export function BrewingDashboard() {
     setAlbumArtUrl(url);
   }, []);
 
-  // Load and subscribe to Sonos background settings
+  // Load initial Sonos background settings
   useEffect(() => {
     const loadBgSettings = async () => {
       const { data } = await (supabase as any)
@@ -67,20 +67,6 @@ export function BrewingDashboard() {
       }
     };
     loadBgSettings();
-
-    const channel = supabase
-      .channel('sonos-bg-settings')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'sonos_settings' },
-        (payload: any) => {
-          if (payload.new?.bg_blur !== undefined) setBgBlur(payload.new.bg_blur);
-          if (payload.new?.bg_brightness !== undefined) setBgBrightness(payload.new.bg_brightness);
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, []);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -105,11 +91,15 @@ export function BrewingDashboard() {
     loading,
     updatedFields,
     isAuthenticated,
-    loadBrewEvents
+    loadBrewEvents,
+    onSonosNowPlayingChange,
+    onSonosSettingsChange,
+    onSyncSettingsChange,
+    onCachedTimerChange,
   } = useBrewData();
 
   // External timer for footer padding
-  const externalTimer = useExternalTimer();
+  const externalTimer = useExternalTimer(onCachedTimerChange);
 
   // External user settings (stored in database per user)
   const {
@@ -138,9 +128,19 @@ export function BrewingDashboard() {
   const appLoadTime = useMemo(() => new Date(), []);
 
 
-  // Listen for remote TV refresh trigger via force_tv_refresh_at
-  // Track last known value locally since payload.old may not include non-PK columns
+  // Wire up consolidated realtime callbacks
   const lastKnownRefreshAt = useRef<string | null>(null);
+  
+  // Sonos settings changes via consolidated channel
+  useEffect(() => {
+    onSonosSettingsChange.current = (payload: any) => {
+      if (payload.new?.bg_blur !== undefined) setBgBlur(payload.new.bg_blur);
+      if (payload.new?.bg_brightness !== undefined) setBgBrightness(payload.new.bg_brightness);
+    };
+    return () => { onSonosSettingsChange.current = null; };
+  }, [onSonosSettingsChange]);
+
+  // TV force refresh via consolidated channel
   useEffect(() => {
     if (!isTvMode) return;
 
@@ -149,32 +149,25 @@ export function BrewingDashboard() {
       lastKnownRefreshAt.current = data?.force_tv_refresh_at ?? null;
     });
 
-    const channel = supabase
-      .channel('tv-force-refresh')
-      .on(
-        'postgres_changes' as any,
-        { event: 'UPDATE', schema: 'public', table: 'sync_settings' },
-        (payload: any) => {
-          const newVal = payload.new?.force_tv_refresh_at;
-          if (newVal && newVal !== lastKnownRefreshAt.current) {
-            console.log('[TV] Remote refresh triggered');
-            lastKnownRefreshAt.current = newVal;
-            setTimeout(async () => {
-              if ('caches' in window) {
-                const names = await caches.keys();
-                await Promise.all(names.map(n => caches.delete(n)));
-              }
-              const params = new URLSearchParams(window.location.search);
-              params.set('v', Date.now().toString());
-              window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
-            }, 500);
+    onSyncSettingsChange.current = (payload: any) => {
+      const newVal = payload.new?.force_tv_refresh_at;
+      if (newVal && newVal !== lastKnownRefreshAt.current) {
+        console.log('[TV] Remote refresh triggered');
+        lastKnownRefreshAt.current = newVal;
+        setTimeout(async () => {
+          if ('caches' in window) {
+            const names = await caches.keys();
+            await Promise.all(names.map(n => caches.delete(n)));
           }
-        }
-      )
-      .subscribe();
+          const params = new URLSearchParams(window.location.search);
+          params.set('v', Date.now().toString());
+          window.location.href = window.location.origin + window.location.pathname + '?' + params.toString();
+        }, 500);
+      }
+    };
 
-    return () => { supabase.removeChannel(channel); };
-  }, [isTvMode]);
+    return () => { onSyncSettingsChange.current = null; };
+  }, [isTvMode, onSyncSettingsChange]);
 
   // Force overflow hidden on body in TV mode (Chromecast iframe)
   useEffect(() => {
@@ -399,7 +392,7 @@ export function BrewingDashboard() {
             right: '12px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} />
+          <SonosWidget isMobile={false} isTvMode={true} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
         </div>
       )}
 

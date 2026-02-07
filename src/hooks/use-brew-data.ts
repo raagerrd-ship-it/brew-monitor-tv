@@ -18,6 +18,11 @@ interface UseBrewDataReturn {
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
+  // Callbacks for consolidated realtime channels
+  onSonosNowPlayingChange: React.MutableRefObject<((payload: any) => void) | null>;
+  onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
+  onCachedTimerChange: React.MutableRefObject<(() => void) | null>;
+  onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
 // Helper function to sort brews by controller order
@@ -57,6 +62,12 @@ export function useBrewData(): UseBrewDataReturn {
   // Ref for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
   const controllersRef = useRef<TempController[]>([]);
+  
+  // Callback refs for consolidated realtime channels
+  const onSonosNowPlayingChange = useRef<((payload: any) => void) | null>(null);
+  const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
+  const onCachedTimerChange = useRef<(() => void) | null>(null);
+  const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
     brewsRef.current = brews;
@@ -581,6 +592,12 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_pills' }, (p: any) => dispatch('rapt_pills', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (p: any) => {
+        onSonosNowPlayingChange.current?.(p);
+      })
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sonos_settings' }, (p: any) => {
+        onSonosSettingsChange.current?.(p);
+      })
       .subscribe();
 
     return () => {
@@ -614,6 +631,12 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'cached_external_timer' }, () => {
+        onCachedTimerChange.current?.();
+      })
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (p: any) => {
+        onSyncSettingsChange.current?.(p);
+      })
       .subscribe();
 
     return () => {
@@ -639,5 +662,9 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrews,
     loadRaptData,
     loadBrewEvents,
+    onSonosNowPlayingChange,
+    onSonosSettingsChange,
+    onCachedTimerChange,
+    onSyncSettingsChange,
   };
 }
