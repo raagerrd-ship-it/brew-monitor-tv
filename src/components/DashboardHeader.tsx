@@ -47,13 +47,10 @@ export function DashboardHeader({
       style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
         background: 'transparent',
-        borderBottom: hasAlbumArtBackground ? 'none' : '1px solid hsl(222 15% 14%)'
+        borderBottom: 'none'
       }}
     >
-      {/* Subtle top highlight - desktop only, hidden in TV mode with album art */}
-      {!isMobile && !hasAlbumArtBackground && <div className="absolute inset-x-0 top-0 h-px" style={{
-        background: 'linear-gradient(90deg, transparent 0%, hsl(222 15% 25%) 20%, hsl(222 15% 25%) 80%, transparent 100%)'
-      }} />}
+      {/* Top highlight removed for seamless transparent header */}
 
       {/* Mobile: Logo row with settings */}
       {isMobile ? (
@@ -140,8 +137,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide`} style={{
-        background: 'hsl(222 20% 11% / 0.5)',
-        border: '1px solid hsl(222 15% 18% / 0.3)',
+        background: 'transparent',
+        border: 'none',
       }}>
         {controllers.map((controller, index) => {
           const controllerColor = getControllerColor(controller.name);
