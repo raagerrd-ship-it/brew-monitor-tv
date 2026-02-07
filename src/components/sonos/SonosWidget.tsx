@@ -102,9 +102,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (trackChanged) {
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
-          // Use pre-fetched next track images immediately (already cached in browser)
           setNowPlaying(prev => {
             if (!prev) return prev;
+            const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
+            const newArtUrl = prev.next_album_art_url || prev.album_art_url;
+            // Immediately update dashboard background
+            onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             return {
               ...prev,
               track_name: data.trackName,
@@ -112,14 +115,12 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               album_name: data.albumName ?? prev.album_name,
               playback_state: data.playbackState,
               position_ms: data.positionMillis,
-              // Swap in pre-fetched images
-              album_art_url: prev.next_album_art_url || prev.album_art_url,
-              bg_image_url: prev.next_bg_image_url || prev.bg_image_url,
+              album_art_url: newArtUrl,
+              bg_image_url: newBgUrl,
               next_album_art_url: null,
               next_bg_image_url: null,
             };
           });
-          // Also refetch DB in background for any remaining data
           fetchNowPlaying();
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
@@ -220,6 +221,23 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             const albumChanged = prev.album_name !== data.albumName;
             if (!trackChanged && !artistChanged && !albumChanged && data.playbackState === prev.playback_state) {
               return prev;
+            }
+            if (trackChanged) {
+              const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
+              const newArtUrl = prev.next_album_art_url || prev.album_art_url;
+              onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+              return {
+                ...prev,
+                track_name: data.trackName,
+                artist_name: data.artistName ?? prev.artist_name,
+                album_name: data.albumName ?? prev.album_name,
+                playback_state: data.playbackState,
+                position_ms: data.positionMillis,
+                album_art_url: newArtUrl,
+                bg_image_url: newBgUrl,
+                next_album_art_url: null,
+                next_bg_image_url: null,
+              };
             }
             return {
               ...prev,
