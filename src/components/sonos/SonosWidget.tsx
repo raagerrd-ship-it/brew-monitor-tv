@@ -50,6 +50,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
   const prefetchTriggeredForTrackRef = useRef<string | null>(null);
+  const trackChangeOffsetRef = useRef<number>(0);
+  const earlySwapDoneRef = useRef(false);
 
   const setLocalProgressWithRef = useCallback((val: number | null | ((prev: number | null) => number | null)) => {
     if (typeof val === 'function') {
@@ -102,11 +104,22 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         if (trackChanged) {
           localProgressRef.current = data.positionMillis;
           setLocalProgress(data.positionMillis);
+          const alreadySwapped = earlySwapDoneRef.current;
           setNowPlaying(prev => {
             if (!prev) return prev;
+            if (alreadySwapped) {
+              // Images already swapped by early swap — only update text metadata
+              return {
+                ...prev,
+                track_name: data.trackName,
+                artist_name: data.artistName ?? prev.artist_name,
+                album_name: data.albumName ?? prev.album_name,
+                playback_state: data.playbackState,
+                position_ms: data.positionMillis,
+              };
+            }
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
-            // Immediately update dashboard background
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             return {
               ...prev,
@@ -144,6 +157,25 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         const timeRemaining = duration - next;
 
+        // Early swap: switch images before track ends based on user offset
+        const offsetMs = trackChangeOffsetRef.current * 1000;
+        if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
+          setNowPlaying(prev => {
+            if (!prev?.next_album_art_url) return prev;
+            earlySwapDoneRef.current = true;
+            const newArtUrl = prev.next_album_art_url || prev.album_art_url;
+            const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
+            onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
+            return {
+              ...prev,
+              album_art_url: newArtUrl,
+              bg_image_url: newBgUrl,
+              next_album_art_url: null,
+              next_bg_image_url: null,
+            };
+          });
+        }
+
         // Prefetch: trigger server sync ~30s before end (once per track)
         if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
           prefetchTriggeredForTrackRef.current = trackName;
@@ -178,6 +210,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       clearInterval(ticker);
       if (predictiveTimer) clearTimeout(predictiveTimer);
       predictiveScheduledRef.current = false;
+      earlySwapDoneRef.current = false;
       setPrefetchStatus('idle');
     };
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
@@ -272,7 +305,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         const { data: settings, error: settingsError } = await (supabase as any)
           .from('sonos_settings')
-          .select('show_on_dashboard, selected_group_id')
+          .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
           .limit(1)
           .maybeSingle();
 
@@ -283,6 +316,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
         setIsConnected(true);
         setShowWidget(settings?.show_on_dashboard ?? true);
+        trackChangeOffsetRef.current = Number(settings?.track_change_offset_seconds) || 0;
       } catch (error) {
         console.error('[Sonos] Failed to check connection:', error);
         setIsConnected(false);
