@@ -100,6 +100,7 @@ serve(async (req) => {
       positionMillis: playbackData.positionMillis || 0,
       trackName: track?.name || null,
       artistName: track?.artist?.name || null,
+      albumName: track?.album?.name || null,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

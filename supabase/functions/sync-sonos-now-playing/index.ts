@@ -277,17 +277,15 @@ serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const SONOS_CLIENT_ID = Deno.env.get('SONOS_CLIENT_ID');
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
-  const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID');
-  const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET');
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: tokens, settings (including bg_blur/bg_brightness)
+    // Parallel fetch: tokens, settings (including bg_blur/bg_brightness + spotify credentials)
     const [tokenResult, settingsResult] = await Promise.all([
       supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness, spotify_client_id, spotify_client_secret').limit(1).single(),
     ]);
 
     const tokenData = tokenResult.data;
@@ -302,6 +300,8 @@ serve(async (req) => {
 
     const bgBlur = settings?.bg_blur ?? 40;
     const bgBrightness = settings?.bg_brightness ?? 0.4;
+    const SPOTIFY_CLIENT_ID = settings?.spotify_client_id || Deno.env.get('SPOTIFY_CLIENT_ID');
+    const SPOTIFY_CLIENT_SECRET = settings?.spotify_client_secret || Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
     // Check if token is expired and refresh if needed
     const isExpired = new Date(tokenData.expires_at) < new Date();
