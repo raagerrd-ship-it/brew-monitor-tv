@@ -62,6 +62,205 @@ async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise
   }
 }
 
+// Simple hash for track identification in filenames
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+// Check if URL is a private/local address that can't be fetched externally
+function isPrivateUrl(url: string): boolean {
+  return /192\.168\.|10\.\d|172\.(1[6-9]|2\d|3[01])\.|localhost|127\.0\.0\.1|getaa/.test(url);
+}
+
+// Fetch image as base64 data URL
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    return `data:${contentType};base64,${btoa(binary)}`;
+  } catch {
+    return null;
+  }
+}
+
+// Generate a background image using Lovable AI
+async function generateBackground(
+  artUrl: string,
+  blur: number,
+  brightness: number,
+  apiKey: string,
+): Promise<string | null> {
+  // Skip private/local URLs
+  if (isPrivateUrl(artUrl)) {
+    console.log('[SonosSync] Skipping BG for private URL');
+    return null;
+  }
+
+  try {
+    // Fetch image as base64 first so AI gateway doesn't need to access the URL
+    const base64Image = await fetchImageAsBase64(artUrl);
+    if (!base64Image) {
+      console.error('[SonosSync] Failed to fetch image for BG generation');
+      return null;
+    }
+
+    const brightnessPercent = Math.round(brightness * 100);
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-image',
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Apply a Gaussian blur of ${blur}px and reduce brightness to ${brightnessPercent}%. Scale to 1280x720. Output as JPEG.`,
+            },
+            {
+              type: 'image_url',
+              image_url: { url: base64Image },
+            },
+          ],
+        }],
+        modalities: ['image', 'text'],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'no body');
+      console.error(`[SonosSync] AI gateway error: ${response.status} - ${errorBody}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return imageData || null;
+  } catch (error) {
+    console.error('[SonosSync] AI background generation failed:', error);
+    return null;
+  }
+}
+
+// Upload base64 image to storage and return public URL
+async function uploadBackground(
+  supabase: any,
+  base64DataUrl: string,
+  fileName: string,
+): Promise<string | null> {
+  try {
+    // Extract raw base64 from data URL
+    const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+    const { error } = await supabase.storage
+      .from('sonos-backgrounds')
+      .upload(fileName, bytes, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('[SonosSync] Upload error:', error.message);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('sonos-backgrounds')
+      .getPublicUrl(fileName);
+
+    // Add cache-bust to force reload when file is overwritten
+    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
+  } catch (error) {
+    console.error('[SonosSync] Upload failed:', error);
+    return null;
+  }
+}
+
+// Check if a background file already exists in storage
+async function backgroundExists(supabase: any, fileName: string): Promise<string | null> {
+  const { data } = await supabase.storage
+    .from('sonos-backgrounds')
+    .list('', { search: fileName, limit: 1 });
+
+  if (data && data.length > 0 && data[0].name === fileName) {
+    const { data: urlData } = supabase.storage
+      .from('sonos-backgrounds')
+      .getPublicUrl(fileName);
+    return urlData?.publicUrl || null;
+  }
+  return null;
+}
+
+// Clean up old background files, keeping only the specified ones
+async function cleanupOldBackgrounds(supabase: any, keepFileNames: string[]) {
+  try {
+    const { data: files } = await supabase.storage
+      .from('sonos-backgrounds')
+      .list('', { limit: 50 });
+
+    if (!files || files.length <= 10) return; // Don't bother if few files
+
+    const toDelete = files
+      .filter((f: any) => !keepFileNames.includes(f.name))
+      .slice(0, files.length - 5) // Keep at least 5 recent files
+      .map((f: any) => f.name);
+
+    if (toDelete.length > 0) {
+      await supabase.storage.from('sonos-backgrounds').remove(toDelete);
+      console.log(`[SonosSync] Cleaned up ${toDelete.length} old backgrounds`);
+    }
+  } catch {
+    // Non-critical, ignore
+  }
+}
+
+// Resolve background: check cache, generate if needed
+async function resolveBackground(
+  supabase: any,
+  artUrl: string | null,
+  trackId: string,
+  blur: number,
+  brightness: number,
+  apiKey: string,
+): Promise<string | null> {
+  if (!artUrl) return null;
+
+  const hash = simpleHash(trackId || artUrl);
+  const fileName = `${hash}-${blur}-${Math.round(brightness * 100)}.jpg`;
+
+  // Check cache
+  const existing = await backgroundExists(supabase, fileName);
+  if (existing) {
+    console.log(`[SonosSync] BG cache hit: ${fileName}`);
+    return existing;
+  }
+
+  // Generate new background
+  console.log(`[SonosSync] Generating BG: ${fileName}`);
+  const base64 = await generateBackground(artUrl, blur, brightness, apiKey);
+  if (!base64) return null;
+
+  const publicUrl = await uploadBackground(supabase, base64, fileName);
+  return publicUrl;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -75,14 +274,15 @@ serve(async (req) => {
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
   const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID');
   const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET');
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: tokens and settings
+    // Parallel fetch: tokens, settings (including bg_blur/bg_brightness)
     const [tokenResult, settingsResult] = await Promise.all([
       supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness').limit(1).single(),
     ]);
 
     const tokenData = tokenResult.data;
@@ -94,6 +294,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const bgBlur = settings?.bg_blur ?? 40;
+    const bgBrightness = settings?.bg_brightness ?? 0.4;
 
     // Check if token is expired and refresh if needed
     const isExpired = new Date(tokenData.expires_at) < new Date();
@@ -179,7 +382,6 @@ serve(async (req) => {
     ]);
 
     if (!metadataResponse.ok) {
-      // Clear now playing on error
       await supabase.from('sonos_now_playing').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       return new Response(JSON.stringify({ ok: false, reason: 'metadata_failed' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -225,6 +427,41 @@ serve(async (req) => {
       resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
     ]);
 
+    // Generate background images via Lovable AI (parallel for current + next)
+    let bgImageUrl: string | null = null;
+    let nextBgImageUrl: string | null = null;
+
+    if (LOVABLE_API_KEY && (currentArt.medium || nextArt.medium)) {
+      const currentTrackId = track?.id?.objectId || track?.name || '';
+      const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
+
+      const [currentBg, nextBg] = await Promise.all([
+        currentArt.medium
+          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgBlur, bgBrightness, LOVABLE_API_KEY)
+          : Promise.resolve(null),
+        nextArt.medium
+          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgBlur, bgBrightness, LOVABLE_API_KEY)
+          : Promise.resolve(null),
+      ]);
+
+      bgImageUrl = currentBg;
+      nextBgImageUrl = nextBg;
+
+      // Cleanup old files (non-blocking)
+      const keepFiles: string[] = [];
+      if (currentBg) {
+        const match = currentBg.match(/\/([^/?]+)\?/);
+        if (match) keepFiles.push(match[1]);
+      }
+      if (nextBg) {
+        const match = nextBg.match(/\/([^/?]+)\?/);
+        if (match) keepFiles.push(match[1]);
+      }
+      if (keepFiles.length > 0) {
+        cleanupOldBackgrounds(supabase, keepFiles).catch(() => {});
+      }
+    }
+
     const nowPlaying = {
       group_id: groupId,
       track_name: track?.name || container?.name || null,
@@ -236,9 +473,11 @@ serve(async (req) => {
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
+      bg_image_url: bgImageUrl,
+      next_bg_image_url: nextBgImageUrl,
     };
 
-    // Upsert to DB - this triggers realtime for all clients
+    // Upsert to DB
     const { data: existing } = await supabase
       .from('sonos_now_playing')
       .select('id')
@@ -253,7 +492,7 @@ serve(async (req) => {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${duration}ms - ${track?.name || 'no track'}`);
+    console.log(`[SonosSync] Done in ${duration}ms - ${track?.name || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'})`);
 
     return new Response(JSON.stringify({ ok: true, duration_ms: duration }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

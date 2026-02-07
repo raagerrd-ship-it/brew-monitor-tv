@@ -7,6 +7,8 @@ interface NowPlaying {
   artist_name: string | null;
   album_art_url: string | null;
   next_album_art_url?: string | null;
+  bg_image_url?: string | null;
+  next_bg_image_url?: string | null;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
@@ -153,7 +155,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const handleNewImageLoaded = () => {
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
-    onAlbumArtChangeRef.current?.(incomingArtUrl);
+    // Send bg_image_url for dashboard background (pre-processed, no CSS filter needed)
+    onAlbumArtChangeRef.current?.(nowPlaying?.bg_image_url || incomingArtUrl);
   };
 
   const handleNewImageError = () => {
@@ -250,6 +253,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
         {nowPlaying.next_album_art_url && nowPlaying.next_album_art_url !== displayedArtUrl && nowPlaying.next_album_art_url !== incomingArtUrl && (
           <img
             src={nowPlaying.next_album_art_url}
+            alt=""
+            decoding="async"
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+          />
+        )}
+
+        {/* Preload next track's background image */}
+        {nowPlaying.next_bg_image_url && (
+          <img
+            src={nowPlaying.next_bg_image_url}
             alt=""
             decoding="async"
             style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
