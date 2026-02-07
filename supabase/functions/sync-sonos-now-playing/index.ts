@@ -109,7 +109,7 @@ async function generateBackground(
           content: [
             {
               type: 'text',
-              text: `Apply a Gaussian blur of ${blur}px. Analyze the image's overall brightness and adjust it so the final output has an average perceived brightness of approximately ${brightnessPercent}% of maximum. Bright images should be darkened significantly, while already dark images should be darkened less or not at all. The goal is a consistent output brightness regardless of the input. Scale to 1280x720. Output as JPEG.`,
+              text: `Apply a Gaussian blur of ${blur}px. Analyze the image's overall brightness and adjust it so the final output has an average perceived brightness of approximately ${brightnessPercent}% of maximum. Bright images should be darkened significantly, while already dark images should be darkened less or not at all. The goal is a consistent output brightness regardless of the input. CRITICAL REQUIREMENT: You MUST paint a dark gradient at the very top of the output image. The top 85 pixels (at 720p) must fade from solid black (100% opacity) at the top edge down to fully transparent at 85px. This is essential - do NOT skip this step. Scale to 1280x720. Output as JPEG.`,
             },
             {
               type: 'image_url',
