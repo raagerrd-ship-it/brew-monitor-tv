@@ -109,7 +109,7 @@ async function generateBackground(
           content: [
             {
               type: 'text',
-              text: `Apply a Gaussian blur of ${blur}px. Analyze the image's overall brightness and adjust it so the final output has an average perceived brightness of approximately ${brightnessPercent}% of maximum. Bright images should be darkened significantly, while already dark images should be darkened less or not at all. The goal is a consistent output brightness regardless of the input. IMPORTANT: Darken the top ~85 pixels of the image extra so text is readable there. Apply a subtle gradient that makes the top edge about 40-50% darker than the rest of the image, fading smoothly to normal by 85px. Do NOT make it fully black - just noticeably darker. Scale to 1280x720. Output as JPEG.`,
+              text: `Apply a Gaussian blur of ${blur}px. Then adjust the overall brightness so the OUTPUT image has an absolute average luminance of exactly ${brightnessPercent}% (where 0% = pure black, 100% = pure white). This is an absolute target for the output - do NOT base it on the input brightness. For example, if the target is 40%, the output should look the same brightness whether the input was a bright white album cover or a dark black one. Multiply all pixel values by whatever factor is needed to hit this absolute target. IMPORTANT: Additionally darken the top ~85 pixels with a subtle gradient overlay making the top edge about 40-50% darker than the target brightness, fading smoothly to the target level by 85px. Do NOT make it fully black - just noticeably darker for text readability. Scale to 1280x720. Output as JPEG.`,
             },
             {
               type: 'image_url',
@@ -221,7 +221,7 @@ async function resolveBackground(
   if (!artUrl) return null;
 
   const hash = simpleHash(trackId || artUrl);
-  const fileName = `${hash}-${blur}-${Math.round(brightness * 100)}-v2.jpg`;
+  const fileName = `${hash}-${blur}-${Math.round(brightness * 100)}-v3.jpg`;
 
   // Check cache
   const existing = await backgroundExists(supabase, fileName);
