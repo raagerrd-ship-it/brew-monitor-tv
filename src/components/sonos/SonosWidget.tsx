@@ -186,10 +186,16 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return () => window.removeEventListener('resize', checkScroll);
   }, [nowPlaying]);
 
-  // Don't render if not connected, not visible, or nothing playing
-  if (!isConnected || !showWidget) return null;
-  if (!nowPlaying?.track_name) return null;
-  if (nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return null;
+  // Clear background when not playing
+  const shouldHide = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING';
+  
+  useEffect(() => {
+    if (shouldHide) {
+      onAlbumArtChangeRef.current?.(null);
+    }
+  }, [shouldHide]);
+
+  if (shouldHide) return null;
 
   // Calculate progress percentage
   const progressPercent = (localProgress && nowPlaying.duration_ms)
