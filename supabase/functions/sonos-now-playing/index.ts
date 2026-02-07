@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const SONOS_API_URL = 'https://api.ws.sonos.com/control/api/v1';
 
-// In-memory cache for Spotify token (lives for duration of edge function instance)
-let cachedSpotifyToken: { token: string; expiresAt: number } | null = null;
+// Cache for oEmbed results
+const oEmbedCache = new Map<string, string>();
 
 // Extract Spotify track ID from Sonos URI
 function extractSpotifyTrackId(trackUri: string | undefined): string | null {
@@ -18,56 +18,23 @@ function extractSpotifyTrackId(trackUri: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
-// Get Spotify access token with caching
-async function getSpotifyToken(clientId: string, clientSecret: string): Promise<string | null> {
-  // Check cache first
-  if (cachedSpotifyToken && Date.now() < cachedSpotifyToken.expiresAt) {
-    return cachedSpotifyToken.token;
-  }
+// Get album art via Spotify's public oEmbed endpoint (no API key needed)
+async function getAlbumArtViaOEmbed(trackId: string): Promise<{ medium: string | null; small: string | null }> {
+  const cached = oEmbedCache.get(trackId);
+  if (cached) return { medium: cached, small: null };
 
   try {
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-      },
-      body: 'grant_type=client_credentials',
-    });
-    
-    if (!response.ok) return null;
-    const data = await response.json();
-    
-    // Cache token (expires_in is typically 3600 seconds, cache for 3500 to be safe)
-    cachedSpotifyToken = {
-      token: data.access_token,
-      expiresAt: Date.now() + (data.expires_in - 100) * 1000,
-    };
-    
-    return data.access_token;
-  } catch {
-    return null;
-  }
-}
-
-// Fetch album art from Spotify (returns both medium and small URLs)
-async function getSpotifyAlbumArt(trackId: string, accessToken: string): Promise<{ medium: string | null; small: string | null }> {
-  try {
-    const response = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    
+    const response = await fetch(
+      `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
     if (!response.ok) return { medium: null, small: null };
-    const track = await response.json();
-    
-    const images = track.album?.images;
-    if (images && images.length > 0) {
-      return {
-        medium: images[1]?.url || images[0]?.url,
-        small: images[2]?.url || images[1]?.url || images[0]?.url,
-      };
+    const data = await response.json();
+    const thumbUrl = data.thumbnail_url || null;
+    if (thumbUrl) {
+      oEmbedCache.set(trackId, thumbUrl);
     }
-    return { medium: null, small: null };
+    return { medium: thumbUrl, small: null };
   } catch {
     return { medium: null, small: null };
   }
@@ -91,13 +58,11 @@ serve(async (req) => {
     // Parallel fetch: tokens and settings
     const [tokenResult, settingsResult] = await Promise.all([
       supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id, spotify_client_id, spotify_client_secret').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id').limit(1).single(),
     ]);
 
     const tokenData = tokenResult.data;
     const settings = settingsResult.data;
-    const SPOTIFY_CLIENT_ID = settings?.spotify_client_id || Deno.env.get('SPOTIFY_CLIENT_ID');
-    const SPOTIFY_CLIENT_SECRET = settings?.spotify_client_secret || Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
     if (!tokenData) {
       return new Response(
@@ -233,7 +198,7 @@ serve(async (req) => {
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
     
-    // Helper to resolve album art (handles local Sonos URLs -> Spotify)
+    // Helper to resolve album art (handles local Sonos URLs -> oEmbed)
     async function resolveAlbumArt(
       imgUrl: string | null,
       objectId: string | undefined
@@ -241,13 +206,11 @@ serve(async (req) => {
       if (!imgUrl) return { medium: null, small: null };
       if (imgUrl.includes('192.168.') || imgUrl.includes('getaa')) {
         const spotifyTrackId = extractSpotifyTrackId(objectId);
-        if (spotifyTrackId && SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET) {
-          const spotifyToken = await getSpotifyToken(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
-          if (spotifyToken) {
-            const spotifyArt = await getSpotifyAlbumArt(spotifyTrackId, spotifyToken);
-            if (spotifyArt.medium) return spotifyArt;
-          }
+        if (spotifyTrackId) {
+          const art = await getAlbumArtViaOEmbed(spotifyTrackId);
+          if (art.medium) return art;
         }
+        return { medium: null, small: null };
       }
       return { medium: imgUrl, small: null };
     }
