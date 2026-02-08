@@ -10,7 +10,7 @@ import {
   FermentationProfileStep,
 } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2 } from "lucide-react";
+import { Play, Pause, Square, Loader2, SkipForward } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +66,7 @@ export function ActiveFermentationSession({
   const [skipLoading, setSkipLoading] = useState(false);
   const [acknowledgeLoading, setAcknowledgeLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0); // Force re-render for time-based progress
   const { toast } = useToast();
@@ -569,6 +570,19 @@ export function ActiveFermentationSession({
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowSkipConfirm(true)}
+              disabled={skipLoading}
+              title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
+            >
+              {skipLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <SkipForward className="w-3 h-3" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowCancelDialog(true)}
               disabled={actionLoading}
             >
@@ -590,6 +604,30 @@ export function ActiveFermentationSession({
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancel}>Ja, stoppa profilen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Skip Step Confirmation */}
+      <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {session.current_step_index + 1 >= (session.steps?.length || 0)
+                ? 'Slutför fermenteringsprofil?'
+                : 'Hoppa till nästa steg?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {session.current_step_index + 1 >= (session.steps?.length || 0)
+                ? 'Profilen kommer markeras som slutförd.'
+                : `Steg ${session.current_step_index + 1} hoppas över och steg ${session.current_step_index + 2} startar.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
+              {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
