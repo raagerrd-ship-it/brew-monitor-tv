@@ -82,14 +82,27 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           if (trackChanged) {
             handleTrackChange(data, false);
           } else {
-            // Same track — update metadata and state if changed
+            // Same track — update metadata, state, and art URLs if changed
             setNowPlaying(prev => {
               if (!prev) return prev;
               const artistChanged = prev.artist_name !== data.artistName;
               const albumChanged = prev.album_name !== data.albumName;
               const stateChanged = prev.playback_state !== data.playbackState;
               const durationChanged = duration && prev.duration_ms !== duration;
-              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged) return prev;
+              const bgChanged = data.bgImageUrl && data.bgImageUrl !== prev.bg_image_url;
+              const widgetChanged = data.widgetArtUrl && data.widgetArtUrl !== prev.widget_art_url;
+              const artChanged = data.albumArtUrl && data.albumArtUrl !== prev.album_art_url;
+              const nextBgChanged = data.nextBgImageUrl !== undefined && data.nextBgImageUrl !== prev.next_bg_image_url;
+              const nextWidgetChanged = data.nextWidgetArtUrl !== undefined && data.nextWidgetArtUrl !== prev.next_widget_art_url;
+              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged && !nextBgChanged && !nextWidgetChanged) return prev;
+
+              // Push new bg to buffer if changed
+              if (bgChanged && data.bgImageUrl) {
+                pushToBgBuffer(validBgBufferRef.current, data.bgImageUrl);
+                onAlbumArtChangeRef.current?.(data.bgImageUrl);
+                bgSentRef.current = data.bgImageUrl;
+              }
+
               return {
                 ...prev,
                 artist_name: data.artistName ?? prev.artist_name,
@@ -97,6 +110,11 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
                 duration_ms: duration ?? prev.duration_ms,
+                bg_image_url: data.bgImageUrl || prev.bg_image_url,
+                next_bg_image_url: data.nextBgImageUrl !== undefined ? data.nextBgImageUrl : prev.next_bg_image_url,
+                widget_art_url: data.widgetArtUrl || prev.widget_art_url,
+                next_widget_art_url: data.nextWidgetArtUrl !== undefined ? data.nextWidgetArtUrl : prev.next_widget_art_url,
+                album_art_url: data.albumArtUrl || prev.album_art_url,
               };
             });
           }
