@@ -195,6 +195,8 @@ serve(async (req) => {
       album_art_url: currentArt.medium,
       album_art_url_small: currentArt.small,
       next_album_art_url: nextArt.medium,
+      next_track_name: nextTrack?.name || null,
+      next_artist_name: nextTrack?.artist?.name || null,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,

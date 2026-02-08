@@ -26,7 +26,7 @@ serve(async (req) => {
     const [tokenResult, settingsResult, nowPlayingResult] = await Promise.all([
       getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
       supabase.from('sonos_settings').select('selected_group_id').limit(1).single(),
-      supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url, widget_art_url, next_widget_art_url, album_art_url').limit(1).maybeSingle(),
+      supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url, widget_art_url, next_widget_art_url, album_art_url, next_track_name, next_artist_name').limit(1).maybeSingle(),
     ]);
 
     const groupId = settingsResult.data?.selected_group_id;
@@ -77,6 +77,8 @@ serve(async (req) => {
       widgetArtUrl: np?.widget_art_url || null,
       nextWidgetArtUrl: np?.next_widget_art_url || null,
       albumArtUrl: np?.album_art_url || null,
+      nextTrackName: np?.next_track_name || null,
+      nextArtistName: np?.next_artist_name || null,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

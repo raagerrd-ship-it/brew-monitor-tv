@@ -727,7 +727,9 @@ export type Database = {
           group_id: string
           id: string
           next_album_art_url: string | null
+          next_artist_name: string | null
           next_bg_image_url: string | null
+          next_track_name: string | null
           next_widget_art_url: string | null
           playback_state: string
           position_ms: number | null
@@ -745,7 +747,9 @@ export type Database = {
           group_id: string
           id?: string
           next_album_art_url?: string | null
+          next_artist_name?: string | null
           next_bg_image_url?: string | null
+          next_track_name?: string | null
           next_widget_art_url?: string | null
           playback_state?: string
           position_ms?: number | null
@@ -763,7 +767,9 @@ export type Database = {
           group_id?: string
           id?: string
           next_album_art_url?: string | null
+          next_artist_name?: string | null
           next_bg_image_url?: string | null
+          next_track_name?: string | null
           next_widget_art_url?: string | null
           playback_state?: string
           position_ms?: number | null

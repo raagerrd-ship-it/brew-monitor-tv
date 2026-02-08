@@ -4,6 +4,8 @@ export interface NowPlaying {
   album_name?: string | null;
   album_art_url: string | null;
   next_album_art_url?: string | null;
+  next_track_name?: string | null;
+  next_artist_name?: string | null;
   bg_image_url?: string | null;
   next_bg_image_url?: string | null;
   widget_art_url?: string | null;

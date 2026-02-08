@@ -61,6 +61,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
     let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
+    let earlySwapRevertTimer: ReturnType<typeof setTimeout> | null = null;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
@@ -84,6 +85,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         lastPredictivePollRef.current = Date.now();
 
         if (data.trackName && data.trackName !== trackName) {
+          // Track confirmed changed — cancel any revert timer
+          if (earlySwapRevertTimer) { clearTimeout(earlySwapRevertTimer); earlySwapRevertTimer = null; }
           handleTrackChangeRef.current(data, earlySwapDoneRef.current);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
@@ -114,7 +117,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         const timeRemaining = duration - next;
 
-        // Early swap: switch images before track ends based on user offset
+        // Early swap: switch images AND text before track ends based on user offset
         const offsetMs = trackChangeOffsetRef.current * 1000;
         if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
           trackChangedAtRef.current = Date.now();
@@ -126,23 +129,50 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             const newWidgetArtUrl = prev.next_widget_art_url || prev.widget_art_url;
+            const newTrackName = prev.next_track_name || prev.track_name;
+            const newArtistName = prev.next_artist_name || prev.artist_name;
             console.log('[Sonos:BG] Early swap', {
               newArt: newArtUrl?.slice(-60),
               newBg: newBgUrl?.slice(-60),
               newWidget: newWidgetArtUrl?.slice(-60),
+              newTrack: newTrackName,
+              newArtist: newArtistName,
               timeRemaining: Math.round(timeRemaining),
             });
             pushToBgBuffer(validBgBufferRef.current, newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             bgSentRef.current = newBgUrl || newArtUrl;
+
+            // Store originals for potential revert
+            const origTrack = prev.track_name;
+            const origArtist = prev.artist_name;
+
+            // Set 15s revert timeout — if predictive poll doesn't confirm, revert text
+            earlySwapRevertTimer = setTimeout(() => {
+              console.log('[Sonos] Early swap revert: track change not confirmed within 15s');
+              setNowPlaying(current => {
+                if (!current) return current;
+                // Only revert if still showing the early-swapped text
+                if (current.track_name === newTrackName && current.artist_name === newArtistName) {
+                  return { ...current, track_name: origTrack, artist_name: origArtist };
+                }
+                return current;
+              });
+              earlySwapRevertTimer = null;
+            }, 15000);
+
             return {
               ...prev,
+              track_name: newTrackName,
+              artist_name: newArtistName,
               album_art_url: newArtUrl,
               bg_image_url: newBgUrl,
               widget_art_url: newWidgetArtUrl,
               next_album_art_url: null,
               next_bg_image_url: null,
               next_widget_art_url: null,
+              next_track_name: null,
+              next_artist_name: null,
             };
           });
         }
@@ -180,6 +210,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     return () => {
       clearInterval(ticker);
       if (predictiveTimer) clearTimeout(predictiveTimer);
+      if (earlySwapRevertTimer) clearTimeout(earlySwapRevertTimer);
       predictiveScheduledRef.current = false;
       earlySwapDoneRef.current = false;
       setPrefetchStatus('idle');
