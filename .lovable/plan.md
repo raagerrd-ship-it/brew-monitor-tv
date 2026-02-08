@@ -1,76 +1,68 @@
 
 
-## Kritisk granskning av Sonos-integrationen
+## Djupanalys av Sonos-integrationen -- Runda 3
 
-### Bugg 1 (KRITISK): `tokenData` refereras men existerar inte
+### Sammanfattning
 
-**Fil:** `supabase/functions/sync-sonos-now-playing/index.ts`, rad 397
-
-```
-await supabase.from('sonos_tokens').update({ household_id: householdId }).eq('id', tokenData.id);
-```
-
-Variabeln `tokenData` finns inte langre i scope efter att token-logiken extraherades till `getValidAccessToken()`. Denna rad kraschar edge-funktionen nar ingen grupp ar vald och systemet forsoker auto-valja en. `tokenResult.tokenId` ska anvandas istallet.
-
-**Fix:** Ersatt `tokenData.id` med `tokenResult.tokenId`
+Koden ar betydligt renare efter de tva foregaende rundorna. Denna granskning hittar **4 konkreta problem** -- 1 bugg, 2 inkonsekvenser och 1 sakerhetsrisk.
 
 ---
 
-### Bugg 2: `prefetch_seconds` hamtas inte fran databasen i `useSonosInit`
+### Problem 1: Hardkodad Supabase-URL i SonosCallback
 
-**Fil:** `src/components/sonos/hooks/useSonosInit.ts`, rad 27-28 och 48
+**Fil:** `src/pages/SonosCallback.tsx`, rad 33
 
-Init-hooken valjer `track_change_offset_seconds` i SQL-queryn men **inte** `prefetch_seconds`. Pa rad 48 lasas `settings?.prefetch_seconds` men vardet ar alltid `undefined` eftersom kolumnen aldrig efterfragas. Resultatet ar att ref:en alltid far fallback-vardet 30.
+```
+`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-auth?action=callback&code=${encodeURIComponent(code)}`
+```
 
-**Fix:** Lagg till `prefetch_seconds` i `.select()`-anropet pa rad 27.
+Samma typ av problem som fixades i SonosSettings -- en hardkodad URL istallet for `import.meta.env.VITE_SUPABASE_URL`. Dessutom saknas `Authorization`-header pa anropet.
+
+**Fix:** Ersatt med `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=callback&code=...` och lagg till auth-header.
 
 ---
 
-### Bugg 3: `sonos-groups` anropas utan auth-headers
+### Problem 2: `isTvMode` skickas aldrig till SonosWidget
 
-**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 41
+**Fil:** `src/components/BrewingDashboard.tsx`, rad 432
+
+```tsx
+<SonosWidget isMobile={false} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug />
+```
+
+Widgeten accepterar `isTvMode` som prop (rad 10 i SonosWidget.tsx) men BrewingDashboard skickar aldrig med det. Resultatet ar att `isTvMode` alltid ar `false` inne i widgeten. Idag anvands inte proppen for nagon logik inuti widgeten, sa det har ingen synlig effekt -- men det ar en tyst bugg som kan bli problematisk om TV-specifik logik laggs till i framtiden.
+
+**Fix:** Skicka `isTvMode={isTvMode}` till SonosWidget.
+
+---
+
+### Problem 3: `handleConnect` saknar auth-header
+
+**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 89-91
 
 ```ts
-fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`)
+const response = await fetch(
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=start`
+);
 ```
 
-Anropet saknar `Authorization`-header. Alla andra edge function-anrop inkluderar `Bearer`-token. Att detta fungerar idag beror pa att edge-funktionen inte validerar JWT — men det ar inkonsekvent och potentiellt osaker om JWT-validering nagonsin aktiveras.
+Alla andra edge function-anrop i filen inkluderar `Authorization`-header, men `action=start` gor det inte. Samma inkonsekvent-monster som fixades for `sonos-groups` i forra rundan.
 
-**Fix:** Lagg till headers med `Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`.
-
----
-
-### Bugg 4: Stale `nowPlaying.playback_state` i tickern
-
-**Fil:** `src/components/sonos/hooks/useSonosPlaybackTicker.ts`, rad 105
-
-```ts
-const isPlaying = nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING';
-```
-
-`nowPlaying` fangas i closure nar effekten skapas. Nar spelaren pausas andras `nowPlaying.playback_state` via `setNowPlaying`, men effekten tar **inte** om sig forran `playback_state` andras i dependency-arrayen (rad 174). Sa detta fungerar korrekt — men enbart for att `playback_state` ar med som dependency. Dock: nar en 5s-poll uppdaterar `playback_state` inom samma `track_name`, aterreras hela tickern onodigt.
-
-**Bedomning:** Fungerar korrekt men fragilt. En enkel forbattring ar att lasa `playback_state` fran en ref istallet for closure.
+**Fix:** Lagg till `Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` i headers.
 
 ---
 
-### Problem 5: `PREFETCH_THRESHOLD_MS` exporteras men anvands aldrig
+### Problem 4: Dubbel delete av `sonos_now_playing` vid disconnect
 
-**Fil:** `src/components/sonos/hooks/types.ts`, rad 24
+**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 107-120
 
-Konstanten `PREFETCH_THRESHOLD_MS = 30000` exporteras men anvands inte langre (tickern anvander nu `prefetchSecondsRef`). Dodkod som kan forvirra.
+Klienten gor tva parallella deletes av `sonos_now_playing`:
+1. Edge-funktionen `sonos-auth?action=disconnect` (rad 181 i sonos-auth) tar bort raden fran databasen server-side
+2. Klienten (rad 119) gor ocksa `(supabase as any).from('sonos_now_playing').delete().neq('id', '')`
 
-**Fix:** Ta bort exporten.
+Dessa konfliktar inte rent tekniskt, men klientens delete anvander `neq('id', '')` medan serverns anvander `neq('id', '00000000-...')`. Om tabellens RLS-policies eller id-format andras kan en av dem misslyckas tyst. Dessutom ar klientens anrop redundant nu nar edge-funktionen redan gor samma sak.
 
----
-
-### Problem 6: `sonos-auth` disconnect saknar cleanup
-
-**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 103-116
-
-Nar anvandaren kopplar bort Sonos rensas bara lokal React-state. `sonos_now_playing`-raden i databasen tas inte bort, och bakgrunds-prenumerationen (Realtime) fortsatter att peka pa gammal data. Nasta sidladdning kan visa en "spoke"-widget med gammal data tills cron-jobbet rensar.
-
-**Fix:** Latt prioritet — losa genom att lagga till en databas-rensning i disconnect-edge-funktionen eller som ett extra client-anrop.
+**Fix:** Ta bort den lokala klient-deleten -- lat edge-funktionen hantera all cleanup.
 
 ---
 
@@ -78,10 +70,23 @@ Nar anvandaren kopplar bort Sonos rensas bara lokal React-state. `sonos_now_play
 
 | Prioritet | Fil | Andring |
 |-----------|-----|---------|
-| KRITISK | `sync-sonos-now-playing/index.ts` rad 397 | `tokenData.id` -> `tokenResult.tokenId` |
-| HOG | `useSonosInit.ts` rad 27 | Lagg till `prefetch_seconds` i `.select()` |
-| MEDEL | `SonosSettings.tsx` rad 41 | Lagg till auth headers pa `sonos-groups` fetch |
-| LAG | `types.ts` rad 24 | Ta bort `PREFETCH_THRESHOLD_MS` |
-| LAG | Ticker rad 105 | Valfritt: las `playback_state` fran ref |
-| LAG | `SonosSettings.tsx` disconnect | Rensa `sonos_now_playing` vid disconnect |
+| MEDEL | `SonosCallback.tsx` rad 33 | Ersatt hardkodad URL med env-variabel + lagg till auth-header |
+| LAG | `BrewingDashboard.tsx` rad 432 | Lagg till `isTvMode={isTvMode}` pa SonosWidget |
+| LAG | `SonosSettings.tsx` rad 89 | Lagg till auth-header pa `handleConnect` |
+| LAG | `SonosSettings.tsx` rad 119 | Ta bort redundant klient-delete |
+
+---
+
+### Vad som nu fungerar korrekt
+
+Efter tre granskningsrundor ar foljande bekraftat:
+
+- **Token-hantering:** Konsoliderad i delad hjalpfil, alla edge functions anvander `await`
+- **Prefetch-installning:** Hamtas fran databasen och anvands korrekt via ref
+- **Client polling:** Ingen double-update, stale closure hanterad via nowPlayingRef
+- **Realtime:** 15s cooldown, spårmedveten filtrering, bakgrundsbild-undantag
+- **Ticker:** DOM-baserad progress, prediktiv polling, prefetch, early swap
+- **Bakgrundssynk:** Rullande buffer, bassokvagskomparation, preload-mekanism
+- **Visibility:** 5s grace period, korrekt PAUSED/IDLE-hantering
+- **Edge functions:** Chunk-baserad base64, parallella API-anrop, timeout-hantering
 
