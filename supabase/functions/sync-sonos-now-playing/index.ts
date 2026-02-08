@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getValidAccessToken } from "../_shared/sonos-token.ts";
-import { BgSettings } from "../_shared/image-processing.ts";
+import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackgroundAndWidget, cleanupOldBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
 
@@ -26,20 +26,9 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-  // Parse viewport dimensions from request body (optional)
-  let viewportW = 1280;
-  let viewportH = 720;
-  try {
-    if (req.method === 'POST') {
-      const body = await req.json();
-      if (body.viewportWidth && body.viewportHeight) {
-        viewportW = Math.min(3840, Math.max(640, Math.round(body.viewportWidth * 1.15)));
-        viewportH = Math.min(2160, Math.max(360, Math.round(body.viewportHeight * 1.15)));
-      }
-    }
-  } catch {
-    // No body or invalid JSON — use defaults
-  }
+  // Fixed resolution for background images (matches locked 720p layout)
+  const viewportW = 1280;
+  const viewportH = 720;
 
   try {
     // Fetch settings

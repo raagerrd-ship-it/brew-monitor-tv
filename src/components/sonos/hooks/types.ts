@@ -46,10 +46,6 @@ export function triggerServerSync(): void {
       'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    }),
     signal: controller.signal,
   }).catch(() => {}).finally(() => clearTimeout(timeout));
 }
