@@ -429,7 +429,7 @@ export function BrewingDashboard() {
             right: '12px',
           }}
         >
-          <SonosWidget isMobile={false} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug />
+          <SonosWidget isMobile={false} isTvMode={isTvMode} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug />
         </div>
       )}
 
