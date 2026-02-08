@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getValidAccessToken } from "../_shared/sonos-token.ts";
 import { decode as decodeJpeg, encode as encodeJpeg } from "npm:jpeg-js@0.4.4";
 
 const corsHeaders = {
@@ -339,21 +340,12 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: tokens, settings
-    const [tokenResult, settingsResult] = await Promise.all([
-      supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height').limit(1).single(),
-    ]);
-
-    const tokenData = tokenResult.data;
-    const settings = settingsResult.data;
-
-    if (!tokenData) {
-      console.log('[SonosSync] Not connected to Sonos');
-      return new Response(JSON.stringify({ ok: false, reason: 'not_connected' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Fetch settings
+    const { data: settings } = await supabase
+      .from('sonos_settings')
+      .select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+      .limit(1)
+      .single();
 
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
@@ -364,40 +356,17 @@ serve(async (req) => {
       topGradientHeight: settings?.bg_top_gradient_height ?? 85,
     };
 
-    // Check if token is expired and refresh if needed
-    const isExpired = new Date(tokenData.expires_at) < new Date();
-    let accessToken = tokenData.access_token;
+    // Get valid access token (refresh if expired)
+    const tokenResult = await getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!);
 
-    if (isExpired) {
-      const tokenResponse = await fetch('https://api.sonos.com/login/v3/oauth/access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${btoa(`${SONOS_CLIENT_ID}:${SONOS_CLIENT_SECRET}`)}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokenData.refresh_token,
-        }),
+    if (!tokenResult) {
+      console.error('[SonosSync] Failed to get valid token');
+      return new Response(JSON.stringify({ ok: false, reason: 'token_refresh_failed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
-
-      if (!tokenResponse.ok) {
-        console.error('[SonosSync] Failed to refresh token');
-        return new Response(JSON.stringify({ ok: false, reason: 'token_refresh_failed' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const tokens = await tokenResponse.json();
-      accessToken = tokens.access_token;
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      await supabase.from('sonos_tokens').update({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: expiresAt.toISOString(),
-      }).eq('id', tokenData.id);
     }
+
+    const accessToken = tokenResult.accessToken;
 
     let groupId = settings?.selected_group_id;
 

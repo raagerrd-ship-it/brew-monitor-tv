@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   NowPlaying, PrefetchStatus,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
-  PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES, PREFETCH_THRESHOLD_MS,
+  PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
   pushToBgBuffer, updateProgressDOM,
 } from './types';
 
@@ -26,6 +26,7 @@ interface UseSonosPlaybackTickerParams {
   predictiveScheduledRef: React.MutableRefObject<boolean>;
   prefetchTriggeredForTrackRef: React.MutableRefObject<string | null>;
   trackChangeOffsetRef: React.MutableRefObject<number>;
+  prefetchSecondsRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
@@ -45,7 +46,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     nowPlaying, setNowPlaying, setPrefetchStatus, handleTrackChange,
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
-    trackChangeOffsetRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
+    trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   } = params;
 
@@ -134,7 +135,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         }
 
         // Prefetch: trigger server sync before end (once per track)
-        if (timeRemaining <= PREFETCH_THRESHOLD_MS && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
+        if (timeRemaining <= prefetchSecondsRef.current * 1000 && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
           prefetchTriggeredForTrackRef.current = trackName;
           setPrefetchStatus('fetching');
           console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);

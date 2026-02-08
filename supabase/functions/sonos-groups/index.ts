@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getValidAccessToken } from "../_shared/sonos-token.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,60 +22,16 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Get tokens
-    const { data: tokenData } = await supabase
-      .from('sonos_tokens')
-      .select('*')
-      .limit(1)
-      .single();
+    const tokenResult = await getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!);
 
-    if (!tokenData) {
+    if (!tokenResult) {
       return new Response(
         JSON.stringify({ connected: false, groups: [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if token is expired and refresh if needed
-    const isExpired = new Date(tokenData.expires_at) < new Date();
-    let accessToken = tokenData.access_token;
-
-    if (isExpired) {
-      console.log('Token expired, refreshing...');
-      
-      const tokenResponse = await fetch('https://api.sonos.com/login/v3/oauth/access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${btoa(`${SONOS_CLIENT_ID}:${SONOS_CLIENT_SECRET}`)}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokenData.refresh_token,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        console.error('Token refresh failed');
-        return new Response(
-          JSON.stringify({ error: 'Failed to refresh token', connected: false }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const tokens = await tokenResponse.json();
-      accessToken = tokens.access_token;
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      await supabase
-        .from('sonos_tokens')
-        .update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: expiresAt.toISOString(),
-        })
-        .eq('id', tokenData.id);
-    }
+    const accessToken = tokenResult.accessToken;
 
     // Get households
     const householdsResponse = await fetch(`${SONOS_API_URL}/households`, {
