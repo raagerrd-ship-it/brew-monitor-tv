@@ -574,14 +574,17 @@ serve(async (req) => {
       // cron (1280x720) from overwriting client-generated (viewport-sized) images
       const reuseCurrentBg = sameTrack && existingRow.bg_image_url;
       const reuseCurrentWidget = sameTrack && existingRow.widget_art_url;
+      // Also reuse next-track images if the next track hasn't changed
+      const reuseNextBg = sameTrack && existingRow.next_bg_image_url;
+      const reuseNextWidget = sameTrack && existingRow.next_widget_art_url;
 
       const [currentResult, nextResult] = await Promise.all([
         currentArt.medium && (!reuseCurrentBg || !reuseCurrentWidget)
           ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH)
           : Promise.resolve({ bgUrl: reuseCurrentBg || null, widgetUrl: reuseCurrentWidget || null }),
-        nextArt.medium
+        nextArt.medium && (!reuseNextBg || !reuseNextWidget)
           ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH)
-          : Promise.resolve({ bgUrl: null, widgetUrl: null }),
+          : Promise.resolve({ bgUrl: reuseNextBg || null, widgetUrl: reuseNextWidget || null }),
       ]);
 
       bgImageUrl = currentResult.bgUrl;
