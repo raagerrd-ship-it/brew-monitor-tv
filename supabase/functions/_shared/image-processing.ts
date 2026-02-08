@@ -76,14 +76,23 @@ export function resizeBilinear(
   return dst;
 }
 
-// Apply blur via downscale-upscale trick
+// Apply blur via multi-pass downscale-upscale for smooth results
 function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint8Array {
   if (blur <= 0) return pixels;
-  const factor = Math.max(2, Math.min(80, Math.round(blur / 2.5)));
-  const smallW = Math.max(4, Math.round(w / factor));
-  const smallH = Math.max(4, Math.round(h / factor));
-  const small = resizeBilinear(pixels, w, h, smallW, smallH);
-  return resizeBilinear(small, smallW, smallH, w, h);
+
+  // Number of passes scales with blur amount (e.g., blur=40 -> 4 passes, blur=200 -> 10)
+  const passes = Math.max(1, Math.min(12, Math.round(blur / 10)));
+  // Each pass uses a gentle downscale factor (2-4x)
+  const perPassFactor = Math.max(2, Math.min(4, Math.round(blur / (passes * 3)) + 2));
+
+  let result = pixels;
+  for (let i = 0; i < passes; i++) {
+    const smallW = Math.max(4, Math.round(w / perPassFactor));
+    const smallH = Math.max(4, Math.round(h / perPassFactor));
+    const small = resizeBilinear(result, w, h, smallW, smallH);
+    result = resizeBilinear(small, smallW, smallH, w, h);
+  }
+  return result;
 }
 
 // Measure average luminance of pixel data
