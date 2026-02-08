@@ -52,8 +52,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             return {
               ...prev,
               bg_image_url: updatedBg,
+              widget_art_url: incoming.widget_art_url || prev.widget_art_url,
               next_album_art_url: incoming.next_album_art_url || prev.next_album_art_url,
               next_bg_image_url: incoming.next_bg_image_url || prev.next_bg_image_url,
+              next_widget_art_url: incoming.next_widget_art_url || prev.next_widget_art_url,
             };
           }
           console.log(`[Sonos] Ignoring realtime during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}"`);
