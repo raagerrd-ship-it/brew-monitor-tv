@@ -368,38 +368,6 @@ export function SonosSettings() {
               </p>
             </div>
 
-            {/* Background Contrast */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Kontrast</Label>
-                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgContrast * 100)}%</span>
-              </div>
-              <Slider
-                value={[bgContrast]}
-                min={0.5}
-                max={1.5}
-                step={0.05}
-                onValueChange={(v) => setBgContrast(v[0])}
-              />
-            </div>
-
-            {/* Background Saturation */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Färgmättnad</Label>
-                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgSaturation * 100)}%</span>
-              </div>
-              <Slider
-                value={[bgSaturation]}
-                min={0}
-                max={2.0}
-                step={0.05}
-                onValueChange={(v) => setBgSaturation(v[0])}
-              />
-              <p className="text-xs text-muted-foreground">
-                0% = gråskala, 100% = original, 200% = övermättad
-              </p>
-            </div>
 
             {/* Top Gradient Opacity */}
             <div className="space-y-3">
