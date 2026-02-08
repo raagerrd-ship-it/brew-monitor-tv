@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { decode as decodeJpeg, encode as encodeJpeg } from "npm:jpeg-js@0.4.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +20,6 @@ function extractSpotifyTrackId(trackUri: string | undefined): string | null {
 
 // Get album art via Spotify's public oEmbed endpoint (no API key needed)
 async function getAlbumArtViaOEmbed(trackId: string): Promise<{ medium: string | null; small: string | null }> {
-  // Check cache
   const cached = oEmbedCache.get(trackId);
   if (cached) return { medium: cached, small: null };
 
@@ -56,80 +56,163 @@ function isPrivateUrl(url: string): boolean {
   return /192\.168\.|10\.\d|172\.(1[6-9]|2\d|3[01])\.|localhost|127\.0\.0\.1|getaa/.test(url);
 }
 
-// Fetch image as base64 data URL
-async function fetchImageAsBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) return null;
-    const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+// ---- Image Processing Utilities ----
+
+interface BgSettings {
+  blur: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  topGradientOpacity: number;
+  topGradientHeight: number;
+}
+
+// Bilinear resize of RGBA pixel data
+function resizeBilinear(
+  src: Uint8Array, srcW: number, srcH: number,
+  dstW: number, dstH: number
+): Uint8Array {
+  const dst = new Uint8Array(dstW * dstH * 4);
+  const xRatio = srcW / dstW;
+  const yRatio = srcH / dstH;
+
+  for (let y = 0; y < dstH; y++) {
+    const srcY = y * yRatio;
+    const y0 = Math.floor(srcY);
+    const y1 = Math.min(y0 + 1, srcH - 1);
+    const yFrac = srcY - y0;
+
+    for (let x = 0; x < dstW; x++) {
+      const srcX = x * xRatio;
+      const x0 = Math.floor(srcX);
+      const x1 = Math.min(x0 + 1, srcW - 1);
+      const xFrac = srcX - x0;
+
+      const dstIdx = (y * dstW + x) * 4;
+      const i00 = (y0 * srcW + x0) * 4;
+      const i10 = (y0 * srcW + x1) * 4;
+      const i01 = (y1 * srcW + x0) * 4;
+      const i11 = (y1 * srcW + x1) * 4;
+
+      for (let c = 0; c < 4; c++) {
+        const top = src[i00 + c] + (src[i10 + c] - src[i00 + c]) * xFrac;
+        const bot = src[i01 + c] + (src[i11 + c] - src[i01 + c]) * xFrac;
+        dst[dstIdx + c] = Math.round(top + (bot - top) * yFrac);
+      }
     }
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    return `data:${contentType};base64,${btoa(binary)}`;
-  } catch {
-    return null;
+  }
+  return dst;
+}
+
+// Apply blur via downscale-upscale trick
+function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint8Array {
+  if (blur <= 0) return pixels;
+  // Map blur (0-200) to downsample factor
+  const factor = Math.max(2, Math.min(80, Math.round(blur / 2.5)));
+  const smallW = Math.max(4, Math.round(w / factor));
+  const smallH = Math.max(4, Math.round(h / factor));
+  const small = resizeBilinear(pixels, w, h, smallW, smallH);
+  return resizeBilinear(small, smallW, smallH, w, h);
+}
+
+// Apply brightness, contrast, saturation adjustments in-place
+function applyColorAdjustments(
+  pixels: Uint8Array, w: number, h: number,
+  brightness: number, contrast: number, saturation: number,
+): void {
+  const len = w * h * 4;
+  for (let i = 0; i < len; i += 4) {
+    let r = pixels[i];
+    let g = pixels[i + 1];
+    let b = pixels[i + 2];
+
+    // Brightness: scale toward target brightness level
+    r = r * brightness;
+    g = g * brightness;
+    b = b * brightness;
+
+    // Contrast: adjust around midpoint (128)
+    r = ((r - 128) * contrast) + 128;
+    g = ((g - 128) * contrast) + 128;
+    b = ((b - 128) * contrast) + 128;
+
+    // Saturation: blend with luminance
+    if (saturation !== 1.0) {
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = lum + (r - lum) * saturation;
+      g = lum + (g - lum) * saturation;
+      b = lum + (b - lum) * saturation;
+    }
+
+    pixels[i] = Math.max(0, Math.min(255, Math.round(r)));
+    pixels[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
+    pixels[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
   }
 }
 
-// Generate a background image using Lovable AI
+// Apply dark gradient at the top of the image
+function applyTopGradient(
+  pixels: Uint8Array, w: number, h: number,
+  opacity: number, gradientHeight: number,
+): void {
+  if (opacity <= 0 || gradientHeight <= 0) return;
+  const maxY = Math.min(gradientHeight, h);
+  for (let y = 0; y < maxY; y++) {
+    const factor = 1 - opacity * (1 - y / gradientHeight);
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      pixels[idx] = Math.round(pixels[idx] * factor);
+      pixels[idx + 1] = Math.round(pixels[idx + 1] * factor);
+      pixels[idx + 2] = Math.round(pixels[idx + 2] * factor);
+    }
+  }
+}
+
+// Generate a background image using pure JS image processing
 async function generateBackground(
   artUrl: string,
-  blur: number,
-  apiKey: string,
+  settings: BgSettings,
 ): Promise<string | null> {
-  // Skip private/local URLs
   if (isPrivateUrl(artUrl)) {
     console.log('[SonosSync] Skipping BG for private URL');
     return null;
   }
 
   try {
-    // Fetch image as base64 first so AI gateway doesn't need to access the URL
-    const base64Image = await fetchImageAsBase64(artUrl);
-    if (!base64Image) {
-      console.error('[SonosSync] Failed to fetch image for BG generation');
+    const response = await fetch(artUrl, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    const buffer = await response.arrayBuffer();
+
+    // Decode JPEG
+    let decoded;
+    try {
+      decoded = decodeJpeg(new Uint8Array(buffer), { useTArray: true, formatAsRGBA: true });
+    } catch (e) {
+      console.error('[SonosSync] JPEG decode failed:', e);
       return null;
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image',
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `1. Analyze the average perceived brightness of this image.\n2. Adjust the overall brightness so the result has a consistent, low perceived brightness around 25-30% (dark but with visible color detail). If the image is already dark, brighten it slightly toward that range. If it is bright, darken it significantly.\n3. Apply a Gaussian blur of ${blur}px.\n4. Make the top ~85px edge approximately 40-50% darker than the rest for header readability.\n5. Scale to 1280x720. Output as JPEG.`,
-            },
-            {
-              type: 'image_url',
-              image_url: { url: base64Image },
-            },
-          ],
-        }],
-        modalities: ['image', 'text'],
-      }),
-    });
+    const TARGET_W = 1280;
+    const TARGET_H = 720;
 
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => 'no body');
-      console.error(`[SonosSync] AI gateway error: ${response.status} - ${errorBody}`);
-      return null;
-    }
+    // Resize to target dimensions
+    let pixels = resizeBilinear(decoded.data, decoded.width, decoded.height, TARGET_W, TARGET_H);
 
-    const data = await response.json();
-    const imageData = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    return imageData || null;
+    // Apply blur (downscale-upscale trick)
+    pixels = applyBlur(pixels, TARGET_W, TARGET_H, settings.blur);
+
+    // Apply color adjustments
+    applyColorAdjustments(pixels, TARGET_W, TARGET_H, settings.brightness, settings.contrast, settings.saturation);
+
+    // Apply top gradient for header readability
+    applyTopGradient(pixels, TARGET_W, TARGET_H, settings.topGradientOpacity, settings.topGradientHeight);
+
+    // Encode as JPEG
+    const encoded = encodeJpeg({ data: pixels, width: TARGET_W, height: TARGET_H }, 85);
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(encoded.data)));
+    return `data:image/jpeg;base64,${base64}`;
   } catch (error) {
-    console.error('[SonosSync] AI background generation failed:', error);
+    console.error('[SonosSync] Background generation failed:', error);
     return null;
   }
 }
@@ -141,7 +224,6 @@ async function uploadBackground(
   fileName: string,
 ): Promise<string | null> {
   try {
-    // Extract raw base64 from data URL
     const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 
@@ -161,7 +243,6 @@ async function uploadBackground(
       .from('sonos-backgrounds')
       .getPublicUrl(fileName);
 
-    // Add cache-bust to force reload when file is overwritten
     return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
   } catch (error) {
     console.error('[SonosSync] Upload failed:', error);
@@ -191,11 +272,11 @@ async function cleanupOldBackgrounds(supabase: any, keepFileNames: string[]) {
       .from('sonos-backgrounds')
       .list('', { limit: 50 });
 
-    if (!files || files.length <= 10) return; // Don't bother if few files
+    if (!files || files.length <= 10) return;
 
     const toDelete = files
       .filter((f: any) => !keepFileNames.includes(f.name))
-      .slice(0, files.length - 5) // Keep at least 5 recent files
+      .slice(0, files.length - 5)
       .map((f: any) => f.name);
 
     if (toDelete.length > 0) {
@@ -212,13 +293,13 @@ async function resolveBackground(
   supabase: any,
   artUrl: string | null,
   trackId: string,
-  blur: number,
-  apiKey: string,
+  settings: BgSettings,
 ): Promise<string | null> {
   if (!artUrl) return null;
 
-  const hash = simpleHash(trackId || artUrl);
-  const fileName = `${hash}-${blur}-v5.jpg`;
+  const trackHash = simpleHash(trackId || artUrl);
+  const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
+  const fileName = `${trackHash}-${settingsHash}-v6.jpg`;
 
   // Check cache
   const existing = await backgroundExists(supabase, fileName);
@@ -229,7 +310,7 @@ async function resolveBackground(
 
   // Generate new background
   console.log(`[SonosSync] Generating BG: ${fileName}`);
-  const base64 = await generateBackground(artUrl, blur, apiKey);
+  const base64 = await generateBackground(artUrl, settings);
   if (!base64) return null;
 
   const publicUrl = await uploadBackground(supabase, base64, fileName);
@@ -247,15 +328,14 @@ serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const SONOS_CLIENT_ID = Deno.env.get('SONOS_CLIENT_ID');
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: tokens, settings (including bg_blur/bg_brightness + spotify credentials)
+    // Parallel fetch: tokens, settings
     const [tokenResult, settingsResult] = await Promise.all([
       supabase.from('sonos_tokens').select('*').limit(1).single(),
-      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height').limit(1).single(),
     ]);
 
     const tokenData = tokenResult.data;
@@ -268,7 +348,14 @@ serve(async (req) => {
       });
     }
 
-    const bgBlur = settings?.bg_blur ?? 40;
+    const bgSettings: BgSettings = {
+      blur: settings?.bg_blur ?? 40,
+      brightness: settings?.bg_brightness ?? 0.35,
+      contrast: settings?.bg_contrast ?? 1.0,
+      saturation: settings?.bg_saturation ?? 1.0,
+      topGradientOpacity: settings?.bg_top_gradient_opacity ?? 0.45,
+      topGradientHeight: settings?.bg_top_gradient_height ?? 85,
+    };
 
     // Check if token is expired and refresh if needed
     const isExpired = new Date(tokenData.expires_at) < new Date();
@@ -398,20 +485,20 @@ serve(async (req) => {
       resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
     ]);
 
-    // Generate background images via Lovable AI (parallel for current + next)
+    // Generate background images via pure JS processing (parallel for current + next)
     let bgImageUrl: string | null = null;
     let nextBgImageUrl: string | null = null;
 
-    if (LOVABLE_API_KEY && (currentArt.medium || nextArt.medium)) {
+    if (currentArt.medium || nextArt.medium) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
 
       const [currentBg, nextBg] = await Promise.all([
         currentArt.medium
-          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgBlur, LOVABLE_API_KEY)
+          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgSettings)
           : Promise.resolve(null),
         nextArt.medium
-          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgBlur, LOVABLE_API_KEY)
+          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgSettings)
           : Promise.resolve(null),
       ]);
 

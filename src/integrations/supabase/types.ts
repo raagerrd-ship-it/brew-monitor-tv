@@ -772,6 +772,9 @@ export type Database = {
           bg_blur: number
           bg_brightness: number
           bg_contrast: number
+          bg_saturation: number
+          bg_top_gradient_height: number
+          bg_top_gradient_opacity: number
           created_at: string
           id: string
           prefetch_seconds: number
@@ -787,6 +790,9 @@ export type Database = {
           bg_blur?: number
           bg_brightness?: number
           bg_contrast?: number
+          bg_saturation?: number
+          bg_top_gradient_height?: number
+          bg_top_gradient_opacity?: number
           created_at?: string
           id?: string
           prefetch_seconds?: number
@@ -802,6 +808,9 @@ export type Database = {
           bg_blur?: number
           bg_brightness?: number
           bg_contrast?: number
+          bg_saturation?: number
+          bg_top_gradient_height?: number
+          bg_top_gradient_opacity?: number
           created_at?: string
           id?: string
           prefetch_seconds?: number
