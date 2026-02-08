@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Music, ExternalLink, Unlink } from "lucide-react";
+import { Loader2, Music, ExternalLink, Unlink, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ export function SonosSettings() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [groups, setGroups] = useState<SonosGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
@@ -83,6 +84,32 @@ export function SonosSettings() {
       setIsConnected(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadGroups = async () => {
+    setIsLoadingGroups(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`, {
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.connected) {
+          setIsConnected(true);
+          setGroups(data.groups || []);
+          if (data.groups?.length > 0) {
+            toast.success(`${data.groups.length} rum hittades`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+      toast.error('Kunde inte hämta rum');
+    } finally {
+      setIsLoadingGroups(false);
     }
   };
 
@@ -254,10 +281,22 @@ export function SonosSettings() {
 
             {/* Group Selection */}
             <div className="space-y-2">
-              <Label htmlFor="sonos-group">Rum att visa</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sonos-group">Rum att visa</Label>
+                {groups.length === 0 && (
+                  <Button variant="ghost" size="sm" onClick={loadGroups} disabled={isLoadingGroups}>
+                    {isLoadingGroups ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    <span className="ml-1.5 text-xs">Hämta rum</span>
+                  </Button>
+                )}
+              </div>
               <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
                 <SelectTrigger id="sonos-group">
-                  <SelectValue placeholder="Välj rum..." />
+                  <SelectValue placeholder={groups.length === 0 ? "Inga rum hittade – tryck Hämta rum" : "Välj rum..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {groups.map(group => (
