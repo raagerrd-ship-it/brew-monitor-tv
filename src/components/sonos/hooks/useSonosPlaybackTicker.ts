@@ -16,6 +16,7 @@ interface TrackChangeData {
 
 interface UseSonosPlaybackTickerParams {
   nowPlaying: NowPlaying | null;
+  nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   setPrefetchStatus: (status: PrefetchStatus) => void;
   handleTrackChange: (data: TrackChangeData, earlySwapped: boolean) => void;
@@ -43,7 +44,7 @@ interface UseSonosPlaybackTickerParams {
  */
 export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
-    nowPlaying, setNowPlaying, setPrefetchStatus, handleTrackChange,
+    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus, handleTrackChange,
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
     trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
@@ -102,7 +103,9 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (prev === null) return;
 
         // Only advance progress when actually playing (not during PAUSED/BUFFERING)
-        const isPlaying = nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING';
+        // Read from nowPlayingRef to avoid stale closure
+        const currentState = nowPlayingRef?.current?.playback_state ?? nowPlaying.playback_state;
+        const isPlaying = currentState === 'PLAYBACK_STATE_PLAYING';
         const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
         localProgressRef.current = next;
 

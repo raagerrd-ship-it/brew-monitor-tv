@@ -394,7 +394,7 @@ serve(async (req) => {
               selected_group_id: groupId,
               selected_group_name: groupsData.groups[0].name,
             });
-            await supabase.from('sonos_tokens').update({ household_id: householdId }).eq('id', tokenData.id);
+            await supabase.from('sonos_tokens').update({ household_id: householdId }).eq('id', tokenResult.tokenId);
           }
         }
       }

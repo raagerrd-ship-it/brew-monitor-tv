@@ -24,7 +24,7 @@ export function useSonosInit(params: UseSonosInitParams) {
         const [settingsResult, nowPlayingResult] = await Promise.all([
           (supabase as any)
             .from('sonos_settings')
-            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
+            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds, prefetch_seconds')
             .limit(1)
             .maybeSingle(),
           (supabase as any)
