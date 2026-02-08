@@ -155,18 +155,18 @@ serve(async (req) => {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
 
-      const reuseCurrentBg = sameTrack && existingRow.bg_image_url;
+      // Only reuse widget (settings-independent); background depends on settings hash
+      // so we let resolveBackgroundAndWidget check the cache by filename
       const reuseCurrentWidget = sameTrack && existingRow.widget_art_url;
-      const reuseNextBg = sameTrack && existingRow.next_bg_image_url;
       const reuseNextWidget = sameTrack && existingRow.next_widget_art_url;
 
       const [currentResult, nextResult] = await Promise.all([
-        currentArt.medium && (!reuseCurrentBg || !reuseCurrentWidget)
-          ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH)
-          : Promise.resolve({ bgUrl: reuseCurrentBg || null, widgetUrl: reuseCurrentWidget || null }),
-        nextArt.medium && (!reuseNextBg || !reuseNextWidget)
-          ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH)
-          : Promise.resolve({ bgUrl: reuseNextBg || null, widgetUrl: reuseNextWidget || null }),
+        currentArt.medium
+          ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null)
+          : Promise.resolve({ bgUrl: null, widgetUrl: reuseCurrentWidget || null }),
+        nextArt.medium
+          ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, reuseNextWidget || null)
+          : Promise.resolve({ bgUrl: null, widgetUrl: reuseNextWidget || null }),
       ]);
 
       bgImageUrl = currentResult.bgUrl;
