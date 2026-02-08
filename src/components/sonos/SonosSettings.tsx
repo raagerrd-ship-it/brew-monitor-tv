@@ -38,7 +38,11 @@ export function SonosSettings() {
     setIsLoading(true);
     try {
       const [groupsResponse, settingsResult] = await Promise.all([
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`),
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`, {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }),
         (supabase as any)
           .from('sonos_settings')
           .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
@@ -102,9 +106,18 @@ export function SonosSettings() {
 
   const handleDisconnect = async () => {
     try {
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`
-      );
+      await Promise.all([
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`,
+          {
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        ),
+        // Clean up now-playing data so widget doesn't show stale info
+        (supabase as any).from('sonos_now_playing').delete().neq('id', ''),
+      ]);
       setIsConnected(false);
       setGroups([]);
       setSelectedGroupId(null);

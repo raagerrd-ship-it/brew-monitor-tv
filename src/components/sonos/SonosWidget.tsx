@@ -60,7 +60,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosPlaybackTicker({
-    nowPlaying, setNowPlaying, setPrefetchStatus, handleTrackChange,
+    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus, handleTrackChange,
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
     trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,

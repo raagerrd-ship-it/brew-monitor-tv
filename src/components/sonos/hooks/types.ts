@@ -21,7 +21,7 @@ export const PREDICTIVE_MARGIN_MS = 500;
 export const PREDICTIVE_RETRY_INTERVAL_MS = 1000;
 export const PREDICTIVE_MAX_RETRIES = 3;
 export const PREDICTIVE_COOLDOWN_MS = 3000;
-export const PREFETCH_THRESHOLD_MS = 30000;
+
 
 export function stripQuery(url: string): string {
   return url.split('?')[0];
