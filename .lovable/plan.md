@@ -1,84 +1,87 @@
 
 
-## Djupgranskning av Sonos-integrationen -- Slutresultat
+## Kritisk granskning av Sonos-integrationen
 
-### Sammanfattning
+### Bugg 1 (KRITISK): `tokenData` refereras men existerar inte
 
-Arkitekturen ar valbyggd och foljer beprövade mönster for TV-prestanda (DOM-refs, konsoliderad ticker, prediktiv polling). Efter konsolideringen finns inga redundanta edge-funktioner kvar. Dock finns **5 konkreta problem** kvar att åtgärda:
+**Fil:** `supabase/functions/sync-sonos-now-playing/index.ts`, rad 397
 
----
+```
+await supabase.from('sonos_tokens').update({ household_id: householdId }).eq('id', tokenData.id);
+```
 
-### Problem 1: `prefetchSeconds` sparas men anvands aldrig
+Variabeln `tokenData` finns inte langre i scope efter att token-logiken extraherades till `getValidAccessToken()`. Denna rad kraschar edge-funktionen nar ingen grupp ar vald och systemet forsoker auto-valja en. `tokenResult.tokenId` ska anvandas istallet.
 
-Anvandaren kan justera "Forladdning av albumomslag" (10-60s) i installningarna. Vardet sparas till databasen men klienten anvander alltid den hardkodade konstanten `PREFETCH_THRESHOLD_MS = 30000` i `useSonosPlaybackTicker.ts` (rad 137). Init-hooken hamtar inte heller detta varde fran databasen.
-
-**Fix:**
-- Hamta `prefetch_seconds` i `useSonosInit` tillsammans med `track_change_offset_seconds`
-- Skicka det till tickern via en ref istallet for att anvanda den hardkodade konstanten
+**Fix:** Ersatt `tokenData.id` med `tokenResult.tokenId`
 
 ---
 
-### Problem 2: Duplicerad token-refresh i 3 edge functions
+### Bugg 2: `prefetch_seconds` hamtas inte fran databasen i `useSonosInit`
 
-Token-refresh-logiken (hämta token, kontrollera expiry, POST till Sonos, uppdatera DB) finns kopierad i:
-- `sonos-playback-status` (rad 43-72)
-- `sync-sonos-now-playing` (rad 371-400)
-- `sonos-groups` (rad 42-77)
+**Fil:** `src/components/sonos/hooks/useSonosInit.ts`, rad 27-28 och 48
 
-(`sonos-auth` har en separat refresh-action men det ar ett distinkt anvandningsfall.)
+Init-hooken valjer `track_change_offset_seconds` i SQL-queryn men **inte** `prefetch_seconds`. Pa rad 48 lasas `settings?.prefetch_seconds` men vardet ar alltid `undefined` eftersom kolumnen aldrig efterfragas. Resultatet ar att ref:en alltid far fallback-vardet 30.
 
-**Fix:**
-- Skapa en delad hjalp-fil `supabase/functions/_shared/sonos-token.ts` med en `getValidAccessToken(supabase, clientId, clientSecret)` funktion
-- Importera den i alla tre edge functions
+**Fix:** Lagg till `prefetch_seconds` i `.select()`-anropet pa rad 27.
 
 ---
 
-### Problem 3: Hardkodade Supabase-URL:er i SonosSettings
+### Bugg 3: `sonos-groups` anropas utan auth-headers
 
-`SonosSettings.tsx` anvander hardkodade URL:er (`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/...`) pa rad 41, 86 och 106, istallet for `import.meta.env.VITE_SUPABASE_URL`. Detta fungerar idag men bryter portabilitet och ar inkonsekvent med resten av kodbasen.
+**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 41
 
-**Fix:**
-- Ersatt alla tre forekomster med `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/...`
+```ts
+fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`)
+```
 
----
+Anropet saknar `Authorization`-header. Alla andra edge function-anrop inkluderar `Bearer`-token. Att detta fungerar idag beror pa att edge-funktionen inte validerar JWT — men det ar inkonsekvent och potentiellt osaker om JWT-validering nagonsin aktiveras.
 
-### Problem 4: Fire-and-forget token-uppdatering i `sonos-playback-status`
-
-Pa rad 67-71 i `sonos-playback-status` gors token-uppdateringen som fire-and-forget (`.then(() => {})`). Om uppdateringen misslyckas refreshas token vid varje anrop (var 5:e sekund) -- onödigt API-slöseri mot Sonos.
-
-De andra edge-funktionerna (`sync-sonos-now-playing`, `sonos-groups`) använder `await` korrekt.
-
-**Fix:**
-- Lös automatiskt nar token-refresh extraheras till delad hjälpfil (Problem 2), dar `await` anvands.
+**Fix:** Lagg till headers med `Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`.
 
 ---
 
-### Problem 5: Stale closure-risk i `useSonosClientPolling`
+### Bugg 4: Stale `nowPlaying.playback_state` i tickern
 
-Effekten beror pa `nowPlaying?.track_name` och `nowPlaying?.playback_state` men anvander `nowPlaying.duration_ms` och `nowPlaying.bg_image_url` inuti poll-callbacken (rad 76, 111). Dessa varden fangas vid effektens start och uppdateras inte om de andras utan att track/state andras. I praktiken ar detta ovanligt men principiellt felaktigt.
+**Fil:** `src/components/sonos/hooks/useSonosPlaybackTicker.ts`, rad 105
 
-**Fix:**
-- Anvand `nowPlaying.duration_ms` fran poll-svaret (`data.durationMillis`) som redan görs (rad 76: `data.durationMillis ?? nowPlaying.duration_ms`), sa detta ar redan delvis hanterat
-- For `bg_image_url` i bakgrunds-safeguarden: anvand en ref for nowPlaying som uppdateras vid varje render (samma mönster som `onAlbumArtChangeRef`)
+```ts
+const isPlaying = nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING';
+```
+
+`nowPlaying` fangas i closure nar effekten skapas. Nar spelaren pausas andras `nowPlaying.playback_state` via `setNowPlaying`, men effekten tar **inte** om sig forran `playback_state` andras i dependency-arrayen (rad 174). Sa detta fungerar korrekt — men enbart for att `playback_state` ar med som dependency. Dock: nar en 5s-poll uppdaterar `playback_state` inom samma `track_name`, aterreras hela tickern onodigt.
+
+**Bedomning:** Fungerar korrekt men fragilt. En enkel forbattring ar att lasa `playback_state` fran en ref istallet for closure.
+
+---
+
+### Problem 5: `PREFETCH_THRESHOLD_MS` exporteras men anvands aldrig
+
+**Fil:** `src/components/sonos/hooks/types.ts`, rad 24
+
+Konstanten `PREFETCH_THRESHOLD_MS = 30000` exporteras men anvands inte langre (tickern anvander nu `prefetchSecondsRef`). Dodkod som kan forvirra.
+
+**Fix:** Ta bort exporten.
+
+---
+
+### Problem 6: `sonos-auth` disconnect saknar cleanup
+
+**Fil:** `src/components/sonos/SonosSettings.tsx`, rad 103-116
+
+Nar anvandaren kopplar bort Sonos rensas bara lokal React-state. `sonos_now_playing`-raden i databasen tas inte bort, och bakgrunds-prenumerationen (Realtime) fortsatter att peka pa gammal data. Nasta sidladdning kan visa en "spoke"-widget med gammal data tills cron-jobbet rensar.
+
+**Fix:** Latt prioritet — losa genom att lagga till en databas-rensning i disconnect-edge-funktionen eller som ett extra client-anrop.
 
 ---
 
 ### Implementationsplan
 
-1. **Skapa `supabase/functions/_shared/sonos-token.ts`** -- delad token-refresh-logik
-2. **Uppdatera 3 edge functions** att importera fran den delade filen
-3. **Hamta `prefetch_seconds` i `useSonosInit`** och skicka via ref till tickern
-4. **Uppdatera `useSonosPlaybackTicker`** att anvanda ref istallet for hardkodad konstant
-5. **Ersatt hardkodade URL:er** i `SonosSettings.tsx`
-
-### Vad som redan fungerar bra
-
-- DOM-ref-baserad progress bar (noll React-rerenders)
-- Prediktiv polling med retry-logik
-- 15s cooldown for Realtime efter spårbyte
-- Early swap-logik for sömlösa övergångar
-- Server-side bildbehandling (Chromecast belastas inte)
-- Chunk-baserad base64-kodning for stora bilder
-- 5s grace period for IDLE-tillstånd
-- Bakgrunds-synk-säkerhetsmekanismen med rullande buffer
+| Prioritet | Fil | Andring |
+|-----------|-----|---------|
+| KRITISK | `sync-sonos-now-playing/index.ts` rad 397 | `tokenData.id` -> `tokenResult.tokenId` |
+| HOG | `useSonosInit.ts` rad 27 | Lagg till `prefetch_seconds` i `.select()` |
+| MEDEL | `SonosSettings.tsx` rad 41 | Lagg till auth headers pa `sonos-groups` fetch |
+| LAG | `types.ts` rad 24 | Ta bort `PREFETCH_THRESHOLD_MS` |
+| LAG | Ticker rad 105 | Valfritt: las `playback_state` fran ref |
+| LAG | `SonosSettings.tsx` disconnect | Rensa `sonos_now_playing` vid disconnect |
 
