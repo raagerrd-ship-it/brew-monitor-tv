@@ -68,6 +68,38 @@ interface BgSettings {
   topGradientHeight: number;
 }
 
+// Center-crop source pixels to target aspect ratio, returns cropped region
+function cropToAspectRatio(
+  srcData: Uint8Array, srcW: number, srcH: number,
+  targetAspect: number,
+): { data: Uint8Array; width: number; height: number } {
+  const srcAspect = srcW / srcH;
+  let cropW: number, cropH: number, offsetX: number, offsetY: number;
+
+  if (srcAspect > targetAspect) {
+    // Source is wider — crop horizontally
+    cropH = srcH;
+    cropW = Math.round(srcH * targetAspect);
+    offsetX = Math.round((srcW - cropW) / 2);
+    offsetY = 0;
+  } else {
+    // Source is taller — crop vertically
+    cropW = srcW;
+    cropH = Math.round(srcW / targetAspect);
+    offsetX = 0;
+    offsetY = Math.round((srcH - cropH) / 2);
+  }
+
+  const cropped = new Uint8Array(cropW * cropH * 4);
+  for (let y = 0; y < cropH; y++) {
+    const srcStart = ((offsetY + y) * srcW + offsetX) * 4;
+    const dstStart = y * cropW * 4;
+    cropped.set(srcData.subarray(srcStart, srcStart + cropW * 4), dstStart);
+  }
+
+  return { data: cropped, width: cropW, height: cropH };
+}
+
 // Bilinear resize of RGBA pixel data
 function resizeBilinear(
   src: Uint8Array, srcW: number, srcH: number,
@@ -169,60 +201,70 @@ function applyTopGradient(
   }
 }
 
-// Generate a background image using pure JS image processing
-async function generateBackground(
-  artUrl: string,
-  settings: BgSettings,
-): Promise<string | null> {
-  if (isPrivateUrl(artUrl)) {
-    console.log('[SonosSync] Skipping BG for private URL');
+// Encode pixel data to base64 JPEG data URL
+function pixelsToBase64Jpeg(pixels: Uint8Array, w: number, h: number, quality: number): string {
+  const encoded = encodeJpeg({ data: pixels, width: w, height: h }, quality);
+  const bytes = new Uint8Array(encoded.data);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return `data:image/jpeg;base64,${btoa(binary)}`;
+}
+
+// Fetch and decode a JPEG from URL, returns decoded pixel data
+async function fetchAndDecodeJpeg(url: string): Promise<{ data: Uint8Array; width: number; height: number } | null> {
+  if (isPrivateUrl(url)) {
+    console.log('[SonosSync] Skipping fetch for private URL');
     return null;
   }
-
   try {
-    const response = await fetch(artUrl, { signal: AbortSignal.timeout(8000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return null;
     const buffer = await response.arrayBuffer();
-
-    // Decode JPEG
-    let decoded;
-    try {
-      decoded = decodeJpeg(new Uint8Array(buffer), { useTArray: true, formatAsRGBA: true });
-    } catch (e) {
-      console.error('[SonosSync] JPEG decode failed:', e);
-      return null;
-    }
-
-    const TARGET_W = 1280;
-    const TARGET_H = 720;
-
-    // Resize to target dimensions
-    let pixels = resizeBilinear(decoded.data, decoded.width, decoded.height, TARGET_W, TARGET_H);
-
-    // Apply blur (downscale-upscale trick)
-    pixels = applyBlur(pixels, TARGET_W, TARGET_H, settings.blur);
-
-    // Apply color adjustments
-    applyColorAdjustments(pixels, TARGET_W, TARGET_H, settings.brightness, settings.contrast, settings.saturation);
-
-    // Apply top gradient for header readability
-    applyTopGradient(pixels, TARGET_W, TARGET_H, settings.topGradientOpacity, settings.topGradientHeight);
-
-    // Encode as JPEG
-    const encoded = encodeJpeg({ data: pixels, width: TARGET_W, height: TARGET_H }, 85);
-    // Chunk-based base64 to avoid stack overflow on large images
-    const bytes = new Uint8Array(encoded.data);
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    const base64 = btoa(binary);
-    return `data:image/jpeg;base64,${base64}`;
-  } catch (error) {
-    console.error('[SonosSync] Background generation failed:', error);
+    const decoded = decodeJpeg(new Uint8Array(buffer), { useTArray: true, formatAsRGBA: true });
+    return { data: decoded.data, width: decoded.width, height: decoded.height };
+  } catch (e) {
+    console.error('[SonosSync] Fetch/decode failed:', e);
     return null;
   }
+}
+
+// Generate a background image using pure JS image processing
+// targetW/targetH = desired output size (includes scale factor)
+function processBackground(
+  srcData: Uint8Array, srcW: number, srcH: number,
+  targetW: number, targetH: number,
+  settings: BgSettings,
+): string {
+  // Center-crop source to target aspect ratio, then resize
+  const targetAspect = targetW / targetH;
+  const cropped = cropToAspectRatio(srcData, srcW, srcH, targetAspect);
+  let pixels = resizeBilinear(cropped.data, cropped.width, cropped.height, targetW, targetH);
+
+  // Apply blur
+  pixels = applyBlur(pixels, targetW, targetH, settings.blur);
+
+  // Apply color adjustments
+  applyColorAdjustments(pixels, targetW, targetH, settings.brightness, settings.contrast, settings.saturation);
+
+  // Apply top gradient for header readability
+  applyTopGradient(pixels, targetW, targetH, settings.topGradientOpacity, settings.topGradientHeight);
+
+  return pixelsToBase64Jpeg(pixels, targetW, targetH, 85);
+}
+
+// Generate a widget thumbnail (280x130 center-cropped)
+function processWidgetThumbnail(
+  srcData: Uint8Array, srcW: number, srcH: number,
+): string {
+  const WIDGET_W = 280;
+  const WIDGET_H = 130;
+  const targetAspect = WIDGET_W / WIDGET_H;
+  const cropped = cropToAspectRatio(srcData, srcW, srcH, targetAspect);
+  const pixels = resizeBilinear(cropped.data, cropped.width, cropped.height, WIDGET_W, WIDGET_H);
+  return pixelsToBase64Jpeg(pixels, WIDGET_W, WIDGET_H, 80);
 }
 
 // Upload base64 image to storage and return public URL
@@ -296,33 +338,63 @@ async function cleanupOldBackgrounds(supabase: any, keepFileNames: string[]) {
   }
 }
 
-// Resolve background: check cache, generate if needed
-async function resolveBackground(
+// Resolve background + widget thumbnail: check cache, generate if needed
+async function resolveBackgroundAndWidget(
   supabase: any,
   artUrl: string | null,
   trackId: string,
   settings: BgSettings,
-): Promise<string | null> {
-  if (!artUrl) return null;
+  targetW: number,
+  targetH: number,
+): Promise<{ bgUrl: string | null; widgetUrl: string | null }> {
+  if (!artUrl) return { bgUrl: null, widgetUrl: null };
 
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
-  const fileName = `${trackHash}-${settingsHash}-v6.jpg`;
+  const bgFileName = `${trackHash}-${settingsHash}-${targetW}x${targetH}-v7.jpg`;
+  const widgetFileName = `${trackHash}-widget-v1.jpg`;
 
-  // Check cache
-  const existing = await backgroundExists(supabase, fileName);
-  if (existing) {
-    console.log(`[SonosSync] BG cache hit: ${fileName}`);
-    return existing;
+  // Check cache for both in parallel
+  const [existingBg, existingWidget] = await Promise.all([
+    backgroundExists(supabase, bgFileName),
+    backgroundExists(supabase, widgetFileName),
+  ]);
+
+  if (existingBg && existingWidget) {
+    console.log(`[SonosSync] Cache hit: ${bgFileName} + widget`);
+    return { bgUrl: existingBg, widgetUrl: existingWidget };
   }
 
-  // Generate new background
-  console.log(`[SonosSync] Generating BG: ${fileName}`);
-  const base64 = await generateBackground(artUrl, settings);
-  if (!base64) return null;
+  // Need source image — fetch once, process both
+  const decoded = await fetchAndDecodeJpeg(artUrl);
+  if (!decoded) return { bgUrl: existingBg, widgetUrl: existingWidget };
 
-  const publicUrl = await uploadBackground(supabase, base64, fileName);
-  return publicUrl;
+  const results: { bgUrl: string | null; widgetUrl: string | null } = {
+    bgUrl: existingBg,
+    widgetUrl: existingWidget,
+  };
+
+  // Generate missing images in parallel
+  const uploads: Promise<void>[] = [];
+
+  if (!existingBg) {
+    console.log(`[SonosSync] Generating BG: ${bgFileName}`);
+    const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
+    uploads.push(
+      uploadBackground(supabase, bgBase64, bgFileName).then(url => { results.bgUrl = url; })
+    );
+  }
+
+  if (!existingWidget) {
+    console.log(`[SonosSync] Generating widget thumbnail: ${widgetFileName}`);
+    const widgetBase64 = processWidgetThumbnail(decoded.data, decoded.width, decoded.height);
+    uploads.push(
+      uploadBackground(supabase, widgetBase64, widgetFileName).then(url => { results.widgetUrl = url; })
+    );
+  }
+
+  await Promise.all(uploads);
+  return results;
 }
 
 serve(async (req) => {
@@ -338,6 +410,22 @@ serve(async (req) => {
   const SONOS_CLIENT_SECRET = Deno.env.get('SONOS_CLIENT_SECRET');
 
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+  // Parse viewport dimensions from request body (optional)
+  let viewportW = 1280;
+  let viewportH = 720;
+  try {
+    if (req.method === 'POST') {
+      const body = await req.json();
+      if (body.viewportWidth && body.viewportHeight) {
+        // Apply scale(1.15) factor and clamp to reasonable range
+        viewportW = Math.min(3840, Math.max(640, Math.round(body.viewportWidth * 1.15)));
+        viewportH = Math.min(2160, Math.max(360, Math.round(body.viewportHeight * 1.15)));
+      }
+    }
+  } catch {
+    // No body or invalid JSON — use defaults
+  }
 
   try {
     // Fetch settings
@@ -461,35 +549,37 @@ serve(async (req) => {
       resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
     ]);
 
-    // Generate background images via pure JS processing (parallel for current + next)
+    // Generate background images + widget thumbnails (parallel for current + next)
     let bgImageUrl: string | null = null;
     let nextBgImageUrl: string | null = null;
+    let widgetArtUrl: string | null = null;
+    let nextWidgetArtUrl: string | null = null;
 
     if (currentArt.medium || nextArt.medium) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
 
-      const [currentBg, nextBg] = await Promise.all([
+      const [currentResult, nextResult] = await Promise.all([
         currentArt.medium
-          ? resolveBackground(supabase, currentArt.medium, currentTrackId, bgSettings)
-          : Promise.resolve(null),
+          ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH)
+          : Promise.resolve({ bgUrl: null, widgetUrl: null }),
         nextArt.medium
-          ? resolveBackground(supabase, nextArt.medium, nextTrackId, bgSettings)
-          : Promise.resolve(null),
+          ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH)
+          : Promise.resolve({ bgUrl: null, widgetUrl: null }),
       ]);
 
-      bgImageUrl = currentBg;
-      nextBgImageUrl = nextBg;
+      bgImageUrl = currentResult.bgUrl;
+      nextBgImageUrl = nextResult.bgUrl;
+      widgetArtUrl = currentResult.widgetUrl;
+      nextWidgetArtUrl = nextResult.widgetUrl;
 
       // Cleanup old files (non-blocking)
       const keepFiles: string[] = [];
-      if (currentBg) {
-        const match = currentBg.match(/\/([^/?]+)\?/);
-        if (match) keepFiles.push(match[1]);
-      }
-      if (nextBg) {
-        const match = nextBg.match(/\/([^/?]+)\?/);
-        if (match) keepFiles.push(match[1]);
+      for (const url of [bgImageUrl, nextBgImageUrl, widgetArtUrl, nextWidgetArtUrl]) {
+        if (url) {
+          const match = url.match(/\/([^/?]+)\?/);
+          if (match) keepFiles.push(match[1]);
+        }
       }
       if (keepFiles.length > 0) {
         cleanupOldBackgrounds(supabase, keepFiles).catch(() => {});
@@ -509,6 +599,8 @@ serve(async (req) => {
       position_ms: positionMs,
       bg_image_url: bgImageUrl,
       next_bg_image_url: nextBgImageUrl,
+      widget_art_url: widgetArtUrl,
+      next_widget_art_url: nextWidgetArtUrl,
     };
 
     // Upsert to DB
@@ -526,7 +618,7 @@ serve(async (req) => {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${duration}ms - ${track?.name || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'})`);
+    console.log(`[SonosSync] Done in ${duration}ms - ${track?.name || 'no track'} (bg: ${bgImageUrl ? `${viewportW}x${viewportH}` : 'no'}, widget: ${widgetArtUrl ? 'yes' : 'no'})`);
 
     return new Response(JSON.stringify({ ok: true, duration_ms: duration }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

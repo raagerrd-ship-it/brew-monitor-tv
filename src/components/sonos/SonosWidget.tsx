@@ -88,7 +88,8 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   // --- Image preloading ---
-  const incomingArtUrl = nowPlaying?.album_art_url ?? null;
+  // Prefer server-generated widget thumbnail over raw Spotify URL
+  const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
 
   // Reset imageError when a new art URL arrives so future tracks aren't blocked
   useEffect(() => {
@@ -161,10 +162,10 @@ export const SonosWidget = memo(function SonosWidget({
         />
       )}
 
-      {/* Preload next track's album art */}
-      {nowPlaying.next_album_art_url && nowPlaying.next_album_art_url !== displayedArtUrl && nowPlaying.next_album_art_url !== incomingArtUrl && (
+      {/* Preload next track's album art (prefer widget thumbnail) */}
+      {(nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== displayedArtUrl && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== incomingArtUrl && (
         <img
-          src={nowPlaying.next_album_art_url}
+          src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
           alt=""
           decoding="async"
           onLoad={() => { if (prefetchStatus === "ready") setPrefetchStatus("loaded"); }}

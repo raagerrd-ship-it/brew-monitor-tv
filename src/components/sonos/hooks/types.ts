@@ -6,6 +6,8 @@ export interface NowPlaying {
   next_album_art_url?: string | null;
   bg_image_url?: string | null;
   next_bg_image_url?: string | null;
+  widget_art_url?: string | null;
+  next_widget_art_url?: string | null;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
@@ -44,6 +46,10 @@ export function triggerServerSync(): void {
       'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify({
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }),
     signal: controller.signal,
   }).catch(() => {}).finally(() => clearTimeout(timeout));
 }
