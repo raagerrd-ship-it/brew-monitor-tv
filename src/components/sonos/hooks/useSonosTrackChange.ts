@@ -49,7 +49,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       if (earlySwapped) {
         // Images already swapped by early swap — only update text metadata
-        console.log('[Sonos:BG] Track change (early swapped) — keeping current images');
+        console.log('[Sonos:BG] artStatus: displayed (early swapped)');
         setCurrentArtStatus('displayed');
         return {
           ...prev,

@@ -122,6 +122,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             if (!prev?.next_album_art_url) return prev;
             earlySwapDoneRef.current = true;
             setPrefetchStatus('loaded');
+            console.log('[Sonos:BG] prefetchStatus: loaded (early swap)');
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             const newWidgetArtUrl = prev.next_widget_art_url || prev.widget_art_url;
@@ -150,7 +151,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (timeRemaining <= prefetchSecondsRef.current * 1000 && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
           prefetchTriggeredForTrackRef.current = trackName;
           setPrefetchStatus('fetching');
-          console.log(`[Sonos] Prefetching next track data (${Math.round(timeRemaining / 1000)}s remaining)`);
+          console.log(`[Sonos:BG] prefetchStatus: fetching (${Math.round(timeRemaining / 1000)}s remaining)`);
           const ac = new AbortController();
           const t = setTimeout(() => ac.abort(), 15000);
           fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
@@ -160,7 +161,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               'Content-Type': 'application/json',
             },
             signal: ac.signal,
-          }).then(res => { if (res.ok) setPrefetchStatus('ready'); })
+          }).then(res => { if (res.ok) { setPrefetchStatus('ready'); console.log('[Sonos:BG] prefetchStatus: ready'); } })
             .catch(() => {})
             .finally(() => clearTimeout(t));
         }

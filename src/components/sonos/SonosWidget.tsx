@@ -101,6 +101,7 @@ export const SonosWidget = memo(function SonosWidget({
   // Track art loading status for debug dot
   useEffect(() => {
     if (isNewArtPending && currentArtStatus !== "detecting") {
+      console.log('[Sonos:BG] artStatus: loading (new art pending)');
       setCurrentArtStatus("loading");
     }
   }, [isNewArtPending, currentArtStatus]);
@@ -117,6 +118,7 @@ export const SonosWidget = memo(function SonosWidget({
     });
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
+    console.log('[Sonos:BG] artStatus: displayed (image loaded)');
     setCurrentArtStatus("displayed");
     if (!bgSentRef.current || !validBgBufferRef.current.includes(bgSentRef.current) || bgSentRef.current === bgUrl) {
       console.log('[Sonos:BG] Sending bg to dashboard:', bgUrl?.slice(-60));
