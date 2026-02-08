@@ -86,16 +86,30 @@ function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint
   return resizeBilinear(small, smallW, smallH, w, h);
 }
 
-// Apply brightness, contrast, saturation adjustments in-place
+// Measure average luminance of pixel data
+function measureAverageLuminance(pixels: Uint8Array, w: number, h: number): number {
+  const len = w * h * 4;
+  let sum = 0;
+  for (let i = 0; i < len; i += 4) {
+    sum += 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+  }
+  return sum / (w * h);
+}
+
+// Apply normalized brightness, contrast, saturation adjustments in-place
+// brightness is now a target luminance (0-255) instead of a multiplier
 function applyColorAdjustments(
   pixels: Uint8Array, w: number, h: number,
-  brightness: number, contrast: number, saturation: number,
+  targetLuminance: number, contrast: number, saturation: number,
 ): void {
+  const avgLum = measureAverageLuminance(pixels, w, h);
+  const scale = avgLum > 0 ? targetLuminance / avgLum : 0;
+
   const len = w * h * 4;
   for (let i = 0; i < len; i += 4) {
-    let r = pixels[i] * brightness;
-    let g = pixels[i + 1] * brightness;
-    let b = pixels[i + 2] * brightness;
+    let r = pixels[i] * scale;
+    let g = pixels[i + 1] * scale;
+    let b = pixels[i + 2] * scale;
 
     r = ((r - 128) * contrast) + 128;
     g = ((g - 128) * contrast) + 128;
