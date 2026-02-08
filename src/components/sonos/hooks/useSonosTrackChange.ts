@@ -67,6 +67,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         position_ms: data.positionMillis,
         next_album_art_url: null,
         next_bg_image_url: null,
+        next_widget_art_url: null,
       };
     });
   }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, progressBarRef, debugTimeRef]);

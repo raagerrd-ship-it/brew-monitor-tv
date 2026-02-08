@@ -124,6 +124,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             setPrefetchStatus('loaded');
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
+            const newWidgetArtUrl = prev.next_widget_art_url || prev.widget_art_url;
             pushToBgBuffer(validBgBufferRef.current, newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             bgSentRef.current = newBgUrl || newArtUrl;
@@ -131,8 +132,10 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               ...prev,
               album_art_url: newArtUrl,
               bg_image_url: newBgUrl,
+              widget_art_url: newWidgetArtUrl,
               next_album_art_url: null,
               next_bg_image_url: null,
+              next_widget_art_url: null,
             };
           });
         }
@@ -150,6 +153,10 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight,
+            }),
             signal: ac.signal,
           }).then(res => { if (res.ok) setPrefetchStatus('ready'); })
             .catch(() => {})
