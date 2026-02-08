@@ -1,47 +1,38 @@
 
 
-# Normaliserad ljusstyrka for Sonos-bakgrunder
+# Fixa pixlig bakgrundsbild - hämta högre upplösning
 
 ## Problem
-Nuvarande ljusstyrka-slider multiplicerar varje pixel med ett fast värde (t.ex. 0.35). En mörk albumomslag-bild blir extremt mörk medan en ljus bild fortfarande kan vara relativt ljus. Resultatet varierar kraftigt mellan låtar.
+Spotify oEmbed-endpointen returnerar thumbnails på ca 300x300 pixlar. Dessa skalas upp till 1280x720 for bakgrunden -- en uppskalning pa over 4x -- vilket ger en tydligt pixlig bild. Widgeten (280x130) paverkas inte eftersom den ar mindre an kallan.
 
-## Lösning
-Ersätt den enkla multiplikatorn med en **luminans-normalisering** i två steg:
+## Losning
+Spotify's bild-CDN anvander storlekskoder i URL:en. Genom att byta storlekskoden fran 300px-varianten till 640px-varianten far vi en mycket battre kalla for bakgrundsgenereringen.
 
-1. **Mät** bildens genomsnittliga luminans (0-255) efter blur
-2. **Skala** varje pixel så att genomsnittet matchar sliderns målvärde
+Storlekskoder i Spotify CDN:
+- `ab67616d000048a1` = 64x64
+- `ab67616d00001e02` = 300x300
+- `ab67616d0000b273` = 640x640
 
-Slidern anger då en **absolut mål-luminans** istället för en relativ faktor. Oavsett om albumomslaget är svart eller vitt kommer bakgrunden att landa på samma ljusnivå.
+640x640 ar fortfarande mindre an 1280x720, men med blur applicerad (som anda ar avsedd for bakgrunden) blir resultatet avsevart battre an fran 300x300.
 
-## Tekniska detaljer
+## Teknisk andring
 
-### Fil: `supabase/functions/_shared/image-processing.ts`
+### Fil: `supabase/functions/_shared/sonos-art.ts`
 
-**Ny funktion** `measureAverageLuminance`:
-- Loopar genom alla pixlar och beräknar luminans med formeln `0.299*R + 0.587*G + 0.114*B`
-- Returnerar medelvärdet (0-255)
+Lagg till en funktion som uppgraderar Spotify CDN-URL:er till 640x640-varianten:
 
-**Ändrad funktion** `applyColorAdjustments`:
-- Steg 1: Beräkna genomsnittlig luminans
-- Steg 2: Om genomsnittet > 0, beräkna en skalfaktor = `targetLuminance / avgLuminance`
-- Steg 3: Applicera skalfaktorn istället för den fasta brightness-multiplikatorn
-- Contrast och saturation appliceras efter normalisering, precis som idag
+```typescript
+function upgradeSpotifyImageSize(url: string): string {
+  // Replace 300x300 size code with 640x640
+  return url.replace('ab67616d00001e02', 'ab67616d0000b273');
+}
+```
 
-`brightness`-värdet i `BgSettings` tolkas om: istället för en multiplikator (t.ex. 0.35) blir det en mål-luminans i intervallet 0-255. Standardvärdet 90 (~35% av 255) ger ungefär samma visuella resultat som nuvarande 0.35.
+Applicera detta pa `thumbnail_url` fran oEmbed innan den returneras, sa att bade bakgrund och widget far tillgang till hogre upplosning som kalla.
 
-**Uppdatering av cache-nyckel**: Eftersom beteendet ändras bumpas versionen i `sonos-storage.ts` filnamn från `v7` till `v8` så att alla bakgrunder genereras om med den nya logiken.
+### Paverkan
+- Bakgrunden genereras fran 640x640 istallet for 300x300 -- drygt 4x fler pixlar
+- Widgeten paverkas inte negativt (den skalas anda ner)
+- Ingen ny cache-version behovs for widgeten, men bakgrunder med ny kalla kommer automatiskt genereras om tack vare att bilddatan skiljer sig (track hash ar densamma, men bilden blir battre)
+- Ingen databasandring kravs
 
-### Fil: `src/components/sonos/SonosSettings.tsx`
-
-Slidern för ljusstyrka uppdateras:
-- Intervall: 0-255 (istället för 0-100 som mappas till 0.0-1.0)
-- Standardvärde: 90
-- Etikett visar det absoluta värdet
-
-### Fil: `supabase/functions/sync-sonos-now-playing/index.ts`
-
-Uppdatera default-värdet för `bg_brightness` från `0.35` till `90`.
-
-### Databaskolumn
-
-Kolumnen `bg_brightness` i `sonos_settings` behåller sin typ (`numeric`) men värdet tolkas nu som 0-255 istället för 0.0-1.0. En migration sätter standardvärdet till 90 och konverterar eventuellt befintligt värde (om det är < 1, multiplicera med 255).
