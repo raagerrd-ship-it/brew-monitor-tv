@@ -131,12 +131,21 @@ function applyColorAdjustments(
 // Apply dark gradient at the top of the image
 function applyTopGradient(
   pixels: Uint8Array, w: number, h: number,
-  opacity: number, gradientHeight: number,
+  opacity: number, solidHeight: number,
 ): void {
-  if (opacity <= 0 || gradientHeight <= 0) return;
-  const maxY = Math.min(gradientHeight, h);
-  for (let y = 0; y < maxY; y++) {
-    const factor = 1 - opacity * (1 - y / gradientHeight);
+  if (opacity <= 0 || solidHeight <= 0) return;
+  const fadeLength = solidHeight; // fade over equal distance below solid region
+  const totalHeight = Math.min(solidHeight + fadeLength, h);
+  for (let y = 0; y < totalHeight; y++) {
+    let factor: number;
+    if (y < solidHeight) {
+      // Solid dark region
+      factor = 1 - opacity;
+    } else {
+      // Fade from dark to transparent
+      const fadeProgress = (y - solidHeight) / fadeLength;
+      factor = 1 - opacity * (1 - fadeProgress);
+    }
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
       pixels[idx] = Math.round(pixels[idx] * factor);
