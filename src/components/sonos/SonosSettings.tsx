@@ -171,7 +171,13 @@ export function SonosSettings() {
     try {
       await saveAllSettings();
       // Trigger server sync to regenerate background with new settings
-      await supabase.rpc('trigger_sonos_now_playing_sync');
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
       toast.success('Bakgrundsbild genereras om med nya inställningar');
     } catch (error) {
       console.error('Failed to regenerate background:', error);

@@ -209,7 +209,14 @@ async function generateBackground(
 
     // Encode as JPEG
     const encoded = encodeJpeg({ data: pixels, width: TARGET_W, height: TARGET_H }, 85);
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(encoded.data)));
+    // Chunk-based base64 to avoid stack overflow on large images
+    const bytes = new Uint8Array(encoded.data);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
     return `data:image/jpeg;base64,${base64}`;
   } catch (error) {
     console.error('[SonosSync] Background generation failed:', error);
