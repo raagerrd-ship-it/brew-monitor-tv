@@ -1,51 +1,97 @@
 
 
-# Sonos Widget: Stabilitet och Synk-fix
+# Sonos Widget Optimization
 
-## Identifierade problem
+## Overview
+Refactor the 717-line SonosWidget into a maintainable, performant architecture with three key improvements.
 
-### 1. Widget stängs vid låtbyte (inte nästa)
-Rad 498 i SonosWidget: `shouldHide` returnerar `true` om `playback_state !== 'PLAYBACK_STATE_PLAYING'`. När du byter till en godtycklig låt på Sonos skickar API:et kortvarigt en övergångsstatus (t.ex. `PLAYBACK_STATE_BUFFERING` eller `PLAYBACK_STATE_TRANSITIONING`). Widgeten försvinner omedelbart, bakgrunden rensas, och den kanske aldrig kommer tillbaka om den missar nästa poll.
+## 1. Progress Bar via DOM Ref (No Re-renders)
 
-### 2. Fel bild i widget vs bakgrund vid slumpmässigt låtbyte
-Vid ett prediktivt/sekventiellt låtbyte används `next_album_art_url` och `next_bg_image_url` som förladdats. Men vid ett slumpmässigt hopp (du väljer en helt annan låt) är dessa `next_`-URL:er fortfarande från den förväntade nästa låten -- inte den du faktiskt valde. Koden på rad 289-291 gör `prev.next_album_art_url || prev.album_art_url` vilket visar fel bild.
+Currently, `setLocalProgress(next)` is called every second, causing the entire widget to re-render. Instead:
 
-### 3. Widget startar inte alltid
-Om databasens `playback_state` av någon anledning inte är exakt `PLAYBACK_STATE_PLAYING` vid init (t.ex. `PLAYBACK_STATE_BUFFERING` efter att du precis startat en låt) döljs widgeten direkt av `shouldHide`.
+- Replace `localProgress` state with a **DOM ref** (`progressBarRef`) that directly updates `style.width`
+- Keep `localProgressRef` for internal calculations (predictive polling, prefetch timing)
+- The `setLocalProgressWithRef` helper becomes unnecessary -- only the ref is needed
+- Debug time-remaining also updates via DOM ref instead of state
 
-## Lösning
+This eliminates ~60 re-renders per minute during playback.
 
-### A. Tolerant `shouldHide` med grace period (SonosWidget.tsx)
-- Ändra `shouldHide` till att bara dölja vid `PLAYBACK_STATE_IDLE` och `PLAYBACK_STATE_PAUSED` (inte vid buffering/transitioning/andra mellanstatus)
-- Lägg till en 5-sekunders grace period: när state ändras från PLAYING till icke-PLAYING, vänta 5 sekunder innan widgeten faktiskt döljs. Om den återgår till PLAYING inom den tiden behålls widgeten synlig.
+## 2. Extract Hooks from God Component
 
-### B. Använd inte stale `next_`-URL:er vid slumpmässigt låtbyte (SonosWidget.tsx)
-- I track-change-hanterarna (5s-poll rad 287 och prediktiv poll rad 141): kontrollera om `next_album_art_url` verkligen hör till den NYA låten genom att jämföra mot server-data
-- Om track-bytet inte matchade den förväntade nästa låten: behåll nuvarande art och bg, uppdatera enbart text-metadata. Låt realtime/server-synk leverera rätt bild.
-- Konkret: om `data.trackName` inte matchar det vi förväntar oss (vi har ingen info om nästa låts namn i klienten), ta det säkra steget och behåll befintlig konst tills servern synkar in den korrekta.
+Split the widget into focused hooks:
 
-### C. Förbättra init-robusthet (SonosWidget.tsx)
-- Tillåt att widgeten visas även om `playback_state` inte är exakt PLAYING vid start -- visa den om det finns ett `track_name`
+```text
+SonosWidget.tsx (~200 lines, rendering only)
+  |
+  +-- hooks/useSonosPlaybackTicker.ts
+  |     1s interval: progress updates (DOM ref), prefetch trigger,
+  |     early swap, predictive polling
+  |
+  +-- hooks/useSonosClientPolling.ts
+  |     5s polling of sonos-playback-status, bg sync safeguard
+  |
+  +-- hooks/useSonosVisibility.ts
+  |     Connected check, grace period, hide/show logic
+  |
+  +-- hooks/useSonosRealtime.ts
+  |     Realtime callback wiring, cooldown logic
+  |
+  +-- hooks/useSonosTrackTransition.ts (existing, kept as-is)
+  |     Initial data fetch, track update handler
+  |
+  +-- hooks/useSonosInit.ts
+        Settings + now playing parallel fetch on mount
+```
 
-## Tekniska detaljer
+Each hook receives only the refs/state it needs and returns minimal outputs.
 
-### `src/components/sonos/SonosWidget.tsx`
+## 3. Consolidate Track-Change Logic
 
-1. **shouldHide** (rad 498): Ändra villkoret:
-   ```text
-   // Nuvarande (för strikt):
-   nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING'
+Currently, track changes are handled in three places with duplicated code:
+- Predictive poll callback (line ~124)
+- 5s client poll (line ~291)
+- Realtime callback (line ~422)
 
-   // Nytt (tolerant):
-   nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE'
-   ```
-   Plus en 5s delay-mekanism med `useRef` och `setTimeout` som fördröjer faktisk dölj-handling.
+Create a single `handleTrackChange` function that:
+- Sets `trackChangedAtRef` timestamp
+- Updates text metadata (track, artist, album)
+- Decides whether to use prefetched `next_` URLs (sequential) or discard them (random skip)
+- Triggers server sync when needed
+- Updates progress
 
-2. **Track change i 5s-poll** (rad 287-307): När `trackChanged` är true, skicka INTE `next_album_art_url`/`next_bg_image_url` om vi inte kan verifiera att de hör till rätt låt. Istället: behåll `prev.album_art_url` och `prev.bg_image_url`, uppdatera bara text. Trigga en `sync-sonos-now-playing`-fetch i bakgrunden så servern synkar rätt data.
+Each caller passes the source data and a flag indicating if early-swap was active.
 
-3. **Track change i prediktiv poll** (rad 121-162): Samma logik -- om `earlySwapDone` inte är true (dvs det INTE var en förväntad sekventiell övergång), använd inte `next_`-URL:er. 
+## 4. Keep 5s Polling During Pause
 
-4. **Init** (rad 356-395): Ta bort kravet att playback_state måste vara PLAYING för att visa widgeten. Kontrollera istället bara att `track_name` finns.
+The current 5s polling runs regardless of playback state (it only stops for IDLE). This stays as-is per your request -- it ensures the widget detects resume quickly.
 
-5. **Bakgrundsrensning** (rad 500-506): Rensa inte bakgrunden direkt vid state-byte. Använd grace period.
+## Files Changed
+
+| File | Action |
+|------|--------|
+| `src/components/sonos/hooks/useSonosPlaybackTicker.ts` | New -- 1s ticker logic |
+| `src/components/sonos/hooks/useSonosClientPolling.ts` | New -- 5s polling logic |
+| `src/components/sonos/hooks/useSonosVisibility.ts` | New -- visibility/grace logic |
+| `src/components/sonos/hooks/useSonosRealtime.ts` | New -- realtime callback |
+| `src/components/sonos/hooks/useSonosInit.ts` | New -- mount init |
+| `src/components/sonos/hooks/useSonosTrackChange.ts` | New -- consolidated track-change handler |
+| `src/components/sonos/hooks/index.ts` | Updated -- export new hooks |
+| `src/components/sonos/SonosWidget.tsx` | Rewritten -- ~200 lines, rendering + hook composition |
+
+## Key Technical Detail: DOM Progress Update
+
+```typescript
+// In useSonosPlaybackTicker.ts (inside 1s interval)
+const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
+localProgressRef.current = next;
+
+// Direct DOM update -- zero React re-renders
+const pct = Math.min((next / duration) * 100, 100);
+if (progressBarRef.current) {
+  progressBarRef.current.style.width = `${pct}%`;
+}
+if (debugTimeRef.current) {
+  debugTimeRef.current.textContent = `${Math.max(0, Math.round((duration - next) / 1000))}s`;
+}
+```
 
