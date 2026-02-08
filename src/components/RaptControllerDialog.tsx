@@ -11,6 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
 import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
+import { CoolerFollowedSessions } from './CoolerFollowedSessions';
 import { getControllerColor } from '@/lib/brew-utils';
 
 interface TempController {
@@ -265,6 +266,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
         <div className="space-y-4">
           {/* Active Fermentation Session */}
           {!isCooler && <ActiveFermentationSession controllerId={controller.controller_id} />}
+          
+          {/* Cooler: show followed controllers' fermentation sessions */}
+          {isCooler && <CoolerFollowedSessions isAuthenticated={isAuthenticated} />}
 
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
