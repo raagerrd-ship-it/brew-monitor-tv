@@ -1,97 +1,84 @@
 
 
-# Sonos Widget Optimization
+## Djupgranskning av Sonos-integrationen -- Slutresultat
 
-## Overview
-Refactor the 717-line SonosWidget into a maintainable, performant architecture with three key improvements.
+### Sammanfattning
 
-## 1. Progress Bar via DOM Ref (No Re-renders)
+Arkitekturen ar valbyggd och foljer beprövade mönster for TV-prestanda (DOM-refs, konsoliderad ticker, prediktiv polling). Efter konsolideringen finns inga redundanta edge-funktioner kvar. Dock finns **5 konkreta problem** kvar att åtgärda:
 
-Currently, `setLocalProgress(next)` is called every second, causing the entire widget to re-render. Instead:
+---
 
-- Replace `localProgress` state with a **DOM ref** (`progressBarRef`) that directly updates `style.width`
-- Keep `localProgressRef` for internal calculations (predictive polling, prefetch timing)
-- The `setLocalProgressWithRef` helper becomes unnecessary -- only the ref is needed
-- Debug time-remaining also updates via DOM ref instead of state
+### Problem 1: `prefetchSeconds` sparas men anvands aldrig
 
-This eliminates ~60 re-renders per minute during playback.
+Anvandaren kan justera "Forladdning av albumomslag" (10-60s) i installningarna. Vardet sparas till databasen men klienten anvander alltid den hardkodade konstanten `PREFETCH_THRESHOLD_MS = 30000` i `useSonosPlaybackTicker.ts` (rad 137). Init-hooken hamtar inte heller detta varde fran databasen.
 
-## 2. Extract Hooks from God Component
+**Fix:**
+- Hamta `prefetch_seconds` i `useSonosInit` tillsammans med `track_change_offset_seconds`
+- Skicka det till tickern via en ref istallet for att anvanda den hardkodade konstanten
 
-Split the widget into focused hooks:
+---
 
-```text
-SonosWidget.tsx (~200 lines, rendering only)
-  |
-  +-- hooks/useSonosPlaybackTicker.ts
-  |     1s interval: progress updates (DOM ref), prefetch trigger,
-  |     early swap, predictive polling
-  |
-  +-- hooks/useSonosClientPolling.ts
-  |     5s polling of sonos-playback-status, bg sync safeguard
-  |
-  +-- hooks/useSonosVisibility.ts
-  |     Connected check, grace period, hide/show logic
-  |
-  +-- hooks/useSonosRealtime.ts
-  |     Realtime callback wiring, cooldown logic
-  |
-  +-- hooks/useSonosTrackTransition.ts (existing, kept as-is)
-  |     Initial data fetch, track update handler
-  |
-  +-- hooks/useSonosInit.ts
-        Settings + now playing parallel fetch on mount
-```
+### Problem 2: Duplicerad token-refresh i 3 edge functions
 
-Each hook receives only the refs/state it needs and returns minimal outputs.
+Token-refresh-logiken (hämta token, kontrollera expiry, POST till Sonos, uppdatera DB) finns kopierad i:
+- `sonos-playback-status` (rad 43-72)
+- `sync-sonos-now-playing` (rad 371-400)
+- `sonos-groups` (rad 42-77)
 
-## 3. Consolidate Track-Change Logic
+(`sonos-auth` har en separat refresh-action men det ar ett distinkt anvandningsfall.)
 
-Currently, track changes are handled in three places with duplicated code:
-- Predictive poll callback (line ~124)
-- 5s client poll (line ~291)
-- Realtime callback (line ~422)
+**Fix:**
+- Skapa en delad hjalp-fil `supabase/functions/_shared/sonos-token.ts` med en `getValidAccessToken(supabase, clientId, clientSecret)` funktion
+- Importera den i alla tre edge functions
 
-Create a single `handleTrackChange` function that:
-- Sets `trackChangedAtRef` timestamp
-- Updates text metadata (track, artist, album)
-- Decides whether to use prefetched `next_` URLs (sequential) or discard them (random skip)
-- Triggers server sync when needed
-- Updates progress
+---
 
-Each caller passes the source data and a flag indicating if early-swap was active.
+### Problem 3: Hardkodade Supabase-URL:er i SonosSettings
 
-## 4. Keep 5s Polling During Pause
+`SonosSettings.tsx` anvander hardkodade URL:er (`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/...`) pa rad 41, 86 och 106, istallet for `import.meta.env.VITE_SUPABASE_URL`. Detta fungerar idag men bryter portabilitet och ar inkonsekvent med resten av kodbasen.
 
-The current 5s polling runs regardless of playback state (it only stops for IDLE). This stays as-is per your request -- it ensures the widget detects resume quickly.
+**Fix:**
+- Ersatt alla tre forekomster med `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/...`
 
-## Files Changed
+---
 
-| File | Action |
-|------|--------|
-| `src/components/sonos/hooks/useSonosPlaybackTicker.ts` | New -- 1s ticker logic |
-| `src/components/sonos/hooks/useSonosClientPolling.ts` | New -- 5s polling logic |
-| `src/components/sonos/hooks/useSonosVisibility.ts` | New -- visibility/grace logic |
-| `src/components/sonos/hooks/useSonosRealtime.ts` | New -- realtime callback |
-| `src/components/sonos/hooks/useSonosInit.ts` | New -- mount init |
-| `src/components/sonos/hooks/useSonosTrackChange.ts` | New -- consolidated track-change handler |
-| `src/components/sonos/hooks/index.ts` | Updated -- export new hooks |
-| `src/components/sonos/SonosWidget.tsx` | Rewritten -- ~200 lines, rendering + hook composition |
+### Problem 4: Fire-and-forget token-uppdatering i `sonos-playback-status`
 
-## Key Technical Detail: DOM Progress Update
+Pa rad 67-71 i `sonos-playback-status` gors token-uppdateringen som fire-and-forget (`.then(() => {})`). Om uppdateringen misslyckas refreshas token vid varje anrop (var 5:e sekund) -- onödigt API-slöseri mot Sonos.
 
-```typescript
-// In useSonosPlaybackTicker.ts (inside 1s interval)
-const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
-localProgressRef.current = next;
+De andra edge-funktionerna (`sync-sonos-now-playing`, `sonos-groups`) använder `await` korrekt.
 
-// Direct DOM update -- zero React re-renders
-const pct = Math.min((next / duration) * 100, 100);
-if (progressBarRef.current) {
-  progressBarRef.current.style.width = `${pct}%`;
-}
-if (debugTimeRef.current) {
-  debugTimeRef.current.textContent = `${Math.max(0, Math.round((duration - next) / 1000))}s`;
-}
-```
+**Fix:**
+- Lös automatiskt nar token-refresh extraheras till delad hjälpfil (Problem 2), dar `await` anvands.
+
+---
+
+### Problem 5: Stale closure-risk i `useSonosClientPolling`
+
+Effekten beror pa `nowPlaying?.track_name` och `nowPlaying?.playback_state` men anvander `nowPlaying.duration_ms` och `nowPlaying.bg_image_url` inuti poll-callbacken (rad 76, 111). Dessa varden fangas vid effektens start och uppdateras inte om de andras utan att track/state andras. I praktiken ar detta ovanligt men principiellt felaktigt.
+
+**Fix:**
+- Anvand `nowPlaying.duration_ms` fran poll-svaret (`data.durationMillis`) som redan görs (rad 76: `data.durationMillis ?? nowPlaying.duration_ms`), sa detta ar redan delvis hanterat
+- For `bg_image_url` i bakgrunds-safeguarden: anvand en ref for nowPlaying som uppdateras vid varje render (samma mönster som `onAlbumArtChangeRef`)
+
+---
+
+### Implementationsplan
+
+1. **Skapa `supabase/functions/_shared/sonos-token.ts`** -- delad token-refresh-logik
+2. **Uppdatera 3 edge functions** att importera fran den delade filen
+3. **Hamta `prefetch_seconds` i `useSonosInit`** och skicka via ref till tickern
+4. **Uppdatera `useSonosPlaybackTicker`** att anvanda ref istallet for hardkodad konstant
+5. **Ersatt hardkodade URL:er** i `SonosSettings.tsx`
+
+### Vad som redan fungerar bra
+
+- DOM-ref-baserad progress bar (noll React-rerenders)
+- Prediktiv polling med retry-logik
+- 15s cooldown for Realtime efter spårbyte
+- Early swap-logik for sömlösa övergångar
+- Server-side bildbehandling (Chromecast belastas inte)
+- Chunk-baserad base64-kodning for stora bilder
+- 5s grace period for IDLE-tillstånd
+- Bakgrunds-synk-säkerhetsmekanismen med rullande buffer
 
