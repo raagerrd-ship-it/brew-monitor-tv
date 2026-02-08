@@ -3,7 +3,7 @@ import { Logo } from "./Logo";
 import { Clock } from "./Clock";
 import { memo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
@@ -26,6 +26,7 @@ interface DashboardHeaderProps {
   onControllerClick?: (controller: TempController) => void;
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
+  onRefresh?: () => void;
 }
 
 export function DashboardHeader({
@@ -34,6 +35,7 @@ export function DashboardHeader({
   onControllerClick,
   hasAlbumArtBackground = false,
   onLogout,
+  onRefresh,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,6 +65,13 @@ export function DashboardHeader({
               <Button variant="ghost" size="icon" onClick={onLogout} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-9 h-9 rounded-full">
                 <LogOut className="w-4 h-4" />
               </Button>
+            )}
+            {onRefresh && !isOnSettings && (
+              <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
+                <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
+                  <RefreshCw className="w-5 h-5" />
+                </Button>
+              </div>
             )}
             <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
               <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
