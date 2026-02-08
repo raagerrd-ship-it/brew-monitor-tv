@@ -244,201 +244,209 @@ export function SonosSettings() {
 
       {/* Settings (only show when connected) */}
       {isConnected && (
-        <div className="space-y-4 p-4 rounded-lg border">
-          {/* Group Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="sonos-group">Rum att visa</Label>
-            <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
-              <SelectTrigger id="sonos-group">
-                <SelectValue placeholder="Välj rum..." />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Visa vad som spelas i det valda rummet
-            </p>
-          </div>
+        <>
+          {/* General Sonos Settings */}
+          <div className="space-y-4 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium">Allmänna inställningar</h4>
 
-          {/* Show on Dashboard Toggle */}
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <Label htmlFor="show-on-dashboard">Visa på dashboard</Label>
-              <p className="text-sm text-muted-foreground">
-                Visa "Nu spelas" i headern
+            {/* Group Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="sonos-group">Rum att visa</Label>
+              <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
+                <SelectTrigger id="sonos-group">
+                  <SelectValue placeholder="Välj rum..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Visa vad som spelas i det valda rummet
               </p>
             </div>
-            <Switch
-              id="show-on-dashboard"
-              checked={showOnDashboard}
-              onCheckedChange={setShowOnDashboard}
-            />
+
+            {/* Show on Dashboard Toggle */}
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <Label htmlFor="show-on-dashboard">Visa på dashboard</Label>
+                <p className="text-sm text-muted-foreground">
+                  Visa "Nu spelas" i headern
+                </p>
+              </div>
+              <Switch
+                id="show-on-dashboard"
+                checked={showOnDashboard}
+                onCheckedChange={setShowOnDashboard}
+              />
+            </div>
+          </div>
+
+          {/* Playback / Widget Settings */}
+          <div className="space-y-4 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium">Uppspelning & widget</h4>
+
+            {/* Track Change Offset */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Synk-justering vid låtbyte</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
+              </div>
+              <Slider
+                value={[trackChangeOffset]}
+                min={0}
+                max={4}
+                step={0.1}
+                onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
+              </p>
+            </div>
+
+            {/* Prefetch Threshold */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Förladdning av albumomslag</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{prefetchSeconds}s</span>
+              </div>
+              <Slider
+                value={[prefetchSeconds]}
+                min={10}
+                max={60}
+                step={5}
+                onValueChange={(v) => setPrefetchSeconds(v[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                Hur långt innan låtslut som nästa låts omslag och bakgrund förladdas
+              </p>
+            </div>
           </div>
 
           {/* Background Image Processing Section */}
-          <div className="space-y-1 pt-2">
-            <h4 className="text-sm font-medium">Bakgrundsbildbehandling (TV-läge)</h4>
-            <p className="text-xs text-muted-foreground">
-              Dessa inställningar styr hur albumomslaget bearbetas till bakgrundsbild
-            </p>
-          </div>
-
-          {/* Background Blur */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Oskärpa</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
+          <div className="space-y-4 p-4 rounded-lg border">
+            <div className="space-y-1">
+              <h4 className="text-sm font-medium">Bakgrundsbildbehandling (TV-läge)</h4>
+              <p className="text-xs text-muted-foreground">
+                Dessa inställningar styr hur albumomslaget bearbetas till bakgrundsbild
+              </p>
             </div>
-            <Slider
-              value={[bgBlur]}
-              min={0}
-              max={200}
-              step={1}
-              onValueChange={(v) => setBgBlur(v[0])}
-            />
-          </div>
 
-          {/* Background Brightness */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Ljusstyrka</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+            {/* Background Blur */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Oskärpa</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
+              </div>
+              <Slider
+                value={[bgBlur]}
+                min={0}
+                max={200}
+                step={1}
+                onValueChange={(v) => setBgBlur(v[0])}
+              />
             </div>
-            <Slider
-              value={[bgBrightness]}
-              min={0.05}
-              max={1.0}
-              step={0.05}
-              onValueChange={(v) => setBgBrightness(v[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              Lägre = mörkare bakgrund. Rekommenderat ~25-35% för bra läsbarhet
-            </p>
-          </div>
 
-          {/* Background Contrast */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Kontrast</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgContrast * 100)}%</span>
+            {/* Background Brightness */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Ljusstyrka</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+              </div>
+              <Slider
+                value={[bgBrightness]}
+                min={0.05}
+                max={1.0}
+                step={0.05}
+                onValueChange={(v) => setBgBrightness(v[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                Lägre = mörkare bakgrund. Rekommenderat ~25-35% för bra läsbarhet
+              </p>
             </div>
-            <Slider
-              value={[bgContrast]}
-              min={0.5}
-              max={1.5}
-              step={0.05}
-              onValueChange={(v) => setBgContrast(v[0])}
-            />
-          </div>
 
-          {/* Background Saturation */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Färgmättnad</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgSaturation * 100)}%</span>
+            {/* Background Contrast */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Kontrast</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgContrast * 100)}%</span>
+              </div>
+              <Slider
+                value={[bgContrast]}
+                min={0.5}
+                max={1.5}
+                step={0.05}
+                onValueChange={(v) => setBgContrast(v[0])}
+              />
             </div>
-            <Slider
-              value={[bgSaturation]}
-              min={0}
-              max={2.0}
-              step={0.05}
-              onValueChange={(v) => setBgSaturation(v[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              0% = gråskala, 100% = original, 200% = övermättad
-            </p>
-          </div>
 
-          {/* Top Gradient Opacity */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Överkantsmörkläggning</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgTopGradientOpacity * 100)}%</span>
+            {/* Background Saturation */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Färgmättnad</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgSaturation * 100)}%</span>
+              </div>
+              <Slider
+                value={[bgSaturation]}
+                min={0}
+                max={2.0}
+                step={0.05}
+                onValueChange={(v) => setBgSaturation(v[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                0% = gråskala, 100% = original, 200% = övermättad
+              </p>
             </div>
-            <Slider
-              value={[bgTopGradientOpacity]}
-              min={0}
-              max={1.0}
-              step={0.05}
-              onValueChange={(v) => setBgTopGradientOpacity(v[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              Mörkare överkant för bättre läsbarhet av headern
-            </p>
-          </div>
 
-          {/* Top Gradient Height */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Överkantshöjd</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{bgTopGradientHeight}px</span>
+            {/* Top Gradient Opacity */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Överkantsmörkläggning</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgTopGradientOpacity * 100)}%</span>
+              </div>
+              <Slider
+                value={[bgTopGradientOpacity]}
+                min={0}
+                max={1.0}
+                step={0.05}
+                onValueChange={(v) => setBgTopGradientOpacity(v[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                Mörkare överkant för bättre läsbarhet av headern
+              </p>
             </div>
-            <Slider
-              value={[bgTopGradientHeight]}
-              min={0}
-              max={200}
-              step={5}
-              onValueChange={(v) => setBgTopGradientHeight(v[0])}
-            />
-          </div>
 
-          {/* Track Change Offset */}
-          <div className="space-y-1 pt-2">
-            <h4 className="text-sm font-medium">Uppspelningsinställningar</h4>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Synk-justering vid låtbyte</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
+            {/* Top Gradient Height */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Överkantshöjd</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{bgTopGradientHeight}px</span>
+              </div>
+              <Slider
+                value={[bgTopGradientHeight]}
+                min={0}
+                max={200}
+                step={5}
+                onValueChange={(v) => setBgTopGradientHeight(v[0])}
+              />
             </div>
-            <Slider
-              value={[trackChangeOffset]}
-              min={0}
-              max={4}
-              step={0.1}
-              onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
-            </p>
-          </div>
 
-          {/* Prefetch Threshold */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Förladdning av albumomslag</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">{prefetchSeconds}s</span>
-            </div>
-            <Slider
-              value={[prefetchSeconds]}
-              min={10}
-              max={60}
-              step={5}
-              onValueChange={(v) => setPrefetchSeconds(v[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              Hur långt innan låtslut som nästa låts omslag och bakgrund förladdas
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={saveAllSettings} variant="outline" className="flex-1">
-              Spara inställningar
-            </Button>
-            <Button onClick={saveAndRegenerate} disabled={isRegenerating} className="flex-1">
+            <Button onClick={saveAndRegenerate} disabled={isRegenerating} className="w-full">
               {isRegenerating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
               Spara & generera om bakgrund
             </Button>
           </div>
-        </div>
+
+          {/* Save all */}
+          <Button onClick={saveAllSettings} variant="outline" className="w-full">
+            Spara alla inställningar
+          </Button>
+        </>
       )}
 
       {/* Help text */}
