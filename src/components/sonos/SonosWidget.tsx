@@ -176,7 +176,10 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
       try {
         const prev = localProgressRef.current;
         if (prev === null) return;
-        const next = Math.min(prev + 1000, duration);
+
+        // Only advance progress when actually playing (not during PAUSED/BUFFERING)
+        const isPlaying = nowPlaying.playback_state === 'PLAYBACK_STATE_PLAYING';
+        const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
         localProgressRef.current = next;
         setLocalProgress(next);
 
