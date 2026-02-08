@@ -26,7 +26,7 @@ export function cropToAspectRatio(
     cropW = srcW;
     cropH = Math.min(Math.round(srcW / targetAspect), srcH);
     offsetX = 0;
-    offsetY = Math.round((srcH - cropH) / 2);
+    offsetY = 0; // Top-aligned vertically
   }
 
   const cropped = new Uint8Array(cropW * cropH * 4);
