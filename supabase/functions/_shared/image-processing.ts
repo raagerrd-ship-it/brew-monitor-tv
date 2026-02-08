@@ -143,7 +143,7 @@ function applyTopGradient(
   opacity: number, solidHeight: number,
 ): void {
   if (opacity <= 0 || solidHeight <= 0) return;
-  const fadeLength = solidHeight; // fade over equal distance below solid region
+  const fadeLength = Math.round(h / 2); // fade over half the image height
   const totalHeight = Math.min(solidHeight + fadeLength, h);
   for (let y = 0; y < totalHeight; y++) {
     let factor: number;
