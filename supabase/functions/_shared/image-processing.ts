@@ -80,10 +80,10 @@ export function resizeBilinear(
 function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint8Array {
   if (blur <= 0) return pixels;
 
-  // Number of passes scales with blur amount (e.g., blur=40 -> 4 passes, blur=200 -> 10)
-  const passes = Math.max(1, Math.min(12, Math.round(blur / 10)));
-  // Each pass uses a gentle downscale factor (2-4x)
-  const perPassFactor = Math.max(2, Math.min(4, Math.round(blur / (passes * 3)) + 2));
+  // Number of passes scales with blur (blur=40 -> 3, blur=100 -> 7, blur=200 -> 8)
+  const passes = Math.max(2, Math.min(8, Math.round(blur / 15)));
+  // Each pass uses a moderate downscale factor (2-8x) to produce visible blur
+  const perPassFactor = Math.max(2, Math.min(8, Math.round(blur / passes / 2)));
 
   let result = pixels;
   for (let i = 0; i < passes; i++) {
