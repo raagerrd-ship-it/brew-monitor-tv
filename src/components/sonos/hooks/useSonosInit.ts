@@ -21,6 +21,7 @@ export function useSonosInit(params: UseSonosInitParams) {
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('[Sonos] Init starting...');
         const [settingsResult, nowPlayingResult] = await Promise.all([
           (supabase as any)
             .from('sonos_settings')
@@ -36,11 +37,19 @@ export function useSonosInit(params: UseSonosInitParams) {
 
         const { data: settings, error: settingsError } = settingsResult;
 
-        if (settingsError || !settings?.selected_group_id) {
+        if (settingsError) {
+          console.error('[Sonos] Settings query error:', settingsError);
           setIsConnected(false);
           return;
         }
 
+        if (!settings?.selected_group_id) {
+          console.warn('[Sonos] No selected_group_id in settings:', settings);
+          setIsConnected(false);
+          return;
+        }
+
+        console.log('[Sonos] Init connected, group:', settings.selected_group_id);
         setIsConnected(true);
         const show = settings?.show_on_dashboard ?? true;
         setShowWidget(show);
@@ -48,10 +57,13 @@ export function useSonosInit(params: UseSonosInitParams) {
         prefetchSecondsRef.current = Number(settings?.prefetch_seconds) || 30;
 
         const { data: npData, error: npError } = nowPlayingResult;
+        if (npError) {
+          console.warn('[Sonos] Now playing query error:', npError);
+        }
         if (npData && !npError && show) {
+          console.log('[Sonos] Init now playing:', npData.track_name, '- state:', npData.playback_state);
           setNowPlaying(npData);
           localProgressRef.current = npData.position_ms;
-          // DOM progress update will happen on next ticker tick
         }
       } catch (error) {
         console.error('[Sonos] Failed to init:', error);
