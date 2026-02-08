@@ -76,21 +76,66 @@ export function resizeBilinear(
   return dst;
 }
 
-// Apply blur via multi-pass downscale-upscale for smooth results
+// Separable box blur pass (horizontal then vertical) using sliding window
+function boxBlurPass(src: Uint8Array, w: number, h: number, radius: number): Uint8Array {
+  const dst = new Uint8Array(src.length);
+  const tmp = new Uint8Array(src.length);
+
+  // Horizontal pass: src -> tmp
+  for (let y = 0; y < h; y++) {
+    const rowOff = y * w * 4;
+    for (let c = 0; c < 3; c++) {
+      let sum = 0;
+      const left0 = 0;
+      const right0 = Math.min(radius, w - 1);
+      for (let x = left0; x <= right0; x++) sum += src[rowOff + x * 4 + c];
+      let count = right0 - left0 + 1;
+
+      for (let x = 0; x < w; x++) {
+        tmp[rowOff + x * 4 + c] = (sum / count + 0.5) | 0;
+        // Expand right
+        const nr = x + radius + 1;
+        if (nr < w) { sum += src[rowOff + nr * 4 + c]; count++; }
+        // Shrink left
+        const nl = x - radius;
+        if (nl >= 0) { sum -= src[rowOff + nl * 4 + c]; count--; }
+      }
+    }
+    // Copy alpha
+    for (let x = 0; x < w; x++) tmp[rowOff + x * 4 + 3] = src[rowOff + x * 4 + 3];
+  }
+
+  // Vertical pass: tmp -> dst
+  for (let x = 0; x < w; x++) {
+    for (let c = 0; c < 3; c++) {
+      let sum = 0;
+      const top0 = 0;
+      const bot0 = Math.min(radius, h - 1);
+      for (let y = top0; y <= bot0; y++) sum += tmp[(y * w + x) * 4 + c];
+      let count = bot0 - top0 + 1;
+
+      for (let y = 0; y < h; y++) {
+        dst[(y * w + x) * 4 + c] = (sum / count + 0.5) | 0;
+        const nb = y + radius + 1;
+        if (nb < h) { sum += tmp[(nb * w + x) * 4 + c]; count++; }
+        const nt = y - radius;
+        if (nt >= 0) { sum -= tmp[(nt * w + x) * 4 + c]; count--; }
+      }
+    }
+    // Copy alpha
+    for (let y = 0; y < h; y++) dst[(y * w + x) * 4 + 3] = tmp[(y * w + x) * 4 + 3];
+  }
+
+  return dst;
+}
+
+// Apply blur via 3-pass box blur (approximates Gaussian blur)
 function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint8Array {
   if (blur <= 0) return pixels;
-
-  // Number of passes scales with blur (blur=40 -> 3, blur=100 -> 7, blur=200 -> 8)
-  const passes = Math.max(2, Math.min(8, Math.round(blur / 15)));
-  // Each pass uses a moderate downscale factor (2-8x) to produce visible blur
-  const perPassFactor = Math.max(2, Math.min(8, Math.round(blur / passes / 2)));
-
+  const radius = Math.max(1, Math.round(blur / 2));
   let result = pixels;
-  for (let i = 0; i < passes; i++) {
-    const smallW = Math.max(4, Math.round(w / perPassFactor));
-    const smallH = Math.max(4, Math.round(h / perPassFactor));
-    const small = resizeBilinear(result, w, h, smallW, smallH);
-    result = resizeBilinear(small, smallW, smallH, w, h);
+  for (let i = 0; i < 3; i++) {
+    result = boxBlurPass(result, w, h, radius);
   }
   return result;
 }
