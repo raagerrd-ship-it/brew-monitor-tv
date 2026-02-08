@@ -404,12 +404,16 @@ serve(async (req) => {
       const startTime = brew.fermentation_start || sgData[0].date;
       const endTime = sgData[sgData.length - 1].date;
       
-      const { data: tempData } = await supabase.rpc('get_temp_history_sampled', {
+      console.log(`[RenderChart] Fetching temp history for controller ${brew.linked_controller_id}, ${startTime} to ${endTime}`);
+      
+      const { data: tempData, error: tempError } = await supabase.rpc('get_temp_history_sampled', {
         p_controller_id: brew.linked_controller_id,
         p_start_time: startTime,
         p_end_time: endTime,
         p_sample_interval_minutes: 15,
       });
+
+      console.log(`[RenderChart] Temp history result: ${tempData?.length ?? 0} rows, error: ${tempError?.message ?? 'none'}`);
 
       if (tempData && tempData.length > 0) {
         tempHistory = tempData as TempHistoryPoint[];
