@@ -33,6 +33,11 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     data: TrackChangeData,
     earlySwapped: boolean,
   ) => {
+    console.log('[Sonos:BG] handleTrackChange', {
+      newTrack: data.trackName,
+      earlySwapped,
+      positionMs: data.positionMillis,
+    });
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
 
@@ -44,6 +49,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       if (earlySwapped) {
         // Images already swapped by early swap — only update text metadata
+        console.log('[Sonos:BG] Track change (early swapped) — keeping current images');
         setCurrentArtStatus('displayed');
         return {
           ...prev,
@@ -57,6 +63,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       // Not early-swapped — likely a random skip or detected via polling
       // Keep current art, trigger server sync for correct art
+      console.log('[Sonos:BG] Track change (NOT early swapped) — triggering server sync, clearing next_* URLs');
       triggerServerSync();
       return {
         ...prev,
