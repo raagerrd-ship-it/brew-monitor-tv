@@ -264,6 +264,37 @@ export const SonosWidget = memo(function SonosWidget({
             )}
           </div>
         )}
+
+        {/* Temporary visible debug panel */}
+        <div
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] pointer-events-none"
+          style={{
+            background: "rgba(0,0,0,0.85)",
+            borderRadius: 12,
+            padding: "12px 18px",
+            minWidth: 340,
+            fontFamily: "monospace",
+            fontSize: 11,
+            color: "#e0e0e0",
+            lineHeight: 1.6,
+            border: "1px solid rgba(255,255,255,0.15)",
+          }}
+        >
+          <div style={{ color: "#fff", fontWeight: 700, marginBottom: 4, fontSize: 12 }}>🔊 Sonos Debug</div>
+          <div>artStatus: <span style={{ color: currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e", fontWeight: 600 }}>{currentArtStatus}</span></div>
+          <div>prefetchStatus: <span style={{ color: prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : prefetchStatus === "loaded" ? "#22c55e" : "#888", fontWeight: 600 }}>{prefetchStatus}</span></div>
+          <div>track: {nowPlaying.track_name?.slice(0, 35)}</div>
+          <div>artist: {nowPlaying.artist_name?.slice(0, 35)}</div>
+          <div>state: {nowPlaying.playback_state?.replace("PLAYBACK_STATE_", "")}</div>
+          <div>displayedArt: {displayedArtUrl?.slice(-40) || "null"}</div>
+          <div>incomingArt: {incomingArtUrl?.slice(-40) || "null"}</div>
+          <div>isNewArtPending: {String(!!isNewArtPending)}</div>
+          <div>bgSent: {bgSentRef.current?.slice(-40) || "null"}</div>
+          <div>bgBuffer: {validBgBufferRef.current.length} items</div>
+          <div>imageError: {String(imageError)}</div>
+          <div>next_widget: {nowPlaying.next_widget_art_url?.slice(-40) || "null"}</div>
+          <div>next_bg: {nowPlaying.next_bg_image_url?.slice(-40) || "null"}</div>
+        </div>
       </div>
     </div>
   );
