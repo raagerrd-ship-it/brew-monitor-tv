@@ -30,7 +30,12 @@ export default function SonosCallback() {
 
       try {
         const response = await fetch(
-          `https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-auth?action=callback&code=${encodeURIComponent(code)}`
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=callback&code=${encodeURIComponent(code)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
         );
         const data = await response.json();
 

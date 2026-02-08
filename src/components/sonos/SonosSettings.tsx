@@ -87,7 +87,12 @@ export function SonosSettings() {
     setIsConnecting(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=start`
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=start`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
       );
       const data = await response.json();
       
@@ -106,18 +111,14 @@ export function SonosSettings() {
 
   const handleDisconnect = async () => {
     try {
-      await Promise.all([
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`,
-          {
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-          }
-        ),
-        // Clean up now-playing data so widget doesn't show stale info
-        (supabase as any).from('sonos_now_playing').delete().neq('id', ''),
-      ]);
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
       setIsConnected(false);
       setGroups([]);
       setSelectedGroupId(null);
