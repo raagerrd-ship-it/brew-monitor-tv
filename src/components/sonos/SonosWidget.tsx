@@ -5,12 +5,29 @@ import {
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
 
+interface SonosDebugInfo {
+  currentArtStatus: ArtStatus;
+  prefetchStatus: PrefetchStatus;
+  trackName: string | null;
+  artistName: string | null;
+  playbackState: string | null;
+  displayedArtUrl: string | null;
+  incomingArtUrl: string | null;
+  isNewArtPending: boolean;
+  bgSent: string | null;
+  bgBufferLen: number;
+  imageError: boolean;
+  nextWidgetArt: string | null;
+  nextBgUrl: string | null;
+}
+
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   onAlbumArtChange?: (url: string | null) => void;
   showDebug?: boolean;
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
+  onDebugInfo?: React.MutableRefObject<SonosDebugInfo | null>;
 }
 
 export const SonosWidget = memo(function SonosWidget({
@@ -19,6 +36,7 @@ export const SonosWidget = memo(function SonosWidget({
   onAlbumArtChange,
   showDebug = false,
   onRealtimeRef,
+  onDebugInfo,
 }: SonosWidgetProps) {
   // --- State ---
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -97,6 +115,27 @@ export const SonosWidget = memo(function SonosWidget({
   }, [incomingArtUrl]);
 
   const isNewArtPending = incomingArtUrl && (!displayedArtUrl || stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl)) && !imageError;
+
+  // Update debug info ref for external panel
+  useEffect(() => {
+    if (onDebugInfo) {
+      onDebugInfo.current = {
+        currentArtStatus,
+        prefetchStatus,
+        trackName: nowPlaying?.track_name ?? null,
+        artistName: nowPlaying?.artist_name ?? null,
+        playbackState: nowPlaying?.playback_state ?? null,
+        displayedArtUrl,
+        incomingArtUrl,
+        isNewArtPending: !!isNewArtPending,
+        bgSent: bgSentRef.current,
+        bgBufferLen: validBgBufferRef.current.length,
+        imageError,
+        nextWidgetArt: nowPlaying?.next_widget_art_url ?? null,
+        nextBgUrl: nowPlaying?.next_bg_image_url ?? null,
+      };
+    }
+  });
 
   // Track art loading status for debug dot
   useEffect(() => {
@@ -264,38 +303,9 @@ export const SonosWidget = memo(function SonosWidget({
             )}
           </div>
         )}
-
-        {/* Temporary visible debug panel */}
-        <div
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] pointer-events-none"
-          style={{
-            background: "rgba(0,0,0,0.85)",
-            borderRadius: 12,
-            padding: "12px 18px",
-            minWidth: 340,
-            fontFamily: "monospace",
-            fontSize: 11,
-            color: "#e0e0e0",
-            lineHeight: 1.6,
-            border: "1px solid rgba(255,255,255,0.15)",
-          }}
-        >
-          <div style={{ color: "#fff", fontWeight: 700, marginBottom: 4, fontSize: 12 }}>🔊 Sonos Debug</div>
-          <div>artStatus: <span style={{ color: currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e", fontWeight: 600 }}>{currentArtStatus}</span></div>
-          <div>prefetchStatus: <span style={{ color: prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : prefetchStatus === "loaded" ? "#22c55e" : "#888", fontWeight: 600 }}>{prefetchStatus}</span></div>
-          <div>track: {nowPlaying.track_name?.slice(0, 35)}</div>
-          <div>artist: {nowPlaying.artist_name?.slice(0, 35)}</div>
-          <div>state: {nowPlaying.playback_state?.replace("PLAYBACK_STATE_", "")}</div>
-          <div>displayedArt: {displayedArtUrl?.slice(-40) || "null"}</div>
-          <div>incomingArt: {incomingArtUrl?.slice(-40) || "null"}</div>
-          <div>isNewArtPending: {String(!!isNewArtPending)}</div>
-          <div>bgSent: {bgSentRef.current?.slice(-40) || "null"}</div>
-          <div>bgBuffer: {validBgBufferRef.current.length} items</div>
-          <div>imageError: {String(imageError)}</div>
-          <div>next_widget: {nowPlaying.next_widget_art_url?.slice(-40) || "null"}</div>
-          <div>next_bg: {nowPlaying.next_bg_image_url?.slice(-40) || "null"}</div>
-        </div>
       </div>
     </div>
   );
 });
+
+export type { SonosDebugInfo };
