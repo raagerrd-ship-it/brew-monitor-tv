@@ -105,7 +105,9 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
               const artChanged = !inCooldown && data.albumArtUrl && data.albumArtUrl !== prev.album_art_url;
               const nextBgChanged = !inCooldown && data.nextBgImageUrl !== undefined && data.nextBgImageUrl !== prev.next_bg_image_url;
               const nextWidgetChanged = !inCooldown && data.nextWidgetArtUrl !== undefined && data.nextWidgetArtUrl !== prev.next_widget_art_url;
-              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged && !nextBgChanged && !nextWidgetChanged) return prev;
+              const nextTrackChanged = !inCooldown && data.nextTrackName !== undefined && data.nextTrackName !== prev.next_track_name;
+              const nextArtistChanged = !inCooldown && data.nextArtistName !== undefined && data.nextArtistName !== prev.next_artist_name;
+              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged && !nextBgChanged && !nextWidgetChanged && !nextTrackChanged && !nextArtistChanged) return prev;
 
               if (inCooldown) {
                 console.log(`[Sonos:BG] Poll: skipping art URLs during cooldown (${Math.round(msSinceTrackChange / 1000)}s)`);
@@ -130,6 +132,8 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
                 ...(widgetChanged ? { widget_art_url: data.widgetArtUrl } : {}),
                 ...(nextWidgetChanged ? { next_widget_art_url: data.nextWidgetArtUrl } : {}),
                 ...(artChanged ? { album_art_url: data.albumArtUrl } : {}),
+                ...(nextTrackChanged ? { next_track_name: data.nextTrackName } : {}),
+                ...(nextArtistChanged ? { next_artist_name: data.nextArtistName } : {}),
               };
             });
           }
