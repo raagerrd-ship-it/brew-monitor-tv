@@ -125,6 +125,12 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             const newArtUrl = prev.next_album_art_url || prev.album_art_url;
             const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
             const newWidgetArtUrl = prev.next_widget_art_url || prev.widget_art_url;
+            console.log('[Sonos:BG] Early swap', {
+              newArt: newArtUrl?.slice(-60),
+              newBg: newBgUrl?.slice(-60),
+              newWidget: newWidgetArtUrl?.slice(-60),
+              timeRemaining: Math.round(timeRemaining),
+            });
             pushToBgBuffer(validBgBufferRef.current, newBgUrl || newArtUrl);
             onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
             bgSentRef.current = newBgUrl || newArtUrl;

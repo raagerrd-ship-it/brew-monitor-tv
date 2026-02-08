@@ -106,14 +106,25 @@ export const SonosWidget = memo(function SonosWidget({
   }, [isNewArtPending, currentArtStatus]);
 
   const handleNewImageLoaded = useCallback(() => {
+    const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
+    console.log('[Sonos:BG] handleNewImageLoaded', {
+      incomingArtUrl: incomingArtUrl?.slice(-60),
+      displayedArtUrl: displayedArtUrl?.slice(-60),
+      bgUrl: bgUrl?.slice(-60),
+      bgSent: bgSentRef.current?.slice(-60),
+      bufferLen: validBgBufferRef.current.length,
+      inBuffer: bgUrl ? validBgBufferRef.current.some(u => u === bgUrl) : false,
+    });
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
     setCurrentArtStatus("displayed");
-    const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     if (!bgSentRef.current || !validBgBufferRef.current.includes(bgSentRef.current) || bgSentRef.current === bgUrl) {
+      console.log('[Sonos:BG] Sending bg to dashboard:', bgUrl?.slice(-60));
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;
+    } else {
+      console.log('[Sonos:BG] Skipped bg update — bgSent still in buffer');
     }
   }, [incomingArtUrl, nowPlaying?.bg_image_url]);
 
