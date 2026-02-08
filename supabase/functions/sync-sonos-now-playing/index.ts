@@ -79,13 +79,13 @@ function cropToAspectRatio(
   if (srcAspect > targetAspect) {
     // Source is wider — crop horizontally
     cropH = srcH;
-    cropW = Math.round(srcH * targetAspect);
+    cropW = Math.min(Math.round(srcH * targetAspect), srcW);
     offsetX = Math.round((srcW - cropW) / 2);
     offsetY = 0;
   } else {
     // Source is taller — crop vertically
     cropW = srcW;
-    cropH = Math.round(srcW / targetAspect);
+    cropH = Math.min(Math.round(srcW / targetAspect), srcH);
     offsetX = 0;
     offsetY = Math.round((srcH - cropH) / 2);
   }
@@ -549,6 +549,17 @@ serve(async (req) => {
       resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
     ]);
 
+    // Read existing row to check if we can reuse cached image URLs
+    const { data: existingRow } = await supabase
+      .from('sonos_now_playing')
+      .select('id, track_name, bg_image_url, next_bg_image_url, widget_art_url, next_widget_art_url')
+      .eq('group_id', groupId)
+      .limit(1)
+      .single();
+
+    const currentTrackName = track?.name || container?.name || null;
+    const sameTrack = existingRow && existingRow.track_name === currentTrackName;
+
     // Generate background images + widget thumbnails (parallel for current + next)
     let bgImageUrl: string | null = null;
     let nextBgImageUrl: string | null = null;
@@ -559,10 +570,15 @@ serve(async (req) => {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
 
+      // If same track and existing URLs exist, reuse them to prevent
+      // cron (1280x720) from overwriting client-generated (viewport-sized) images
+      const reuseCurrentBg = sameTrack && existingRow.bg_image_url;
+      const reuseCurrentWidget = sameTrack && existingRow.widget_art_url;
+
       const [currentResult, nextResult] = await Promise.all([
-        currentArt.medium
+        currentArt.medium && (!reuseCurrentBg || !reuseCurrentWidget)
           ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH)
-          : Promise.resolve({ bgUrl: null, widgetUrl: null }),
+          : Promise.resolve({ bgUrl: reuseCurrentBg || null, widgetUrl: reuseCurrentWidget || null }),
         nextArt.medium
           ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH)
           : Promise.resolve({ bgUrl: null, widgetUrl: null }),
@@ -603,16 +619,9 @@ serve(async (req) => {
       next_widget_art_url: nextWidgetArtUrl,
     };
 
-    // Upsert to DB
-    const { data: existing } = await supabase
-      .from('sonos_now_playing')
-      .select('id')
-      .eq('group_id', groupId)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      await supabase.from('sonos_now_playing').update(nowPlaying).eq('id', existing.id);
+    // Upsert to DB (reuse existingRow from above)
+    if (existingRow) {
+      await supabase.from('sonos_now_playing').update(nowPlaying).eq('id', existingRow.id);
     } else {
       await supabase.from('sonos_now_playing').insert(nowPlaying);
     }
