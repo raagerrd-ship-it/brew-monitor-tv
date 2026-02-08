@@ -115,6 +115,8 @@ export function SonosSettings() {
     }
   };
 
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
   const saveAllSettings = async () => {
     try {
       const selectedGroup = groups.find(g => g.id === selectedGroupId);
@@ -161,6 +163,21 @@ export function SonosSettings() {
     } catch (error) {
       console.error('Failed to save settings:', error);
       toast.error('Kunde inte spara inställningar');
+    }
+  };
+
+  const saveAndRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      await saveAllSettings();
+      // Trigger server sync to regenerate background with new settings
+      await supabase.rpc('trigger_sonos_now_playing_sync');
+      toast.success('Bakgrundsbild genereras om med nya inställningar');
+    } catch (error) {
+      console.error('Failed to regenerate background:', error);
+      toast.error('Kunde inte generera om bakgrundsbild');
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -390,9 +407,17 @@ export function SonosSettings() {
             </p>
           </div>
 
-          <Button onClick={saveAllSettings} className="w-full">
-            Spara Sonos-inställningar
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={saveAllSettings} variant="outline" className="flex-1">
+              Spara inställningar
+            </Button>
+            <Button onClick={saveAndRegenerate} disabled={isRegenerating} className="flex-1">
+              {isRegenerating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Spara & generera om bakgrund
+            </Button>
+          </div>
         </div>
       )}
 
