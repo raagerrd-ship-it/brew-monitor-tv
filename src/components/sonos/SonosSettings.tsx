@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Music, ExternalLink, Unlink } from "lucide-react";
@@ -23,7 +22,11 @@ export function SonosSettings() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
+  const [bgBrightness, setBgBrightness] = useState(0.35);
   const [bgContrast, setBgContrast] = useState(1.0);
+  const [bgSaturation, setBgSaturation] = useState(1.0);
+  const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
+  const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
   const [prefetchSeconds, setPrefetchSeconds] = useState(30);
 
@@ -38,7 +41,7 @@ export function SonosSettings() {
         fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
         (supabase as any)
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
+          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -60,7 +63,11 @@ export function SonosSettings() {
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
+        setBgBrightness(settings.bg_brightness ?? 0.35);
         setBgContrast(settings.bg_contrast ?? 1.0);
+        setBgSaturation(settings.bg_saturation ?? 1.0);
+        setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
+        setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
         setPrefetchSeconds(settings.prefetch_seconds ?? 30);
       }
@@ -117,7 +124,11 @@ export function SonosSettings() {
         selected_group_name: selectedGroup?.name || null,
         show_on_dashboard: showOnDashboard,
         bg_blur: bgBlur,
+        bg_brightness: bgBrightness,
         bg_contrast: bgContrast,
+        bg_saturation: bgSaturation,
+        bg_top_gradient_opacity: bgTopGradientOpacity,
+        bg_top_gradient_height: bgTopGradientHeight,
         track_change_offset_seconds: trackChangeOffset,
         prefetch_seconds: prefetchSeconds,
       };
@@ -232,10 +243,18 @@ export function SonosSettings() {
             />
           </div>
 
+          {/* Background Image Processing Section */}
+          <div className="space-y-1 pt-2">
+            <h4 className="text-sm font-medium">Bakgrundsbildbehandling (TV-läge)</h4>
+            <p className="text-xs text-muted-foreground">
+              Dessa inställningar styr hur albumomslaget bearbetas till bakgrundsbild
+            </p>
+          </div>
+
           {/* Background Blur */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Bakgrundsoskärpa (TV-läge)</Label>
+              <Label>Oskärpa</Label>
               <span className="text-sm text-muted-foreground tabular-nums">{bgBlur}px</span>
             </div>
             <Slider
@@ -245,15 +264,30 @@ export function SonosSettings() {
               step={1}
               onValueChange={(v) => setBgBlur(v[0])}
             />
+          </div>
+
+          {/* Background Brightness */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Ljusstyrka</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+            </div>
+            <Slider
+              value={[bgBrightness]}
+              min={0.05}
+              max={1.0}
+              step={0.05}
+              onValueChange={(v) => setBgBrightness(v[0])}
+            />
             <p className="text-xs text-muted-foreground">
-              Hur suddig albumomslagets bakgrund blir i TV-läge
+              Lägre = mörkare bakgrund. Rekommenderat ~25-35% för bra läsbarhet
             </p>
           </div>
 
           {/* Background Contrast */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Bakgrundskontrast (TV-läge)</Label>
+              <Label>Kontrast</Label>
               <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgContrast * 100)}%</span>
             </div>
             <Slider
@@ -263,12 +297,64 @@ export function SonosSettings() {
               step={0.05}
               onValueChange={(v) => setBgContrast(v[0])}
             />
+          </div>
+
+          {/* Background Saturation */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Färgmättnad</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgSaturation * 100)}%</span>
+            </div>
+            <Slider
+              value={[bgSaturation]}
+              min={0}
+              max={2.0}
+              step={0.05}
+              onValueChange={(v) => setBgSaturation(v[0])}
+            />
             <p className="text-xs text-muted-foreground">
-              Justera kontrasten på bakgrundsbilden. Lägre värden ger en mer dämpad bakgrund
+              0% = gråskala, 100% = original, 200% = övermättad
             </p>
           </div>
 
+          {/* Top Gradient Opacity */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Överkantsmörkläggning</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgTopGradientOpacity * 100)}%</span>
+            </div>
+            <Slider
+              value={[bgTopGradientOpacity]}
+              min={0}
+              max={1.0}
+              step={0.05}
+              onValueChange={(v) => setBgTopGradientOpacity(v[0])}
+            />
+            <p className="text-xs text-muted-foreground">
+              Mörkare överkant för bättre läsbarhet av headern
+            </p>
+          </div>
+
+          {/* Top Gradient Height */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Överkantshöjd</Label>
+              <span className="text-sm text-muted-foreground tabular-nums">{bgTopGradientHeight}px</span>
+            </div>
+            <Slider
+              value={[bgTopGradientHeight]}
+              min={0}
+              max={200}
+              step={5}
+              onValueChange={(v) => setBgTopGradientHeight(v[0])}
+            />
+          </div>
+
           {/* Track Change Offset */}
+          <div className="space-y-1 pt-2">
+            <h4 className="text-sm font-medium">Uppspelningsinställningar</h4>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Synk-justering vid låtbyte</Label>
