@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { NowPlaying, PrefetchStatus, ArtStatus, pushToBgBuffer } from "./hooks/types";
+import { NowPlaying, PrefetchStatus, ArtStatus, pushToBgBuffer, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
@@ -96,7 +96,7 @@ export const SonosWidget = memo(function SonosWidget({
     if (incomingArtUrl) setImageError(false);
   }, [incomingArtUrl]);
 
-  const isNewArtPending = incomingArtUrl && incomingArtUrl !== displayedArtUrl && !imageError;
+  const isNewArtPending = incomingArtUrl && (!displayedArtUrl || stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl)) && !imageError;
 
   // Track art loading status for debug dot
   useEffect(() => {
