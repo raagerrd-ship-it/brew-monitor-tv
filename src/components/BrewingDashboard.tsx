@@ -5,7 +5,7 @@ import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
 import { BrewCard } from "./brew-card";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
-import type { SonosDebugInfo } from "./sonos/SonosWidget";
+
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Loader2 } from "lucide-react";
@@ -49,8 +49,6 @@ export function BrewingDashboard() {
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
   const [bgContrast, setBgContrast] = useState(1.0);
-  const sonosDebugRef = useRef<SonosDebugInfo | null>(null);
-  const [debugTick, setDebugTick] = useState(0);
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
@@ -82,11 +80,6 @@ export function BrewingDashboard() {
       });
   }, []);
 
-  // Temporary: tick debug panel every second
-  useEffect(() => {
-    const t = setInterval(() => setDebugTick(v => v + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -438,57 +431,10 @@ export function BrewingDashboard() {
             right: '12px',
           }}
         >
-          <SonosWidget isMobile={false} isTvMode={isTvMode} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} showDebug onDebugInfo={sonosDebugRef} />
+          <SonosWidget isMobile={false} isTvMode={isTvMode} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
         </div>
       )}
 
-      {/* Temporary Sonos debug panel — over left brew card */}
-      {sonosDebugRef.current && (() => {
-        const d = sonosDebugRef.current!;
-        void debugTick; // use tick to force re-render
-        const artColor = d.currentArtStatus === "detecting" ? "#ef4444" : d.currentArtStatus === "loading" ? "#f97316" : "#22c55e";
-        const pfColor = d.prefetchStatus === "fetching" ? "#f97316" : d.prefetchStatus === "ready" ? "#eab308" : d.prefetchStatus === "loaded" ? "#22c55e" : "#888";
-        return (
-          <div
-            className="absolute z-20 pointer-events-none"
-            style={{
-              top: `${activeHeaderHeight + 16}px`,
-              left: '20px',
-              background: "rgba(0,0,0,0.88)",
-              borderRadius: 12,
-              padding: "14px 20px",
-              minWidth: 360,
-              fontFamily: "monospace",
-              fontSize: 12,
-              color: "#e0e0e0",
-              lineHeight: 1.7,
-              border: "1px solid rgba(255,255,255,0.15)",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6, fontSize: 13 }}>🔊 Sonos Debug</div>
-            <div>artStatus: <span style={{ color: artColor, fontWeight: 600 }}>{d.currentArtStatus}</span></div>
-            <div>prefetchStatus: <span style={{ color: pfColor, fontWeight: 600 }}>{d.prefetchStatus}</span></div>
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 4, paddingTop: 4 }}>
-              track: {d.trackName?.slice(0, 40)}
-            </div>
-            <div>artist: {d.artistName?.slice(0, 40)}</div>
-            <div>state: {d.playbackState?.replace("PLAYBACK_STATE_", "")}</div>
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 4, paddingTop: 4 }}>
-              displayedArt: {d.displayedArtUrl?.slice(-45) || "null"}
-            </div>
-            <div>incomingArt: {d.incomingArtUrl?.slice(-45) || "null"}</div>
-            <div>isNewArtPending: <span style={{ color: d.isNewArtPending ? "#eab308" : "#888" }}>{String(d.isNewArtPending)}</span></div>
-            <div>imageError: <span style={{ color: d.imageError ? "#ef4444" : "#888" }}>{String(d.imageError)}</span></div>
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 4, paddingTop: 4 }}>
-              bgSent: {d.bgSent?.slice(-45) || "null"}
-            </div>
-            <div>bgBuffer: {d.bgBufferLen} items</div>
-            <div>next_widget: {d.nextWidgetArt?.slice(-45) || "null"}</div>
-            <div>next_bg: {d.nextBgUrl?.slice(-45) || "null"}</div>
-          </div>
-        );
-      })()}
 
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
