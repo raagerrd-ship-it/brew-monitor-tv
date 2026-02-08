@@ -105,6 +105,8 @@ export function BrewingDashboard() {
     updatedFields,
     isAuthenticated,
     loadBrewEvents,
+    loadBrews,
+    loadRaptData,
     onSonosNowPlayingChange,
     onSonosSettingsChange,
     onSyncSettingsChange,
@@ -283,6 +285,11 @@ export function BrewingDashboard() {
     setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
     setControllerDialogOpen(true);
   }, [coolerControllerId]);
+  const handleManualRefresh = useCallback(async () => {
+    sonnerToast("Uppdaterar...", { duration: 1500 });
+    await Promise.all([loadBrews(), loadRaptData()]);
+    sonnerToast.success("Data uppdaterad", { duration: 1500 });
+  }, [loadBrews, loadRaptData]);
 
   // Memoized grid layout helpers - MUST be before any conditional returns
   const gridLayout = useMemo(() => {
@@ -375,6 +382,7 @@ export function BrewingDashboard() {
         pills={pills}
         onControllerClick={handleControllerClick}
         hasAlbumArtBackground={!!visibleBgUrl}
+        onRefresh={isMobile ? handleManualRefresh : undefined}
       />
 
       {/* Main Display Area */}
