@@ -36,4 +36,10 @@ if ('serviceWorker' in navigator && !isIframe && !isTvParam && !isChromecast) {
   });
 }
 
+// Remove overflow:hidden on non-TV devices (set in index.html for Chromecast)
+if (!isTvParam && !isChromecast && !isIframe) {
+  document.documentElement.style.overflow = '';
+  document.body.style.overflow = '';
+}
+
 createRoot(document.getElementById("root")!).render(<App />);
