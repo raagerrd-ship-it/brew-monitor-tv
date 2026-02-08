@@ -1,38 +1,48 @@
 
 
-# Fixa pixlig bakgrundsbild - hämta högre upplösning
+## Fix: Blocky Background Blur
 
-## Problem
-Spotify oEmbed-endpointen returnerar thumbnails på ca 300x300 pixlar. Dessa skalas upp till 1280x720 for bakgrunden -- en uppskalning pa over 4x -- vilket ger en tydligt pixlig bild. Widgeten (280x130) paverkas inte eftersom den ar mindre an kallan.
+### Problem
+The current blur implementation downscales the 1280x720 image to a very small size (e.g., ~80x45 pixels when blur=40) in a single step, then upscales it back. This creates visible blocky artifacts -- large soft squares instead of a smooth blur.
 
-## Losning
-Spotify's bild-CDN anvander storlekskoder i URL:en. Genom att byta storlekskoden fran 300px-varianten till 640px-varianten far vi en mycket battre kalla for bakgrundsgenereringen.
+### Solution: Multi-pass progressive blur
+Instead of one extreme downscale/upscale, apply multiple smaller downscale/upscale passes. Each pass reduces detail incrementally, producing a smooth gaussian-like blur without blocky artifacts.
 
-Storlekskoder i Spotify CDN:
-- `ab67616d000048a1` = 64x64
-- `ab67616d00001e02` = 300x300
-- `ab67616d0000b273` = 640x640
+For example, with blur=40:
+- Current: 1280x720 -> 80x45 -> 1280x720 (one giant jump = blocky)
+- New: 1280x720 -> 640x360 -> 1280x720 -> 640x360 -> 1280x720 ... (multiple gentle passes = smooth)
 
-640x640 ar fortfarande mindre an 1280x720, men med blur applicerad (som anda ar avsedd for bakgrunden) blir resultatet avsevart battre an fran 300x300.
+The number of passes scales with the blur value, and each pass uses a modest downscale factor (e.g., 2-3x) rather than one extreme factor.
 
-## Teknisk andring
+### Technical Change
 
-### Fil: `supabase/functions/_shared/sonos-art.ts`
+**File: `supabase/functions/_shared/image-processing.ts`**
 
-Lagg till en funktion som uppgraderar Spotify CDN-URL:er till 640x640-varianten:
+Replace the `applyBlur` function (lines ~79-87) with a multi-pass version:
 
 ```typescript
-function upgradeSpotifyImageSize(url: string): string {
-  // Replace 300x300 size code with 640x640
-  return url.replace('ab67616d00001e02', 'ab67616d0000b273');
+function applyBlur(pixels: Uint8Array, w: number, h: number, blur: number): Uint8Array {
+  if (blur <= 0) return pixels;
+
+  // Number of passes scales with blur amount (e.g., blur=40 -> 4 passes, blur=200 -> 10)
+  const passes = Math.max(1, Math.min(12, Math.round(blur / 10)));
+  // Each pass uses a gentle downscale factor (2-4x)
+  const perPassFactor = Math.max(2, Math.min(4, Math.round(blur / (passes * 3)) + 2));
+
+  let result = pixels;
+  for (let i = 0; i < passes; i++) {
+    const smallW = Math.max(4, Math.round(w / perPassFactor));
+    const smallH = Math.max(4, Math.round(h / perPassFactor));
+    const small = resizeBilinear(result, w, h, smallW, smallH);
+    result = resizeBilinear(small, smallW, smallH, w, h);
+  }
+  return result;
 }
 ```
 
-Applicera detta pa `thumbnail_url` fran oEmbed innan den returneras, sa att bade bakgrund och widget far tillgang till hogre upplosning som kalla.
-
-### Paverkan
-- Bakgrunden genereras fran 640x640 istallet for 300x300 -- drygt 4x fler pixlar
-- Widgeten paverkas inte negativt (den skalas anda ner)
-- Ingen ny cache-version behovs for widgeten, men bakgrunder med ny kalla kommer automatiskt genereras om tack vare att bilddatan skiljer sig (track hash ar densamma, men bilden blir battre)
-- Ingen databasandring kravs
+### Impact
+- Eliminates blocky artifacts -- produces a smooth, natural-looking blur
+- Slightly more processing time due to multiple passes, but each pass is cheaper than one extreme resize
+- No database or settings changes needed -- the blur slider value is interpreted the same way
+- Requires redeployment of `sync-sonos-now-playing` (automatic)
 
