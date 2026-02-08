@@ -22,7 +22,7 @@ export function SonosSettings() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
-  const [bgBrightness, setBgBrightness] = useState(0.35);
+  const [bgBrightness, setBgBrightness] = useState(90);
   const [bgContrast, setBgContrast] = useState(1.0);
   const [bgSaturation, setBgSaturation] = useState(1.0);
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
@@ -67,7 +67,7 @@ export function SonosSettings() {
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
-        setBgBrightness(settings.bg_brightness ?? 0.35);
+        setBgBrightness(settings.bg_brightness ?? 90);
         setBgContrast(settings.bg_contrast ?? 1.0);
         setBgSaturation(settings.bg_saturation ?? 1.0);
         setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
@@ -350,21 +350,21 @@ export function SonosSettings() {
               />
             </div>
 
-            {/* Background Brightness */}
+            {/* Background Brightness (target luminance) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Ljusstyrka</Label>
-                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness * 100)}%</span>
+                <Label>Ljusstyrka (mål-luminans)</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{Math.round(bgBrightness)}</span>
               </div>
               <Slider
                 value={[bgBrightness]}
-                min={0.05}
-                max={1.0}
-                step={0.05}
+                min={10}
+                max={255}
+                step={5}
                 onValueChange={(v) => setBgBrightness(v[0])}
               />
               <p className="text-xs text-muted-foreground">
-                Lägre = mörkare bakgrund. Rekommenderat ~25-35% för bra läsbarhet
+                Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
               </p>
             </div>
 

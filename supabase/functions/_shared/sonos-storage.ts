@@ -84,7 +84,7 @@ export async function resolveBackgroundAndWidget(
 
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
-  const bgFileName = `${trackHash}-${settingsHash}-${targetW}x${targetH}-v7.jpg`;
+  const bgFileName = `${trackHash}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
   const widgetFileName = `${trackHash}-widget-v1.jpg`;
 
   // Check cache for both in parallel

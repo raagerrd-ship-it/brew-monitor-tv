@@ -40,7 +40,7 @@ serve(async (req) => {
 
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
-      brightness: settings?.bg_brightness ?? 0.35,
+      brightness: settings?.bg_brightness ?? 90,
       contrast: settings?.bg_contrast ?? 1.0,
       saturation: settings?.bg_saturation ?? 1.0,
       topGradientOpacity: settings?.bg_top_gradient_opacity ?? 0.45,
