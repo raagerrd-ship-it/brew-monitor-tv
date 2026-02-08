@@ -1,65 +1,88 @@
 
-## Djupanalys av Sonos-integrationen -- Runda 5
 
-### Sammanfattning
+## Optimera bildgenerering -- korrekt storlek och beskärning
 
-Koden ar i mycket bra skick efter fyra rundor. Denna granskning identifierar **2 sma problem** -- bada lag prioritet.
+### Problem
+
+1. **Bakgrund**: Genereras alltid som 1280x720 men TV:n kan vara 1920x1080 eller annan upplösning. Bilden upskalas av webbläsaren med `cover` + `scale(1.15)`, vilket ger onödig mjukhet/pixlighet.
+
+2. **Widget-albumart**: Rå Spotify-bilder (300-640px breda) laddas ner till en widget som är 280x130px. Onödigt mycket data för en liten yta, och ingen server-side beskärning till widgetens proportioner.
 
 ---
 
-### Problem 1: `sonos-auth` och `sonos-groups` anvander olika Supabase-importsokvagar
+### Lösning
 
-**Filer:** `supabase/functions/sonos-auth/index.ts` rad 2, `supabase/functions/sonos-groups/index.ts` rad 2
+#### 1. Dynamisk bakgrundsstorlek
 
-```ts
-// sonos-auth & sonos-groups:
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+Ändra edge-funktionen `sync-sonos-now-playing` så att bakgrundsbilden genereras i en storlek som matchar målenheten:
 
-// sync-sonos-now-playing & sonos-playback-status:
-import { createClient } from "npm:@supabase/supabase-js@2";
+- Klienten skickar sin viewport-storlek (`width x height`) som parameter vid server-sync-anrop
+- Servern använder dessa mått (med `scale(1.15)` inräknat) som mål istället för hardkodade 1280x720
+- Fallback till 1280x720 om inga mått skickas
+- Storleken inkluderas i cache-nyckeln så att olika enheter får rätt version
+
+**Filer att ändra:**
+- `supabase/functions/sync-sonos-now-playing/index.ts` -- ta emot `width`/`height`, använd i `generateBackground()`
+- `src/components/sonos/hooks/types.ts` -- skicka viewport-mått i `triggerServerSync()`
+- `src/components/sonos/hooks/useSonosClientPolling.ts` -- skicka viewport-mått vid polling
+
+#### 2. Server-genererad widget-thumbnail
+
+Generera en liten beskuren bild (280x130) för widgeten server-side, spara i storage, och skicka URL:en via `sonos_now_playing`:
+
+- Ny kolumn `widget_art_url` i `sonos_now_playing`
+- Edge-funktionen genererar en 280x130 `object-cover`-beskärning av albumarten
+- Widgeten använder `widget_art_url` istället för rå Spotify-URL
+- Minskar klientens bildladdning dramatiskt (280x130 JPEG ~5-10 KB vs 640x640 ~50-100 KB)
+
+**Filer att ändra:**
+- `supabase/functions/sync-sonos-now-playing/index.ts` -- generera widget-thumbnail
+- DB-migration: `ALTER TABLE sonos_now_playing ADD COLUMN widget_art_url TEXT`
+- `src/components/sonos/SonosWidget.tsx` -- använd `widget_art_url`
+- `src/components/sonos/hooks/types.ts` -- lägg till `widget_art_url` i `NowPlaying`
+
+---
+
+### Teknisk detalj: beskärningslogik
+
+**Bakgrund** (cover + scale):
+```text
+Mål: viewport * 1.15 (för att täcka scale-transform)
+Exempel: 1920x1080 TV -> generera 2208x1242
+Beskärning: center-crop källbilden till rätt aspect ratio, sedan resize
 ```
 
-Tva edge functions anvander `esm.sh`-importen medan de tva nyare anvander `npm:`-specifiern. Bada fungerar i Deno, men `npm:` ar den rekommenderade metoden for Deno 1.28+ och ger battre kompatibilitet. Inkonsistensen ar inte en bugg men kan skapa forvirring vid framtida underhall.
+**Widget-thumbnail** (object-cover i 280x130):
+```text
+Aspect ratio: 280/130 = 2.15:1
+Center-crop källbilden till 2.15:1, sedan resize ner till 280x130
+```
 
-**Fix:** Ersatt `https://esm.sh/@supabase/supabase-js@2` med `npm:@supabase/supabase-js@2` i `sonos-auth` och `sonos-groups`.
+Beskärningen sker i den befintliga `resizeBilinear`-funktionen med en ny hjälpfunktion `cropToAspectRatio()` som beräknar center-crop-koordinater.
 
 ---
 
-### Problem 2: `sonos-auth` `action=refresh` ar oanvand och duplicerar delad logik
+### Cache-strategi
 
-**Fil:** `supabase/functions/sonos-auth/index.ts`, rad 120-176
+Cache-nyckeln utökas med dimensionerna:
 
-`action=refresh`-grenen implementerar token-fornyelse manuellt -- exakt samma logik som nu finns i `_shared/sonos-token.ts` via `getValidAccessToken()`. Ingen klient- eller serverkod anropar nagonsin `sonos-auth?action=refresh`. Det ar dod kod som kan forvirra och som divergerar fran den delade implementationen om nagot andras dar.
+```text
+Nuvarande: {trackHash}-{settingsHash}-v6.jpg
+Ny:         {trackHash}-{settingsHash}-{width}x{height}-v7.jpg
+Widget:     {trackHash}-widget-v1.jpg
+```
 
-**Fix:** Ta bort hela `action=refresh`-grenen (rad 120-176). Om token-fornyelse nagonsin behovs manuellt kan `getValidAccessToken` anropas direkt.
+Cleanup-funktionen behålls oförändrad -- den tar redan hand om gamla filer.
 
 ---
 
 ### Implementationsplan
 
-| Prioritet | Fil | Andring |
-|-----------|-----|---------|
-| LAG | `sonos-auth/index.ts` rad 2 | `esm.sh` -> `npm:` import |
-| LAG | `sonos-groups/index.ts` rad 2 | `esm.sh` -> `npm:` import |
-| LAG | `sonos-auth/index.ts` rad 120-176 | Ta bort oanvand `action=refresh`-gren |
+| Steg | Fil | Ändring |
+|------|-----|---------|
+| 1 | DB-migration | Lägg till `widget_art_url` och `next_widget_art_url` i `sonos_now_playing` |
+| 2 | `sync-sonos-now-playing` | Ny `cropToAspectRatio()` + dynamisk storlek + widget-generering |
+| 3 | `types.ts` | Skicka viewport-mått i `triggerServerSync()`, lägg till `widget_art_url` i interface |
+| 4 | `useSonosClientPolling.ts` | Skicka viewport-mått vid polling |
+| 5 | `SonosWidget.tsx` | Använd `widget_art_url` istället för `album_art_url` |
 
----
-
-### Bekraftat korrekt efter 5 rundor
-
-- **Token-hantering:** Konsoliderad i delad hjalpfil, alla `await`, scope korrekt
-- **Prefetch-installning:** Hamtas korrekt fran DB, anvands via ref
-- **Client polling:** Ingen stale closure, `nowPlayingRef` anvands, bakgrunds-safeguard
-- **Realtime:** 15s cooldown, sparmedveten, position villkorad pa accept-flagga
-- **Ticker:** DOM-baserad progress, prediktiv polling, prefetch, early swap, timeout
-- **Auth headers:** Konsekvent pa alla edge function-anrop
-- **Environment-variabler:** Inga hardkodade URL:er kvar
-- **Disconnect:** Full cleanup via edge function
-- **isTvMode:** Skickas korrekt till widgeten
-- **imageError:** Aterstalls vid ny art URL
-- **triggerServerSync:** 15s timeout via AbortController
-- **Bild-preloading:** Korrekt preload-kedja for current + next art + background
-- **Visibility:** 5s grace period, PAUSED/IDLE-hantering korrekt
-- **Edge functions:** Parallella API-anrop, chunk-baserad base64, error handling
-
-Koden ar nu i ett stabilt och konsekvent tillstand. De tva kvarvarande problemen ar rengoringsuppgifter utan funktionell paverkan.
