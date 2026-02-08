@@ -970,13 +970,13 @@ export default function Settings() {
   }
 
   return (
-    <div className={`flex flex-col bg-gradient-to-br from-background via-background to-primary/5 ${isMobile ? 'min-h-screen' : 'h-full'}`}>
+    <div className={`bg-gradient-to-br from-background via-background to-primary/5 ${isMobile ? 'min-h-screen' : 'h-full flex flex-col'}`}>
       <DashboardHeader
         controllers={headerControllers}
         pills={headerPills}
         onLogout={handleLogout}
       />
-      <div className={`flex-1 overflow-y-auto ${isMobile ? '' : ''}`} style={isMobile ? { paddingTop: `${headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
+      <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
         <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
