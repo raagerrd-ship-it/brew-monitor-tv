@@ -98,6 +98,7 @@ serve(async (req) => {
       ok: true,
       playbackState: playbackData.playbackState || 'IDLE',
       positionMillis: playbackData.positionMillis || 0,
+      durationMillis: track?.durationMillis || null,
       trackName: track?.name || null,
       artistName: track?.artist?.name || null,
       albumName: track?.album?.name || null,

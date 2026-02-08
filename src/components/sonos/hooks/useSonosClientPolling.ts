@@ -73,32 +73,34 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
 
         // Update position via DOM ref
         localProgressRef.current = data.positionMillis;
-        updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, nowPlaying.duration_ms);
+        const duration = data.durationMillis ?? nowPlaying.duration_ms;
+        updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, duration);
 
         if (data.trackName) {
           const trackChanged = nowPlaying.track_name !== data.trackName;
           if (trackChanged) {
             handleTrackChange(data, false);
           } else {
-            // Same track — update metadata if changed
+            // Same track — update metadata and state if changed
             setNowPlaying(prev => {
               if (!prev) return prev;
               const artistChanged = prev.artist_name !== data.artistName;
               const albumChanged = prev.album_name !== data.albumName;
-              if (!artistChanged && !albumChanged && data.playbackState === prev.playback_state) return prev;
+              const stateChanged = prev.playback_state !== data.playbackState;
+              const durationChanged = duration && prev.duration_ms !== duration;
+              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged) return prev;
               return {
                 ...prev,
                 artist_name: data.artistName ?? prev.artist_name,
                 album_name: data.albumName ?? prev.album_name,
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
+                duration_ms: duration ?? prev.duration_ms,
               };
             });
           }
-        }
-
-        // Update playback state even if no track name
-        if (data.playbackState !== 'PLAYBACK_STATE_PLAYING') {
+        } else if (data.playbackState !== nowPlaying.playback_state) {
+          // No track name but playback state changed (e.g. IDLE)
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
 
