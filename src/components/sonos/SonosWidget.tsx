@@ -497,7 +497,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   // Visibility logic: hide immediately if no data, grace period for IDLE/PAUSED
   const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name;
-  const wantsToHide = !isInactive && (nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying?.playback_state === 'PLAYBACK_STATE_PAUSED');
+  const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
 
   useEffect(() => {
     if (isInactive) {
