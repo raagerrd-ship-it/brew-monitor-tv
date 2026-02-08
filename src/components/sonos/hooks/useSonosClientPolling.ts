@@ -27,6 +27,7 @@ interface UseSonosClientPollingParams {
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
+  trackChangeOffsetRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
 }
@@ -40,7 +41,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
+    localProgressRef, lastPredictivePollRef, trackChangedAtRef, trackChangeOffsetRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   } = params;
@@ -87,7 +88,9 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
             // Same track — update metadata, state, and art URLs if changed
             // BUT skip art URL updates during cooldown to prevent stale DB data overwriting early-swapped images
             const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
-            const inCooldown = msSinceTrackChange < 15000;
+            // Cooldown scales with track change offset setting (minimum 15s)
+            const cooldownMs = Math.max(15000, trackChangeOffsetRef.current * 1000 + 15000);
+            const inCooldown = msSinceTrackChange < cooldownMs;
 
             setNowPlaying(prev => {
               if (!prev) return prev;
