@@ -56,6 +56,8 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   const bgSentRef = useRef<string | null>(null);
   const validBgBufferRef = useRef<string[]>([]);
   const trackChangedAtRef = useRef<number>(0);
+  const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [graceExpired, setGraceExpired] = useState(false);
 
   // Strip query params for comparison (cache-bust parameters cause false mismatches)
   const stripQuery = useCallback((url: string) => url.split('?')[0], []);
@@ -91,7 +93,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
 
   // Consolidated 1s ticker: progress + predictive scheduling + prefetch trigger
   useEffect(() => {
-    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING' || !nowPlaying.duration_ms) return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || !nowPlaying.duration_ms) return;
 
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
@@ -138,14 +140,15 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                 position_ms: data.positionMillis,
               };
             }
-            const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
-            const newArtUrl = prev.next_album_art_url || prev.album_art_url;
-            pushToBgBuffer(newBgUrl || newArtUrl);
-            onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
-            bgSentRef.current = newBgUrl || newArtUrl;
-            // If art URL didn't actually change, stay green; otherwise go to detecting
-            const artActuallyChanged = newArtUrl && stripQuery(newArtUrl) !== stripQuery(prev.album_art_url || '');
-            setCurrentArtStatus(artActuallyChanged ? 'detecting' : 'displayed');
+            // Not early-swapped — likely a random skip. Don't use stale next_ URLs.
+            // Keep current art, update text only. Trigger server sync for correct art.
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+            }).catch(() => {});
             return {
               ...prev,
               track_name: data.trackName,
@@ -153,8 +156,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
               album_name: data.albumName ?? prev.album_name,
               playback_state: data.playbackState,
               position_ms: data.positionMillis,
-              album_art_url: newArtUrl,
-              bg_image_url: newBgUrl,
               next_album_art_url: null,
               next_bg_image_url: null,
             };
@@ -246,7 +247,7 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
   // 5s client polling for playback position (only while PLAYING)
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    if (!nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING') return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
 
     const poll = async () => {
       // Skip if a predictive poll just ran
@@ -286,13 +287,15 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
             }
             if (trackChanged) {
               trackChangedAtRef.current = Date.now();
-              const newBgUrl = prev.next_bg_image_url || prev.bg_image_url;
-              const newArtUrl = prev.next_album_art_url || prev.album_art_url;
-              pushToBgBuffer(newBgUrl || newArtUrl);
-              onAlbumArtChangeRef.current?.(newBgUrl || newArtUrl);
-              bgSentRef.current = newBgUrl || newArtUrl;
-              const artActuallyChanged = newArtUrl && stripQuery(newArtUrl) !== stripQuery(prev.album_art_url || '');
-              setCurrentArtStatus(artActuallyChanged ? 'detecting' : 'displayed');
+              // Don't use stale next_ URLs — keep current art, update text only
+              // Trigger server sync to get correct art for the new track
+              fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+              }).catch(() => {});
               return {
                 ...prev,
                 track_name: data.trackName,
@@ -300,8 +303,6 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
                 album_name: data.albumName ?? prev.album_name,
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
-                album_art_url: newArtUrl,
-                bg_image_url: newBgUrl,
                 next_album_art_url: null,
                 next_bg_image_url: null,
               };
@@ -494,17 +495,37 @@ export const SonosWidget = memo(function SonosWidget({ isMobile = false, isTvMod
     return () => window.removeEventListener('resize', checkScroll);
   }, [nowPlaying]);
 
-  // Clear background when not playing
-  const shouldHide = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.playback_state !== 'PLAYBACK_STATE_PLAYING';
-  
+  // Visibility logic: hide immediately if no data, grace period for IDLE/PAUSED
+  const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name;
+  const wantsToHide = !isInactive && (nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying?.playback_state === 'PLAYBACK_STATE_PAUSED');
+
   useEffect(() => {
-    if (shouldHide) {
+    if (isInactive) {
+      if (hideGraceTimerRef.current) { clearTimeout(hideGraceTimerRef.current); hideGraceTimerRef.current = null; }
+      setGraceExpired(true);
       onAlbumArtChangeRef.current?.(null);
       bgSentRef.current = null;
       validBgBufferRef.current = [];
+      return;
     }
-  }, [shouldHide]);
+    if (wantsToHide) {
+      if (!hideGraceTimerRef.current) {
+        hideGraceTimerRef.current = setTimeout(() => {
+          setGraceExpired(true);
+          onAlbumArtChangeRef.current?.(null);
+          bgSentRef.current = null;
+          validBgBufferRef.current = [];
+          hideGraceTimerRef.current = null;
+        }, 5000);
+      }
+      return;
+    }
+    // Active (PLAYING/BUFFERING/TRANSITIONING) — cancel grace, show widget
+    if (hideGraceTimerRef.current) { clearTimeout(hideGraceTimerRef.current); hideGraceTimerRef.current = null; }
+    setGraceExpired(false);
+  }, [isInactive, wantsToHide]);
 
+  const shouldHide = isInactive || (wantsToHide && graceExpired);
   if (shouldHide) return null;
 
   // Calculate progress percentage
