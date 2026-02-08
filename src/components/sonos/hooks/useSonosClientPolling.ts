@@ -17,6 +17,7 @@ interface UseSonosClientPollingParams {
   isConnected: boolean;
   showWidget: boolean;
   nowPlaying: NowPlaying | null;
+  nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
   displayedArtUrl: string | null;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   handleTrackChange: (data: TrackChangeData, earlySwapped: boolean) => void;
@@ -36,7 +37,7 @@ interface UseSonosClientPollingParams {
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
-    isConnected, showWidget, nowPlaying, displayedArtUrl,
+    isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
@@ -104,18 +105,19 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
 
-        // Background sync safeguard
+        // Background sync safeguard — use ref to avoid stale closure
+        const currentNp = nowPlayingRef.current;
         const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
         const isKnownValid = sentStripped && validBgBufferRef.current.some(u => stripQuery(u) === sentStripped);
         if (bgSentRef.current && !isKnownValid) {
-          const expectedBgUrl = nowPlaying.bg_image_url || displayedArtUrl;
+          const expectedBgUrl = currentNp?.bg_image_url || displayedArtUrl;
           if (expectedBgUrl) {
             pushToBgBuffer(validBgBufferRef.current, expectedBgUrl);
             onAlbumArtChangeRef.current?.(expectedBgUrl);
             bgSentRef.current = expectedBgUrl;
           }
         } else if (!bgSentRef.current && displayedArtUrl) {
-          const bgUrl = nowPlaying.bg_image_url || displayedArtUrl;
+          const bgUrl = currentNp?.bg_image_url || displayedArtUrl;
           pushToBgBuffer(validBgBufferRef.current, bgUrl);
           onAlbumArtChangeRef.current?.(bgUrl);
           bgSentRef.current = bgUrl;

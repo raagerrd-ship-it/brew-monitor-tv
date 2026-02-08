@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getValidAccessToken } from "../_shared/sonos-token.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,55 +22,21 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: tokens and settings
+    // Parallel fetch: token + settings
     const [tokenResult, settingsResult] = await Promise.all([
-      supabase.from('sonos_tokens').select('*').limit(1).single(),
+      getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
       supabase.from('sonos_settings').select('selected_group_id').limit(1).single(),
     ]);
 
-    const tokenData = tokenResult.data;
     const groupId = settingsResult.data?.selected_group_id;
 
-    if (!tokenData || !groupId) {
+    if (!tokenResult || !groupId) {
       return new Response(JSON.stringify({ ok: false, reason: 'not_configured' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Refresh token if expired
-    let accessToken = tokenData.access_token;
-    const isExpired = new Date(tokenData.expires_at) < new Date();
-
-    if (isExpired) {
-      const tokenResponse = await fetch('https://api.sonos.com/login/v3/oauth/access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${btoa(`${SONOS_CLIENT_ID}:${SONOS_CLIENT_SECRET}`)}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokenData.refresh_token,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        return new Response(JSON.stringify({ ok: false, reason: 'token_refresh_failed' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const tokens = await tokenResponse.json();
-      accessToken = tokens.access_token;
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      // Fire-and-forget token update
-      supabase.from('sonos_tokens').update({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: expiresAt.toISOString(),
-      }).eq('id', tokenData.id).then(() => {});
-    }
+    const accessToken = tokenResult.accessToken;
 
     // Parallel fetch: playback status + metadata
     const [playbackResponse, metadataResponse] = await Promise.all([

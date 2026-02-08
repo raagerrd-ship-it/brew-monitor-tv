@@ -44,10 +44,13 @@ export const SonosWidget = memo(function SonosWidget({
   const predictiveScheduledRef = useRef(false);
   const prefetchTriggeredForTrackRef = useRef<string | null>(null);
   const trackChangeOffsetRef = useRef<number>(0);
+  const prefetchSecondsRef = useRef<number>(30);
+  const nowPlayingRef = useRef<NowPlaying | null>(null);
+  nowPlayingRef.current = nowPlaying;
 
   // --- Hooks ---
   const { isConnected, showWidget } = useSonosInit({
-    setNowPlaying, localProgressRef, trackChangeOffsetRef,
+    setNowPlaying, localProgressRef, trackChangeOffsetRef, prefetchSecondsRef,
   });
 
   const { handleTrackChange } = useSonosTrackChange({
@@ -60,12 +63,12 @@ export const SonosWidget = memo(function SonosWidget({
     nowPlaying, setNowPlaying, setPrefetchStatus, handleTrackChange,
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
-    trackChangeOffsetRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
+    trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   });
 
   useSonosClientPolling({
-    isConnected, showWidget, nowPlaying, displayedArtUrl,
+    isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,

@@ -38,7 +38,7 @@ export function SonosSettings() {
     setIsLoading(true);
     try {
       const [groupsResponse, settingsResult] = await Promise.all([
-        fetch(`https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-groups`),
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-groups`),
         (supabase as any)
           .from('sonos_settings')
           .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
@@ -83,7 +83,7 @@ export function SonosSettings() {
     setIsConnecting(true);
     try {
       const response = await fetch(
-        `https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-auth?action=start`
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=start`
       );
       const data = await response.json();
       
@@ -103,7 +103,7 @@ export function SonosSettings() {
   const handleDisconnect = async () => {
     try {
       await fetch(
-        `https://plwchuzidrjgyuepwdcl.supabase.co/functions/v1/sonos-auth?action=disconnect`
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`
       );
       setIsConnected(false);
       setGroups([]);
