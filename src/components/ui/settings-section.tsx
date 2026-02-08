@@ -1,0 +1,55 @@
+import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface SettingsSectionProps {
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  className?: string;
+  variant?: "default" | "muted";
+}
+
+/**
+ * Groups related settings into a visually distinct container
+ * with a section header and subtle background.
+ */
+export function SettingsSection({
+  icon: Icon,
+  title,
+  description,
+  children,
+  className,
+  variant = "default",
+}: SettingsSectionProps) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-5 space-y-4",
+        variant === "default"
+          ? "bg-card/50 border-border/60"
+          : "bg-muted/20 border-border/40",
+        className
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 border border-primary/20">
+            <Icon className="h-4.5 w-4.5 text-primary" />
+          </div>
+        </div>
+        <div>
+          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          {description && (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}

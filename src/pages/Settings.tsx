@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
-import { SectionHeader } from "@/components/ui/section-header";
+import { SettingsSection } from "@/components/ui/settings-section";
 import { TempController } from "@/types/brew";
 
 export default function Settings() {
@@ -981,7 +981,7 @@ export default function Settings() {
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="sync" className="flex items-center gap-2 relative">
               <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Synk</span>
+              Synk
               {syncTabStatus && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
                   <AlertCircle className="h-3 w-3" />
@@ -990,7 +990,7 @@ export default function Settings() {
             </TabsTrigger>
             <TabsTrigger value="automation" className="flex items-center gap-2 relative">
               <Thermometer className="h-4 w-4" />
-              <span className="hidden sm:inline">Automatik</span>
+              Automatik
               {automationTabStatus && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
                   <AlertCircle className="h-3 w-3" />
@@ -999,7 +999,7 @@ export default function Settings() {
             </TabsTrigger>
             <TabsTrigger value="devices" className="flex items-center gap-2 relative">
               <Cpu className="h-4 w-4" />
-              <span className="hidden sm:inline">Enheter</span>
+              Enheter
               {devicesTabStatus && (
                 <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
                   {devicesTabStatus.count}
@@ -1008,7 +1008,7 @@ export default function Settings() {
             </TabsTrigger>
             <TabsTrigger value="brews" className="flex items-center gap-2 relative">
               <Beer className="h-4 w-4" />
-              <span className="hidden sm:inline">Öl</span>
+              Öl
               {brewsTabStatus && (
                 <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
                   {brewsTabStatus.count}
@@ -1019,15 +1019,11 @@ export default function Settings() {
 
           {/* SYNC TAB */}
           <TabsContent value="sync" className="space-y-8">
-            {/* Brewfather Section */}
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Beer}
-                title="Brewfather"
-                description="Synkronisera bryggar-data från Brewfather"
-              />
-              
-              {/* API Credentials Card */}
+            <SettingsSection
+              icon={Beer}
+              title="Brewfather"
+              description="Synkronisera bryggar-data från Brewfather"
+            >
               <Card className="p-4 bg-muted/30 border-primary/10">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -1088,7 +1084,7 @@ export default function Settings() {
               </Card>
 
               {/* Sync Options Grid */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 grid-cols-2">
                 {/* Quick Sync Card */}
                 <Card className="p-4 space-y-3">
                   <div>
@@ -1184,7 +1180,7 @@ export default function Settings() {
               <Card className="p-4 space-y-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Automatisk hantering</span>
                 
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 grid-cols-2">
                   <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
                     <Checkbox 
                       id="auto-activate-fermenting"
@@ -1230,17 +1226,13 @@ export default function Settings() {
                   </div>
                 </div>
               </Card>
-            </div>
+            </SettingsSection>
 
-            {/* RAPT Section */}
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Cloud}
-                title="RAPT"
-                description="Synkronisera enheter från RAPT Portal"
-              />
-              
-              {/* API Credentials Card */}
+            <SettingsSection
+              icon={Cloud}
+              title="RAPT"
+              description="Synkronisera enheter från RAPT Portal"
+            >
               <Card className="p-4 bg-muted/30 border-primary/10">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -1301,7 +1293,7 @@ export default function Settings() {
               </Card>
 
               {/* Sync Options Grid */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 grid-cols-2">
                 {/* Quick Sync Card */}
                 <Card className="p-4 space-y-3">
                   <div>
@@ -1377,55 +1369,45 @@ export default function Settings() {
                   )}
                 </Card>
               </div>
-            </div>
+            </SettingsSection>
 
-            {/* TV Remote Refresh */}
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Tv}
-                title="TV-läge"
-                description="Fjärrstyr anslutna TV-enheter"
-              />
-              <Card className="p-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    await supabase
-                      .from('sync_settings')
-                      .update({ force_tv_refresh_at: new Date().toISOString() })
-                      .not('id', 'is', null);
-                    toast({ title: "TV-uppdatering skickad", description: "Alla TV-enheter laddas om inom kort." });
-                  }}
-                >
-                  <Tv className="h-4 w-4 mr-2" />
-                  Uppdatera TV:ar
-                </Button>
-              </Card>
-            </div>
+            <SettingsSection
+              icon={Tv}
+              title="TV-läge"
+              description="Fjärrstyr anslutna TV-enheter"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await supabase
+                    .from('sync_settings')
+                    .update({ force_tv_refresh_at: new Date().toISOString() })
+                    .not('id', 'is', null);
+                  toast({ title: "TV-uppdatering skickad", description: "Alla TV-enheter laddas om inom kort." });
+                }}
+              >
+                <Tv className="h-4 w-4 mr-2" />
+                Uppdatera TV:ar
+              </Button>
+            </SettingsSection>
 
-            {/* Sonos Section */}
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Music}
-                title="Sonos"
-                description="Visa vad som spelas på Sonos i headern"
-              />
-              <Card className="p-4">
-                <SonosSettings />
-              </Card>
-            </div>
+            <SettingsSection
+              icon={Music}
+              title="Sonos"
+              description="Visa vad som spelas på Sonos i headern"
+            >
+              <SonosSettings />
+            </SettingsSection>
           </TabsContent>
 
           {/* AUTOMATION TAB */}
           <TabsContent value="automation" className="space-y-6">
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Snowflake}
-                title="Automatisk Kylreglering"
-                description="Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen"
-              />
-              
+            <SettingsSection
+              icon={Snowflake}
+              title="Automatisk Kylreglering"
+              description="Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen"
+            >
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="auto-cooling-enabled"
@@ -1569,7 +1551,7 @@ export default function Settings() {
                       Controllers
                     </h3>
                     
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kylare (justeras)</label>
                         <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
@@ -1625,7 +1607,7 @@ export default function Settings() {
                       Justeringsparametrar
                     </h3>
                     
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 grid-cols-3">
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kontrollintervall</label>
                         <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
@@ -1706,24 +1688,20 @@ export default function Settings() {
                   </Collapsible>
                 </div>
               )}
-            </div>
+            </SettingsSection>
 
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={FlaskConical}
-                title="Fermenteringsprofiler"
-                description="Skapa och hantera temperaturschemat för fermenteringen"
-              />
+            <SettingsSection
+              icon={FlaskConical}
+              title="Fermenteringsprofiler"
+              description="Skapa och hantera temperaturschemat för fermenteringen"
+            >
               <FermentationProfilesManagement />
-            </div>
-            {/* Brew Timer Section */}
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Timer}
-                title="Brygg-timer synkronisering"
-                description="Visa aktiv timer från brygg-appen i sidfoten"
-              />
-              
+            </SettingsSection>
+            <SettingsSection
+              icon={Timer}
+              title="Brygg-timer synkronisering"
+              description="Visa aktiv timer från brygg-appen i sidfoten"
+            >
               <Card className="p-4">
                 {externalLoading ? (
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -1786,30 +1764,28 @@ export default function Settings() {
                   </div>
                 </Card>
               )}
-            </div>
+            </SettingsSection>
             
 
           </TabsContent>
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Thermometer}
-                title="Temperature Controllers"
-                description="Välj vilka Temperature Controllers som ska visas på dashboarden"
-              />
+            <SettingsSection
+              icon={Thermometer}
+              title="Temperature Controllers"
+              description="Välj vilka Temperature Controllers som ska visas på dashboarden"
+            >
               <RaptControllersManagement />
-            </div>
+            </SettingsSection>
 
-            <div className="space-y-4">
-              <SectionHeader 
-                icon={Pill}
-                title="RAPT Pills"
-                description="Ej kopplade pills som kan visas separat på dashboarden"
-              />
+            <SettingsSection
+              icon={Pill}
+              title="RAPT Pills"
+              description="Ej kopplade pills som kan visas separat på dashboarden"
+            >
               <RaptPillsManagement />
-            </div>
+            </SettingsSection>
           </TabsContent>
 
           {/* BREWS TAB */}
