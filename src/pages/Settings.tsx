@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -968,13 +970,13 @@ export default function Settings() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+    <div className={`flex flex-col bg-gradient-to-br from-background via-background to-primary/5 ${isMobile ? 'min-h-screen' : 'h-full'}`}>
       <DashboardHeader
         controllers={headerControllers}
         pills={headerPills}
         onLogout={handleLogout}
       />
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 overflow-y-auto ${isMobile ? '' : ''}`} style={isMobile ? { paddingTop: `${headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
         <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
