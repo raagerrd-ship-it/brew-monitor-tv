@@ -19,7 +19,7 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
   const [graceExpired, setGraceExpired] = useState(false);
   const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name;
+  const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
   const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
 
   useEffect(() => {
