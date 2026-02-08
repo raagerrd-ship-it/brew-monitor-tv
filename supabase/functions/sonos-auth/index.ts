@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,65 +108,6 @@ serve(async (req) => {
       const { data: existingSettings } = await supabase.from('sonos_settings').select('id').limit(1).single();
       if (!existingSettings) {
         await supabase.from('sonos_settings').insert({});
-      }
-
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Refresh tokens
-    if (action === 'refresh') {
-      const { data: tokenData } = await supabase
-        .from('sonos_tokens')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (!tokenData) {
-        return new Response(
-          JSON.stringify({ error: 'No tokens found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const tokenResponse = await fetch(SONOS_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${btoa(`${SONOS_CLIENT_ID}:${SONOS_CLIENT_SECRET}`)}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokenData.refresh_token,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('Token refresh failed:', errorText);
-        return new Response(
-          JSON.stringify({ error: 'Failed to refresh tokens' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const tokens = await tokenResponse.json();
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      // Update tokens
-      const { error: updateError } = await supabase
-        .from('sonos_tokens')
-        .update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: expiresAt.toISOString(),
-        })
-        .eq('id', tokenData.id);
-
-      if (updateError) {
-        console.error('Failed to update tokens:', updateError);
       }
 
       return new Response(
