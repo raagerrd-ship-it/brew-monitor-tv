@@ -277,30 +277,50 @@ function generateChartSvg(
   }
 
   // Pill temp from SG data (if available)
-  const pillTempPoints = sgDown
-    .filter(p => p.temp !== undefined && p.temp !== null)
-    .map(p => ({
-      x: scaleX(p.t, tMin, tMax),
-      y: (() => {
-        // Use same temp scale as controller if available, else create own
-        if (tempHistory && tempHistory.length > 0) {
-          const tempParsed = tempHistory.map(tp => ({
-            current: tp.current_temp,
-            target: tp.target_temp,
-          }));
-          const pillTemps = sgParsed.filter(sp => sp.temp !== undefined).map(sp => sp.temp!);
-          const allTemps = [...tempParsed.flatMap(tp => [tp.current, tp.target]), ...pillTemps];
-          const tempMin = Math.min(...allTemps) - 0.5;
-          const tempMax = Math.max(...allTemps) + 0.5;
-          return MARGIN.top + PLOT_H - ((p.temp! - tempMin) / (tempMax - tempMin)) * PLOT_H;
-        }
-        return 0; // Skip if no temp scale
-      })(),
-    }));
+  const pillTempsAll = sgParsed.filter(p => p.temp !== undefined && p.temp !== null).map(p => p.temp!);
 
   let pillTempSvg = '';
-  if (pillTempPoints.length > 0 && tempHistory && tempHistory.length > 0) {
-    pillTempSvg = `<path d="${buildSmoothPath(pillTempPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`;
+  if (pillTempsAll.length > 0) {
+    // Determine temp scale: use controller scale if available, else create standalone
+    let pillTempMin: number, pillTempMax: number;
+    if (tempHistory && tempHistory.length > 0) {
+      const tempParsed = tempHistory.map(tp => ({
+        current: tp.current_temp,
+        target: tp.target_temp,
+      }));
+      const allTemps = [...tempParsed.flatMap(tp => [tp.current, tp.target]), ...pillTempsAll];
+      pillTempMin = Math.min(...allTemps) - 0.5;
+      pillTempMax = Math.max(...allTemps) + 0.5;
+    } else {
+      pillTempMin = Math.min(...pillTempsAll) - 0.5;
+      pillTempMax = Math.max(...pillTempsAll) + 0.5;
+    }
+
+    const pillTempScaleY = (v: number) => {
+      if (pillTempMax === pillTempMin) return MARGIN.top + PLOT_H / 2;
+      return MARGIN.top + PLOT_H - ((v - pillTempMin) / (pillTempMax - pillTempMin)) * PLOT_H;
+    };
+
+    const pillTempPoints = sgDown
+      .filter(p => p.temp !== undefined && p.temp !== null)
+      .map(p => ({
+        x: scaleX(p.t, tMin, tMax),
+        y: pillTempScaleY(p.temp!),
+      }));
+
+    if (pillTempPoints.length > 0) {
+      pillTempSvg = `<path d="${buildSmoothPath(pillTempPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`;
+
+      // Add right axis labels for pill temp if no controller axis already drawn
+      if (!tempHistory || tempHistory.length === 0) {
+        const tempTicks = 4;
+        for (let i = 0; i <= tempTicks; i++) {
+          const v = pillTempMin + (i / tempTicks) * (pillTempMax - pillTempMin);
+          const y = pillTempScaleY(v);
+          pillTempSvg += `<text x="${WIDTH - MARGIN.right + 5}" y="${y + 3}" fill="${COLORS.pillTempLine}" font-size="9" font-family="sans-serif" text-anchor="start">${v.toFixed(0)}°</text>`;
+        }
+      }
+    }
   }
 
   // Grid lines
@@ -404,16 +424,12 @@ serve(async (req) => {
       const startTime = brew.fermentation_start || sgData[0].date;
       const endTime = sgData[sgData.length - 1].date;
       
-      console.log(`[RenderChart] Fetching temp history for controller ${brew.linked_controller_id}, ${startTime} to ${endTime}`);
-      
-      const { data: tempData, error: tempError } = await supabase.rpc('get_temp_history_sampled', {
+      const { data: tempData } = await supabase.rpc('get_temp_history_sampled', {
         p_controller_id: brew.linked_controller_id,
         p_start_time: startTime,
         p_end_time: endTime,
         p_sample_interval_minutes: 15,
       });
-
-      console.log(`[RenderChart] Temp history result: ${tempData?.length ?? 0} rows, error: ${tempError?.message ?? 'none'}`);
 
       if (tempData && tempData.length > 0) {
         tempHistory = tempData as TempHistoryPoint[];
