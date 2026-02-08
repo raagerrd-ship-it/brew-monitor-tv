@@ -7,6 +7,11 @@ export function extractSpotifyTrackId(trackUri: string | undefined): string | nu
   return match ? match[1] : null;
 }
 
+// Upgrade Spotify CDN image URL from 300x300 to 640x640
+function upgradeSpotifyImageSize(url: string): string {
+  return url.replace('ab67616d00001e02', 'ab67616d0000b273');
+}
+
 // Get album art via Spotify's public oEmbed endpoint (no API key needed)
 async function getAlbumArtViaOEmbed(trackId: string): Promise<{ medium: string | null; small: string | null }> {
   const cached = oEmbedCache.get(trackId);
@@ -19,8 +24,9 @@ async function getAlbumArtViaOEmbed(trackId: string): Promise<{ medium: string |
     );
     if (!response.ok) return { medium: null, small: null };
     const data = await response.json();
-    const thumbUrl = data.thumbnail_url || null;
+    let thumbUrl = data.thumbnail_url || null;
     if (thumbUrl) {
+      thumbUrl = upgradeSpotifyImageSize(thumbUrl);
       oEmbedCache.set(trackId, thumbUrl);
     }
     return { medium: thumbUrl, small: null };
