@@ -55,15 +55,16 @@ export function SonosSettings() {
         if (data?.connected) {
           setIsConnected(true);
           setGroups(data.groups || []);
-        } else {
-          setIsConnected(false);
         }
-      } else {
-        setIsConnected(false);
+        // Don't set disconnected yet — check DB settings below as fallback
       }
 
       const settings = settingsResult.data;
       if (settings) {
+        // If edge function failed but we have a selected group in DB, we're still connected
+        if (!isConnected && settings.selected_group_id) {
+          setIsConnected(true);
+        }
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
@@ -74,6 +75,8 @@ export function SonosSettings() {
         setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
         setPrefetchSeconds(settings.prefetch_seconds ?? 30);
+      } else if (!isConnected) {
+        setIsConnected(false);
       }
     } catch (error) {
       console.error('Failed to load Sonos status:', error);
