@@ -89,6 +89,12 @@ export const SonosWidget = memo(function SonosWidget({
 
   // --- Image preloading ---
   const incomingArtUrl = nowPlaying?.album_art_url ?? null;
+
+  // Reset imageError when a new art URL arrives so future tracks aren't blocked
+  useEffect(() => {
+    if (incomingArtUrl) setImageError(false);
+  }, [incomingArtUrl]);
+
   const isNewArtPending = incomingArtUrl && incomingArtUrl !== displayedArtUrl && !imageError;
 
   // Track art loading status for debug dot

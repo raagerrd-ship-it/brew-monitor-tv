@@ -30,12 +30,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
   useEffect(() => {
     if (!onRealtimeRef || !isConnected || !showWidget) return;
 
+    const acceptedRef = { current: false };
+
     onRealtimeRef.current = (payload: any) => {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
+      acceptedRef.current = false;
 
       setNowPlaying(prev => {
-        if (!prev) return incoming;
+        if (!prev) { acceptedRef.current = true; return incoming; }
 
         // After a local track change, ignore ALL realtime for 15s to let server catch up
         const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
@@ -45,6 +48,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             const updatedBg = incoming.bg_image_url;
             pushToBgBuffer(validBgBufferRef.current, updatedBg);
             onAlbumArtChangeRef.current?.(updatedBg);
+            // bg-only update, don't accept position
             return {
               ...prev,
               bg_image_url: updatedBg,
@@ -62,6 +66,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         // Same track — merge in any new art URLs
+        acceptedRef.current = true;
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
         const bgChanged = updatedBg !== prev.bg_image_url;
         if (bgChanged) {
@@ -76,7 +81,8 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         };
       });
 
-      if (incoming.position_ms != null) {
+      // Only update progress if the realtime data was actually accepted
+      if (acceptedRef.current && incoming.position_ms != null) {
         localProgressRef.current = incoming.position_ms;
         updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
       }

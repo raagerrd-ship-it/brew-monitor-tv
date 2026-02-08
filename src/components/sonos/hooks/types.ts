@@ -36,13 +36,16 @@ export function pushToBgBuffer(buf: string[], url: string | null | undefined): v
 }
 
 export function triggerServerSync(): void {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       'Content-Type': 'application/json',
     },
-  }).catch(() => {});
+    signal: controller.signal,
+  }).catch(() => {}).finally(() => clearTimeout(timeout));
 }
 
 export function updateProgressDOM(
