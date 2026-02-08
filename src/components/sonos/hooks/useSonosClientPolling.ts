@@ -23,6 +23,7 @@ interface UseSonosClientPollingParams {
   handleTrackChange: (data: TrackChangeData, earlySwapped: boolean) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   lastPredictivePollRef: React.MutableRefObject<number>;
+  trackChangedAtRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
@@ -39,7 +40,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef,
+    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   } = params;
@@ -78,23 +79,34 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, duration);
 
         if (data.trackName) {
-          const trackChanged = nowPlaying.track_name !== data.trackName;
+          const currentNpSnap = nowPlayingRef.current;
+          const trackChanged = (currentNpSnap?.track_name ?? nowPlaying.track_name) !== data.trackName;
           if (trackChanged) {
             handleTrackChange(data, false);
           } else {
             // Same track — update metadata, state, and art URLs if changed
+            // BUT skip art URL updates during cooldown to prevent stale DB data overwriting early-swapped images
+            const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
+            const inCooldown = msSinceTrackChange < 15000;
+
             setNowPlaying(prev => {
               if (!prev) return prev;
               const artistChanged = prev.artist_name !== data.artistName;
               const albumChanged = prev.album_name !== data.albumName;
               const stateChanged = prev.playback_state !== data.playbackState;
               const durationChanged = duration && prev.duration_ms !== duration;
-              const bgChanged = data.bgImageUrl && data.bgImageUrl !== prev.bg_image_url;
-              const widgetChanged = data.widgetArtUrl && data.widgetArtUrl !== prev.widget_art_url;
-              const artChanged = data.albumArtUrl && data.albumArtUrl !== prev.album_art_url;
-              const nextBgChanged = data.nextBgImageUrl !== undefined && data.nextBgImageUrl !== prev.next_bg_image_url;
-              const nextWidgetChanged = data.nextWidgetArtUrl !== undefined && data.nextWidgetArtUrl !== prev.next_widget_art_url;
+
+              // During cooldown, don't accept art URLs from DB — they may be stale
+              const bgChanged = !inCooldown && data.bgImageUrl && data.bgImageUrl !== prev.bg_image_url;
+              const widgetChanged = !inCooldown && data.widgetArtUrl && data.widgetArtUrl !== prev.widget_art_url;
+              const artChanged = !inCooldown && data.albumArtUrl && data.albumArtUrl !== prev.album_art_url;
+              const nextBgChanged = !inCooldown && data.nextBgImageUrl !== undefined && data.nextBgImageUrl !== prev.next_bg_image_url;
+              const nextWidgetChanged = !inCooldown && data.nextWidgetArtUrl !== undefined && data.nextWidgetArtUrl !== prev.next_widget_art_url;
               if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged && !nextBgChanged && !nextWidgetChanged) return prev;
+
+              if (inCooldown) {
+                console.log(`[Sonos:BG] Poll: skipping art URLs during cooldown (${Math.round(msSinceTrackChange / 1000)}s)`);
+              }
 
               // Push new bg to buffer if changed
               if (bgChanged && data.bgImageUrl) {
@@ -110,11 +122,11 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
                 duration_ms: duration ?? prev.duration_ms,
-                bg_image_url: data.bgImageUrl || prev.bg_image_url,
-                next_bg_image_url: data.nextBgImageUrl !== undefined ? data.nextBgImageUrl : prev.next_bg_image_url,
-                widget_art_url: data.widgetArtUrl || prev.widget_art_url,
-                next_widget_art_url: data.nextWidgetArtUrl !== undefined ? data.nextWidgetArtUrl : prev.next_widget_art_url,
-                album_art_url: data.albumArtUrl || prev.album_art_url,
+                ...(bgChanged ? { bg_image_url: data.bgImageUrl } : {}),
+                ...(nextBgChanged ? { next_bg_image_url: data.nextBgImageUrl } : {}),
+                ...(widgetChanged ? { widget_art_url: data.widgetArtUrl } : {}),
+                ...(nextWidgetChanged ? { next_widget_art_url: data.nextWidgetArtUrl } : {}),
+                ...(artChanged ? { album_art_url: data.albumArtUrl } : {}),
               };
             });
           }
