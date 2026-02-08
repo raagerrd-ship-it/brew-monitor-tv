@@ -36,12 +36,16 @@ if ('serviceWorker' in navigator && !isIframe && !isTvParam && !isChromecast) {
   });
 }
 
-// Remove overflow:hidden set in index.html (needed for Chromecast/TV, not for mobile/desktop)
-// On mobile, scrolling must work. On desktop, AspectRatioContainer handles overflow.
-// Only keep overflow:hidden for TV mode (explicit param or Chromecast UA).
+// Remove the inline <style> tag from index.html that sets overflow:hidden
+// (needed for Chromecast/TV to prevent scrollbars before JS loads, but blocks scrolling on mobile/desktop)
 if (!isTvParam && !isChromecast) {
-  document.documentElement.style.overflow = '';
-  document.body.style.overflow = '';
+  // Find and remove the style tag that sets overflow:hidden
+  const styles = document.querySelectorAll('head > style');
+  styles.forEach(style => {
+    if (style.textContent?.includes('overflow:hidden')) {
+      style.remove();
+    }
+  });
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
