@@ -116,14 +116,14 @@ export const SonosWidget = memo(function SonosWidget({
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef, trackChangeOffsetRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   });
 
   useSonosRealtime({
     onRealtimeRef, isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   });
 
   const { shouldHide } = useSonosVisibility({
