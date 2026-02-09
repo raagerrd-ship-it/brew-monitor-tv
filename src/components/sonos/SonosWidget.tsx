@@ -271,38 +271,36 @@ export const SonosWidget = memo(function SonosWidget({
           </div>
         )}
 
-        {/* Debug indicators */}
-        {showDebug && (
-          <div className="absolute top-1 right-1 flex items-center gap-1">
-            {nowPlaying.duration_ms && (
-              <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
-                0s
-              </span>
-            )}
-            {displayedArtUrl && (
-              <div
-                title={`Current: ${currentArtStatus}`}
-                className="rounded-full"
-                style={{
-                  width: 8, height: 8,
-                  background: currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e",
-                  boxShadow: `0 0 4px ${currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e"}`,
-                }}
-              />
-            )}
-            {prefetchStatus !== "idle" && (
-              <div
-                title={`Next: ${prefetchStatus}`}
-                className="rounded-full"
-                style={{
-                  width: 8, height: 8,
-                  background: prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
-                  boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
-                }}
-              />
-            )}
-          </div>
-        )}
+        {/* Status indicators */}
+        <div className="absolute top-1 right-1 flex items-center gap-1">
+          {nowPlaying.duration_ms && (
+            <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
+              0:00
+            </span>
+          )}
+          {displayedArtUrl && (
+            <div
+              title={`Current: ${currentArtStatus}`}
+              className="rounded-full"
+              style={{
+                width: 8, height: 8,
+                background: currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e",
+                boxShadow: `0 0 4px ${currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e"}`,
+              }}
+            />
+          )}
+          {prefetchStatus !== "idle" && (
+            <div
+              title={`Next: ${prefetchStatus}`}
+              className="rounded-full"
+              style={{
+                width: 8, height: 8,
+                background: prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
+                boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
