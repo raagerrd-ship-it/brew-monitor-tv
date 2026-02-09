@@ -79,6 +79,7 @@ export const SonosWidget = memo(function SonosWidget({
   const { handleTrackChange } = useSonosTrackChange({
     setNowPlaying, setCurrentArtStatus,
     localProgressRef, trackChangedAtRef,
+    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   });
 

@@ -1,11 +1,14 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, fetchPlaybackStatus, pushToBgBuffer, updateProgressDOM } from './types';
 
 interface UseSonosTrackChangeParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   setCurrentArtStatus: (status: 'displayed' | 'detecting' | 'loading') => void;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangedAtRef: React.MutableRefObject<number>;
+  bgSentRef: React.MutableRefObject<string | null>;
+  validBgBufferRef: React.MutableRefObject<string[]>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
 }
@@ -21,11 +24,13 @@ interface TrackChangeData {
 /**
  * Consolidated track-change handler used by predictive poll, 5s poll, and init.
  * Handles both early-swapped (sequential) and non-swapped (random skip) scenarios.
+ * For non-early-swap: triggers server sync then immediately refetches bg URL.
  */
 export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
   const {
     setNowPlaying, setCurrentArtStatus,
     localProgressRef, trackChangedAtRef,
+    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
   } = params;
 
@@ -63,8 +68,25 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       // Not early-swapped — likely a random skip or detected via polling
       // Keep current art, trigger server sync for correct art
-      console.log('[Sonos:BG] Track change (NOT early swapped) — triggering server sync, clearing next_* URLs');
-      triggerServerSync();
+      console.log('[Sonos:BG] Track change (NOT early swapped) — triggering server sync + refetch');
+      // Fire-and-forget async: sync then immediately refetch bg
+      (async () => {
+        await triggerServerSync();
+        const fresh = await fetchPlaybackStatus();
+        if (fresh?.bgImageUrl) {
+          console.log('[Sonos:BG] Post-sync refetch got bg:', fresh.bgImageUrl.slice(-60));
+          pushToBgBuffer(validBgBufferRef.current, fresh.bgImageUrl);
+          onAlbumArtChangeRef.current?.(fresh.bgImageUrl);
+          bgSentRef.current = fresh.bgImageUrl;
+          setNowPlaying(cur => cur ? {
+            ...cur,
+            bg_image_url: fresh.bgImageUrl,
+            widget_art_url: fresh.widgetArtUrl || cur.widget_art_url,
+            album_art_url: fresh.albumArtUrl || cur.album_art_url,
+          } : cur);
+        }
+      })();
+
       return {
         ...prev,
         track_name: data.trackName,
@@ -77,7 +99,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_widget_art_url: null,
       };
     });
-  }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, progressBarRef, debugTimeRef]);
+  }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef]);
 
   return { handleTrackChange };
 }
