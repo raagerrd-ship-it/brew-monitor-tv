@@ -108,7 +108,7 @@ export const SonosWidget = memo(function SonosWidget({
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
     trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   });
 
   useSonosClientPolling({
@@ -185,11 +185,7 @@ export const SonosWidget = memo(function SonosWidget({
     }
   }, [prefetchStatus, nowPlaying?.next_widget_art_url, nowPlaying?.next_album_art_url, nowPlaying?.next_bg_image_url]);
 
-  // Log prefetch status changes
-  useEffect(() => {
-    if (prefetchStatus === 'fetching') addDebugLog(`🔴 Prefetch: server sync started`);
-    else if (prefetchStatus === 'ready') addDebugLog(`🟡 Prefetch: server sync done`);
-  }, [prefetchStatus]);
+  // (Prefetch status changes are now logged from the ticker hook)
 
   const handleNewImageLoaded = useCallback(() => {
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
