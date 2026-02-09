@@ -3,13 +3,8 @@ export interface NowPlaying {
   artist_name: string | null;
   album_name?: string | null;
   album_art_url: string | null;
-  next_album_art_url?: string | null;
-  next_track_name?: string | null;
-  next_artist_name?: string | null;
   bg_image_url?: string | null;
-  next_bg_image_url?: string | null;
   widget_art_url?: string | null;
-  next_widget_art_url?: string | null;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
@@ -56,7 +51,6 @@ export async function triggerServerSync(): Promise<void> {
 
 export async function fetchPlaybackStatus(): Promise<{
   bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
-  nextBgImageUrl?: string; nextWidgetArtUrl?: string;
 } | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);

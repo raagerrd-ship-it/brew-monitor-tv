@@ -17,8 +17,6 @@ interface SonosDebugInfo {
   bgSent: string | null;
   bgBufferLen: number;
   imageError: boolean;
-  nextWidgetArt: string | null;
-  nextBgUrl: string | null;
 }
 
 interface DebugLogEntry {
@@ -78,7 +76,6 @@ export const SonosWidget = memo(function SonosWidget({
   // --- Shared mutable refs ---
   const localProgressRef = useRef<number | null>(null);
   const trackChangedAtRef = useRef<number>(0);
-  const earlySwapDoneRef = useRef(false);
   const bgSentRef = useRef<string | null>(null);
   const validBgBufferRef = useRef<string[]>([]);
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
@@ -105,9 +102,9 @@ export const SonosWidget = memo(function SonosWidget({
 
   useSonosPlaybackTicker({
     nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus: setPrefetchStatusTracked, handleTrackChange,
-    localProgressRef, trackChangedAtRef, earlySwapDoneRef,
+    localProgressRef, trackChangedAtRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
-    trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
+    prefetchSecondsRef,
     progressBarRef, debugTimeRef, addDebugLog,
   });
 
@@ -132,10 +129,9 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   // --- Image preloading ---
-  // Prefer server-generated widget thumbnail over raw Spotify URL
   const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
 
-  // Reset imageError when a new art URL arrives so future tracks aren't blocked
+  // Reset imageError when a new art URL arrives
   useEffect(() => {
     if (incomingArtUrl) setImageError(false);
   }, [incomingArtUrl]);
@@ -157,8 +153,6 @@ export const SonosWidget = memo(function SonosWidget({
         bgSent: bgSentRef.current,
         bgBufferLen: validBgBufferRef.current.length,
         imageError,
-        nextWidgetArt: nowPlaying?.next_widget_art_url ?? null,
-        nextBgUrl: nowPlaying?.next_bg_image_url ?? null,
       };
     }
   });
@@ -172,20 +166,14 @@ export const SonosWidget = memo(function SonosWidget({
     }
   }, [isNewArtPending, currentArtStatus]);
 
-  // Auto-transition prefetch to "loaded" when no next-track URLs exist
+  // Auto-transition prefetch to "loaded" when server sync is done
   useEffect(() => {
     if (prefetchStatus === 'ready') {
-      const hasNextArt = nowPlaying?.next_widget_art_url || nowPlaying?.next_album_art_url;
-      const hasNextBg = nowPlaying?.next_bg_image_url;
-      if (!hasNextArt && !hasNextBg) {
-        console.log('[Sonos:BG] prefetchStatus: loaded (no next-track URLs to preload)');
-        setPrefetchStatusTracked('loaded');
-        addDebugLog(`✅ Prefetch: loaded (no next URLs)`);
-      }
+      console.log('[Sonos:BG] prefetchStatus: loaded (warm-cache complete)');
+      setPrefetchStatusTracked('loaded');
+      addDebugLog(`✅ Prefetch: loaded (warm-cache done)`);
     }
-  }, [prefetchStatus, nowPlaying?.next_widget_art_url, nowPlaying?.next_album_art_url, nowPlaying?.next_bg_image_url]);
-
-  // (Prefetch status changes are now logged from the ticker hook)
+  }, [prefetchStatus]);
 
   const handleNewImageLoaded = useCallback(() => {
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
@@ -202,7 +190,6 @@ export const SonosWidget = memo(function SonosWidget({
     setImageError(false);
     console.log('[Sonos:BG] artStatus: displayed (image loaded)');
     setCurrentArtStatus("displayed");
-    // Always send bg to dashboard when it differs from last sent
     const newBgStripped = bgUrl ? stripQuery(bgUrl) : null;
     const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
     if (bgUrl && newBgStripped !== sentStripped) {
@@ -275,28 +262,6 @@ export const SonosWidget = memo(function SonosWidget({
           />
         )}
 
-        {/* Preload next track's album art (prefer widget thumbnail) */}
-        {(nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== displayedArtUrl && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== incomingArtUrl && (
-          <img
-            src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
-            alt=""
-            decoding="async"
-            onLoad={() => { if (prefetchStatusRef.current !== "idle") { setPrefetchStatusTracked("loaded"); addDebugLog(`✅ Next art preloaded`); } }}
-            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-          />
-        )}
-
-        {/* Preload next track's background */}
-        {nowPlaying.next_bg_image_url && (
-          <img
-            src={nowPlaying.next_bg_image_url}
-            alt=""
-            decoding="async"
-            onLoad={() => { if (prefetchStatusRef.current !== "idle") { setPrefetchStatusTracked("loaded"); addDebugLog(`✅ Next BG preloaded`); } }}
-            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-          />
-        )}
-
         {/* Dark overlay for readability */}
         {hasAlbumArt && (
           <div
@@ -332,7 +297,7 @@ export const SonosWidget = memo(function SonosWidget({
             </div>
           )}
 
-          {/* Prefetch status indicator */}
+          {/* Status indicators */}
           <div className="absolute top-1 right-1 flex items-center gap-1">
             {nowPlaying.duration_ms && (
               <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
