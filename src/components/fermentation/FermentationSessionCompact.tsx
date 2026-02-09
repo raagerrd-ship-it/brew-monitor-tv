@@ -370,10 +370,10 @@ export function FermentationSessionCompact({
 
             {/* Progress percentage - after condition text */}
             {isRamping && !waitingForTemp && rampProgress !== null && (
-              <ProgressBadge progress={rampProgress} color="amber" />
+              <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
             )}
             {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
-              <ProgressBadge progress={stabilityProgress} color="purple" />
+              <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
             )}
           </div>
         )}
