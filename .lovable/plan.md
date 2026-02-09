@@ -1,22 +1,32 @@
 
-# Visa färgmarkeringar och tid kvar i Sonos-widgeten
+# Ta bort bakgrundsbild nar Sonos-widgeten stangs av
 
-## Vad som ska andras
+## Problem
 
-Debug-indikatorerna (fargprickar for art-status och prefetch-status, samt tid kvar) ar redan implementerade i widgeten men doljs bakom `showDebug`-flaggan som defaultar till `false`. Istallet for att alltid visa dem via debug-flaggan, gor vi dem till en permanent del av widgeten.
+Nar widgeten doljs (IDLE/TV Audio/etc) anropas `onAlbumArtChange(null)` fran `useSonosVisibility.clearAll()`. Men i `BrewingDashboard.tsx` ignoreras `null`-varden pa rad 55:
 
-## Andringar
+```
+if (!url) return; // Never clear - keep last image visible
+```
 
-### `src/components/sonos/SonosWidget.tsx`
+Darfor ligger den sista bakgrundsbilden kvar aven efter att widgeten forsvunnit.
 
-1. **Ta bort `showDebug`-wrappern** runt indikatorerna (rad 275) sa att fargprickarna och tidsvisningen alltid renderas.
+## Losning
 
-2. **Tid kvar** — debugTimeRef visar redan sekunder. Flytta den till en mer synlig plats (t.ex. bredvid progress-baren eller kvar uppe till hoger) och visa tid kvar i formatet `Xm Ys` istallet for bara `Xs`.
+### `src/components/BrewingDashboard.tsx`
 
-3. **Fargprickar** — behall dem som de ar (gron/orange/rod for art-status, gron/gul/orange for prefetch-status) men gora dem alltid synliga.
+Andra `handleAlbumArtChange` sa att `null` rensar bakgrunden istallet for att ignoreras:
 
-### Teknisk detalj
+```typescript
+const handleAlbumArtChange = useCallback((url: string | null) => {
+  if (!url) {
+    setVisibleBgUrl(null);
+    visibleBgBaseRef.current = null;
+    preloadingUrlRef.current = null;
+    return;
+  }
+  // ... resten oforandrad
+}, []);
+```
 
-Tickern i `useSonosPlaybackTicker` uppdaterar redan `debugTimeRef` via DOM-manipulation (ingen re-render). Det enda som behovs ar att ta bort `showDebug &&`-villkoret i JSX:en sa att elementen alltid finns i DOM:en for ref-uppdateringarna.
-
-Inget andras i hooks, inga nya beroenden, ingen databasandring.
+Det ar allt - en andring i en fil. `clearAll()` i visibility-hooken skickar redan `null`, sa det enda som behovs ar att dashboarden faktiskt agerar pa det.
