@@ -1,18 +1,22 @@
 
+# Visa färgmarkeringar och tid kvar i Sonos-widgeten
 
-## Dölj Sonos-widget vid "TV Audio"
+## Vad som ska andras
 
-När Sonos spelar upp TV-ljud (track_name = "TV Audio") ska widgeten behandlas som inaktiv och döljas, precis som vid IDLE-status.
+Debug-indikatorerna (fargprickar for art-status och prefetch-status, samt tid kvar) ar redan implementerade i widgeten men doljs bakom `showDebug`-flaggan som defaultar till `false`. Istallet for att alltid visa dem via debug-flaggan, gor vi dem till en permanent del av widgeten.
 
-### Ändring
+## Andringar
 
-**`src/components/sonos/hooks/useSonosVisibility.ts`**
+### `src/components/sonos/SonosWidget.tsx`
 
-Utöka `isInactive`-villkoret till att även inkludera fallet där `track_name` är "TV Audio":
+1. **Ta bort `showDebug`-wrappern** runt indikatorerna (rad 275) sa att fargprickarna och tidsvisningen alltid renderas.
 
-```typescript
-const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
-```
+2. **Tid kvar** — debugTimeRef visar redan sekunder. Flytta den till en mer synlig plats (t.ex. bredvid progress-baren eller kvar uppe till hoger) och visa tid kvar i formatet `Xm Ys` istallet for bara `Xs`.
 
-Detta gör att widgeten döljs omedelbart (utan grace period) när "TV Audio" detekteras, och bakgrundsbilden rensas bort.
+3. **Fargprickar** — behall dem som de ar (gron/orange/rod for art-status, gron/gul/orange for prefetch-status) men gora dem alltid synliga.
 
+### Teknisk detalj
+
+Tickern i `useSonosPlaybackTicker` uppdaterar redan `debugTimeRef` via DOM-manipulation (ingen re-render). Det enda som behovs ar att ta bort `showDebug &&`-villkoret i JSX:en sa att elementen alltid finns i DOM:en for ref-uppdateringarna.
+
+Inget andras i hooks, inga nya beroenden, ingen databasandring.
