@@ -197,15 +197,15 @@ All colors MUST be HSL.
       filter: drop-shadow(0 2px 6px hsl(30 80% 15% / 0.6)) brightness(1);
     }
     40% {
-      filter: drop-shadow(0 2px 16px hsl(38 100% 50% / 0.7)) brightness(1.35);
+      filter: drop-shadow(0 4px 24px hsl(38 100% 55% / 0.9)) brightness(1.6);
     }
     60% {
-      filter: drop-shadow(0 2px 12px hsl(36 90% 45% / 0.6)) brightness(1.25);
+      filter: drop-shadow(0 3px 18px hsl(36 95% 50% / 0.7)) brightness(1.4);
     }
   }
 
   .logo-shimmer {
-    animation: logo-shimmer 4s ease-in-out infinite;
+    animation: logo-shimmer 10s ease-in-out infinite;
   }
 
   /* Milestone alert animations */
