@@ -52,7 +52,12 @@ export function BrewingDashboard() {
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
-    if (!url) return; // Never clear – keep last image visible
+    if (!url) {
+      setVisibleBgUrl(null);
+      visibleBgBaseRef.current = null;
+      preloadingUrlRef.current = null;
+      return;
+    }
     const baseUrl = url.split('?')[0];
     // Skip if same base URL (ignore cache-bust query params)
     if (baseUrl === visibleBgBaseRef.current) return;
