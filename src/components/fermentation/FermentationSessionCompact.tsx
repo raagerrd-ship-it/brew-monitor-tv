@@ -1,17 +1,6 @@
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, SkipForward, Loader2, CheckCircle2, Check } from "lucide-react";
+import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, PulseOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
@@ -47,8 +36,6 @@ interface FermentationSessionCompactProps {
   targetSg?: number | null;
   sgComparison?: string | null;
   originalGravity?: number | null;
-  onSkipStep?: () => void;
-  skipLoading?: boolean;
   sgData?: SgDataPoint[];
   isWaitingForGravityStable?: boolean;
   onAcknowledge?: () => void;
@@ -71,14 +58,11 @@ export function FermentationSessionCompact({
   targetSg,
   sgComparison,
   originalGravity,
-  onSkipStep,
-  skipLoading,
   sgData,
   isWaitingForGravityStable = false,
   onAcknowledge,
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
-  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
   const progress = useFermentationProgress({
     currentStep,
@@ -347,63 +331,6 @@ export function FermentationSessionCompact({
               Väntar
             </Badge>
           )}
-          {isRamping && !waitingForTemp && rampProgress !== null && (
-            <ProgressBadge progress={rampProgress} color="amber" />
-          )}
-          {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
-            <ProgressBadge progress={stabilityProgress} color="purple" />
-          )}
-          
-          {/* Skip button - right aligned */}
-          {(waitingForTemp || isWaitingForGravityStable) && onSkipStep && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSkipConfirm(true);
-                }}
-                disabled={skipLoading}
-                className="h-5 px-1.5 text-xs font-medium gap-1 ml-auto"
-                style={{
-                  color: isWaitingForGravityStable ? 'hsl(280 70% 70%)' : 'hsl(200 90% 70%)',
-                  background: isWaitingForGravityStable ? 'hsl(280 70% 50% / 0.1)' : 'hsl(200 90% 50% / 0.1)',
-                }}
-              >
-                {skipLoading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <>
-                    <SkipForward className="h-3 w-3" />
-                    Hoppa
-                  </>
-                )}
-              </Button>
-              <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
-                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Hoppa över steg?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Är du säker på att du vill hoppa över detta steg? 
-                      Steget kommer markeras som överhoppat och kan inte ångras.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        setShowSkipConfirm(false);
-                        onSkipStep();
-                      }}
-                    >
-                      Hoppa över
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
         </div>
         
         {currentStep && (
@@ -440,7 +367,14 @@ export function FermentationSessionCompact({
               {getStepIcon(currentStep.step_type)}
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
-            
+
+            {/* Progress percentage - after condition text */}
+            {isRamping && !waitingForTemp && rampProgress !== null && (
+              <ProgressBadge progress={rampProgress} color="amber" />
+            )}
+            {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
+              <ProgressBadge progress={stabilityProgress} color="purple" />
+            )}
           </div>
         )}
       </div>
