@@ -30,6 +30,7 @@ interface UseSonosClientPollingParams {
   trackChangeOffsetRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  addDebugLog?: (event: string) => void;
 }
 
 /**
@@ -43,7 +44,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef, trackChangeOffsetRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           const currentNpSnap = nowPlayingRef.current;
           const trackChanged = (currentNpSnap?.track_name ?? nowPlaying.track_name) !== data.trackName;
           if (trackChanged) {
+            addDebugLog?.(`📡 Poll: track changed → ${data.trackName}`);
             handleTrackChange(data, false);
           } else {
             // Same track — update metadata, state, and art URLs if changed
@@ -107,6 +109,17 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
               const nextWidgetChanged = !inCooldown && data.nextWidgetArtUrl !== undefined && data.nextWidgetArtUrl !== prev.next_widget_art_url;
               const nextTrackChanged = !inCooldown && data.nextTrackName !== undefined && data.nextTrackName !== prev.next_track_name;
               const nextArtistChanged = !inCooldown && data.nextArtistName !== undefined && data.nextArtistName !== prev.next_artist_name;
+              
+              // Log next-track data when it arrives
+              if (nextTrackChanged && data.nextTrackName) {
+                addDebugLog?.(`📡 Poll: next track → ${data.nextTrackName} (${data.nextArtistName || '?'})`);
+              }
+              if (nextBgChanged && data.nextBgImageUrl) {
+                addDebugLog?.(`📡 Poll: next BG URL received`);
+              }
+              if (nextWidgetChanged && data.nextWidgetArtUrl) {
+                addDebugLog?.(`📡 Poll: next widget art received`);
+              }
               if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged && !nextBgChanged && !nextWidgetChanged && !nextTrackChanged && !nextArtistChanged) return prev;
 
               if (inCooldown) {
