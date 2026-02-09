@@ -5,46 +5,74 @@ import { useTvMode } from "@/contexts/TvModeContext";
 function LogoComponent() {
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
-  const fontSize = isMobile ? '28px' : '30px';
+  const fontSize = isMobile ? '30px' : '34px';
 
   const firstPart = "Brygg";
-  const secondPart = isTvMode ? "övervakareTV" : "övervakare";
+  const secondPart = "övervakare";
+  const suffix = isTvMode ? "TV" : null;
 
   return (
     <span 
-      className="font-bold tracking-tight inline-flex relative"
+      className="inline-flex items-baseline relative"
       style={{ 
+        fontFamily: "'Cormorant Garamond', Georgia, serif",
         fontSize,
-        letterSpacing: '-0.01em',
+        fontWeight: 700,
+        letterSpacing: '0.02em',
       }}
     >
-      {/* Brygg - ljus guld gradient */}
+      {/* Brygg — warm bright copper */}
       <span
         className="logo-shimmer"
         style={{
-          background: 'linear-gradient(145deg, hsl(45 95% 68%) 0%, hsl(38 90% 58%) 50%, hsl(35 85% 52%) 100%)',
+          background: 'linear-gradient(160deg, hsl(42 100% 72%) 0%, hsl(36 95% 60%) 40%, hsl(30 85% 50%) 100%)',
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
-          filter: 'drop-shadow(0 3px 4px hsl(30 60% 10% / 0.5))',
+          textShadow: 'none',
+          filter: 'drop-shadow(0 2px 6px hsl(30 80% 15% / 0.6))',
         }}
       >
         {firstPart}
       </span>
-      {/* övervakare / övervakareTV - mörk bärnsten gradient */}
+      {/* övervakare — italic, lighter amber */}
       <span
         className="logo-shimmer"
         style={{ 
-          background: 'linear-gradient(145deg, hsl(35 70% 42%) 0%, hsl(30 65% 35%) 50%, hsl(25 60% 28%) 100%)',
+          fontWeight: 500,
+          fontStyle: 'italic',
+          background: 'linear-gradient(160deg, hsl(38 70% 55%) 0%, hsl(32 60% 45%) 50%, hsl(28 50% 38%) 100%)',
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
-          filter: 'drop-shadow(0 3px 4px hsl(30 60% 10% / 0.5))',
+          textShadow: 'none',
+          filter: 'drop-shadow(0 2px 6px hsl(30 80% 15% / 0.6))',
           animationDelay: '0.15s',
         }}
       >
         {secondPart}
       </span>
+      {/* TV suffix — small caps style */}
+      {suffix && (
+        <span
+          style={{
+            fontWeight: 600,
+            fontStyle: 'normal',
+            fontSize: '0.5em',
+            letterSpacing: '0.12em',
+            marginLeft: '0.25em',
+            alignSelf: 'center',
+            background: 'linear-gradient(160deg, hsl(38 60% 50%) 0%, hsl(30 50% 40%) 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+            filter: 'drop-shadow(0 1px 3px hsl(30 80% 15% / 0.4))',
+            textTransform: 'uppercase',
+          }}
+        >
+          {suffix}
+        </span>
+      )}
     </span>
   );
 }
