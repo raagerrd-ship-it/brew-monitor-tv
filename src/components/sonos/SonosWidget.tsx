@@ -151,6 +151,18 @@ export const SonosWidget = memo(function SonosWidget({
     }
   }, [isNewArtPending, currentArtStatus]);
 
+  // Auto-transition prefetch to "loaded" when no next-track URLs exist
+  useEffect(() => {
+    if (prefetchStatus === 'ready') {
+      const hasNextArt = nowPlaying?.next_widget_art_url || nowPlaying?.next_album_art_url;
+      const hasNextBg = nowPlaying?.next_bg_image_url;
+      if (!hasNextArt && !hasNextBg) {
+        console.log('[Sonos:BG] prefetchStatus: loaded (no next-track URLs to preload)');
+        setPrefetchStatusTracked('loaded');
+      }
+    }
+  }, [prefetchStatus, nowPlaying?.next_widget_art_url, nowPlaying?.next_album_art_url, nowPlaying?.next_bg_image_url]);
+
   const handleNewImageLoaded = useCallback(() => {
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     console.log('[Sonos:BG] handleNewImageLoaded', {
@@ -165,13 +177,19 @@ export const SonosWidget = memo(function SonosWidget({
     setImageError(false);
     console.log('[Sonos:BG] artStatus: displayed (image loaded)');
     setCurrentArtStatus("displayed");
-    if (!bgSentRef.current || !validBgBufferRef.current.includes(bgSentRef.current) || bgSentRef.current === bgUrl) {
+    // Always send bg to dashboard when it differs from last sent
+    const newBgStripped = bgUrl ? stripQuery(bgUrl) : null;
+    const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
+    if (bgUrl && newBgStripped !== sentStripped) {
       console.log('[Sonos:BG] Sending bg to dashboard:', bgUrl?.slice(-60));
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;
-    } else {
-      console.log('[Sonos:BG] Skipped bg update — bgSent still in buffer');
+    } else if (bgUrl && !bgSentRef.current) {
+      console.log('[Sonos:BG] Sending initial bg to dashboard:', bgUrl?.slice(-60));
+      pushToBgBuffer(validBgBufferRef.current, bgUrl);
+      onAlbumArtChangeRef.current?.(bgUrl);
+      bgSentRef.current = bgUrl;
     }
   }, [incomingArtUrl, nowPlaying?.bg_image_url]);
 
