@@ -21,6 +21,11 @@ interface SonosDebugInfo {
   nextBgUrl: string | null;
 }
 
+interface DebugLogEntry {
+  time: string;
+  event: string;
+}
+
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
@@ -28,6 +33,11 @@ interface SonosWidgetProps {
   showDebug?: boolean;
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
   onDebugInfo?: React.MutableRefObject<SonosDebugInfo | null>;
+}
+
+function formatTime(): string {
+  const d = new Date();
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`;
 }
 
 export const SonosWidget = memo(function SonosWidget({
@@ -49,6 +59,16 @@ export const SonosWidget = memo(function SonosWidget({
     setPrefetchStatus(status);
   }, []);
   const [currentArtStatus, setCurrentArtStatus] = useState<ArtStatus>("displayed");
+
+  // --- Debug timeline log ---
+  const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
+  const addDebugLog = useCallback((event: string) => {
+    setDebugLog(prev => {
+      const entry = { time: formatTime(), event };
+      const next = [...prev, entry];
+      return next.length > 15 ? next.slice(-15) : next;
+    });
+  }, []);
 
   // --- DOM refs for zero-rerender progress updates ---
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -148,6 +168,7 @@ export const SonosWidget = memo(function SonosWidget({
     if (isNewArtPending && currentArtStatus !== "detecting") {
       console.log('[Sonos:BG] artStatus: loading (new art pending)');
       setCurrentArtStatus("loading");
+      addDebugLog(`⏳ New widget art pending (loading)`);
     }
   }, [isNewArtPending, currentArtStatus]);
 
@@ -159,9 +180,16 @@ export const SonosWidget = memo(function SonosWidget({
       if (!hasNextArt && !hasNextBg) {
         console.log('[Sonos:BG] prefetchStatus: loaded (no next-track URLs to preload)');
         setPrefetchStatusTracked('loaded');
+        addDebugLog(`✅ Prefetch: loaded (no next URLs)`);
       }
     }
   }, [prefetchStatus, nowPlaying?.next_widget_art_url, nowPlaying?.next_album_art_url, nowPlaying?.next_bg_image_url]);
+
+  // Log prefetch status changes
+  useEffect(() => {
+    if (prefetchStatus === 'fetching') addDebugLog(`🔴 Prefetch: server sync started`);
+    else if (prefetchStatus === 'ready') addDebugLog(`🟡 Prefetch: server sync done`);
+  }, [prefetchStatus]);
 
   const handleNewImageLoaded = useCallback(() => {
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
@@ -173,6 +201,7 @@ export const SonosWidget = memo(function SonosWidget({
       bufferLen: validBgBufferRef.current.length,
       inBuffer: bgUrl ? validBgBufferRef.current.some(u => u === bgUrl) : false,
     });
+    addDebugLog(`🖼️ Widget art loaded in browser`);
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
     console.log('[Sonos:BG] artStatus: displayed (image loaded)');
@@ -185,13 +214,24 @@ export const SonosWidget = memo(function SonosWidget({
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;
+      addDebugLog(`🎨 BG sent to dashboard`);
     } else if (bgUrl && !bgSentRef.current) {
       console.log('[Sonos:BG] Sending initial bg to dashboard:', bgUrl?.slice(-60));
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;
+      addDebugLog(`🎨 BG sent to dashboard (initial)`);
+    } else {
+      addDebugLog(`⚠️ BG skipped (same as sent)`);
     }
   }, [incomingArtUrl, nowPlaying?.bg_image_url]);
+
+  // Log track changes
+  useEffect(() => {
+    if (nowPlaying?.track_name) {
+      addDebugLog(`🎵 Track: ${nowPlaying.track_name}`);
+    }
+  }, [nowPlaying?.track_name]);
 
   // --- Render ---
   if (shouldHide || !nowPlaying) return null;
@@ -204,118 +244,143 @@ export const SonosWidget = memo(function SonosWidget({
   const hasAlbumArt = !!displayedArtUrl;
 
   return (
-    <div
-      className="relative overflow-hidden rounded-xl"
-      style={{
-        width: widgetWidth,
-        height: widgetHeight,
-        contain: "strict",
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)",
-        border: "1px solid rgba(255, 255, 255, 0.15)",
-      }}
-    >
-      {/* Fallback gradient background */}
+    <>
       <div
-        className="absolute inset-0"
-        style={{ background: "linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)" }}
-      />
-
-      {/* Displayed album art */}
-      {displayedArtUrl && (
-        <img src={displayedArtUrl} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
-      )}
-
-      {/* Preloader for new art (hidden until loaded) */}
-      {isNewArtPending && (
-        <img
-          src={incomingArtUrl!}
-          alt=""
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: 0, pointerEvents: "none" }}
-          onLoad={handleNewImageLoaded}
-          onError={() => setImageError(true)}
-        />
-      )}
-
-      {/* Preload next track's album art (prefer widget thumbnail) */}
-      {(nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== displayedArtUrl && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== incomingArtUrl && (
-        <img
-          src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
-          alt=""
-          decoding="async"
-          onLoad={() => { if (prefetchStatusRef.current !== "idle") setPrefetchStatusTracked("loaded"); }}
-          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-        />
-      )}
-
-      {/* Preload next track's background */}
-      {nowPlaying.next_bg_image_url && (
-        <img
-          src={nowPlaying.next_bg_image_url}
-          alt=""
-          decoding="async"
-          onLoad={() => { if (prefetchStatusRef.current !== "idle") setPrefetchStatusTracked("loaded"); }}
-          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-        />
-      )}
-
-      {/* Dark overlay for readability */}
-      {hasAlbumArt && (
+        className="relative overflow-hidden rounded-xl"
+        style={{
+          width: widgetWidth,
+          height: widgetHeight,
+          contain: "strict",
+          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
+        }}
+      >
+        {/* Fallback gradient background */}
         <div
           className="absolute inset-0"
-          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)" }}
+          style={{ background: "linear-gradient(135deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.7) 100%)" }}
         />
-      )}
 
-      {/* Content */}
-      <div className={`relative h-full flex flex-col justify-center ${isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
-        <div ref={containerRef} className="overflow-hidden">
-          <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
-            {nowPlaying.track_name}
-          </div>
-        </div>
-        {nowPlaying.artist_name && (
-          <div className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
-            {nowPlaying.artist_name}
-          </div>
+        {/* Displayed album art */}
+        {displayedArtUrl && (
+          <img src={displayedArtUrl} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
         )}
 
-        {/* Progress Bar — updated via DOM ref, zero re-renders */}
-        {nowPlaying.duration_ms && (
+        {/* Preloader for new art (hidden until loaded) */}
+        {isNewArtPending && (
+          <img
+            src={incomingArtUrl!}
+            alt=""
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, pointerEvents: "none" }}
+            onLoad={handleNewImageLoaded}
+            onError={() => { setImageError(true); addDebugLog(`❌ Widget art load error`); }}
+          />
+        )}
+
+        {/* Preload next track's album art (prefer widget thumbnail) */}
+        {(nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== displayedArtUrl && (nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url) !== incomingArtUrl && (
+          <img
+            src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
+            alt=""
+            decoding="async"
+            onLoad={() => { if (prefetchStatusRef.current !== "idle") { setPrefetchStatusTracked("loaded"); addDebugLog(`✅ Next art preloaded`); } }}
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          />
+        )}
+
+        {/* Preload next track's background */}
+        {nowPlaying.next_bg_image_url && (
+          <img
+            src={nowPlaying.next_bg_image_url}
+            alt=""
+            decoding="async"
+            onLoad={() => { if (prefetchStatusRef.current !== "idle") { setPrefetchStatusTracked("loaded"); addDebugLog(`✅ Next BG preloaded`); } }}
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          />
+        )}
+
+        {/* Dark overlay for readability */}
+        {hasAlbumArt && (
           <div
-            className="w-full rounded-full overflow-hidden mt-3"
-            style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}
-          >
-            <div
-              ref={progressBarRef}
-              className="h-full rounded-full"
-              style={{ width: "0%", background: "rgba(255, 255, 255, 0.9)" }}
-            />
-          </div>
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)" }}
+          />
         )}
 
-        {/* Prefetch status indicator */}
-        <div className="absolute top-1 right-1 flex items-center gap-1">
+        {/* Content */}
+        <div className={`relative h-full flex flex-col justify-center ${isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
+          <div ref={containerRef} className="overflow-hidden">
+            <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+              {nowPlaying.track_name}
+            </div>
+          </div>
+          {nowPlaying.artist_name && (
+            <div className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
+              {nowPlaying.artist_name}
+            </div>
+          )}
+
+          {/* Progress Bar — updated via DOM ref, zero re-renders */}
           {nowPlaying.duration_ms && (
-            <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
-              0:00
-            </span>
-          )}
-          {prefetchStatus !== "idle" && (
             <div
-              title={`Prefetch: ${prefetchStatus}`}
-              className="rounded-full"
-              style={{
-                width: 8, height: 8,
-                background: prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
-                boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
-              }}
-            />
+              className="w-full rounded-full overflow-hidden mt-3"
+              style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}
+            >
+              <div
+                ref={progressBarRef}
+                className="h-full rounded-full"
+                style={{ width: "0%", background: "rgba(255, 255, 255, 0.9)" }}
+              />
+            </div>
           )}
+
+          {/* Prefetch status indicator */}
+          <div className="absolute top-1 right-1 flex items-center gap-1">
+            {nowPlaying.duration_ms && (
+              <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
+                0:00
+              </span>
+            )}
+            {prefetchStatus !== "idle" && (
+              <div
+                title={`Prefetch: ${prefetchStatus}`}
+                className="rounded-full"
+                style={{
+                  width: 8, height: 8,
+                  background: prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
+                  boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
+                }}
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Debug timeline log */}
+      {debugLog.length > 0 && (
+        <div
+          className="mt-2 rounded-lg overflow-hidden font-mono"
+          style={{
+            width: isMobile ? "140px" : "280px",
+            maxHeight: "200px",
+            overflowY: "auto",
+            background: "rgba(0,0,0,0.7)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            fontSize: "9px",
+            lineHeight: "1.4",
+          }}
+        >
+          {debugLog.map((entry, i) => (
+            <div key={i} className="px-2 py-0.5 text-white/80" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className="text-white/40">{entry.time}</span>{" "}
+              {entry.event}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 });
 
