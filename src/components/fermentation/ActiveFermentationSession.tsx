@@ -484,8 +484,6 @@ export function ActiveFermentationSession({
         targetSg={stepTargetSg}
         sgComparison={stepSgComparison}
         originalGravity={originalGravity}
-        onSkipStep={(isWaitingForTemp || isWaitingForGravityStable) && isAuthenticated ? handleSkipStep : undefined}
-        skipLoading={skipLoading}
         sgData={sgData}
         isWaitingForGravityStable={isWaitingForGravityStable}
         onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
