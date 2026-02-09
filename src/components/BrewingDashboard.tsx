@@ -373,9 +373,6 @@ export function BrewingDashboard() {
               backgroundImage: `url(${visibleBgUrl})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center center',
-              transform: 'scale(1.15)',
-              contain: 'strict',
-              filter: bgContrast !== 1.0 ? `contrast(${bgContrast})` : undefined,
             }}
           />
         </>
