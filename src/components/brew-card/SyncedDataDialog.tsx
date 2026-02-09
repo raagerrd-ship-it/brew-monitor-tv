@@ -84,31 +84,35 @@ export function SyncedDataDialog({
     fetchControllerTemp();
   }, [open, controllerId, sgData]);
 
-  // Merge sg_data with controller temp data
+  // Merge sg_data with controller temp data using nearest-neighbor search
   const mergedData = useMemo(() => {
-    // Create a map of controller temps by timestamp (rounded to 15 min)
-    const controllerMap = new Map<number, ControllerTempPoint>();
-    controllerData.forEach((c) => {
-      const ts = Math.floor(new Date(c.recorded_at).getTime() / (15 * 60 * 1000));
-      controllerMap.set(ts, c);
-    });
+    // Sort controller data by timestamp for binary search
+    const sortedCtrl = [...controllerData]
+      .map(c => ({ ...c, ts: new Date(c.recorded_at).getTime() }))
+      .sort((a, b) => a.ts - b.ts);
+
+    const MAX_GAP_MS = 20 * 60 * 1000; // 20 min max gap for matching
+
+    const findClosest = (targetMs: number): ControllerTempPoint | null => {
+      if (sortedCtrl.length === 0) return null;
+      let lo = 0, hi = sortedCtrl.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (sortedCtrl[mid].ts < targetMs) lo = mid + 1;
+        else hi = mid;
+      }
+      // Check lo and lo-1 for closest
+      let best = sortedCtrl[lo];
+      if (lo > 0 && Math.abs(sortedCtrl[lo - 1].ts - targetMs) < Math.abs(best.ts - targetMs)) {
+        best = sortedCtrl[lo - 1];
+      }
+      return Math.abs(best.ts - targetMs) <= MAX_GAP_MS ? best : null;
+    };
 
     // Merge with sg_data
     const merged: MergedDataPoint[] = sgData.map((point) => {
-      const pointTs = Math.floor(new Date(point.date).getTime() / (15 * 60 * 1000));
-      
-      // Find closest controller reading (within 15 min window)
-      let closest: ControllerTempPoint | null = null;
-      for (let offset = 0; offset <= 1; offset++) {
-        if (controllerMap.has(pointTs + offset)) {
-          closest = controllerMap.get(pointTs + offset)!;
-          break;
-        }
-        if (controllerMap.has(pointTs - offset)) {
-          closest = controllerMap.get(pointTs - offset)!;
-          break;
-        }
-      }
+      const pointMs = new Date(point.date).getTime();
+      const closest = findClosest(pointMs);
 
       return {
         date: point.date,
