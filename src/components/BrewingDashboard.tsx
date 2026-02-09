@@ -48,7 +48,7 @@ export function BrewingDashboard() {
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
-  const [bgContrast, setBgContrast] = useState(1.0);
+  
   
   // Preload background image before showing to prevent black flashes
   const handleAlbumArtChange = useCallback((url: string | null) => {
@@ -73,17 +73,6 @@ export function BrewingDashboard() {
     img.src = url;
   }, []);
 
-  // Load bg_contrast from sonos_settings
-  useEffect(() => {
-    (supabase as any)
-      .from('sonos_settings')
-      .select('bg_contrast')
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }: any) => {
-        if (data?.bg_contrast != null) setBgContrast(data.bg_contrast);
-      });
-  }, []);
 
 
   const navigate = useNavigate();
@@ -151,15 +140,6 @@ export function BrewingDashboard() {
   // Wire up consolidated realtime callbacks
   const lastKnownRefreshAt = useRef<string | null>(null);
   
-  // Sonos settings changes - update brightness overlay in realtime
-  useEffect(() => {
-    onSonosSettingsChange.current = (payload: any) => {
-      if (payload.new?.bg_contrast != null) {
-        setBgContrast(payload.new.bg_contrast);
-      }
-    };
-    return () => { onSonosSettingsChange.current = null; };
-  }, [onSonosSettingsChange]);
 
   // TV force refresh via consolidated channel + polling fallback
   useEffect(() => {
