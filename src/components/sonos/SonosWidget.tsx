@@ -43,6 +43,11 @@ export const SonosWidget = memo(function SonosWidget({
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [prefetchStatus, setPrefetchStatus] = useState<PrefetchStatus>("idle");
+  const prefetchStatusRef = useRef<PrefetchStatus>("idle");
+  const setPrefetchStatusTracked = useCallback((status: PrefetchStatus) => {
+    prefetchStatusRef.current = status;
+    setPrefetchStatus(status);
+  }, []);
   const [currentArtStatus, setCurrentArtStatus] = useState<ArtStatus>("displayed");
 
   // --- DOM refs for zero-rerender progress updates ---
@@ -78,7 +83,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosPlaybackTicker({
-    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus, handleTrackChange,
+    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus: setPrefetchStatusTracked, handleTrackChange,
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
     trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
@@ -220,7 +225,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus !== "idle") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatusRef.current !== "idle") setPrefetchStatusTracked("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
@@ -231,7 +236,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_bg_image_url}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus !== "idle") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatusRef.current !== "idle") setPrefetchStatusTracked("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
