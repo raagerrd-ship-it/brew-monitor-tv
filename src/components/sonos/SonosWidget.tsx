@@ -197,24 +197,20 @@ export const SonosWidget = memo(function SonosWidget({
           </div>
         )}
 
-        {/* Progress Bar — updated via DOM ref, zero re-renders */}
+        {/* Progress Bar with countdown */}
         {nowPlaying.duration_ms && (
-          <div
-            className="w-full rounded-full overflow-hidden mt-3"
-            style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}
-          >
+          <div className="flex items-center gap-2 mt-3">
             <div
-              ref={progressBarRef}
-              className="h-full rounded-full"
-              style={{ width: "0%", background: "rgba(255, 255, 255, 0.9)" }}
-            />
-          </div>
-        )}
-
-        {/* Countdown timer */}
-        {nowPlaying.duration_ms && (
-          <div className="absolute top-1 right-1">
-            <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
+              className="flex-1 rounded-full overflow-hidden"
+              style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}
+            >
+              <div
+                ref={progressBarRef}
+                className="h-full rounded-full"
+                style={{ width: "0%", background: "rgba(255, 255, 255, 0.9)" }}
+              />
+            </div>
+            <span ref={debugTimeRef} className="text-white/60 font-mono flex-shrink-0" style={{ fontSize: isMobile ? "8px" : "11px", lineHeight: 1 }}>
               0:00
             </span>
           </div>
