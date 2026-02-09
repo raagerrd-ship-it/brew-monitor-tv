@@ -220,7 +220,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus === "ready" || prefetchStatus === "fetching") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatus !== "idle") setPrefetchStatus("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
@@ -231,7 +231,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_bg_image_url}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus === "ready" || prefetchStatus === "fetching") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatus !== "idle") setPrefetchStatus("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
@@ -271,32 +271,21 @@ export const SonosWidget = memo(function SonosWidget({
           </div>
         )}
 
-        {/* Status indicators */}
+        {/* Prefetch status indicator */}
         <div className="absolute top-1 right-1 flex items-center gap-1">
           {nowPlaying.duration_ms && (
             <span ref={debugTimeRef} className="text-white/70 font-mono" style={{ fontSize: "10px", lineHeight: 1 }}>
               0:00
             </span>
           )}
-          {displayedArtUrl && (
-            <div
-              title={`Current: ${currentArtStatus}`}
-              className="rounded-full"
-              style={{
-                width: 8, height: 8,
-                background: currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e",
-                boxShadow: `0 0 4px ${currentArtStatus === "detecting" ? "#ef4444" : currentArtStatus === "loading" ? "#f97316" : "#22c55e"}`,
-              }}
-            />
-          )}
           {prefetchStatus !== "idle" && (
             <div
-              title={`Next: ${prefetchStatus}`}
+              title={`Prefetch: ${prefetchStatus}`}
               className="rounded-full"
               style={{
                 width: 8, height: 8,
-                background: prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
-                boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#f97316" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
+                background: prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e",
+                boxShadow: `0 0 4px ${prefetchStatus === "fetching" ? "#ef4444" : prefetchStatus === "ready" ? "#eab308" : "#22c55e"}`,
               }}
             />
           )}
