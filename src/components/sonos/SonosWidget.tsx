@@ -101,7 +101,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   const { shouldHide } = useSonosVisibility({
-    isConnected, showWidget, nowPlaying,
+    isConnected, showWidget, nowPlaying, setNowPlaying,
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
   });
 
