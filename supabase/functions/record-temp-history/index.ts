@@ -65,18 +65,7 @@ serve(async (req) => {
 
     console.log('Successfully recorded temperature history');
 
-    // Clean up old history (keep last 7 days)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const { error: deleteError } = await supabase
-      .from('temp_controller_history')
-      .delete()
-      .lt('recorded_at', sevenDaysAgo.toISOString());
-
-    if (deleteError) {
-      console.error('Failed to clean up old history:', deleteError);
-    } else {
-      console.log('Cleaned up old history records');
-    }
+    // History is kept indefinitely to preserve full fermentation data
 
     return new Response(JSON.stringify({ 
       success: true,
