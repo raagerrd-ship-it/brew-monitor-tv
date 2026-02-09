@@ -20,6 +20,7 @@ interface UseSonosPlaybackTickerParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   setPrefetchStatus: (status: PrefetchStatus) => void;
   handleTrackChange: (data: TrackChangeData, earlySwapped: boolean) => void;
+  addDebugLog?: (event: string) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangedAtRef: React.MutableRefObject<number>;
   earlySwapDoneRef: React.MutableRefObject<boolean>;
@@ -48,7 +49,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     localProgressRef, trackChangedAtRef, earlySwapDoneRef,
     lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
     trackChangeOffsetRef, prefetchSecondsRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
   // Stable ref for handleTrackChange to avoid re-creating the effect
@@ -87,6 +88,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (data.trackName && data.trackName !== trackName) {
           // Track confirmed changed — cancel any revert timer
           if (earlySwapRevertTimer) { clearTimeout(earlySwapRevertTimer); earlySwapRevertTimer = null; }
+          addDebugLog?.(`🔄 Predictive poll confirmed: ${data.trackName}`);
           handleTrackChangeRef.current(data, earlySwapDoneRef.current);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
@@ -121,6 +123,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const offsetMs = trackChangeOffsetRef.current * 1000;
         if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
           trackChangedAtRef.current = Date.now();
+          addDebugLog?.(`⏩ Early swap triggered (${(timeRemaining / 1000).toFixed(1)}s left)`);
           setNowPlaying(prev => {
             if (!prev?.next_album_art_url) return prev;
             earlySwapDoneRef.current = true;
@@ -181,6 +184,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (timeRemaining <= prefetchSecondsRef.current * 1000 && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
           prefetchTriggeredForTrackRef.current = trackName;
           setPrefetchStatus('fetching');
+          addDebugLog?.(`🔴 Prefetch: server sync started (${Math.round(timeRemaining / 1000)}s left)`);
           console.log(`[Sonos:BG] prefetchStatus: fetching (${Math.round(timeRemaining / 1000)}s remaining)`);
           const ac = new AbortController();
           const t = setTimeout(() => ac.abort(), 15000);
@@ -191,7 +195,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               'Content-Type': 'application/json',
             },
             signal: ac.signal,
-          }).then(res => { if (res.ok) { setPrefetchStatus('ready'); console.log('[Sonos:BG] prefetchStatus: ready'); } })
+          }).then(res => { if (res.ok) { setPrefetchStatus('ready'); addDebugLog?.(`🟡 Prefetch: server sync done`); console.log('[Sonos:BG] prefetchStatus: ready'); } })
             .catch(() => {})
             .finally(() => clearTimeout(t));
         }
@@ -200,6 +204,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
           predictiveScheduledRef.current = true;
           const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
+          addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s`);
           predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
         }
       } catch (err) {
