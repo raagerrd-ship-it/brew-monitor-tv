@@ -122,10 +122,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         // Early swap: switch images AND text before track ends based on user offset
         const offsetMs = trackChangeOffsetRef.current * 1000;
         if (offsetMs > 0 && timeRemaining <= offsetMs && timeRemaining > 0 && !earlySwapDoneRef.current) {
-          trackChangedAtRef.current = Date.now();
-          addDebugLog?.(`⏩ Early swap triggered (${(timeRemaining / 1000).toFixed(1)}s left)`);
           setNowPlaying(prev => {
-            if (!prev?.next_album_art_url) return prev;
+            if (!prev?.next_album_art_url) {
+              addDebugLog?.(`⏩ Early swap SKIPPED (${(timeRemaining / 1000).toFixed(1)}s left) — no next_album_art_url`);
+              return prev;
+            }
+            trackChangedAtRef.current = Date.now();
+            addDebugLog?.(`⏩ Early swap DONE (${(timeRemaining / 1000).toFixed(1)}s left) → ${prev.next_track_name || '?'} | art: ${prev.next_album_art_url?.slice(-40)}`);
             earlySwapDoneRef.current = true;
             setPrefetchStatus('loaded');
             console.log('[Sonos:BG] prefetchStatus: loaded (early swap)');
