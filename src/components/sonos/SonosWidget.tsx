@@ -100,7 +100,7 @@ export const SonosWidget = memo(function SonosWidget({
     setNowPlaying, setCurrentArtStatus,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   });
 
   useSonosPlaybackTicker({
