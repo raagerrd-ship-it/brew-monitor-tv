@@ -126,6 +126,8 @@ serve(async (req) => {
     const nextItem = metadata.nextItem;
     const nextTrack = nextItem?.track;
 
+    console.log(`[SonosSync] nextItem present: ${!!nextItem}, nextTrack: ${nextTrack?.name || 'null'}, nextArtist: ${nextTrack?.artist?.name || 'null'}, nextArt: ${nextTrack?.imageUrl ? 'yes' : 'no'}`);
+
     const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
     const rawNextArt = nextTrack?.imageUrl || null;
 
