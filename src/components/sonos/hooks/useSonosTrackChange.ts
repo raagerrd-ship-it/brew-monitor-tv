@@ -11,6 +11,7 @@ interface UseSonosTrackChangeParams {
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  addDebugLog?: (event: string) => void;
 }
 
 interface TrackChangeData {
@@ -31,7 +32,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     setNowPlaying, setCurrentArtStatus,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
   const handleTrackChange = useCallback((
@@ -55,6 +56,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       if (earlySwapped) {
         // Images already swapped by early swap — only update text metadata
         console.log('[Sonos:BG] artStatus: displayed (early swapped)');
+        addDebugLog?.(`🔄 Track change confirmed (early swapped): ${data.trackName}`);
         setCurrentArtStatus('displayed');
         return {
           ...prev,
@@ -69,12 +71,16 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       // Not early-swapped — likely a random skip or detected via polling
       // Keep current art, trigger server sync for correct art
       console.log('[Sonos:BG] Track change (NOT early swapped) — triggering server sync + refetch');
+      addDebugLog?.(`🔄 Track change (skip): ${data.trackName} — syncing server...`);
       // Fire-and-forget async: sync then immediately refetch bg
       (async () => {
+        addDebugLog?.(`🖥️ Server img processing started`);
         await triggerServerSync();
+        addDebugLog?.(`🖥️ Server img processing done`);
         const fresh = await fetchPlaybackStatus();
         if (fresh?.bgImageUrl) {
           console.log('[Sonos:BG] Post-sync refetch got bg:', fresh.bgImageUrl.slice(-60));
+          addDebugLog?.(`🖼️ Post-sync: got new BG URL`);
           pushToBgBuffer(validBgBufferRef.current, fresh.bgImageUrl);
           onAlbumArtChangeRef.current?.(fresh.bgImageUrl);
           bgSentRef.current = fresh.bgImageUrl;
@@ -99,7 +105,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_widget_art_url: null,
       };
     });
-  }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef]);
+  }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog]);
 
   return { handleTrackChange };
 }

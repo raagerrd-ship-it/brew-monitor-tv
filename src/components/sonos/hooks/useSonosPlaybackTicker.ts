@@ -195,7 +195,15 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               'Content-Type': 'application/json',
             },
             signal: ac.signal,
-          }).then(res => { if (res.ok) { setPrefetchStatus('ready'); addDebugLog?.(`🟡 Prefetch: server sync done`); console.log('[Sonos:BG] prefetchStatus: ready'); } })
+          }).then(async res => {
+            if (res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const dur = body.duration_ms ? `${body.duration_ms}ms` : '?';
+              setPrefetchStatus('ready');
+              addDebugLog?.(`🟡 Prefetch: server done (${dur} img processing)`);
+              console.log('[Sonos:BG] prefetchStatus: ready');
+            }
+          })
             .catch(() => {})
             .finally(() => clearTimeout(t));
         }
