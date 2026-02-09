@@ -40,6 +40,19 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       setNowPlaying(prev => {
         if (!prev) { acceptedRef.current = true; return incoming; }
 
+        // When currently IDLE and incoming is PLAYING with a track, accept it to wake up the widget
+        if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING' && incoming.track_name) {
+          console.log(`[Sonos] Waking from IDLE via realtime: "${incoming.track_name}"`);
+          acceptedRef.current = true;
+          if (incoming.bg_image_url) {
+            pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+            bgSentRef.current = incoming.bg_image_url;
+          }
+          trackChangedAtRef.current = Date.now();
+          return incoming;
+        }
+
         // After a local track change, ignore ALL realtime for 15s to let server catch up
         const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
         if (msSinceTrackChange < 15000) {
