@@ -207,13 +207,16 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
     }, 1000);
 
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
     return () => {
       clearInterval(ticker);
       if (predictiveTimer) clearTimeout(predictiveTimer);
       if (earlySwapRevertTimer) clearTimeout(earlySwapRevertTimer);
+      if (idleTimer) clearTimeout(idleTimer);
       predictiveScheduledRef.current = false;
       earlySwapDoneRef.current = false;
-      setPrefetchStatus('idle');
+      // Delay idle reset so the green "loaded" dot is visible briefly after track change
+      idleTimer = setTimeout(() => setPrefetchStatus('idle'), 2000);
     };
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 }
