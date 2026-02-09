@@ -220,7 +220,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_widget_art_url || nowPlaying.next_album_art_url!}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus === "ready") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatus === "ready" || prefetchStatus === "fetching") setPrefetchStatus("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
@@ -231,7 +231,7 @@ export const SonosWidget = memo(function SonosWidget({
           src={nowPlaying.next_bg_image_url}
           alt=""
           decoding="async"
-          onLoad={() => { if (prefetchStatus === "ready") setPrefetchStatus("loaded"); }}
+          onLoad={() => { if (prefetchStatus === "ready" || prefetchStatus === "fetching") setPrefetchStatus("loaded"); }}
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
         />
       )}
