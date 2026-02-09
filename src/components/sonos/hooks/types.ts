@@ -62,6 +62,9 @@ export function updateProgressDOM(
   const pct = Math.min((position / duration) * 100, 100);
   if (progressBarRef.current) progressBarRef.current.style.width = `${pct}%`;
   if (debugTimeRef.current) {
-    debugTimeRef.current.textContent = `${Math.max(0, Math.round((duration - position) / 1000))}s`;
+    const remaining = Math.max(0, Math.round((duration - position) / 1000));
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    debugTimeRef.current.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 }
