@@ -22,11 +22,11 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
   try {
-    // Parallel fetch: token + settings
+    // Parallel fetch: token + settings + DB art
     const [tokenResult, settingsResult, nowPlayingResult] = await Promise.all([
       getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
       supabase.from('sonos_settings').select('selected_group_id').limit(1).single(),
-      supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url, widget_art_url, next_widget_art_url, album_art_url, next_track_name, next_artist_name').limit(1).maybeSingle(),
+      supabase.from('sonos_now_playing').select('bg_image_url, widget_art_url, album_art_url').limit(1).maybeSingle(),
     ]);
 
     const groupId = settingsResult.data?.selected_group_id;
@@ -73,12 +73,8 @@ serve(async (req) => {
       albumName: track?.album?.name || null,
       // DB art URLs for client sync
       bgImageUrl: np?.bg_image_url || null,
-      nextBgImageUrl: np?.next_bg_image_url || null,
       widgetArtUrl: np?.widget_art_url || null,
-      nextWidgetArtUrl: np?.next_widget_art_url || null,
       albumArtUrl: np?.album_art_url || null,
-      nextTrackName: np?.next_track_name || null,
-      nextArtistName: np?.next_artist_name || null,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -123,23 +123,15 @@ serve(async (req) => {
     const container = metadata.container;
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
-    const nextItem = metadata.nextItem;
-    const nextTrack = nextItem?.track;
-
-    console.log(`[SonosSync] nextItem present: ${!!nextItem}, nextTrack: ${nextTrack?.name || 'null'}, nextArtist: ${nextTrack?.artist?.name || 'null'}, nextArt: ${nextTrack?.imageUrl ? 'yes' : 'no'}`);
 
     const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
-    const rawNextArt = nextTrack?.imageUrl || null;
 
-    const [currentArt, nextArt] = await Promise.all([
-      resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId),
-      resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId),
-    ]);
+    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId);
 
     // Read existing row to check if we can reuse cached image URLs
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, next_bg_image_url, widget_art_url, next_widget_art_url')
+      .select('id, track_name, bg_image_url, widget_art_url')
       .eq('group_id', groupId)
       .limit(1)
       .single();
@@ -147,38 +139,25 @@ serve(async (req) => {
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
 
-    // Generate background images + widget thumbnails
+    // Generate background image + widget thumbnail
     let bgImageUrl: string | null = null;
-    let nextBgImageUrl: string | null = null;
     let widgetArtUrl: string | null = null;
-    let nextWidgetArtUrl: string | null = null;
 
-    if (currentArt.medium || nextArt.medium) {
+    if (currentArt.medium) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
-      const nextTrackId = nextTrack?.id?.objectId || nextTrack?.name || '';
 
-      // Only reuse widget (settings-independent); background depends on settings hash
-      // so we let resolveBackgroundAndWidget check the cache by filename
       const reuseCurrentWidget = sameTrack && existingRow.widget_art_url;
-      const reuseNextWidget = sameTrack && existingRow.next_widget_art_url;
 
-      const [currentResult, nextResult] = await Promise.all([
-        currentArt.medium
-          ? resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null)
-          : Promise.resolve({ bgUrl: null, widgetUrl: reuseCurrentWidget || null }),
-        nextArt.medium
-          ? resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, reuseNextWidget || null)
-          : Promise.resolve({ bgUrl: null, widgetUrl: reuseNextWidget || null }),
-      ]);
+      const currentResult = currentArt.medium
+        ? await resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null)
+        : { bgUrl: null, widgetUrl: reuseCurrentWidget || null };
 
       bgImageUrl = currentResult.bgUrl;
-      nextBgImageUrl = nextResult.bgUrl;
       widgetArtUrl = currentResult.widgetUrl;
-      nextWidgetArtUrl = nextResult.widgetUrl;
 
       // Cleanup old files (non-blocking)
       const keepFiles: string[] = [];
-      for (const url of [bgImageUrl, nextBgImageUrl, widgetArtUrl, nextWidgetArtUrl]) {
+      for (const url of [bgImageUrl, widgetArtUrl]) {
         if (url) {
           const match = url.match(/\/([^/?]+)\?/);
           if (match) keepFiles.push(match[1]);
@@ -196,16 +175,16 @@ serve(async (req) => {
       album_name: track?.album?.name || null,
       album_art_url: currentArt.medium,
       album_art_url_small: currentArt.small,
-      next_album_art_url: nextArt.medium,
-      next_track_name: nextTrack?.name || null,
-      next_artist_name: nextTrack?.artist?.name || null,
+      next_album_art_url: null,
+      next_track_name: null,
+      next_artist_name: null,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
       bg_image_url: bgImageUrl,
-      next_bg_image_url: nextBgImageUrl,
+      next_bg_image_url: null,
       widget_art_url: widgetArtUrl,
-      next_widget_art_url: nextWidgetArtUrl,
+      next_widget_art_url: null,
     };
 
     if (existingRow) {

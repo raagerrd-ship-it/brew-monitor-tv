@@ -64,14 +64,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             const updatedBg = incoming.bg_image_url;
             pushToBgBuffer(validBgBufferRef.current, updatedBg);
             onAlbumArtChangeRef.current?.(updatedBg);
-            // bg-only update, don't accept position
             return {
               ...prev,
               bg_image_url: updatedBg,
               widget_art_url: incoming.widget_art_url || prev.widget_art_url,
-              next_album_art_url: incoming.next_album_art_url || prev.next_album_art_url,
-              next_bg_image_url: incoming.next_bg_image_url || prev.next_bg_image_url,
-              next_widget_art_url: incoming.next_widget_art_url || prev.next_widget_art_url,
             };
           }
           console.log(`[Sonos] Ignoring realtime during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}"`);
@@ -86,16 +82,6 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
         // Same track — merge in any new art URLs
         acceptedRef.current = true;
-        // Log next-track data from realtime
-        if (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name) {
-          addDebugLog?.(`📻 RT: next track → ${incoming.next_track_name}`);
-        }
-        if (incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url) {
-          addDebugLog?.(`📻 RT: next BG URL received`);
-        }
-        if (incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url) {
-          addDebugLog?.(`📻 RT: next widget art received`);
-        }
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
         const bgChanged = updatedBg !== prev.bg_image_url;
         if (bgChanged) {

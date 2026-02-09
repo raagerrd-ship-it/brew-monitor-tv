@@ -23,9 +23,8 @@ interface TrackChangeData {
 }
 
 /**
- * Consolidated track-change handler used by predictive poll, 5s poll, and init.
- * Handles both early-swapped (sequential) and non-swapped (random skip) scenarios.
- * For non-early-swap: triggers server sync then immediately refetches bg URL.
+ * Consolidated track-change handler used by predictive poll and 5s poll.
+ * Immediately updates text/metadata, then triggers server sync + refetch for images.
  */
 export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
   const {
@@ -35,13 +34,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
-  const handleTrackChange = useCallback((
-    data: TrackChangeData,
-    earlySwapped: boolean,
-  ) => {
+  const handleTrackChange = useCallback((data: TrackChangeData) => {
     console.log('[Sonos:BG] handleTrackChange', {
       newTrack: data.trackName,
-      earlySwapped,
       positionMs: data.positionMillis,
     });
     trackChangedAtRef.current = Date.now();
@@ -50,29 +45,11 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     setNowPlaying(prev => {
       if (!prev) return prev;
 
-      // Update DOM progress directly — no re-render
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
-      if (earlySwapped) {
-        // Images already swapped by early swap — only update text metadata
-        console.log('[Sonos:BG] artStatus: displayed (early swapped)');
-        addDebugLog?.(`🔄 Track change confirmed (early swapped): ${data.trackName}`);
-        setCurrentArtStatus('displayed');
-        return {
-          ...prev,
-          track_name: data.trackName,
-          artist_name: data.artistName ?? prev.artist_name,
-          album_name: data.albumName ?? prev.album_name,
-          playback_state: data.playbackState,
-          position_ms: data.positionMillis,
-        };
-      }
-
-      // Not early-swapped — likely a random skip or detected via polling
-      // Keep current art, trigger server sync for correct art
-      console.log('[Sonos:BG] Track change (NOT early swapped) — triggering server sync + refetch');
-      addDebugLog?.(`🔄 Track change (skip): ${data.trackName} — syncing server...`);
-      // Fire-and-forget async: sync then immediately refetch bg
+      // Trigger server sync + refetch for correct art
+      console.log('[Sonos:BG] Track change — triggering server sync + refetch');
+      addDebugLog?.(`🔄 Track change: ${data.trackName} — syncing server...`);
       (async () => {
         addDebugLog?.(`🖥️ Server img processing started`);
         await triggerServerSync();
@@ -100,9 +77,6 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
-        next_album_art_url: null,
-        next_bg_image_url: null,
-        next_widget_art_url: null,
       };
     });
   }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog]);
