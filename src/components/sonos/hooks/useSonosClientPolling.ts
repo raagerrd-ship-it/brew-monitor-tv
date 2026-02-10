@@ -49,7 +49,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
 
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
 
     const poll = async () => {
       // Skip if a predictive poll just ran
