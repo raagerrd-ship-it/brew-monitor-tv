@@ -266,7 +266,7 @@ export const TimerFooter = memo(function TimerFooter() {
         <div 
           className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
           style={{
-            background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
+            background: 'linear-gradient(90deg, transparent 25%, hsl(0 0% 100% / 0.04) 45%, hsl(0 0% 100% / 0.06) 55%, hsl(0 0% 100% / 0.04) 65%, transparent 80%)'
           }}
         />
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
