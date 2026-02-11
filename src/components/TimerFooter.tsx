@@ -79,9 +79,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       </div>
 
       {/* Track - larger for TV visibility */}
-      <div className={cn(
-        "relative rounded-full overflow-hidden",
-      )}
+      <div className="relative rounded-full"
         style={{
           height: '10px',
           background: 'hsl(0 0% 0% / 0.5)',
@@ -90,7 +88,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       >
         {/* Progress fill with glow */}
         <div 
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+          className="absolute inset-y-0 left-0 rounded-full transition-all duration-300 overflow-hidden"
           style={{ 
             width: `${Math.min(100, progressPercent)}%`,
             background: isMash 
@@ -102,11 +100,12 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
           }}
         />
         
-        {/* Shine overlay */}
+        {/* Shine overlay - inside track, behind markers */}
         <div 
           className="absolute inset-0 rounded-full pointer-events-none"
           style={{
-            background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
+            background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.15) 0%, transparent 50%)',
+            clipPath: 'inset(0 round 9999px)',
           }}
         />
         
