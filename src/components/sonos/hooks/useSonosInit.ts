@@ -30,7 +30,7 @@ export function useSonosInit(params: UseSonosInitParams) {
             .maybeSingle(),
           (supabase as any)
             .from('sonos_now_playing')
-            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state')
+            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at')
             .limit(1)
             .maybeSingle(),
         ]);
@@ -61,9 +61,17 @@ export function useSonosInit(params: UseSonosInitParams) {
           console.warn('[Sonos] Now playing query error:', npError);
         }
         if (npData && !npError && show) {
-          console.log('[Sonos] Init now playing:', npData.track_name, '- state:', npData.playback_state);
-          setNowPlaying(npData);
-          localProgressRef.current = npData.position_ms;
+          const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
+          const isPausedOrIdle = npData.playback_state === 'PLAYBACK_STATE_PAUSED' || npData.playback_state === 'PLAYBACK_STATE_IDLE';
+          const stalePause = isPausedOrIdle && npData.updated_at && (Date.now() - new Date(npData.updated_at).getTime()) > PAUSE_TIMEOUT_MS;
+
+          if (npData.playback_state === 'PLAYBACK_STATE_IDLE' || stalePause) {
+            console.log('[Sonos] Init: state is', npData.playback_state, `(stale: ${stalePause}) — not showing widget`);
+          } else {
+            console.log('[Sonos] Init now playing:', npData.track_name, '- state:', npData.playback_state);
+            setNowPlaying(npData);
+            localProgressRef.current = npData.position_ms;
+          }
         }
       } catch (error) {
         console.error('[Sonos] Failed to init:', error);
