@@ -138,7 +138,17 @@ serve(async (req) => {
 
     if (sonosIsPausedOrIdle && existingRow) {
       const dbWasPaused = existingRow.playback_state === 'PLAYBACK_STATE_PAUSED';
+      const dbWasIdle = existingRow.playback_state === 'PLAYBACK_STATE_IDLE';
       const msSinceUpdate = existingRow.updated_at ? Date.now() - new Date(existingRow.updated_at).getTime() : Infinity;
+
+      // DB already IDLE — don't let cron rewrite PAUSED and restart the cycle
+      if (dbWasIdle) {
+        const duration = Date.now() - startTime;
+        console.log(`[SonosSync] DB already IDLE, Sonos says ${playbackState} → skip write in ${duration}ms`);
+        return new Response(JSON.stringify({ ok: true, idle: true, duration_ms: duration }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       if (dbWasPaused && msSinceUpdate > PAUSE_TIMEOUT_MS) {
         // Stale pause → write IDLE, skip images, return early
