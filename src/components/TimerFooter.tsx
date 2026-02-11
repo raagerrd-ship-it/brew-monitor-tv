@@ -80,21 +80,37 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
       {/* Track - larger for TV visibility */}
       <div className={cn(
-        "relative h-4 rounded-full",
-        isMash ? "bg-orange-900/80" : "bg-muted/70"
-      )}>
-        {/* Progress fill with gradient */}
+        "relative rounded-full overflow-hidden",
+      )}
+        style={{
+          height: '10px',
+          background: 'hsl(0 0% 0% / 0.5)',
+          boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
+        }}
+      >
+        {/* Progress fill with glow */}
         <div 
-          className={cn(
-            "absolute inset-y-0 left-0 rounded-full transition-all duration-300",
-            isMash 
-              ? "bg-gradient-to-r from-orange-600 via-orange-500 to-orange-400" 
-              : "bg-gradient-to-r from-primary/90 to-primary"
-          )}
-          style={{ width: `${Math.min(100, progressPercent)}%` }}
+          className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+          style={{ 
+            width: `${Math.min(100, progressPercent)}%`,
+            background: isMash 
+              ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
+              : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
+            boxShadow: isMash
+              ? '0 0 12px hsl(30 90% 50%), 0 0 6px hsl(30 90% 50%)'
+              : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
+          }}
         />
         
-        {/* Milestone markers - larger for TV */}
+        {/* Shine overlay */}
+        <div 
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{
+            background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
+          }}
+        />
+        
+        {/* Milestone markers */}
         {sortedMilestones.map((milestone, index) => {
           const position = allSameTime 
             ? (index / Math.max(1, sortedMilestones.length - 1)) * 100
@@ -111,9 +127,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
               style={{ left: `${position}%` }}
             >
-              {/* Marker dot - 10px for TV visibility */}
               <div className={cn(
-                "w-5 h-5 rounded-full border-2 transition-all",
+                "w-4 h-4 rounded-full border-2 transition-all",
                 isTriggered 
                   ? "bg-green-500 border-green-300 shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
                   : isNext
