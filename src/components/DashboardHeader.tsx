@@ -147,9 +147,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 }: RaptControllerBarProps) {
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
-      <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide`} style={{
-        background: 'hsl(222 20% 11% / 0.5)',
-        border: '1px solid hsl(222 15% 18% / 0.3)',
+      <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide backdrop-blur-xl`} style={{
+        background: 'hsl(222 20% 11% / 0.65)',
+        border: '1px solid hsl(222 15% 35% / 0.6)',
+        boxShadow: '0 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       }}>
         {controllers.map((controller, index) => {
           const controllerColor = getControllerColor(controller.name);
