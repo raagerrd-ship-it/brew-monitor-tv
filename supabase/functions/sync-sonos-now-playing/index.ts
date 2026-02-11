@@ -153,6 +153,15 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      if (dbWasPaused && msSinceUpdate <= PAUSE_TIMEOUT_MS) {
+        // Still paused, not yet stale → skip write to preserve original updated_at
+        const duration = Date.now() - startTime;
+        console.log(`[SonosSync] Still paused (${Math.round(msSinceUpdate / 1000)}s) → skip write in ${duration}ms`);
+        return new Response(JSON.stringify({ ok: true, paused: true, duration_ms: duration }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
