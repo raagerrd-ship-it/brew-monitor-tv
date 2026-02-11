@@ -318,15 +318,20 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
   // Initial fetch and subscribe to updates
   // Always use cache for consistent behavior - edge function handles syncing
   useEffect(() => {
-    // Always fetch from local cache - the edge function sync-external-timer 
-    // handles syncing from external API to cache every 10 seconds
     fetchFromCache();
 
-    // Wire up consolidated realtime callback
     if (onCachedTimerChangeRef) {
       onCachedTimerChangeRef.current = () => fetchFromCache();
     }
+
+    // Polling fallback (60s) — same pattern as Sonos client polling
+    // Ensures TV picks up new timers even if Realtime connection is lost
+    const pollInterval = setInterval(() => {
+      fetchFromCache();
+    }, 60_000);
+
     return () => {
+      clearInterval(pollInterval);
       if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
   }, [fetchFromCache, onCachedTimerChangeRef]);
