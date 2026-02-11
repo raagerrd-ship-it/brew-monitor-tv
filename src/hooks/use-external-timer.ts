@@ -324,11 +324,11 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       onCachedTimerChangeRef.current = () => fetchFromCache();
     }
 
-    // Polling fallback (60s) — same pattern as Sonos client polling
-    // Ensures TV picks up new timers even if Realtime connection is lost
+    // Polling fallback (10s) — matches cron sync frequency
+    // Ensures TV picks up new timers quickly even if Realtime connection is lost
     const pollInterval = setInterval(() => {
       fetchFromCache();
-    }, 60_000);
+    }, 10_000);
 
     return () => {
       clearInterval(pollInterval);
