@@ -80,9 +80,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           return prev;
         }
 
-        // Don't let realtime overwrite local IDLE (set by pause timeout) with PAUSED from DB
-        if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PAUSED') {
-          console.log(`[Sonos] Ignoring realtime PAUSED — already transitioned to IDLE`);
+        // Don't let realtime overwrite local IDLE (set by pause timeout) — only PLAYING wake (handled above) can exit IDLE
+        if (prev.playback_state === 'PLAYBACK_STATE_IDLE') {
+          console.log(`[Sonos] Ignoring realtime ${incoming.playback_state} — already transitioned to IDLE`);
           return prev;
         }
 
