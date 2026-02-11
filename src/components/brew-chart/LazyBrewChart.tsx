@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useTvMode } from '@/contexts/TvModeContext';
 import type { BrewChartProps } from './types';
 
 // Lazy load the heavy recharts-based BrewChart component
@@ -65,30 +65,18 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
 }
 
 /**
- * Always renders server-generated static chart images.
- * Falls back to lazy-loaded Recharts only if no brewId is available.
+ * TV mode: server-rendered static chart images for performance.
+ * Desktop & Mobile: interactive Recharts components.
  */
 export function LazyBrewChart(props: BrewChartProps) {
-  const isMobile = useIsMobile();
+  const { isTvMode } = useTvMode();
 
-  // On mobile, use interactive Recharts for better touch experience
-  if (isMobile) {
-    return (
-      <Suspense fallback={
-        <div className="h-full flex items-center justify-center">
-          <Skeleton className="w-full h-full rounded-lg" />
-        </div>
-      }>
-        <BrewChartLazy {...props} />
-      </Suspense>
-    );
-  }
-
-  // Desktop/TV: use server-rendered chart images (saves ~150KB Recharts JS)
-  if (props.brewId) {
+  // TV mode: use server-rendered chart images for hardware performance
+  if (isTvMode && props.brewId) {
     return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} />;
   }
 
+  // Desktop & Mobile: interactive Recharts
   return (
     <Suspense fallback={
       <div className="h-full flex items-center justify-center">
