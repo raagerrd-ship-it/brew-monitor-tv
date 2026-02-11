@@ -250,23 +250,32 @@ export const TimerFooter = memo(function TimerFooter() {
 
       {/* Main footer - 3 column grid layout for TV */}
       <div 
-        className={cn(
-          "absolute bottom-0 left-0 right-0 z-20 border-t",
-          isMash 
-            ? "bg-gradient-to-r from-orange-950 via-orange-900 to-orange-950 border-orange-700/60" 
-            : "bg-gradient-to-r from-background via-card to-background border-border"
-        )}
+        className="absolute bottom-0 left-0 right-0 z-20 backdrop-blur-xl"
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
+          background: isMash
+            ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.4) 0%, hsl(222 20% 12% / 0.7) 100%)'
+            : 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.7) 100%)',
+          borderTop: isMash
+            ? '1px solid hsl(24 80% 40% / 0.15)'
+            : '1px solid hsl(0 0% 100% / 0.08)',
+          boxShadow: '0 -8px 24px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
         }}
       >
+        {/* Top light reflection */}
+        <div 
+          className="absolute inset-x-0 top-0 h-[1px] pointer-events-none z-10"
+          style={{
+            background: 'linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, hsl(0 0% 100% / 0.15) 50%, hsl(0 0% 100% / 0.1) 60%, transparent 85%)'
+          }}
+        />
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
         <div className="grid grid-cols-[350px_1fr_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
             "flex flex-col justify-center px-4 border-r gap-1",
-            isMash ? "border-orange-700/40" : "border-border/50"
+            "border-white/5"
           )}>
             {/* Current Step - show last triggered milestone or timer label */}
             <div className="flex items-center gap-2">
@@ -347,7 +356,7 @@ export const TimerFooter = memo(function TimerFooter() {
           {/* RIGHT COLUMN: Time Display */}
           <div className={cn(
             "flex flex-col justify-center items-end px-4 border-l",
-            isMash ? "border-orange-700/40" : "border-border/50"
+            "border-white/5"
           )}>
             {timer.isPaused && (
               <div className={cn(
