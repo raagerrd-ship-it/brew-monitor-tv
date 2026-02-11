@@ -80,6 +80,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           return prev;
         }
 
+        // Don't let realtime overwrite local IDLE (set by pause timeout) with PAUSED from DB
+        if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PAUSED') {
+          console.log(`[Sonos] Ignoring realtime PAUSED — already transitioned to IDLE`);
+          return prev;
+        }
+
         // Same track — merge in any new art URLs
         acceptedRef.current = true;
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
