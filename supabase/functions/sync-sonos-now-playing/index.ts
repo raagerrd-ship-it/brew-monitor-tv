@@ -124,17 +124,40 @@ serve(async (req) => {
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
 
-    const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
-
-    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId);
-
-    // Read existing row to check if we can reuse cached image URLs
+    // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, widget_art_url')
+      .select('id, track_name, bg_image_url, widget_art_url, updated_at, playback_state')
       .eq('group_id', groupId)
       .limit(1)
       .single();
+
+    // --- Server-side pause timeout (5 min) ---
+    const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
+    const sonosIsPausedOrIdle = playbackState === 'PLAYBACK_STATE_PAUSED' || playbackState === 'IDLE';
+
+    if (sonosIsPausedOrIdle && existingRow) {
+      const dbWasPaused = existingRow.playback_state === 'PLAYBACK_STATE_PAUSED';
+      const msSinceUpdate = existingRow.updated_at ? Date.now() - new Date(existingRow.updated_at).getTime() : Infinity;
+
+      if (dbWasPaused && msSinceUpdate > PAUSE_TIMEOUT_MS) {
+        // Stale pause → write IDLE, skip images, return early
+        await supabase.from('sonos_now_playing').update({
+          playback_state: 'PLAYBACK_STATE_IDLE',
+          position_ms: 0,
+        }).eq('id', existingRow.id);
+
+        const duration = Date.now() - startTime;
+        console.log(`[SonosSync] Stale pause (${Math.round(msSinceUpdate / 1000)}s) → IDLE in ${duration}ms`);
+        return new Response(JSON.stringify({ ok: true, idle: true, duration_ms: duration }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
+
+    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId);
 
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
