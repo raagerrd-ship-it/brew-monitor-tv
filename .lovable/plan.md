@@ -1,30 +1,36 @@
 
-## Återställ 16:9 aspect ratio för desktop
+## Flytta paus-timeout till servern (cron/edge function)
 
-### Problem
-AspectRatioContainer beräknar korrekta 16:9-dimensioner för desktop men använder dem aldrig. Både desktop och TV renderar fullscreen utan aspect ratio-lock.
+### Varför det är bättre
+Idag hanteras 5-minuters-timeouten på klientsidan, vilket innebär att om sidan laddas om efter 5 minuter visar widgeten ändå PAUSED-data från databasen tills klienten själv räknat ut att den är för gammal. Genom att låta edge-funktionen sätta IDLE direkt i databasen blir klienten enklare och widgeten döljs omedelbart vid sidladdning.
 
-### Lösning
-Separera desktop- och TV-renderingen i AspectRatioContainer:
+### Ändring
 
-- **Desktop**: Rendera en centrerad 16:9-box med letterboxing/pillarboxing (svarta kanter) baserat på de redan beräknade `dimensions`.
-- **TV-läge**: Behåll nuvarande fullscreen `fixed inset-0` (TV:ar är redan 16:9).
+**Fil: `supabase/functions/sync-sonos-now-playing/index.ts`**
 
-### Teknisk ändring
+Efter att Sonos API:ets `playbackState` läses (rad ~121), lägg till logik:
 
-**Fil: `src/components/AspectRatioContainer.tsx`**
+1. Om Sonos rapporterar `PAUSED` (eller `IDLE`), kolla befintlig rad i databasen:
+   - Hämta `updated_at` från den befintliga raden (redan hämtad ~rad 132, behöver utöka `select`)
+   - Om `updated_at` är äldre än 5 minuter och state är PAUSED, skriv `playback_state: 'PLAYBACK_STATE_IDLE'` till databasen istället
+   - Skippa bildgenerering helt (onödig CPU för en gömd widget)
+   - Returnera tidigt
 
-Ändra return-blocket (rad 106-121) till att skilja på desktop och TV:
+2. Om Sonos rapporterar `PLAYING`, kör som vanligt (befintlig logik)
+
+**Fil: `src/components/sonos/hooks/useSonosInit.ts`**
+
+Behåll den klient-sidiga checken som säkerhetsnät (redan implementerad). Den fångar edge cases där cron-jobbet inte hunnit köra.
+
+### Teknisk detalj
 
 ```text
-Desktop (inte TV, inte mobil):
-  - Använd de beräknade dimensions (width/height) för att skapa en centrerad container
-  - Container begränsas till 16:9 med letterboxing/pillarboxing
-  - Context får de beräknade dimensionerna och scale
-
-TV-läge:
-  - Behåll nuvarande fullscreen fixed inset-0
-  - Context får tvDimensions (faktisk viewport)
+Edge function flöde (nytt):
+  1. Hämta playbackState från Sonos API
+  2. Om PAUSED → kolla DB-radens updated_at
+     - Om > 5 min sedan → skriv IDLE, skippa bilder, returnera
+     - Om < 5 min sedan → skriv PAUSED som vanligt
+  3. Om PLAYING → kör befintlig logik
 ```
 
-Ingen ändring krävs för TV-läget eller mobil. Ingen påverkan på prestanda eller dataanvändning.
+Detta sparar även serverresurser eftersom bildgenerering skippas helt när ingen lyssnar.
