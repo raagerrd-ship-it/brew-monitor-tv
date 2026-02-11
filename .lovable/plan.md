@@ -1,55 +1,42 @@
 
-## Lägg till polling-fallback för timern (som Sonos)
+## Glassmorphism-styling for TimerFooter
 
-### Bakgrund
-Sonos-widgeten fungerar pålitligt på TV:n tack vare sin 5-sekunders polling via `useSonosClientPolling`. Timern saknar denna mekanism -- den hämtar data en gång vid mount och förlitar sig sedan enbart på Realtime-events, som ofta tappas på TV-hårdvara.
+Anpassa TimerFootern till samma visuella stil som StatCard-korten genom att lägga till glassmorphism-effekter.
 
-### Lösning
-Lägg till en 60-sekunders polling i `useExternalTimer` som kontrollerar `cached_external_timer`-tabellen. Samma mönster som Sonos: en `setInterval` i `useEffect` som körs oavsett Realtime-status.
+### Vad som andras
 
-### Teknisk ändring
+**TimerFooter.tsx** -- huvudcontainern (rad ~249-261):
 
-**Fil: `src/hooks/use-external-timer.ts`**
+Byta ut den nuvarande opaka gradient-bakgrunden mot StatCard-inspirerad glassmorphism:
 
-Uppdatera `useEffect`-blocket (rad 320-332) som hanterar initial fetch:
+- **Bakgrund**: Semi-transparent gradient med `backdrop-blur-xl` istallet for heltatckande `bg-gradient-to-r`
+- **Border**: Tunn 1px border med lag opacitet (som StatCards `colorWithOpacity(color, 0.15)`)
+- **Ljusreflektion**: Lagg till samma 1px toppreflektion som StatCard har (linjart gradient fran transparent till vit med lag opacitet)
+- **Skugga**: Flerskiktad skugga som matchar StatCard-monstret (`0 8px 24px ... inset 0 1px 0 ...`)
+- **Kolumn-separatorer**: Gora border-r/border-l mer subtila, med `border-white/5` istallet for `border-border/50`
 
-```text
-// Innan:
-useEffect(() => {
-  fetchFromCache();
+### Tekniska detaljer
 
-  if (onCachedTimerChangeRef) {
-    onCachedTimerChangeRef.current = () => fetchFromCache();
-  }
-  return () => {
-    if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
-  };
-}, [fetchFromCache, onCachedTimerChangeRef]);
-
-// Efter:
-useEffect(() => {
-  fetchFromCache();
-
-  if (onCachedTimerChangeRef) {
-    onCachedTimerChangeRef.current = () => fetchFromCache();
-  }
-
-  // Polling fallback (60s) — same pattern as Sonos client polling
-  // Ensures TV picks up new timers even if Realtime connection is lost
-  const pollInterval = setInterval(() => {
-    fetchFromCache();
-  }, 60_000);
-
-  return () => {
-    clearInterval(pollInterval);
-    if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
-  };
-}, [fetchFromCache, onCachedTimerChangeRef]);
+**Normal mode (kok)**:
+```css
+background: linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.7) 100%)
+backdrop-filter: blur(24px)
+border-top: 1px solid hsl(0 0% 100% / 0.08)
+box-shadow: 0 -8px 24px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)
 ```
 
-### Resultat
-- TV:n kontrollerar var 60:e sekund om en ny timer har startats i databasen
-- Max 60 sekunders fördröjning innan timern visas (jämfört med att aldrig visas utan sidladdning)
-- Realtime fungerar fortfarande som snabbare kanal när den är tillgänglig
-- Samma polling-frekvens som Sonos cron: minimal påverkan på TV-hårdvara
-- Ingen ändring behövs i edge-funktionen eller databasen
+**Mask-mode (orange)**:
+```css
+background: linear-gradient(145deg, hsl(24 80% 15% / 0.4) 0%, hsl(222 20% 12% / 0.7) 100%)
+backdrop-filter: blur(24px)
+border-top: 1px solid hsl(24 80% 40% / 0.15)
+```
+
+Lagg aven till toppreflektion-div (samma som StatCard):
+```html
+<div class="absolute inset-x-0 top-0 h-[1px]"
+  style="background: linear-gradient(90deg, transparent 15%, hsl(0 0% 100% / 0.1) 40%, ...)" />
+```
+
+### Fil som andras
+- `src/components/TimerFooter.tsx` -- bara styling, ingen logikandring
