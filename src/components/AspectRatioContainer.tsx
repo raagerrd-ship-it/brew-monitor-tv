@@ -103,19 +103,44 @@ export function AspectRatioContainer({
     );
   }
 
-  // Desktop & TV: Full viewport, no scaling
+  // TV mode: fullscreen, no aspect ratio lock
+  if (isTvMode) {
+    return (
+      <AspectRatioContext.Provider value={{ 
+        isLocked: true, 
+        width: tvDimensions.width,
+        height: tvDimensions.height,
+        scale: 1
+      }}>
+        <div 
+          className="fixed inset-0 overflow-hidden flex flex-col"
+          style={{ background: 'transparent' }}
+        >
+          {children}
+        </div>
+      </AspectRatioContext.Provider>
+    );
+  }
+
+  // Desktop: centered 16:9 container with letterboxing/pillarboxing
   return (
     <AspectRatioContext.Provider value={{ 
       isLocked: true, 
-      width: tvDimensions.width,
-      height: tvDimensions.height,
-      scale: 1
+      width: dimensions.width,
+      height: dimensions.height,
+      scale: dimensions.scale
     }}>
-      <div 
-        className="fixed inset-0 overflow-hidden flex flex-col"
-        style={{ background: 'transparent' }}
-      >
-        {children}
+      <div className="fixed inset-0 flex items-center justify-center bg-black">
+        <div 
+          className="overflow-hidden flex flex-col"
+          style={{ 
+            width: dimensions.width, 
+            height: dimensions.height,
+            background: 'transparent'
+          }}
+        >
+          {children}
+        </div>
       </div>
     </AspectRatioContext.Provider>
   );
