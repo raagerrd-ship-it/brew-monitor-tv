@@ -374,13 +374,35 @@ export const TimerFooter = memo(function TimerFooter() {
           )}>
             {timer.isPaused && (
               <div className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded text-xs mb-1",
-                isMash 
-                  ? "bg-orange-800/60 text-orange-200" 
-                  : "bg-muted text-muted-foreground"
-              )}>
-                <Pause className="w-3 h-3" />
-                PAUSAD
+                "flex items-center gap-1.5 rounded font-bold uppercase tracking-wider",
+                timer.pausedByMilestone
+                  ? "px-4 py-1.5 text-sm animate-pulse"
+                  : "px-2 py-0.5 text-xs mb-1"
+              )}
+              style={timer.pausedByMilestone ? {
+                background: isMash 
+                  ? 'linear-gradient(135deg, hsl(24 95% 50% / 0.8) 0%, hsl(30 100% 40% / 0.7) 100%)'
+                  : 'linear-gradient(135deg, hsl(45 100% 50% / 0.8) 0%, hsl(35 100% 45% / 0.7) 100%)',
+                color: isMash ? 'hsl(24 100% 95%)' : 'hsl(45 100% 10%)',
+                boxShadow: isMash 
+                  ? '0 0 16px hsl(24 95% 50% / 0.5), 0 0 32px hsl(24 95% 50% / 0.2)'
+                  : '0 0 16px hsl(45 100% 50% / 0.5), 0 0 32px hsl(45 100% 50% / 0.2)',
+              } : {
+                background: isMash ? 'hsl(24 60% 20% / 0.6)' : 'hsl(var(--muted))',
+                color: isMash ? 'hsl(24 80% 75%)' : 'hsl(var(--muted-foreground))',
+              }}
+              >
+                {timer.pausedByMilestone ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4" />
+                    Väntar på åtgärd
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-3 h-3" />
+                    PAUSAD
+                  </>
+                )}
               </div>
             )}
             
