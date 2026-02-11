@@ -254,8 +254,8 @@ export const TimerFooter = memo(function TimerFooter() {
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
           background: isMash
-            ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.4) 0%, hsl(222 20% 12% / 0.7) 100%)'
-            : 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.7) 100%)',
+            ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.7) 0%, hsl(222 20% 12% / 0.85) 100%)'
+            : 'linear-gradient(145deg, hsl(var(--primary) / 0.15) 0%, hsl(222 20% 12% / 0.85) 100%)',
           borderTop: isMash
             ? '1px solid hsl(24 80% 40% / 0.15)'
             : '1px solid hsl(0 0% 100% / 0.08)',
