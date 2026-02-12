@@ -341,10 +341,10 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       )
       .subscribe();
 
-    // Polling fallback (10s) — ensures TV picks up changes even if Realtime drops
+    // Polling fallback (5s) — ensures TV picks up changes even if Realtime drops
     const pollInterval = setInterval(() => {
       fetchFromCache();
-    }, 10_000);
+    }, 5_000);
 
     return () => {
       clearInterval(pollInterval);
