@@ -193,17 +193,24 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
 
-  // For mash: Dismiss alert when pausedByMilestone becomes false (acknowledged)
-  // But don't dismiss if it was just triggered (within 500ms) - allows test trigger to work
+  // Dismiss alert when acknowledged externally via synced data
+  // Mash: pausedByMilestone becomes false when acknowledged
+  // Kok: the milestone's triggered flag becomes true when acknowledged in brew app
   useEffect(() => {
-    if (isMash && triggeredAlert && !timer.pausedByMilestone && !timer.isPaused) {
+    if (!triggeredAlert) return;
+    
+    if (isMash && !timer.pausedByMilestone && !timer.isPaused) {
       const timeSinceTriggered = Date.now() - triggeredAlert.time;
       if (timeSinceTriggered > 500) {
-        // Timer resumed, dismiss the alert
+        setTriggeredAlert(null);
+      }
+    } else if (!isMash) {
+      const alertMilestone = timer.milestones.find(m => m.label === triggeredAlert.label);
+      if (alertMilestone?.triggered) {
         setTriggeredAlert(null);
       }
     }
-  }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused]);
+  }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused, timer.milestones]);
 
   if (!shouldShow || !timer.isActive) {
     return null;
@@ -217,8 +224,7 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Attention-grabbing alert overlay when milestone triggers */}
       {triggeredAlert && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center cursor-pointer"
-          onClick={() => setTriggeredAlert(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
           style={{
             background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
             animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
@@ -253,7 +259,7 @@ export const TimerFooter = memo(function TimerFooter() {
             
             {/* Subtle instruction */}
             <div className="text-orange-300/80 text-lg mt-4 font-medium">
-              {isMash ? 'Utför detta steg' : 'Tryck för att kvittera'}
+              Kvittera i bryggappen
             </div>
           </div>
         </div>
