@@ -69,15 +69,31 @@ export function SyncedDataDialog({
         endTime = new Date(startMs + 30 * 60 * 1000).toISOString();
       }
 
-      const { data, error } = await supabase.rpc("get_temp_history_sampled", {
-        p_controller_id: controllerId,
-        p_start_time: startTime,
-        p_end_time: endTime,
-        p_sample_interval_minutes: 15,
-      }).limit(5000);
+      // Paginate to bypass PostgREST max_rows (1000) limit
+      const allRows: typeof controllerData = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (!error && data) {
-        setControllerData(data);
+      while (hasMore) {
+        const { data, error } = await supabase.rpc("get_temp_history_sampled", {
+          p_controller_id: controllerId,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_sample_interval_minutes: 15,
+        }).range(offset, offset + batchSize - 1);
+
+        if (error || !data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allRows.push(...data);
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        }
+      }
+
+      if (allRows.length > 0) {
+        setControllerData(allRows);
       }
     };
 
