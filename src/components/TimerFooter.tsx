@@ -209,7 +209,11 @@ export const TimerFooter = memo(function TimerFooter() {
       // Find the milestone that triggered this alert
       const alertMilestone = timer.milestones.find(m => m.label === triggeredAlert.label);
       if (alertMilestone) {
-        // Dismiss when timer has moved 30+ seconds past the milestone time
+        // Dismiss when acknowledged in brew app (primary)
+        if ((alertMilestone as any).acknowledged) {
+          setTriggeredAlert(null);
+        }
+        // Fallback: dismiss after 30+ seconds past milestone time
         const secondsPastMilestone = alertMilestone.time - timer.remainingSeconds;
         if (secondsPastMilestone >= 30) {
           setTriggeredAlert(null);
