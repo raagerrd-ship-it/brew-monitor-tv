@@ -9,6 +9,7 @@ interface TimerMilestone {
   time: number;
   label: string;
   triggered?: boolean;
+  acknowledged?: boolean;
 }
 
 Deno.serve(async (req) => {
