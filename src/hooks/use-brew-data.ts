@@ -25,26 +25,30 @@ interface UseBrewDataReturn {
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
-// Helper function to sort brews by controller order
+// Preferred color order for sorting brews (matches physical vessel order)
+const COLOR_SORT_ORDER = ['gul', 'gyllene', 'guld', 'golden', 'yellow', 'blå', 'blue', 'grön', 'green'];
+
+function getColorSortIndex(name: string): number {
+  const lower = name.toLowerCase();
+  for (let i = 0; i < COLOR_SORT_ORDER.length; i++) {
+    if (lower.includes(COLOR_SORT_ORDER[i])) {
+      // Map to group index: gul-variants=0, blå-variants=1, grön-variants=2
+      if (i <= 4) return 0; // gul/gyllene/guld/golden/yellow
+      if (i <= 6) return 1; // blå/blue
+      return 2;             // grön/green
+    }
+  }
+  return 99; // No color match — sort last
+}
+
+// Helper function to sort brews by color order (Gul, Blå, Grön)
 function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]): BrewData[] {
-  if (brews.length === 0 || controllers.length === 0) return brews;
+  if (brews.length === 0) return brews;
   
   return [...brews].sort((a, b) => {
-    const aControllerIndex = controllers.findIndex(
-      c => c.controller_id === a.linked_controller_id
-    );
-    const bControllerIndex = controllers.findIndex(
-      c => c.controller_id === b.linked_controller_id
-    );
-
-    if (aControllerIndex !== -1 && bControllerIndex !== -1) {
-      return aControllerIndex - bControllerIndex;
-    }
-
-    if (aControllerIndex !== -1) return -1;
-    if (bControllerIndex !== -1) return 1;
-
-    return 0;
+    const aColor = getColorSortIndex(a.name);
+    const bColor = getColorSortIndex(b.name);
+    return aColor - bColor;
   });
 }
 
