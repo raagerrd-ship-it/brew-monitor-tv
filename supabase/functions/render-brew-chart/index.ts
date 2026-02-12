@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Chart dimensions - viewBox for scalability
-const WIDTH = 600;
+const DEFAULT_WIDTH = 600;
 const HEIGHT_FULL = 340;    // No fermentation session visible
 const HEIGHT_COMPACT = 260; // With fermentation session (less vertical space)
 const MARGIN = { top: 8, right: 15, bottom: 30, left: 35 };
@@ -171,7 +171,9 @@ function generateChartSvg(
   fg: number,
   tempHistory: TempHistoryPoint[] | null,
   compact: boolean = false,
+  chartWidth: number = DEFAULT_WIDTH,
 ): string {
+  const WIDTH = chartWidth;
   const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
   const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
   const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -389,7 +391,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { brewId, compact } = await req.json();
+    const { brewId, compact, width: requestedWidth } = await req.json();
     if (!brewId) {
       return new Response(
         JSON.stringify({ error: 'brewId is required' }),
@@ -441,8 +443,11 @@ serve(async (req) => {
       }
     }
 
+    // Calculate chart width: scale viewBox proportionally, clamp to reasonable range
+    const chartWidth = requestedWidth ? Math.min(1920, Math.max(400, Math.round(Number(requestedWidth)))) : DEFAULT_WIDTH;
+
     // Generate SVG
-    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact);
+    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact, chartWidth);
 
     // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);

@@ -24,7 +24,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brewId, compact }),
+        body: JSON.stringify({ brewId, compact, width: Math.round(window.innerWidth) }),
       });
 
       if (!response.ok) throw new Error('Failed to render chart');
