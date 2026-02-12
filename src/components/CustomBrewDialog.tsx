@@ -384,6 +384,15 @@ export function CustomBrewDialog({
         // Generate a unique batch_id for custom brews
         const customBatchId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+        // Auto-resolve pill_id from selected controller if no pill explicitly selected
+        let resolvedPillId = selectedPillId || null;
+        if (!resolvedPillId && selectedControllerId) {
+          const selectedController = controllers.find(c => c.controller_id === selectedControllerId);
+          if (selectedController?.linked_pill_id) {
+            resolvedPillId = selectedController.linked_pill_id;
+          }
+        }
+
         // Insert into brew_readings
         const { error: insertError } = await supabase
           .from("brew_readings")
@@ -401,7 +410,7 @@ export function CustomBrewDialog({
             abv: abv,
             sg_data: [],
             linked_controller_id: selectedControllerId || null,
-            linked_pill_id: selectedPillId || null,
+            linked_pill_id: resolvedPillId,
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
             description: description.trim() || null,
