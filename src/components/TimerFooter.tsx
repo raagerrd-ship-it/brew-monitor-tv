@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useEffect } from 'react';
-import { Flame, Pause, AlertTriangle } from 'lucide-react';
+import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
@@ -53,7 +53,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
             : totalSeconds > 0 
               ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
               : 0;
-          const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
+          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
           
@@ -116,7 +116,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
             : totalSeconds > 0 
               ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
               : 0;
-          const isTriggered = milestone.triggered || milestone.time >= remainingSeconds;
+          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
           const isNext = !isTriggered && 
             (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
           
@@ -161,11 +161,11 @@ export const TimerFooter = memo(function TimerFooter() {
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
-  // Find the most recently triggered milestone (current step)
-  // A milestone is triggered when remainingSeconds drops below its time
-  // We want the one with the LOWEST time among triggered ones (most recently passed)
-  const currentMilestone = timer.milestones
-    .filter(m => m.triggered || m.time > timer.remainingSeconds)
+  // Find the current step: triggered but not yet acknowledged = active
+  // If none active, fall back to most recently completed milestone
+  const activeMilestone = timer.milestones.find(m => m.triggered && !m.acknowledged) || null;
+  const currentMilestone = activeMilestone || timer.milestones
+    .filter(m => m.triggered && m.acknowledged)
     .sort((a, b) => a.time - b.time)[0] || null;
 
   // Check if we should show based on TV mode setting
@@ -180,28 +180,20 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [timer.label]);
 
-  // Detect when a milestone just triggered (within 3 seconds of its time)
+  // Detect when a milestone becomes triggered+unacknowledged (needs attention)
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
     
-    // A milestone triggers when remainingSeconds passes below its time value
+    // Find milestones that are triggered but not acknowledged and not already shown
     const justTriggered = timer.milestones.find(m => {
-      // Check if we're within 3 seconds AFTER passing the milestone time
-      const passed = timer.remainingSeconds < m.time;
-      const justPassed = timer.remainingSeconds >= m.time - 3;
-      const notAlreadyTriggered = !lastTriggeredRef.current.has(m.label);
-      return passed && justPassed && notAlreadyTriggered;
+      return m.triggered && !m.acknowledged && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
       lastTriggeredRef.current.add(justTriggered.label);
       setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
-      
-      // Both mash and kok: Keep alert visible until acknowledged
-      // Mash: dismissed when pausedByMilestone becomes false
-      // Kok: dismissed by user clicking the overlay
     }
-  }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
+  }, [timer.milestones, timer.isActive]);
 
   // Dismiss alert when acknowledged externally via synced data
   // Mash: pausedByMilestone becomes false when acknowledged
@@ -358,6 +350,19 @@ export const TimerFooter = memo(function TimerFooter() {
                         : "text-foreground"
                   )}>
                     {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
+                  </span>
+                </div>
+              ) : timer.nextConfig ? (
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <ArrowRight className={cn(
+                    "w-4 h-4 flex-shrink-0",
+                    isMash ? "text-orange-400" : "text-primary"
+                  )} />
+                  <span className={cn(
+                    "text-base font-semibold truncate",
+                    isMash ? "text-orange-100" : "text-foreground"
+                  )}>
+                    {timer.nextConfig.label} ({timer.nextConfig.minutes} min)
                   </span>
                 </div>
               ) : (

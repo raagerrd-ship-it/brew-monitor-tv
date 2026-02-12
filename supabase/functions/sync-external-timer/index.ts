@@ -7,9 +7,19 @@ const corsHeaders = {
 
 interface TimerMilestone {
   time: number;
+  atSeconds?: number;
   label: string;
   triggered?: boolean;
   acknowledged?: boolean;
+  pauseForTemperature?: boolean;
+  targetTemperature?: number;
+  whirlpoolTime?: number;
+}
+
+interface NextConfig {
+  label: string;
+  minutes: number;
+  navigateTo?: string;
 }
 
 Deno.serve(async (req) => {
@@ -58,12 +68,12 @@ Deno.serve(async (req) => {
     const accessToken = authData.session.access_token;
     console.log('✅ Authenticated as user:', userId);
 
-    // Fetch timer data from external API
-    console.log('📡 Fetching timer data...');
+    // Fetch timer data from new brewing status endpoint
+    console.log('📡 Fetching brewing status...');
     const timerResponse = await fetch(
-      `${externalSupabaseUrl}/functions/v1/get-active-timer`,
+      `${externalSupabaseUrl}/functions/v1/get-brewing-status`,
       {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -80,11 +90,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const timerData = await timerResponse.json();
-    console.log('📊 Timer data received:', {
+    const responseData = await timerResponse.json();
+    const timerData = responseData?.timer;
+    const wizardData = responseData?.wizard;
+    
+    console.log('📊 Brewing status received:', {
       isActive: timerData?.isActive,
       label: timerData?.label,
       remainingSeconds: timerData?.remainingSeconds,
+      wizardStep: wizardData?.step,
+      recipeName: responseData?.recipeName,
     });
 
     // Initialize local Supabase client
@@ -105,10 +120,16 @@ Deno.serve(async (req) => {
       total_seconds: timerData?.totalSeconds || 0,
       is_paused: timerData?.isPaused || false,
       paused_by_milestone: timerData?.pausedByMilestone || false,
+      paused_at: timerData?.pausedAt || null,
       milestones: milestones,
       next_milestone: timerData?.nextMilestone || null,
       time_to_next_milestone: timerData?.timeToNextMilestone || null,
       progress: timerData?.progress || 0,
+      next_config: timerData?.nextConfig || null,
+      wizard_step: wizardData?.step || null,
+      wizard_started_at: wizardData?.startedAt || null,
+      recipe_name: responseData?.recipeName || null,
+      beer_style: responseData?.beerStyle || null,
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

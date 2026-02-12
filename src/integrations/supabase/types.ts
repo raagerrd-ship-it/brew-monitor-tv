@@ -267,6 +267,7 @@ export type Database = {
       }
       cached_external_timer: {
         Row: {
+          beer_style: string | null
           created_at: string
           external_user_id: string
           id: string
@@ -275,15 +276,21 @@ export type Database = {
           label: string | null
           last_synced_at: string
           milestones: Json
+          next_config: Json | null
           next_milestone: Json | null
+          paused_at: string | null
           paused_by_milestone: boolean
           progress: number
+          recipe_name: string | null
           remaining_seconds: number
           time_to_next_milestone: number | null
           total_seconds: number
           updated_at: string
+          wizard_started_at: string | null
+          wizard_step: string | null
         }
         Insert: {
+          beer_style?: string | null
           created_at?: string
           external_user_id: string
           id?: string
@@ -292,15 +299,21 @@ export type Database = {
           label?: string | null
           last_synced_at?: string
           milestones?: Json
+          next_config?: Json | null
           next_milestone?: Json | null
+          paused_at?: string | null
           paused_by_milestone?: boolean
           progress?: number
+          recipe_name?: string | null
           remaining_seconds?: number
           time_to_next_milestone?: number | null
           total_seconds?: number
           updated_at?: string
+          wizard_started_at?: string | null
+          wizard_step?: string | null
         }
         Update: {
+          beer_style?: string | null
           created_at?: string
           external_user_id?: string
           id?: string
@@ -309,13 +322,18 @@ export type Database = {
           label?: string | null
           last_synced_at?: string
           milestones?: Json
+          next_config?: Json | null
           next_milestone?: Json | null
+          paused_at?: string | null
           paused_by_milestone?: boolean
           progress?: number
+          recipe_name?: string | null
           remaining_seconds?: number
           time_to_next_milestone?: number | null
           total_seconds?: number
           updated_at?: string
+          wizard_started_at?: string | null
+          wizard_step?: string | null
         }
         Relationships: []
       }
