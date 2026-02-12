@@ -33,6 +33,7 @@ function BrewCardComponent({
   onDeviceLinkOpen,
   cardIndex = 0,
   hasAlbumArtBackground = false,
+  brewCount,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const { isTvMode } = useTvMode();
@@ -185,6 +186,7 @@ function BrewCardComponent({
             brewId={brew.id}
             hasFermentationSession={!!brew.fermentationSession}
             lastUpdateRaw={brew.lastUpdateRaw}
+            brewCount={brewCount}
           />
         </div>
         

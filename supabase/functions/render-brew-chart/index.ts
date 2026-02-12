@@ -6,8 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Chart dimensions - viewBox for scalability
-const WIDTH = 600;
+// Chart dimensions - viewBox proportions matched to actual card layout
+// 1-2 beers: cards are ~50% viewport width → wider aspect ratio
+// 3 beers: cards are ~33% viewport width → narrower/squarer
+const WIDTHS: Record<number, number> = { 1: 600, 2: 600, 3: 400 };
 const HEIGHT_FULL = 340;    // No fermentation session visible
 const HEIGHT_COMPACT = 260; // With fermentation session (less vertical space)
 const MARGIN = { top: 8, right: 15, bottom: 30, left: 35 };
@@ -171,7 +173,9 @@ function generateChartSvg(
   fg: number,
   tempHistory: TempHistoryPoint[] | null,
   compact: boolean = false,
+  brewCount: number = 2,
 ): string {
+  const WIDTH = WIDTHS[brewCount] ?? 600;
   const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
   const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
   const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -389,7 +393,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { brewId, compact } = await req.json();
+    const { brewId, compact, brewCount } = await req.json();
     if (!brewId) {
       return new Response(
         JSON.stringify({ error: 'brewId is required' }),
@@ -442,11 +446,12 @@ serve(async (req) => {
     }
 
     // Generate SVG
-    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact);
+    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact, brewCount ?? 2);
 
     // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);
-    const fileName = `chart_${brewId}${compact ? '_compact' : ''}.svg`;
+    const bc = brewCount ?? 2;
+    const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
     const { error: uploadError } = await supabase.storage
       .from('chart-images')
       .upload(fileName, svgBytes, {

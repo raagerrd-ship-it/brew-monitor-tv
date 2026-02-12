@@ -43,6 +43,8 @@ export interface BrewChartProps {
   hasFermentationSession?: boolean;
   /** Raw last_update timestamp - used to trigger chart refresh when data changes */
   lastUpdateRaw?: string | null;
+  /** Number of brews displayed - affects TV chart viewBox proportions */
+  brewCount?: number;
 }
 
 export interface EventDisplay {

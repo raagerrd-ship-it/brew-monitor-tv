@@ -13,6 +13,8 @@ export interface BrewCardProps {
   cardIndex?: number;
   /** Whether album art background is showing (for transparency effect) */
   hasAlbumArtBackground?: boolean;
+  /** Number of brews displayed - affects TV chart proportions */
+  brewCount?: number;
 }
 
 export interface DeviceMatch {
