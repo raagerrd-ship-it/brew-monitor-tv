@@ -149,8 +149,7 @@ Deno.serve(async (req) => {
       console.log('✅ Timer cache created');
     }
 
-    // Sign out from external Supabase
-    await externalSupabase.auth.signOut();
+    // Don't sign out — concurrent calls would invalidate each other's sessions
 
     return new Response(
       JSON.stringify({
