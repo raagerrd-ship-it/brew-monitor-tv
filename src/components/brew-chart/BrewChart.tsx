@@ -92,6 +92,12 @@ function BrewChartComponent({
       )}
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
+          <defs>
+            <linearGradient id={`ctrlTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid
             strokeDasharray={GRID_CONFIG.strokeDasharray}
             stroke={COLORS.border}
@@ -215,14 +221,14 @@ function BrewChartComponent({
             style={{ filter: DATA_SERIES_CONFIG.sg.filter }}
           />
 
-          {/* Controller temp - main temperature with subtle background */}
+          {/* Controller temp - main temperature with gradient that fades downward */}
           <Area
             yAxisId="temp"
             type={areaType}
             dataKey="controllerTemp"
             stroke={COLORS.temp}
             strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
-            fill={COLORS.tempFill}
+            fill={`url(#ctrlTempGrad-${chartIndex})`}
             dot={false}
             activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: COLORS.temp }}
             name="controllerTemp"
