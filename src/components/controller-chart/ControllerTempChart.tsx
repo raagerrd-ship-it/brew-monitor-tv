@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { useControllerTempData } from './hooks/useControllerTempData';
 import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from './chartConfig';
@@ -57,7 +57,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={CHART_MARGINS}>
+          <ComposedChart data={data} margin={CHART_MARGINS}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis 
               dataKey="time" 
@@ -84,11 +84,13 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               formatter={(value) => value === 'currentTemp' ? 'Aktuell temp' : 'Måltemp'}
               wrapperStyle={{ fontSize: '11px' }}
             />
-            <Line 
+            <Area 
               type={LINE_CONFIG.current.type}
               dataKey="currentTemp" 
               stroke={controllerColor}
               strokeWidth={LINE_CONFIG.current.strokeWidth}
+              fill={controllerColor}
+              fillOpacity={0.08}
               dot={LINE_CONFIG.current.dot}
               name="currentTemp"
             />
@@ -101,7 +103,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               dot={LINE_CONFIG.target.dot}
               name="targetTemp"
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>
