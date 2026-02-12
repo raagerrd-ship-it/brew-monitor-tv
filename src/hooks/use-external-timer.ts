@@ -315,10 +315,34 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     }
   }, [user, session, cacheTimerData]);
 
+  // Trigger server-side sync directly from client (like Sonos pattern)
+  // Bypasses cron delay — edge function syncs external → cache → Realtime fires
+  const triggerSync = useCallback(async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-external-timer`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeout);
+    } catch {
+      // Ignore — cron fallback will handle it
+    }
+  }, []);
+
   // Initial fetch and subscribe to updates
-  // Always use cache for consistent behavior - edge function handles syncing
   useEffect(() => {
     fetchFromCache();
+    triggerSync(); // Trigger sync immediately on mount
 
     if (onCachedTimerChangeRef) {
       onCachedTimerChangeRef.current = () => fetchFromCache();
@@ -341,17 +365,23 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       )
       .subscribe();
 
-    // Polling fallback (5s) — ensures TV picks up changes even if Realtime drops
+    // Client-triggered sync every 3s (like Sonos playback polling)
+    const syncInterval = setInterval(() => {
+      triggerSync();
+    }, 3_000);
+
+    // Cache read fallback every 5s (in case Realtime drops)
     const pollInterval = setInterval(() => {
       fetchFromCache();
     }, 5_000);
 
     return () => {
+      clearInterval(syncInterval);
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
       if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
-  }, [fetchFromCache, onCachedTimerChangeRef]);
+  }, [fetchFromCache, triggerSync, onCachedTimerChangeRef]);
 
   // Update remaining seconds every second when timer is active and not paused
   // pausedByMilestone should also stop the countdown
