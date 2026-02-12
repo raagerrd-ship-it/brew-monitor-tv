@@ -203,9 +203,14 @@ function generateChartSvg(
     </svg>`;
   }
 
-  // Time range from SG data
-  const tMin = sgParsed[0].t;
-  const tMax = sgParsed[sgParsed.length - 1].t;
+  // Time range: extend to cover controller data if SG data is sparse
+  let tMin = sgParsed[0].t;
+  let tMax = sgParsed[sgParsed.length - 1].t;
+  if (tempHistory && tempHistory.length > 0) {
+    const tempTimes = tempHistory.map(p => new Date(p.recorded_at).getTime());
+    tMin = Math.min(tMin, Math.min(...tempTimes));
+    tMax = Math.max(tMax, Math.max(...tempTimes));
+  }
 
   // SG range with padding (matches desktop: fg - 0.001, og + 0.001)
   const sgValues = sgParsed.map(p => p.sg);
@@ -424,10 +429,13 @@ serve(async (req) => {
 
     // Fetch controller temp history if linked
     // Use large sample interval so DB returns ~100-200 points max (no pagination needed)
+    // When SG data is sparse, extend end time to "now" so controller data fills the chart
     let tempHistory: TempHistoryPoint[] | null = null;
     if (brew.linked_controller_id && sgData.length > 0) {
       const startTime = brew.fermentation_start || sgData[0].date;
-      const endTime = sgData[sgData.length - 1].date;
+      const sgEndTime = sgData[sgData.length - 1].date;
+      // For sparse SG data, extend to now so we see all controller temp data
+      const endTime = sgData.length < 10 ? new Date().toISOString() : sgEndTime;
       
       // Calculate interval to get ~150 points max
       const totalMinutes = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000;
