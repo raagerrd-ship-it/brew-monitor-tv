@@ -5,8 +5,8 @@ import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Pencil } from "lucide-react";
-import { CustomBrewDialog, type CustomBrewData } from "./CustomBrewDialog";
+import { Loader2, Plus, Trash2, Pencil, Beer } from "lucide-react";
+import { CustomBrewDialog, type CustomBrewData, type CustomBrewPrefill } from "./CustomBrewDialog";
 import type { PillData, TempController } from "@/types/brew";
 interface BrewfatherBatch {
   _id: string;
@@ -39,11 +39,15 @@ export function BrewManagement() {
   const [saving, setSaving] = useState(false);
   const [showCustomBrewDialog, setShowCustomBrewDialog] = useState(false);
   const [editingBrew, setEditingBrew] = useState<CustomBrewData | null>(null);
+  const [prefillData, setPrefillData] = useState<CustomBrewPrefill | null>(null);
+  const [timerRecipeName, setTimerRecipeName] = useState<string | null>(null);
+  const [timerBeerStyle, setTimerBeerStyle] = useState<string | null>(null);
   const { toast } = useToast();
   const isLocalChange = useRef(false);
 
   useEffect(() => {
     loadData();
+    loadTimerData();
 
     // Subscribe to realtime updates for selected brews
     const channel = supabase
@@ -118,6 +122,24 @@ export function BrewManagement() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTimerData = async () => {
+    try {
+      const { data } = await supabase
+        .from('cached_external_timer')
+        .select('recipe_name, beer_style')
+        .order('last_synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setTimerRecipeName((data as Record<string, unknown>).recipe_name as string | null);
+        setTimerBeerStyle((data as Record<string, unknown>).beer_style as string | null);
+      }
+    } catch (error) {
+      console.error('Error loading timer data:', error);
     }
   };
 
@@ -268,10 +290,30 @@ export function BrewManagement() {
             Välj upp till 3 öl att visa på dashboarden
           </p>
         </div>
-        <Button onClick={() => setShowCustomBrewDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Skapa egen öl
-        </Button>
+        <div className="flex gap-2">
+          {timerRecipeName && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPrefillData({
+                  name: timerRecipeName || '',
+                  style: timerBeerStyle || '',
+                });
+                setShowCustomBrewDialog(true);
+              }}
+            >
+              <Beer className="mr-2 h-4 w-4" />
+              Lägg till {timerRecipeName}
+            </Button>
+          )}
+          <Button onClick={() => {
+            setPrefillData(null);
+            setShowCustomBrewDialog(true);
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Skapa egen öl
+          </Button>
+        </div>
       </div>
 
       {/* Custom brews section */}
@@ -381,12 +423,16 @@ export function BrewManagement() {
         open={showCustomBrewDialog}
         onOpenChange={(open) => {
           setShowCustomBrewDialog(open);
-          if (!open) setEditingBrew(null);
+          if (!open) {
+            setEditingBrew(null);
+            setPrefillData(null);
+          }
         }}
         pills={pills}
         controllers={controllers}
         onBrewSaved={loadData}
         editBrew={editingBrew}
+        prefill={prefillData}
       />
     </div>
   );

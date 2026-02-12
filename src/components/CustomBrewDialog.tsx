@@ -51,6 +51,11 @@ interface SgDataPoint {
   targetTemp?: number;
 }
 
+export interface CustomBrewPrefill {
+  name?: string;
+  style?: string;
+}
+
 interface CustomBrewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,6 +63,7 @@ interface CustomBrewDialogProps {
   controllers: TempController[];
   onBrewSaved: () => void;
   editBrew?: CustomBrewData | null;
+  prefill?: CustomBrewPrefill | null;
 }
 
 export function CustomBrewDialog({
@@ -67,6 +73,7 @@ export function CustomBrewDialog({
   controllers,
   onBrewSaved,
   editBrew,
+  prefill,
 }: CustomBrewDialogProps) {
   const [name, setName] = useState("");
   const [style, setStyle] = useState("");
@@ -178,8 +185,8 @@ export function CustomBrewDialog({
           setFermentationStart("");
         }
       } else {
-        setName("");
-        setStyle("");
+        setName(prefill?.name || "");
+        setStyle(prefill?.style || "");
         setBatchNumber("");
         setOriginalGravity("1.050");
         setFinalGravity("1.010");
