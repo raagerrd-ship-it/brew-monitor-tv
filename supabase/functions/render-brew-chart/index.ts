@@ -418,21 +418,36 @@ serve(async (req) => {
 
     const sgData = (brew.sg_data || []) as SgDataPoint[];
 
-    // Fetch controller temp history if linked
+    // Fetch controller temp history if linked (paginated to bypass 1000-row limit)
     let tempHistory: TempHistoryPoint[] | null = null;
     if (brew.linked_controller_id && sgData.length > 0) {
       const startTime = brew.fermentation_start || sgData[0].date;
       const endTime = sgData[sgData.length - 1].date;
       
-      const { data: tempData } = await supabase.rpc('get_temp_history_sampled', {
-        p_controller_id: brew.linked_controller_id,
-        p_start_time: startTime,
-        p_end_time: endTime,
-        p_sample_interval_minutes: 15,
-      });
+      const allRows: TempHistoryPoint[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (tempData && tempData.length > 0) {
-        tempHistory = tempData as TempHistoryPoint[];
+      while (hasMore) {
+        const { data: tempData, error: tempError } = await supabase.rpc('get_temp_history_sampled', {
+          p_controller_id: brew.linked_controller_id,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_sample_interval_minutes: 15,
+        }).range(offset, offset + batchSize - 1);
+
+        if (tempError || !tempData || tempData.length === 0) {
+          hasMore = false;
+        } else {
+          allRows.push(...(tempData as TempHistoryPoint[]));
+          offset += batchSize;
+          hasMore = tempData.length === batchSize;
+        }
+      }
+
+      if (allRows.length > 0) {
+        tempHistory = allRows;
       }
     }
 
