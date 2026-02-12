@@ -168,18 +168,56 @@ export function mergeWithControllerTemp(
     return targetData[left].value;
   };
   
-  return sgData.map(point => {
+  // When SG data is sparse but controller data is plentiful, inject controller
+  // data points so the Area gradient fill is visible across the full timeline
+  const sgTimestamps = sgData.map(p => new Date(p.date).getTime());
+  const minTs = Math.min(...sgTimestamps);
+  const maxTs = Math.max(...sgTimestamps);
+  
+  // Build merged timeline: start with SG points, then inject controller points
+  const mergedPoints: ChartDataPoint[] = [];
+  const usedTimestamps = new Set(sgTimestamps);
+  
+  // Add all SG data points with interpolated controller values
+  for (const point of sgData) {
     const timestamp = new Date(point.date).getTime();
     const controllerTemp = interpolateValue(timestamp, prepared.currentTemp);
     const targetTemp = findTargetTemp(timestamp);
-    
-    return {
+    mergedPoints.push({
       ...point,
       pillTemp: point.temp,
       controllerTemp,
       targetTemp
-    };
-  });
+    });
+  }
+  
+  // If few SG points, inject controller data points to fill the timeline
+  if (sgData.length < 10 && prepared.currentTemp.length > 2) {
+    for (const ctrlPoint of prepared.currentTemp) {
+      if (ctrlPoint.timestamp >= minTs && ctrlPoint.timestamp <= maxTs && !usedTimestamps.has(ctrlPoint.timestamp)) {
+        // Interpolate SG value at this controller timestamp
+        const sgValue = interpolateValue(ctrlPoint.timestamp, sgTimestamps.map((ts, i) => ({ timestamp: ts, value: sgData[i].value })));
+        const pillTemp = interpolateValue(ctrlPoint.timestamp, sgTimestamps.map((ts, i) => ({ timestamp: ts, value: sgData[i].temp })));
+        
+        if (sgValue !== null && pillTemp !== null) {
+          mergedPoints.push({
+            date: new Date(ctrlPoint.timestamp).toISOString(),
+            value: sgValue,
+            temp: pillTemp,
+            pillTemp,
+            controllerTemp: ctrlPoint.value,
+            targetTemp: findTargetTemp(ctrlPoint.timestamp)
+          });
+          usedTimestamps.add(ctrlPoint.timestamp);
+        }
+      }
+    }
+    
+    // Sort by timestamp
+    mergedPoints.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+  
+  return mergedPoints;
 }
 
 /**
