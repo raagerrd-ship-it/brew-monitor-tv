@@ -324,14 +324,31 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       onCachedTimerChangeRef.current = () => fetchFromCache();
     }
 
-    // Polling fallback (10s) — matches cron sync frequency
-    // Ensures TV picks up new timers quickly even if Realtime connection is lost
+    // Realtime subscription for immediate updates when cache changes
+    const channel = supabase
+      .channel('cached-timer-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cached_external_timer',
+        },
+        () => {
+          console.log('[Timer] Realtime update received, fetching cache...');
+          fetchFromCache();
+        }
+      )
+      .subscribe();
+
+    // Polling fallback (10s) — ensures TV picks up changes even if Realtime drops
     const pollInterval = setInterval(() => {
       fetchFromCache();
     }, 10_000);
 
     return () => {
       clearInterval(pollInterval);
+      supabase.removeChannel(channel);
       if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
   }, [fetchFromCache, onCachedTimerChangeRef]);
