@@ -68,20 +68,34 @@ export function useBrewChartData({
       lastFetchKey.current = fetchKey;
       setIsLoading(true);
       try {
-        const { data: tempHistory, error } = await supabase.rpc("get_temp_history_sampled", {
-          p_controller_id: controllerId,
-          p_start_time: firstDataDate,
-          p_end_time: lastDataDate,
-          p_sample_interval_minutes: 15,
-        }).limit(5000);
+        // Paginate to bypass PostgREST max_rows (1000) limit
+        const allRows: ControllerTempPoint[] = [];
+        let offset = 0;
+        const batchSize = 1000;
+        let hasMore = true;
 
-        if (error) {
-          console.error("Error fetching controller temp history:", error);
-          return;
+        while (hasMore) {
+          const { data: tempHistory, error } = await supabase.rpc("get_temp_history_sampled", {
+            p_controller_id: controllerId,
+            p_start_time: firstDataDate,
+            p_end_time: lastDataDate,
+            p_sample_interval_minutes: 15,
+          }).range(offset, offset + batchSize - 1);
+
+          if (error) {
+            console.error("Error fetching controller temp history:", error);
+            hasMore = false;
+          } else if (!tempHistory || tempHistory.length === 0) {
+            hasMore = false;
+          } else {
+            allRows.push(...tempHistory);
+            offset += batchSize;
+            hasMore = tempHistory.length === batchSize;
+          }
         }
 
-        if (tempHistory && tempHistory.length > 0) {
-          setControllerTempData(tempHistory);
+        if (allRows.length > 0) {
+          setControllerTempData(allRows);
         }
       } finally {
         setIsLoading(false);
