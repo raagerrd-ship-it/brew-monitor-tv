@@ -373,10 +373,32 @@ export const TimerFooter = memo(function TimerFooter() {
                 isTvMode={isTvMode}
               />
             ) : (
-              <div className={cn(
-                "w-full h-4 rounded-full",
-                isMash ? "bg-orange-900/50" : "bg-muted/50"
-              )} />
+              <div className="relative w-full rounded-full overflow-hidden"
+                style={{
+                  height: '10px',
+                  background: 'hsl(0 0% 0% / 0.5)',
+                  boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
+                }}
+              >
+                <div 
+                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${timer.totalSeconds > 0 ? Math.min(100, ((timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) * 100) : 0}%`,
+                    background: isMash 
+                      ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
+                      : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
+                    boxShadow: isMash
+                      ? '0 0 12px hsl(30 90% 50%), 0 0 6px hsl(30 90% 50%)'
+                      : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
+                  }}
+                />
+                <div 
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.15) 0%, transparent 50%)',
+                  }}
+                />
+              </div>
             )}
           </div>
 
