@@ -134,43 +134,19 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
 
-    // Check if record exists
-    const { data: existing } = await localSupabase
+    // Upsert to avoid race conditions with concurrent calls
+    const { error: upsertError } = await localSupabase
       .from('cached_external_timer')
-      .select('id')
-      .eq('external_user_id', userId)
-      .maybeSingle();
+      .upsert(timerRecord, { onConflict: 'external_user_id' });
 
-    if (existing) {
-      // Update existing record
-      const { error: updateError } = await localSupabase
-        .from('cached_external_timer')
-        .update(timerRecord)
-        .eq('external_user_id', userId);
-
-      if (updateError) {
-        console.error('❌ Update error:', updateError.message);
-        return new Response(
-          JSON.stringify({ error: 'Failed to update cache', details: updateError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log('✅ Timer cache updated');
-    } else {
-      // Insert new record
-      const { error: insertError } = await localSupabase
-        .from('cached_external_timer')
-        .insert([timerRecord]);
-
-      if (insertError) {
-        console.error('❌ Insert error:', insertError.message);
-        return new Response(
-          JSON.stringify({ error: 'Failed to insert cache', details: insertError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log('✅ Timer cache created');
+    if (upsertError) {
+      console.error('❌ Upsert error:', upsertError.message);
+      return new Response(
+        JSON.stringify({ error: 'Failed to upsert cache', details: upsertError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    console.log('✅ Timer cache updated');
 
     // Don't sign out — concurrent calls would invalidate each other's sessions
 
