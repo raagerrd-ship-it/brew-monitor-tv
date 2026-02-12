@@ -32,32 +32,37 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get custom brews with linked pills that are actively fermenting
+    // Get custom brews that are actively fermenting
+    // Include brews with linked pill OR linked controller (pill can be resolved via controller)
     // Only sync data for brews in "Jäsning" status - other statuses should not add new data points
     const { data: customBrews, error: brewsError } = await supabase
       .from('brew_readings')
       .select('*')
-      .not('linked_pill_id', 'is', null)
       .like('batch_id', 'custom\\_%')
       .in('status', ['Jäsning', 'Fermenting']);
+
+    // Filter to brews that have either a linked pill or a linked controller
+    const brewsWithLinks = (customBrews || []).filter(
+      (b) => b.linked_pill_id || b.linked_controller_id
+    );
 
     if (brewsError) {
       throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);
     }
 
-    if (!customBrews || customBrews.length === 0) {
-      console.log('No custom brews with linked pills found');
+    if (!brewsWithLinks || brewsWithLinks.length === 0) {
+      console.log('No custom brews with linked pills/controllers found');
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No custom brews with linked pills',
+          message: 'No custom brews with linked pills or controllers',
           brewsUpdated: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${customBrews.length} custom brews with linked pills`);
+    console.log(`Found ${brewsWithLinks.length} custom brews with linked pills/controllers`);
 
     // Get auth token
     console.log('Getting RAPT auth token...');
@@ -70,9 +75,38 @@ serve(async (req) => {
     const { access_token } = authData;
     let brewsUpdated = 0;
 
-    for (const brew of customBrews) {
+    for (const brew of brewsWithLinks) {
       try {
-        console.log(`Processing brew: ${brew.name} (pill: ${brew.linked_pill_id})`);
+        // Resolve pill_id: use linked_pill_id directly, or look it up via linked controller
+        let pillId = brew.linked_pill_id;
+        
+        if (!pillId && brew.linked_controller_id) {
+          const { data: controller } = await supabase
+            .from('rapt_temp_controllers')
+            .select('linked_pill_id')
+            .eq('controller_id', brew.linked_controller_id)
+            .maybeSingle();
+          
+          if (controller?.linked_pill_id) {
+            pillId = controller.linked_pill_id;
+            // Also update the brew record so future syncs are faster
+            await supabase
+              .from('brew_readings')
+              .update({ linked_pill_id: pillId })
+              .eq('id', brew.id);
+            console.log(`Resolved pill_id ${pillId} from controller ${brew.linked_controller_id} for brew ${brew.name}`);
+          } else {
+            console.log(`Controller ${brew.linked_controller_id} has no linked pill for brew ${brew.name}, skipping`);
+            continue;
+          }
+        }
+        
+        if (!pillId) {
+          console.log(`No pill_id available for brew ${brew.name}, skipping`);
+          continue;
+        }
+
+        console.log(`Processing brew: ${brew.name} (pill: ${pillId})`);
 
         // Calculate date range
         const endDate = new Date();
@@ -118,7 +152,7 @@ serve(async (req) => {
         const { data: telemetryData, error: telemetryError } = await supabase.functions.invoke('rapt-pill-telemetry', {
           body: {
             access_token,
-            pill_id: brew.linked_pill_id,
+            pill_id: pillId,
             start_date: startDate.toISOString(),
             end_date: endDate.toISOString()
           }
@@ -240,13 +274,13 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Custom brew pill sync complete. Updated ${brewsUpdated}/${customBrews.length} brews`);
+    console.log(`Custom brew pill sync complete. Updated ${brewsUpdated}/${brewsWithLinks.length} brews`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         brewsUpdated,
-        totalBrews: customBrews.length
+        totalBrews: brewsWithLinks.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
