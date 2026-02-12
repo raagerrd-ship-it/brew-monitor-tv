@@ -71,10 +71,11 @@ Deno.serve(async (req) => {
     );
 
     if (!timerResponse.ok) {
-      console.error('❌ Timer fetch error:', timerResponse.statusText);
+      // Don't return 500 for auth race conditions — just skip this sync cycle
+      console.warn('⚠️ Timer fetch returned:', timerResponse.status, timerResponse.statusText);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch timer', details: timerResponse.statusText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, skipped: true, reason: timerResponse.statusText }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
