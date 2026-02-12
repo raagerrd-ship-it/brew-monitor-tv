@@ -14,7 +14,7 @@ const BrewChartLazy = lazy(() =>
  * Server-rendered chart image for TV mode.
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
-function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null }) {
+function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
   const [chartUrl, setChartUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -24,7 +24,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brewId, compact }),
+        body: JSON.stringify({ brewId, compact, brewCount }),
       });
 
       if (!response.ok) throw new Error('Failed to render chart');
@@ -36,7 +36,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw }: { brewId: strin
       console.error('[TvModeChart] Error:', e);
       setError(true);
     }
-  }, [brewId, compact]);
+  }, [brewId, compact, brewCount]);
 
   // Refresh when data changes (lastUpdateRaw) - no polling needed
   useEffect(() => {
@@ -73,7 +73,7 @@ export function LazyBrewChart(props: BrewChartProps) {
 
   // TV mode: use server-rendered chart images for hardware performance
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} />;
+    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} />;
   }
 
   // Desktop & Mobile: interactive Recharts
