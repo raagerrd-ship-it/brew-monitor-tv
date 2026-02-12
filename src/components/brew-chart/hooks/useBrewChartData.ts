@@ -68,16 +68,12 @@ export function useBrewChartData({
       lastFetchKey.current = fetchKey;
       setIsLoading(true);
       try {
-        // Calculate dynamic sample interval to stay under Supabase 1000-row limit
-        const spanMinutes = (new Date(lastDataDate).getTime() - new Date(firstDataDate).getTime()) / (1000 * 60);
-        const sampleInterval = Math.max(15, Math.ceil(spanMinutes / 700));
-
         const { data: tempHistory, error } = await supabase.rpc("get_temp_history_sampled", {
           p_controller_id: controllerId,
           p_start_time: firstDataDate,
           p_end_time: lastDataDate,
-          p_sample_interval_minutes: sampleInterval,
-        });
+          p_sample_interval_minutes: 15,
+        }).limit(5000);
 
         if (error) {
           console.error("Error fetching controller temp history:", error);

@@ -69,17 +69,12 @@ export function SyncedDataDialog({
         endTime = new Date(startMs + 30 * 60 * 1000).toISOString();
       }
 
-      // Calculate dynamic sample interval to stay under Supabase 1000-row limit
-      const actualEndMs = new Date(endTime).getTime();
-      const spanMinutes = (actualEndMs - startMs) / (1000 * 60);
-      const sampleInterval = Math.max(15, Math.ceil(spanMinutes / 700));
-
       const { data, error } = await supabase.rpc("get_temp_history_sampled", {
         p_controller_id: controllerId,
         p_start_time: startTime,
         p_end_time: endTime,
-        p_sample_interval_minutes: sampleInterval,
-      });
+        p_sample_interval_minutes: 15,
+      }).limit(5000);
 
       if (!error && data) {
         setControllerData(data);
