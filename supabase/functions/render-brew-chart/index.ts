@@ -209,7 +209,7 @@ function generateChartSvg(
   const sgMax = Math.max(...sgValues, og) + 0.001;
 
   // Downsample SG, then apply moving average smoothing (matches desktop)
-  const sgDown = downsample(sgParsed, 60, p => p.t, p => p.sg);
+  const sgDown = downsample(sgParsed, 150, p => p.t, p => p.sg);
   const windowSize = Math.max(3, Math.floor(sgDown.length * 0.08));
   const smoothedSgValues = smoothData(sgDown.map(p => p.sg), windowSize);
   const sgPoints = sgDown.map((p, i) => ({
@@ -227,7 +227,7 @@ function generateChartSvg(
     })).filter(p => p.t >= tMin && p.t <= tMax);
 
     if (tempParsed.length > 0) {
-      const tempDown = downsample(tempParsed, 60, p => p.t, p => p.current);
+      const tempDown = downsample(tempParsed, 150, p => p.t, p => p.current);
       // Include pill temp values from SG data in temp range calculation
       const pillTemps = sgParsed
         .filter(p => p.temp !== undefined && p.temp !== null)
