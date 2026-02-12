@@ -192,24 +192,20 @@ export function mergeWithControllerTemp(
   }
   
   // If few SG points, inject controller data points to fill the timeline
+  // These points only carry temperature data (no SG/pill values) so the
+  // Area gradient and temp lines are visible across the full time range
   if (sgData.length < 10 && prepared.currentTemp.length > 2) {
     for (const ctrlPoint of prepared.currentTemp) {
       if (ctrlPoint.timestamp >= minTs && ctrlPoint.timestamp <= maxTs && !usedTimestamps.has(ctrlPoint.timestamp)) {
-        // Interpolate SG value at this controller timestamp
-        const sgValue = interpolateValue(ctrlPoint.timestamp, sgTimestamps.map((ts, i) => ({ timestamp: ts, value: sgData[i].value })));
-        const pillTemp = interpolateValue(ctrlPoint.timestamp, sgTimestamps.map((ts, i) => ({ timestamp: ts, value: sgData[i].temp })));
-        
-        if (sgValue !== null && pillTemp !== null) {
-          mergedPoints.push({
-            date: new Date(ctrlPoint.timestamp).toISOString(),
-            value: sgValue,
-            temp: pillTemp,
-            pillTemp,
-            controllerTemp: ctrlPoint.value,
-            targetTemp: findTargetTemp(ctrlPoint.timestamp)
-          });
-          usedTimestamps.add(ctrlPoint.timestamp);
-        }
+        mergedPoints.push({
+          date: new Date(ctrlPoint.timestamp).toISOString(),
+          value: undefined as unknown as number, // no SG data — line will skip via connectNulls=false
+          temp: undefined as unknown as number,
+          pillTemp: undefined as unknown as number,
+          controllerTemp: ctrlPoint.value,
+          targetTemp: findTargetTemp(ctrlPoint.timestamp)
+        });
+        usedTimestamps.add(ctrlPoint.timestamp);
       }
     }
     
@@ -238,30 +234,36 @@ export function calculateMovingAverage(
   
   // Pre-extract values to avoid repeated property access
   const values: number[] = new Array(len);
+  const valueValid: boolean[] = new Array(len);
   const pillTemps: number[] = new Array(len);
+  const pillTempValid: boolean[] = new Array(len);
   const controllerTemps: number[] = new Array(len);
   const controllerValid: boolean[] = new Array(len);
   
   for (let i = 0; i < len; i++) {
     const d = data[i];
-    values[i] = d.value;
-    pillTemps[i] = d.pillTemp ?? d.temp;
+    const v = d.value;
+    valueValid[i] = v !== null && v !== undefined && !isNaN(v);
+    values[i] = valueValid[i] ? v : 0;
+    const pt = d.pillTemp ?? d.temp;
+    pillTempValid[i] = pt !== null && pt !== undefined && !isNaN(pt);
+    pillTemps[i] = pillTempValid[i] ? pt : 0;
     const ct = d.controllerTemp;
     controllerTemps[i] = ct ?? 0;
     controllerValid[i] = ct !== null && ct !== undefined;
   }
   
   // Use true sliding window - O(n) instead of O(n*windowSize)
-  let valueSum = 0;
-  let pillTempSum = 0;
+  let valueSum = 0; let valueCount = 0;
+  let pillTempSum = 0; let pillTempCount = 0;
   let controllerTempSum = 0;
   let controllerTempCount = 0;
   
   // Initialize window for first element
   const firstEnd = Math.min(len, halfWindow + 1);
   for (let j = 0; j < firstEnd; j++) {
-    valueSum += values[j];
-    pillTempSum += pillTemps[j];
+    if (valueValid[j]) { valueSum += values[j]; valueCount++; }
+    if (pillTempValid[j]) { pillTempSum += pillTemps[j]; pillTempCount++; }
     if (controllerValid[j]) {
       controllerTempSum += controllerTemps[j];
       controllerTempCount++;
@@ -269,15 +271,12 @@ export function calculateMovingAverage(
   }
   
   for (let i = 0; i < len; i++) {
-    const windowStart = Math.max(0, i - halfWindow);
-    const windowEnd = Math.min(len, i + halfWindow + 1);
-    
     // Add new element entering the window (right side)
     if (i > 0) {
       const newIdx = i + halfWindow;
       if (newIdx < len) {
-        valueSum += values[newIdx];
-        pillTempSum += pillTemps[newIdx];
+        if (valueValid[newIdx]) { valueSum += values[newIdx]; valueCount++; }
+        if (pillTempValid[newIdx]) { pillTempSum += pillTemps[newIdx]; pillTempCount++; }
         if (controllerValid[newIdx]) {
           controllerTempSum += controllerTemps[newIdx];
           controllerTempCount++;
@@ -287,8 +286,8 @@ export function calculateMovingAverage(
       // Remove element leaving the window (left side)
       const oldIdx = i - halfWindow - 1;
       if (oldIdx >= 0) {
-        valueSum -= values[oldIdx];
-        pillTempSum -= pillTemps[oldIdx];
+        if (valueValid[oldIdx]) { valueSum -= values[oldIdx]; valueCount--; }
+        if (pillTempValid[oldIdx]) { pillTempSum -= pillTemps[oldIdx]; pillTempCount--; }
         if (controllerValid[oldIdx]) {
           controllerTempSum -= controllerTemps[oldIdx];
           controllerTempCount--;
@@ -296,12 +295,10 @@ export function calculateMovingAverage(
       }
     }
     
-    const count = windowEnd - windowStart;
-    
     result[i] = {
       ...data[i],
-      value: valueSum / count,
-      pillTemp: pillTempSum / count,
+      value: valueValid[i] ? (valueCount > 0 ? valueSum / valueCount : data[i].value) : undefined as unknown as number,
+      pillTemp: pillTempValid[i] ? (pillTempCount > 0 ? pillTempSum / pillTempCount : data[i].pillTemp) : undefined as unknown as number,
       controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
       targetTemp: data[i].targetTemp
     };
