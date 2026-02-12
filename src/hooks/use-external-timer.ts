@@ -3,9 +3,19 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface TimerMilestone {
   time: number;
+  atSeconds?: number;
   label: string;
   triggered?: boolean;
   acknowledged?: boolean;
+  pauseForTemperature?: boolean;
+  targetTemperature?: number;
+  whirlpoolTime?: number;
+}
+
+export interface NextConfig {
+  label: string;
+  minutes: number;
+  navigateTo?: string;
 }
 
 export interface ExternalTimerState {
@@ -15,10 +25,15 @@ export interface ExternalTimerState {
   totalSeconds: number;
   isPaused: boolean;
   pausedByMilestone: boolean;
+  pausedAt: string | null;
   milestones: TimerMilestone[];
   nextMilestone: TimerMilestone | null;
   timeToNextMilestone: number | null;
   progress: number;
+  nextConfig: NextConfig | null;
+  wizardStep: string | null;
+  recipeName: string | null;
+  beerStyle: string | null;
 }
 
 const initialState: ExternalTimerState = {
@@ -28,10 +43,15 @@ const initialState: ExternalTimerState = {
   totalSeconds: 0,
   isPaused: false,
   pausedByMilestone: false,
+  pausedAt: null,
   milestones: [],
   nextMilestone: null,
   timeToNextMilestone: null,
   progress: 0,
+  nextConfig: null,
+  wizardStep: null,
+  recipeName: null,
+  beerStyle: null,
 };
 
 export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
@@ -71,9 +91,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     // Sort milestones by time ascending (lowest time = will be reached last)
     const sortedMilestones = [...data.milestones].sort((a, b) => a.time - b.time);
     
-    // Find the next upcoming milestone (highest time that is still less than remaining)
-    // A milestone triggers when remainingSeconds reaches its time value
-    // So we want the milestone with the highest time that is still <= remainingSeconds
+    // Find upcoming milestones: not yet triggered, time < remainingSeconds
     const upcomingMilestones = sortedMilestones.filter(m => m.time < remainingSeconds && !m.triggered);
     
     // The next milestone is the one with the highest time (will be reached soonest)
@@ -82,8 +100,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
 
   const calculateTimeToNextMilestone = useCallback((remainingSeconds: number, nextMilestone: TimerMilestone | null): number | null => {
     if (!nextMilestone) return null;
-    
-    // Time to next milestone is the difference between current remaining and milestone time
     return Math.max(0, remainingSeconds - nextMilestone.time);
   }, []);
 
@@ -97,64 +113,46 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     const remainingSeconds = calculateRemainingSeconds();
     const nextMilestone = calculateNextMilestone(remainingSeconds);
     const timeToNextMilestone = calculateTimeToNextMilestone(remainingSeconds, nextMilestone);
-    const progress = data.totalSeconds > 0 ? 1 - (remainingSeconds / data.totalSeconds) : 0;
+    const progress = data.totalSeconds > 0 ? ((data.totalSeconds - remainingSeconds) / data.totalSeconds) * 100 : 0;
 
     setTimerState(prev => ({
       ...prev,
       remainingSeconds,
       nextMilestone,
       timeToNextMilestone,
-      progress: Math.min(1, Math.max(0, progress)),
+      progress: Math.min(100, Math.max(0, progress)),
     }));
   }, [calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
-  // Save timer data to local cache for public access
-  const cacheTimerData = useCallback(async (data: ExternalTimerState & { externalUserId: string }) => {
-    try {
-      // First check if record exists
-      const { data: existing } = await supabase
-        .from('cached_external_timer')
-        .select('id')
-        .eq('external_user_id', data.externalUserId)
-        .maybeSingle();
-
-      const timerRecord = {
-        is_active: data.isActive,
-        label: data.label,
-        remaining_seconds: data.remainingSeconds,
-        total_seconds: data.totalSeconds,
-        is_paused: data.isPaused,
-        paused_by_milestone: data.pausedByMilestone,
-        milestones: JSON.parse(JSON.stringify(data.milestones)),
-        next_milestone: data.nextMilestone ? JSON.parse(JSON.stringify(data.nextMilestone)) : null,
-        time_to_next_milestone: data.timeToNextMilestone,
-        progress: data.progress,
-        last_synced_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existing) {
-        await supabase
-          .from('cached_external_timer')
-          .update(timerRecord)
-          .eq('external_user_id', data.externalUserId);
-      } else {
-        await supabase
-          .from('cached_external_timer')
-          .insert([{
-            external_user_id: data.externalUserId,
-            ...timerRecord,
-          }]);
-      }
-    } catch (error) {
-      console.error('Error caching timer data:', error);
-    }
+  // Parse a milestone from raw JSON
+  const parseMilestone = useCallback((m: unknown): TimerMilestone => {
+    const milestone = m as Record<string, unknown>;
+    return {
+      time: typeof milestone.time === 'number' ? milestone.time : 0,
+      atSeconds: typeof milestone.atSeconds === 'number' ? milestone.atSeconds : undefined,
+      label: typeof milestone.label === 'string' ? milestone.label : '',
+      triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
+      acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
+      pauseForTemperature: typeof milestone.pauseForTemperature === 'boolean' ? milestone.pauseForTemperature : undefined,
+      targetTemperature: typeof milestone.targetTemperature === 'number' ? milestone.targetTemperature : undefined,
+      whirlpoolTime: typeof milestone.whirlpoolTime === 'number' ? milestone.whirlpoolTime : undefined,
+    };
   }, []);
 
-  // Fetch from local cache (for non-authenticated users)
+  // Parse nextConfig from raw JSON
+  const parseNextConfig = useCallback((raw: unknown): NextConfig | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const obj = raw as Record<string, unknown>;
+    return {
+      label: typeof obj.label === 'string' ? obj.label : '',
+      minutes: typeof obj.minutes === 'number' ? obj.minutes : 0,
+      navigateTo: typeof obj.navigateTo === 'string' ? obj.navigateTo : undefined,
+    };
+  }, []);
+
+  // Fetch from local cache
   const fetchFromCache = useCallback(async () => {
     try {
-      // Get the most recent timer data (don't filter by is_active to properly handle stopped timers)
       const { data, error } = await supabase
         .from('cached_external_timer')
         .select('*')
@@ -174,15 +172,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       }
 
       const rawMilestones = Array.isArray(data.milestones) ? data.milestones : [];
-      const milestones: TimerMilestone[] = rawMilestones.map((m: unknown) => {
-        const milestone = m as Record<string, unknown>;
-        return {
-          time: typeof milestone.time === 'number' ? milestone.time : 0,
-          label: typeof milestone.label === 'string' ? milestone.label : '',
-          triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
-          acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
-        };
-      });
+      const milestones: TimerMilestone[] = rawMilestones.map(parseMilestone);
 
       // Calculate elapsed time since last sync
       const lastSynced = new Date(data.last_synced_at).getTime();
@@ -199,12 +189,12 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         : Math.max(0, data.time_to_next_milestone - elapsedSinceSync);
 
       // Parse next_milestone
-      const rawNextMilestone = data.next_milestone as Record<string, unknown> | null;
-      const nextMilestone: TimerMilestone | null = rawNextMilestone ? {
-        time: typeof rawNextMilestone.time === 'number' ? rawNextMilestone.time : 0,
-        label: typeof rawNextMilestone.label === 'string' ? rawNextMilestone.label : '',
-        triggered: typeof rawNextMilestone.triggered === 'boolean' ? rawNextMilestone.triggered : undefined,
-      } : null;
+      const nextMilestone: TimerMilestone | null = data.next_milestone 
+        ? parseMilestone(data.next_milestone)
+        : null;
+
+      // Parse new fields (may be null if not yet in DB schema)
+      const nextConfig = parseNextConfig((data as Record<string, unknown>).next_config);
 
       timerDataRef.current = {
         startedAt: new Date().toISOString(),
@@ -222,6 +212,13 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         return;
       }
 
+      // Progress from API is 0-100, keep as-is
+      const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
+      // Recalculate locally for accuracy
+      const localProgress = data.total_seconds > 0 
+        ? ((data.total_seconds - adjustedRemaining) / data.total_seconds) * 100 
+        : apiProgress;
+
       setTimerState({
         isActive: data.is_active && adjustedRemaining > 0,
         label: data.label || '',
@@ -229,19 +226,22 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         totalSeconds: data.total_seconds,
         isPaused: data.is_paused,
         pausedByMilestone: data.paused_by_milestone,
+        pausedAt: (data as Record<string, unknown>).paused_at as string | null ?? null,
         milestones,
         nextMilestone,
         timeToNextMilestone: adjustedTimeToNext,
-        progress: data.total_seconds > 0 ? 1 - (adjustedRemaining / data.total_seconds) : 0,
+        progress: Math.min(100, Math.max(0, localProgress)),
+        nextConfig,
+        wizardStep: (data as Record<string, unknown>).wizard_step as string | null ?? null,
+        recipeName: (data as Record<string, unknown>).recipe_name as string | null ?? null,
+        beerStyle: (data as Record<string, unknown>).beer_style as string | null ?? null,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);
     }
-  }, []);
-
+  }, [parseMilestone, parseNextConfig]);
 
   // Trigger server-side sync directly from client (like Sonos pattern)
-  // Bypasses cron delay — edge function syncs external → cache → Realtime fires
   const triggerSync = useCallback(async () => {
     try {
       const controller = new AbortController();
@@ -267,7 +267,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
   // Initial fetch and subscribe to updates
   useEffect(() => {
     fetchFromCache();
-    triggerSync(); // Trigger sync immediately on mount
+    triggerSync();
 
     if (onCachedTimerChangeRef) {
       onCachedTimerChangeRef.current = () => fetchFromCache();
@@ -290,7 +290,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       )
       .subscribe();
 
-    // Client-triggered sync every 3s (like Sonos playback polling)
+    // Client-triggered sync every 3s
     const syncInterval = setInterval(() => {
       triggerSync();
     }, 3_000);
@@ -309,7 +309,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
   }, [fetchFromCache, triggerSync, onCachedTimerChangeRef]);
 
   // Update remaining seconds every second when timer is active and not paused
-  // pausedByMilestone should also stop the countdown
   useEffect(() => {
     const shouldCount = timerState.isActive && !timerState.isPaused && !timerState.pausedByMilestone;
     
