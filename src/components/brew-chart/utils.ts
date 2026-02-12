@@ -168,52 +168,18 @@ export function mergeWithControllerTemp(
     return targetData[left].value;
   };
   
-  // When SG data is sparse but controller data is plentiful, inject controller
-  // data points so the Area gradient fill is visible across the full timeline
-  const sgTimestamps = sgData.map(p => new Date(p.date).getTime());
-  const minTs = Math.min(...sgTimestamps);
-  const maxTs = Math.max(...sgTimestamps);
-  
-  // Build merged timeline: start with SG points, then inject controller points
-  const mergedPoints: ChartDataPoint[] = [];
-  const usedTimestamps = new Set(sgTimestamps);
-  
-  // Add all SG data points with interpolated controller values
-  for (const point of sgData) {
+  // Only use actual SG data points, enriched with controller values
+  return sgData.map(point => {
     const timestamp = new Date(point.date).getTime();
     const controllerTemp = interpolateValue(timestamp, prepared.currentTemp);
     const targetTemp = findTargetTemp(timestamp);
-    mergedPoints.push({
+    return {
       ...point,
       pillTemp: point.temp,
       controllerTemp,
       targetTemp
-    });
-  }
-  
-  // If few SG points, inject controller data points to fill the timeline
-  // These points only carry temperature data (no SG/pill values) so the
-  // Area gradient and temp lines are visible across the full time range
-  if (sgData.length < 10 && prepared.currentTemp.length > 2) {
-    for (const ctrlPoint of prepared.currentTemp) {
-      if (ctrlPoint.timestamp >= minTs && ctrlPoint.timestamp <= maxTs && !usedTimestamps.has(ctrlPoint.timestamp)) {
-        mergedPoints.push({
-          date: new Date(ctrlPoint.timestamp).toISOString(),
-          value: undefined as unknown as number, // no SG data — line will skip via connectNulls=false
-          temp: undefined as unknown as number,
-          pillTemp: undefined as unknown as number,
-          controllerTemp: ctrlPoint.value,
-          targetTemp: findTargetTemp(ctrlPoint.timestamp)
-        });
-        usedTimestamps.add(ctrlPoint.timestamp);
-      }
-    }
-    
-    // Sort by timestamp
-    mergedPoints.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  return mergedPoints;
+    };
+  });
 }
 
 /**
