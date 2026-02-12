@@ -213,9 +213,9 @@ export const TimerFooter = memo(function TimerFooter() {
         if ((alertMilestone as any).acknowledged) {
           setTriggeredAlert(null);
         }
-        // Fallback: dismiss after 30+ seconds past milestone time
+        // Fallback: dismiss after 120+ seconds past milestone time
         const secondsPastMilestone = alertMilestone.time - timer.remainingSeconds;
-        if (secondsPastMilestone >= 30) {
+        if (secondsPastMilestone >= 120) {
           setTriggeredAlert(null);
         }
       }
