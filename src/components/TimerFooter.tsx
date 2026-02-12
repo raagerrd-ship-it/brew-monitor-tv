@@ -224,7 +224,8 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Attention-grabbing alert overlay when milestone triggers */}
       {triggeredAlert && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
+          className="fixed inset-0 z-[100] flex items-center justify-center cursor-pointer"
+          onClick={() => setTriggeredAlert(null)}
           style={{
             background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
             animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
@@ -259,7 +260,7 @@ export const TimerFooter = memo(function TimerFooter() {
             
             {/* Subtle instruction */}
             <div className="text-orange-300/80 text-lg mt-4 font-medium">
-              Kvittera i bryggappen
+              {isMash ? 'Kvittera i bryggappen' : 'Tryck här eller kvittera i bryggappen'}
             </div>
           </div>
         </div>
