@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { externalSupabase } from '@/integrations/external-supabase/client';
 import { supabase } from '@/integrations/supabase/client';
-import { useExternalAuth } from '@/contexts/ExternalAuthContext';
 
 export interface TimerMilestone {
   time: number;
   label: string;
   triggered?: boolean;
+  acknowledged?: boolean;
 }
 
 export interface ExternalTimerState {
@@ -36,7 +35,6 @@ const initialState: ExternalTimerState = {
 };
 
 export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
-  const { user, session, isAuthenticated } = useExternalAuth();
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerDataRef = useRef<{
@@ -182,6 +180,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
           time: typeof milestone.time === 'number' ? milestone.time : 0,
           label: typeof milestone.label === 'string' ? milestone.label : '',
           triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
+          acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
         };
       });
 
@@ -240,80 +239,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     }
   }, []);
 
-  // Fetch from external API (for authenticated users)
-  const fetchFromExternal = useCallback(async () => {
-    if (!user || !session) return;
-
-    try {
-      const response = await fetch(
-        'https://zmvkvpmwpyxdpbysomxl.supabase.co/functions/v1/get-active-timer',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Error fetching timer data:', response.statusText);
-        return;
-      }
-
-      const data = await response.json();
-
-      // Edge function returns pre-calculated values
-      if (!data || !data.isActive) {
-        timerDataRef.current = null;
-        setTimerState(initialState);
-        // Also update cache to mark as inactive
-        await cacheTimerData({
-          externalUserId: user.id,
-          ...initialState,
-        });
-        return;
-      }
-
-      const milestones: TimerMilestone[] = Array.isArray(data.milestones) 
-        ? data.milestones as TimerMilestone[]
-        : [];
-
-      // Store ref data for local countdown
-      timerDataRef.current = {
-        startedAt: new Date().toISOString(), // Use current time as reference
-        remainingAtStart: data.remainingSeconds || 0,
-        totalSeconds: data.totalSeconds || 0,
-        isPaused: data.isPaused || false,
-        milestones,
-        nextMilestone: data.nextMilestone || null,
-        timeToNextMilestoneAtStart: data.timeToNextMilestone ?? null,
-      };
-
-      const newState: ExternalTimerState = {
-        isActive: data.isActive,
-        label: data.label || '',
-        remainingSeconds: data.remainingSeconds || 0,
-        totalSeconds: data.totalSeconds || 0,
-        isPaused: data.isPaused || false,
-        pausedByMilestone: data.pausedByMilestone || false,
-        milestones,
-        nextMilestone: data.nextMilestone || null,
-        timeToNextMilestone: data.timeToNextMilestone || null,
-        progress: Math.min(1, Math.max(0, data.progress || 0)),
-      };
-
-      setTimerState(newState);
-
-      // Cache the timer data for public access
-      await cacheTimerData({
-        externalUserId: user.id,
-        ...newState,
-      });
-    } catch (error) {
-      console.error('Error fetching timer data:', error);
-    }
-  }, [user, session, cacheTimerData]);
 
   // Trigger server-side sync directly from client (like Sonos pattern)
   // Bypasses cron delay — edge function syncs external → cache → Realtime fires

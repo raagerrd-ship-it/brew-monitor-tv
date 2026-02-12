@@ -155,7 +155,8 @@ export const TimerFooter = memo(function TimerFooter() {
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
-  const lastTriggeredRef = useRef<string | null>(null);
+  const lastTriggeredRef = useRef<Set<string>>(new Set());
+  const prevLabelRef = useRef<string>(timer.label);
 
   const isMash = timer.label === 'Mäskschema';
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
@@ -169,7 +170,16 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Check if we should show based on TV mode setting
   const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
-  
+
+  // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
+  useEffect(() => {
+    if (prevLabelRef.current !== timer.label) {
+      lastTriggeredRef.current = new Set();
+      setTriggeredAlert(null);
+      prevLabelRef.current = timer.label;
+    }
+  }, [timer.label]);
+
   // Detect when a milestone just triggered (within 3 seconds of its time)
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
@@ -179,12 +189,12 @@ export const TimerFooter = memo(function TimerFooter() {
       // Check if we're within 3 seconds AFTER passing the milestone time
       const passed = timer.remainingSeconds < m.time;
       const justPassed = timer.remainingSeconds >= m.time - 3;
-      const notAlreadyTriggered = m.label !== lastTriggeredRef.current;
+      const notAlreadyTriggered = !lastTriggeredRef.current.has(m.label);
       return passed && justPassed && notAlreadyTriggered;
     });
     
     if (justTriggered) {
-      lastTriggeredRef.current = justTriggered.label;
+      lastTriggeredRef.current.add(justTriggered.label);
       setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
       
       // Both mash and kok: Keep alert visible until acknowledged
@@ -195,8 +205,7 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Dismiss alert when acknowledged externally via synced data
   // Mash: pausedByMilestone becomes false when acknowledged
-  // Kok: auto-dismiss after timer has moved 30+ seconds past the milestone
-  //       (external API doesn't provide a "triggered" signal for boil milestones)
+  // Kok: auto-dismiss after 120+ seconds past the milestone, or when acknowledged
   useEffect(() => {
     if (!triggeredAlert) return;
     
@@ -210,7 +219,7 @@ export const TimerFooter = memo(function TimerFooter() {
       const alertMilestone = timer.milestones.find(m => m.label === triggeredAlert.label);
       if (alertMilestone) {
         // Dismiss when acknowledged in brew app (primary)
-        if ((alertMilestone as any).acknowledged) {
+        if (alertMilestone.acknowledged) {
           setTriggeredAlert(null);
         }
         // Fallback: dismiss after 120+ seconds past milestone time
@@ -465,14 +474,10 @@ export const TimerFooter = memo(function TimerFooter() {
               </div>
             )}
             
-            {/* Total remaining time - secondary (clickable for test) */}
+            {/* Total remaining time - secondary */}
             <div 
-              onClick={() => {
-                const testLabel = timer.nextMilestone?.label || 'Test Milestone';
-                setTriggeredAlert({ label: testLabel, time: Date.now() });
-              }}
               className={cn(
-                "font-mono tabular-nums text-base cursor-pointer hover:opacity-80 transition-opacity",
+                "font-mono tabular-nums text-base",
                 isLowTime && "animate-pulse text-red-400",
                 !isLowTime && (isMash ? "text-orange-400/70" : "text-muted-foreground")
               )}
