@@ -187,13 +187,9 @@ export const TimerFooter = memo(function TimerFooter() {
       lastTriggeredRef.current = justTriggered.label;
       setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
       
-      // For kok (not mash): Auto-dismiss after 30 seconds
-      // For mash: Keep alert visible until pausedByMilestone becomes false
-      if (!isMash) {
-        setTimeout(() => {
-          setTriggeredAlert(null);
-        }, 30000);
-      }
+      // Both mash and kok: Keep alert visible until acknowledged
+      // Mash: dismissed when pausedByMilestone becomes false
+      // Kok: dismissed by user clicking the overlay
     }
   }, [timer.remainingSeconds, timer.milestones, timer.isActive, isMash]);
 
@@ -221,7 +217,8 @@ export const TimerFooter = memo(function TimerFooter() {
       {/* Attention-grabbing alert overlay when milestone triggers */}
       {triggeredAlert && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
+          className="fixed inset-0 z-[100] flex items-center justify-center cursor-pointer"
+          onClick={() => setTriggeredAlert(null)}
           style={{
             background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
             animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
@@ -256,7 +253,7 @@ export const TimerFooter = memo(function TimerFooter() {
             
             {/* Subtle instruction */}
             <div className="text-orange-300/80 text-lg mt-4 font-medium">
-              Utför detta steg
+              {isMash ? 'Utför detta steg' : 'Tryck för att kvittera'}
             </div>
           </div>
         </div>
@@ -433,14 +430,8 @@ export const TimerFooter = memo(function TimerFooter() {
             {/* Total remaining time - secondary (clickable for test) */}
             <div 
               onClick={() => {
-                console.log('Test trigger clicked!');
                 const testLabel = timer.nextMilestone?.label || 'Test Milestone';
-                console.log('Setting alert with label:', testLabel);
                 setTriggeredAlert({ label: testLabel, time: Date.now() });
-                setTimeout(() => {
-                  console.log('Clearing alert');
-                  setTriggeredAlert(null);
-                }, 5000);
               }}
               className={cn(
                 "font-mono tabular-nums text-base cursor-pointer hover:opacity-80 transition-opacity",
