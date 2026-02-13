@@ -174,38 +174,48 @@ function BrewChartComponent({
           />
 
           {/* Tooltip */}
-          <Tooltip
-            contentStyle={{
-              backgroundColor: COLORS.card,
-              border: "none",
-              borderRadius: "8px",
-              color: COLORS.foreground,
-              lineHeight: "1",
-              padding: "6px 8px",
-            }}
-            labelStyle={{ color: COLORS.mutedForeground, marginBottom: "1px" }}
-            itemStyle={{ lineHeight: "1.1", padding: "1px 0" }}
-            labelFormatter={formatTooltipLabel}
-            formatter={(value: number, name: string) => {
-              if (name === "value") return [value.toFixed(3), "SG"];
-              if (name === "controllerTemp")
-                return [
-                  <span key="v" style={{ color: COLORS.temp }}>{value.toFixed(1)}°C</span>,
-                  <span key="l" style={{ color: COLORS.temp }}>Nuv:</span>,
-                ];
-              if (name === "targetTemp")
-                return [
-                  <span key="v" style={{ color: COLORS.targetTemp }}>{value.toFixed(1)}°C</span>,
-                  <span key="l" style={{ color: COLORS.targetTemp }}>Mål:</span>,
-                ];
-              if (name === "pillTemp")
-                return [
-                  <span key="v" style={{ color: COLORS.tempFaint }}>{value.toFixed(1)}°C</span>,
-                  <span key="l" style={{ color: COLORS.tempFaint }}>Pill:</span>,
-                ];
-              return [value, name];
-            }}
-          />
+           <Tooltip
+             contentStyle={{
+               backgroundColor: COLORS.card,
+               border: "none",
+               borderRadius: "8px",
+               color: COLORS.foreground,
+               lineHeight: "1",
+               padding: "6px 8px",
+             }}
+             labelStyle={{ color: COLORS.mutedForeground, marginBottom: "1px" }}
+             itemStyle={{ lineHeight: "1.1", padding: "1px 0" }}
+             labelFormatter={formatTooltipLabel}
+             formatter={(value: number, name: string, payload: any) => {
+               // Use raw (unsmoothed) values for tooltip display
+               const rawPayload = payload?.payload;
+               
+               if (name === "value") {
+                 const displayValue = rawPayload?.rawValue ?? value;
+                 return [displayValue.toFixed(3), "SG"];
+               }
+               if (name === "controllerTemp") {
+                 const displayValue = rawPayload?.rawControllerTemp ?? value;
+                 return [
+                   <span key="v" style={{ color: COLORS.temp }}>{displayValue.toFixed(1)}°C</span>,
+                   <span key="l" style={{ color: COLORS.temp }}>Nuv:</span>,
+                 ];
+               }
+               if (name === "targetTemp")
+                 return [
+                   <span key="v" style={{ color: COLORS.targetTemp }}>{value.toFixed(1)}°C</span>,
+                   <span key="l" style={{ color: COLORS.targetTemp }}>Mål:</span>,
+                 ];
+               if (name === "pillTemp") {
+                 const displayValue = rawPayload?.rawPillTemp ?? value;
+                 return [
+                   <span key="v" style={{ color: COLORS.tempFaint }}>{displayValue.toFixed(1)}°C</span>,
+                   <span key="l" style={{ color: COLORS.tempFaint }}>Pill:</span>,
+                 ];
+               }
+               return [value, name];
+             }}
+           />
 
           {/* SG Line */}
           <Line
