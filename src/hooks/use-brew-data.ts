@@ -685,7 +685,7 @@ export function useBrewData(): UseBrewDataReturn {
     // Initial hash capture
     checkSessions();
 
-    const intervalId = setInterval(checkSessions, 60_000);
+    const intervalId = setInterval(checkSessions, 300_000); // 5 minutes
     return () => clearInterval(intervalId);
   }, [isTvMode, loadBrews]);
 
