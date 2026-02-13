@@ -57,6 +57,17 @@ Deno.serve(async (req) => {
     });
 
     if (authError || !authData.session) {
+      const isTransient = authError?.message?.includes('connection') || 
+                          authError?.message?.includes('reset') ||
+                          authError?.message?.includes('timeout') ||
+                          authError?.message?.includes('SendRequest');
+      if (isTransient) {
+        console.warn('⚠️ Transient auth error, skipping sync cycle:', authError?.message);
+        return new Response(
+          JSON.stringify({ success: false, skipped: true, reason: 'transient_auth_error' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       console.error('❌ Auth error:', authError?.message);
       return new Response(
         JSON.stringify({ error: 'Authentication failed', details: authError?.message }),
