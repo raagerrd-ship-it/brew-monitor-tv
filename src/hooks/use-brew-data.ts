@@ -654,6 +654,41 @@ export function useBrewData(): UseBrewDataReturn {
     loadAllData();
   }, [loadAllData]);
 
+  // TV mode: polling fallback for fermentation session changes
+  // Realtime can silently drop on Chromecast hardware, so poll every 60s
+  useEffect(() => {
+    if (!isTvMode) return;
+
+    const lastSessionHash = { current: '' };
+
+    const checkSessions = async () => {
+      try {
+        const { data } = await supabase
+          .from('fermentation_sessions')
+          .select('id, current_step_index, status, updated_at')
+          .in('status', ['running', 'paused', 'completed']);
+
+        const hash = JSON.stringify(data || []);
+        if (hash !== lastSessionHash.current) {
+          if (lastSessionHash.current !== '') {
+            // Session changed — reload brews to get updated preloadedSession
+            console.log('[TV] Fermentation session change detected via polling, reloading...');
+            loadBrews();
+          }
+          lastSessionHash.current = hash;
+        }
+      } catch (e) {
+        console.error('[TV] Fermentation poll error:', e);
+      }
+    };
+
+    // Initial hash capture
+    checkSessions();
+
+    const intervalId = setInterval(checkSessions, 60_000);
+    return () => clearInterval(intervalId);
+  }, [isTvMode, loadBrews]);
+
   return {
     brews,
     setBrews,
