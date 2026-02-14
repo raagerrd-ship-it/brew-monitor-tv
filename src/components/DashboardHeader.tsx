@@ -27,6 +27,7 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
+  sonosSlot?: React.ReactNode;
 }
 
 export function DashboardHeader({
@@ -36,6 +37,7 @@ export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
+  sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,7 +93,7 @@ export function DashboardHeader({
       {!isMobile && (
         <>
           <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-            <Logo />
+            {sonosSlot || <Logo />}
           </div>
 
           <div className="flex-1 flex items-center justify-center">

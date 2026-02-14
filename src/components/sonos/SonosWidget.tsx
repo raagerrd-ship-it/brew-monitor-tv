@@ -8,6 +8,7 @@ import {
 interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
+  variant?: "floating" | "header";
   onAlbumArtChange?: (url: string | null) => void;
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
 }
@@ -15,6 +16,7 @@ interface SonosWidgetProps {
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
   isTvMode = false,
+  variant = "floating",
   onAlbumArtChange,
   onRealtimeRef,
 }: SonosWidgetProps) {
@@ -134,22 +136,27 @@ export const SonosWidget = memo(function SonosWidget({
   // --- Render ---
   if (shouldHide || !nowPlaying) return null;
 
-  const trackFontSize = isMobile ? "0.8rem" : "18px";
-  const artistFontSize = isMobile ? "0.7rem" : "14px";
-  const progressHeight = isMobile ? "2px" : "5px";
-  const widgetHeight = isMobile ? "56px" : "130px";
-  const widgetWidth = isMobile ? "140px" : "280px";
+  const isHeader = variant === "header";
+  const trackFontSize = isHeader ? "13px" : isMobile ? "0.8rem" : "18px";
+  const artistFontSize = isHeader ? "11px" : isMobile ? "0.7rem" : "14px";
+  const progressHeight = isHeader ? "2px" : isMobile ? "2px" : "5px";
+  const widgetHeight = isHeader ? "50px" : isMobile ? "56px" : "130px";
+  const widgetWidth = isHeader ? "300px" : isMobile ? "140px" : "280px";
   const hasAlbumArt = !!displayedArtUrl;
 
   return (
     <div
-      className="relative overflow-hidden rounded-xl"
+      className={`relative overflow-hidden ${isHeader ? "rounded-lg" : "rounded-xl"}`}
       style={{
         width: widgetWidth,
         height: widgetHeight,
         contain: "strict",
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)",
-        border: "1px solid rgba(255, 255, 255, 0.15)",
+        boxShadow: isHeader
+          ? "0 4px 12px -2px rgba(0, 0, 0, 0.25)"
+          : "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 50px -10px rgba(0, 0, 0, 0.25)",
+        border: isHeader
+          ? "1px solid rgba(255, 255, 255, 0.1)"
+          : "1px solid rgba(255, 255, 255, 0.15)",
       }}
     >
       {/* Fallback gradient background */}
@@ -180,12 +187,15 @@ export const SonosWidget = memo(function SonosWidget({
       {hasAlbumArt && (
         <div
           className="absolute inset-0"
-          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)" }}
+          style={{ background: isHeader
+            ? "linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 100%)"
+            : "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%)"
+          }}
         />
       )}
 
       {/* Content */}
-      <div className={`relative h-full flex flex-col justify-center ${isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
+      <div className={`relative h-full flex flex-col justify-center ${isHeader ? "px-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         <div ref={containerRef} className="overflow-hidden">
           <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
             {nowPlaying.track_name}
@@ -199,7 +209,7 @@ export const SonosWidget = memo(function SonosWidget({
 
         {/* Progress Bar with countdown */}
         {nowPlaying.duration_ms && (
-          <div className="flex items-center gap-2 mt-3">
+          <div className={`flex items-center gap-2 ${isHeader ? "mt-1" : "mt-3"}`}>
             <div
               className="flex-1 rounded-full overflow-hidden"
               style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}
@@ -210,7 +220,7 @@ export const SonosWidget = memo(function SonosWidget({
                 style={{ width: "0%", background: "rgba(255, 255, 255, 0.9)" }}
               />
             </div>
-            <span ref={debugTimeRef} className="text-white/60 font-mono flex-shrink-0" style={{ fontSize: isMobile ? "8px" : "11px", lineHeight: 1 }}>
+            <span ref={debugTimeRef} className="text-white/60 font-mono flex-shrink-0" style={{ fontSize: isHeader ? "9px" : isMobile ? "8px" : "11px", lineHeight: 1 }}>
               0:00
             </span>
           </div>

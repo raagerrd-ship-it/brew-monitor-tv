@@ -365,6 +365,9 @@ export function BrewingDashboard() {
         onControllerClick={handleControllerClick}
         hasAlbumArtBackground={!!visibleBgUrl}
         onRefresh={isMobile ? handleManualRefresh : undefined}
+        sonosSlot={(!isMobile || isTvMode) ? (
+          <SonosWidget isMobile={false} isTvMode={isTvMode} variant="header" onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
+        ) : undefined}
       />
 
       {/* Main Display Area */}
@@ -412,18 +415,6 @@ export function BrewingDashboard() {
           </div>}
       </div>
 
-      {/* Floating Sonos widget - positioned top-right over brew cards */}
-      {(!isMobile || isTvMode) && (
-        <div 
-          className="absolute z-10"
-          style={{
-            top: `${activeHeaderHeight + 88}px`,
-            right: '12px',
-          }}
-        >
-          <SonosWidget isMobile={false} isTvMode={isTvMode} onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
-        </div>
-      )}
 
 
       {/* Dialogs */}
