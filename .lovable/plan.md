@@ -1,69 +1,63 @@
 
 
-# Översyn av bryggningsprocessen -- timer-synk och tydlighet
+# Flytta Sonos-widgeten till logotypens position
 
-## Identifierade problem
+## Sammanfattning
+Sonos-widgeten flyttas fran sin nuvarande position (till hoger under headern) till att ligga direkt over logotypen "BryggövervakareTV" i headerns vanstra horn. Widgeten blir smalare och bredare (mer langsmal) med minimala marginaler mot ytterkanterna, sa att den inte tackar nagon annan del av dashboarden.
 
-### 1. `acknowledged`-faltet saknas i typdefinitionen
-`TimerMilestone`-interfacet (rad 6-10 i `use-external-timer.ts`) saknar `acknowledged`-faltet som bryggappen nu skickar. Koden i `TimerFooter.tsx` (rad 213) tvingas använda `(alertMilestone as any).acknowledged` -- en osaker typcast.
+## Visuell forandring
 
-Dessutom parsar `fetchFromCache` (rad 179-186) inte `acknowledged` fran databasen, sa faltet gar forlorat nar data lases fran cachen.
+```text
+NUVARANDE LAYOUT:
++--[Logo]--------[Controllers]--------[Clock]--+
+|                                               |
+|                                  [Sonos 280x130] <-- flytande, 88px under header
+|   [BrewCard]   [BrewCard]   [BrewCard]        |
 
-### 2. Edge-funktionen (`sync-external-timer`) sparar inte `acknowledged`
-Edge-funktionen kopierar milstolparna rakt av som JSON, sa `acknowledged` borde folja med automatiskt. Men `TimerMilestone`-interfacet i edge-funktionen (rad 8-12) saknar ocksa faltet, vilket gor det otydligt.
-
-### 3. Dod kod: `fetchFromExternal` anvands aldrig
-Funktionen `fetchFromExternal` (rad 244-316 i `use-external-timer.ts`) ar definierad men anropas aldrig. All datahämtning gar via edge-funktionen `sync-external-timer` -> cache -> `fetchFromCache`. Denna doda kod forvirrar och bor tas bort.
-
-### 4. Kommentar-mismatch i dismissal-logiken
-Kommentaren pa rad 198 sager "auto-dismiss after 30+ seconds" men koden (rad 218) anvander 120 sekunder. Kommentaren bor uppdateras.
-
-### 5. Timer-fas-övergångar (t.ex. Mäsk -> Kok -> Whirlpool)
-Nar timern byter fas (t.ex. fran "Kokschema" till "Whirlpool") andras `label` och milstolparna nollstalls. `lastTriggeredRef` rensar dock inte, sa om en milstolpe i nasta fas har samma namn som en i foregaende fas, triggas den aldrig. Bor rensas nar `label` andras.
-
-### 6. Test-klick i produktion
-Rad 470-473 i `TimerFooter.tsx` innehaller en `onClick`-handler som triggar en test-alert nar man klickar pa totaltiden. Detta bor inte finnas i produktionskoden, speciellt inte pa TV:n dar oavsiktliga klick kan ske.
-
----
-
-## Plan
-
-### Steg 1: Utoka `TimerMilestone` med `acknowledged`
-Lagg till `acknowledged?: boolean` i `TimerMilestone`-interfacet i bade:
-- `src/hooks/use-external-timer.ts` (rad 6-10)
-- `supabase/functions/sync-external-timer/index.ts` (rad 8-12)
-
-### Steg 2: Parsa `acknowledged` i `fetchFromCache`
-Uppdatera parsningen i `fetchFromCache` (rad 179-186) sa att `acknowledged` lases fran databasens JSON:
-```typescript
-acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
+NY LAYOUT:
++--[Sonos ovanpa Logo]--[Controllers]--[Clock]--+
+|                                               |
+|   [BrewCard]   [BrewCard]   [BrewCard]        |
 ```
 
-### Steg 3: Ta bort typcasten i `TimerFooter.tsx`
-Ersatt `(alertMilestone as any).acknowledged` med `alertMilestone.acknowledged` (rad 213).
+Widgeten placeras i headern, ovanpa logotypen, med minimal padding mot vanster- och toppkant. Nar inget spelas visas logotypen som vanligt.
 
-### Steg 4: Ta bort dod kod (`fetchFromExternal`)
-Ta bort hela `fetchFromExternal`-funktionen (rad 244-316) och tillhorande `externalSupabase`-import (rad 2) samt `useExternalAuth`-importen (rad 4) om den inte anvands pa annat hall.
+## Andringar
 
-### Steg 5: Rensa `lastTriggeredRef` vid fasbyte
-Lagg till en `useEffect` som overvakar `timer.label` och rensar `lastTriggeredRef` och `triggeredAlert` nar fasen andras. Detta forhindrar att milstolpar "fastnar" mellan faser.
+### 1. SonosWidget -- ny "header" / "slim" variant
+- Ny storlek: ca **300x50px** (langsmal, ungefar samma hojd som headern)
+- Minimal padding, ingen rounded-xl (anvand rounded-lg istallet)
+- Minska skuggorna for att passa headerns tunna profil
+- Behall album art som bakgrund men med starkare darkning for text-lasbarhet i det smalare formatet
+- Progress bar och nedrakning behalls men med tunnare profil
+- Ta emot en ny prop `variant?: "floating" | "header"` for att styra storlek/stil
 
-### Steg 6: Ta bort test-onClick
-Ta bort `onClick`-handleren pa totaltids-elementet (rad 470-473) eller gor den villkorad till en debug/dev-flagga.
+### 2. BrewingDashboard -- flytta widgeten till headern
+- Ta bort den flytande `<div className="absolute z-10">` som positionerar widgeten under headern
+- Skicka istallet Sonos-widgeten som en prop eller rendera den direkt i header-raden
+- Widgeten renderas i headerns vanstra kolumn, direkt ovanpa logotypen (same position)
+- Nar Sonos spelar: widgeten visas, logotypen doljs
+- Nar inget spelas: logotypen visas som vanligt
 
-### Steg 7: Uppdatera kommentarer
-Fixa kommentaren pa rad 198 fran "30+" till "120+" sekunder.
+### 3. DashboardHeader -- ta emot Sonos-widget
+- Lagg till en optional prop `sonosSlot?: React.ReactNode`
+- I desktop-layoutens vanstra kolumn: rendera `sonosSlot` istallet for `<Logo />` om sonosSlot finns
+- Fallback till `<Logo />` om inget sonosSlot skickas
 
-### Steg 8: Deploya edge-funktionen
-Deploya den uppdaterade `sync-external-timer` sa att `acknowledged` tydligt ar en del av typen.
+## Tekniska detaljer
 
----
+**SonosWidget.tsx:**
+- Ny prop `variant` med default `"floating"`
+- Nar `variant === "header"`: width ~300px, height ~50px, border-radius 8px, tightare padding, mindre typsnitt
+- Progress bar height: 2px, countdown text: 9px
+- Behall all befintlig logik (preloading, refs, etc) -- bara visuella justeringar
 
-## Sammanfattning av filer som andras
+**BrewingDashboard.tsx:**
+- Flytta `<SonosWidget>` fran den absolut-positionerade diven till en variabel som skickas som `sonosSlot` till `<DashboardHeader>`
+- Widget renderas med `variant="header"`
 
-| Fil | Andring |
-|-----|---------|
-| `src/hooks/use-external-timer.ts` | Lagg till `acknowledged` i typen, parsa det fran cache, ta bort `fetchFromExternal` och oanvanda imports |
-| `src/components/TimerFooter.tsx` | Ta bort typcast, rensa `lastTriggeredRef` vid fasbyte, ta bort test-onClick, fixa kommentar |
-| `supabase/functions/sync-external-timer/index.ts` | Lagg till `acknowledged` i `TimerMilestone`-interfacet |
+**DashboardHeader.tsx:**
+- Ny prop `sonosSlot?: React.ReactNode`
+- I desktop-sektionen (rad 93-95): `{sonosSlot || <Logo />}`
+- Ingen annan andring i headern
 
