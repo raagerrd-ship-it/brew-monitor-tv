@@ -195,7 +195,7 @@ export const SonosWidget = memo(function SonosWidget({
       )}
 
       {/* Content */}
-      <div className={`relative h-full flex flex-col justify-center ${isHeader ? "pl-1.5 pr-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
+      <div className={`relative h-full flex flex-col justify-center ${isHeader ? "pl-0.5 pr-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         <div ref={containerRef} className="overflow-hidden">
           <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
             {nowPlaying.track_name}
