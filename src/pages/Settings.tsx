@@ -1395,6 +1395,75 @@ export default function Settings() {
             </SettingsSection>
 
             <SettingsSection
+              icon={Timer}
+              title="Brygg-timer synkronisering"
+              description="Visa aktiv timer från brygg-appen i sidfoten"
+            >
+              <Card className="p-4">
+                {externalLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Laddar...
+                  </div>
+                ) : isExternalAuthenticated ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                        <Check className="h-4 w-4 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Ansluten</p>
+                        <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => externalSignOut()}
+                    >
+                      Koppla från
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Inte ansluten</p>
+                      <p className="text-sm text-muted-foreground">
+                        Anslut för att visa aktiva timers från brygg-appen
+                      </p>
+                    </div>
+                    <Button onClick={() => setExternalLoginDialogOpen(true)}>
+                      Anslut
+                    </Button>
+                  </div>
+                )}
+              </Card>
+              
+              {isExternalAuthenticated && (
+                <Card className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Tv className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Endast TV-läge</p>
+                        <p className="text-sm text-muted-foreground">
+                          Visa timern bara när ?tv=true är i URL:en
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={timerTvModeOnly}
+                      disabled={settingsLoading}
+                      onCheckedChange={(checked) => {
+                        setTimerTvModeOnly(checked);
+                      }}
+                    />
+                  </div>
+                </Card>
+              )}
+            </SettingsSection>
+
+            <SettingsSection
               icon={Music}
               title="Sonos"
               description="Visa vad som spelas på Sonos i headern"
@@ -1699,75 +1768,6 @@ export default function Settings() {
             >
               <FermentationProfilesManagement />
             </SettingsSection>
-            <SettingsSection
-              icon={Timer}
-              title="Brygg-timer synkronisering"
-              description="Visa aktiv timer från brygg-appen i sidfoten"
-            >
-              <Card className="p-4">
-                {externalLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Laddar...
-                  </div>
-                ) : isExternalAuthenticated ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
-                        <Check className="h-4 w-4 text-green-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Ansluten</p>
-                        <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => externalSignOut()}
-                    >
-                      Koppla från
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Inte ansluten</p>
-                      <p className="text-sm text-muted-foreground">
-                        Anslut för att visa aktiva timers från brygg-appen
-                      </p>
-                    </div>
-                    <Button onClick={() => setExternalLoginDialogOpen(true)}>
-                      Anslut
-                    </Button>
-                  </div>
-                )}
-              </Card>
-              
-              {isExternalAuthenticated && (
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Tv className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">Endast TV-läge</p>
-                        <p className="text-sm text-muted-foreground">
-                          Visa timern bara när ?tv=true är i URL:en
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={timerTvModeOnly}
-                      disabled={settingsLoading}
-                      onCheckedChange={(checked) => {
-                        setTimerTvModeOnly(checked);
-                      }}
-                    />
-                  </div>
-                </Card>
-              )}
-            </SettingsSection>
-            
 
           </TabsContent>
 
