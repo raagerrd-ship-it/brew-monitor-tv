@@ -151,6 +151,17 @@ Deno.serve(async (req) => {
       .upsert(timerRecord, { onConflict: 'external_user_id' });
 
     if (upsertError) {
+      const isTransient = upsertError.message?.includes('connection') ||
+                          upsertError.message?.includes('reset') ||
+                          upsertError.message?.includes('timeout') ||
+                          upsertError.message?.includes('SendRequest');
+      if (isTransient) {
+        console.warn('⚠️ Transient upsert error, skipping sync cycle:', upsertError.message);
+        return new Response(
+          JSON.stringify({ success: false, skipped: true, reason: 'transient_upsert_error' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       console.error('❌ Upsert error:', upsertError.message);
       return new Response(
         JSON.stringify({ error: 'Failed to upsert cache', details: upsertError.message }),
