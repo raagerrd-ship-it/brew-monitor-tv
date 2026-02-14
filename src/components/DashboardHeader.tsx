@@ -47,7 +47,7 @@ export function DashboardHeader({
 
   return (
     <div
-      className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between px-6 gap-6 relative'}`}
+      className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-3 px-3 gap-3 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-6 relative'}`}
       style={{
         height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
         background: 'transparent',
