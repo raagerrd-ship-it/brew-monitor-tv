@@ -93,7 +93,7 @@ export function DashboardHeader({
       {!isMobile && (
         <>
           <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-            {sonosSlot || <Logo />}
+            {sonosSlot ?? <Logo />}
           </div>
 
           <div className="flex-1 flex items-center justify-center">

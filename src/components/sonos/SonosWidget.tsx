@@ -4,6 +4,7 @@ import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
+import { Logo } from "../Logo";
 
 interface SonosWidgetProps {
   isMobile?: boolean;
@@ -134,7 +135,7 @@ export const SonosWidget = memo(function SonosWidget({
   }, [incomingArtUrl, nowPlaying?.bg_image_url]);
 
   // --- Render ---
-  if (shouldHide || !nowPlaying) return null;
+  if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
 
   const isHeader = variant === "header";
   const trackFontSize = isHeader ? "13px" : isMobile ? "0.8rem" : "18px";
