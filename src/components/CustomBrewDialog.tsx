@@ -185,9 +185,17 @@ export function CustomBrewDialog({
           setFermentationStart("");
         }
       } else {
+        // Auto-generate batch number for new custom brews
+        const fetchNextNumber = async () => {
+          const { count } = await supabase
+            .from("brew_readings")
+            .select("id", { count: "exact", head: true })
+            .like("batch_id", "custom_%");
+          setBatchNumber(String((count ?? 0) + 1));
+        };
+        fetchNextNumber();
         setName(prefill?.name || "");
         setStyle(prefill?.style || "");
-        setBatchNumber("");
         setOriginalGravity("1.050");
         setFinalGravity("1.010");
         setSelectedControllerId("");
@@ -485,15 +493,18 @@ export function CustomBrewDialog({
             />
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="batchNumber">Batch-nummer</Label>
-            <Input
-              id="batchNumber"
-              value={batchNumber}
-              onChange={(e) => setBatchNumber(e.target.value)}
-              placeholder="Ex: 42"
-            />
-          </div>
+          {/* Batch number is auto-generated for new brews, hidden */}
+          {isEditMode && (
+            <div className="grid gap-2">
+              <Label htmlFor="batchNumber">Eget nummer</Label>
+              <Input
+                id="batchNumber"
+                value={batchNumber}
+                disabled
+                className="opacity-60"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
