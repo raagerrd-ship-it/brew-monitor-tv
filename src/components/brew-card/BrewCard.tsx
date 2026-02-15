@@ -91,29 +91,49 @@ function BrewCardComponent({
             </div>
           )}
             <div className="min-w-0 flex-1 overflow-hidden">
-              <h2 
-                className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
-                style={{ 
-                  fontSize: '18px',
-                  textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
-                  letterSpacing: '-0.02em'
-                }}
-              >
-                {brew.name}
-                {brew.batch_id.startsWith('custom_') && (
-                  <span
-                    className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider"
-                    style={{
-                      fontSize: '7px',
-                      background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
-                      color: 'hsl(var(--accent-foreground) / 0.9)',
-                      border: '1px solid hsl(var(--accent) / 0.4)',
-                    }}
-                  >
-                    Egen #{brew.batchNumber}
-                  </span>
-                )}
-              </h2>
+              <div className="flex items-center gap-1.5">
+                <h2 
+                  className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
+                  style={{ 
+                    fontSize: '18px',
+                    textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
+                    letterSpacing: '-0.02em'
+                  }}
+                >
+                  {brew.name}
+                  {brew.batch_id.startsWith('custom_') && (
+                    <span
+                      className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider"
+                      style={{
+                        fontSize: '7px',
+                        background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
+                        color: 'hsl(var(--accent-foreground) / 0.9)',
+                        border: '1px solid hsl(var(--accent) / 0.4)',
+                      }}
+                    >
+                      #{brew.batchNumber}
+                    </span>
+                  )}
+                </h2>
+                {/* Status badge - glassmorphism style, right of title */}
+                <span
+                  className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
+                  style={{ 
+                    fontSize: '11px',
+                    background: isCompletedOrConditioning 
+                      ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                      : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
+                    color: isCompletedOrConditioning ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                    border: isCompletedOrConditioning
+                      ? "1px solid hsl(var(--primary) / 0.3)" 
+                      : "1px solid hsl(var(--ferment-green) / 0.4)",
+                    boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
+                    textShadow: "none"
+                  }}
+                >
+                  {statusText}
+                </span>
+              </div>
               <p 
                 className="text-muted-foreground/60 truncate font-medium" 
                 style={{ fontSize: '11px', letterSpacing: '0.02em' }}
@@ -150,24 +170,6 @@ function BrewCardComponent({
                 />
               </div>
             )}
-            {/* Status badge - glassmorphism style */}
-            <span
-              className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
-              style={{ 
-                fontSize: '11px',
-                background: isCompletedOrConditioning 
-                  ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
-                  : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
-                color: isCompletedOrConditioning ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                border: isCompletedOrConditioning
-                  ? "1px solid hsl(var(--primary) / 0.3)" 
-                  : "1px solid hsl(var(--ferment-green) / 0.4)",
-                boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
-                textShadow: "none"
-              }}
-            >
-              {statusText}
-            </span>
           </div>
         </div>
       </div>
