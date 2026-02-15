@@ -161,6 +161,40 @@ export function ActiveFermentationSession({
     }
   }, [preloadedSession, compact, brewId]);
 
+  // Keep controller data fresh via realtime in compact/preloaded mode
+  // This ensures target_temp updates during ramp steps are reflected
+  useEffect(() => {
+    if (!preloadedSession || !compact) return;
+    const cId = preloadedSession.controller_id;
+    if (!cId) return;
+
+    const channel = supabase
+      .channel(`ferm-ctrl-${cId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rapt_temp_controllers',
+          filter: `controller_id=eq.${cId}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          setControllerData(prev => ({
+            ...prev,
+            current_temp: newData.current_temp ?? prev?.current_temp ?? null,
+            target_temp: newData.target_temp ?? prev?.target_temp ?? null,
+            name: prev?.name ?? '',
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [preloadedSession?.controller_id, compact]);
+
   // Load session data (only if not using preloaded data)
   const loadSession = useCallback(async () => {
     // Skip loading if using preloaded session in compact mode
