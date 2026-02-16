@@ -1,8 +1,8 @@
-export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp';
+export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement';
 export type RampType = 'linear' | 'immediate';
 export type SgComparison = 'at_or_below' | 'at_or_above';
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'cancelled';
-export type LogAction = 'started' | 'temp_adjusted' | 'condition_met' | 'completed' | 'paused' | 'resumed' | 'cancelled';
+export type LogAction = 'started' | 'temp_adjusted' | 'condition_met' | 'completed' | 'paused' | 'resumed' | 'cancelled' | 'acknowledged';
 
 export interface FermentationProfile {
   id: string;
@@ -59,6 +59,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'wait_for_gravity_stable': 'Vänta på stabil SG',
   'wait_for_sg': 'Vänta på SG-värde',
   'wait_for_temp': 'Vänta på temperatur',
+  'wait_for_acknowledgement': 'Torrhumla',
 };
 
 export const RAMP_TYPE_LABELS: Record<RampType, string> = {

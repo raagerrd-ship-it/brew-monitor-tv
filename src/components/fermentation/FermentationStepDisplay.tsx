@@ -1,4 +1,4 @@
-import { Thermometer, Clock, Activity, ArrowDown, ArrowUp, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Thermometer, Clock, Activity, ArrowDown, ArrowUp, ChevronRight, Loader2, AlertCircle, Hand } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 
 interface FermentationStepDisplayProps {
@@ -49,6 +49,7 @@ export function FermentationStepDisplay({
       case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
       case 'wait_for_sg': return <Activity className="h-3 w-3" />;
+      case 'wait_for_acknowledgement': return <Hand className="h-3 w-3" />;
       default: return <Clock className="h-3 w-3" />;
     }
   };
@@ -70,6 +71,8 @@ export function FermentationStepDisplay({
         return `Stabil SG ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+      case 'wait_for_acknowledgement':
+        return 'Väntar på kvittering';
       default:
         return '';
     }
@@ -156,6 +159,8 @@ export function FermentationStepDisplay({
         return `Stabil i ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+      case 'wait_for_acknowledgement':
+        return 'Kvittera för att fortsätta';
       default:
         return '';
     }

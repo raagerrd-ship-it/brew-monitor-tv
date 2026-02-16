@@ -9,7 +9,7 @@ interface ProfileStep {
   id: string
   profile_id: string
   step_order: number
-  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp'
+  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement'
   target_temp: number | null
   duration_hours: number | null
   ramp_type: 'linear' | 'immediate' | null
@@ -430,6 +430,13 @@ Deno.serve(async (req) => {
               }
             }
           }
+          break
+        }
+
+        case 'wait_for_acknowledgement': {
+          // This step never auto-completes - it requires manual acknowledgement from the user
+          // The edge function just skips it; the UI handles the acknowledge action
+          actionTaken = 'checked'
           break
         }
       }
