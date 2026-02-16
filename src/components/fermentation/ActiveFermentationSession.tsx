@@ -415,6 +415,55 @@ export function ActiveFermentationSession({
     setAcknowledgeLoading(false);
   }, [session, toast]);
 
+  // Acknowledge a wait_for_acknowledgement step (advance to next step)
+  const handleAcknowledgeStep = useCallback(async () => {
+    if (!session || !session.steps) return;
+    
+    setAcknowledgeLoading(true);
+    const nextStepIndex = session.current_step_index + 1;
+    
+    if (nextStepIndex >= session.steps.length) {
+      // Complete the profile
+      const { error } = await supabase
+        .from('fermentation_sessions')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', session.id);
+
+      if (!error) {
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: 'acknowledged',
+          details: { message: 'Torrhumla kvitterad - profil slutförd' }
+        });
+        toast({ title: "Kvitterad", description: "Steget kvitterat - profilen slutförd" });
+        loadSession();
+      }
+    } else {
+      const { error } = await supabase
+        .from('fermentation_sessions')
+        .update({ 
+          current_step_index: nextStepIndex,
+          step_started_at: new Date().toISOString(),
+          step_start_temp: controllerData?.target_temp ?? null
+        })
+        .eq('id', session.id);
+
+      if (!error) {
+        await supabase.from('fermentation_step_log').insert({
+          session_id: session.id,
+          step_index: session.current_step_index,
+          action: 'acknowledged',
+          details: { message: 'Torrhumla kvitterad' }
+        });
+        toast({ title: "Kvitterad", description: `Gått vidare till steg ${nextStepIndex + 1}` });
+        loadSession();
+      }
+    }
+    
+    setAcknowledgeLoading(false);
+  }, [session, controllerData, toast, loadSession]);
+
   const calculateProgress = useCallback(() => {
     if (!session?.steps?.length) return 0;
     const totalSteps = session.steps.length;
@@ -498,6 +547,9 @@ export function ActiveFermentationSession({
   // Detect if we're in a gravity stability check step (allows manual skip)
   const isWaitingForGravityStable = currentStep?.step_type === 'wait_for_gravity_stable';
 
+  // Detect if we're in an acknowledgement step
+  const isWaitingForAcknowledgement = currentStep?.step_type === 'wait_for_acknowledgement';
+
   // Compact view uses the dedicated component
   if (compact) {
     // Get SG target from current step if it's SG-conditioned
@@ -524,6 +576,7 @@ export function ActiveFermentationSession({
         sgData={sgData}
         isWaitingForGravityStable={isWaitingForGravityStable}
         onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
+        onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
         acknowledgeLoading={acknowledgeLoading}
       />
     );
@@ -685,6 +738,7 @@ function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverview
       case 'wait_for_temp': return '⏳';
       case 'wait_for_gravity_stable': return '📊';
       case 'wait_for_sg': return '📈';
+      case 'wait_for_acknowledgement': return '✋';
       default: return '⏱';
     }
   };

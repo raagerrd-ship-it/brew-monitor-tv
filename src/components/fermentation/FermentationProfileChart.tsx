@@ -55,7 +55,7 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
 
     steps.forEach((step, index) => {
       const startHour = currentHour;
-      const isWaitingStep = ['wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(step.step_type);
+      const isWaitingStep = ['wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp', 'wait_for_acknowledgement'].includes(step.step_type);
       const isSgBasedHold = step.step_type === 'hold' && step.target_sg !== null;
       
       // Estimate duration for waiting steps (for visualization)
@@ -67,6 +67,8 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
           stepDuration = 2; // Estimate 2 hours to reach temp
         } else if (step.step_type === 'wait_for_sg' || isSgBasedHold) {
           stepDuration = 48; // Estimate 48 hours for SG target
+        } else if (step.step_type === 'wait_for_acknowledgement') {
+          stepDuration = 4; // Estimate 4 hours for manual action
         }
       }
 
@@ -224,6 +226,7 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
       case 'wait_for_gravity_stable': return 'hsl(142 71% 45%)'; // green
       case 'wait_for_sg': return 'hsl(142 71% 45%)';
       case 'wait_for_temp': return 'hsl(217 91% 60%)'; // blue
+      case 'wait_for_acknowledgement': return 'hsl(38 92% 50%)'; // amber
       default: return 'hsl(var(--muted-foreground))';
     }
   };

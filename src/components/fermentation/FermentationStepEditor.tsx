@@ -97,6 +97,7 @@ export function FermentationStepEditor({
       gravity_stable_days: null,
       gravity_threshold: null,
       ramp_type: null,
+      target_temp: null,
     };
 
     switch (stepType) {
@@ -124,6 +125,9 @@ export function FermentationStepEditor({
       case "wait_for_sg":
         stepData.target_sg = targetSg ? parseFloat(targetSg) : null;
         stepData.sg_comparison = sgComparison;
+        break;
+      case "wait_for_acknowledgement":
+        // No additional fields needed - just waits for manual acknowledgement
         break;
     }
 
@@ -333,6 +337,16 @@ export function FermentationStepEditor({
               Steget fortsätter när SG-värdet når det angivna villkoret.
             </p>
           </>
+        );
+
+      case "wait_for_acknowledgement":
+        return (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Steget pausar profilen och väntar på att du kvitterar manuellt innan nästa steg startar. 
+              Använd t.ex. för torrhumling eller andra manuella moment.
+            </p>
+          </div>
         );
 
       default:

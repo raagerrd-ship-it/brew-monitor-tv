@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check } from "lucide-react";
+import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check, Hand } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, PulseOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
@@ -39,6 +39,7 @@ interface FermentationSessionCompactProps {
   sgData?: SgDataPoint[];
   isWaitingForGravityStable?: boolean;
   onAcknowledge?: () => void;
+  onAcknowledgeStep?: () => void;
   acknowledgeLoading?: boolean;
 }
 
@@ -61,6 +62,7 @@ export function FermentationSessionCompact({
   sgData,
   isWaitingForGravityStable = false,
   onAcknowledge,
+  onAcknowledgeStep,
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
 
@@ -96,6 +98,7 @@ export function FermentationSessionCompact({
       case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
       case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
       case 'wait_for_sg': return <Activity className="h-3 w-3" />;
+      case 'wait_for_acknowledgement': return <Hand className="h-3 w-3" />;
       default: return <Clock className="h-3 w-3" />;
     }
   };
@@ -158,6 +161,8 @@ export function FermentationSessionCompact({
       }
       case 'wait_for_sg':
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(4) ?? ''}`;
+      case 'wait_for_acknowledgement':
+        return 'Väntar på kvittering';
       default:
         return '';
     }
@@ -330,6 +335,32 @@ export function FermentationSessionCompact({
               <Timer className="h-3 w-3" />
               Väntar
             </Badge>
+          )}
+          {onAcknowledgeStep && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAcknowledgeStep();
+              }}
+              disabled={acknowledgeLoading}
+              className="h-5 px-2 text-xs font-medium gap-1"
+              style={{
+                color: 'hsl(38 92% 70%)',
+                background: 'hsl(38 92% 50% / 0.15)',
+                borderColor: 'hsl(38 92% 50% / 0.3)',
+              }}
+            >
+              {acknowledgeLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-3 w-3" />
+                  Kvittera
+                </>
+              )}
+            </Button>
           )}
         </div>
         
