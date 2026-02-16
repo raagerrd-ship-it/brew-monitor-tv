@@ -1,0 +1,3 @@
+-- Drop the old check constraint and add updated one with wait_for_acknowledgement
+ALTER TABLE public.fermentation_profile_steps DROP CONSTRAINT IF EXISTS fermentation_profile_steps_step_type_check;
+ALTER TABLE public.fermentation_profile_steps ADD CONSTRAINT fermentation_profile_steps_step_type_check CHECK (step_type IN ('hold', 'ramp', 'wait_for_temp', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_acknowledgement'));
