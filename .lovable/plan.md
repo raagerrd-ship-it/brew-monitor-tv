@@ -15,10 +15,13 @@ Implementerat. Delta-historik sparas, stigande delta okar kylning 1.5x, hog delt
 ## Del 3: Varningar vid hogt delta ✅
 Implementerat. Alerts skapas vid delta over troskelvarde, konfigurerbart i Settings.
 
-## Del 4: Jasningsstall-detektion ✅
+## Del 4: Jasningsstall-detektion med AI ✅
 Implementerat. Detekterar nar jasningen saktar in (rate < threshold) och SG ar langt fran FG.
 - Skapar alert av typ `fermentation_stall`
-- Kan automatiskt hoja temp pa controllern (auto-boost, konfigurerbart)
+- Konsulterar AI (Gemini) med all bryggdata: SG-historik, delta-trend, olstil, temp
+- AI rekommenderar exakt atgard: hoj/sank temp, antal grader, konfidens
+- Verkstaller automatiskt om konfidens >= 50%
+- Fallback till fast +X°C om AI ej tillganglig
 - Nya kolumner: `auto_boost_enabled`, `auto_boost_degrees`, `stall_rate_threshold`
 
 ## Teknisk sammanfattning
@@ -26,6 +29,9 @@ Implementerat. Detekterar nar jasningen saktar in (rate < threshold) och SG ar l
 ### Databastabeller
 1. `temp_delta_history` - historik over pill vs controller delta
 2. `temp_delta_alerts` - aktiva varningar (inkl `fermentation_stall` typ)
+
+### Edge Functions
+- `ai-fermentation-advisor` - AI-driven stallanalys med tool-calling
 
 ### Kolumner i auto_cooling_settings
 - `delta_alert_threshold` (decimal, default 2.0)

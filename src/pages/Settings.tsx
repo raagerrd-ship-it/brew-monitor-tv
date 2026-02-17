@@ -2011,9 +2011,11 @@ export default function Settings() {
                       Jäsningsstall-detektion
                     </h3>
                     
-                    <p className="text-xs text-muted-foreground">
+                     <p className="text-xs text-muted-foreground">
                       Upptäcker när jäsningen saktar in för mycket och SG fortfarande är långt från FG. 
-                      Kan automatiskt höja temperaturen för att starta om jäsningen.
+                      När aktiverad konsulteras AI med all bryggdata (SG-historik, delta-trend, ölstil, temp) 
+                      och verkställer rekommendationen automatiskt. Om AI inte är tillgänglig faller den tillbaka 
+                      på fast temp-höjning.
                     </p>
 
                     <div className="flex items-center space-x-2">
@@ -2022,11 +2024,11 @@ export default function Settings() {
                         checked={autoBoostEnabled}
                         onCheckedChange={handleAutoBoostEnabledChange}
                       />
-                      <label
+                       <label
                         htmlFor="auto-boost-enabled"
                         className="text-sm cursor-pointer leading-none"
                       >
-                        Höj temp automatiskt vid stall
+                        AI-styrd temp-justering vid stall
                       </label>
                     </div>
 
@@ -2064,9 +2066,9 @@ export default function Settings() {
                       )}
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
+                     <p className="text-xs text-muted-foreground">
                       Varnar när jäsningshastigheten &lt; {stallRateThreshold} SG/dag och mer än 20% kvar till FG.
-                      {autoBoostEnabled && ` Höjer automatiskt med +${autoBoostDegrees}°C.`}
+                      {autoBoostEnabled && ` AI bestämmer optimal justering. Fallback: +${autoBoostDegrees}°C om AI ej tillgänglig.`}
                     </p>
                   </div>
 
@@ -2094,8 +2096,10 @@ export default function Settings() {
                       <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
                       <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
                       <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
-                      <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
-                      {autoBoostEnabled && <p>• Höjer temp automatiskt med +{autoBoostDegrees}°C vid stall</p>}
+                       <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
+                      {autoBoostEnabled && <p>• 🧠 AI analyserar SG-historik, delta-trend, ölstil och rekommenderar exakt temp-ändring</p>}
+                      {autoBoostEnabled && <p>• AI-rekommendation verkställs automatiskt (min 50% konfidensgrad)</p>}
+                      {autoBoostEnabled && <p>• Om AI inte är tillgänglig: fallback till +{autoBoostDegrees}°C</p>}
                       <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
                       <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
                     </CollapsibleContent>
