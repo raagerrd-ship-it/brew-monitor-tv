@@ -125,6 +125,12 @@ export function BrewManagement() {
     }
   };
 
+  const [timerBrewMatch, setTimerBrewMatch] = useState<{
+    style?: string;
+    description?: string;
+    label_image_url?: string;
+  } | null>(null);
+
   const loadTimerData = async () => {
     try {
       const { data } = await supabase
@@ -135,8 +141,27 @@ export function BrewManagement() {
         .maybeSingle();
       
       if (data) {
-        setTimerRecipeName((data as Record<string, unknown>).recipe_name as string | null);
+        const recipeName = (data as Record<string, unknown>).recipe_name as string | null;
+        setTimerRecipeName(recipeName);
         setTimerBeerStyle((data as Record<string, unknown>).beer_style as string | null);
+
+        // Look up existing brew with same name for better prefill data
+        if (recipeName) {
+          const { data: existingBrew } = await supabase
+            .from('brew_readings')
+            .select('style, description, label_image_url')
+            .eq('name', recipeName)
+            .limit(1)
+            .maybeSingle();
+          
+          if (existingBrew) {
+            setTimerBrewMatch({
+              style: (existingBrew as Record<string, unknown>).style as string | undefined,
+              description: (existingBrew as Record<string, unknown>).description as string | undefined,
+              label_image_url: (existingBrew as Record<string, unknown>).label_image_url as string | undefined,
+            });
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading timer data:', error);
@@ -298,7 +323,9 @@ export function BrewManagement() {
               onClick={() => {
                 setPrefillData({
                   name: timerRecipeName || '',
-                  style: timerBeerStyle || '',
+                  style: timerBrewMatch?.style || timerBeerStyle || '',
+                  description: timerBrewMatch?.description || undefined,
+                  label_image_url: timerBrewMatch?.label_image_url || undefined,
                 });
                 setShowCustomBrewDialog(true);
               }}

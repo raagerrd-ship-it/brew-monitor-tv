@@ -54,6 +54,8 @@ interface SgDataPoint {
 export interface CustomBrewPrefill {
   name?: string;
   style?: string;
+  description?: string;
+  label_image_url?: string;
 }
 
 interface CustomBrewDialogProps {
@@ -204,8 +206,8 @@ export function CustomBrewDialog({
         setOriginalStatus("Jäsning");
         setSgData([]);
         setSelectedEndPointIndex("");
-        setLabelImageUrl(null);
-        setDescription("");
+        setLabelImageUrl(prefill?.label_image_url || null);
+        setDescription(prefill?.description || "");
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
