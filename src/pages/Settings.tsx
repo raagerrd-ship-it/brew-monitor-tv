@@ -74,6 +74,9 @@ export default function Settings() {
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
+  const [autoBoostEnabled, setAutoBoostEnabled] = useState(false);
+  const [autoBoostDegrees, setAutoBoostDegrees] = useState<string>("1");
+  const [stallRateThreshold, setStallRateThreshold] = useState<string>("0.001");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -429,6 +432,9 @@ export default function Settings() {
         setCoolerControllerId(data.cooler_controller_id || "");
         setLastAutoCoolingCheck(data.last_check_at);
         setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2).toString());
+        setAutoBoostEnabled((data as any).auto_boost_enabled ?? false);
+        setAutoBoostDegrees(((data as any).auto_boost_degrees ?? 1).toString());
+        setStallRateThreshold(((data as any).stall_rate_threshold ?? 0.001).toString());
       }
 
       // Load followed controllers
@@ -939,6 +945,54 @@ export default function Settings() {
         description: "Kunde inte spara inställningar",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleAutoBoostEnabledChange = async (checked: boolean) => {
+    setAutoBoostEnabled(checked);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ auto_boost_enabled: checked } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: checked ? "Auto-boost aktiverad" : "Auto-boost inaktiverad" });
+    } catch (error) {
+      console.error('Error updating auto boost:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleAutoBoostDegreesChange = async (value: string) => {
+    setAutoBoostDegrees(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ auto_boost_degrees: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Boost-grader har uppdaterats" });
+    } catch (error) {
+      console.error('Error updating boost degrees:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleStallRateThresholdChange = async (value: string) => {
+    setStallRateThreshold(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ stall_rate_threshold: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Stall-tröskelvärde har uppdaterats" });
+    } catch (error) {
+      console.error('Error updating stall threshold:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
 
@@ -1950,6 +2004,72 @@ export default function Settings() {
                     </p>
                   </div>
 
+                  {/* FERMENTATION STALL DETECTION */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                      Jäsningsstall-detektion
+                    </h3>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Upptäcker när jäsningen saktar in för mycket och SG fortfarande är långt från FG. 
+                      Kan automatiskt höja temperaturen för att starta om jäsningen.
+                    </p>
+
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        id="auto-boost-enabled"
+                        checked={autoBoostEnabled}
+                        onCheckedChange={handleAutoBoostEnabledChange}
+                      />
+                      <label
+                        htmlFor="auto-boost-enabled"
+                        className="text-sm cursor-pointer leading-none"
+                      >
+                        Höj temp automatiskt vid stall
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Stall-tröskel (SG/dag)</label>
+                        <Select value={stallRateThreshold} onValueChange={handleStallRateThresholdChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.0005">0.0005</SelectItem>
+                            <SelectItem value="0.001">0.001</SelectItem>
+                            <SelectItem value="0.002">0.002</SelectItem>
+                            <SelectItem value="0.003">0.003</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {autoBoostEnabled && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Temp-höjning</label>
+                          <Select value={autoBoostDegrees} onValueChange={handleAutoBoostDegreesChange}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border z-50">
+                              <SelectItem value="0.5">+0.5°C</SelectItem>
+                              <SelectItem value="1">+1°C</SelectItem>
+                              <SelectItem value="1.5">+1.5°C</SelectItem>
+                              <SelectItem value="2">+2°C</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Varnar när jäsningshastigheten &lt; {stallRateThreshold} SG/dag och mer än 20% kvar till FG.
+                      {autoBoostEnabled && ` Höjer automatiskt med +${autoBoostDegrees}°C.`}
+                    </p>
+                  </div>
+
                   {/* HISTORY */}
                   <Collapsible>
                     <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors group">
@@ -1974,6 +2094,8 @@ export default function Settings() {
                       <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
                       <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
                       <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
+                      <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
+                      {autoBoostEnabled && <p>• Höjer temp automatiskt med +{autoBoostDegrees}°C vid stall</p>}
                       <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
                       <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
                     </CollapsibleContent>
