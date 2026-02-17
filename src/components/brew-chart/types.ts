@@ -49,6 +49,10 @@ export interface BrewChartProps {
   lastUpdateRaw?: string | null;
   /** Number of brews displayed - affects TV chart viewBox proportions */
   brewCount?: number;
+  /** Externally controlled smooth lines state */
+  smoothLines?: boolean;
+  /** Callback when smooth lines state changes */
+  onSmoothLinesChange?: (value: boolean) => void;
 }
 
 export interface EventDisplay {

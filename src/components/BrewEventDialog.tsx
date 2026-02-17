@@ -39,6 +39,8 @@ interface BrewEventDialogProps {
   brewName: string;
   events: BrewEvent[];
   onEventsChange: () => void;
+  /** Custom trigger element instead of default button */
+  trigger?: React.ReactNode;
 }
 
 const EVENT_TYPES = [
@@ -55,6 +57,7 @@ export function BrewEventDialog({
   brewName,
   events,
   onEventsChange,
+  trigger,
 }: BrewEventDialogProps) {
   const [open, setOpen] = useState(false);
   const [eventType, setEventType] = useState<string>("");
@@ -175,15 +178,17 @@ export function BrewEventDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="h-8 w-8"
-          disabled={!isAuthenticated}
-          title={!isAuthenticated ? "Logga in för att lägga till händelser" : ""}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        {trigger || (
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-8 w-8"
+            disabled={!isAuthenticated}
+            title={!isAuthenticated ? "Logga in för att lägga till händelser" : ""}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
