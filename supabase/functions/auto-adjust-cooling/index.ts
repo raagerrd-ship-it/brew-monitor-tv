@@ -16,6 +16,7 @@ interface AutoCoolingSettings {
   max_diff_from_lowest: number;
   cooler_controller_id: string | null;
   last_check_at: string | null;
+  delta_alert_threshold: number;
 }
 
 interface TempController {
@@ -450,7 +451,90 @@ serve(async (req) => {
     const adjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
     const strugglingController = lowestTempController;
 
-    const proposedNewTarget = currentCoolerTarget - parseFloat(String(settings.temp_reduction_degrees));
+    // === DELTA ANALYSIS ===
+    // Check pill vs controller delta for each followed controller
+    let deltaMultiplier = 1.0;
+    
+    for (const fc of followedControllersFullData) {
+      if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
+      
+      const pillTemp = parseFloat(String(fc.pill_temp));
+      const ctrlTemp = parseFloat(String(fc.current_temp));
+      const currentDelta = pillTemp - ctrlTemp;
+      
+      log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`, {
+        pill_temp: pillTemp,
+        controller_temp: ctrlTemp,
+        delta: currentDelta
+      });
+
+      // Check delta trend from history
+      const { data: deltaHistory } = await supabase
+        .from('temp_delta_history')
+        .select('delta, recorded_at')
+        .eq('controller_id', fc.controller_id)
+        .order('recorded_at', { ascending: false })
+        .limit(5);
+
+      if (deltaHistory && deltaHistory.length >= 2) {
+        const recentDeltas = deltaHistory.map(d => parseFloat(String(d.delta)));
+        const avgRecentDelta = recentDeltas.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+        const avgOlderDelta = recentDeltas.slice(2).reduce((a, b) => a + b, 0) / Math.max(recentDeltas.length - 2, 1);
+        const deltaRising = avgRecentDelta > avgOlderDelta + 0.1;
+
+        log('DELTA_TREND', deltaRising ? 'action' : 'info', 
+          deltaRising ? `Delta RISING for ${fc.name} (${avgOlderDelta.toFixed(1)}° → ${avgRecentDelta.toFixed(1)}°)` 
+                      : `Delta stable for ${fc.name}`, {
+          recent_avg: avgRecentDelta,
+          older_avg: avgOlderDelta,
+          trend: deltaRising ? 'rising' : 'stable'
+        });
+
+        if (deltaRising) {
+          deltaMultiplier = Math.max(deltaMultiplier, 1.5);
+        }
+      }
+
+      // High delta = aggressive cooling
+      if (currentDelta > 1.5) {
+        log('DELTA_HIGH', 'action', `High delta (${currentDelta.toFixed(1)}°) for ${fc.name} — doubling reduction`);
+        deltaMultiplier = Math.max(deltaMultiplier, 2.0);
+      }
+
+      // Generate alert if delta exceeds threshold
+      const alertThreshold = (settings as any).delta_alert_threshold ?? 2.0;
+      if (currentDelta > alertThreshold) {
+        log('DELTA_ALERT', 'action', `Delta ${currentDelta.toFixed(1)}° exceeds threshold ${alertThreshold}° for ${fc.name}`);
+        
+        // Check if there's already an unacknowledged alert for this controller
+        const { data: existingAlerts } = await supabase
+          .from('temp_delta_alerts')
+          .select('id')
+          .eq('controller_id', fc.controller_id)
+          .eq('acknowledged', false)
+          .limit(1);
+
+        if (!existingAlerts || existingAlerts.length === 0) {
+          await supabase.from('temp_delta_alerts').insert({
+            controller_id: fc.controller_id,
+            delta: currentDelta,
+            alert_type: 'high_delta'
+          } as any);
+          log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
+        } else {
+          log('DELTA_ALERT', 'info', `Alert already exists for ${fc.name}`);
+        }
+      }
+    }
+
+    const baseTempReduction = parseFloat(String(settings.temp_reduction_degrees));
+    const effectiveTempReduction = baseTempReduction * deltaMultiplier;
+    
+    if (deltaMultiplier > 1.0) {
+      log('DELTA_ADJUSTMENT', 'action', `Delta multiplier: ${deltaMultiplier}x (${baseTempReduction}°C → ${effectiveTempReduction.toFixed(1)}°C reduction)`);
+    }
+
+    const proposedNewTarget = currentCoolerTarget - effectiveTempReduction;
     const maxAllowedTarget = lowestTargetTemp - parseFloat(String(settings.max_diff_from_lowest));
     
     let finalTarget = proposedNewTarget;

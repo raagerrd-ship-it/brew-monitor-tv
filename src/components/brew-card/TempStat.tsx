@@ -19,6 +19,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   // Use controller's built-in temp if available, otherwise fall back to pill/brew temp
   const displayTemp = controller?.current_temp ?? brew.currentTemp;
 
+  // Calculate delta: pill (surface) - controller (core)
+  const hasBothSensors = pill && controller?.current_temp !== null && controller?.current_temp !== undefined;
+  const delta = hasBothSensors ? brew.currentTemp - controller.current_temp! : null;
+
   const thermometerIcon = (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
       <path 
@@ -57,10 +61,30 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   if (pill) {
     tooltipParts.push(`Pill: ${brew.currentTemp.toFixed(1)}°`);
   }
+  if (delta !== null) {
+    tooltipParts.push(`Delta: ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°`);
+  }
 
   const handleClick = controller && onControllerClick 
     ? () => onControllerClick(controller) 
     : undefined;
+
+  // Delta indicator sub-element
+  const deltaIndicator = delta !== null && !isInactive ? (
+    <span 
+      className="text-[9px] font-medium leading-none flex items-center gap-0.5"
+      style={{ 
+        color: delta > 0 
+          ? 'hsl(var(--ferment-green))' 
+          : delta < 0 
+            ? 'hsl(210 80% 60%)' 
+            : 'hsl(var(--muted-foreground))'
+      }}
+    >
+      {delta > 0 ? '▲' : delta < 0 ? '▼' : '─'}
+      {delta >= 0 ? '+' : ''}{delta.toFixed(1)}°
+    </span>
+  ) : null;
 
   return (
     <StatCard
@@ -73,6 +97,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       icon={thermometerIcon}
       onClick={handleClick}
       clickable={!!handleClick}
+      subValue={deltaIndicator}
     />
   );
 }

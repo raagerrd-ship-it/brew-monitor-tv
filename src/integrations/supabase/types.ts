@@ -115,6 +115,7 @@ export type Database = {
           check_interval_minutes: number
           cooler_controller_id: string | null
           created_at: string
+          delta_alert_threshold: number
           enabled: boolean
           id: string
           last_check_at: string | null
@@ -126,6 +127,7 @@ export type Database = {
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
+          delta_alert_threshold?: number
           enabled?: boolean
           id?: string
           last_check_at?: string | null
@@ -137,6 +139,7 @@ export type Database = {
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
+          delta_alert_threshold?: number
           enabled?: boolean
           id?: string
           last_check_at?: string | null
@@ -983,6 +986,63 @@ export type Database = {
           id?: string
           recorded_at?: string
           target_temp?: number
+        }
+        Relationships: []
+      }
+      temp_delta_alerts: {
+        Row: {
+          acknowledged: boolean
+          alert_type: string
+          controller_id: string
+          created_at: string
+          delta: number
+          id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          alert_type?: string
+          controller_id: string
+          created_at?: string
+          delta: number
+          id?: string
+        }
+        Update: {
+          acknowledged?: boolean
+          alert_type?: string
+          controller_id?: string
+          created_at?: string
+          delta?: number
+          id?: string
+        }
+        Relationships: []
+      }
+      temp_delta_history: {
+        Row: {
+          controller_id: string
+          controller_temp: number
+          created_at: string
+          delta: number
+          id: string
+          pill_temp: number
+          recorded_at: string
+        }
+        Insert: {
+          controller_id: string
+          controller_temp: number
+          created_at?: string
+          delta: number
+          id?: string
+          pill_temp: number
+          recorded_at?: string
+        }
+        Update: {
+          controller_id?: string
+          controller_temp?: number
+          created_at?: string
+          delta?: number
+          id?: string
+          pill_temp?: number
+          recorded_at?: string
         }
         Relationships: []
       }
