@@ -515,7 +515,7 @@ export function RaptControllersManagement() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold truncate">{controller.name}</h4>
+                        <h4 className="font-semibold break-words">{controller.name}</h4>
                         {isCooler && (
                           <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
                             <Snowflake className="h-3 w-3 mr-1" />
