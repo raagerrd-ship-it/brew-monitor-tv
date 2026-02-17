@@ -1,35 +1,27 @@
 
+# Forbattringar av olkorten for TV-visning
 
-# Förenkla enhetskoppling for bryggningar
+## A. Bakgrundsikoner i stat-korten
 
-## Vad som forändras
+Varje stat-kort skickar redan in en `icon`-prop (termometer, glas, bubblor, batteri) men den renderas aldrig. Ikonen visas nu som en stor, subtil bakgrundsikon i nedre hogra hornet av varje kort -- ger omedelbar visuell igenkanning pa avstand utan att behova lasa labeltexten.
 
-### 1. Ta bort separat Pill-dropdown i CustomBrewDialog
-Pill-valet (rad 615-633 i CustomBrewDialog) tas bort helt. Pill löses alltid automatiskt från vald controller -- detta fungerar redan idag via `sync-custom-brew-pills` edge function.
+**Fil: `src/components/brew-card/StatCard.tsx`**
+- Rendera `icon`-propen som en absolut-positionerad div (ca 70% av kortets hojd, placerad i nedre hogra hornet)
+- Opacity ca 8-10% sa den inte stor det numeriska vardet
+- `pointer-events-none` sa den inte paverkar klick
 
-### 2. Ta bort BrewDeviceLinkDialog helt
-Eftersom du aldrig byter controller efter skapande behövs inte den separata dialogen. Filen `BrewDeviceLinkDialog.tsx` raderas och alla referenser i `BrewingDashboard.tsx` tas bort.
+## B. Oka textstorlekar for TV-lasbarhet
 
-### 3. Ta bort "ändra koppling"-knappen på brew cards
-Knappen som öppnar BrewDeviceLinkDialog på dashboarden tas bort. Controller-info visas fortfarande som read-only.
+**Fil: `src/components/brew-card/StatCard.tsx`**
+- Default label-storlek: 9px -> 10px
 
-### 4. Visa controller + pill tydligare vid skapande
-I CustomBrewDialog, under controller-dropdownen, visas automatiskt vilken pill som hör till vald controller (liknande den info som redan finns i BrewDeviceLinkDialog, men inline).
+**Fil: `src/components/brew-card/GravityStat.tsx`**
+- OG/FG-varden: 7px -> 9px
+- Jasningshastighet: 8px -> 10px
 
-## Resultat
-- En dropdown istället for två vid skapande
-- Ingen möjlighet att "ändra" koppling i efterhand (eftersom det aldrig behövs)
-- Pill visas som info, inte som val
+**Fil: `src/components/brew-card/BrewCard.tsx`**
+- Custom brew badge (#nummer): 7px -> 9px
 
-## Tekniska detaljer
+## Sammanfattning
 
-**Filer som andras:**
-- `src/components/CustomBrewDialog.tsx` -- Ta bort pill-dropdown (rad 615-633), lägga till info-text om vilken pill som hör till vald controller
-- `src/components/BrewingDashboard.tsx` -- Ta bort all `deviceLinkDialog`-state, `handleDeviceLinkOpen` callback, och `BrewDeviceLinkDialog`-rendering
-- `src/components/BrewDeviceLinkDialog.tsx` -- Radera filen
-
-**Filer som kan behöva andras:**
-- `src/components/brew-card/BrewCard.tsx` -- Ta bort eventuell knapp/ikon for att öppna device link dialog
-
-**Ingen databasändring behövs** -- `linked_controller_id` och `linked_pill_id` kolumnerna behålls som de är.
-
+Tva anderingar, sex filer, inga nya beroenden. Fokus pa att gora korten mer latta att avlasa fran soffa-avstand pa TV.
