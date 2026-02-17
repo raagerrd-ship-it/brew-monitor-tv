@@ -1,55 +1,82 @@
 
+# Temperatur-Delta: Pill vs Controller
 
-# Layout-granskning -- observationer och forslag
+## Bakgrund
+- **Pill** (RAPT Pill): flyter pa ytan, mater yttemperatur
+- **Controller** (inbyggd sensor): sitter i mitten, mater karntemperatur
+- **Delta** (Pill - Controller): positiv = ytan ar varmare an mitten = aktiv jasning genererar varme som stiger uppat
 
-Jag har gatt igenom hela dashboarden, settings-sidan och komponenterna noggrant. Overlag ar layouten valdesignad och konsekvent, men har ar saker jag noterat som kan forbattras:
+## Del 1: Visa delta pa brew-kortet (TempStat)
 
----
+Utoka `TempStat`-komponenten sa att nar bade pill och controller finns, visas deltat som en liten indikator under temperaturvardet.
 
-## 1. Stats-griden har ojamn cellfordelning
+**Visuellt:**
+- Visa t.ex. `+0.8°` i gront (pill varmare) eller `-0.3°` i blatt (pill kallare)
+- Liten pilikon uppat/nedat beroende pa riktning
+- Inkludera delta i tooltip-texten
 
-Brew-kortet har en 3x2 stats-grid dar Gravity tar `rowSpan=2` (hela vansterkolumnen). De ovriga 4 stat-korten (ABV, Temp, Utjasning, Batteri) delar pa 4 celler i 2 kolumner. Det fungerar men **Batteri-cellen saknar `colSpan`** -- den ligger ensam i sista raden/kolumnen medan Utjasning ar bredvid. Om man har en tom cell nere till hoger kan det se obalanserat ut. Bor verifieras att alla celler fyller gridet korrekt.
+**Filer att andra:**
+- `src/components/brew-card/TempStat.tsx` - Berakna delta och visa det visuellt
 
-## 2. App.css ar oanvand boilerplate
+## Del 2: Smartare auto-cooling med delta-trend
 
-Filen `src/App.css` innehaller Vite/React standardboilerplate (`.logo`, `.read-the-docs`, `#root`-styling) som aldrig anvands. Den importeras troligen inte ens, men den bor tas bort for att halla projektet rent.
+Utoka `auto-adjust-cooling` edge-funktionen sa att den tar hansyn till pill_temp vs current_temp-deltat for varje foljd controller.
 
-## 3. Headerns controller-bar klipps pa smal skarm
+**Logik:**
+- Hamta `pill_temp` fran den kopplade pillen (via `linked_pill_id`) for varje foljd controller
+- Om `pill_temp` finns: berakna delta = pill_temp - current_temp
+- Om delta ar stigande (jamfor med senaste historiken): jasningen okar i intensitet, bor kyla mer proaktivt
+- Om delta ar hogt (t.ex. over 1.5C): sank kylaren extra aggressivt (dubblera `temp_reduction_degrees`)
+- Logga delta-vardet i decision log for transparens
 
-I screenshoten syns att den tredje controllern i header-baren ar avklippt till hoger ("14.9°C 6..."). Controller-baren har `overflow-x-auto` men `scrollbar-hide`, sa det gar att scrolla men anvandaren far ingen visuell ledtrad om att det finns mer innehall. En subtle fade-gradient pa hogerkanten eller en scroll-indikator skulle hjalpa.
+**Ny tabell for delta-historik:**
+- `temp_delta_history`: `controller_id`, `pill_temp`, `controller_temp`, `delta`, `recorded_at`
+- Fylls pa av `record-temp-history`-funktionen som redan kor periodiskt
 
-## 4. Settings: Dropdowns saknar konsekvent `z-50`
+**Filer att andra:**
+- `supabase/functions/record-temp-history/index.ts` - Spara delta till ny tabell
+- `supabase/functions/auto-adjust-cooling/index.ts` - Anvand delta-trend i beslut
+- Ny databasmigration for `temp_delta_history`-tabellen
 
-De flesta `SelectContent` har `className="bg-card border-border z-50"` men nagra dropdowns (t.ex. Sonos-sektionen) kan sakna detta, vilket gor dem genomskinliga eller hamnar under andra element.
+## Del 3: Varningar vid hogt delta
 
-## 5. Login-sidan -- ej granskad men vard att kolla
+Nar deltat overstiger ett troskelvarde, varna anvandaren.
 
-Login-sidan ar en separat route som inte granskades. Den bor folja samma morkare design-system.
+**Implementering:**
+- Ny tabell `temp_delta_alerts`: `controller_id`, `delta`, `alert_type`, `acknowledged`, `created_at`
+- I `auto-adjust-cooling`: om delta > konfigurerat troskelvarde, skapa en alert-rad
+- Pa frontend: visa en varningsindikator pa TempStat nar det finns obekraftade alerts
+- Anvandaren kan bekrafta/stanga alerts via klick
 
-## 6. Brew-kortens hover-actions forsvinner pa pekskarm
+**Konfiguration:**
+- Lagg till `delta_alert_threshold` (standard 2.0C) i `auto_cooling_settings`
+- Lagg till UI i Settings for att andra troskelvarde
 
-`group-hover:max-w-[80px]` for Share och Event-knapparna fungerar bara med mus. Pa touchskarm visas de aldrig. Overag att alltid visa dem (eventuellt mer subtilt) eller anvanda en long-press/tap-toggle.
+**Filer att andra:**
+- Ny databasmigration for `temp_delta_alerts` och nytt falt i `auto_cooling_settings`
+- `supabase/functions/auto-adjust-cooling/index.ts` - Generera alerts
+- `src/components/brew-card/TempStat.tsx` - Visa varningsikon
+- `src/pages/Settings.tsx` - Konfiguration av troskelvarde
 
-## 7. Overflodiga `isMobile`-ternarer i DashboardHeader
+## Teknisk sammanfattning
 
-Koden har redundanta uttryck som `width: isMobile ? '1rem' : '1rem'` och `width: isMobile ? '0.7rem' : '0.7rem'` i controller-baren. Dessa gor ingen skillnad och bor forenklas.
+### Nya databastabeller
+1. `temp_delta_history` - historik over pill vs controller delta
+2. `temp_delta_alerts` - aktiva varningar
 
----
+### Nya kolumner
+- `auto_cooling_settings.delta_alert_threshold` (decimal, default 2.0)
 
-## Forslag till plan
+### Andrade filer
+| Fil | Andring |
+|-----|---------|
+| `src/components/brew-card/TempStat.tsx` | Visa delta + varningsikon |
+| `supabase/functions/auto-adjust-cooling/index.ts` | Delta-baserad logik + alerts |
+| `supabase/functions/record-temp-history/index.ts` | Spara delta-historik |
+| `src/pages/Settings.tsx` | Delta-troskelvarde installning |
 
-### Steg 1: Rensa bort `App.css` boilerplate
-Ta bort oanvand CSS i `src/App.css` (eller hela filen om den inte importeras).
-
-### Steg 2: Fixa controller-bar overflow-indikator
-Lagg till en fade-gradient pa hogerkanten av controller-baren nar det finns mer innehall att scrolla till.
-
-### Steg 3: Rensa redundanta ternarer
-Forenka `isMobile ? '1rem' : '1rem'`-uttryck i `DashboardHeader.tsx`.
-
-### Steg 4: Forbattra touch-tillganglighet for brew-kort actions
-Gora Share/Event-knapparna alltid synliga (med lag opacitet) istallet for enbart hover, sa de fungerar pa pekskarm.
-
-### Steg 5: Sakerstall konsekvent dropdown-styling
-Se over alla `SelectContent`-anvandningar och sakerstalla att de har `bg-card border-border z-50`.
-
+### Prioritetsordning
+1. Delta-visning pa brew-kortet (snabb vinst, inget backend-arbete)
+2. Delta-historik-tabell + record-temp-history
+3. Auto-cooling integration med delta-trend
+4. Alert-system
