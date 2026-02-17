@@ -3,6 +3,7 @@ import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive, calculateBatteryFillWidth } from "./utils";
 import { StatCard } from "./StatCard";
+import { Thermometer, Pill } from "lucide-react";
 
 interface BatteryStatProps {
   brew: BrewData;
@@ -11,7 +12,7 @@ interface BatteryStatProps {
 }
 
 function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps) {
-  const { pill } = devices;
+  const { pill, controller } = devices;
   const batteryColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
   
@@ -63,7 +64,33 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
       isInactive={isInactive}
       icon={batteryIcon}
       className={isLowBattery ? 'animate-battery-pulse' : ''}
-    />
+    >
+      {/* Device info badges */}
+      {(controller || pill) && (
+        <div className="flex items-center gap-1.5 z-10 mt-0.5">
+          {controller && (
+            <span 
+              className="flex items-center gap-0.5 text-muted-foreground/50"
+              style={{ fontSize: '8px' }}
+              title={controller.name}
+            >
+              <Thermometer className="h-2.5 w-2.5" style={{ color: pill?.color || 'hsl(var(--primary))' }} />
+              <span className="truncate max-w-[45px]">{controller.name}</span>
+            </span>
+          )}
+          {pill && (
+            <span 
+              className="flex items-center gap-0.5 text-muted-foreground/50"
+              style={{ fontSize: '8px' }}
+              title={pill.name}
+            >
+              <Pill className="h-2.5 w-2.5" style={{ color: pill.color }} />
+              <span className="truncate max-w-[45px]">{pill.name}</span>
+            </span>
+          )}
+        </div>
+      )}
+    </StatCard>
   );
 }
 
