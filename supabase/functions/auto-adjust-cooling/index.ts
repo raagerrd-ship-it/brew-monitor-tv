@@ -604,7 +604,7 @@ serve(async (req) => {
       // Find brew linked to this controller
       const { data: linkedBrews } = await supabase
         .from('brew_readings')
-        .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status')
+        .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
         .eq('linked_controller_id', fc.controller_id)
         .limit(1);
 
@@ -619,8 +619,8 @@ serve(async (req) => {
 
       // Calculate fermentation rate from last 24h of SG data
       const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const now = Date.now();
-      const last24h = sorted.filter(d => (now - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
+      const nowMs = Date.now();
+      const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
       
       if (last24h.length < 2) continue;
 
@@ -651,40 +651,175 @@ serve(async (req) => {
 
         // Check if auto-boost is enabled
         if (settings.auto_boost_enabled) {
-          const boostDegrees = settings.auto_boost_degrees ?? 1.0;
-          const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
-          const newTarget = currentTarget + boostDegrees;
-          const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+          // Fetch delta history for AI context
+          const { data: deltaHistoryForAI } = await supabase
+            .from('temp_delta_history')
+            .select('delta, recorded_at')
+            .eq('controller_id', fc.controller_id)
+            .order('recorded_at', { ascending: false })
+            .limit(10);
 
-          if (newTarget <= maxTemp) {
-            log('AUTO_BOOST', 'action', `Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C to restart fermentation`);
-            
-            const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-              body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+          // Calculate hours at current temp from temp history
+          const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
+          const { data: tempHistory } = await supabase
+            .from('temp_controller_history')
+            .select('target_temp, recorded_at')
+            .eq('controller_id', fc.controller_id)
+            .order('recorded_at', { ascending: false })
+            .limit(100);
+
+          let hoursAtCurrentTemp = 0;
+          if (tempHistory && tempHistory.length > 0) {
+            // Find when target temp last changed
+            for (const record of tempHistory) {
+              if (Math.abs(parseFloat(String(record.target_temp)) - currentTarget) > 0.1) break;
+              const recordTime = new Date(record.recorded_at).getTime();
+              hoursAtCurrentTemp = (nowMs - recordTime) / (1000 * 60 * 60);
+            }
+          }
+
+          const pillTemp = fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null;
+          const ctrlTemp = fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null;
+          const currentDelta = (pillTemp !== null && ctrlTemp !== null) ? pillTemp - ctrlTemp : null;
+
+          // Call AI fermentation advisor
+          log('AI_ADVISOR', 'info', `Consulting AI for ${brew.name}...`);
+          
+          try {
+            const aiResponse = await supabase.functions.invoke('ai-fermentation-advisor', {
+              body: {
+                brewName: brew.name,
+                beerStyle: brew.style || 'Unknown',
+                originalGravity: brew.original_gravity,
+                finalGravity: brew.final_gravity,
+                currentSG: brew.current_sg,
+                currentTemp: ctrlTemp ?? currentTarget,
+                targetTemp: currentTarget,
+                pillTemp,
+                controllerTemp: ctrlTemp,
+                delta: currentDelta,
+                dailyRate,
+                progressPercent: progressPct,
+                sgHistory: sorted.slice(0, 20).map(s => ({ date: s.date, value: s.value })),
+                deltaHistory: (deltaHistoryForAI || []).map(d => ({ delta: parseFloat(String(d.delta)), recorded_at: d.recorded_at })),
+                controllerName: fc.name,
+                maxTargetTemp: parseFloat(String(fc.max_target_temp ?? '25')),
+                minTargetTemp: parseFloat(String(fc.min_target_temp ?? '-5')),
+                hoursAtCurrentTemp,
+              }
             });
 
-            if (!updateResponse.error) {
-              log('AUTO_BOOST', 'pass', `Successfully boosted ${fc.name} to ${newTarget}°C`);
-              adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+            if (!aiResponse.error && aiResponse.data && !aiResponse.data.fallback) {
+              const rec = aiResponse.data.recommendation;
+              log('AI_ADVISOR', 'pass', `AI recommends: ${rec.action} ${rec.degrees}°C (confidence: ${rec.confidence}%)`, {
+                action: rec.action,
+                degrees: rec.degrees,
+                confidence: rec.confidence,
+                reasoning: rec.reasoning,
+                newTargetTemp: rec.newTargetTemp
+              });
 
-              // Log as adjustment
-              await supabase.from('auto_cooling_adjustments').insert({
-                cooler_controller_id: fc.controller_id,
-                cooler_controller_name: fc.name,
-                old_target_temp: currentTarget,
-                new_target_temp: newTarget,
-                lowest_followed_temp: currentTarget,
-                followed_controller_id: fc.controller_id,
-                followed_controller_name: fc.name,
-                followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
-                followed_target_temp: currentTarget,
-                reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — höjde temp +${boostDegrees}°C`
-              } as any);
+              // Execute AI recommendation if it's raise_temp or lower_temp
+              if ((rec.action === 'raise_temp' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
+                const newTarget = rec.newTargetTemp;
+                const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+                const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+
+                if (newTarget >= minTemp && newTarget <= maxTemp) {
+                  log('AI_BOOST', 'action', `AI: ${rec.action === 'raise_temp' ? 'Raising' : 'Lowering'} ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
+                  
+                  const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                    body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+                  });
+
+                  if (!updateResponse.error) {
+                    log('AI_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
+                    adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+
+                    await supabase.from('auto_cooling_adjustments').insert({
+                      cooler_controller_id: fc.controller_id,
+                      cooler_controller_name: fc.name,
+                      old_target_temp: currentTarget,
+                      new_target_temp: newTarget,
+                      lowest_followed_temp: currentTarget,
+                      followed_controller_id: fc.controller_id,
+                      followed_controller_name: fc.name,
+                      followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                      followed_target_temp: currentTarget,
+                      reason: `🧠 AI: ${rec.reasoning} (${rec.confidence}% säker)`
+                    } as any);
+                  } else {
+                    log('AI_BOOST', 'fail', `Failed to update ${fc.name}`);
+                  }
+                } else {
+                  log('AI_BOOST', 'info', `AI suggestion ${newTarget}°C outside bounds [${minTemp}, ${maxTemp}]`);
+                }
+              } else if (rec.action === 'hold' || rec.action === 'wait') {
+                log('AI_ADVISOR', 'info', `AI says ${rec.action}: ${rec.reasoning}`);
+              } else if (rec.confidence < 50) {
+                log('AI_ADVISOR', 'info', `AI confidence too low (${rec.confidence}%), skipping action`);
+              }
             } else {
-              log('AUTO_BOOST', 'fail', `Failed to boost ${fc.name}`);
+              // AI failed — fall back to fixed boost
+              log('AI_ADVISOR', 'fail', 'AI unavailable, falling back to fixed boost');
+              const boostDegrees = settings.auto_boost_degrees ?? 1.0;
+              const newTarget = currentTarget + boostDegrees;
+              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+
+              if (newTarget <= maxTemp) {
+                log('AUTO_BOOST_FALLBACK', 'action', `Fallback: Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
+                
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+                });
+
+                if (!updateResponse.error) {
+                  log('AUTO_BOOST_FALLBACK', 'pass', `Boosted ${fc.name} to ${newTarget}°C`);
+                  adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: fc.controller_id,
+                    cooler_controller_name: fc.name,
+                    old_target_temp: currentTarget,
+                    new_target_temp: newTarget,
+                    lowest_followed_temp: currentTarget,
+                    followed_controller_id: fc.controller_id,
+                    followed_controller_name: fc.name,
+                    followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                    followed_target_temp: currentTarget,
+                    reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — fallback +${boostDegrees}°C`
+                  } as any);
+                }
+              }
             }
-          } else {
-            log('AUTO_BOOST', 'info', `Cannot boost ${fc.name} — already at max ${maxTemp}°C`);
+          } catch (aiError) {
+            // AI call failed entirely — fall back to fixed boost
+            log('AI_ADVISOR', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}. Using fallback.`);
+            const boostDegrees = settings.auto_boost_degrees ?? 1.0;
+            const newTarget = currentTarget + boostDegrees;
+            const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+
+            if (newTarget <= maxTemp) {
+              const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+              });
+
+              if (!updateResponse.error) {
+                adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                await supabase.from('auto_cooling_adjustments').insert({
+                  cooler_controller_id: fc.controller_id,
+                  cooler_controller_name: fc.name,
+                  old_target_temp: currentTarget,
+                  new_target_temp: newTarget,
+                  lowest_followed_temp: currentTarget,
+                  followed_controller_id: fc.controller_id,
+                  followed_controller_name: fc.name,
+                  followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                  followed_target_temp: currentTarget,
+                  reason: `Jäsning stannat — AI ej tillgänglig, fallback +${boostDegrees}°C`
+                } as any);
+              }
+            }
           }
         }
 
@@ -703,7 +838,7 @@ serve(async (req) => {
             delta: dailyRate,
             alert_type: 'fermentation_stall'
           } as any);
-          log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day, suggest raising temp`);
+          log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
         }
       }
     }
