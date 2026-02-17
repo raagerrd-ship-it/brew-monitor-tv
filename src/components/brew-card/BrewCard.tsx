@@ -105,7 +105,7 @@ function BrewCardComponent({
                     <span
                       className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider"
                       style={{
-                        fontSize: '7px',
+                        fontSize: '9px',
                         background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
                         color: 'hsl(var(--accent-foreground) / 0.9)',
                         border: '1px solid hsl(var(--accent) / 0.4)',

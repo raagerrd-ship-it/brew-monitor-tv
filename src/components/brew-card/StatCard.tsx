@@ -31,6 +31,7 @@ export function StatCard({
   onClick,
   clickable = false,
   title,
+  icon,
   children,
   colSpan = 1,
   rowSpan = 1,
@@ -39,7 +40,7 @@ export function StatCard({
   labelSize,
   valueSize,
 }: StatCardProps) {
-  const defaultLabelSize = '9px';
+  const defaultLabelSize = '10px';
   const defaultValueSize = '28px';
   
   const finalLabelSize = labelSize 
@@ -64,13 +65,29 @@ export function StatCard({
 
   return (
     <div 
-      className={`rounded-xl p-2 flex flex-col items-center justify-center gap-0.5 relative overflow-visible min-h-0 ${
+      className={`rounded-xl p-2 flex flex-col items-center justify-center gap-0.5 relative overflow-hidden min-h-0 ${
         clickable ? 'cursor-pointer' : ''
       } ${isInactive ? 'opacity-40' : ''} ${gridClass} ${className}`}
       style={baseStyles}
       onClick={onClick}
       title={title}
     >
+      {/* Background icon for visual identification */}
+      {icon && (
+        <div 
+          className="absolute pointer-events-none"
+          style={{
+            right: '-4px',
+            bottom: '-4px',
+            width: '70%',
+            height: '70%',
+            opacity: 0.08,
+          }}
+        >
+          {icon}
+        </div>
+      )}
+      
       {/* Top light reflection */}
       <div 
         className="absolute inset-x-0 top-0 h-[1px] pointer-events-none"
