@@ -108,24 +108,23 @@ function BrewCardComponent({
             background: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.5) 25%, hsl(var(--border) / 0.6) 50%, hsl(var(--border) / 0.5) 75%, transparent 95%)'
           }}
         />
-        <div className="flex items-start justify-between gap-2 h-full">
-          {/* Label image thumbnail */}
-          {brew.label_image_url && (
-            <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 self-center"
-              style={{ width: '60px', height: '60px' }}
-            >
-              <img
-                src={brew.label_image_url}
-                alt={`${brew.name} etikett`}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          )}
-          {/* Title + subtitle */}
-          <div className="min-w-0 flex-1 overflow-hidden flex flex-col justify-center gap-1 py-1">
+        <div className="flex flex-col gap-0.5 h-full justify-center">
+          {/* Row 1: Label + Title + Status badge */}
+          <div className="flex items-center gap-2">
+            {brew.label_image_url && (
+              <div 
+                className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30"
+                style={{ width: '52px', height: '52px' }}
+              >
+                <img
+                  src={brew.label_image_url}
+                  alt={`${brew.name} etikett`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            )}
             <h2 
-              className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
+              className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 flex items-center gap-1.5"
               style={{ 
                 fontSize: '18px',
                 textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
@@ -147,79 +146,79 @@ function BrewCardComponent({
                 </span>
               )}
             </h2>
-            <p 
-              className="text-muted-foreground/60 font-medium leading-tight" 
-              style={{ fontSize: '11px', letterSpacing: '0.02em' }}
-            >
-              {brew.batch_id.startsWith('custom_') ? (
-                <>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
-                </>
-              ) : (
-                <>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
-                </>
-              )}
-            </p>
-          </div>
-
-          {/* Status badge as menu trigger (top-right) */}
-          <div className="flex-shrink-0 relative pt-1" ref={menuRef}>
-            <button
-              onClick={showInteractiveElements ? () => setMenuOpen(!menuOpen) : undefined}
-              className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap backdrop-blur-md inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
-              style={{ 
-                fontSize: '10px',
-                background: isCompletedOrConditioning 
-                  ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
-                  : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
-                color: isCompletedOrConditioning ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
-                border: isCompletedOrConditioning
-                  ? "1px solid hsl(var(--primary) / 0.3)" 
-                  : "1px solid hsl(var(--ferment-green) / 0.4)",
-                boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
-              }}
-            >
-              <StatusIcon status={brew.status} />
-              {statusText}
-            </button>
-            {menuOpen && showInteractiveElements && (
-              <div
-                className="absolute right-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
-                style={{ backdropFilter: 'blur(12px)' }}
+            {/* Status badge as menu trigger */}
+            <div className="flex-shrink-0 relative" ref={menuRef}>
+              <button
+                onClick={showInteractiveElements ? () => setMenuOpen(!menuOpen) : undefined}
+                className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap backdrop-blur-md inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
+                style={{ 
+                  fontSize: '10px',
+                  background: isCompletedOrConditioning 
+                    ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                    : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
+                  color: isCompletedOrConditioning ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                  border: isCompletedOrConditioning
+                    ? "1px solid hsl(var(--primary) / 0.3)" 
+                    : "1px solid hsl(var(--ferment-green) / 0.4)",
+                  boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
+                }}
               >
-                <button
-                  className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
-                  onClick={() => { setSmoothLines(!smoothLines); }}
+                <StatusIcon status={brew.status} />
+                {statusText}
+              </button>
+              {menuOpen && showInteractiveElements && (
+                <div
+                  className="absolute right-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
+                  style={{ backdropFilter: 'blur(12px)' }}
                 >
-                  <TrendingUp className={`h-3.5 w-3.5 ${smoothLines ? 'text-primary' : 'text-muted-foreground'}`} />
-                  {smoothLines ? 'Raka linjer' : 'Mjuka linjer'}
-                </button>
-                <button
-                  className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
-                  onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  Dela
-                </button>
-                <BrewEventDialog
-                  brewId={brew.id}
-                  brewName={brew.name}
-                  events={brew.events}
-                  onEventsChange={onEventsChange}
-                  trigger={
-                    <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Händelser
-                    </button>
-                  }
-                />
-              </div>
-            )}
+                  <button
+                    className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                    onClick={() => { setSmoothLines(!smoothLines); }}
+                  >
+                    <TrendingUp className={`h-3.5 w-3.5 ${smoothLines ? 'text-primary' : 'text-muted-foreground'}`} />
+                    {smoothLines ? 'Raka linjer' : 'Mjuka linjer'}
+                  </button>
+                  <button
+                    className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                    onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    Dela
+                  </button>
+                  <BrewEventDialog
+                    brewId={brew.id}
+                    brewName={brew.name}
+                    events={brew.events}
+                    onEventsChange={onEventsChange}
+                    trigger={
+                      <button
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Händelser
+                      </button>
+                    }
+                  />
+                </div>
+              )}
+            </div>
           </div>
+          {/* Row 2: Subtitle - full width */}
+          <p 
+            className="text-muted-foreground/60 truncate font-medium" 
+            style={{ fontSize: '11px', letterSpacing: '0.02em' }}
+          >
+            {brew.batch_id.startsWith('custom_') ? (
+              <>
+                {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
+              </>
+            ) : (
+              <>
+                {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
+              </>
+            )}
+          </p>
         </div>
       </div>
       
