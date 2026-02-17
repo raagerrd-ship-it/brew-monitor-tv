@@ -230,3 +230,14 @@ export function calculateFermentationRate(
   const ratePerHour = sgDiff / timeDiffHours;
   return ratePerHour * 24;
 }
+
+/**
+ * Format runtime seconds into a human-readable string (e.g., "2h 15m" or "45m")
+ */
+export function formatRunTime(seconds: number | null): string {
+  if (!seconds || seconds <= 0) return '0m';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}

@@ -162,6 +162,10 @@ export default function Settings() {
       heating_enabled: null,
       heating_utilisation: null,
       linked_pill_id: c.linked_pill_id,
+      cooling_run_time: null,
+      cooling_starts: null,
+      heating_run_time: null,
+      heating_starts: null,
     })),
     [availableControllers]
   );

@@ -157,6 +157,10 @@ serve(async (req) => {
         heating_utilisation: controller.heatingUtilisation || 0,
         cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
         heating_hysteresis: controller.heatingHysteresis ?? 0.2,
+        cooling_run_time: controller.coolingRunTime || 0,
+        cooling_starts: controller.coolingStarts || 0,
+        heating_run_time: controller.heatingRunTime || 0,
+        heating_starts: controller.heatingStarts || 0,
         last_update: controller.lastActivityTime ? new Date(controller.lastActivityTime).toISOString() : new Date().toISOString(),
       };
     });
@@ -176,6 +180,10 @@ serve(async (req) => {
           heating_utilisation: controllerData.heating_utilisation,
           cooling_hysteresis: controllerData.cooling_hysteresis,
           heating_hysteresis: controllerData.heating_hysteresis,
+          cooling_run_time: controllerData.cooling_run_time,
+          cooling_starts: controllerData.cooling_starts,
+          heating_run_time: controllerData.heating_run_time,
+          heating_starts: controllerData.heating_starts,
           last_update: controllerData.last_update,
           updated_at: new Date().toISOString()
         };
