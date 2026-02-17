@@ -1053,69 +1053,70 @@ export default function Settings() {
               title="Brewfather"
               description="Synkronisera bryggar-data från Brewfather"
             >
-              <Card className="p-4 bg-muted/30 border-primary/10">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
-                    {apiSettings?.brewfather?.configured ? (
-                      <span className="flex items-center gap-1 text-[10px] text-green-500">
-                        <Check className="h-3 w-3" /> Konfigurerad
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[10px] text-amber-500">
-                        <AlertCircle className="h-3 w-3" /> Saknas
-                      </span>
-                    )}
-                  </div>
-                  
-                  {apiSettings?.brewfather && (
-                    <div className="text-xs space-y-1 p-2 rounded bg-background/50">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">User ID:</span>
-                        <span className="font-mono">{apiSettings.brewfather.userId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">API-nyckel:</span>
-                        <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
-                      </div>
-                    </div>
+              {/* API credentials - flat layout */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                  {apiSettings?.brewfather?.configured ? (
+                    <span className="flex items-center gap-1 text-[10px] text-green-500">
+                      <Check className="h-3 w-3" /> Konfigurerad
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-500">
+                      <AlertCircle className="h-3 w-3" /> Saknas
+                    </span>
                   )}
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Uppdatera Brewfather-uppgifter",
-                          description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
-                        });
-                      }}
-                      className="flex-1 h-8 text-xs"
-                    >
-                      Uppdatera User ID
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Uppdatera Brewfather-uppgifter",
-                          description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
-                        });
-                      }}
-                      className="flex-1 h-8 text-xs"
-                    >
-                      Uppdatera API-nyckel
-                    </Button>
-                  </div>
                 </div>
-              </Card>
+                
+                {apiSettings?.brewfather && (
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">User ID:</span>
+                      <span className="font-mono">{apiSettings.brewfather.userId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">API-nyckel:</span>
+                      <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      toast({
+                        title: "Uppdatera Brewfather-uppgifter",
+                        description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
+                      });
+                    }}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    Uppdatera User ID
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      toast({
+                        title: "Uppdatera Brewfather-uppgifter",
+                        description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
+                      });
+                    }}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    Uppdatera API-nyckel
+                  </Button>
+                </div>
+              </div>
 
-              {/* Sync Options Grid */}
+              <div className="h-px bg-border/50" />
+
+              {/* Sync Options Grid - flat layout */}
               <div className="grid gap-4 grid-cols-2">
-                {/* Quick Sync Card */}
-                <Card className="p-4 space-y-3">
+                {/* Quick Sync */}
+                <div className="space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold">Snabb synk</h3>
                     <p className="text-xs text-muted-foreground">Löpande data för synliga öl</p>
@@ -1156,10 +1157,10 @@ export default function Settings() {
                     <RefreshCw className={`mr-2 h-3 w-3 ${quickSyncing ? 'animate-spin' : ''}`} />
                     {quickSyncing ? 'Synkar...' : 'Kör nu'}
                   </Button>
-                </Card>
+                </div>
 
-                {/* Full Sync Card */}
-                <Card className="p-4 space-y-3">
+                {/* Full Sync */}
+                <div className="space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold">Full synk</h3>
                     <p className="text-xs text-muted-foreground">Komplett data + auto-synlighet</p>
@@ -1202,11 +1203,13 @@ export default function Settings() {
                   {syncing && syncSteps.length > 0 && (
                     <SyncChecklist steps={syncSteps} />
                   )}
-                </Card>
+                </div>
               </div>
 
-              {/* Auto Settings */}
-              <Card className="p-4 space-y-3">
+              <div className="h-px bg-border/50" />
+
+              {/* Auto Settings - flat layout */}
+              <div className="space-y-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Automatisk hantering</span>
                 
                 <div className="grid gap-2 grid-cols-2">
@@ -1254,7 +1257,7 @@ export default function Settings() {
                     </label>
                   </div>
                 </div>
-              </Card>
+              </div>
             </SettingsSection>
 
             <SettingsSection
@@ -1262,69 +1265,70 @@ export default function Settings() {
               title="RAPT"
               description="Synkronisera enheter från RAPT Portal"
             >
-              <Card className="p-4 bg-muted/30 border-primary/10">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
-                    {apiSettings?.rapt?.configured ? (
-                      <span className="flex items-center gap-1 text-[10px] text-green-500">
-                        <Check className="h-3 w-3" /> Konfigurerad
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[10px] text-amber-500">
-                        <AlertCircle className="h-3 w-3" /> Saknas
-                      </span>
-                    )}
-                  </div>
-                  
-                  {apiSettings?.rapt && (
-                    <div className="text-xs space-y-1 p-2 rounded bg-background/50">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Användarnamn:</span>
-                        <span className="font-mono">{apiSettings.rapt.username}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">API-nyckel:</span>
-                        <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
-                      </div>
-                    </div>
+              {/* API credentials - flat layout */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                  {apiSettings?.rapt?.configured ? (
+                    <span className="flex items-center gap-1 text-[10px] text-green-500">
+                      <Check className="h-3 w-3" /> Konfigurerad
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-500">
+                      <AlertCircle className="h-3 w-3" /> Saknas
+                    </span>
                   )}
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Uppdatera RAPT-uppgifter",
-                          description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
-                        });
-                      }}
-                      className="flex-1 h-8 text-xs"
-                    >
-                      Uppdatera användarnamn
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Uppdatera RAPT-uppgifter",
-                          description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
-                        });
-                      }}
-                      className="flex-1 h-8 text-xs"
-                    >
-                      Uppdatera API-nyckel
-                    </Button>
-                  </div>
                 </div>
-              </Card>
+                
+                {apiSettings?.rapt && (
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Användarnamn:</span>
+                      <span className="font-mono">{apiSettings.rapt.username}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">API-nyckel:</span>
+                      <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      toast({
+                        title: "Uppdatera RAPT-uppgifter",
+                        description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
+                      });
+                    }}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    Uppdatera användarnamn
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      toast({
+                        title: "Uppdatera RAPT-uppgifter",
+                        description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
+                      });
+                    }}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    Uppdatera API-nyckel
+                  </Button>
+                </div>
+              </div>
 
-              {/* Sync Options Grid */}
+              <div className="h-px bg-border/50" />
+
+              {/* Sync Options Grid - flat layout */}
               <div className="grid gap-4 grid-cols-2">
-                {/* Quick Sync Card */}
-                <Card className="p-4 space-y-3">
+                {/* Quick Sync */}
+                <div className="space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold">Snabb synk</h3>
                     <p className="text-xs text-muted-foreground">Data för valda enheter</p>
@@ -1366,10 +1370,10 @@ export default function Settings() {
                     <RefreshCw className={`mr-2 h-3 w-3 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
                     {raptQuickSyncing ? 'Synkar...' : 'Kör nu'}
                   </Button>
-                </Card>
+                </div>
 
-                {/* Full Sync Card */}
-                <Card className="p-4 space-y-3">
+                {/* Full Sync */}
+                <div className="space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold">Full synk</h3>
                     <p className="text-xs text-muted-foreground">Hämtar alla enheter</p>
@@ -1396,7 +1400,7 @@ export default function Settings() {
                   {raptSyncing && raptSyncSteps.length > 0 && (
                     <SyncChecklist steps={raptSyncSteps} />
                   )}
-                </Card>
+                </div>
               </div>
             </SettingsSection>
 
