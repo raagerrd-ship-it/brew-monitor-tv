@@ -157,6 +157,13 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* Settings sub-section label */
+  .settings-label {
+    @apply text-[11px] font-semibold uppercase tracking-widest;
+    color: hsl(var(--primary) / 0.7);
+    letter-spacing: 0.1em;
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;

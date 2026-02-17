@@ -27,8 +27,8 @@ export function SettingsSection({
       className={cn(
         "rounded-xl border p-5 space-y-4",
         variant === "default"
-          ? "bg-card/50 border-border/60"
-          : "bg-muted/20 border-border/40",
+          ? "bg-card/50 border-border"
+          : "bg-muted/20 border-border/60",
         className
       )}
     >
@@ -36,7 +36,7 @@ export function SettingsSection({
       <div className="flex items-center gap-3">
         <div className="relative">
           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 border border-primary/20">
+          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 border border-primary/30">
             <Icon className="h-4.5 w-4.5 text-primary" />
           </div>
         </div>
@@ -51,5 +51,15 @@ export function SettingsSection({
       {/* Content */}
       <div className="space-y-4">{children}</div>
     </div>
+  );
+}
+
+/**
+ * A styled separator for use within SettingsSection.
+ * Uses a gradient with primary accent for better visibility.
+ */
+export function SettingsDivider({ className }: { className?: string }) {
+  return (
+    <div className={cn("h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent", className)} />
   );
 }
