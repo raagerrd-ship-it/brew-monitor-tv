@@ -8,6 +8,7 @@ export interface BrewCardProps {
   controllers: TempController[];
   onShareBrew: (brew: BrewData) => void;
   onEventsChange: () => void;
+  onControllerClick?: (controller: TempController) => void;
   /** Index for staggered rendering */
   cardIndex?: number;
   /** Whether album art background is showing (for transparency effect) */

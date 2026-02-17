@@ -8,9 +8,10 @@ interface TempStatProps {
   brew: BrewData;
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
+  onControllerClick?: (controller: import("@/types/brew").TempController) => void;
 }
 
-function TempStatComponent({ brew, devices, updatedFields }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
   const { pill, controller } = devices;
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
@@ -57,6 +58,10 @@ function TempStatComponent({ brew, devices, updatedFields }: TempStatProps) {
     tooltipParts.push(`Pill: ${brew.currentTemp.toFixed(1)}°`);
   }
 
+  const handleClick = controller && onControllerClick 
+    ? () => onControllerClick(controller) 
+    : undefined;
+
   return (
     <StatCard
       label={label}
@@ -66,6 +71,8 @@ function TempStatComponent({ brew, devices, updatedFields }: TempStatProps) {
       isInactive={isInactive}
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
       icon={thermometerIcon}
+      onClick={handleClick}
+      clickable={!!handleClick}
     />
   );
 }
