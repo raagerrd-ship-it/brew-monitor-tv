@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, MoreVertical, Plus } from "lucide-react";
+import { Share2, TrendingUp, MoreVertical, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2 } from "lucide-react";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText } from "./utils";
@@ -21,6 +21,18 @@ import { SyncedDataDialog } from "./SyncedDataDialog";
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
 const CARD_STATS_HEIGHT = 140;
+
+/** Small icon for brew status badge */
+function StatusIcon({ status }: { status: string }) {
+  const cls = "h-3 w-3";
+  switch (status) {
+    case "Jäsning": return <FlaskConical className={cls} />;
+    case "Konditionering": return <PackageCheck className={cls} />;
+    case "Klar": return <CheckCircle2 className={cls} />;
+    case "Coldcrash": return <Snowflake className={cls} />;
+    default: return <FlaskConical className={cls} />;
+  }
+}
 
 function BrewCardComponent({
   brew,
@@ -110,8 +122,9 @@ function BrewCardComponent({
               />
             </div>
           )}
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="flex items-center justify-between gap-1.5">
+            <div className="min-w-0 flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
+              {/* Row 1: Title + batch badge + menu */}
+              <div className="flex items-center gap-1.5">
                 <h2 
                   className="font-bold text-foreground leading-tight truncate tracking-tight flex items-center gap-1.5"
                   style={{ 
@@ -135,11 +148,13 @@ function BrewCardComponent({
                     </span>
                   )}
                 </h2>
-                {/* Status badge - glassmorphism style, right of title */}
+              </div>
+              {/* Row 2: Status badge + subtitle */}
+              <div className="flex items-center gap-2">
                 <span
-                  className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md"
+                  className="rounded-full px-2 py-0.5 font-semibold whitespace-nowrap flex-shrink-0 backdrop-blur-md inline-flex items-center gap-1"
                   style={{ 
-                    fontSize: '11px',
+                    fontSize: '10px',
                     background: isCompletedOrConditioning 
                       ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
                       : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
@@ -148,26 +163,26 @@ function BrewCardComponent({
                       ? "1px solid hsl(var(--primary) / 0.3)" 
                       : "1px solid hsl(var(--ferment-green) / 0.4)",
                     boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
-                    textShadow: "none"
                   }}
                 >
+                  <StatusIcon status={brew.status} />
                   {statusText}
                 </span>
+                <p 
+                  className="text-muted-foreground/50 truncate font-medium" 
+                  style={{ fontSize: '10px', letterSpacing: '0.02em' }}
+                >
+                  {brew.batch_id.startsWith('custom_') ? (
+                    <>
+                      {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
+                    </>
+                  ) : (
+                    <>
+                      {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
+                    </>
+                  )}
+                </p>
               </div>
-              <p 
-                className="text-muted-foreground/60 truncate font-medium" 
-                style={{ fontSize: '11px', letterSpacing: '0.02em' }}
-              >
-                {brew.batch_id.startsWith('custom_') ? (
-                  <>
-                    {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
-                  </>
-                ) : (
-                  <>
-                    {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
-                  </>
-                )}
-              </p>
             </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {/* Action menu - tap to toggle */}
