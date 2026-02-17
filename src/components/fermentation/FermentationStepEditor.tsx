@@ -156,7 +156,7 @@ export function FermentationStepEditor({
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border z-50">
                   <SelectItem value="time">Tid (antal timmar)</SelectItem>
                   <SelectItem value="sg">SG-värde uppnått</SelectItem>
                 </SelectContent>
@@ -181,7 +181,7 @@ export function FermentationStepEditor({
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-card border-border z-50">
                       {Object.entries(SG_COMPARISON_LABELS).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}

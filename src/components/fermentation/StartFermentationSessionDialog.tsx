@@ -274,7 +274,7 @@ export function StartFermentationSessionDialog({
                 <SelectTrigger>
                   <SelectValue placeholder="Välj profil..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border z-50">
                   {profiles.length === 0 ? (
                     <SelectItem value="none" disabled>Inga profiler skapade</SelectItem>
                   ) : (
@@ -316,7 +316,7 @@ export function StartFermentationSessionDialog({
                 <SelectTrigger>
                   <SelectValue placeholder="Välj controller..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border z-50">
                   {controllers.length === 0 ? (
                     <SelectItem value="none" disabled>Inga controllers tillgängliga</SelectItem>
                   ) : (
@@ -351,7 +351,7 @@ export function StartFermentationSessionDialog({
                 <SelectTrigger>
                   <SelectValue placeholder="Ingen bryggning vald" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border z-50">
                   <SelectItem value="none">Ingen bryggning</SelectItem>
                   {brews.map((brew) => (
                     <SelectItem key={brew.id} value={brew.id}>

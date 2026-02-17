@@ -153,7 +153,7 @@ function BrewCardComponent({
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {/* Action buttons - only visible when authenticated and not in TV mode */}
             {showInteractiveElements && (
-              <div className="flex items-center gap-1 max-w-0 group-hover:max-w-[80px] overflow-hidden transition-all duration-200">
+              <div className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity duration-200">
                 <Button
                   variant="ghost"
                   size="icon"

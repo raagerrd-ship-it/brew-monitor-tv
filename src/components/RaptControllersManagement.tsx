@@ -683,7 +683,7 @@ export function RaptControllersManagement() {
                             <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
                               <span className="text-muted-foreground">Byt</span>
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-card border-border z-50">
                               <SelectItem value="none">
                                 <div className="flex items-center gap-2">
                                   <Unlink className="h-3 w-3 text-muted-foreground" />
@@ -725,7 +725,7 @@ export function RaptControllersManagement() {
                             <SelectTrigger className="w-[180px] h-8">
                               <SelectValue placeholder="Välj pill..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-card border-border z-50">
                               <SelectItem value="none">
                                 <div className="flex items-center gap-2">
                                   <Unlink className="h-3 w-3 text-muted-foreground" />
