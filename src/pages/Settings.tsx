@@ -1440,48 +1440,47 @@ export default function Settings() {
               title="Brygg-timer synkronisering"
               description="Visa aktiv timer från brygg-appen i sidfoten"
             >
-              <Card className="p-4">
-                {externalLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Laddar...
-                  </div>
-                ) : isExternalAuthenticated ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
-                        <Check className="h-4 w-4 text-green-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Ansluten</p>
-                        <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
-                      </div>
+              {externalLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Laddar...
+                </div>
+              ) : isExternalAuthenticated ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                      <Check className="h-4 w-4 text-green-500" />
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => externalSignOut()}
-                    >
-                      Koppla från
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">Inte ansluten</p>
-                      <p className="text-sm text-muted-foreground">
-                        Anslut för att visa aktiva timers från brygg-appen
-                      </p>
+                      <p className="font-medium">Ansluten</p>
+                      <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
                     </div>
-                    <Button onClick={() => setExternalLoginDialogOpen(true)}>
-                      Anslut
-                    </Button>
                   </div>
-                )}
-              </Card>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => externalSignOut()}
+                  >
+                    Koppla från
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Inte ansluten</p>
+                    <p className="text-sm text-muted-foreground">
+                      Anslut för att visa aktiva timers från brygg-appen
+                    </p>
+                  </div>
+                  <Button onClick={() => setExternalLoginDialogOpen(true)}>
+                    Anslut
+                  </Button>
+                </div>
+              )}
               
               {isExternalAuthenticated && (
-                <Card className="p-4">
+                <>
+                  <div className="h-px bg-border/50" />
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Tv className="h-5 w-5 text-muted-foreground" />
@@ -1500,7 +1499,7 @@ export default function Settings() {
                       }}
                     />
                   </div>
-                </Card>
+                </>
               )}
             </SettingsSection>
 
@@ -1537,17 +1536,16 @@ export default function Settings() {
               {autoCoolingEnabled && (
                 <div className="space-y-6">
                   {/* STATUS SECTION */}
-                  <Card className="p-4 bg-muted/30 border-primary/20">
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                         <h3 className="text-sm font-semibold">Status</h3>
                       </div>
                       
                       {/* Cooler + Followed side by side */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Cooler Status */}
-                        <div className="space-y-1.5 p-3 rounded-lg bg-background/50">
+                        <div className="space-y-1.5">
                           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Kylare</span>
                           <p className="font-medium text-sm">
                             {coolerControllerId 
@@ -1561,7 +1559,6 @@ export default function Settings() {
                             const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
                               ? Number(cooler.target_temp).toFixed(1) : null;
                             const coolingEnabled = cooler?.cooling_enabled;
-                            // Detect if actually cooling right now using hysteresis logic
                             const coolerTemp = cooler?.current_temp != null ? Number(cooler.current_temp) : null;
                             const coolerTarget = cooler?.target_temp != null ? Number(cooler.target_temp) : null;
                             const isActivelyCooling = coolingEnabled && coolerTemp != null && coolerTarget != null && coolerTemp > coolerTarget;
@@ -1585,8 +1582,8 @@ export default function Settings() {
                           })()}
                         </div>
 
-                        {/* Followed Controllers - show ALL */}
-                        <div className="space-y-1.5 p-3 rounded-lg bg-background/50">
+                        {/* Followed Controllers */}
+                        <div className="space-y-1.5">
                           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
                             Följda controllers ({followedControllerIds.length})
                           </span>
@@ -1638,6 +1635,8 @@ export default function Settings() {
                         </div>
                       </div>
 
+                      <div className="h-px bg-border/50" />
+
                       {/* Decision logic explanation */}
                       {(() => {
                         const cooler = coolerControllerId ? availableControllers.find(c => c.id === coolerControllerId) : null;
@@ -1658,7 +1657,7 @@ export default function Settings() {
                         const isActivelyCooling = currentTemp !== null && currentTemp > (lowestTargetTemp + hysteresis);
                         
                         return (
-                          <div className="p-3 rounded-lg bg-background/30 border border-border/30 space-y-2">
+                          <div className="space-y-2">
                             <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Beslutslogik</span>
                             <div className="space-y-1.5 text-xs">
                               <div className="flex items-start gap-2">
@@ -1702,35 +1701,40 @@ export default function Settings() {
 
                       {/* Last adjustment */}
                       {lastAdjustment && (
-                        <div className="p-3 rounded-lg bg-background/30 border border-border/30 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Senaste justering</span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {formatDistanceToNow(new Date(lastAdjustment.created_at), { addSuffix: true, locale: sv })}
-                            </span>
+                        <>
+                          <div className="h-px bg-border/50" />
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Senaste justering</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {formatDistanceToNow(new Date(lastAdjustment.created_at), { addSuffix: true, locale: sv })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <span className="text-muted-foreground">
+                                Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}°C → {lastAdjustment.new_target_temp}°C</span>
+                                {lastAdjustment.new_target_temp < lastAdjustment.old_target_temp 
+                                  ? <ArrowDown className="h-3 w-3 text-blue-400 inline ml-1" />
+                                  : <ArrowUp className="h-3 w-3 text-orange-400 inline ml-1" />
+                                }
+                              </span>
+                            </div>
+                            {lastAdjustment.followed_controller_name && (
+                              <p className="text-[11px] text-muted-foreground pl-5">
+                                Orsak: {lastAdjustment.followed_controller_name} 
+                                {lastAdjustment.followed_current_temp !== null && ` (${lastAdjustment.followed_current_temp.toFixed(1)}°C)`}
+                                {lastAdjustment.followed_target_temp !== null && ` → mål ${lastAdjustment.followed_target_temp.toFixed(1)}°C`}
+                              </p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <span className="text-muted-foreground">
-                              Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}°C → {lastAdjustment.new_target_temp}°C</span>
-                              {lastAdjustment.new_target_temp < lastAdjustment.old_target_temp 
-                                ? <ArrowDown className="h-3 w-3 text-blue-400 inline ml-1" />
-                                : <ArrowUp className="h-3 w-3 text-orange-400 inline ml-1" />
-                              }
-                            </span>
-                          </div>
-                          {lastAdjustment.followed_controller_name && (
-                            <p className="text-[11px] text-muted-foreground pl-5">
-                              Orsak: {lastAdjustment.followed_controller_name} 
-                              {lastAdjustment.followed_current_temp !== null && ` (${lastAdjustment.followed_current_temp.toFixed(1)}°C)`}
-                              {lastAdjustment.followed_target_temp !== null && ` → mål ${lastAdjustment.followed_target_temp.toFixed(1)}°C`}
-                            </p>
-                          )}
-                        </div>
+                        </>
                       )}
 
+                      <div className="h-px bg-border/50" />
+
                       {/* Countdown */}
-                      <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-sm text-muted-foreground">Nästa kontroll</span>
@@ -1781,7 +1785,6 @@ export default function Settings() {
                         />
                       </div>
                     </div>
-                  </Card>
 
                   {/* CONTROLLER CONFIGURATION */}
                   <div className="space-y-4">
