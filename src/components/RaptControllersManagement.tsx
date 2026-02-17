@@ -508,75 +508,74 @@ export function RaptControllersManagement() {
             >
               {/* Header with name and badges */}
               <div className={`px-4 py-3 border-b border-border/50 ${isCooler ? 'bg-blue-500/10' : 'bg-muted/30'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-lg ${isCooler ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/10 text-primary'}`}>
-                      {isCooler ? <Snowflake className="h-5 w-5" /> : <Thermometer className="h-5 w-5" />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold break-words">{controller.name}</h4>
-                        {isCooler && (
-                          <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
-                            <Snowflake className="h-3 w-3 mr-1" />
-                            Glykolkylare
-                          </Badge>
-                        )}
-                      </div>
-                      {controller.last_update && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Uppdaterad {formatDistanceToNow(new Date(controller.last_update), { 
-                            addSuffix: true, 
-                            locale: sv 
-                          })}
-                        </p>
+                {/* Name row */}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`p-2 rounded-lg ${isCooler ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                    {isCooler ? <Snowflake className="h-5 w-5" /> : <Thermometer className="h-5 w-5" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold break-words">{controller.name}</h4>
+                      {isCooler && (
+                        <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
+                          <Snowflake className="h-3 w-3 mr-1" />
+                          Glykolkylare
+                        </Badge>
                       )}
                     </div>
-                  </div>
-                  
-                  {/* Visibility toggle and reorder */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="flex items-center space-x-2 bg-background/50 px-2 py-1 rounded-md border border-border/50">
-                      <Checkbox
-                        id={`controller-${controller.controller_id}`}
-                        checked={selectedControllers[controller.controller_id] || false}
-                        onCheckedChange={(checked) =>
-                          handleToggleController(controller.controller_id, !!checked)
-                        }
-                      />
-                      <label
-                        htmlFor={`controller-${controller.controller_id}`}
-                        className="text-xs cursor-pointer leading-none whitespace-nowrap font-medium"
-                      >
-                        Synlig
-                      </label>
-                    </div>
-                    
-                    {isSelected && controllerIndex >= 0 && (
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMoveUp(controller.controller_id)}
-                          disabled={isFirst}
-                          className="h-7 w-7 p-0"
-                          title="Flytta upp"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMoveDown(controller.controller_id)}
-                          disabled={isLast}
-                          className="h-7 w-7 p-0"
-                          title="Flytta ner"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    {controller.last_update && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Uppdaterad {formatDistanceToNow(new Date(controller.last_update), { 
+                          addSuffix: true, 
+                          locale: sv 
+                        })}
+                      </p>
                     )}
                   </div>
+                </div>
+
+                {/* Visibility toggle and reorder row */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center space-x-2 bg-background/50 px-2 py-1 rounded-md border border-border/50">
+                    <Checkbox
+                      id={`controller-${controller.controller_id}`}
+                      checked={selectedControllers[controller.controller_id] || false}
+                      onCheckedChange={(checked) =>
+                        handleToggleController(controller.controller_id, !!checked)
+                      }
+                    />
+                    <label
+                      htmlFor={`controller-${controller.controller_id}`}
+                      className="text-xs cursor-pointer leading-none whitespace-nowrap font-medium"
+                    >
+                      Synlig
+                    </label>
+                  </div>
+                  
+                  {isSelected && controllerIndex >= 0 && (
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleMoveUp(controller.controller_id)}
+                        disabled={isFirst}
+                        className="h-7 w-7 p-0"
+                        title="Flytta upp"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleMoveDown(controller.controller_id)}
+                        disabled={isLast}
+                        className="h-7 w-7 p-0"
+                        title="Flytta ner"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               
