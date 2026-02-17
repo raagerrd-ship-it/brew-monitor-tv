@@ -1556,7 +1556,11 @@ export default function Settings() {
                               ? Number(cooler.current_temp).toFixed(1) : null;
                             const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
                               ? Number(cooler.target_temp).toFixed(1) : null;
-                            const isCooling = cooler?.cooling_enabled;
+                            const coolingEnabled = cooler?.cooling_enabled;
+                            // Detect if actually cooling right now using hysteresis logic
+                            const coolerTemp = cooler?.current_temp != null ? Number(cooler.current_temp) : null;
+                            const coolerTarget = cooler?.target_temp != null ? Number(cooler.target_temp) : null;
+                            const isActivelyCooling = coolingEnabled && coolerTemp != null && coolerTarget != null && coolerTemp > coolerTarget;
                             return (
                               <div className="space-y-1">
                                 {(current || target) && (
@@ -1566,9 +1570,11 @@ export default function Settings() {
                                     {target && <span className="text-foreground">{target}°C mål</span>}
                                   </div>
                                 )}
-                                <div className={`text-[11px] flex items-center gap-1 ${isCooling ? 'text-blue-400' : 'text-muted-foreground/60'}`}>
+                                <div className={`text-[11px] flex items-center gap-1 ${
+                                  isActivelyCooling ? 'text-blue-400' : coolingEnabled ? 'text-muted-foreground' : 'text-muted-foreground/60'
+                                }`}>
                                   <Snowflake className="h-3 w-3" />
-                                  {isCooling ? 'Kyla aktiv' : 'Kyla inaktiv'}
+                                  {isActivelyCooling ? 'Kyler ↓' : coolingEnabled ? 'Kyla på, vid mål' : 'Kyla avstängd'}
                                 </div>
                               </div>
                             );
