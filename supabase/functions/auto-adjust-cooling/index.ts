@@ -17,6 +17,9 @@ interface AutoCoolingSettings {
   cooler_controller_id: string | null;
   last_check_at: string | null;
   delta_alert_threshold: number;
+  auto_boost_enabled: boolean;
+  auto_boost_degrees: number;
+  stall_rate_threshold: number;
 }
 
 interface TempController {
@@ -593,6 +596,116 @@ serve(async (req) => {
       }
     } else {
       log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
+    }
+
+    // === FERMENTATION STALL DETECTION ===
+    // Check if any followed controller's linked brew is stalling
+    for (const fc of followedControllersFullData) {
+      // Find brew linked to this controller
+      const { data: linkedBrews } = await supabase
+        .from('brew_readings')
+        .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status')
+        .eq('linked_controller_id', fc.controller_id)
+        .limit(1);
+
+      if (!linkedBrews || linkedBrews.length === 0) continue;
+      const brew = linkedBrews[0];
+      
+      // Skip if not actively fermenting
+      if (brew.status !== 'Jäser' && brew.status !== 'Fermenting') continue;
+
+      const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
+      if (!sgData || sgData.length < 3) continue;
+
+      // Calculate fermentation rate from last 24h of SG data
+      const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const now = Date.now();
+      const last24h = sorted.filter(d => (now - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
+      
+      if (last24h.length < 2) continue;
+
+      const newest = last24h[0].value;
+      const oldest = last24h[last24h.length - 1].value;
+      const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSpan < 6) continue; // Need at least 6h of data
+
+      const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
+      const sgToFg = brew.current_sg - brew.final_gravity;
+      const sgRange = brew.original_gravity - brew.final_gravity;
+      const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
+      const stallThreshold = settings.stall_rate_threshold ?? 0.001;
+
+      log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
+        daily_rate: dailyRate,
+        sg_to_fg: sgToFg,
+        progress_pct: progressPct,
+        threshold: stallThreshold
+      });
+
+      // Stall = rate is very low AND still far from FG (>20% remaining)
+      const isStalling = dailyRate < stallThreshold && sgToFg > 0.005 && progressPct < 80;
+
+      if (isStalling) {
+        log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
+
+        // Check if auto-boost is enabled
+        if (settings.auto_boost_enabled) {
+          const boostDegrees = settings.auto_boost_degrees ?? 1.0;
+          const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
+          const newTarget = currentTarget + boostDegrees;
+          const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+
+          if (newTarget <= maxTemp) {
+            log('AUTO_BOOST', 'action', `Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C to restart fermentation`);
+            
+            const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+              body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+            });
+
+            if (!updateResponse.error) {
+              log('AUTO_BOOST', 'pass', `Successfully boosted ${fc.name} to ${newTarget}°C`);
+              adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+
+              // Log as adjustment
+              await supabase.from('auto_cooling_adjustments').insert({
+                cooler_controller_id: fc.controller_id,
+                cooler_controller_name: fc.name,
+                old_target_temp: currentTarget,
+                new_target_temp: newTarget,
+                lowest_followed_temp: currentTarget,
+                followed_controller_id: fc.controller_id,
+                followed_controller_name: fc.name,
+                followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                followed_target_temp: currentTarget,
+                reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — höjde temp +${boostDegrees}°C`
+              } as any);
+            } else {
+              log('AUTO_BOOST', 'fail', `Failed to boost ${fc.name}`);
+            }
+          } else {
+            log('AUTO_BOOST', 'info', `Cannot boost ${fc.name} — already at max ${maxTemp}°C`);
+          }
+        }
+
+        // Always create an alert for stall detection
+        const { data: existingStallAlerts } = await supabase
+          .from('temp_delta_alerts')
+          .select('id')
+          .eq('controller_id', fc.controller_id)
+          .eq('alert_type', 'fermentation_stall')
+          .eq('acknowledged', false)
+          .limit(1);
+
+        if (!existingStallAlerts || existingStallAlerts.length === 0) {
+          await supabase.from('temp_delta_alerts').insert({
+            controller_id: fc.controller_id,
+            delta: dailyRate,
+            alert_type: 'fermentation_stall'
+          } as any);
+          log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day, suggest raising temp`);
+        }
+      }
     }
 
     log('COMPLETE', 'info', `Completed`, { adjustments_made: adjustments.length });

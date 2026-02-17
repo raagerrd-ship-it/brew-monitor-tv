@@ -112,6 +112,8 @@ export type Database = {
       }
       auto_cooling_settings: {
         Row: {
+          auto_boost_degrees: number
+          auto_boost_enabled: boolean
           check_interval_minutes: number
           cooler_controller_id: string | null
           created_at: string
@@ -120,10 +122,13 @@ export type Database = {
           id: string
           last_check_at: string | null
           max_diff_from_lowest: number
+          stall_rate_threshold: number
           temp_reduction_degrees: number
           updated_at: string
         }
         Insert: {
+          auto_boost_degrees?: number
+          auto_boost_enabled?: boolean
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
@@ -132,10 +137,13 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
+          stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
         }
         Update: {
+          auto_boost_degrees?: number
+          auto_boost_enabled?: boolean
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
@@ -144,6 +152,7 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
+          stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
         }
