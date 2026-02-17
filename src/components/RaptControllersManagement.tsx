@@ -25,6 +25,8 @@ interface ControllerData {
   min_target_temp: number | null;
   max_target_temp: number | null;
   linked_pill_id: string | null;
+  cooling_hysteresis: number | null;
+  heating_hysteresis: number | null;
 }
 
 interface SelectedController {
@@ -492,8 +494,8 @@ export function RaptControllersManagement() {
           const isSelected = selectedControllers[controller.controller_id];
           const isCooler = coolerControllerId === controller.controller_id;
           const displayTemp = controller.pill_temp ?? controller.current_temp;
-          const isActivelyCooling = controller.cooling_enabled && controller.heating_utilisation === 0 && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + 0.1);
-          const isActivelyHeating = controller.heating_enabled && controller.heating_utilisation > 0;
+          const isActivelyCooling = controller.cooling_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + (controller.cooling_hysteresis ?? 0.2));
+          const isActivelyHeating = controller.heating_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp < (controller.target_temp - (controller.heating_hysteresis ?? 0.2));
           
           return (
             <Card 

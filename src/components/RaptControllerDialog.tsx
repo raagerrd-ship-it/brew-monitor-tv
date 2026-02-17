@@ -26,6 +26,8 @@ interface TempController {
   cooling_enabled: boolean | null;
   heating_enabled: boolean | null;
   heating_utilisation: number | null;
+  cooling_hysteresis: number | null;
+  heating_hysteresis: number | null;
   cooling_run_time: number | null;
   cooling_starts: number | null;
   heating_run_time: number | null;
@@ -238,14 +240,19 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     }
   };
 
-  // Determine if currently cooling or heating
+   // Determine if currently cooling or heating using temperature + hysteresis
+  const coolingHyst = currentController.cooling_hysteresis ?? 0.2;
+  const heatingHyst = currentController.heating_hysteresis ?? 0.2;
+  
   const isActivelyCooling = currentController.cooling_enabled && 
-    currentController.heating_utilisation === 0 && 
     currentController.current_temp !== null &&
     currentController.target_temp !== null &&
-    currentController.current_temp > currentController.target_temp;
+    currentController.current_temp > (currentController.target_temp + coolingHyst);
   
-  const isActivelyHeating = currentController.heating_utilisation !== null && currentController.heating_utilisation > 0;
+  const isActivelyHeating = currentController.heating_enabled && 
+    currentController.current_temp !== null &&
+    currentController.target_temp !== null &&
+    currentController.current_temp < (currentController.target_temp - heatingHyst);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
