@@ -1509,7 +1509,7 @@ export default function Settings() {
                         <h3 className="text-sm font-semibold">Status</h3>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Cooler Status */}
                         <div className="space-y-1 p-3 rounded-lg bg-background/50">
                           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Kylare</span>
@@ -1628,7 +1628,7 @@ export default function Settings() {
                       Controllers
                     </h3>
                     
-                    <div className="grid gap-4 grid-cols-2">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kylare (justeras)</label>
                         <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
@@ -1684,7 +1684,7 @@ export default function Settings() {
                       Justeringsparametrar
                     </h3>
                     
-                    <div className="grid gap-4 grid-cols-3">
+                    <div className="grid gap-4 grid-cols-3 sm:grid-cols-3">
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kontrollintervall</label>
                         <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
