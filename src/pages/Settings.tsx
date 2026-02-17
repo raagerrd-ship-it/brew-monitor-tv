@@ -1400,9 +1400,19 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            {/* TV-MODE SEPARATOR */}
+            <div className="relative flex items-center gap-4 pt-4">
+              <div className="flex-1 h-px bg-border" />
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border/60">
+                <Tv className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">TV-läge</span>
+              </div>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
             <SettingsSection
               icon={Tv}
-              title="TV-läge"
+              title="Fjärrstyrning"
               description="Fjärrstyr anslutna TV-enheter"
             >
               <Button
