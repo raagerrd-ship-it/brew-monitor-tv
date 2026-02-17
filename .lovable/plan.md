@@ -1,63 +1,35 @@
 
 
-# Flytta Sonos-widgeten till logotypens position
+# Förenkla enhetskoppling for bryggningar
 
-## Sammanfattning
-Sonos-widgeten flyttas fran sin nuvarande position (till hoger under headern) till att ligga direkt over logotypen "BryggövervakareTV" i headerns vanstra horn. Widgeten blir smalare och bredare (mer langsmal) med minimala marginaler mot ytterkanterna, sa att den inte tackar nagon annan del av dashboarden.
+## Vad som forändras
 
-## Visuell forandring
+### 1. Ta bort separat Pill-dropdown i CustomBrewDialog
+Pill-valet (rad 615-633 i CustomBrewDialog) tas bort helt. Pill löses alltid automatiskt från vald controller -- detta fungerar redan idag via `sync-custom-brew-pills` edge function.
 
-```text
-NUVARANDE LAYOUT:
-+--[Logo]--------[Controllers]--------[Clock]--+
-|                                               |
-|                                  [Sonos 280x130] <-- flytande, 88px under header
-|   [BrewCard]   [BrewCard]   [BrewCard]        |
+### 2. Ta bort BrewDeviceLinkDialog helt
+Eftersom du aldrig byter controller efter skapande behövs inte den separata dialogen. Filen `BrewDeviceLinkDialog.tsx` raderas och alla referenser i `BrewingDashboard.tsx` tas bort.
 
-NY LAYOUT:
-+--[Sonos ovanpa Logo]--[Controllers]--[Clock]--+
-|                                               |
-|   [BrewCard]   [BrewCard]   [BrewCard]        |
-```
+### 3. Ta bort "ändra koppling"-knappen på brew cards
+Knappen som öppnar BrewDeviceLinkDialog på dashboarden tas bort. Controller-info visas fortfarande som read-only.
 
-Widgeten placeras i headern, ovanpa logotypen, med minimal padding mot vanster- och toppkant. Nar inget spelas visas logotypen som vanligt.
+### 4. Visa controller + pill tydligare vid skapande
+I CustomBrewDialog, under controller-dropdownen, visas automatiskt vilken pill som hör till vald controller (liknande den info som redan finns i BrewDeviceLinkDialog, men inline).
 
-## Andringar
-
-### 1. SonosWidget -- ny "header" / "slim" variant
-- Ny storlek: ca **300x50px** (langsmal, ungefar samma hojd som headern)
-- Minimal padding, ingen rounded-xl (anvand rounded-lg istallet)
-- Minska skuggorna for att passa headerns tunna profil
-- Behall album art som bakgrund men med starkare darkning for text-lasbarhet i det smalare formatet
-- Progress bar och nedrakning behalls men med tunnare profil
-- Ta emot en ny prop `variant?: "floating" | "header"` for att styra storlek/stil
-
-### 2. BrewingDashboard -- flytta widgeten till headern
-- Ta bort den flytande `<div className="absolute z-10">` som positionerar widgeten under headern
-- Skicka istallet Sonos-widgeten som en prop eller rendera den direkt i header-raden
-- Widgeten renderas i headerns vanstra kolumn, direkt ovanpa logotypen (same position)
-- Nar Sonos spelar: widgeten visas, logotypen doljs
-- Nar inget spelas: logotypen visas som vanligt
-
-### 3. DashboardHeader -- ta emot Sonos-widget
-- Lagg till en optional prop `sonosSlot?: React.ReactNode`
-- I desktop-layoutens vanstra kolumn: rendera `sonosSlot` istallet for `<Logo />` om sonosSlot finns
-- Fallback till `<Logo />` om inget sonosSlot skickas
+## Resultat
+- En dropdown istället for två vid skapande
+- Ingen möjlighet att "ändra" koppling i efterhand (eftersom det aldrig behövs)
+- Pill visas som info, inte som val
 
 ## Tekniska detaljer
 
-**SonosWidget.tsx:**
-- Ny prop `variant` med default `"floating"`
-- Nar `variant === "header"`: width ~300px, height ~50px, border-radius 8px, tightare padding, mindre typsnitt
-- Progress bar height: 2px, countdown text: 9px
-- Behall all befintlig logik (preloading, refs, etc) -- bara visuella justeringar
+**Filer som andras:**
+- `src/components/CustomBrewDialog.tsx` -- Ta bort pill-dropdown (rad 615-633), lägga till info-text om vilken pill som hör till vald controller
+- `src/components/BrewingDashboard.tsx` -- Ta bort all `deviceLinkDialog`-state, `handleDeviceLinkOpen` callback, och `BrewDeviceLinkDialog`-rendering
+- `src/components/BrewDeviceLinkDialog.tsx` -- Radera filen
 
-**BrewingDashboard.tsx:**
-- Flytta `<SonosWidget>` fran den absolut-positionerade diven till en variabel som skickas som `sonosSlot` till `<DashboardHeader>`
-- Widget renderas med `variant="header"`
+**Filer som kan behöva andras:**
+- `src/components/brew-card/BrewCard.tsx` -- Ta bort eventuell knapp/ikon for att öppna device link dialog
 
-**DashboardHeader.tsx:**
-- Ny prop `sonosSlot?: React.ReactNode`
-- I desktop-sektionen (rad 93-95): `{sonosSlot || <Logo />}`
-- Ingen annan andring i headern
+**Ingen databasändring behövs** -- `linked_controller_id` och `linked_pill_id` kolumnerna behålls som de är.
 
