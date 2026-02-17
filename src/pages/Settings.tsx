@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
-import { SettingsSection } from "@/components/ui/settings-section";
+import { SettingsSection, SettingsDivider } from "@/components/ui/settings-section";
 import { TempController } from "@/types/brew";
 
 export default function Settings() {
@@ -1056,7 +1056,7 @@ export default function Settings() {
               {/* API credentials - flat layout */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                  <span className="settings-label">API-uppgifter</span>
                   {apiSettings?.brewfather?.configured ? (
                     <span className="flex items-center gap-1 text-[10px] text-green-500">
                       <Check className="h-3 w-3" /> Konfigurerad
@@ -1111,7 +1111,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="h-px bg-border/50" />
+              <SettingsDivider />
 
               {/* Sync Options Grid - flat layout */}
               <div className="grid gap-4 grid-cols-2">
@@ -1125,7 +1125,7 @@ export default function Settings() {
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Frekvens</label>
                     <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
-                      <SelectTrigger className="w-full bg-background h-9">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue placeholder="Välj frekvens" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border z-50">
@@ -1169,7 +1169,7 @@ export default function Settings() {
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Frekvens</label>
                     <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
-                      <SelectTrigger className="w-full bg-background h-9">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue placeholder="Välj frekvens" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border z-50">
@@ -1206,14 +1206,14 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="h-px bg-border/50" />
+              <SettingsDivider />
 
               {/* Auto Settings - flat layout */}
               <div className="space-y-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Automatisk hantering</span>
+                <span className="settings-label">Automatisk hantering</span>
                 
                 <div className="grid gap-2 grid-cols-2">
-                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
+                  <div className="flex items-center space-x-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
                     <Checkbox 
                       id="auto-activate-fermenting"
                       checked={autoActivateFermenting}
@@ -1224,7 +1224,7 @@ export default function Settings() {
                     </label>
                   </div>
                   
-                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
+                  <div className="flex items-center space-x-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
                     <Checkbox 
                       id="auto-hide-completed"
                       checked={autoHideCompleted}
@@ -1235,7 +1235,7 @@ export default function Settings() {
                     </label>
                   </div>
 
-                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
+                  <div className="flex items-center space-x-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
                     <Checkbox 
                       id="auto-hide-conditioning"
                       checked={autoHideConditioning}
@@ -1246,7 +1246,7 @@ export default function Settings() {
                     </label>
                   </div>
 
-                  <div className="flex items-center space-x-2 p-2 rounded-md bg-muted/30">
+                  <div className="flex items-center space-x-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
                     <Checkbox 
                       id="auto-hide-archived"
                       checked={autoHideArchived}
@@ -1268,7 +1268,7 @@ export default function Settings() {
               {/* API credentials - flat layout */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API-uppgifter</span>
+                  <span className="settings-label">API-uppgifter</span>
                   {apiSettings?.rapt?.configured ? (
                     <span className="flex items-center gap-1 text-[10px] text-green-500">
                       <Check className="h-3 w-3" /> Konfigurerad
@@ -1323,7 +1323,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="h-px bg-border/50" />
+              <SettingsDivider />
 
               {/* Sync Options Grid - flat layout */}
               <div className="grid gap-4 grid-cols-2">
@@ -1337,7 +1337,7 @@ export default function Settings() {
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Frekvens</label>
                     <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
-                      <SelectTrigger className="w-full bg-background h-9">
+                      <SelectTrigger className="w-full h-9">
                         <SelectValue placeholder="Välj frekvens" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border z-50">
@@ -1480,7 +1480,7 @@ export default function Settings() {
               
               {isExternalAuthenticated && (
                 <>
-                  <div className="h-px bg-border/50" />
+                  <SettingsDivider />
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Tv className="h-5 w-5 text-muted-foreground" />
@@ -1546,7 +1546,7 @@ export default function Settings() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Cooler Status */}
                         <div className="space-y-1.5">
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Kylare</span>
+                          <span className="settings-label">Kylare</span>
                           <p className="font-medium text-sm">
                             {coolerControllerId 
                               ? availableControllers.find(c => c.id === coolerControllerId)?.name || 'Ej vald'
@@ -1584,7 +1584,7 @@ export default function Settings() {
 
                         {/* Followed Controllers */}
                         <div className="space-y-1.5">
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <span className="settings-label">
                             Följda controllers ({followedControllerIds.length})
                           </span>
                           {(() => {
@@ -1635,7 +1635,7 @@ export default function Settings() {
                         </div>
                       </div>
 
-                      <div className="h-px bg-border/50" />
+                      <SettingsDivider />
 
                       {/* Decision logic explanation */}
                       {(() => {
@@ -1658,7 +1658,7 @@ export default function Settings() {
                         
                         return (
                           <div className="space-y-2">
-                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Beslutslogik</span>
+                            <span className="settings-label">Beslutslogik</span>
                             <div className="space-y-1.5 text-xs">
                               <div className="flex items-start gap-2">
                                 <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
@@ -1702,10 +1702,10 @@ export default function Settings() {
                       {/* Last adjustment */}
                       {lastAdjustment && (
                         <>
-                          <div className="h-px bg-border/50" />
+                          <SettingsDivider />
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Senaste justering</span>
+                              <span className="settings-label">Senaste justering</span>
                               <span className="text-[11px] text-muted-foreground">
                                 {formatDistanceToNow(new Date(lastAdjustment.created_at), { addSuffix: true, locale: sv })}
                               </span>
@@ -1731,7 +1731,7 @@ export default function Settings() {
                         </>
                       )}
 
-                      <div className="h-px bg-border/50" />
+                      <SettingsDivider />
 
                       {/* Countdown */}
                       <div className="flex items-center justify-between">
@@ -1797,7 +1797,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kylare (justeras)</label>
                         <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Välj kylare..." />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
@@ -1853,7 +1853,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kontrollintervall</label>
                         <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
@@ -1868,7 +1868,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Sänkning per steg</label>
                         <Select value={tempReduction} onValueChange={handleTempReductionChange}>
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
@@ -1884,7 +1884,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Max differens</label>
                         <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
