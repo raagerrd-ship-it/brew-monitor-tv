@@ -612,25 +612,22 @@ export function CustomBrewDialog({
             </Select>
           </div>
 
-          <div className="grid gap-2">
-            <Label>RAPT Pill</Label>
-            <Select 
-              value={selectedPillId || "none"} 
-              onValueChange={(val) => setSelectedPillId(val === "none" ? "" : val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Välj pill (valfritt)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Ingen</SelectItem>
-                {pills.map((pill) => (
-                  <SelectItem key={pill.id} value={pill.pill_id}>
-                    {pill.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Show linked pill info when controller is selected */}
+          {selectedControllerId && (() => {
+            const ctrl = controllers.find(c => c.controller_id === selectedControllerId);
+            const linkedPill = ctrl?.linked_pill_id ? pills.find(p => p.pill_id === ctrl.linked_pill_id) : null;
+            return linkedPill ? (
+              <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: linkedPill.color }} />
+                <span className="text-muted-foreground">Pill:</span>
+                <span className="font-medium">{linkedPill.name}</span>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Ingen pill kopplad till denna controller.
+              </p>
+            );
+          })()}
 
           {/* Label Image Upload */}
           <div className="grid gap-2">

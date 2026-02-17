@@ -8,11 +8,9 @@ interface TempStatProps {
   brew: BrewData;
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
-  isAuthenticated: boolean;
-  onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
 }
 
-function TempStatComponent({ brew, devices, updatedFields, isAuthenticated, onDeviceLinkOpen }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields }: TempStatProps) {
   const { pill, controller } = devices;
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
@@ -52,9 +50,6 @@ function TempStatComponent({ brew, devices, updatedFields, isAuthenticated, onDe
 
   // Build tooltip text showing temp source
   const tooltipParts: string[] = [];
-  if (isAuthenticated) {
-    tooltipParts.push("Klicka för att koppla enheter");
-  }
   if (controller?.current_temp !== null && controller?.current_temp !== undefined) {
     tooltipParts.push(`Inbyggd: ${controller.current_temp.toFixed(1)}°`);
   }
@@ -69,17 +64,6 @@ function TempStatComponent({ brew, devices, updatedFields, isAuthenticated, onDe
       color={tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
-      clickable={isAuthenticated}
-      onClick={() => {
-        if (isAuthenticated) {
-          onDeviceLinkOpen(
-            brew.batch_id,
-            brew.name,
-            brew.linked_controller_id || null,
-            brew.linked_pill_id || null
-          );
-        }
-      }}
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
       icon={thermometerIcon}
     />
