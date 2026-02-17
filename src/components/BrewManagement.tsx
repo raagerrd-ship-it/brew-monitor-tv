@@ -282,18 +282,19 @@ export function BrewManagement() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-start">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="space-y-3">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Hantera Öl</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold">Hantera Öl</h2>
+          <p className="text-sm text-muted-foreground">
             Välj upp till 3 öl att visa på dashboarden
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {timerRecipeName && (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => {
                 setPrefillData({
                   name: timerRecipeName || '',
@@ -302,15 +303,15 @@ export function BrewManagement() {
                 setShowCustomBrewDialog(true);
               }}
             >
-              <Beer className="mr-2 h-4 w-4" />
-              Lägg till {timerRecipeName}
+              <Beer className="mr-1.5 h-3.5 w-3.5" />
+              <span className="truncate max-w-[180px]">Lägg till {timerRecipeName}</span>
             </Button>
           )}
-          <Button onClick={() => {
+          <Button size="sm" onClick={() => {
             setPrefillData(null);
             setShowCustomBrewDialog(true);
           }}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             Skapa egen öl
           </Button>
         </div>
