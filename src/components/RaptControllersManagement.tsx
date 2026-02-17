@@ -648,14 +648,78 @@ export function RaptControllersManagement() {
                   
                   return (
                     <div className="mt-3 pt-3 border-t border-border/50">
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Pill className="h-4 w-4" />
-                            <span>Kopplad Pill:</span>
+                      {linkedPill ? (
+                        /* Connected pill - nice visual card */
+                        <div 
+                          className="flex items-center gap-3 p-2.5 rounded-lg border transition-all"
+                          style={{ 
+                            backgroundColor: `${linkedPill.color}08`,
+                            borderColor: `${linkedPill.color}25`,
+                          }}
+                        >
+                          <div 
+                            className="p-2 rounded-lg shrink-0"
+                            style={{ backgroundColor: `${linkedPill.color}20` }}
+                          >
+                            <Pill className="h-4 w-4" style={{ color: linkedPill.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: linkedPill.color }}>
+                              {linkedPill.name}
+                            </p>
+                            {linkedPill.last_update && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Senast sedd {formatDistanceToNow(new Date(linkedPill.last_update), { 
+                                  addSuffix: false, 
+                                  locale: sv 
+                                })} sedan
+                              </p>
+                            )}
                           </div>
                           <Select
                             value={controller.linked_pill_id || "none"}
+                            onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)}
+                            disabled={updating}
+                          >
+                            <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
+                              <span className="text-muted-foreground">Byt</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                <div className="flex items-center gap-2">
+                                  <Unlink className="h-3 w-3 text-muted-foreground" />
+                                  <span>Koppla bort</span>
+                                </div>
+                              </SelectItem>
+                              {pills.map((pill) => {
+                                const linkedPillIds = getLinkedPillIds(controller.controller_id);
+                                const isAlreadyLinked = linkedPillIds.includes(pill.pill_id);
+                                return (
+                                  <SelectItem 
+                                    key={pill.pill_id} 
+                                    value={pill.pill_id}
+                                    disabled={isAlreadyLinked}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Pill className="h-3 w-3" style={{ color: pill.color }} />
+                                      <span>{pill.name}</span>
+                                      {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        /* No pill linked - compact selector */
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Pill className="h-4 w-4" />
+                            <span>Pill:</span>
+                          </div>
+                          <Select
+                            value="none"
                             onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)}
                             disabled={updating}
                           >
@@ -688,27 +752,8 @@ export function RaptControllersManagement() {
                               })}
                             </SelectContent>
                           </Select>
-                          {controller.linked_pill_id && (
-                            <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                              <Link2 className="h-3 w-3 mr-1" />
-                              Kopplad
-                            </Badge>
-                          )}
                         </div>
-                        
-                        {/* Pill last update - show when linked */}
-                        {linkedPill?.last_update && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>
-                              Pill synlig {formatDistanceToNow(new Date(linkedPill.last_update), { 
-                                addSuffix: true, 
-                                locale: sv 
-                              })}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                   );
                 })()}
