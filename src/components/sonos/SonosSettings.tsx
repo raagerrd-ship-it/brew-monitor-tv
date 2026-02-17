@@ -261,7 +261,7 @@ export function SonosSettings() {
             Koppla bort
           </Button>
         ) : (
-          <Button onClick={handleConnect} disabled={isConnecting}>
+          <Button variant="outline" size="sm" onClick={handleConnect} disabled={isConnecting}>
             {isConnecting ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
@@ -276,15 +276,15 @@ export function SonosSettings() {
       {isConnected && (
         <>
           {/* General Sonos Settings */}
-          <div className="space-y-4 p-4 rounded-lg border">
-            <h4 className="text-sm font-medium">Allmänna inställningar</h4>
+          <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
+            <p className="settings-label">Allmänna inställningar</p>
 
             {/* Group Selection */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="sonos-group">Rum att visa</Label>
                 {groups.length === 0 && (
-                  <Button variant="ghost" size="sm" onClick={loadGroups} disabled={isLoadingGroups}>
+                  <Button variant="outline" size="sm" onClick={loadGroups} disabled={isLoadingGroups}>
                     {isLoadingGroups ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
@@ -298,7 +298,7 @@ export function SonosSettings() {
                 <SelectTrigger id="sonos-group">
                   <SelectValue placeholder={groups.length === 0 ? "Inga rum hittade – tryck Hämta rum" : "Välj rum..."} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-border z-50">
                   {groups.map(group => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name}
@@ -328,8 +328,8 @@ export function SonosSettings() {
           </div>
 
           {/* Playback / Widget Settings */}
-          <div className="space-y-4 p-4 rounded-lg border">
-            <h4 className="text-sm font-medium">Uppspelning & widget</h4>
+          <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
+            <p className="settings-label">Uppspelning & widget</p>
 
             {/* Track Change Offset */}
             <div className="space-y-3">
@@ -369,9 +369,9 @@ export function SonosSettings() {
           </div>
 
           {/* Background Image Processing Section */}
-          <div className="space-y-4 p-4 rounded-lg border">
+          <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
             <div className="space-y-1">
-              <h4 className="text-sm font-medium">Bakgrundsbildbehandling (TV-läge)</h4>
+              <p className="settings-label">Bakgrundsbildbehandling (TV-läge)</p>
               <p className="text-xs text-muted-foreground">
                 Dessa inställningar styr hur albumomslaget bearbetas till bakgrundsbild
               </p>
@@ -444,7 +444,7 @@ export function SonosSettings() {
               />
             </div>
 
-            <Button onClick={saveAndRegenerate} disabled={isRegenerating} className="w-full">
+            <Button onClick={saveAndRegenerate} disabled={isRegenerating} variant="outline" size="sm" className="w-full">
               {isRegenerating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
@@ -453,7 +453,7 @@ export function SonosSettings() {
           </div>
 
           {/* Save all */}
-          <Button onClick={saveAllSettings} variant="outline" className="w-full">
+          <Button onClick={saveAllSettings} variant="outline" size="sm" className="w-full">
             Spara alla inställningar
           </Button>
         </>
