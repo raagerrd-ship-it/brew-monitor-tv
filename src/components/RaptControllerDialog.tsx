@@ -11,7 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
 import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
-import { getControllerColor, formatRunTime } from '@/lib/brew-utils';
+import { getControllerColor } from '@/lib/brew-utils';
 
 interface TempController {
   id: string;
@@ -355,18 +355,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             }`}>
               <Flame className={`w-4 h-4 ${isActivelyHeating ? 'text-orange-500' : 'text-muted-foreground/40'}`} />
               {isActivelyHeating && <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />}
-              <div className="flex flex-col items-center">
-                <span className={`text-xs font-medium ${
-                  isActivelyHeating ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground/60'
-                }`}>
-                  {!currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
-                </span>
-                {currentController.heating_starts != null && currentController.heating_starts > 0 && (
-                  <span className="text-[9px] text-muted-foreground/50 tabular-nums">
-                    {currentController.heating_starts} starter · {formatRunTime(currentController.heating_run_time)}
-                  </span>
-                )}
-              </div>
+              <span className={`text-xs font-medium ${
+                isActivelyHeating ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground/60'
+              }`}>
+                {!currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
+              </span>
             </div>
             
             <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
@@ -376,18 +369,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             }`}>
               <Snowflake className={`w-4 h-4 ${isActivelyCooling ? 'text-blue-500' : 'text-muted-foreground/40'}`} />
               {isActivelyCooling && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
-              <div className="flex flex-col items-center">
-                <span className={`text-xs font-medium ${
-                  isActivelyCooling ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground/60'
-                }`}>
-                  {!currentController.cooling_enabled ? 'Inaktiv' : isActivelyCooling ? 'Kyler' : 'Standby'}
-                </span>
-                {currentController.cooling_starts != null && currentController.cooling_starts > 0 && (
-                  <span className="text-[9px] text-muted-foreground/50 tabular-nums">
-                    {currentController.cooling_starts} starter · {formatRunTime(currentController.cooling_run_time)}
-                  </span>
-                )}
-              </div>
+              <span className={`text-xs font-medium ${
+                isActivelyCooling ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground/60'
+              }`}>
+                {!currentController.cooling_enabled ? 'Inaktiv' : isActivelyCooling ? 'Kyler' : 'Standby'}
+              </span>
             </div>
           </div>
 
