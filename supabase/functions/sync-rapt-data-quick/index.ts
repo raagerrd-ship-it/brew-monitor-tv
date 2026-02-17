@@ -156,6 +156,10 @@ serve(async (req) => {
           heating_utilisation: controller.heatingUtilisation || 0,
           cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
           heating_hysteresis: controller.heatingHysteresis ?? 0.2,
+          cooling_run_time: controller.coolingRunTime || 0,
+          cooling_starts: controller.coolingStarts || 0,
+          heating_run_time: controller.heatingRunTime || 0,
+          heating_starts: controller.heatingStarts || 0,
           last_update: lastUpdate,
           updated_at: new Date().toISOString()
         };

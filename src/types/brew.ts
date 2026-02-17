@@ -84,4 +84,8 @@ export interface TempController {
   heating_enabled: boolean | null;
   heating_utilisation: number | null;
   linked_pill_id: string | null;
+  cooling_run_time: number | null;
+  cooling_starts: number | null;
+  heating_run_time: number | null;
+  heating_starts: number | null;
 }
