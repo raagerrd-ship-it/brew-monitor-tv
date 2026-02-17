@@ -598,6 +598,187 @@ serve(async (req) => {
       log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
     }
 
+    // === OVERSHOOT PREVENTION ===
+    // Check if any followed controller has pill > target while controller < target (heating overshoot)
+    for (const fc of followedControllersFullData) {
+      if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
+      if (fc.target_temp === null || fc.target_temp === undefined) continue;
+
+      const pillTemp = parseFloat(String(fc.pill_temp));
+      const ctrlTemp = parseFloat(String(fc.current_temp));
+      const targetTemp = parseFloat(String(fc.target_temp));
+      const pillDelta = pillTemp - ctrlTemp;
+
+      // Overshoot scenario: pill >= target AND controller < target (heater is running, pill overshooting)
+      const pillOverTarget = pillTemp >= targetTemp + 0.3; // pill is at least 0.3°C over target
+      const controllerUnderTarget = ctrlTemp < targetTemp - 0.2; // controller still under target
+      const isHeatingOvershoot = pillOverTarget && controllerUnderTarget && pillDelta > 0.5;
+
+      if (isHeatingOvershoot) {
+        log('OVERSHOOT_DETECTED', 'action', `Heating overshoot for ${fc.name}: pill=${pillTemp.toFixed(1)}° > target=${targetTemp}°C, ctrl=${ctrlTemp.toFixed(1)}° (delta=${pillDelta.toFixed(1)}°)`);
+
+        // Find linked brew for context
+        const { data: linkedBrews } = await supabase
+          .from('brew_readings')
+          .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
+          .eq('linked_controller_id', fc.controller_id)
+          .limit(1);
+
+        const brew = linkedBrews?.[0];
+        if (!brew) {
+          log('OVERSHOOT_SKIP', 'info', `No linked brew for ${fc.name}, skipping overshoot check`);
+          continue;
+        }
+
+        const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
+        const sorted = sgData ? [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+        const sgRange = brew.original_gravity - brew.final_gravity;
+        const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
+
+        // Calculate daily rate
+        const nowMs = Date.now();
+        const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
+        let dailyRate = 0;
+        if (last24h.length >= 2) {
+          const newest = last24h[0].value;
+          const oldest = last24h[last24h.length - 1].value;
+          const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
+          if (hoursSpan >= 2) dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
+        }
+
+        // Fetch delta history
+        const { data: deltaHistoryForAI } = await supabase
+          .from('temp_delta_history')
+          .select('delta, recorded_at')
+          .eq('controller_id', fc.controller_id)
+          .order('recorded_at', { ascending: false })
+          .limit(10);
+
+        // Calculate hours at current temp
+        const { data: tempHistory } = await supabase
+          .from('temp_controller_history')
+          .select('target_temp, recorded_at')
+          .eq('controller_id', fc.controller_id)
+          .order('recorded_at', { ascending: false })
+          .limit(100);
+
+        let hoursAtCurrentTemp = 0;
+        if (tempHistory && tempHistory.length > 0) {
+          for (const record of tempHistory) {
+            if (Math.abs(parseFloat(String(record.target_temp)) - targetTemp) > 0.1) break;
+            hoursAtCurrentTemp = (nowMs - new Date(record.recorded_at).getTime()) / (1000 * 60 * 60);
+          }
+        }
+
+        log('OVERSHOOT_AI', 'info', `Consulting AI for overshoot on ${brew.name}...`);
+
+        try {
+          const aiResponse = await supabase.functions.invoke('ai-fermentation-advisor', {
+            body: {
+              brewName: brew.name,
+              beerStyle: brew.style || 'Unknown',
+              originalGravity: brew.original_gravity,
+              finalGravity: brew.final_gravity,
+              currentSG: brew.current_sg,
+              currentTemp: ctrlTemp,
+              targetTemp,
+              pillTemp,
+              controllerTemp: ctrlTemp,
+              delta: pillDelta,
+              dailyRate,
+              progressPercent: progressPct,
+              sgHistory: sorted.slice(0, 20).map(s => ({ date: s.date, value: s.value })),
+              deltaHistory: (deltaHistoryForAI || []).map(d => ({ delta: parseFloat(String(d.delta)), recorded_at: d.recorded_at })),
+              controllerName: fc.name,
+              maxTargetTemp: parseFloat(String(fc.max_target_temp ?? '25')),
+              minTargetTemp: parseFloat(String(fc.min_target_temp ?? '-5')),
+              hoursAtCurrentTemp,
+              scenario: 'overshoot',
+              heatingActive: true,
+            }
+          });
+
+          if (!aiResponse.error && aiResponse.data && !aiResponse.data.fallback) {
+            const rec = aiResponse.data.recommendation;
+            log('OVERSHOOT_AI', 'pass', `AI recommends: ${rec.action} ${rec.degrees}°C (confidence: ${rec.confidence}%)`, {
+              action: rec.action,
+              degrees: rec.degrees,
+              confidence: rec.confidence,
+              reasoning: rec.reasoning,
+              newTargetTemp: rec.newTargetTemp
+            });
+
+            // Execute AI recommendation for overshoot
+            if ((rec.action === 'pause_heating' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
+              const newTarget = rec.newTargetTemp;
+              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+              const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+
+              if (newTarget >= minTemp && newTarget <= maxTemp) {
+                log('OVERSHOOT_ACTION', 'action', `AI: Lowering ${fc.name} from ${targetTemp}°C to ${newTarget}°C to prevent overshoot`);
+
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+                });
+
+                if (!updateResponse.error) {
+                  log('OVERSHOOT_ACTION', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
+                  adjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: fc.controller_id,
+                    cooler_controller_name: fc.name,
+                    old_target_temp: targetTemp,
+                    new_target_temp: newTarget,
+                    lowest_followed_temp: targetTemp,
+                    followed_controller_id: fc.controller_id,
+                    followed_controller_name: fc.name,
+                    followed_current_temp: ctrlTemp,
+                    followed_target_temp: targetTemp,
+                    reason: `🌡️ Overshoot: ${rec.reasoning} (${rec.confidence}% säker)`
+                  } as any);
+                } else {
+                  log('OVERSHOOT_ACTION', 'fail', `Failed to update ${fc.name}`);
+                }
+              }
+            } else if (rec.action === 'hold' || rec.action === 'wait') {
+              log('OVERSHOOT_AI', 'info', `AI says ${rec.action}: ${rec.reasoning}`);
+            }
+          } else {
+            // AI unavailable — simple fallback: if pill > target + 1°C, reduce target by 0.5°C
+            log('OVERSHOOT_AI', 'fail', 'AI unavailable for overshoot, using simple fallback');
+            if (pillTemp > targetTemp + 1.0) {
+              const fallbackTarget = pillTemp - 0.5;
+              const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+              if (fallbackTarget >= minTemp) {
+                log('OVERSHOOT_FALLBACK', 'action', `Fallback: Lowering ${fc.name} from ${targetTemp}°C to ${fallbackTarget.toFixed(1)}°C`);
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: fallbackTarget }
+                });
+                if (!updateResponse.error) {
+                  adjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: fallbackTarget });
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: fc.controller_id,
+                    cooler_controller_name: fc.name,
+                    old_target_temp: targetTemp,
+                    new_target_temp: fallbackTarget,
+                    lowest_followed_temp: targetTemp,
+                    followed_controller_id: fc.controller_id,
+                    followed_controller_name: fc.name,
+                    followed_current_temp: ctrlTemp,
+                    followed_target_temp: targetTemp,
+                    reason: `🌡️ Overshoot fallback: pill ${pillTemp.toFixed(1)}° > target ${targetTemp}°C, sänker temporärt`
+                  } as any);
+                }
+              }
+            }
+          }
+        } catch (aiError) {
+          log('OVERSHOOT_AI', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}`);
+        }
+      }
+    }
+
     // === FERMENTATION STALL DETECTION ===
     // Check if any followed controller's linked brew is stalling
     for (const fc of followedControllersFullData) {
