@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,8 @@ export function SonosSettings() {
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
   const [prefetchSeconds, setPrefetchSeconds] = useState(30);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     loadSonosStatus();
@@ -57,15 +59,14 @@ export function SonosSettings() {
           setIsConnected(true);
           setGroups(data.groups || []);
         }
-        // Don't set disconnected yet — check DB settings below as fallback
       }
 
       const settings = settingsResult.data;
       if (settings) {
-        // If edge function failed but we have a selected group in DB, we're still connected
         if (!isConnected && settings.selected_group_id) {
           setIsConnected(true);
         }
+        setSettingsId(settings.id);
         setSelectedGroupId(settings.selected_group_id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
@@ -84,7 +85,51 @@ export function SonosSettings() {
       setIsConnected(false);
     } finally {
       setIsLoading(false);
+      setInitialLoadDone(true);
     }
+  };
+
+  /** Persist a partial settings update immediately */
+  const saveField = useCallback(async (fields: Record<string, any>) => {
+    try {
+      if (settingsId) {
+        await (supabase as any)
+          .from('sonos_settings')
+          .update(fields)
+          .eq('id', settingsId);
+      } else {
+        const { data } = await (supabase as any)
+          .from('sonos_settings')
+          .insert(fields)
+          .select('id')
+          .single();
+        if (data) setSettingsId(data.id);
+      }
+    } catch (error) {
+      console.error('Failed to auto-save setting:', error);
+    }
+  }, [settingsId]);
+
+  // Auto-save helpers for individual fields
+  const handleGroupChange = (value: string) => {
+    setSelectedGroupId(value);
+    const selectedGroup = groups.find(g => g.id === value);
+    saveField({ selected_group_id: value, selected_group_name: selectedGroup?.name || null });
+  };
+
+  const handleShowOnDashboardChange = (value: boolean) => {
+    setShowOnDashboard(value);
+    saveField({ show_on_dashboard: value });
+  };
+
+  const handleTrackChangeOffsetCommit = (value: number) => {
+    setTrackChangeOffset(value);
+    saveField({ track_change_offset_seconds: value });
+  };
+
+  const handlePrefetchCommit = (value: number) => {
+    setPrefetchSeconds(value);
+    saveField({ prefetch_seconds: value });
   };
 
   const loadGroups = async () => {
@@ -161,59 +206,33 @@ export function SonosSettings() {
 
   const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const saveAllSettings = async () => {
+  const saveAndRegenerate = async () => {
+    setIsRegenerating(true);
     try {
-      const selectedGroup = groups.find(g => g.id === selectedGroupId);
-
-      const settingsData = {
-        selected_group_id: selectedGroupId,
-        selected_group_name: selectedGroup?.name || null,
-        show_on_dashboard: showOnDashboard,
+      // Save only background-related fields
+      const bgFields = {
         bg_blur: bgBlur,
         bg_brightness: bgBrightness,
         bg_contrast: bgContrast,
         bg_saturation: bgSaturation,
         bg_top_gradient_opacity: bgTopGradientOpacity,
         bg_top_gradient_height: bgTopGradientHeight,
-        track_change_offset_seconds: trackChangeOffset,
-        prefetch_seconds: prefetchSeconds,
       };
 
-      const { data: existing } = await (supabase as any)
-        .from('sonos_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      let error;
-      if (existing) {
-        ({ error } = await (supabase as any)
+      if (settingsId) {
+        await (supabase as any)
           .from('sonos_settings')
-          .update(settingsData)
-          .eq('id', existing.id));
+          .update(bgFields)
+          .eq('id', settingsId);
       } else {
-        ({ error } = await (supabase as any)
+        const { data } = await (supabase as any)
           .from('sonos_settings')
-          .insert(settingsData));
+          .insert(bgFields)
+          .select('id')
+          .single();
+        if (data) setSettingsId(data.id);
       }
 
-      if (error) {
-        console.error('Failed to save sonos settings:', error);
-        toast.error('Kunde inte spara: ' + error.message);
-        return;
-      }
-
-      toast.success('Sonos-inställningar sparade');
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      toast.error('Kunde inte spara inställningar');
-    }
-  };
-
-  const saveAndRegenerate = async () => {
-    setIsRegenerating(true);
-    try {
-      await saveAllSettings();
       // Trigger server sync to regenerate background with new settings
       await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
         method: 'POST',
@@ -294,7 +313,7 @@ export function SonosSettings() {
                   </Button>
                 )}
               </div>
-              <Select value={selectedGroupId || ''} onValueChange={setSelectedGroupId}>
+              <Select value={selectedGroupId || ''} onValueChange={handleGroupChange}>
                 <SelectTrigger id="sonos-group">
                   <SelectValue placeholder={groups.length === 0 ? "Inga rum hittade – tryck Hämta rum" : "Välj rum..."} />
                 </SelectTrigger>
@@ -322,7 +341,7 @@ export function SonosSettings() {
               <Switch
                 id="show-on-dashboard"
                 checked={showOnDashboard}
-                onCheckedChange={setShowOnDashboard}
+                onCheckedChange={handleShowOnDashboardChange}
               />
             </div>
           </div>
@@ -343,6 +362,7 @@ export function SonosSettings() {
                 max={4}
                 step={0.1}
                 onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
+                onValueCommit={(v) => handleTrackChangeOffsetCommit(Math.round(v[0] * 10) / 10)}
               />
               <p className="text-xs text-muted-foreground">
                 Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
@@ -361,6 +381,7 @@ export function SonosSettings() {
                 max={60}
                 step={5}
                 onValueChange={(v) => setPrefetchSeconds(v[0])}
+                onValueCommit={(v) => handlePrefetchCommit(v[0])}
               />
               <p className="text-xs text-muted-foreground">
                 Hur långt innan låtslut som nästa låts omslag och bakgrund förladdas
@@ -392,7 +413,7 @@ export function SonosSettings() {
               />
             </div>
 
-            {/* Background Brightness (target luminance) */}
+            {/* Background Brightness */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Ljusstyrka (mål-luminans)</Label>
@@ -409,7 +430,6 @@ export function SonosSettings() {
                 Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
               </p>
             </div>
-
 
             {/* Top Gradient Opacity */}
             <div className="space-y-3">
@@ -451,11 +471,6 @@ export function SonosSettings() {
               Spara & generera om bakgrund
             </Button>
           </div>
-
-          {/* Save all */}
-          <Button onClick={saveAllSettings} variant="outline" size="sm" className="w-full">
-            Spara alla inställningar
-          </Button>
         </>
       )}
 
