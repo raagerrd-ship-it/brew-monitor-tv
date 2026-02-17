@@ -135,19 +135,6 @@ function BrewCardComponent({
                 }}
               >
                 {brew.name}
-                {brew.batch_id.startsWith('custom_') && (
-                  <span
-                    className="inline-flex items-center rounded px-1.5 py-0.5 font-bold uppercase tracking-wider ml-1.5 align-middle"
-                    style={{
-                      fontSize: '9px',
-                      background: 'linear-gradient(135deg, hsl(var(--accent) / 0.3) 0%, hsl(var(--accent) / 0.15) 100%)',
-                      color: 'hsl(var(--accent-foreground) / 0.9)',
-                      border: '1px solid hsl(var(--accent) / 0.4)',
-                    }}
-                  >
-                    #{brew.batchNumber}
-                  </span>
-                )}
               </h2>
               {/* Status badge as menu trigger */}
               <div className="flex-shrink-0 relative" ref={menuRef}>
@@ -174,6 +161,11 @@ function BrewCardComponent({
                     className="absolute right-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
                     style={{ backdropFilter: 'blur(12px)' }}
                   >
+                    {brew.batch_id.startsWith('custom_') && (
+                      <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-muted-foreground w-full">
+                        <span className="font-semibold">#{brew.batchNumber}</span>
+                      </div>
+                    )}
                     <button
                       className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
                       onClick={() => { setSmoothLines(!smoothLines); }}
