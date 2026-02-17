@@ -13,6 +13,7 @@ interface StatCardProps {
   title?: string;
   icon?: ReactNode;
   children?: ReactNode;
+  subValue?: ReactNode;
   colSpan?: number;
   rowSpan?: number;
   centered?: boolean;
@@ -33,6 +34,7 @@ export function StatCard({
   title,
   icon,
   children,
+  subValue,
   colSpan = 1,
   rowSpan = 1,
   centered = false,
@@ -114,6 +116,10 @@ export function StatCard({
       >
         {value}
       </p>
+      
+      {subValue && (
+        <div className="z-10">{subValue}</div>
+      )}
       
       {children}
     </div>

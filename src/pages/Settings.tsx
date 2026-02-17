@@ -73,6 +73,7 @@ export default function Settings() {
   const [autoCoolingSettingsId, setAutoCoolingSettingsId] = useState<string | null>(null);
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
+  const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -427,6 +428,7 @@ export default function Settings() {
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         setCoolerControllerId(data.cooler_controller_id || "");
         setLastAutoCoolingCheck(data.last_check_at);
+        setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2).toString());
       }
 
       // Load followed controllers
@@ -906,6 +908,32 @@ export default function Settings() {
       });
     } catch (error) {
       console.error('Error updating max diff:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeltaAlertThresholdChange = async (value: string) => {
+    setDeltaAlertThreshold(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ delta_alert_threshold: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Inställningar sparade",
+        description: "Delta-tröskelvärde har uppdaterats",
+      });
+    } catch (error) {
+      console.error('Error updating delta threshold:', error);
       toast({
         title: "Fel",
         description: "Kunde inte spara inställningar",
@@ -1851,7 +1879,7 @@ export default function Settings() {
                       Justeringsparametrar
                     </h3>
                     
-                    <div className="grid gap-4 grid-cols-3 sm:grid-cols-3">
+                    <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">Kontrollintervall</label>
                         <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
@@ -1898,10 +1926,27 @@ export default function Settings() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Delta-varning</label>
+                        <Select value={deltaAlertThreshold} onValueChange={handleDeltaAlertThresholdChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="1">1°C</SelectItem>
+                            <SelectItem value="1.5">1.5°C</SelectItem>
+                            <SelectItem value="2">2°C</SelectItem>
+                            <SelectItem value="2.5">2.5°C</SelectItem>
+                            <SelectItem value="3">3°C</SelectItem>
+                            <SelectItem value="5">5°C</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Sänker {tempReduction}°C var {autoCoolingInterval} min. Max {maxDiffFromLowest}°C under lägsta följda controller.
+                      Sänker {tempReduction}°C var {autoCoolingInterval} min. Max {maxDiffFromLowest}°C under lägsta följda controller. Varnar vid pill-delta &gt; {deltaAlertThreshold}°C.
                     </p>
                   </div>
 
@@ -1926,6 +1971,9 @@ export default function Settings() {
                       <p>• Övervakar controller med lägst måltemperatur</p>
                       <p>• Startar nedräkning när temperaturen är över mål + tolerans</p>
                       <p>• Sänker kylarens mål efter {autoCoolingInterval} min med {tempReduction}°C</p>
+                      <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
+                      <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
+                      <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
                       <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
                       <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
                     </CollapsibleContent>

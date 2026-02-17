@@ -63,6 +63,29 @@ serve(async (req) => {
       throw insertError;
     }
 
+    // Record delta history for controllers that have both pill_temp and current_temp
+    const deltaRecords = controllers
+      .filter(c => c.pill_temp !== null && c.current_temp !== null)
+      .map(c => ({
+        controller_id: c.controller_id,
+        pill_temp: c.pill_temp,
+        controller_temp: c.current_temp,
+        delta: c.pill_temp - c.current_temp,
+      }));
+
+    if (deltaRecords.length > 0) {
+      const { error: deltaError } = await supabase
+        .from('temp_delta_history')
+        .insert(deltaRecords);
+
+      if (deltaError) {
+        console.error('Failed to insert delta history:', deltaError);
+        // Don't throw - delta history is supplementary
+      } else {
+        console.log(`Recorded ${deltaRecords.length} delta history entries`);
+      }
+    }
+
     console.log('Successfully recorded temperature history');
 
     // History is kept indefinitely to preserve full fermentation data
