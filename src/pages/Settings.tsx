@@ -1194,6 +1194,7 @@ export default function Settings() {
                     onClick={handleFullSync} 
                     disabled={syncing}
                     className="w-full"
+                    variant="outline"
                     size="sm"
                   >
                     <RefreshCw className={`mr-2 h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
@@ -1391,6 +1392,7 @@ export default function Settings() {
                     onClick={handleRaptFullSync} 
                     disabled={raptSyncing}
                     className="w-full"
+                    variant="outline"
                     size="sm"
                   >
                     <RefreshCw className={`mr-2 h-3 w-3 ${raptSyncing ? 'animate-spin' : ''}`} />
@@ -1472,7 +1474,7 @@ export default function Settings() {
                       Anslut för att visa aktiva timers från brygg-appen
                     </p>
                   </div>
-                  <Button onClick={() => setExternalLoginDialogOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setExternalLoginDialogOpen(true)}>
                     Anslut
                   </Button>
                 </div>
