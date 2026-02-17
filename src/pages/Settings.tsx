@@ -16,7 +16,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +85,15 @@ export default function Settings() {
     linked_pill_id: string | null
   }>>([]);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
+  const [lastAdjustment, setLastAdjustment] = useState<{
+    created_at: string;
+    old_target_temp: number;
+    new_target_temp: number;
+    reason: string;
+    followed_controller_name: string | null;
+    followed_current_temp: number | null;
+    followed_target_temp: number | null;
+  } | null>(null);
   const [syncSteps, setSyncSteps] = useState<Array<{
     id: string;
     label: string;
@@ -426,6 +437,16 @@ export default function Settings() {
       if (!followedError && followedData) {
         setFollowedControllerIds(followedData.map(f => f.controller_id));
       }
+
+      // Load last adjustment
+      const { data: adjData } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('created_at, old_target_temp, new_target_temp, reason, followed_controller_name, followed_current_temp, followed_target_temp')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setLastAdjustment(adjData);
     } catch (error) {
       console.error('Error loading auto cooling settings:', error);
     }
@@ -1509,9 +1530,10 @@ export default function Settings() {
                         <h3 className="text-sm font-semibold">Status</h3>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Cooler + Followed side by side */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Cooler Status */}
-                        <div className="space-y-1 p-3 rounded-lg bg-background/50">
+                        <div className="space-y-1.5 p-3 rounded-lg bg-background/50">
                           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Kylare</span>
                           <p className="font-medium text-sm">
                             {coolerControllerId 
@@ -1524,55 +1546,175 @@ export default function Settings() {
                               ? Number(cooler.current_temp).toFixed(1) : null;
                             const target = cooler?.target_temp !== null && cooler?.target_temp !== undefined
                               ? Number(cooler.target_temp).toFixed(1) : null;
-                            return current || target ? (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {current && <span>{current}°C</span>}
-                                {current && target && <span className="mx-1">→</span>}
-                                {target && <span className="text-foreground">{target}°C mål</span>}
+                            const isCooling = cooler?.cooling_enabled;
+                            return (
+                              <div className="space-y-1">
+                                {(current || target) && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {current && <span>{current}°C</span>}
+                                    {current && target && <span className="mx-1">→</span>}
+                                    {target && <span className="text-foreground">{target}°C mål</span>}
+                                  </div>
+                                )}
+                                <div className={`text-[11px] flex items-center gap-1 ${isCooling ? 'text-blue-400' : 'text-muted-foreground/60'}`}>
+                                  <Snowflake className="h-3 w-3" />
+                                  {isCooling ? 'Kyla aktiv' : 'Kyla inaktiv'}
+                                </div>
                               </div>
-                            ) : null;
+                            );
                           })()}
                         </div>
 
-                        {/* Followed Controller Status */}
-                        <div className="space-y-1 p-3 rounded-lg bg-background/50">
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Följer</span>
+                        {/* Followed Controllers - show ALL */}
+                        <div className="space-y-1.5 p-3 rounded-lg bg-background/50">
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Följda controllers ({followedControllerIds.length})
+                          </span>
                           {(() => {
                             const followedControllers = availableControllers.filter(c => 
-                              followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                              followedControllerIds.includes(c.id)
                             );
-                            if (followedControllers.length === 0) return <p className="font-medium text-sm">Ingen aktiv</p>;
-                            
-                            const controllersWithTarget = followedControllers
-                              .filter(c => c.target_temp !== null && c.target_temp !== undefined);
-                            
-                            if (controllersWithTarget.length === 0) return <p className="font-medium text-sm">Ingen aktiv</p>;
-                            
-                            const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
-                            const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
-                            const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp;
-                            const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
+                            if (followedControllers.length === 0) return <p className="text-xs text-muted-foreground">Inga valda</p>;
                             
                             return (
-                              <>
-                                <p className="font-medium text-sm">{lowestController?.name || 'N/A'}</p>
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  {currentTemp !== null && currentTemp !== undefined && (
-                                    <span>{Number(currentTemp).toFixed(1)}°C</span>
-                                  )}
-                                  <span className="mx-1">→</span>
-                                  <span className="text-foreground">{lowestTargetTemp.toFixed(1)}°C mål</span>
-                                  <span className="text-muted-foreground/70 ml-1">(±{hysteresis.toFixed(1)}°)</span>
-                                </div>
-                              </>
+                              <div className="space-y-1.5">
+                                {followedControllers.map(fc => {
+                                  const currentTemp = fc.current_temp ?? fc.pill_temp;
+                                  const hysteresis = fc.cooling_hysteresis ?? 0.2;
+                                  const isActivelyCooling = fc.cooling_enabled && 
+                                    currentTemp !== null && fc.target_temp !== null &&
+                                    currentTemp > (fc.target_temp + hysteresis);
+                                  const atTarget = fc.cooling_enabled && 
+                                    currentTemp !== null && fc.target_temp !== null &&
+                                    currentTemp <= (fc.target_temp + hysteresis);
+                                  
+                                  return (
+                                    <div key={fc.id} className="text-xs">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-medium truncate">{fc.name}</span>
+                                        {!fc.cooling_enabled ? (
+                                          <span className="text-muted-foreground/50 text-[10px] shrink-0">Kyla av</span>
+                                        ) : isActivelyCooling ? (
+                                          <span className="text-blue-400 text-[10px] shrink-0">Kyler ↓</span>
+                                        ) : atTarget ? (
+                                          <span className="text-green-500 text-[10px] shrink-0">✓ Mål</span>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        {currentTemp !== null && <span>{Number(currentTemp).toFixed(1)}°</span>}
+                                        {fc.target_temp !== null && (
+                                          <>
+                                            <span className="mx-0.5">→</span>
+                                            <span className="text-foreground">{fc.target_temp.toFixed(1)}°</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             );
                           })()}
                         </div>
                       </div>
 
+                      {/* Decision logic explanation */}
+                      {(() => {
+                        const cooler = coolerControllerId ? availableControllers.find(c => c.id === coolerControllerId) : null;
+                        const followedControllers = availableControllers.filter(c => 
+                          followedControllerIds.includes(c.id) && c.cooling_enabled === true
+                        );
+                        const controllersWithTarget = followedControllers
+                          .filter(c => c.target_temp !== null && c.target_temp !== undefined);
+                        
+                        if (!cooler || controllersWithTarget.length === 0) return null;
+                        
+                        const lowestTargetTemp = Math.min(...controllersWithTarget.map(c => c.target_temp!));
+                        const lowestController = controllersWithTarget.find(c => c.target_temp === lowestTargetTemp);
+                        const currentTemp = lowestController?.current_temp ?? lowestController?.pill_temp;
+                        const hysteresis = lowestController?.cooling_hysteresis ?? 0.2;
+                        const coolerTarget = cooler.target_temp ?? 0;
+                        const tempDiff = coolerTarget - lowestTargetTemp;
+                        const isActivelyCooling = currentTemp !== null && currentTemp > (lowestTargetTemp + hysteresis);
+                        
+                        return (
+                          <div className="p-3 rounded-lg bg-background/30 border border-border/30 space-y-2">
+                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Beslutslogik</span>
+                            <div className="space-y-1.5 text-xs">
+                              <div className="flex items-start gap-2">
+                                <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                                <span className="text-muted-foreground">
+                                  Övervakar <span className="text-foreground font-medium">{lowestController?.name}</span> mot mål {lowestTargetTemp.toFixed(1)}°C 
+                                  (±{hysteresis.toFixed(1)}°)
+                                </span>
+                              </div>
+                              
+                              {isActivelyCooling ? (
+                                <div className="flex items-start gap-2">
+                                  <ArrowDown className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
+                                  <span className="text-muted-foreground">
+                                    Temp <span className="text-foreground">{currentTemp!.toFixed(1)}°C</span> är över mål — 
+                                    om den inte når ner <span className="text-foreground">sänks kylaren med {tempReduction}°C</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-start gap-2">
+                                  <Check className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                                  <span className="text-muted-foreground">
+                                    Måltemp uppnådd — <span className="text-foreground">ingen justering behövs</span>
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {tempDiff < -parseFloat(maxDiffFromLowest) && (
+                                <div className="flex items-start gap-2">
+                                  <ArrowUp className="h-3.5 w-3.5 text-orange-400 shrink-0 mt-0.5" />
+                                  <span className="text-muted-foreground">
+                                    Kylaren är {Math.abs(tempDiff).toFixed(1)}°C kallare än lägsta mål — 
+                                    <span className="text-foreground"> kan höjas automatiskt</span>
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Last adjustment */}
+                      {lastAdjustment && (
+                        <div className="p-3 rounded-lg bg-background/30 border border-border/30 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Senaste justering</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatDistanceToNow(new Date(lastAdjustment.created_at), { addSuffix: true, locale: sv })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground">
+                              Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}°C → {lastAdjustment.new_target_temp}°C</span>
+                              {lastAdjustment.new_target_temp < lastAdjustment.old_target_temp 
+                                ? <ArrowDown className="h-3 w-3 text-blue-400 inline ml-1" />
+                                : <ArrowUp className="h-3 w-3 text-orange-400 inline ml-1" />
+                              }
+                            </span>
+                          </div>
+                          {lastAdjustment.followed_controller_name && (
+                            <p className="text-[11px] text-muted-foreground pl-5">
+                              Orsak: {lastAdjustment.followed_controller_name} 
+                              {lastAdjustment.followed_current_temp !== null && ` (${lastAdjustment.followed_current_temp.toFixed(1)}°C)`}
+                              {lastAdjustment.followed_target_temp !== null && ` → mål ${lastAdjustment.followed_target_temp.toFixed(1)}°C`}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Countdown */}
                       <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                        <span className="text-sm text-muted-foreground">Nästa kontroll</span>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Nästa kontroll</span>
+                        </div>
                         <AutoCoolingCountdown 
                           lastAdjustmentTime={lastAutoCoolingCheck}
                           checkIntervalMinutes={parseInt(autoCoolingInterval)}
