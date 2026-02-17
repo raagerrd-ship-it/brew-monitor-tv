@@ -169,13 +169,15 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
                 >
-                  <AirVent style={{
-                    width: '1rem',
-                    height: '1rem',
-                    color: controllerColor,
-                    flexShrink: 0,
-                    opacity: 0.7
-                  }} />
+                  {!isMobile && (
+                    <AirVent style={{
+                      width: '1rem',
+                      height: '1rem',
+                      color: controllerColor,
+                      flexShrink: 0,
+                      opacity: 0.7
+                    }} />
+                  )}
 
                   <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
                     fontSize: isMobile ? undefined : '16px',
@@ -187,11 +189,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   {linkedPill && (
                     <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
                       <div className="relative flex items-center">
+                      {!isMobile && (
                         <Pill style={{
                           width: '0.7rem',
                           height: '0.7rem',
                           flexShrink: 0
                         }} color={linkedPill.color} strokeWidth={2} />
+                      )}
                       </div>
                       <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
                         fontSize: isMobile ? undefined : '14px',

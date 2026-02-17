@@ -1,4 +1,4 @@
-import { useMemo, memo, useState } from "react";
+import { useMemo, memo, useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTvMode } from "@/contexts/TvModeContext";
@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2 } from "lucide-react";
+import { Share2, TrendingUp, MoreVertical, Plus } from "lucide-react";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText } from "./utils";
@@ -37,7 +37,26 @@ function BrewCardComponent({
   brewCount,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
+  const [smoothLines, setSmoothLines] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { isTvMode } = useTvMode();
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler as any);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler as any);
+    };
+  }, [menuOpen]);
   
   // Memoize expensive calculations
   const devices = useMemo(() => 
@@ -151,24 +170,53 @@ function BrewCardComponent({
               </p>
             </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* Action buttons - only visible when authenticated and not in TV mode */}
+            {/* Action menu - tap to toggle */}
             {showInteractiveElements && (
-              <div className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity duration-200">
+              <div className="relative" ref={menuRef}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onShareBrew(brew)}
-                  className="h-7 w-7 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex-shrink-0"
-                  title="Dela detta öl"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="h-7 w-7 opacity-40 hover:opacity-100 hover:bg-primary/10 text-muted-foreground hover:text-foreground transition-opacity"
                 >
-                  <Share2 className="h-3.5 w-3.5" />
+                  <MoreVertical className="h-3.5 w-3.5" />
                 </Button>
-                <BrewEventDialog
-                  brewId={brew.id}
-                  brewName={brew.name}
-                  events={brew.events}
-                  onEventsChange={onEventsChange}
-                />
+                {menuOpen && (
+                  <div
+                    className="absolute right-0 top-8 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
+                    style={{ backdropFilter: 'blur(12px)' }}
+                  >
+                    <button
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      onClick={() => { setSmoothLines(!smoothLines); }}
+                    >
+                      <TrendingUp className={`h-3.5 w-3.5 ${smoothLines ? 'text-primary' : 'text-muted-foreground'}`} />
+                      {smoothLines ? 'Raka linjer' : 'Mjuka linjer'}
+                    </button>
+                    <button
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Dela
+                    </button>
+                    <BrewEventDialog
+                      brewId={brew.id}
+                      brewName={brew.name}
+                      events={brew.events}
+                      onEventsChange={onEventsChange}
+                      trigger={
+                        <button
+                          className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Händelser
+                        </button>
+                      }
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -190,6 +238,8 @@ function BrewCardComponent({
             hasFermentationSession={!!brew.fermentationSession}
             lastUpdateRaw={brew.lastUpdateRaw}
             brewCount={brewCount}
+            smoothLines={smoothLines}
+            onSmoothLinesChange={setSmoothLines}
           />
         </div>
         

@@ -11,8 +11,6 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { Button } from "../ui/button";
-import { TrendingUp } from "lucide-react";
 import { BrewChartProps } from "./types";
 import { getEventDisplay, getEventsPerDay, formatXAxisTick, formatTooltipLabel } from "./utils";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
@@ -36,15 +34,17 @@ function BrewChartComponent({
   events = [],
   controllerId,
   chartIndex = 0,
+  smoothLines: externalSmoothLines,
+  onSmoothLinesChange,
 }: BrewChartProps) {
-  const [smoothLines, setSmoothLines] = useState(true);
+  const [internalSmoothLines, setInternalSmoothLines] = useState(true);
+  const smoothLines = externalSmoothLines ?? internalSmoothLines;
+  const setSmoothLines = onSmoothLinesChange ?? setInternalSmoothLines;
   const { isTvMode } = useTvMode();
 
-  // Defer chart rendering using staggered approach - each chart waits for idle time
-  // This prevents multiple charts from rendering simultaneously and blocking the main thread
+  // Defer chart rendering using staggered approach
   const shouldRenderChart = useStaggeredRender(chartIndex);
 
-  // Custom hook for data fetching and processing - only run when we're about to render
   const { chartData, dayBoundaries, dayTicks } = useBrewChartData({
     data: shouldRenderChart ? data : [],
     controllerId: shouldRenderChart ? controllerId : undefined,
@@ -79,17 +79,6 @@ function BrewChartComponent({
 
   return (
     <div className="h-full relative group">
-      {!isTvMode && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 left-10 z-10 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          onClick={() => setSmoothLines(!smoothLines)}
-          title={smoothLines ? "Visa raka linjer" : "Visa utjämnade linjer"}
-        >
-          <TrendingUp className={smoothLines ? "text-primary" : "text-muted-foreground"} />
-        </Button>
-      )}
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
           <defs>
