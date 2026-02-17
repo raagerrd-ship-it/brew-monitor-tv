@@ -30,6 +30,7 @@ function BrewCardComponent({
   controllers,
   onShareBrew,
   onEventsChange,
+  onControllerClick,
   
   cardIndex = 0,
   hasAlbumArtBackground = false,
@@ -218,7 +219,8 @@ function BrewCardComponent({
           <TempStat 
             brew={brew} 
             devices={devices} 
-            updatedFields={updatedFields} 
+            updatedFields={updatedFields}
+            onControllerClick={onControllerClick}
           />
           <AttenuationStat brew={brew} updatedFields={updatedFields} />
           <BatteryStat brew={brew} devices={devices} updatedFields={updatedFields} />
