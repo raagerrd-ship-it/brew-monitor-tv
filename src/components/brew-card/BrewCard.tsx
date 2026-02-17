@@ -30,7 +30,7 @@ function BrewCardComponent({
   controllers,
   onShareBrew,
   onEventsChange,
-  onDeviceLinkOpen,
+  
   cardIndex = 0,
   hasAlbumArtBackground = false,
   brewCount,
@@ -219,8 +219,6 @@ function BrewCardComponent({
             brew={brew} 
             devices={devices} 
             updatedFields={updatedFields} 
-            isAuthenticated={showInteractiveElements}
-            onDeviceLinkOpen={onDeviceLinkOpen}
           />
           <AttenuationStat brew={brew} updatedFields={updatedFields} />
           <BatteryStat brew={brew} devices={devices} updatedFields={updatedFields} />

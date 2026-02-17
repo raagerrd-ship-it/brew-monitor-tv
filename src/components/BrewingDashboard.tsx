@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RaptControllerDialog } from "./RaptControllerDialog";
-import { BrewDeviceLinkDialog } from "./BrewDeviceLinkDialog";
+
 import { BrewCard } from "./brew-card";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
@@ -32,19 +32,6 @@ export function BrewingDashboard() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchParams] = useSearchParams();
   const focusedBrewId = searchParams.get('brew');
-  const [deviceLinkDialog, setDeviceLinkDialog] = useState<{
-    open: boolean;
-    brewId: string;
-    brewName: string;
-    currentControllerId: string | null;
-    currentPillId: string | null;
-  }>({
-    open: false,
-    brewId: "",
-    brewName: "",
-    currentControllerId: null,
-    currentPillId: null
-  });
   const [visibleBgUrl, setVisibleBgUrl] = useState<string | null>(null);
   const visibleBgBaseRef = useRef<string | null>(null); // URL without query params
   const preloadingUrlRef = useRef<string | null>(null);
@@ -256,15 +243,6 @@ export function BrewingDashboard() {
       console.error('Failed to copy:', error);
     }
   }, []);
-  const handleDeviceLinkOpen = useCallback((brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => {
-    setDeviceLinkDialog({
-      open: true,
-      brewId,
-      brewName,
-      currentControllerId: controllerId,
-      currentPillId: pillId
-    });
-  }, []);
   const handleControllerClick = useCallback((controller: TempController) => {
     setSelectedController(controller);
     setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
@@ -393,7 +371,7 @@ export function BrewingDashboard() {
             <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
-                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
+                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
                   </div>)}
               </div>
             </div>
@@ -410,7 +388,7 @@ export function BrewingDashboard() {
                 height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
               }}
             >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onDeviceLinkOpen={handleDeviceLinkOpen} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
               </div>)}
           </div>}
       </div>
@@ -420,9 +398,5 @@ export function BrewingDashboard() {
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
 
-      <BrewDeviceLinkDialog open={deviceLinkDialog.open} onOpenChange={open => setDeviceLinkDialog(prev => ({
-      ...prev,
-      open
-    }))} brewId={deviceLinkDialog.brewId} onUpdate={() => {}} brewName={deviceLinkDialog.brewName} currentControllerId={deviceLinkDialog.currentControllerId} currentPillId={deviceLinkDialog.currentPillId} controllers={controllers} pills={pills} />
     </div>;
 }

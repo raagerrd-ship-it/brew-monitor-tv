@@ -8,7 +8,6 @@ export interface BrewCardProps {
   controllers: TempController[];
   onShareBrew: (brew: BrewData) => void;
   onEventsChange: () => void;
-  onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
   /** Index for staggered rendering */
   cardIndex?: number;
   /** Whether album art background is showing (for transparency effect) */
@@ -29,8 +28,6 @@ export interface StatCardProps {
 
 export interface TempCardProps extends StatCardProps {
   devices: DeviceMatch;
-  isAuthenticated: boolean;
-  onDeviceLinkOpen: (brewId: string, brewName: string, controllerId: string | null, pillId: string | null) => void;
 }
 
 export interface BatteryCardProps extends StatCardProps {

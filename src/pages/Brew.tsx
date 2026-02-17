@@ -261,7 +261,7 @@ export default function Brew() {
             controllers={controllers}
             onShareBrew={() => {}}
             onEventsChange={() => {}}
-            onDeviceLinkOpen={() => {}}
+            
             
             cardIndex={0}
           />
