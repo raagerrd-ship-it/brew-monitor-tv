@@ -366,6 +366,9 @@ serve(async (req) => {
                   newTarget = rec.newTargetTemp ?? (targetTemp - rec.degrees);
                 }
 
+                // CRITICAL: Overshoot prevention must NEVER raise the target above current
+                // This prevents the system from "forgetting" the user's original target
+                newTarget = Math.min(newTarget, targetTemp);
                 newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
 
                 if (Math.abs(newTarget - targetTemp) < 0.1) {
@@ -404,9 +407,9 @@ serve(async (req) => {
               log('OVERSHOOT_AI', 'fail', 'AI unavailable for overshoot, using simple fallback');
               if (pillTemp > targetTemp + 1.0) {
                 // Fallback: set to controller temp (pause heating without starting cooling)
-                const fallbackTarget = Math.round(ctrlTemp * 2) / 2;
+                const fallbackTarget = Math.min(Math.round(ctrlTemp * 2) / 2, targetTemp); // Never raise
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
-                if (fallbackTarget >= minTemp) {
+                if (fallbackTarget >= minTemp && Math.abs(fallbackTarget - targetTemp) >= 0.1) {
                   log('OVERSHOOT_FALLBACK', 'action', `Fallback: Lowering ${fc.name} from ${targetTemp}°C to ${fallbackTarget.toFixed(1)}°C`);
                   const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
                     body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: fallbackTarget }
