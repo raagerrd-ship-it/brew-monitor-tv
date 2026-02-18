@@ -713,10 +713,15 @@ serve(async (req) => {
         const pillDelta = pillTemp - ctrlTemp;
 
         const originalTarget = originalTargetMap.get(fc.controller_id) ?? targetTemp;
-        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: original target=${originalTarget}°C, current target=${targetTemp}°C`);
+        const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id);
+        // Profile-owned controllers: tolerate higher pill delta (fermentation heat is normal, not heater overshoot)
+        // Only react to extreme cases (pill > target + 3.0°C) for profile-owned tanks
+        const effectivePillThreshold = isProfileOwned ? 3.0 : overshootPillThreshold;
+        const effectiveDeltaThreshold = isProfileOwned ? 3.0 : overshootDeltaThreshold;
+        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: original target=${originalTarget}°C, current target=${targetTemp}°C${isProfileOwned ? ' (profile-owned, threshold=3.0°C)' : ''}`);
 
-        const pillOverTarget = pillTemp >= originalTarget + overshootPillThreshold;
-        const isHeatingOvershoot = pillOverTarget && pillDelta > overshootDeltaThreshold;
+        const pillOverTarget = pillTemp >= originalTarget + effectivePillThreshold;
+        const isHeatingOvershoot = pillOverTarget && pillDelta > effectiveDeltaThreshold;
 
         if (isHeatingOvershoot) {
           log('OVERSHOOT_DETECTED', 'action', `Heating overshoot for ${fc.name}: pill=${pillTemp.toFixed(1)}° > target=${targetTemp}°C, ctrl=${ctrlTemp.toFixed(1)}° (delta=${pillDelta.toFixed(1)}°)`);
