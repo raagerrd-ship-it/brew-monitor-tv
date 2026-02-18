@@ -385,6 +385,87 @@ function generateChartSvg(
   </svg>`;
 }
 
+interface ProfileTargetPoint {
+  timestamp: number;
+  target: number;
+}
+
+async function buildProfileTargetTimeline(supabase: any, controllerId: string): Promise<ProfileTargetPoint[]> {
+  try {
+    // Find active/recent fermentation session for this controller
+    const { data: sessions } = await supabase
+      .from('fermentation_sessions')
+      .select('id, profile_id, started_at, current_step_index')
+      .eq('controller_id', controllerId)
+      .in('status', ['running', 'completed', 'paused'])
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    if (!sessions?.[0]) return [];
+    const session = sessions[0];
+
+    // Fetch profile steps and step logs in parallel
+    const [stepsResult, stepLogsResult] = await Promise.all([
+      supabase
+        .from('fermentation_profile_steps')
+        .select('step_order, step_type, target_temp, duration_hours')
+        .eq('profile_id', session.profile_id)
+        .order('step_order', { ascending: true }),
+      supabase
+        .from('fermentation_step_log')
+        .select('step_index, created_at')
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    const steps = stepsResult.data;
+    const stepLogs = stepLogsResult.data;
+    if (!steps || steps.length === 0) return [];
+
+    // Build step start time map (earliest log entry per step)
+    const stepStartMap: Record<number, number> = {};
+    stepStartMap[0] = new Date(session.started_at).getTime();
+    if (stepLogs) {
+      for (const log of stepLogs) {
+        if (!(log.step_index in stepStartMap)) {
+          stepStartMap[log.step_index] = new Date(log.created_at).getTime();
+        }
+      }
+    }
+
+    // Build profile target timeline
+    const timeline: ProfileTargetPoint[] = [];
+    let lastTarget: number | null = null;
+
+    for (const step of steps) {
+      const startTime = stepStartMap[step.step_order];
+      if (!startTime) continue;
+
+      const stepTarget = step.target_temp ?? lastTarget;
+
+      if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
+        const durationMs = step.duration_hours * 3600 * 1000;
+        const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
+        for (let i = 0; i <= numPoints; i++) {
+          const t = i / numPoints;
+          const ts = startTime + t * durationMs;
+          const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
+          timeline.push({ timestamp: ts, target });
+        }
+      } else if (stepTarget !== null) {
+        timeline.push({ timestamp: startTime, target: stepTarget });
+      }
+
+      if (stepTarget !== null) lastTarget = stepTarget;
+    }
+
+    return timeline;
+  } catch (err) {
+    console.error('[RenderChart] Error building profile target timeline:', err);
+    return [];
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -443,6 +524,24 @@ serve(async (req) => {
 
       if (tempData && tempData.length > 0) {
         tempHistory = tempData as TempHistoryPoint[];
+      }
+
+      // Override target_temp with fermentation profile targets (original-mål)
+      if (tempHistory && tempHistory.length > 0) {
+        const profileTargets = await buildProfileTargetTimeline(supabase, brew.linked_controller_id);
+        if (profileTargets.length > 0) {
+          tempHistory = tempHistory.map(p => {
+            const ts = new Date(p.recorded_at).getTime();
+            let profileTarget: number | null = null;
+            for (let i = profileTargets.length - 1; i >= 0; i--) {
+              if (profileTargets[i].timestamp <= ts) {
+                profileTarget = profileTargets[i].target;
+                break;
+              }
+            }
+            return profileTarget !== null ? { ...p, target_temp: profileTarget } : p;
+          });
+        }
       }
     }
 
