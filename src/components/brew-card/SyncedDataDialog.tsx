@@ -22,13 +22,18 @@ interface ControllerTempPoint {
   target_temp: number;
 }
 
+interface ProfileTargetPoint {
+  timestamp: number;
+  target: number;
+}
+
 interface MergedDataPoint {
   date: string;
   sg: number;
   pillTemp: number;
   controllerTemp: number | null;
   targetTemp: number | null;
-  originalTarget: number | null;
+  profileTarget: number | null;
 }
 
 interface SyncedDataDialogProps {
@@ -39,6 +44,89 @@ interface SyncedDataDialogProps {
   controllerId?: string | null;
 }
 
+/** Build a fermentation profile target timeline from session data */
+async function fetchProfileTargetTimeline(controllerId: string): Promise<ProfileTargetPoint[]> {
+  try {
+    const { data: sessions } = await supabase
+      .from('fermentation_sessions')
+      .select('id, profile_id, started_at, current_step_index')
+      .eq('controller_id', controllerId)
+      .in('status', ['running', 'completed', 'paused'])
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    if (!sessions?.[0]) return [];
+    const session = sessions[0];
+
+    const [stepsResult, stepLogsResult] = await Promise.all([
+      supabase
+        .from('fermentation_profile_steps')
+        .select('step_order, step_type, target_temp, duration_hours')
+        .eq('profile_id', session.profile_id)
+        .order('step_order', { ascending: true }),
+      supabase
+        .from('fermentation_step_log')
+        .select('step_index, created_at')
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    const steps = stepsResult.data;
+    const stepLogs = stepLogsResult.data;
+    if (!steps || steps.length === 0) return [];
+
+    // Build step start time map (earliest log entry per step)
+    const stepStartMap: Record<number, number> = {};
+    stepStartMap[0] = new Date(session.started_at).getTime();
+    if (stepLogs) {
+      for (const log of stepLogs) {
+        if (!(log.step_index in stepStartMap)) {
+          stepStartMap[log.step_index] = new Date(log.created_at).getTime();
+        }
+      }
+    }
+
+    const timeline: ProfileTargetPoint[] = [];
+    let lastTarget: number | null = null;
+
+    for (const step of steps) {
+      const startTime = stepStartMap[step.step_order];
+      if (!startTime) continue;
+
+      const stepTarget = step.target_temp ?? lastTarget;
+
+      if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
+        const durationMs = step.duration_hours * 3600 * 1000;
+        const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
+        for (let i = 0; i <= numPoints; i++) {
+          const t = i / numPoints;
+          const ts = startTime + t * durationMs;
+          const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
+          timeline.push({ timestamp: ts, target });
+        }
+      } else if (stepTarget !== null) {
+        timeline.push({ timestamp: startTime, target: stepTarget });
+      }
+
+      if (stepTarget !== null) lastTarget = stepTarget;
+    }
+
+    return timeline;
+  } catch {
+    return [];
+  }
+}
+
+function lookupProfileTarget(timeline: ProfileTargetPoint[], timestampMs: number): number | null {
+  if (timeline.length === 0) return null;
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    if (timeline[i].timestamp <= timestampMs) {
+      return timeline[i].target;
+    }
+  }
+  return null;
+}
+
 export function SyncedDataDialog({
   open,
   onOpenChange,
@@ -47,82 +135,72 @@ export function SyncedDataDialog({
   controllerId,
 }: SyncedDataDialogProps) {
   const [controllerData, setControllerData] = useState<ControllerTempPoint[]>([]);
-  const [originalTargetTemp, setOriginalTargetTemp] = useState<number | null>(null);
-  // Fetch controller temperature data when dialog opens
+  const [profileTargets, setProfileTargets] = useState<ProfileTargetPoint[]>([]);
+
+  // Fetch controller temperature data and profile targets when dialog opens
   useEffect(() => {
     if (!open || !controllerId || sgData.length === 0) {
       setControllerData([]);
-      setOriginalTargetTemp(null);
+      setProfileTargets([]);
       return;
     }
 
-    const fetchControllerTemp = async () => {
+    const fetchData = async () => {
       const sortedSg = [...sgData].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       const startTime = sortedSg[0].date;
       let endTime = sortedSg[sortedSg.length - 1].date;
-      
-      // Ensure we have at least a 30-minute window to capture controller data
-      // This handles the case when there's only one or very few data points
+
       const startMs = new Date(startTime).getTime();
       const endMs = new Date(endTime).getTime();
       if (endMs - startMs < 30 * 60 * 1000) {
         endTime = new Date(startMs + 30 * 60 * 1000).toISOString();
       }
 
-      // Paginate to bypass PostgREST max_rows (1000) limit
-      const allRows: typeof controllerData = [];
-      let offset = 0;
-      const batchSize = 1000;
-      let hasMore = true;
+      // Fetch controller temp and profile targets in parallel
+      const [ctrlResult, profileTimeline] = await Promise.all([
+        (async () => {
+          const allRows: ControllerTempPoint[] = [];
+          let offset = 0;
+          const batchSize = 1000;
+          let hasMore = true;
 
-      while (hasMore) {
-        const { data, error } = await supabase.rpc("get_temp_history_sampled", {
-          p_controller_id: controllerId,
-          p_start_time: startTime,
-          p_end_time: endTime,
-          p_sample_interval_minutes: 15,
-        }).range(offset, offset + batchSize - 1);
+          while (hasMore) {
+            const { data, error } = await supabase.rpc("get_temp_history_sampled", {
+              p_controller_id: controllerId,
+              p_start_time: startTime,
+              p_end_time: endTime,
+              p_sample_interval_minutes: 15,
+            }).range(offset, offset + batchSize - 1);
 
-        if (error || !data || data.length === 0) {
-          hasMore = false;
-        } else {
-          allRows.push(...data);
-          offset += batchSize;
-          hasMore = data.length === batchSize;
-        }
-      }
+            if (error || !data || data.length === 0) {
+              hasMore = false;
+            } else {
+              allRows.push(...data);
+              offset += batchSize;
+              hasMore = data.length === batchSize;
+            }
+          }
+          return allRows;
+        })(),
+        fetchProfileTargetTimeline(controllerId),
+      ]);
 
-      if (allRows.length > 0) {
-        setControllerData(allRows);
-      }
-
-      // Fetch original target from auto_cooling_adjustments
-      const { data: adjData } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('original_target_temp')
-        .or(`followed_controller_id.eq.${controllerId},cooler_controller_id.eq.${controllerId}`)
-        .not('original_target_temp', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (adjData?.[0]?.original_target_temp != null) {
-        setOriginalTargetTemp(adjData[0].original_target_temp);
-      }
+      if (ctrlResult.length > 0) setControllerData(ctrlResult);
+      setProfileTargets(profileTimeline);
     };
 
-    fetchControllerTemp();
+    fetchData();
   }, [open, controllerId, sgData]);
 
   // Merge sg_data with controller temp data using nearest-neighbor search
   const mergedData = useMemo(() => {
-    // Sort controller data by timestamp for binary search
     const sortedCtrl = [...controllerData]
       .map(c => ({ ...c, ts: new Date(c.recorded_at).getTime() }))
       .sort((a, b) => a.ts - b.ts);
 
-    const MAX_GAP_MS = 20 * 60 * 1000; // 20 min max gap for matching
+    const MAX_GAP_MS = 20 * 60 * 1000;
 
     const findClosest = (targetMs: number): ControllerTempPoint | null => {
       if (sortedCtrl.length === 0) return null;
@@ -132,7 +210,6 @@ export function SyncedDataDialog({
         if (sortedCtrl[mid].ts < targetMs) lo = mid + 1;
         else hi = mid;
       }
-      // Check lo and lo-1 for closest
       let best = sortedCtrl[lo];
       if (lo > 0 && Math.abs(sortedCtrl[lo - 1].ts - targetMs) < Math.abs(best.ts - targetMs)) {
         best = sortedCtrl[lo - 1];
@@ -140,10 +217,10 @@ export function SyncedDataDialog({
       return Math.abs(best.ts - targetMs) <= MAX_GAP_MS ? best : null;
     };
 
-    // Merge with sg_data
     const merged: MergedDataPoint[] = sgData.map((point) => {
       const pointMs = new Date(point.date).getTime();
       const closest = findClosest(pointMs);
+      const profTarget = lookupProfileTarget(profileTargets, pointMs);
 
       return {
         date: point.date,
@@ -151,18 +228,18 @@ export function SyncedDataDialog({
         pillTemp: point.temp,
         controllerTemp: closest?.current_temp ?? null,
         targetTemp: closest?.target_temp ?? null,
-        originalTarget: originalTargetTemp,
+        profileTarget: profTarget,
       };
     });
 
-    // Sort by date descending
     return merged.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [sgData, controllerData, originalTargetTemp]);
+  }, [sgData, controllerData, profileTargets]);
 
   const hasControllerData = controllerId && controllerData.length > 0;
-  const hasAutoAdjustments = hasControllerData && originalTargetTemp !== null;
+  const hasProfileTargets = profileTargets.length > 0;
+  const hasAutoAdjustments = hasControllerData && hasProfileTargets;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,8 +302,8 @@ export function SyncedDataDialog({
                       )}
                       {hasControllerData && (
                         <td className="py-1.5 text-right font-mono text-muted-foreground">
-                          {point.originalTarget !== null
-                            ? `${point.originalTarget.toFixed(1)}°`
+                          {point.profileTarget !== null
+                            ? `${point.profileTarget.toFixed(1)}°`
                             : point.targetTemp !== null
                               ? `${point.targetTemp.toFixed(1)}°`
                               : "-"}
