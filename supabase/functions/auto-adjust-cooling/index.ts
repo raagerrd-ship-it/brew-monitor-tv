@@ -1216,34 +1216,50 @@ serve(async (req) => {
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
               if (currentCoolerTarget < idealTarget - 0.2) {
-                // Raise gradually: half the gap
-                const gap = idealTarget - currentCoolerTarget;
-                let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
-                recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
+                // Check interval guard: don't recover more often than every 30 minutes
+                const RECOVERY_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+                const { data: lastRecovery } = await supabase
+                  .from('auto_cooling_adjustments')
+                  .select('created_at')
+                  .like('reason', '%Cooling recovery%')
+                  .order('created_at', { ascending: false })
+                  .limit(1);
 
-                if (recoveryTarget > currentCoolerTarget + 0.1) {
-                  log('COOLING_RECOVERY', 'action', `Raising cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
+                const lastRecoveryTime = lastRecovery?.[0]?.created_at ? new Date(lastRecovery[0].created_at).getTime() : 0;
+                const timeSinceLastRecovery = Date.now() - lastRecoveryTime;
 
-                  const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                    body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
-                  });
+                if (timeSinceLastRecovery < RECOVERY_INTERVAL_MS) {
+                  log('COOLING_RECOVERY', 'info', `Skipping recovery - only ${Math.round(timeSinceLastRecovery / 60000)}min since last (need ${RECOVERY_INTERVAL_MS / 60000}min)`);
+                } else {
+                  // Raise gradually: half the gap
+                  const gap = idealTarget - currentCoolerTarget;
+                  let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
+                  recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
 
-                  if (!updateResponse.error) {
-                    log('COOLING_RECOVERY', 'pass', `Raised cooler to ${recoveryTarget}°C`);
-                    allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget });
+                  if (recoveryTarget > currentCoolerTarget + 0.1) {
+                    log('COOLING_RECOVERY', 'action', `Raising cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
 
-                    await supabase.from('auto_cooling_adjustments').insert({
-                      cooler_controller_id: coolerController.controller_id,
-                      cooler_controller_name: coolerController.name,
-                      old_target_temp: currentCoolerTarget,
-                      new_target_temp: recoveryTarget,
-                      lowest_followed_temp: lowestTargetTemp,
-                      followed_controller_id: lowestTempController.controller_id,
-                      followed_controller_name: lowestTempController.name,
-                      followed_current_temp: lowestCurrentTemp,
-                      followed_target_temp: lowestTargetTemp,
-                      reason: `🔄 Cooling recovery: kylbehov minskat, höjer mot ideal ${idealTarget.toFixed(1)}°C`
-                    } as any);
+                    const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                      body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
+                    });
+
+                    if (!updateResponse.error) {
+                      log('COOLING_RECOVERY', 'pass', `Raised cooler to ${recoveryTarget}°C`);
+                      allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget });
+
+                      await supabase.from('auto_cooling_adjustments').insert({
+                        cooler_controller_id: coolerController.controller_id,
+                        cooler_controller_name: coolerController.name,
+                        old_target_temp: currentCoolerTarget,
+                        new_target_temp: recoveryTarget,
+                        lowest_followed_temp: lowestTargetTemp,
+                        followed_controller_id: lowestTempController.controller_id,
+                        followed_controller_name: lowestTempController.name,
+                        followed_current_temp: lowestCurrentTemp,
+                        followed_target_temp: lowestTargetTemp,
+                        reason: `🔄 Cooling recovery: kylbehov minskat, höjer mot ideal ${idealTarget.toFixed(1)}°C`
+                      } as any);
+                    }
                   }
                 }
               }
