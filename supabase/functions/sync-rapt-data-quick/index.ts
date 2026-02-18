@@ -63,23 +63,43 @@ serve(async (req) => {
       );
     }
 
+    // ---- Fetch ALL Pills and Controllers in parallel ----
+    const [pillsResult, controllersResult] = await Promise.all([
+      selectedPillIds.length > 0 
+        ? supabase.functions.invoke('rapt-pills', { body: { access_token } })
+        : { data: [], error: null },
+      selectedControllerIds.length > 0
+        ? supabase.functions.invoke('rapt-temp-controllers', { body: { access_token } })
+        : { data: [], error: null },
+    ]);
+
+    if (pillsResult.error) throw pillsResult.error;
+    if (controllersResult.error) throw controllersResult.error;
+
+    const allPills: any[] = pillsResult.data || [];
+    const allControllers: any[] = controllersResult.data || [];
+
+    // ---- Build pill temperature map from pill data ----
+    // pill.temperature holds the latest reading from the hydrometer
+    const pillTempMap = new Map<string, number>();
+    const pillDataMap = new Map<string, any>();
+
+    for (const pill of allPills) {
+      pillDataMap.set(pill.id, pill);
+      // Use pill.temperature first, fallback to latest telemetry point
+      const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
+      if (temp !== undefined && temp !== null && temp !== 0) {
+        pillTempMap.set(pill.id, temp);
+        console.log(`Pill temp map: ${pill.name} (${pill.id}) -> ${temp}°C`);
+      }
+    }
+
     let pillsUpdated = 0;
     let controllersUpdated = 0;
 
-    // Fetch Pills data if any selected
+    // ---- Update Pills ----
     if (selectedPillIds.length > 0) {
-      console.log(`Fetching data for ${selectedPillIds.length} selected Pills...`);
-      const { data: pillsData, error: pillsError } = await supabase.functions.invoke('rapt-pills', {
-        body: { access_token }
-      });
-
-      if (pillsError) throw pillsError;
-
-      // Filter only selected pills and update
-      const selectedPillsData = pillsData.filter((pill: any) => 
-        selectedPillIds.includes(pill.id)
-      );
-
+      const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
       console.log(`Updating ${selectedPillsData.length} Pills...`);
 
       for (const pill of selectedPillsData) {
@@ -97,19 +117,11 @@ serve(async (req) => {
 
         pillsUpdated++;
       }
-
       console.log(`Successfully updated ${pillsUpdated} Pills`);
     }
 
-    // Fetch Temperature Controllers data if any selected
+    // ---- Update Controllers with enriched pill_temp ----
     if (selectedControllerIds.length > 0) {
-      console.log(`Fetching data for ${selectedControllerIds.length} selected Temperature Controllers...`);
-      const { data: controllersData, error: controllersError } = await supabase.functions.invoke('rapt-temp-controllers', {
-        body: { access_token }
-      });
-
-      if (controllersError) throw controllersError;
-
       // Get active fermentation sessions to avoid overwriting their target temps
       const { data: activeSessions } = await supabase
         .from('fermentation_sessions')
@@ -128,8 +140,8 @@ serve(async (req) => {
       
       const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
 
-      // Filter only selected controllers and update
-      const selectedControllersData = controllersData.filter((controller: any) => 
+      // Filter only selected controllers
+      const selectedControllersData = allControllers.filter((controller: any) => 
         selectedControllerIds.includes(controller.id)
       );
 
@@ -137,17 +149,52 @@ serve(async (req) => {
 
       for (const controller of selectedControllersData) {
         const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
-        const pillTemp = controller.controlDeviceTemperature || null;
         const targetTemp = controller.targetTemperature;
         const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
         
+        // ---- Enrich pill_temp from pill data instead of controlDeviceTemperature ----
+        // RAPT API returns 0 for controlDeviceTemperature, so we look up the linked pill's temp
+        let pillTemp: number | null = null;
+        let linkedPillId: string | null = null;
+
+        // Check if controller has a linked device (pill) via API data
+        // The RAPT API may return linkedDevice, controlDeviceId, or similar fields
+        const apiLinkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId || null;
+        
+        if (apiLinkedPillId && pillTempMap.has(apiLinkedPillId)) {
+          pillTemp = pillTempMap.get(apiLinkedPillId)!;
+          linkedPillId = apiLinkedPillId;
+          console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from linked pill ${apiLinkedPillId}`);
+        } else {
+          // Fallback: check if we already have a linked_pill_id in the database
+          const { data: existingController } = await supabase
+            .from('rapt_temp_controllers')
+            .select('linked_pill_id')
+            .eq('controller_id', controller.id)
+            .single();
+          
+          const dbLinkedPillId = existingController?.linked_pill_id;
+          if (dbLinkedPillId && pillTempMap.has(dbLinkedPillId)) {
+            pillTemp = pillTempMap.get(dbLinkedPillId)!;
+            linkedPillId = dbLinkedPillId;
+            console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from DB-linked pill ${dbLinkedPillId}`);
+          } else {
+            // Last fallback: use controlDeviceTemperature if non-zero
+            const apiPillTemp = controller.controlDeviceTemperature;
+            if (apiPillTemp && apiPillTemp !== 0) {
+              pillTemp = apiPillTemp;
+              console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from controlDeviceTemperature`);
+            } else {
+              console.log(`Controller ${controller.name}: no pill_temp available (controlDeviceTemperature=${apiPillTemp})`);
+            }
+          }
+        }
+
         // Check if this controller has an active fermentation session
         const hasActiveSession = controllersWithActiveSessions.has(controller.id);
-        
-        // Check if this is the cooler controller (managed by auto-cooling)
         const isCoolerController = controller.id === coolerControllerId;
 
-        // Build update object - skip target_temp if controller is managed by fermentation profile or auto-cooling
+        // Build update object
         const updateData: Record<string, any> = {
           current_temp: currentTemp,
           pill_temp: pillTemp,
@@ -163,6 +210,11 @@ serve(async (req) => {
           last_update: lastUpdate,
           updated_at: new Date().toISOString()
         };
+
+        // Save linked_pill_id if we found one
+        if (linkedPillId) {
+          updateData.linked_pill_id = linkedPillId;
+        }
 
         // Only update target_temp if NOT managed by a fermentation profile AND NOT the cooler
         if (!hasActiveSession && !isCoolerController) {
@@ -189,7 +241,6 @@ serve(async (req) => {
       await supabase.functions.invoke('record-temp-history');
     } catch (historyError) {
       console.error('Error recording temperature history:', historyError);
-      // Don't fail the main sync if history recording fails
     }
 
     // Sync custom brews with linked RAPT Pills
@@ -206,7 +257,6 @@ serve(async (req) => {
       }
     } catch (customBrewSyncError) {
       console.error('Error syncing custom brews:', customBrewSyncError);
-      // Don't fail the main sync if custom brew sync fails
     }
 
     return new Response(
