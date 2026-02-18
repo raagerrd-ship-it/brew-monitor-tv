@@ -1,81 +1,66 @@
 
 
-# Undvik duplicerade justeringar mot samma temperaturdata
+# Uppdaterad plan: Automationsfoerbattringar
 
-## Problem
-Auto-cooling funktionen kors varje minut, men RAPT-kontrollerna uppdaterar sin temperatur bara ca var 15:e minut. Det innebar att funktionen kan gora flera justeringar baserat pa samma temperaturavskning -- samma pill_temp och current_temp som redan hanterats.
+## Oversikt
 
-## Losning
-Spara tidsstampeln (`last_update`) fran kontrollern nar en justering gors, och jamfor mot den vid nasta korning. Om `last_update` inte andrats sedan senaste justeringen -- hoppa over den kontrollern.
+Implementera foerbattringar foer att goera automationen mer robust och saeker. Notera att befintliga `min_target_temp` / `max_target_temp` per controller redan anvaends som saekerhetsgranser foer alla justeringar -- ingen separat `max_stall_boost_24h`-kolumn behoevs.
 
-## Tekniska detaljer
+## Aendringar
 
-### 1. Databas: Lagg till kolumn `adjusted_against_timestamp`
-Lagg till en kolumn i `auto_cooling_adjustments` som sparar vilken `last_update` fran kontrollern som justeringen baserades pa.
+### 1. Overshoot Recovery
+Automatisk aaterhaemtning av `target_temp` till `original_target_temp` naer overshoot avklingat.
 
-```sql
-ALTER TABLE auto_cooling_adjustments 
-  ADD COLUMN adjusted_against_timestamp timestamptz;
+- I overshoot-loopen: om `pill_temp < original_target + overshoot_pill_threshold` OCH `target_temp < original_target`, aaterstall target till `original_target`
+- Logga som `OVERSHOOT_RECOVERY`
+- Spara justering med reason som indikerar recovery
+- **Begransas av controllerns `max_target_temp`** -- kan aldrig aaterstalla oever max
+
+### 2. Stall-boost saekerhet via min/max
+Ingen ny databaskolumn. Befintliga `min_target_temp` och `max_target_temp` per controller anvaends redan som absoluta graenser:
+
+- AI-foerslag klippas mot `[min_target_temp, max_target_temp]` (redan implementerat rad 466-468)
+- Fallback-boost klippas mot `max_target_temp` (redan implementerat rad 509-511)
+- Overshoot klippas mot `[min_target_temp, max_target_temp]` (redan implementerat rad 757-768)
+- **Ingen ytterligare kodaendring behoevs** -- detta aer redan paa plats
+
+### 3. Timeout-skydd i orchestratorn (`run-automation`)
+Lagg till `AbortSignal.timeout()` per steg foer att foerhindra att hela orchestratorn timeout:ar.
+
+```text
+Steg 1 (fermenteringsprofiler): 15s timeout (ingen AI)
+Steg 2 (jaestanksjustering):    20s timeout (kan anropa AI)
+Steg 3 (glykolkylare):          20s timeout
 ```
 
-### 2. Edge function: `auto-adjust-cooling/index.ts`
+- Om ett steg timeout:ar loggas det som error men naesta steg koers aendaa
+- Lagg till `signal` parameter i `runStep`-funktionens fetch-anrop
 
-**A. Hamta senaste justeringens timestamp per controller**
+### 4. Faersk data i glycol-steget
+Se till att steg 3 (Glykolkylare) anvaender uppdaterade `target_temp`-vaerden fraan steg 2.
 
-Innan overshoot- och stall-looparna, hamta senaste `adjusted_against_timestamp` per followed controller:
+- `run-automation`: Faanga returvaerdet fraan steg 2 (`tankResult`)
+- Skicka med `tankAdjustments` i request body till steg 3
+- `auto-adjust-cooling` glycol-cooler: Oeverskirv `target_temp` i `followedControllersFullData` med vaerden fraan `tankAdjustments` innan berakning av laegsta target
 
-```typescript
-const lastAdjTimestampMap = new Map<string, string>();
-for (const fc of followedControllersFullData) {
-  const { data: lastAdj } = await supabase
-    .from('auto_cooling_adjustments')
-    .select('adjusted_against_timestamp')
-    .eq('cooler_controller_id', fc.controller_id)
-    .not('adjusted_against_timestamp', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (lastAdj?.[0]?.adjusted_against_timestamp) {
-    lastAdjTimestampMap.set(fc.controller_id, lastAdj[0].adjusted_against_timestamp);
-  }
-}
-```
+### 5. Glykolkylare aaterhaemtning
+Gradvis hoejning av kylaren tillbaka mot baseline naer inget aktivt kylbehov finns.
 
-**B. Kontrollera i varje loop (overshoot + stall)**
+- I glycol-cooler `else`-grenen (naer controllern INTE aktivt kyler):
+  - Beraekna idealt maaltarget: `lowestTargetTemp - temp_reduction_degrees`
+  - Om nuvarande cooler target aer laegre aen idealt, hoej stegvis (t.ex. halva skillnaden)
+  - **Begransas av kylarkontrollerns `min_target_temp` / `max_target_temp`**
+  - Logga som `COOLING_RECOVERY`
 
-I borjan av varje controller-iteration, jamfor `last_update` fran `rapt_temp_controllers` med sparad timestamp:
+## Teknisk sammanfattning
 
-```typescript
-// Fetch last_update from controller data (need to add to query)
-const controllerLastUpdate = fc.last_update; 
-const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
+| Aendring | Fil | Typ |
+|---|---|---|
+| Overshoot recovery | `auto-adjust-cooling/index.ts` | ~30 rader ny logik i overshoot-sektionen |
+| Min/max som saekerhet | Redan implementerat | Ingen aendring |
+| Timeout-skydd | `run-automation/index.ts` | ~10 rader (AbortSignal + signal i fetch) |
+| Faersk data glycol | `run-automation/index.ts` + `auto-adjust-cooling/index.ts` | ~20 rader |
+| Glycol recovery | `auto-adjust-cooling/index.ts` | ~25 rader i glycol-cooler-sektionen |
 
-if (lastAdjTs && controllerLastUpdate && lastAdjTs === controllerLastUpdate) {
-  log('SKIP_SAME_DATA', 'info', 
-    `${fc.name}: Samma data som senaste justering (${controllerLastUpdate}), hoppar over`);
-  continue;
-}
-```
-
-**C. Spara timestamp vid justering**
-
-I alla `insert` till `auto_cooling_adjustments`, lagg till:
-```typescript
-adjusted_against_timestamp: fc.last_update
-```
-
-**D. Uppdatera TempController-interfacet**
-
-Lagg till `last_update` i TempController-interfacet och se till att SELECT-fragan inkluderar det.
-
-### 3. Logg-visning (valfritt)
-
-Logga `last_update` i `FOLLOWED_DATA`-blocket sa det syns i beslutloggen:
-```typescript
-last_update: fc.last_update
-```
-
-### Sammanfattning av andringar
-- **Migration**: 1 ny kolumn pa `auto_cooling_adjustments`
-- **Edge function**: ~20 rader ny kod for att hamta, jamfora och spara timestamps
-- Inga UI-andringar behovs
+**Totalt**: 0 databasmigrationer, 2 edge functions uppdaterade, inga UI-aendringar.
 
