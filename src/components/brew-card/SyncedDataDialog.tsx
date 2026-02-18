@@ -28,6 +28,7 @@ interface MergedDataPoint {
   pillTemp: number;
   controllerTemp: number | null;
   targetTemp: number | null;
+  originalTarget: number | null;
 }
 
 interface SyncedDataDialogProps {
@@ -46,11 +47,12 @@ export function SyncedDataDialog({
   controllerId,
 }: SyncedDataDialogProps) {
   const [controllerData, setControllerData] = useState<ControllerTempPoint[]>([]);
-
+  const [originalTargetTemp, setOriginalTargetTemp] = useState<number | null>(null);
   // Fetch controller temperature data when dialog opens
   useEffect(() => {
     if (!open || !controllerId || sgData.length === 0) {
       setControllerData([]);
+      setOriginalTargetTemp(null);
       return;
     }
 
@@ -95,6 +97,19 @@ export function SyncedDataDialog({
       if (allRows.length > 0) {
         setControllerData(allRows);
       }
+
+      // Fetch original target from auto_cooling_adjustments
+      const { data: adjData } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('original_target_temp')
+        .or(`followed_controller_id.eq.${controllerId},cooler_controller_id.eq.${controllerId}`)
+        .not('original_target_temp', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (adjData?.[0]?.original_target_temp != null) {
+        setOriginalTargetTemp(adjData[0].original_target_temp);
+      }
     };
 
     fetchControllerTemp();
@@ -136,6 +151,7 @@ export function SyncedDataDialog({
         pillTemp: point.temp,
         controllerTemp: closest?.current_temp ?? null,
         targetTemp: closest?.target_temp ?? null,
+        originalTarget: originalTargetTemp,
       };
     });
 
@@ -143,20 +159,21 @@ export function SyncedDataDialog({
     return merged.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [sgData, controllerData]);
+  }, [sgData, controllerData, originalTargetTemp]);
 
   const hasControllerData = controllerId && controllerData.length > 0;
+  const hasAutoAdjustments = hasControllerData && originalTargetTemp !== null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] px-3 sm:px-4">
         <DialogHeader>
           <DialogTitle>Synkad data - {brewName}</DialogTitle>
         </DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
           {sgData.length} mätpunkter
         </div>
-        <ScrollArea className="h-[400px] pr-4">
+        <ScrollArea className="h-[400px] pr-2">
           <div className="space-y-1">
             {mergedData.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
@@ -170,10 +187,13 @@ export function SyncedDataDialog({
                     <th className="text-right py-2 font-medium">SG</th>
                     <th className="text-right py-2 font-medium">Pill</th>
                     {hasControllerData && (
-                      <>
-                        <th className="text-right py-2 font-medium">Ctrl</th>
-                        <th className="text-right py-2 font-medium">Mål</th>
-                      </>
+                      <th className="text-right py-2 font-medium">Ctrl</th>
+                    )}
+                    {hasControllerData && (
+                      <th className="text-right py-2 font-medium">Mål</th>
+                    )}
+                    {hasAutoAdjustments && (
+                      <th className="text-right py-2 font-medium">Auto</th>
                     )}
                   </tr>
                 </thead>
@@ -197,18 +217,27 @@ export function SyncedDataDialog({
                         {point.pillTemp.toFixed(1)}°
                       </td>
                       {hasControllerData && (
-                        <>
-                          <td className="py-1.5 text-right font-mono text-orange-400">
-                            {point.controllerTemp !== null
-                              ? `${point.controllerTemp.toFixed(1)}°`
-                              : "-"}
-                          </td>
-                          <td className="py-1.5 text-right font-mono text-muted-foreground">
-                            {point.targetTemp !== null
+                        <td className="py-1.5 text-right font-mono text-orange-400">
+                          {point.controllerTemp !== null
+                            ? `${point.controllerTemp.toFixed(1)}°`
+                            : "-"}
+                        </td>
+                      )}
+                      {hasControllerData && (
+                        <td className="py-1.5 text-right font-mono text-muted-foreground">
+                          {point.originalTarget !== null
+                            ? `${point.originalTarget.toFixed(1)}°`
+                            : point.targetTemp !== null
                               ? `${point.targetTemp.toFixed(1)}°`
                               : "-"}
-                          </td>
-                        </>
+                        </td>
+                      )}
+                      {hasAutoAdjustments && (
+                        <td className="py-1.5 text-right font-mono text-muted-foreground">
+                          {point.targetTemp !== null
+                            ? `${point.targetTemp.toFixed(1)}°`
+                            : "-"}
+                        </td>
                       )}
                     </tr>
                   ))}
