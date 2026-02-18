@@ -131,6 +131,9 @@ export type Database = {
           overshoot_delta_threshold: number
           overshoot_pill_threshold: number
           overshoot_prevention_enabled: boolean
+          pill_compensation_damping: number
+          pill_compensation_enabled: boolean
+          pill_compensation_rate_limit: number
           stall_rate_threshold: number
           temp_reduction_degrees: number
           updated_at: string
@@ -149,6 +152,9 @@ export type Database = {
           overshoot_delta_threshold?: number
           overshoot_pill_threshold?: number
           overshoot_prevention_enabled?: boolean
+          pill_compensation_damping?: number
+          pill_compensation_enabled?: boolean
+          pill_compensation_rate_limit?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
@@ -167,6 +173,9 @@ export type Database = {
           overshoot_delta_threshold?: number
           overshoot_pill_threshold?: number
           overshoot_prevention_enabled?: boolean
+          pill_compensation_damping?: number
+          pill_compensation_enabled?: boolean
+          pill_compensation_rate_limit?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
@@ -1094,10 +1103,6 @@ export type Database = {
       trigger_brew_sync: { Args: never; Returns: undefined }
       trigger_custom_brew_sync: { Args: never; Returns: undefined }
       trigger_external_timer_sync: { Args: never; Returns: undefined }
-      trigger_fermentation_profile_processing: {
-        Args: never
-        Returns: undefined
-      }
       trigger_full_brew_sync: { Args: never; Returns: undefined }
       trigger_rapt_quick_sync: { Args: never; Returns: undefined }
       trigger_sonos_now_playing_sync: { Args: never; Returns: undefined }

@@ -109,7 +109,9 @@ async function calculateCompensatedTarget(
   controllerId: string,
   profileTarget: number,
   currentControllerTarget: number,
-  controllerName: string
+  controllerName: string,
+  dampingFactor: number = 0.4,
+  maxChangePerCycle: number = 0.3
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   // Fetch last 3 delta measurements
   const { data: deltaHistory } = await supabase
@@ -131,8 +133,8 @@ async function calculateCompensatedTarget(
     return null
   }
 
-  const DAMPING_FACTOR = 0.4
-  const MAX_CHANGE_PER_CYCLE = 0.3
+  const DAMPING_FACTOR = dampingFactor
+  const MAX_CHANGE_PER_CYCLE = maxChangePerCycle
   const MAX_COMPENSATION = 5.0
 
   const compensation = avgDelta * DAMPING_FACTOR
@@ -242,6 +244,17 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Load pill compensation settings
+    const { data: acSettings } = await supabase
+      .from('auto_cooling_settings')
+      .select('pill_compensation_enabled, pill_compensation_damping, pill_compensation_rate_limit')
+      .limit(1)
+      .maybeSingle()
+
+    const pillCompEnabled = (acSettings as any)?.pill_compensation_enabled ?? true
+    const pillCompDamping = parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 0.4))
+    const pillCompRateLimit = parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.3))
+
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
       .from('fermentation_sessions')
@@ -325,9 +338,9 @@ Deno.serve(async (req) => {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
           // Calculate pill-compensated target
-          const compensation = await calculateCompensatedTarget(
-            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id
-          )
+          const compensation = pillCompEnabled ? await calculateCompensatedTarget(
+            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
+          ) : null
           const targetToEnforce = compensation ? compensation.compensatedTarget : effectiveTarget
 
           if (controller.target_temp < targetToEnforce - 0.2) {
@@ -413,9 +426,9 @@ Deno.serve(async (req) => {
           // Hold temperature for duration or until SG target is met
           if (currentStep.target_temp !== null && controller) {
             // Calculate pill-compensated target for hold steps
-            const holdCompensation = await calculateCompensatedTarget(
-              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id
-            )
+            const holdCompensation = pillCompEnabled ? await calculateCompensatedTarget(
+              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
+            ) : null
             const holdTarget = holdCompensation ? holdCompensation.compensatedTarget : currentStep.target_temp
 
             // Check if we need to adjust temperature

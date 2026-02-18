@@ -80,6 +80,9 @@ export default function Settings() {
   const [overshootEnabled, setOvershootEnabled] = useState(true);
   const [overshootPillThreshold, setOvershootPillThreshold] = useState<string>("0.3");
   const [overshootDeltaThreshold, setOvershootDeltaThreshold] = useState<string>("2.0");
+  const [pillCompEnabled, setPillCompEnabled] = useState(true);
+  const [pillCompDamping, setPillCompDamping] = useState<string>("0.4");
+  const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.3");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -441,6 +444,9 @@ export default function Settings() {
         setOvershootEnabled((data as any).overshoot_prevention_enabled ?? true);
         setOvershootPillThreshold(parseFloat(String((data as any).overshoot_pill_threshold ?? 0.3)).toFixed(1));
         setOvershootDeltaThreshold(parseFloat(String((data as any).overshoot_delta_threshold ?? 2.0)).toFixed(1));
+        setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
+        setPillCompDamping(parseFloat(String((data as any).pill_compensation_damping ?? 0.4)).toString());
+        setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.3)).toString());
       }
 
       // Load followed controllers
@@ -1046,6 +1052,54 @@ export default function Settings() {
       toast({ title: "Inställningar sparade" });
     } catch (error) {
       console.error('Error updating overshoot delta threshold:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompEnabledChange = async (checked: boolean) => {
+    setPillCompEnabled(checked);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_enabled: checked } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: checked ? "Pill-kompensation aktiverad" : "Pill-kompensation inaktiverad" });
+    } catch (error) {
+      console.error('Error updating pill compensation:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompDampingChange = async (value: string) => {
+    setPillCompDamping(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_damping: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Dämpningsfaktor uppdaterad" });
+    } catch (error) {
+      console.error('Error updating pill comp damping:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompRateLimitChange = async (value: string) => {
+    setPillCompRateLimit(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_rate_limit: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Rate-limit uppdaterad" });
+    } catch (error) {
+      console.error('Error updating pill comp rate limit:', error);
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
@@ -2237,6 +2291,85 @@ export default function Settings() {
                       {overshootEnabled && <p>• AI analyserar overshoot-situation och rekommenderar temporär justering</p>}
                     </CollapsibleContent>
                   </Collapsible>
+              </div>
+            </SettingsSection>
+
+            {/* PILL COMPENSATION */}
+            <SettingsSection
+              icon={Pill}
+              title="Pill-kompensation"
+              description="Kompenserar för temperaturskillnaden mellan pill (yta) och probe (kärna) under fermenteringsprofiler"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    id="pill-comp-enabled"
+                    checked={pillCompEnabled}
+                    onCheckedChange={handlePillCompEnabledChange}
+                  />
+                  <label
+                    htmlFor="pill-comp-enabled"
+                    className="text-sm cursor-pointer leading-none"
+                  >
+                    Aktivera pill-kompensation
+                  </label>
+                </div>
+
+                {pillCompEnabled && (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Dämpningsfaktor</label>
+                        <Select value={pillCompDamping} onValueChange={handlePillCompDampingChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.2">0.2 (svag)</SelectItem>
+                            <SelectItem value="0.3">0.3</SelectItem>
+                            <SelectItem value="0.4">0.4 (standard)</SelectItem>
+                            <SelectItem value="0.5">0.5</SelectItem>
+                            <SelectItem value="0.6">0.6 (aggressiv)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
+                        <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.1">0.1°C</SelectItem>
+                            <SelectItem value="0.2">0.2°C</SelectItem>
+                            <SelectItem value="0.3">0.3°C (standard)</SelectItem>
+                            <SelectItem value="0.5">0.5°C</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Sänker controllerns target med {pillCompDamping} × delta per cykel, max {pillCompRateLimit}°C åt gången. Pill-temperaturen hamnar närmare profilens mål.
+                    </p>
+
+                    <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
+                        <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
+                        <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                        <p>• Beräknar medelvärde av senaste 3 delta-mätningar (pill − probe)</p>
+                        <p>• Multiplicerar med dämpningsfaktor ({pillCompDamping}) och drar av från profilens mål</p>
+                        <p>• Rate-limiterar till max {pillCompRateLimit}°C ändring per 5-minuterscykel</p>
+                        <p>• Säkerhetsgolv: aldrig mer än 5°C under profilens mål</p>
+                        <p>• Kompenserar bara vid positivt delta (pill varmare än probe)</p>
+                        <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                )}
               </div>
             </SettingsSection>
 
