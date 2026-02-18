@@ -147,55 +147,52 @@ serve(async (req) => {
 
       console.log(`Updating ${selectedControllersData.length} Temperature Controllers...`);
 
+      // Pre-fetch existing controller data (linked_pill_id + target_temp) in one query
+      const { data: existingControllers } = await supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, linked_pill_id, target_temp')
+        .in('controller_id', selectedControllersData.map((c: any) => c.id));
+      
+      const existingMap = new Map(
+        (existingControllers || []).map(c => [c.controller_id, c])
+      );
+
+      // Build all update records first, then batch upsert once
+      const controllerUpdates: Record<string, any>[] = [];
+
       for (const controller of selectedControllersData) {
         const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
         const targetTemp = controller.targetTemperature;
         const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
         
-        // ---- Enrich pill_temp from pill data instead of controlDeviceTemperature ----
-        // RAPT API returns 0 for controlDeviceTemperature, so we look up the linked pill's temp
+        // ---- Enrich pill_temp from pill data ----
         let pillTemp: number | null = null;
         let linkedPillId: string | null = null;
 
-        // Check if controller has a linked device (pill) via API data
-        // The RAPT API may return linkedDevice, controlDeviceId, or similar fields
         const apiLinkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId || null;
         
         if (apiLinkedPillId && pillTempMap.has(apiLinkedPillId)) {
           pillTemp = pillTempMap.get(apiLinkedPillId)!;
           linkedPillId = apiLinkedPillId;
-          console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from linked pill ${apiLinkedPillId}`);
         } else {
-          // Fallback: check if we already have a linked_pill_id in the database
-          const { data: existingController } = await supabase
-            .from('rapt_temp_controllers')
-            .select('linked_pill_id')
-            .eq('controller_id', controller.id)
-            .single();
-          
-          const dbLinkedPillId = existingController?.linked_pill_id;
+          const dbLinkedPillId = existingMap.get(controller.id)?.linked_pill_id;
           if (dbLinkedPillId && pillTempMap.has(dbLinkedPillId)) {
             pillTemp = pillTempMap.get(dbLinkedPillId)!;
             linkedPillId = dbLinkedPillId;
-            console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from DB-linked pill ${dbLinkedPillId}`);
           } else {
-            // Last fallback: use controlDeviceTemperature if non-zero
             const apiPillTemp = controller.controlDeviceTemperature;
             if (apiPillTemp && apiPillTemp !== 0) {
               pillTemp = apiPillTemp;
-              console.log(`Controller ${controller.name}: pill_temp=${pillTemp}°C from controlDeviceTemperature`);
-            } else {
-              console.log(`Controller ${controller.name}: no pill_temp available (controlDeviceTemperature=${apiPillTemp})`);
             }
           }
         }
 
-        // Check if this controller has an active fermentation session
         const hasActiveSession = controllersWithActiveSessions.has(controller.id);
         const isCoolerController = controller.id === coolerControllerId;
 
-        // Build update object
         const updateData: Record<string, any> = {
+          controller_id: controller.id,
+          name: controller.name || controller.id,
           current_temp: currentTemp,
           pill_temp: pillTemp,
           cooling_enabled: controller.coolingEnabled || false,
@@ -211,28 +208,37 @@ serve(async (req) => {
           updated_at: new Date().toISOString()
         };
 
-        // Save linked_pill_id if we found one
         if (linkedPillId) {
           updateData.linked_pill_id = linkedPillId;
         }
 
-        // Only update target_temp if NOT managed by a fermentation profile AND NOT the cooler
+        // For managed controllers, preserve existing target_temp from DB
         if (!hasActiveSession && !isCoolerController) {
           updateData.target_temp = targetTemp;
         } else {
+          // Keep the DB value so upsert doesn't overwrite with NULL
+          updateData.target_temp = existingMap.get(controller.id)?.target_temp ?? targetTemp;
           const reason = hasActiveSession ? 'fermentation profile' : 'auto-cooling';
-          console.log(`Skipping target_temp update for controller ${controller.id} - managed by ${reason}`);
+          console.log(`Preserving target_temp for ${controller.id} - managed by ${reason}`);
         }
 
-        await supabase
-          .from('rapt_temp_controllers')
-          .update(updateData)
-          .eq('controller_id', controller.id);
-
+        controllerUpdates.push(updateData);
         controllersUpdated++;
       }
 
-      console.log(`Successfully updated ${controllersUpdated} Temperature Controllers`);
+      // Single batch upsert — triggers FOR EACH STATEMENT only once
+      if (controllerUpdates.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('rapt_temp_controllers')
+          .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
+        
+        if (upsertError) {
+          console.error('Error batch upserting controllers:', upsertError);
+          throw upsertError;
+        }
+      }
+
+      console.log(`Successfully updated ${controllersUpdated} Temperature Controllers (batch upsert)`);
     }
 
     // Record temperature history for auto-cooling adjustment
