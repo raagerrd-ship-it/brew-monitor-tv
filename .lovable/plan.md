@@ -1,18 +1,20 @@
 
 
-# Pill-kompensation med dämpningsfaktor 0.4
+# Pill-kompensation med medelvärdes-targeting (delta/2)
 
 ## Vad ändras
 
-Istället för att sätta controllern direkt till profilens mål-temperatur (t.ex. 22°C), beräknas en kompenserad target baserat på temperaturskillnaden mellan pill (ytan) och probe (kärnan). Detta gör att pill-temperaturen hamnar närmare profilens mål, utan att kärnan blir för kall.
+Istället för att sätta controllern direkt till profilens mål-temperatur (t.ex. 22°C), beräknas en kompenserad target så att **medelvärdet av pill (yta) och probe (kärna) = profilmålet**. Detta ger en fysikaliskt korrekt kompensation som automatiskt anpassar sig.
 
 ## Beräkning
 
 ```text
 profileTarget = 22°C
-averageDelta = medelvärde av senaste 3 delta-mätningar (t.ex. 4.68°C)
-compensation = averageDelta * 0.4 = 1.87°C
-compensatedTarget = 22 - 1.87 = 20.13°C
+averageDelta = medelvärde av senaste 3 delta-mätningar (t.ex. 3.1°C)
+compensation = averageDelta / 2 = 1.55°C
+compensatedTarget = 22 - 1.55 = 20.45°C
+
+Verifiering: (ctrl 20.45 + pill 23.55) / 2 = 22.0°C ✓
 
 Begränsningar:
 - Max 0.3°C ändring per cykel (5 min) -- förhindrar ryck
@@ -20,67 +22,60 @@ Begränsningar:
 - Kompensation bara vid positivt delta (pill varmare än probe)
 ```
 
-Med nuvarande delta (4.68°C) och target 22°C:
-- Utan kompensation: controller = 22°C, pill = ~26.7°C
-- Med kompensation: controller gradvis mot ~20.1°C, pill sjunker mot ~22°C
-- Kärnan (proben) hamnar på ~20°C -- 2°C under mål, men pill (ytan) ligger rätt
-
-## Tekniska ändringar
-
-### `process-fermentation-profiles/index.ts`
-
-Ny hjälpfunktion `calculateCompensatedTarget`:
-- Hämtar senaste 3 delta-mätningar från `temp_delta_history` för denna controller
-- Beräknar medelvärde
-- Applicerar dämpningsfaktor 0.4
-- Rate-limitar till max 0.3°C ändring från nuvarande target
-- Returnerar kompenserad target
-
-Ändras i tre ställen:
-1. **Enforce-logik** (rad 264-335): Använd kompenserad target istället för `effectiveTarget` rakt av
-2. **Hold-steg** (rad 341-355): Använd kompenserad target istället för `currentStep.target_temp`
-3. **original_target_temp**: Sätts alltid till profilens VERKLIGA mål (22°C), inte den kompenserade
-
-### `auto-adjust-cooling/index.ts`
-
-- Ta bort den hårdkodade 3.0°C-tröskeln för profilstyrda controllers
-- Återgå till standard-tröskel men beräkna mot `original_target_temp` (som redan görs)
-- Overshoot blir säkerhetsnät -- pill-kompensationen hanterar det proaktivt
-
-### Loggning
-
-Kompensationen loggas i `auto_cooling_adjustments` med reason-prefix "🎯 Pill-kompensation" så det syns i UI:
-```text
-🎯 Pill-kompensation: 22.0°C -> 20.1°C (delta=4.68, komp=1.87°C)
-```
-
 ## Flöde per cykel
 
 ```text
-Cykel 1 (start): target=22°C, delta=4.68°C
-  kompensation = 4.68 * 0.4 = 1.87°C
-  nyTarget = 22 - 1.87 = 20.13°C
+Cykel 1 (start): target=22°C, delta=3.1°C
+  kompensation = 3.1 / 2 = 1.55°C
+  nyTarget = 22 - 1.55 = 20.45°C
   rate-limit: max 0.3°C nedåt -> sätter 21.7°C
-  original_target_temp = 22°C
 
-Cykel 2: target=21.7°C, delta=~4.5°C
-  kompensation = 4.5 * 0.4 = 1.8°C
-  nyTarget = 22 - 1.8 = 20.2°C
+Cykel 2: target=21.7°C, delta=~3.0°C
+  kompensation = 3.0 / 2 = 1.5°C
+  nyTarget = 22 - 1.5 = 20.5°C
   rate-limit: max 0.3 nedåt -> sätter 21.4°C
 
 ... (gradvis nedåt tills jämvikt)
 
-Cykel N (jäsning avtar): target=20.2°C, delta=~1.0°C
-  kompensation = 1.0 * 0.4 = 0.4°C
-  nyTarget = 22 - 0.4 = 21.6°C
-  rate-limit: max 0.3 uppåt -> sätter 20.5°C
+Cykel N (jäsning avtar): delta=~1.0°C
+  kompensation = 1.0 / 2 = 0.5°C
+  nyTarget = 22 - 0.5 = 21.5°C
 
 Cykel N+X (jäsning klar): delta=~0°C
   kompensation = 0
   target kryper tillbaka till 22°C
 ```
 
+## Tekniska ändringar
+
+### `process-fermentation-profiles/index.ts`
+
+Hjälpfunktion `calculateCompensatedTarget`:
+- Hämtar senaste 3 delta-mätningar från `temp_delta_history`
+- Beräknar medelvärde (avgDelta)
+- Kompensation = avgDelta / 2 (medelvärdes-targeting)
+- Rate-limitar till max 0.3°C ändring per cykel
+- Säkerhetsgolv: max 5°C under profilmål
+- Returnerar kompenserad target
+
+Används på tre ställen:
+1. **Enforce-logik** (steg utan explicit target_temp)
+2. **Hold-steg** (steg med target_temp)
+3. **original_target_temp**: Sätts alltid till profilens VERKLIGA mål
+
+### Loggning
+
+Kompensationen loggas i `auto_cooling_adjustments` med reason-prefix "🎯 Pill-kompensation":
+```text
+🎯 Pill-kompensation: 22.0°C -> 20.5°C (delta=3.10, komp=delta/2=1.55°C)
+```
+
+## Inställningar (auto_cooling_settings)
+
+- `pill_compensation_enabled`: På/av-toggle
+- `pill_compensation_rate_limit`: Max °C ändring per cykel (default 0.3)
+- `pill_compensation_damping`: Ej längre aktivt använd (delta/2 används istället)
+
 ## Deployment
 
-Deploya båda edge functions efter ändringarna.
-
+Deploya `process-fermentation-profiles` efter ändringar.
