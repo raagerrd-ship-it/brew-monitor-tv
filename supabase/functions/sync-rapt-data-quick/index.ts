@@ -241,6 +241,37 @@ serve(async (req) => {
       console.log(`Successfully updated ${controllersUpdated} Temperature Controllers (batch upsert)`);
     }
 
+    // ---- Detect if pill data actually changed ----
+    // Compare current pill temps against what's already in DB
+    let dataChanged = false;
+    if (selectedPillIds.length > 0) {
+      const { data: existingPills } = await supabase
+        .from('rapt_pills')
+        .select('pill_id, last_update')
+        .in('pill_id', selectedPillIds);
+      
+      const existingPillMap = new Map(
+        (existingPills || []).map(p => [p.pill_id, p.last_update])
+      );
+
+      for (const pill of allPills.filter((p: any) => selectedPillIds.includes(p.id))) {
+        const newLastUpdate = pill.lastActivityTime || pill.telemetry?.[0]?.createdOn;
+        const existingLastUpdate = existingPillMap.get(pill.id);
+        if (newLastUpdate && newLastUpdate !== existingLastUpdate) {
+          dataChanged = true;
+          console.log(`Pill data changed: ${pill.name} (${existingLastUpdate} → ${newLastUpdate})`);
+          break;
+        }
+      }
+
+      if (!dataChanged) {
+        console.log('No pill data changed since last sync — skipping automation');
+      }
+    } else {
+      // No pills selected, check controller data instead
+      dataChanged = controllersUpdated > 0;
+    }
+
     // Record temperature history for auto-cooling adjustment
     try {
       console.log('Recording temperature history...');
@@ -265,21 +296,24 @@ serve(async (req) => {
       console.error('Error syncing custom brews:', customBrewSyncError);
     }
 
-    // Run automation orchestrator (fermentation profiles → stall/overshoot → glycol cooler)
-    // This runs ONCE after all data is synced — no trigger cascades
+    // Run automation orchestrator ONLY if data actually changed
     let automationResult = null;
-    try {
-      console.log('Running automation orchestrator...');
-      const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
-      
-      if (autoError) {
-        console.error('Error running automation:', autoError);
-      } else {
-        automationResult = autoResult;
-        console.log('Automation complete:', JSON.stringify(autoResult));
+    if (dataChanged) {
+      try {
+        console.log('Running automation orchestrator (data changed)...');
+        const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
+        
+        if (autoError) {
+          console.error('Error running automation:', autoError);
+        } else {
+          automationResult = autoResult;
+          console.log('Automation complete:', JSON.stringify(autoResult));
+        }
+      } catch (automationError) {
+        console.error('Error running automation:', automationError);
       }
-    } catch (automationError) {
-      console.error('Error running automation:', automationError);
+    } else {
+      automationResult = { skipped: true, reason: 'No new pill data' };
     }
 
     return new Response(
