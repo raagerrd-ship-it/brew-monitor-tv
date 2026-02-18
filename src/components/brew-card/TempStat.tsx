@@ -163,50 +163,15 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
             <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
               <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
-                {/* Left segment: ctrl → target (blue) */}
-                {ctrlPct < targetPct && (
-                  <div 
-                    className="absolute h-full rounded-l-full"
-                    style={{ 
-                      left: `${ctrlPct}%`, 
-                      width: `${targetPct - ctrlPct}%`,
-                      background: 'hsl(var(--temp-blue) / 0.5)',
-                    }} 
-                  />
-                )}
-                {/* Right segment: target → pill (green/orange) */}
-                {pillPct > targetPct && (
-                  <div 
-                    className="absolute h-full rounded-r-full"
-                    style={{ 
-                      left: `${targetPct}%`, 
-                      width: `${pillPct - targetPct}%`,
-                      background: isOvershoot ? 'hsl(38 92% 50% / 0.5)' : 'hsl(var(--ferment-green) / 0.4)',
-                    }} 
-                  />
-                )}
-                {/* If ctrl is above target (unusual) */}
-                {ctrlPct > targetPct && (
-                  <div 
-                    className="absolute h-full rounded-r-full"
-                    style={{ 
-                      left: `${targetPct}%`, 
-                      width: `${ctrlPct - targetPct}%`,
-                      background: 'hsl(var(--temp-blue) / 0.5)',
-                    }} 
-                  />
-                )}
-                {/* If pill is below target (unusual) */}
-                {pillPct < targetPct && (
-                  <div 
-                    className="absolute h-full rounded-l-full"
-                    style={{ 
-                      left: `${pillPct}%`, 
-                      width: `${targetPct - pillPct}%`,
-                      background: 'hsl(var(--ferment-green) / 0.4)',
-                    }} 
-                  />
-                )}
+                {/* Single span bar from ctrl to pill */}
+                <div 
+                  className="absolute h-full rounded-full"
+                  style={{ 
+                    left: `${leftPct}%`, 
+                    width: `${Math.max(rightPct - leftPct, 2)}%`,
+                    background: `linear-gradient(90deg, hsl(var(--temp-blue) / 0.6), ${isOvershoot ? 'hsl(38 92% 50% / 0.6)' : 'hsl(var(--ferment-green) / 0.5)'})`,
+                  }} 
+                />
                 {/* Target marker line */}
                 <div 
                   className="absolute rounded-sm"
@@ -220,7 +185,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
                   }} 
                 />
-                {/* Controller dot (core) - blue */}
+                {/* Controller dot (blue) */}
                 <div 
                   className="absolute top-1/2 rounded-full"
                   style={{ 
@@ -229,10 +194,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     background: 'hsl(var(--temp-blue))',
                     transform: 'translate(-50%, -50%)',
                     boxShadow: '0 0 6px hsl(var(--temp-blue) / 0.7)',
-                    border: '1px solid hsl(var(--temp-blue) / 0.3)',
                   }} 
                 />
-                {/* Pill dot (surface) - green */}
+                {/* Pill dot (green) */}
                 <div 
                   className="absolute top-1/2 rounded-full"
                   style={{ 
@@ -241,7 +205,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     background: 'hsl(var(--ferment-green))',
                     transform: 'translate(-50%, -50%)',
                     boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
-                    border: '1px solid hsl(var(--ferment-green) / 0.3)',
                   }} 
                 />
               </div>
