@@ -231,7 +231,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={label}
-      value={`${displayTemp.toFixed(1)}°`}
+      value={<span style={{ marginTop: '-4px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
@@ -241,7 +241,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       clickable={!!handleClick}
     >
       {spanBar && (
-        <div className="absolute bottom-1 left-1 right-1 z-10">
+        <div className="absolute bottom-0 left-1.5 right-1.5 z-10" style={{ paddingBottom: '3px' }}>
           {spanBar}
         </div>
       )}
