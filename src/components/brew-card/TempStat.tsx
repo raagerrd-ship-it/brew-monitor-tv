@@ -100,7 +100,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   let label = 'Temp';
   if (controller && controller.target_temp !== null) {
     if (showBothTargets) {
-      label = `Temp (${controller.target_temp.toFixed(1)}° / ${originalTarget!.toFixed(1)}°)`;
+      label = `Temp (${controller.target_temp.toFixed(1)}/${originalTarget!.toFixed(1)})`;
     } else {
       label = `Temp (${controller.target_temp.toFixed(1)}°)`;
     }
