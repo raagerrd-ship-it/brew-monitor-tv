@@ -425,32 +425,18 @@ serve(async (req) => {
                 const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
 
-                // For pause_heating: set target = controller current temp (equilibrium)
-                // This stops heating WITHOUT starting cooling
-                // For lower_temp: use AI's suggestion
-                let newTarget: number;
-                if (rec.action === 'pause_heating') {
-                  // Set target = ctrl temp (rounded to 0.1°C) — smallest possible change to stop heating
-                  newTarget = Math.round(ctrlTemp * 10) / 10;
-                  log('OVERSHOOT_PAUSE', 'info', `Pause heating: target → ctrl temp ${newTarget}°C (ctrl=${ctrlTemp.toFixed(1)}°C)`);
-                } else {
-                  // For lower_temp: use AI suggestion but ensure minimal change
-                  newTarget = rec.newTargetTemp ?? (targetTemp - Math.min(rec.degrees, 1.0)); // Cap at max 1°C step
-                }
-
-                // CRITICAL: Overshoot prevention must NEVER raise the target above current
-                // This prevents the system from "forgetting" the user's original target
-                newTarget = Math.min(newTarget, targetTemp);
-                newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
-
-                // CRITICAL: Never set target below (current_temp + cooling_hysteresis)
-                // to avoid triggering the cooling relay. The goal is to STOP heating, not START cooling.
+                // CRITICAL: Overshoot prevention should ONLY stop heating, NEVER trigger cooling.
+                // Regardless of AI recommendation, we always use pause_heating strategy:
+                // Set target = current controller temp + cooling_hysteresis + safety margin
+                // This ensures the heater stops but the cooler never starts.
                 const coolingHyst = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
                 const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10; // +0.1 safety margin
-                if (newTarget < coolingFloor) {
-                  log('OVERSHOOT_FLOOR', 'info', `Clamping target from ${newTarget}°C to cooling floor ${coolingFloor}°C (ctrl=${ctrlTemp.toFixed(1)}° + hyst=${coolingHyst}° + margin=0.1°)`);
-                  newTarget = coolingFloor;
-                }
+                let newTarget = coolingFloor;
+                log('OVERSHOOT_PAUSE', 'info', `Pause heating: target → cooling floor ${newTarget}°C (ctrl=${ctrlTemp.toFixed(1)}° + hyst=${coolingHyst}° + margin=0.1°). AI wanted: ${rec.action} ${rec.degrees}°C`);
+
+                // Never raise above current target
+                newTarget = Math.min(newTarget, targetTemp);
+                newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
 
                 if (Math.abs(newTarget - targetTemp) < 0.1) {
                   log('OVERSHOOT_SKIP', 'info', `Target already at ${targetTemp}°C, no change needed`);
