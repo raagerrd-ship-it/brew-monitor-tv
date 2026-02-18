@@ -135,20 +135,23 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     const cTemp = controller.current_temp!; // controller (core)
     const tTemp = targetTemp;
     
-    // Fixed visual range: target ±3°C to ensure dots always spread nicely
-    const rangeCenter = tTemp;
-    const rangeHalf = Math.max(3, Math.abs(pTemp - cTemp) * 2);
-    const rangeMin = rangeCenter - rangeHalf;
-    const rangeMax = rangeCenter + rangeHalf;
+    // Range: from controller to pill (the two endpoints), with small padding
+    const lo = Math.min(pTemp, cTemp);
+    const hi = Math.max(pTemp, cTemp);
+    const span = hi - lo;
+    const pad = Math.max(span * 0.15, 0.3); // at least 0.3° padding
+    const rangeMin = lo - pad;
+    const rangeMax = hi + pad;
     const range = rangeMax - rangeMin;
     
     const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
     
-    const pillPct = pct(pTemp);
+    // Controller is always left anchor, pill is always right anchor
     const ctrlPct = pct(cTemp);
+    const pillPct = pct(pTemp);
     const targetPct = pct(tTemp);
-    const leftPct = Math.min(pillPct, ctrlPct);
-    const rightPct = Math.max(pillPct, ctrlPct);
+    const leftPct = Math.min(ctrlPct, pillPct);
+    const rightPct = Math.max(ctrlPct, pillPct);
     
     const spanColor = isOvershoot 
       ? 'hsl(38 92% 50%)' 
