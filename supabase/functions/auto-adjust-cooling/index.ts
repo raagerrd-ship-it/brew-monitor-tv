@@ -227,21 +227,7 @@ serve(async (req) => {
       });
     });
 
-    // Find the controller with the lowest target temperature
-    const lowestTempController = followedControllersFullData.reduce((lowest, current) => {
-      const currentTarget = parseFloat(String(current.target_temp ?? '999'));
-      const lowestTarget = parseFloat(String(lowest.target_temp ?? '999'));
-      return currentTarget < lowestTarget ? current : lowest;
-    });
-
     const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'));
-    const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'));
-
-    log('LOWEST_CONTROLLER', 'info', `Lowest target: ${lowestTempController.name}`, {
-      target_temp: lowestTargetTemp,
-      cooler_target: currentCoolerTarget,
-      diff: (currentCoolerTarget - lowestTargetTemp).toFixed(1)
-    });
 
     // Check if any followed controller has cooling enabled
     const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true);
@@ -291,17 +277,20 @@ serve(async (req) => {
 
     log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`);
 
-    if (!lowestTempController.cooling_enabled) {
-      log('LOWEST_COOLING', 'fail', `${lowestTempController.name} does not have cooling enabled`);
-      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
-      log('TIMER', 'info', 'Reset timer - lowest not cooling');
-      await printSummary(supabase, 'Lowest not cooling', false);
-      return new Response(JSON.stringify({ message: 'Lowest temp controller cooling not active', resetTimer: true, decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Find the controller with the lowest target temperature AMONG those with cooling enabled
+    const lowestTempController = controllersWithCooling.reduce((lowest, current) => {
+      const currentTarget = parseFloat(String(current.target_temp ?? '999'));
+      const lowestTarget = parseFloat(String(lowest.target_temp ?? '999'));
+      return currentTarget < lowestTarget ? current : lowest;
+    });
 
-    log('LOWEST_COOLING', 'pass', `${lowestTempController.name} has cooling enabled`);
+    const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'));
+
+    log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
+      target_temp: lowestTargetTemp,
+      cooler_target: currentCoolerTarget,
+      diff: (currentCoolerTarget - lowestTargetTemp).toFixed(1)
+    });
 
     // Temperature difference analysis
     const tempDiff = currentCoolerTarget - lowestTargetTemp;
