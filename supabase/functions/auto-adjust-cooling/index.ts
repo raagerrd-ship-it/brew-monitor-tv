@@ -1270,18 +1270,27 @@ serve(async (req) => {
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
+              log('COOLING_RECOVERY_CHECK', 'info', `Recovery check: cooler=${currentCoolerTarget}°C, ideal=${idealTarget.toFixed(1)}°C, threshold=${(idealTarget - 0.2).toFixed(1)}°C, needs_recovery=${currentCoolerTarget < idealTarget - 0.2}`);
+
               if (currentCoolerTarget < idealTarget - 0.2) {
+                try {
                 // Check interval guard: don't recover more often than every 30 minutes
                 const RECOVERY_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-                const { data: lastRecovery } = await supabase
+                const { data: lastRecovery, error: recoveryQueryError } = await supabase
                   .from('auto_cooling_adjustments')
                   .select('created_at')
                   .like('reason', '%Cooling recovery%')
                   .order('created_at', { ascending: false })
                   .limit(1);
 
+                if (recoveryQueryError) {
+                  log('COOLING_RECOVERY', 'fail', `Query error: ${recoveryQueryError.message}`);
+                }
+
                 const lastRecoveryTime = lastRecovery?.[0]?.created_at ? new Date(lastRecovery[0].created_at).getTime() : 0;
                 const timeSinceLastRecovery = Date.now() - lastRecoveryTime;
+
+                log('COOLING_RECOVERY_INTERVAL', 'info', `Last recovery: ${lastRecoveryTime === 0 ? 'never' : `${Math.round(timeSinceLastRecovery / 60000)}min ago`}, need ${RECOVERY_INTERVAL_MS / 60000}min`);
 
                 if (timeSinceLastRecovery < RECOVERY_INTERVAL_MS) {
                   log('COOLING_RECOVERY', 'info', `Skipping recovery - only ${Math.round(timeSinceLastRecovery / 60000)}min since last (need ${RECOVERY_INTERVAL_MS / 60000}min)`);
@@ -1291,7 +1300,9 @@ serve(async (req) => {
                   let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
                   recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
 
-                  if (recoveryTarget > currentCoolerTarget + 0.1) {
+                  log('COOLING_RECOVERY_CALC', 'info', `gap=${gap.toFixed(1)}, recoveryTarget=${recoveryTarget}°C, min=${coolerMinTemp}, max=${coolerMaxTemp}, wouldTrigger=${recoveryTarget > currentCoolerTarget + 0.1}`);
+
+                  if (recoveryTarget >= currentCoolerTarget + 0.1) {
                     log('COOLING_RECOVERY', 'action', `Raising cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
 
                     const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
@@ -1314,8 +1325,13 @@ serve(async (req) => {
                         followed_target_temp: lowestTargetTemp,
                         reason: `🔄 Cooling recovery: kylbehov minskat, höjer mot ideal ${idealTarget.toFixed(1)}°C`
                       } as any);
+                    } else {
+                      log('COOLING_RECOVERY', 'fail', `Failed to update cooler: ${JSON.stringify(updateResponse.error)}`);
                     }
                   }
+                }
+                } catch (recoveryError) {
+                  log('COOLING_RECOVERY', 'fail', `Recovery error: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
                 }
               }
             }
