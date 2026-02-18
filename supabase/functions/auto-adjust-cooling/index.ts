@@ -256,7 +256,23 @@ serve(async (req) => {
         const targetTemp = parseFloat(String(fc.target_temp));
         const pillDelta = pillTemp - ctrlTemp;
 
-        const pillOverTarget = pillTemp >= targetTemp + overshootPillThreshold;
+        // Look up original target: the first overshoot adjustment's old_target_temp for this controller
+        // This is the user's intended target before any overshoot modifications
+        let originalTarget = targetTemp;
+        const { data: prevAdj } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('old_target_temp, original_target_temp')
+          .eq('cooler_controller_id', fc.controller_id)
+          .like('reason', '🌡️%')
+          .order('created_at', { ascending: true })
+          .limit(1);
+        if (prevAdj && prevAdj.length > 0) {
+          originalTarget = prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp;
+        }
+        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: original target=${originalTarget}°C, current target=${targetTemp}°C`);
+
+        // Compare pill against ORIGINAL target, not the (possibly lowered) current target
+        const pillOverTarget = pillTemp >= originalTarget + overshootPillThreshold;
         const isHeatingOvershoot = pillOverTarget && pillDelta > overshootDeltaThreshold;
 
         if (isHeatingOvershoot) {
@@ -391,11 +407,12 @@ serve(async (req) => {
                       cooler_controller_name: fc.name,
                       old_target_temp: targetTemp,
                       new_target_temp: newTarget,
-                      lowest_followed_temp: targetTemp,
+                      original_target_temp: originalTarget,
+                      lowest_followed_temp: originalTarget,
                       followed_controller_id: fc.controller_id,
                       followed_controller_name: fc.name,
                       followed_current_temp: ctrlTemp,
-                      followed_target_temp: targetTemp,
+                      followed_target_temp: originalTarget,
                       reason: `🌡️ Overshoot: ${rec.reasoning} (${rec.confidence}% säker)`
                     } as any);
                   } else {
@@ -423,12 +440,13 @@ serve(async (req) => {
                       cooler_controller_name: fc.name,
                       old_target_temp: targetTemp,
                       new_target_temp: fallbackTarget,
-                      lowest_followed_temp: targetTemp,
+                      original_target_temp: originalTarget,
+                      lowest_followed_temp: originalTarget,
                       followed_controller_id: fc.controller_id,
                       followed_controller_name: fc.name,
                       followed_current_temp: ctrlTemp,
-                      followed_target_temp: targetTemp,
-                      reason: `🌡️ Overshoot fallback: pill ${pillTemp.toFixed(1)}° > target ${targetTemp}°C, sänker temporärt`
+                      followed_target_temp: originalTarget,
+                      reason: `🌡️ Overshoot fallback: pill ${pillTemp.toFixed(1)}° > original mål ${originalTarget}°C, sänker temporärt`
                     } as any);
                   }
                 }

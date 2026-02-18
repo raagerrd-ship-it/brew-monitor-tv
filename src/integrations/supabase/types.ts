@@ -28,6 +28,7 @@ export type Database = {
           lowest_followed_temp: number
           new_target_temp: number
           old_target_temp: number
+          original_target_temp: number | null
           reason: string
         }
         Insert: {
@@ -43,6 +44,7 @@ export type Database = {
           lowest_followed_temp: number
           new_target_temp: number
           old_target_temp: number
+          original_target_temp?: number | null
           reason: string
         }
         Update: {
@@ -58,6 +60,7 @@ export type Database = {
           lowest_followed_temp?: number
           new_target_temp?: number
           old_target_temp?: number
+          original_target_temp?: number | null
           reason?: string
         }
         Relationships: []
