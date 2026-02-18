@@ -259,7 +259,7 @@ export function AutoCoolingDecisionLogs() {
                     {tempChangeStr}
                   </span>
                   <span className="text-muted-foreground truncate max-w-[80px]">
-                    {adj.followed_controller_name || adj.cooler_controller_name}
+                    {category === 'glykol' ? adj.cooler_controller_name : (adj.followed_controller_name || adj.cooler_controller_name)}
                   </span>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200" />
