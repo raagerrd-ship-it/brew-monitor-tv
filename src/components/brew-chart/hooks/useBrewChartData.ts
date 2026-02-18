@@ -131,8 +131,10 @@ export function useBrewChartData({
 
         const session = sessions[0];
 
-        // Fetch profile steps and step start logs in parallel
-        const [stepsResult, stepStartsResult] = await Promise.all([
+        // Fetch profile steps and step logs in parallel
+        // Use ALL log actions (not just 'started') to find step start times,
+        // since ramp steps may only have 'temp_adjusted' entries
+        const [stepsResult, stepLogsResult] = await Promise.all([
           supabase
             .from('fermentation_profile_steps')
             .select('step_order, step_type, target_temp, duration_hours')
@@ -142,22 +144,21 @@ export function useBrewChartData({
             .from('fermentation_step_log')
             .select('step_index, created_at')
             .eq('session_id', session.id)
-            .eq('action', 'started')
             .order('created_at', { ascending: true }),
         ]);
 
         const steps = stepsResult.data;
-        const stepStarts = stepStartsResult.data;
+        const stepLogs = stepLogsResult.data;
         if (!steps || steps.length === 0) {
           setProfileTargets([]);
           return;
         }
 
-        // Build step start time map (first 'started' entry per step)
+        // Build step start time map (earliest log entry per step, any action type)
         const stepStartMap: Record<number, number> = {};
         stepStartMap[0] = new Date(session.started_at).getTime();
-        if (stepStarts) {
-          for (const log of stepStarts) {
+        if (stepLogs) {
+          for (const log of stepLogs) {
             if (!(log.step_index in stepStartMap)) {
               stepStartMap[log.step_index] = new Date(log.created_at).getTime();
             }
@@ -170,7 +171,7 @@ export function useBrewChartData({
 
         for (const step of steps) {
           const startTime = stepStartMap[step.step_order];
-          if (!startTime) break; // step hasn't started yet
+          if (!startTime) continue; // step hasn't started yet, skip to next
 
           const stepTarget = step.target_temp ?? lastTarget;
 
