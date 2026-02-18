@@ -191,6 +191,21 @@ serve(async (req) => {
     // pill_temp is now enriched by sync-rapt-data-quick directly from pill data
     // No need to fetch from brew_readings.sg_data anymore
 
+    // Look up original targets for all followed controllers (from first overshoot adjustment)
+    const originalTargetMap = new Map<string, number>();
+    for (const controller of followedControllersFullData) {
+      const { data: prevAdj } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('old_target_temp, original_target_temp')
+        .eq('cooler_controller_id', controller.controller_id)
+        .like('reason', '🌡️%')
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (prevAdj && prevAdj.length > 0) {
+        originalTargetMap.set(controller.controller_id, prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp);
+      }
+    }
+
     // Log each followed controller's status
     followedControllersFullData.forEach(controller => {
       const pillTemp = controller.pill_temp !== null ? parseFloat(String(controller.pill_temp)) : null;
@@ -199,8 +214,10 @@ serve(async (req) => {
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
       const pillDelta = pillTemp !== null ? pillTemp - currentTemp : null;
+      const originalTarget = originalTargetMap.get(controller.controller_id);
       
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
+        original_target: originalTarget ?? targetTemp,
         target_temp: targetTemp,
         current_temp: currentTemp,
         pill_temp: pillTemp,
@@ -275,19 +292,8 @@ serve(async (req) => {
         const targetTemp = parseFloat(String(fc.target_temp));
         const pillDelta = pillTemp - ctrlTemp;
 
-        // Look up original target: the first overshoot adjustment's old_target_temp for this controller
-        // This is the user's intended target before any overshoot modifications
-        let originalTarget = targetTemp;
-        const { data: prevAdj } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('old_target_temp, original_target_temp')
-          .eq('cooler_controller_id', fc.controller_id)
-          .like('reason', '🌡️%')
-          .order('created_at', { ascending: true })
-          .limit(1);
-        if (prevAdj && prevAdj.length > 0) {
-          originalTarget = prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp;
-        }
+        // Reuse pre-fetched original target from originalTargetMap
+        const originalTarget = originalTargetMap.get(fc.controller_id) ?? targetTemp;
         log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: original target=${originalTarget}°C, current target=${targetTemp}°C`);
 
         // Compare pill against ORIGINAL target, not the (possibly lowered) current target
