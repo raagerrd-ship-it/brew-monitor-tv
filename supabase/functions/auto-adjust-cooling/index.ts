@@ -1287,11 +1287,14 @@ serve(async (req) => {
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
-              log('COOLING_RECOVERY_CHECK', 'info', `Recovery check: cooler=${currentCoolerTarget}°C, ideal=${idealTarget.toFixed(1)}°C, threshold=${(idealTarget - 0.2).toFixed(1)}°C, needs_recovery=${currentCoolerTarget < idealTarget - 0.2}`);
+              const needsLowering = currentCoolerTarget > idealTarget + 0.2;
+              const needsRaising = currentCoolerTarget < idealTarget - 0.2;
 
-              if (currentCoolerTarget < idealTarget - 0.2) {
+              log('COOLING_RECOVERY_CHECK', 'info', `Recovery check: cooler=${currentCoolerTarget}°C, ideal=${idealTarget.toFixed(1)}°C, needs_lowering=${needsLowering}, needs_raising=${needsRaising}`);
+
+              if (needsLowering || needsRaising) {
                 try {
-                // Check interval guard: don't recover more often than every 30 minutes
+                // Check interval guard: don't adjust more often than every 30 minutes
                 const RECOVERY_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
                 const { data: lastRecovery, error: recoveryQueryError } = await supabase
                   .from('auto_cooling_adjustments')
@@ -1312,22 +1315,25 @@ serve(async (req) => {
                 if (timeSinceLastRecovery < RECOVERY_INTERVAL_MS) {
                   log('COOLING_RECOVERY', 'info', `Skipping recovery - only ${Math.round(timeSinceLastRecovery / 60000)}min since last (need ${RECOVERY_INTERVAL_MS / 60000}min)`);
                 } else {
-                  // Raise gradually: half the gap
+                  // Move gradually: half the gap toward ideal
                   const gap = idealTarget - currentCoolerTarget;
                   let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
                   recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
 
-                  log('COOLING_RECOVERY_CALC', 'info', `gap=${gap.toFixed(1)}, recoveryTarget=${recoveryTarget}°C, min=${coolerMinTemp}, max=${coolerMaxTemp}, wouldTrigger=${recoveryTarget > currentCoolerTarget + 0.1}`);
+                  const significantChange = needsLowering
+                    ? recoveryTarget <= currentCoolerTarget - 0.1
+                    : recoveryTarget >= currentCoolerTarget + 0.1;
 
-                  if (recoveryTarget >= currentCoolerTarget + 0.1) {
-                    log('COOLING_RECOVERY', 'action', `Raising cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
+                  if (significantChange) {
+                    const direction = needsLowering ? 'Sänker' : 'Höjer';
+                    log('COOLING_RECOVERY', 'action', `${direction} cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
 
                     const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
                       body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
                     });
 
                     if (!updateResponse.error) {
-                      log('COOLING_RECOVERY', 'pass', `Raised cooler to ${recoveryTarget}°C`);
+                      log('COOLING_RECOVERY', 'pass', `Set cooler to ${recoveryTarget}°C`);
                       allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget });
 
                       await supabase.from('auto_cooling_adjustments').insert({
@@ -1340,7 +1346,7 @@ serve(async (req) => {
                         followed_controller_name: lowestTempController.name,
                         followed_current_temp: lowestCurrentTemp,
                         followed_target_temp: lowestTargetTemp,
-                        reason: `🔄 Cooling recovery: kylbehov minskat, höjer mot ideal ${idealTarget.toFixed(1)}°C`
+                        reason: `🔄 Cooling recovery: ${needsLowering ? 'kylbehov ökat' : 'kylbehov minskat'}, ${needsLowering ? 'sänker' : 'höjer'} mot ideal ${idealTarget.toFixed(1)}°C`
                       } as any);
                     } else {
                       log('COOLING_RECOVERY', 'fail', `Failed to update cooler: ${JSON.stringify(updateResponse.error)}`);
