@@ -45,6 +45,7 @@ function categorizeAdjustment(reason: string): 'overshoot' | 'stall' | 'pill-com
   if (reason.startsWith('🌡️')) return 'overshoot';
   if (reason.startsWith('🧠')) return 'stall';
   if (reason.startsWith('🎯')) return 'pill-comp';
+  if (reason.startsWith('🔄')) return 'cooling';
   return 'cooling';
 }
 
@@ -274,7 +275,34 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
 
-                  {category !== 'pill-comp' && aiReasoning && (
+                  {category === 'cooling' && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(210 80% 60%)' }}>
+                        ❄️ Kylreglering
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                        <div className="text-muted-foreground">Styrande tank:</div>
+                        <div className="font-medium">{adj.followed_controller_name || '—'}</div>
+                        {adj.followed_current_temp !== null && (
+                          <>
+                            <div className="text-muted-foreground">Tank aktuell:</div>
+                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°C</div>
+                          </>
+                        )}
+                        {adj.followed_target_temp !== null && (
+                          <>
+                            <div className="text-muted-foreground">Tank mål:</div>
+                            <div className="font-medium">{adj.followed_target_temp.toFixed(1)}°C</div>
+                          </>
+                        )}
+                        <div className="text-muted-foreground">Kylare:</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
+                    </div>
+                  )}
+
+                  {category !== 'pill-comp' && category !== 'cooling' && aiReasoning && (
                     <div className="text-xs space-y-1">
                       <p className="font-semibold flex items-center gap-1" style={{ 
                         color: category === 'overshoot' ? 'hsl(38 92% 50%)' : 'hsl(var(--ferment-green))' 
@@ -285,7 +313,7 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
                   
-                  {category !== 'pill-comp' && !aiReasoning && (
+                  {category !== 'pill-comp' && category !== 'cooling' && !aiReasoning && (
                     <p className="text-[11px] text-muted-foreground">{adj.reason}</p>
                   )}
                 </div>
