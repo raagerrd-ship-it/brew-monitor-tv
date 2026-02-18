@@ -1,59 +1,86 @@
 
 
-# Fixa samverkan fermenteringsprofil + overshoot + bugg
+# Pill-kompensation med dämpningsfaktor 0.4
 
-## Akuta problem
+## Vad ändras
 
-### 1. Krasch-bugg (kritisk)
-`process-fermentation-profiles` kraschar **varje cykel** med `ReferenceError: Cannot access 'actionTaken' before initialization`. Orsaken: den nya enforce-logiken (rad 264-307) refererar till `actionTaken` och `actionDetails` INNAN de deklareras (rad 258-260). Funktionen lyckas ändå skicka API-anropet till RAPT (sätter 22C) men kraschar innan den hinner:
-- Uppdatera databasen med den nya temperaturen
-- Logga aktionen
-- Returnera resultat
+Istället för att sätta controllern direkt till profilens mål-temperatur (t.ex. 22°C), beräknas en kompenserad target baserat på temperaturskillnaden mellan pill (ytan) och probe (kärnan). Detta gör att pill-temperaturen hamnar närmare profilens mål, utan att kärnan blir för kall.
 
-Det betyder att controllern sätts till 22C via RAPT API, men databasen fortfarande visar 19.7C. Nästa sync skriver över med 19.7C igen.
+## Beräkning
 
-### 2. Ping-pong-loop
-Även efter buggfixen: profilen enforce:ar 22C, men overshoot ser att pill (24.3C) ar over target (22C) + threshold och sanker tillbaka. Profilen har ingen overshoot-historik att checka (vi rensade tabellen, och buggen hindrar insert) sa den enforce:ar igen. Oandlig loop.
+```text
+profileTarget = 22°C
+averageDelta = medelvärde av senaste 3 delta-mätningar (t.ex. 4.68°C)
+compensation = averageDelta * 0.4 = 1.87°C
+compensatedTarget = 22 - 1.87 = 20.13°C
 
-### 3. Grundproblemet: overshoot ar fel verktyg for jasningsvärme
-Overshoot-skyddet ar designat for att motverka att en HEATER overdriver. Men under aktiv jasning ar det biologisk varme som gor att pill-temp ar hogre an controller-temp. Att sanka target gor ingenting for att minska jasningsvärme — det kan till och med gora det varre genom att kyla for aggressivt.
+Begränsningar:
+- Max 0.3°C ändring per cykel (5 min) -- förhindrar ryck
+- Aldrig mer än 5°C under profileTarget -- säkerhetsgolv
+- Kompensation bara vid positivt delta (pill varmare än probe)
+```
 
-## Losning
+Med nuvarande delta (4.68°C) och target 22°C:
+- Utan kompensation: controller = 22°C, pill = ~26.7°C
+- Med kompensation: controller gradvis mot ~20.1°C, pill sjunker mot ~22°C
+- Kärnan (proben) hamnar på ~20°C -- 2°C under mål, men pill (ytan) ligger rätt
 
-### Steg 1: Fixa kraschen
-Flytta enforce-logiken SA att den kors EFTER deklarationen av `actionTaken`/`actionDetails` (rad 258-260). Alternativt flytta variabeldeklarationerna uppat.
-
-### Steg 2: Overshoot ska inte motverka profilen
-Nar overshoot agerar pa en profil-styrd controller, maste resultatet sparas i `auto_cooling_adjustments` (som det redan gor). Profilen maste sedan respektera denna justering genom att INTE enforce:a tillbaka under 15 minuter. Den logiken finns redan (rad 268-279), men fungerar inte pga:
-- Kraschen forhindrar att vi nar dit pa ett stabilt satt
-- `auto_cooling_adjustments` ar tom (vi rensade den)
-
-Nar buggen ar fixad borde flödet bli:
-1. Profilen enforce:ar 22C, sparar adjustment
-2. Overshoot ser pill over threshold, sanker till ~20C, sparar adjustment
-3. Nasta cykel: profilen ser recent overshoot, SKIPPAR enforce
-4. Overshoot recovery hojer gradvis tillbaka nar pill sjunker
-5. Nar 15 min gaett utan ny overshoot, profilen enforce:ar 22C igen
-
-### Steg 3: Intelligent overshoot-anpassning for profil-tankar
-Overshoot-logiken bor ta hansyn till att pill-delta under jasning ar NORMALT och inte overshoot. Tva alternativ:
-
-**Alternativ A (rekommenderat)**: Hoj overshoot-troskeln for profil-styrda controllers. Istallet for `pill > target + 0.3` (overshoot_pill_threshold), anvand en dynamisk troskel baserad pa jasningsaktivitet: om SG-raten visar aktiv jasning, tolerera hogre pill-delta (t.ex. +3C istallet for +0.3C).
-
-**Alternativ B**: Lat profilen satta `original_target_temp` i `rapt_temp_controllers`-tabellen, sa att overshoot vet vad "normalt" ar och kan rakna mot det.
-
-## Teknisk implementering
+## Tekniska ändringar
 
 ### `process-fermentation-profiles/index.ts`
-- Flytta deklarationen av `actionTaken`, `actionDetails`, `stepCompleted` FORE enforce-logiken (rad 258 -> 261)
-- Alternativt: flytta hela enforce-blocket EFTER deklarationerna
-- Laga overshoot-check: den nuvarande koden fungerar men kraver att adjustments-tabellen har data
+
+Ny hjälpfunktion `calculateCompensatedTarget`:
+- Hämtar senaste 3 delta-mätningar från `temp_delta_history` för denna controller
+- Beräknar medelvärde
+- Applicerar dämpningsfaktor 0.4
+- Rate-limitar till max 0.3°C ändring från nuvarande target
+- Returnerar kompenserad target
+
+Ändras i tre ställen:
+1. **Enforce-logik** (rad 264-335): Använd kompenserad target istället för `effectiveTarget` rakt av
+2. **Hold-steg** (rad 341-355): Använd kompenserad target istället för `currentStep.target_temp`
+3. **original_target_temp**: Sätts alltid till profilens VERKLIGA mål (22°C), inte den kompenserade
 
 ### `auto-adjust-cooling/index.ts`
-- I overshoot-sektionen: for profil-agda controllers, anvand en hogre pill-troskel (t.ex. originalTarget + 3.0C istallet for + 0.3C) for att tolerera jasningsvärme
-- Behall overshoot-skydd for extrema fall (pill > target + 5C) dar nagot verkligen ar fel
-- Overshoot recovery behover ingen andring — den fungerar redan korrekt
 
-### Deployment
-- Deploya bada edge functions
-- Rensa INTE adjustment-tabellen — den behovs for att profilen ska kunna se overshoot-historik
+- Ta bort den hårdkodade 3.0°C-tröskeln för profilstyrda controllers
+- Återgå till standard-tröskel men beräkna mot `original_target_temp` (som redan görs)
+- Overshoot blir säkerhetsnät -- pill-kompensationen hanterar det proaktivt
+
+### Loggning
+
+Kompensationen loggas i `auto_cooling_adjustments` med reason-prefix "🎯 Pill-kompensation" så det syns i UI:
+```text
+🎯 Pill-kompensation: 22.0°C -> 20.1°C (delta=4.68, komp=1.87°C)
+```
+
+## Flöde per cykel
+
+```text
+Cykel 1 (start): target=22°C, delta=4.68°C
+  kompensation = 4.68 * 0.4 = 1.87°C
+  nyTarget = 22 - 1.87 = 20.13°C
+  rate-limit: max 0.3°C nedåt -> sätter 21.7°C
+  original_target_temp = 22°C
+
+Cykel 2: target=21.7°C, delta=~4.5°C
+  kompensation = 4.5 * 0.4 = 1.8°C
+  nyTarget = 22 - 1.8 = 20.2°C
+  rate-limit: max 0.3 nedåt -> sätter 21.4°C
+
+... (gradvis nedåt tills jämvikt)
+
+Cykel N (jäsning avtar): target=20.2°C, delta=~1.0°C
+  kompensation = 1.0 * 0.4 = 0.4°C
+  nyTarget = 22 - 0.4 = 21.6°C
+  rate-limit: max 0.3 uppåt -> sätter 20.5°C
+
+Cykel N+X (jäsning klar): delta=~0°C
+  kompensation = 0
+  target kryper tillbaka till 22°C
+```
+
+## Deployment
+
+Deploya båda edge functions efter ändringarna.
+
