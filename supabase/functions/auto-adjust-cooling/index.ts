@@ -1275,14 +1275,19 @@ serve(async (req) => {
                     }
                   } else {
                     await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+                    // Sustained cooling check failed but controller IS actively cooling
+                    // Still check if cooler needs recovery/adjustment toward ideal
                   }
                 }
               }
             } else {
-              // Not actively cooling - check if cooler can recover (raise back toward baseline)
+              // Not actively cooling - reset timer
               await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
               log('TIMER', 'info', 'Reset timer - not actively cooling');
+            }
 
+            // Always check recovery: move cooler toward ideal target regardless of active cooling state
+            {
               const idealTarget = lowestTargetTemp - parseFloat(String(settings.temp_reduction_degrees));
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
