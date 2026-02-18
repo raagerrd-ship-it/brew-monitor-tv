@@ -18,8 +18,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
 
-  // Use controller's built-in temp if available, otherwise fall back to pill/brew temp
-  const displayTemp = controller?.current_temp ?? brew.currentTemp;
+  // Use average of pill and controller if both available, otherwise fallback
+  const hasBothForAvg = controller?.current_temp !== null && controller?.current_temp !== undefined && pill;
+  const displayTemp = hasBothForAvg 
+    ? (controller.current_temp! + brew.currentTemp) / 2 
+    : controller?.current_temp ?? brew.currentTemp;
 
   // Calculate delta: pill (surface) - controller (core)
   const hasBothSensors = pill && controller?.current_temp !== null && controller?.current_temp !== undefined;
@@ -135,14 +138,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     const cTemp = controller.current_temp!; // controller (core)
     const tTemp = targetTemp;
     
-    // Range: from controller to pill (the two endpoints), with small padding
-    const lo = Math.min(pTemp, cTemp);
-    const hi = Math.max(pTemp, cTemp);
-    const span = hi - lo;
-    const pad = Math.max(span * 0.15, 0.3); // at least 0.3° padding
-    const rangeMin = lo - pad;
-    const rangeMax = hi + pad;
-    const range = rangeMax - rangeMin;
+    // Fixed range: target ±3°C so the bar visually shrinks as temps converge
+    const rangeMin = tTemp - 3;
+    const rangeMax = tTemp + 3;
+    const range = rangeMax - rangeMin; // always 6
     
     const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
     
