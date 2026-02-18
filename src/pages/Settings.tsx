@@ -2076,15 +2076,6 @@ export default function Settings() {
                     </CollapsibleContent>
                   </Collapsible>
 
-                  <Collapsible>
-                    <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors group">
-                      <span className="text-sm font-semibold">Justeringshistorik</span>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2">
-                      <AutoCoolingDecisionLogs />
-                    </CollapsibleContent>
-                  </Collapsible>
                 </div>
               )}
             </SettingsSection>
@@ -2257,6 +2248,14 @@ export default function Settings() {
               description="Skapa och hantera temperaturschemat för fermenteringen"
             >
               <FermentationProfilesManagement />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={History}
+              title="Justeringshistorik"
+              description="Historik över alla automatiska justeringar"
+            >
+              <AutoCoolingDecisionLogs />
             </SettingsSection>
 
           </TabsContent>
