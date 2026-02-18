@@ -77,6 +77,9 @@ export default function Settings() {
   const [autoBoostEnabled, setAutoBoostEnabled] = useState(false);
   const [autoBoostDegrees, setAutoBoostDegrees] = useState<string>("1");
   const [stallRateThreshold, setStallRateThreshold] = useState<string>("0.001");
+  const [overshootEnabled, setOvershootEnabled] = useState(true);
+  const [overshootPillThreshold, setOvershootPillThreshold] = useState<string>("0.3");
+  const [overshootDeltaThreshold, setOvershootDeltaThreshold] = useState<string>("2.0");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -435,6 +438,9 @@ export default function Settings() {
         setAutoBoostEnabled((data as any).auto_boost_enabled ?? false);
         setAutoBoostDegrees(((data as any).auto_boost_degrees ?? 1).toString());
         setStallRateThreshold(((data as any).stall_rate_threshold ?? 0.001).toString());
+        setOvershootEnabled((data as any).overshoot_prevention_enabled ?? true);
+        setOvershootPillThreshold(((data as any).overshoot_pill_threshold ?? 0.3).toString());
+        setOvershootDeltaThreshold(((data as any).overshoot_delta_threshold ?? 2.0).toString());
       }
 
       // Load followed controllers
@@ -992,6 +998,54 @@ export default function Settings() {
       toast({ title: "Inställningar sparade", description: "Stall-tröskelvärde har uppdaterats" });
     } catch (error) {
       console.error('Error updating stall threshold:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleOvershootEnabledChange = async (checked: boolean) => {
+    setOvershootEnabled(checked);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ overshoot_prevention_enabled: checked } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: checked ? "Overshoot-prevention aktiverad" : "Overshoot-prevention inaktiverad" });
+    } catch (error) {
+      console.error('Error updating overshoot:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleOvershootPillThresholdChange = async (value: string) => {
+    setOvershootPillThreshold(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ overshoot_pill_threshold: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade" });
+    } catch (error) {
+      console.error('Error updating overshoot pill threshold:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleOvershootDeltaThresholdChange = async (value: string) => {
+    setOvershootDeltaThreshold(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ overshoot_delta_threshold: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade" });
+    } catch (error) {
+      console.error('Error updating overshoot delta threshold:', error);
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
@@ -2072,7 +2126,75 @@ export default function Settings() {
                     </p>
                   </div>
 
-                  {/* HISTORY */}
+                  {/* OVERSHOOT PREVENTION */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Thermometer className="h-4 w-4 text-muted-foreground" />
+                      Overshoot-prevention
+                    </h3>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Förhindrar att pill-temperaturen (ytan) överstiger måltemperaturen vid uppvärmning. 
+                      När pill är varmare än target och deltat är stort konsulteras AI för att avgöra 
+                      om måltemperaturen bör sänkas tillfälligt för att låta värmen fördela sig jämnt.
+                    </p>
+
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        id="overshoot-enabled"
+                        checked={overshootEnabled}
+                        onCheckedChange={handleOvershootEnabledChange}
+                      />
+                      <label
+                        htmlFor="overshoot-enabled"
+                        className="text-sm cursor-pointer leading-none"
+                      >
+                        AI-styrd overshoot-prevention
+                      </label>
+                    </div>
+
+                    {overshootEnabled && (
+                      <div className="grid gap-4 grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Pill över target</label>
+                          <Select value={overshootPillThreshold} onValueChange={handleOvershootPillThresholdChange}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border z-50">
+                              <SelectItem value="0.2">+0.2°C</SelectItem>
+                              <SelectItem value="0.3">+0.3°C</SelectItem>
+                              <SelectItem value="0.5">+0.5°C</SelectItem>
+                              <SelectItem value="1.0">+1.0°C</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Min delta (pill-ctrl)</label>
+                          <Select value={overshootDeltaThreshold} onValueChange={handleOvershootDeltaThresholdChange}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border z-50">
+                              <SelectItem value="1.0">1.0°C</SelectItem>
+                              <SelectItem value="1.5">1.5°C</SelectItem>
+                              <SelectItem value="2.0">2.0°C</SelectItem>
+                              <SelectItem value="3.0">3.0°C</SelectItem>
+                              <SelectItem value="5.0">5.0°C</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      Triggar när pill ≥ target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C.
+                      {overshootEnabled && ' AI analyserar situation och kan sänka target tillfälligt. Fallback: sänker 0.5°C om pill > target + 1°C.'}
+                    </p>
+                  </div>
+
+
                   <Collapsible>
                     <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors group">
                       <span className="text-sm font-semibold">Justeringshistorik</span>
@@ -2102,6 +2224,8 @@ export default function Settings() {
                       {autoBoostEnabled && <p>• Om AI inte är tillgänglig: fallback till +{autoBoostDegrees}°C</p>}
                       <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
                       <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
+                      {overshootEnabled && <p>• 🌡️ Overshoot-prevention: sänker target om pill &gt; target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C</p>}
+                      {overshootEnabled && <p>• AI analyserar overshoot-situation och rekommenderar temporär justering</p>}
                     </CollapsibleContent>
                   </Collapsible>
                 </div>

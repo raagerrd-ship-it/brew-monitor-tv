@@ -122,6 +122,9 @@ export type Database = {
           id: string
           last_check_at: string | null
           max_diff_from_lowest: number
+          overshoot_delta_threshold: number
+          overshoot_pill_threshold: number
+          overshoot_prevention_enabled: boolean
           stall_rate_threshold: number
           temp_reduction_degrees: number
           updated_at: string
@@ -137,6 +140,9 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
+          overshoot_delta_threshold?: number
+          overshoot_pill_threshold?: number
+          overshoot_prevention_enabled?: boolean
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
@@ -152,6 +158,9 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
+          overshoot_delta_threshold?: number
+          overshoot_pill_threshold?: number
+          overshoot_prevention_enabled?: boolean
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
