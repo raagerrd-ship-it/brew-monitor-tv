@@ -111,6 +111,22 @@ async function calculateCompensatedTarget(
   currentControllerTarget: number,
   controllerName: string
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
+  // Cooldown: skip if a pill-compensation adjustment was made in the last 4 minutes
+  // This prevents cascading when our own target_temp update triggers another automation cycle
+  const cooldownAgo = new Date(Date.now() - 4 * 60 * 1000).toISOString()
+  const { data: recentComp } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('id, created_at')
+    .eq('cooler_controller_id', controllerId)
+    .gte('created_at', cooldownAgo)
+    .like('reason', '🎯%')
+    .limit(1)
+
+  if (recentComp && recentComp.length > 0) {
+    console.log(`🎯 Pill-kompensation cooldown för ${controllerName}: senaste justering ${recentComp[0].created_at}, väntar`)
+    return null
+  }
+
   // Fetch last 3 delta measurements
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
@@ -149,6 +165,12 @@ async function calculateCompensatedTarget(
 
   // Round to 1 decimal
   compensatedTarget = Math.round(compensatedTarget * 10) / 10
+
+  // Skip if change is negligible (< 0.1°C)
+  if (Math.abs(compensatedTarget - currentControllerTarget) < 0.1) {
+    console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
+    return null
+  }
 
   console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, komp=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
