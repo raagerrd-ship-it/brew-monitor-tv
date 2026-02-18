@@ -135,13 +135,14 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     const cTemp = controller.current_temp!; // controller (core)
     const tTemp = targetTemp;
     
-    // Range: show from min-1 to max+1 for padding
-    const allTemps = [pTemp, cTemp, tTemp];
-    const rangeMin = Math.min(...allTemps) - 0.5;
-    const rangeMax = Math.max(...allTemps) + 0.5;
-    const range = rangeMax - rangeMin || 1;
+    // Fixed visual range: target ±3°C to ensure dots always spread nicely
+    const rangeCenter = tTemp;
+    const rangeHalf = Math.max(3, Math.abs(pTemp - cTemp) * 2);
+    const rangeMin = rangeCenter - rangeHalf;
+    const rangeMax = rangeCenter + rangeHalf;
+    const range = rangeMax - rangeMin;
     
-    const pct = (t: number) => Math.max(0, Math.min(100, ((t - rangeMin) / range) * 100));
+    const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
     
     const pillPct = pct(pTemp);
     const ctrlPct = pct(cTemp);
@@ -157,7 +158,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full px-2 cursor-help" style={{ height: '16px', display: 'flex', alignItems: 'center' }}>
+            <div className="w-[90%] mx-auto cursor-help" style={{ height: '8px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
               <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
                 {/* Span fill between pill and controller */}
@@ -188,7 +189,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                   className="absolute top-1/2 rounded-full"
                   style={{ 
                     left: `${ctrlPct}%`, 
-                    width: '8px', height: '8px',
+                    width: '6px', height: '6px',
                     background: 'hsl(var(--temp-blue))',
                     transform: 'translate(-50%, -50%)',
                     boxShadow: '0 0 6px hsl(var(--temp-blue) / 0.7)',
@@ -200,7 +201,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                   className="absolute top-1/2 rounded-full"
                   style={{ 
                     left: `${pillPct}%`, 
-                    width: '8px', height: '8px',
+                    width: '6px', height: '6px',
                     background: 'hsl(var(--ferment-green))',
                     transform: 'translate(-50%, -50%)',
                     boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
