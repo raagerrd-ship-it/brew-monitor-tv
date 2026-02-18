@@ -259,6 +259,8 @@ serve(async (req) => {
       });
     });
 
+    // Controllers with active fermentation profiles — profile owns the temperature
+    const profileOwnedControllerIds = new Set<string>();
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
     if (runTankAdjustments) {
@@ -269,6 +271,12 @@ serve(async (req) => {
         .in('controller_id', followedControllerIds);
 
       if (runningSessions && runningSessions.length > 0) {
+        // ALL controllers with running sessions are profile-owned
+        for (const session of runningSessions) {
+          profileOwnedControllerIds.add(session.controller_id);
+          log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall/overshoot skippad`);
+        }
+
         const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         for (const session of runningSessions) {
           const { data: recentAdj } = await supabase
@@ -311,6 +319,10 @@ serve(async (req) => {
       const stallCandidates: StallCandidate[] = [];
 
       for (const fc of followedControllersFullData) {
+        if (profileOwnedControllerIds.has(fc.controller_id)) {
+          log('STALL_PROFILE_SKIP', 'info', `${fc.name}: Hoppar över stall-check — aktiv fermenteringsprofil äger temperaturen`);
+          continue;
+        }
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('STALL_COOLOFF', 'info', `${fc.name}: Hoppar över stall-check — 30min cooloff efter fermenteringsprofilsjustering`);
           continue;
@@ -685,6 +697,10 @@ serve(async (req) => {
           continue;
         }
 
+        if (profileOwnedControllerIds.has(fc.controller_id)) {
+          log('OVERSHOOT_PROFILE_SKIP', 'info', `Hoppar över overshoot för ${fc.name}: aktiv fermenteringsprofil äger temperaturen`);
+          continue;
+        }
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('OVERSHOOT_COOLOFF', 'info', `Hoppar över overshoot för ${fc.name}: 30min cooloff efter fermenteringsprofilsjustering`);
           continue;

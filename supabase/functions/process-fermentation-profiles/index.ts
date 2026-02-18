@@ -74,6 +74,16 @@ function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: n
   return stableDaysActual >= stableDays
 }
 
+// Find the effective target temp by looking back through previous steps
+function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: number): number | null {
+  for (let i = currentStepIndex; i >= 0; i--) {
+    if (steps[i].target_temp !== null) {
+      return steps[i].target_temp
+    }
+  }
+  return null
+}
+
 // Check if SG condition is met
 function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: string): boolean {
   if (!sgData || sgData.length === 0) return false
@@ -244,6 +254,25 @@ Deno.serve(async (req) => {
       const stepStartedAt = new Date(session.step_started_at)
       const now = new Date()
       const elapsedHours = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
+
+      // For steps without explicit target_temp, enforce the effective target from previous steps
+      // This prevents other automation (overshoot, stall) from drifting the temperature
+      if (currentStep.target_temp === null && controller) {
+        const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+        if (effectiveTarget !== null && Math.abs(controller.target_temp - effectiveTarget) > 0.2) {
+          console.log(`Step ${session.current_step_index} (${currentStep.step_type}) has no target_temp, enforcing effective target ${effectiveTarget}°C (current: ${controller.target_temp}°C)`)
+          const success = await setControllerTargetTemp(session.controller_id, effectiveTarget)
+          if (success) {
+            actionTaken = 'temp_enforced'
+            actionDetails = { effective_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type }
+            
+            await supabase
+              .from('rapt_temp_controllers')
+              .update({ target_temp: effectiveTarget, updated_at: new Date().toISOString() })
+              .eq('controller_id', session.controller_id)
+          }
+        }
+      }
 
       let stepCompleted = false
       let actionTaken = 'checked'
