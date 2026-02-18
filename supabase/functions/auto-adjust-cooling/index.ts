@@ -599,6 +599,13 @@ serve(async (req) => {
     }
 
     // === OVERSHOOT PREVENTION ===
+    const overshootEnabled = (settings as any).overshoot_prevention_enabled ?? true;
+    const overshootPillThreshold = parseFloat(String((settings as any).overshoot_pill_threshold ?? 0.3));
+    const overshootDeltaThreshold = parseFloat(String((settings as any).overshoot_delta_threshold ?? 2.0));
+
+    if (!overshootEnabled) {
+      log('OVERSHOOT_SKIP', 'info', 'Overshoot prevention disabled in settings');
+    } else {
     // Check if any followed controller has pill > target while controller < target (heating overshoot)
     for (const fc of followedControllersFullData) {
       if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
@@ -609,10 +616,9 @@ serve(async (req) => {
       const targetTemp = parseFloat(String(fc.target_temp));
       const pillDelta = pillTemp - ctrlTemp;
 
-      // Overshoot scenario: pill >= target AND controller < target (heater is running, pill overshooting)
-      const pillOverTarget = pillTemp >= targetTemp + 0.3; // pill is at least 0.3°C over target
-      const controllerUnderTarget = ctrlTemp < targetTemp - 0.2; // controller still under target
-      const isHeatingOvershoot = pillOverTarget && controllerUnderTarget && pillDelta > 0.5;
+      // Overshoot scenario: pill >= target + threshold AND delta > delta threshold
+      const pillOverTarget = pillTemp >= targetTemp + overshootPillThreshold;
+      const isHeatingOvershoot = pillOverTarget && pillDelta > overshootDeltaThreshold;
 
       if (isHeatingOvershoot) {
         log('OVERSHOOT_DETECTED', 'action', `Heating overshoot for ${fc.name}: pill=${pillTemp.toFixed(1)}° > target=${targetTemp}°C, ctrl=${ctrlTemp.toFixed(1)}° (delta=${pillDelta.toFixed(1)}°)`);
@@ -778,8 +784,9 @@ serve(async (req) => {
         }
       }
     }
+    } // end overshoot enabled check
 
-    // === FERMENTATION STALL DETECTION ===
+
     // Check if any followed controller's linked brew is stalling
     for (const fc of followedControllersFullData) {
       // Find brew linked to this controller
