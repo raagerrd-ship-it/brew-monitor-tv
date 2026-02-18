@@ -161,7 +161,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-[90%] mx-auto cursor-help" style={{ height: '8px', display: 'flex', alignItems: 'center' }}>
+            <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
               <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
                 {/* Span fill between pill and controller */}
@@ -229,8 +229,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
-  const subValueContent = spanBar;
-
   return (
     <StatCard
       label={label}
@@ -242,8 +240,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       icon={thermometerIcon}
       onClick={handleClick}
       clickable={!!handleClick}
-      subValue={subValueContent}
-    />
+    >
+      {spanBar && (
+        <div className="absolute bottom-1 left-1 right-1 z-10">
+          {spanBar}
+        </div>
+      )}
+    </StatCard>
   );
 }
 export const TempStat = memo(TempStatComponent);
