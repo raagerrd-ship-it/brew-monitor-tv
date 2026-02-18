@@ -471,21 +471,45 @@ serve(async (req) => {
         const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
         const stallThreshold = settings.stall_rate_threshold ?? 0.001;
 
-        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
+        // Calculate expected rate based on progress - fermentation naturally slows near FG
+        // At >90% progress, the expected rate is much lower, so the threshold should be relaxed
+        let effectiveThreshold = stallThreshold;
+        let expectedSlowdown = false;
+        if (progressPct > 90) {
+          // Near FG: rate naturally drops. Only flag stall if SG is still notably above FG
+          effectiveThreshold = stallThreshold * 0.3; // Much lower threshold near end
+          expectedSlowdown = true;
+        } else if (progressPct > 75) {
+          effectiveThreshold = stallThreshold * 0.6; // Moderately lower threshold
+        }
+
+        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, OG=${brew.original_gravity.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
           daily_rate: dailyRate,
           daily_rate_display: `${dailyRate.toFixed(4)} SG/day`,
-          sg_to_fg: sgToFg,
-          progress_pct: progressPct,
+          og: brew.original_gravity,
+          fg: brew.final_gravity,
+          current_sg: brew.current_sg,
+          sg_to_fg: parseFloat(sgToFg.toFixed(4)),
+          progress_pct: parseFloat(progressPct.toFixed(1)),
           threshold: stallThreshold,
+          effective_threshold: effectiveThreshold,
+          expected_slowdown: expectedSlowdown,
           pill_temp: fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null,
           current_temp: fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null,
           target_temp: fc.target_temp !== null ? parseFloat(String(fc.target_temp)) : null,
         });
 
-        const isStalling = dailyRate < stallThreshold && sgToFg > 0.005 && progressPct < 80;
+        // Stall conditions: rate below effective threshold, still far from FG, and not too close to completion
+        const isStalling = dailyRate < effectiveThreshold && sgToFg > 0.005 && progressPct < 95;
 
         if (!isStalling) {
-          log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day > threshold ${stallThreshold})`);
+          if (expectedSlowdown && progressPct >= 95) {
+            log('STALL_CHECK', 'pass', `${brew.name}: Natural slowdown near FG (${progressPct.toFixed(0)}% done, SG ${sgToFg.toFixed(4)} from FG)`);
+          } else if (expectedSlowdown) {
+            log('STALL_CHECK', 'pass', `${brew.name}: Rate OK for late fermentation (effective threshold: ${effectiveThreshold.toFixed(4)})`);
+          } else {
+            log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day vs threshold ${effectiveThreshold.toFixed(4)})`);
+          }
         }
 
         if (isStalling) {
