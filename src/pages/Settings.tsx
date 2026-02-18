@@ -2055,17 +2055,20 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Sänkning per steg</label>
+                        <label className="text-xs font-medium text-muted-foreground">Kylmarginal (under lägsta tank)</label>
                         <Select value={tempReduction} onValueChange={handleTempReductionChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
                             <SelectItem value="1">1°C</SelectItem>
-                            <SelectItem value="1.5">1.5°C</SelectItem>
                             <SelectItem value="2">2°C</SelectItem>
-                            <SelectItem value="2.5">2.5°C</SelectItem>
                             <SelectItem value="3">3°C</SelectItem>
+                            <SelectItem value="4">4°C</SelectItem>
+                            <SelectItem value="5">5°C</SelectItem>
+                            <SelectItem value="6">6°C</SelectItem>
+                            <SelectItem value="8">8°C</SelectItem>
+                            <SelectItem value="10">10°C</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2105,7 +2108,7 @@ export default function Settings() {
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Sänker {tempReduction}°C var {autoCoolingInterval} min. Max {maxDiffFromLowest}°C under lägsta följda controller. Varnar vid pill-delta &gt; {deltaAlertThreshold}°C.
+                      Kylaren ligger {tempReduction}°C under lägsta tankens mål. Kontrollerar var {autoCoolingInterval} min. Max {maxDiffFromLowest}°C differens. Varnar vid pill-delta &gt; {deltaAlertThreshold}°C.
                     </p>
                   </div>
 
