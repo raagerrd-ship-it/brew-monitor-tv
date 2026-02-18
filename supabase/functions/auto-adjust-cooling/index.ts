@@ -20,6 +20,9 @@ interface AutoCoolingSettings {
   auto_boost_enabled: boolean;
   auto_boost_degrees: number;
   stall_rate_threshold: number;
+  overshoot_prevention_enabled: boolean;
+  overshoot_pill_threshold: number;
+  overshoot_delta_threshold: number;
 }
 
 interface TempController {
@@ -124,38 +127,34 @@ serve(async (req) => {
 
     const settings = settingsData as AutoCoolingSettings | null;
 
-    if (settingsError) {
-      log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError.message });
+    if (settingsError || !settings) {
+      log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError?.message });
       await printSummary(supabase, 'Settings error', false);
       return new Response(JSON.stringify({ message: 'Settings error', decisionLog }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!settings || !settings.enabled) {
-      log('SETTINGS', 'fail', 'Auto cooling adjustment is disabled', { enabled: settings?.enabled ?? false });
-      await printSummary(supabase, 'Disabled', false);
-      return new Response(JSON.stringify({ message: 'Auto adjustment disabled', decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Check if ANY feature is enabled
+    const coolingEnabled = settings.enabled;
+    const overshootEnabled = settings.overshoot_prevention_enabled ?? false;
+    const stallEnabled = settings.auto_boost_enabled ?? false;
 
-    log('SETTINGS', 'pass', 'Settings loaded', {
-      check_interval_minutes: settings.check_interval_minutes,
-      temp_reduction_degrees: settings.temp_reduction_degrees,
-      max_diff_from_lowest: settings.max_diff_from_lowest,
-      last_check_at: settings.last_check_at
+    log('SETTINGS', 'info', 'Feature toggles', {
+      cooling: coolingEnabled,
+      overshoot: overshootEnabled,
+      stall_detection: stallEnabled,
     });
 
-    if (!settings.cooler_controller_id) {
-      log('COOLER_CONFIG', 'fail', 'No cooler controller configured');
-      await printSummary(supabase, 'No cooler configured', false);
-      return new Response(JSON.stringify({ message: 'No cooler configured', decisionLog }), {
+    if (!coolingEnabled && !overshootEnabled && !stallEnabled) {
+      log('SETTINGS', 'fail', 'All features disabled');
+      await printSummary(supabase, 'All disabled', false);
+      return new Response(JSON.stringify({ message: 'All features disabled', decisionLog }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Get followed controllers
+    // Get followed controllers (needed by all features)
     const { data: followedData, error: followedError } = await supabase
       .from('auto_cooling_followed_controllers')
       .select('controller_id');
@@ -173,30 +172,7 @@ serve(async (req) => {
     const followedControllerIds = followedControllers.map(c => c.controller_id);
     log('FOLLOWED_CONTROLLERS', 'pass', `Found ${followedControllerIds.length} followed controller(s)`);
 
-    // Get cooler controller data
-    const { data: coolerData, error: coolerError } = await supabase
-      .from('rapt_temp_controllers')
-      .select('*')
-      .eq('controller_id', settings.cooler_controller_id)
-      .eq('cooling_enabled', true)
-      .single();
-
-    const coolerController = coolerData as TempController | null;
-
-    if (coolerError || !coolerController) {
-      log('COOLER_STATUS', 'fail', 'Cooler controller not found or cooling not enabled');
-      await printSummary(supabase, 'Cooler not available', false);
-      return new Response(JSON.stringify({ message: 'Cooler not available', decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
-      target_temp: coolerController.target_temp,
-      current_temp: coolerController.current_temp
-    });
-
-    // Get data for followed controllers
+    // Get data for followed controllers (needed by all features)
     const { data: followedFullData, error: followedDataError } = await supabase
       .from('rapt_temp_controllers')
       .select('*')
@@ -227,15 +203,17 @@ serve(async (req) => {
       });
     });
 
-    // === OVERSHOOT PREVENTION (runs independently, before cooling logic) ===
-    const overshootEnabled = (settings as any).overshoot_prevention_enabled ?? true;
-    const overshootPillThreshold = parseFloat(String((settings as any).overshoot_pill_threshold ?? 0.3));
-    const overshootDeltaThreshold = parseFloat(String((settings as any).overshoot_delta_threshold ?? 2.0));
-    const overshootAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
+    const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
-    if (!overshootEnabled) {
-      log('OVERSHOOT_SKIP', 'info', 'Overshoot prevention disabled in settings');
-    } else {
+    // ====================================================================
+    // FEATURE 1: OVERSHOOT PREVENTION (independent toggle)
+    // ====================================================================
+    if (overshootEnabled) {
+      log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
+      
+      const overshootPillThreshold = parseFloat(String(settings.overshoot_pill_threshold ?? 0.3));
+      const overshootDeltaThreshold = parseFloat(String(settings.overshoot_delta_threshold ?? 2.0));
+
       for (const fc of followedControllersFullData) {
         if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
         if (fc.target_temp === null || fc.target_temp === undefined) continue;
@@ -352,7 +330,7 @@ serve(async (req) => {
 
                   if (!updateResponse.error) {
                     log('OVERSHOOT_ACTION', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
-                    overshootAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
+                    allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
 
                     await supabase.from('auto_cooling_adjustments').insert({
                       cooler_controller_id: fc.controller_id,
@@ -384,7 +362,7 @@ serve(async (req) => {
                     body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: fallbackTarget }
                   });
                   if (!updateResponse.error) {
-                    overshootAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: fallbackTarget });
+                    allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: fallbackTarget });
                     await supabase.from('auto_cooling_adjustments').insert({
                       cooler_controller_id: fc.controller_id,
                       cooler_controller_name: fc.name,
@@ -406,431 +384,62 @@ serve(async (req) => {
           }
         }
       }
-    }
-
-    // If overshoot adjustments were made, log and return early
-    if (overshootAdjustments.length > 0) {
-      await printSummary(supabase, `Overshoot prevention: ${overshootAdjustments.length} adjustment(s)`, true);
-      return new Response(JSON.stringify({ success: true, adjustments: overshootAdjustments, decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'));
-
-    // Check if any followed controller has cooling enabled
-    const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true);
-
-    if (controllersWithCooling.length === 0) {
-      log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled');
-      
-      const defaultTemp = 18;
-      if (Math.abs(currentCoolerTarget - defaultTemp) > 0.1) {
-        const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
-        const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
-        
-        if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
-          log('ADJUSTMENT', 'action', `Setting cooler to default ${defaultTemp}°C`);
-
-          const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-            body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: defaultTemp }
-          });
-
-          if (!updateResponse.error) {
-            log('ADJUSTMENT', 'pass', `Set cooler to ${defaultTemp}°C`);
-            
-            await supabase.from('auto_cooling_adjustments').insert({
-              cooler_controller_id: coolerController.controller_id,
-              cooler_controller_name: coolerController.name,
-              old_target_temp: currentCoolerTarget,
-              new_target_temp: defaultTemp,
-              lowest_followed_temp: 0,
-              reason: 'Ingen följd controller är aktiv med kyla'
-            } as any);
-
-            await printSummary(supabase, 'Set to default (no cooling)', true);
-            return new Response(JSON.stringify({ success: true, adjustments: [{ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: defaultTemp }], decisionLog }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-      }
-      
-      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
-      log('TIMER', 'info', 'Reset timer - no cooling capability');
-      await printSummary(supabase, 'No cooling capability', false);
-      return new Response(JSON.stringify({ message: 'No cooling capability', resetTimer: true, decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`);
-
-    // Find the controller with the lowest target temperature AMONG those with cooling enabled
-    const lowestTempController = controllersWithCooling.reduce((lowest, current) => {
-      const currentTarget = parseFloat(String(current.target_temp ?? '999'));
-      const lowestTarget = parseFloat(String(lowest.target_temp ?? '999'));
-      return currentTarget < lowestTarget ? current : lowest;
-    });
-
-    const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'));
-
-    log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
-      target_temp: lowestTargetTemp,
-      cooler_target: currentCoolerTarget,
-      diff: (currentCoolerTarget - lowestTargetTemp).toFixed(1)
-    });
-
-    // Temperature difference analysis
-    const tempDiff = currentCoolerTarget - lowestTargetTemp;
-    log('TEMP_DIFF', 'info', 'Temperature difference', {
-      cooler_target: currentCoolerTarget,
-      lowest_target: lowestTargetTemp,
-      difference: tempDiff.toFixed(1),
-      interpretation: tempDiff > 0 ? 'Cooler is WARMER' : tempDiff < 0 ? 'Cooler is COLDER' : 'Same'
-    });
-
-    // Check if cooler is more than 10 degrees COLDER
-    if (tempDiff < -10) {
-      log('OVERCOOLING_CHECK', 'info', `Cooler is ${Math.abs(tempDiff).toFixed(1)}°C colder than lowest`);
-      
-      const newTarget = lowestTargetTemp - 10;
-      const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
-      const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
-      
-      if (newTarget > currentCoolerTarget && newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
-        log('ADJUSTMENT', 'action', `Increasing cooler from ${currentCoolerTarget}°C to ${newTarget}°C`);
-
-        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-          body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: newTarget }
-        });
-
-        if (!updateResponse.error) {
-          log('ADJUSTMENT', 'pass', `Increased cooler to ${newTarget}°C`);
-          
-          await supabase.from('auto_cooling_adjustments').insert({
-            cooler_controller_id: coolerController.controller_id,
-            cooler_controller_name: coolerController.name,
-            old_target_temp: currentCoolerTarget,
-            new_target_temp: newTarget,
-            lowest_followed_temp: lowestTargetTemp,
-            followed_controller_id: lowestTempController.controller_id,
-            followed_controller_name: lowestTempController.name,
-            followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
-            followed_target_temp: lowestTargetTemp,
-            followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
-            reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`
-          } as any);
-
-          await printSummary(supabase, 'Increased (was too cold)', true);
-          return new Response(JSON.stringify({ success: true, adjustments: [{ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget }], decisionLog }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      } else {
-        log('OVERCOOLING_CHECK', 'info', 'No increase needed');
-      }
     } else {
-      log('OVERCOOLING_CHECK', 'pass', 'Cooler is not overcooling');
+      log('OVERSHOOT', 'info', 'Overshoot prevention disabled');
     }
 
-    // Check if lowest controller is actively cooling
-    const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'));
-    const lowestHysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'));
-    const coolingThreshold = lowestTargetTemp + lowestHysteresis;
-    const isActivelyCooling = lowestCurrentTemp > coolingThreshold;
+    // ====================================================================
+    // FEATURE 2: STALL DETECTION (independent toggle)
+    // ====================================================================
+    if (stallEnabled) {
+      log('STALL', 'info', '--- Fermentation stall detection check ---');
 
-    log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info', 
-      isActivelyCooling ? `${lowestTempController.name} IS actively cooling` : `${lowestTempController.name} is NOT actively cooling`, {
-      current_temp: lowestCurrentTemp,
-      threshold: coolingThreshold.toFixed(2)
-    });
-
-    if (!isActivelyCooling) {
-      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
-      log('TIMER', 'info', 'Reset timer - at target');
-      await printSummary(supabase, 'Not actively cooling', false);
-      return new Response(JSON.stringify({ message: 'Lowest controller not actively cooling', resetTimer: true, decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Check interval
-    const now = new Date();
-    const checkIntervalMs = settings.check_interval_minutes * 60 * 1000;
-    
-    if (settings.last_check_at) {
-      const lastCheckTime = new Date(settings.last_check_at);
-      const timeSinceLastCheck = now.getTime() - lastCheckTime.getTime();
-      const remainingMs = checkIntervalMs - timeSinceLastCheck;
-      
-      log('INTERVAL_CHECK', 'info', 'Time since last adjustment', {
-        interval_minutes: settings.check_interval_minutes,
-        remaining_minutes: Math.ceil(remainingMs / 60000)
-      });
-
-      if (timeSinceLastCheck < checkIntervalMs) {
-        const remainingMinutes = Math.ceil(remainingMs / 60000);
-        log('INTERVAL_CHECK', 'fail', `Must wait ${remainingMinutes} more minutes`);
-        await printSummary(supabase, `Wait ${remainingMinutes}min`, false);
-        return new Response(JSON.stringify({ message: `Wait ${remainingMinutes} more minutes`, minutesRemaining: remainingMinutes, decisionLog }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      log('INTERVAL_CHECK', 'pass', 'Enough time has passed');
-    } else {
-      log('INTERVAL_CHECK', 'pass', 'No previous check recorded');
-    }
-
-    // Check history
-    const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
-    
-    const { data: historyData, error: historyError } = await supabase
-      .from('temp_controller_history')
-      .select('*')
-      .eq('controller_id', lowestTempController.controller_id)
-      .gte('recorded_at', checkTime.toISOString())
-      .order('recorded_at', { ascending: false });
-
-    const history = historyData as HistoryRecord[] | null;
-
-    if (historyError || !history || history.length < 2) {
-      log('HISTORY_CHECK', 'fail', 'Not enough history data', { records_found: history?.length ?? 0 });
-      await printSummary(supabase, 'Not enough history', false);
-      return new Response(JSON.stringify({ message: 'Not enough data yet', decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    log('HISTORY_CHECK', 'pass', `Found ${history.length} history records`);
-
-    // Check if all history records show active cooling
-    const allActivelyCooling = history.every(record => {
-      return record.cooling_enabled === true && record.current_temp > (record.target_temp + lowestHysteresis);
-    });
-    
-    log('SUSTAINED_COOLING_CHECK', allActivelyCooling ? 'pass' : 'fail', 
-      allActivelyCooling ? 'Controller has been trying to cool for entire interval' : 'Controller was NOT actively cooling for entire interval');
-    
-    if (!allActivelyCooling) {
-      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
-      log('TIMER', 'info', 'Updated last_check_at');
-      await printSummary(supabase, 'Not sustained cooling', false);
-      return new Response(JSON.stringify({ message: 'Not actively cooling entire period', decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    log('DECISION', 'action', `${lowestTempController.name} has been struggling to cool`, {
-      current_temp: lowestCurrentTemp,
-      target_temp: lowestTargetTemp
-    });
-    
-    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
-    log('TIMER', 'info', 'Updated last_check_at');
-
-    const adjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
-    const strugglingController = lowestTempController;
-
-    // === DELTA ANALYSIS ===
-    // Check pill vs controller delta for each followed controller
-    let deltaMultiplier = 1.0;
-    
-    for (const fc of followedControllersFullData) {
-      if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
-      
-      const pillTemp = parseFloat(String(fc.pill_temp));
-      const ctrlTemp = parseFloat(String(fc.current_temp));
-      const currentDelta = pillTemp - ctrlTemp;
-      
-      log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`, {
-        pill_temp: pillTemp,
-        controller_temp: ctrlTemp,
-        delta: currentDelta
-      });
-
-      // Check delta trend from history
-      const { data: deltaHistory } = await supabase
-        .from('temp_delta_history')
-        .select('delta, recorded_at')
-        .eq('controller_id', fc.controller_id)
-        .order('recorded_at', { ascending: false })
-        .limit(5);
-
-      if (deltaHistory && deltaHistory.length >= 2) {
-        const recentDeltas = deltaHistory.map(d => parseFloat(String(d.delta)));
-        const avgRecentDelta = recentDeltas.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
-        const avgOlderDelta = recentDeltas.slice(2).reduce((a, b) => a + b, 0) / Math.max(recentDeltas.length - 2, 1);
-        const deltaRising = avgRecentDelta > avgOlderDelta + 0.1;
-
-        log('DELTA_TREND', deltaRising ? 'action' : 'info', 
-          deltaRising ? `Delta RISING for ${fc.name} (${avgOlderDelta.toFixed(1)}° → ${avgRecentDelta.toFixed(1)}°)` 
-                      : `Delta stable for ${fc.name}`, {
-          recent_avg: avgRecentDelta,
-          older_avg: avgOlderDelta,
-          trend: deltaRising ? 'rising' : 'stable'
-        });
-
-        if (deltaRising) {
-          deltaMultiplier = Math.max(deltaMultiplier, 1.5);
-        }
-      }
-
-      // High delta = aggressive cooling
-      if (currentDelta > 1.5) {
-        log('DELTA_HIGH', 'action', `High delta (${currentDelta.toFixed(1)}°) for ${fc.name} — doubling reduction`);
-        deltaMultiplier = Math.max(deltaMultiplier, 2.0);
-      }
-
-      // Generate alert if delta exceeds threshold
-      const alertThreshold = (settings as any).delta_alert_threshold ?? 2.0;
-      if (currentDelta > alertThreshold) {
-        log('DELTA_ALERT', 'action', `Delta ${currentDelta.toFixed(1)}° exceeds threshold ${alertThreshold}° for ${fc.name}`);
-        
-        // Check if there's already an unacknowledged alert for this controller
-        const { data: existingAlerts } = await supabase
-          .from('temp_delta_alerts')
-          .select('id')
-          .eq('controller_id', fc.controller_id)
-          .eq('acknowledged', false)
+      for (const fc of followedControllersFullData) {
+        const { data: linkedBrews } = await supabase
+          .from('brew_readings')
+          .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
+          .eq('linked_controller_id', fc.controller_id)
           .limit(1);
 
-        if (!existingAlerts || existingAlerts.length === 0) {
-          await supabase.from('temp_delta_alerts').insert({
-            controller_id: fc.controller_id,
-            delta: currentDelta,
-            alert_type: 'high_delta'
-          } as any);
-          log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
-        } else {
-          log('DELTA_ALERT', 'info', `Alert already exists for ${fc.name}`);
-        }
-      }
-    }
+        if (!linkedBrews || linkedBrews.length === 0) continue;
+        const brew = linkedBrews[0];
 
-    const baseTempReduction = parseFloat(String(settings.temp_reduction_degrees));
-    const effectiveTempReduction = baseTempReduction * deltaMultiplier;
-    
-    if (deltaMultiplier > 1.0) {
-      log('DELTA_ADJUSTMENT', 'action', `Delta multiplier: ${deltaMultiplier}x (${baseTempReduction}°C → ${effectiveTempReduction.toFixed(1)}°C reduction)`);
-    }
+        if (brew.status !== 'Jäser' && brew.status !== 'Fermenting') continue;
 
-    const proposedNewTarget = currentCoolerTarget - effectiveTempReduction;
-    const maxAllowedTarget = lowestTargetTemp - parseFloat(String(settings.max_diff_from_lowest));
-    
-    let finalTarget = proposedNewTarget;
-    if (proposedNewTarget < maxAllowedTarget) {
-      finalTarget = maxAllowedTarget;
-      log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget.toFixed(1)}°C`);
-    }
+        const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
+        if (!sgData || sgData.length < 3) continue;
 
-    log('TARGET_CALCULATION', 'info', 'New target calculated', {
-      current: currentCoolerTarget,
-      proposed: proposedNewTarget.toFixed(1),
-      final: finalTarget.toFixed(1)
-    });
+        const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const nowMs = Date.now();
+        const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
 
-    if (finalTarget < currentCoolerTarget) {
-      const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
-      const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
-      
-      if (finalTarget < coolerMinTemp) {
-        log('ADJUSTMENT', 'fail', `Cannot set cooler below minimum (${coolerMinTemp}°C)`);
-      } else if (finalTarget > coolerMaxTemp) {
-        log('ADJUSTMENT', 'fail', `Cannot set cooler above maximum (${coolerMaxTemp}°C)`);
-      } else {
-        log('ADJUSTMENT', 'action', `Lowering cooler from ${currentCoolerTarget}°C to ${finalTarget}°C`);
-        
-        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-          body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: finalTarget }
+        if (last24h.length < 2) continue;
+
+        const newest = last24h[0].value;
+        const oldest = last24h[last24h.length - 1].value;
+        const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
+
+        if (hoursSpan < 6) continue;
+
+        const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
+        const sgToFg = brew.current_sg - brew.final_gravity;
+        const sgRange = brew.original_gravity - brew.final_gravity;
+        const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
+        const stallThreshold = settings.stall_rate_threshold ?? 0.001;
+
+        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
+          daily_rate: dailyRate,
+          sg_to_fg: sgToFg,
+          progress_pct: progressPct,
+          threshold: stallThreshold
         });
 
-        if (updateResponse.error) {
-          log('ADJUSTMENT', 'fail', 'Failed to update cooler controller');
-        } else {
-          log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`);
-          adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget });
+        const isStalling = dailyRate < stallThreshold && sgToFg > 0.005 && progressPct < 80;
 
-          const lowestFollowedTemp = followedControllersFullData
-            .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
-            .reduce((min, temp) => Math.min(min, temp), 999);
+        if (isStalling) {
+          log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
 
-          await supabase.from('auto_cooling_adjustments').insert({
-            cooler_controller_id: coolerController.controller_id,
-            cooler_controller_name: coolerController.name,
-            old_target_temp: currentCoolerTarget,
-            new_target_temp: finalTarget,
-            lowest_followed_temp: lowestFollowedTemp,
-            followed_controller_id: strugglingController.controller_id,
-            followed_controller_name: strugglingController.name,
-            followed_current_temp: parseFloat(String(strugglingController.current_temp ?? strugglingController.pill_temp ?? '0')),
-            followed_target_temp: parseFloat(String(strugglingController.target_temp ?? '0')),
-            followed_hysteresis: parseFloat(String(strugglingController.cooling_hysteresis ?? '0.2')),
-            reason: `${strugglingController.name} struggling to cool`
-          } as any);
-          
-          log('DB_LOG', 'pass', 'Adjustment logged to database');
-        }
-      }
-    } else {
-      log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
-    }
-
-
-
-    // Check if any followed controller's linked brew is stalling
-    for (const fc of followedControllersFullData) {
-      // Find brew linked to this controller
-      const { data: linkedBrews } = await supabase
-        .from('brew_readings')
-        .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
-        .eq('linked_controller_id', fc.controller_id)
-        .limit(1);
-
-      if (!linkedBrews || linkedBrews.length === 0) continue;
-      const brew = linkedBrews[0];
-      
-      // Skip if not actively fermenting
-      if (brew.status !== 'Jäser' && brew.status !== 'Fermenting') continue;
-
-      const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
-      if (!sgData || sgData.length < 3) continue;
-
-      // Calculate fermentation rate from last 24h of SG data
-      const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const nowMs = Date.now();
-      const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
-      
-      if (last24h.length < 2) continue;
-
-      const newest = last24h[0].value;
-      const oldest = last24h[last24h.length - 1].value;
-      const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSpan < 6) continue; // Need at least 6h of data
-
-      const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
-      const sgToFg = brew.current_sg - brew.final_gravity;
-      const sgRange = brew.original_gravity - brew.final_gravity;
-      const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
-      const stallThreshold = settings.stall_rate_threshold ?? 0.001;
-
-      log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
-        daily_rate: dailyRate,
-        sg_to_fg: sgToFg,
-        progress_pct: progressPct,
-        threshold: stallThreshold
-      });
-
-      // Stall = rate is very low AND still far from FG (>20% remaining)
-      const isStalling = dailyRate < stallThreshold && sgToFg > 0.005 && progressPct < 80;
-
-      if (isStalling) {
-        log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
-
-        // Check if auto-boost is enabled
-        if (settings.auto_boost_enabled) {
-          // Fetch delta history for AI context
+          // Fetch context for AI
           const { data: deltaHistoryForAI } = await supabase
             .from('temp_delta_history')
             .select('delta, recorded_at')
@@ -838,7 +447,6 @@ serve(async (req) => {
             .order('recorded_at', { ascending: false })
             .limit(10);
 
-          // Calculate hours at current temp from temp history
           const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
           const { data: tempHistory } = await supabase
             .from('temp_controller_history')
@@ -849,7 +457,6 @@ serve(async (req) => {
 
           let hoursAtCurrentTemp = 0;
           if (tempHistory && tempHistory.length > 0) {
-            // Find when target temp last changed
             for (const record of tempHistory) {
               if (Math.abs(parseFloat(String(record.target_temp)) - currentTarget) > 0.1) break;
               const recordTime = new Date(record.recorded_at).getTime();
@@ -861,9 +468,8 @@ serve(async (req) => {
           const ctrlTemp = fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null;
           const currentDelta = (pillTemp !== null && ctrlTemp !== null) ? pillTemp - ctrlTemp : null;
 
-          // Call AI fermentation advisor
           log('AI_ADVISOR', 'info', `Consulting AI for ${brew.name}...`);
-          
+
           try {
             const aiResponse = await supabase.functions.invoke('ai-fermentation-advisor', {
               body: {
@@ -898,7 +504,6 @@ serve(async (req) => {
                 newTargetTemp: rec.newTargetTemp
               });
 
-              // Execute AI recommendation if it's raise_temp or lower_temp
               if ((rec.action === 'raise_temp' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
                 const newTarget = rec.newTargetTemp;
                 const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
@@ -906,14 +511,14 @@ serve(async (req) => {
 
                 if (newTarget >= minTemp && newTarget <= maxTemp) {
                   log('AI_BOOST', 'action', `AI: ${rec.action === 'raise_temp' ? 'Raising' : 'Lowering'} ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
-                  
+
                   const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
                     body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
                   });
 
                   if (!updateResponse.error) {
                     log('AI_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
-                    adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                    allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
 
                     await supabase.from('auto_cooling_adjustments').insert({
                       cooler_controller_id: fc.controller_id,
@@ -947,14 +552,14 @@ serve(async (req) => {
 
               if (newTarget <= maxTemp) {
                 log('AUTO_BOOST_FALLBACK', 'action', `Fallback: Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
-                
+
                 const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
                   body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
                 });
 
                 if (!updateResponse.error) {
                   log('AUTO_BOOST_FALLBACK', 'pass', `Boosted ${fc.name} to ${newTarget}°C`);
-                  adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                  allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
 
                   await supabase.from('auto_cooling_adjustments').insert({
                     cooler_controller_id: fc.controller_id,
@@ -972,7 +577,6 @@ serve(async (req) => {
               }
             }
           } catch (aiError) {
-            // AI call failed entirely — fall back to fixed boost
             log('AI_ADVISOR', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}. Using fallback.`);
             const boostDegrees = settings.auto_boost_degrees ?? 1.0;
             const newTarget = currentTarget + boostDegrees;
@@ -984,7 +588,7 @@ serve(async (req) => {
               });
 
               if (!updateResponse.error) {
-                adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
                 await supabase.from('auto_cooling_adjustments').insert({
                   cooler_controller_id: fc.controller_id,
                   cooler_controller_name: fc.name,
@@ -1000,32 +604,355 @@ serve(async (req) => {
               }
             }
           }
-        }
 
-        // Always create an alert for stall detection
-        const { data: existingStallAlerts } = await supabase
-          .from('temp_delta_alerts')
-          .select('id')
-          .eq('controller_id', fc.controller_id)
-          .eq('alert_type', 'fermentation_stall')
-          .eq('acknowledged', false)
-          .limit(1);
+          // Always create an alert for stall detection
+          const { data: existingStallAlerts } = await supabase
+            .from('temp_delta_alerts')
+            .select('id')
+            .eq('controller_id', fc.controller_id)
+            .eq('alert_type', 'fermentation_stall')
+            .eq('acknowledged', false)
+            .limit(1);
 
-        if (!existingStallAlerts || existingStallAlerts.length === 0) {
-          await supabase.from('temp_delta_alerts').insert({
-            controller_id: fc.controller_id,
-            delta: dailyRate,
-            alert_type: 'fermentation_stall'
-          } as any);
-          log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
+          if (!existingStallAlerts || existingStallAlerts.length === 0) {
+            await supabase.from('temp_delta_alerts').insert({
+              controller_id: fc.controller_id,
+              delta: dailyRate,
+              alert_type: 'fermentation_stall'
+            } as any);
+            log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
+          }
         }
       }
+    } else {
+      log('STALL', 'info', 'Stall detection disabled');
     }
 
-    log('COMPLETE', 'info', `Completed`, { adjustments_made: adjustments.length });
-    await printSummary(supabase, adjustments.length > 0 ? 'Adjustment made' : 'No adjustment needed', adjustments.length > 0);
+    // ====================================================================
+    // FEATURE 3: AUTO COOLING ADJUSTMENT (independent toggle)
+    // ====================================================================
+    if (coolingEnabled) {
+      log('COOLING', 'info', '--- Auto cooling adjustment check ---');
 
-    return new Response(JSON.stringify({ success: true, adjustments, message: `Made ${adjustments.length} adjustments`, decisionLog }), {
+      if (!settings.cooler_controller_id) {
+        log('COOLER_CONFIG', 'fail', 'No cooler controller configured');
+      } else {
+        // Get cooler controller data
+        const { data: coolerData, error: coolerError } = await supabase
+          .from('rapt_temp_controllers')
+          .select('*')
+          .eq('controller_id', settings.cooler_controller_id)
+          .eq('cooling_enabled', true)
+          .single();
+
+        const coolerController = coolerData as TempController | null;
+
+        if (coolerError || !coolerController) {
+          log('COOLER_STATUS', 'fail', 'Cooler controller not found or cooling not enabled');
+        } else {
+          log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
+            target_temp: coolerController.target_temp,
+            current_temp: coolerController.current_temp
+          });
+
+          const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'));
+
+          // Check if any followed controller has cooling enabled
+          const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true);
+
+          if (controllersWithCooling.length === 0) {
+            log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled');
+
+            const defaultTemp = 18;
+            if (Math.abs(currentCoolerTarget - defaultTemp) > 0.1) {
+              const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
+              const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
+
+              if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
+                log('ADJUSTMENT', 'action', `Setting cooler to default ${defaultTemp}°C`);
+
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: defaultTemp }
+                });
+
+                if (!updateResponse.error) {
+                  log('ADJUSTMENT', 'pass', `Set cooler to ${defaultTemp}°C`);
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: coolerController.controller_id,
+                    cooler_controller_name: coolerController.name,
+                    old_target_temp: currentCoolerTarget,
+                    new_target_temp: defaultTemp,
+                    lowest_followed_temp: 0,
+                    reason: 'Ingen följd controller är aktiv med kyla'
+                  } as any);
+
+                  allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: defaultTemp });
+                }
+              }
+            }
+          } else {
+            log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`);
+
+            // Find the controller with the lowest target temperature AMONG those with cooling enabled
+            const lowestTempController = controllersWithCooling.reduce((lowest, current) => {
+              const currentTarget = parseFloat(String(current.target_temp ?? '999'));
+              const lowestTarget = parseFloat(String(lowest.target_temp ?? '999'));
+              return currentTarget < lowestTarget ? current : lowest;
+            });
+
+            const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'));
+
+            log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
+              target_temp: lowestTargetTemp,
+              cooler_target: currentCoolerTarget,
+              diff: (currentCoolerTarget - lowestTargetTemp).toFixed(1)
+            });
+
+            // Temperature difference analysis
+            const tempDiff = currentCoolerTarget - lowestTargetTemp;
+
+            // Check if cooler is more than 10 degrees COLDER
+            if (tempDiff < -10) {
+              log('OVERCOOLING_CHECK', 'info', `Cooler is ${Math.abs(tempDiff).toFixed(1)}°C colder than lowest`);
+
+              const newTarget = lowestTargetTemp - 10;
+              const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
+              const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
+
+              if (newTarget > currentCoolerTarget && newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
+                log('ADJUSTMENT', 'action', `Increasing cooler from ${currentCoolerTarget}°C to ${newTarget}°C`);
+
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: newTarget }
+                });
+
+                if (!updateResponse.error) {
+                  log('ADJUSTMENT', 'pass', `Increased cooler to ${newTarget}°C`);
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: coolerController.controller_id,
+                    cooler_controller_name: coolerController.name,
+                    old_target_temp: currentCoolerTarget,
+                    new_target_temp: newTarget,
+                    lowest_followed_temp: lowestTargetTemp,
+                    followed_controller_id: lowestTempController.controller_id,
+                    followed_controller_name: lowestTempController.name,
+                    followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+                    followed_target_temp: lowestTargetTemp,
+                    followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
+                    reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`
+                  } as any);
+
+                  allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget });
+                }
+              }
+            }
+
+            // Check if lowest controller is actively cooling
+            const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'));
+            const lowestHysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'));
+            const coolingThreshold = lowestTargetTemp + lowestHysteresis;
+            const isActivelyCooling = lowestCurrentTemp > coolingThreshold;
+
+            log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info',
+              isActivelyCooling ? `${lowestTempController.name} IS actively cooling` : `${lowestTempController.name} is NOT actively cooling`, {
+              current_temp: lowestCurrentTemp,
+              threshold: coolingThreshold.toFixed(2)
+            });
+
+            if (isActivelyCooling) {
+              // Check interval
+              const now = new Date();
+              const checkIntervalMs = settings.check_interval_minutes * 60 * 1000;
+
+              let intervalPassed = true;
+              if (settings.last_check_at) {
+                const lastCheckTime = new Date(settings.last_check_at);
+                const timeSinceLastCheck = now.getTime() - lastCheckTime.getTime();
+                const remainingMs = checkIntervalMs - timeSinceLastCheck;
+
+                if (timeSinceLastCheck < checkIntervalMs) {
+                  const remainingMinutes = Math.ceil(remainingMs / 60000);
+                  log('INTERVAL_CHECK', 'fail', `Must wait ${remainingMinutes} more minutes`);
+                  intervalPassed = false;
+                } else {
+                  log('INTERVAL_CHECK', 'pass', 'Enough time has passed');
+                }
+              } else {
+                log('INTERVAL_CHECK', 'pass', 'No previous check recorded');
+              }
+
+              if (intervalPassed) {
+                // Check history
+                const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
+
+                const { data: historyData, error: historyError } = await supabase
+                  .from('temp_controller_history')
+                  .select('*')
+                  .eq('controller_id', lowestTempController.controller_id)
+                  .gte('recorded_at', checkTime.toISOString())
+                  .order('recorded_at', { ascending: false });
+
+                const history = historyData as HistoryRecord[] | null;
+
+                if (historyError || !history || history.length < 2) {
+                  log('HISTORY_CHECK', 'fail', 'Not enough history data', { records_found: history?.length ?? 0 });
+                } else {
+                  log('HISTORY_CHECK', 'pass', `Found ${history.length} history records`);
+
+                  const allActivelyCooling = history.every(record => {
+                    return record.cooling_enabled === true && record.current_temp > (record.target_temp + lowestHysteresis);
+                  });
+
+                  log('SUSTAINED_COOLING_CHECK', allActivelyCooling ? 'pass' : 'fail',
+                    allActivelyCooling ? 'Controller has been trying to cool for entire interval' : 'Controller was NOT actively cooling for entire interval');
+
+                  if (allActivelyCooling) {
+                    log('DECISION', 'action', `${lowestTempController.name} has been struggling to cool`, {
+                      current_temp: lowestCurrentTemp,
+                      target_temp: lowestTargetTemp
+                    });
+
+                    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+
+                    // === DELTA ANALYSIS ===
+                    let deltaMultiplier = 1.0;
+
+                    for (const fc of followedControllersFullData) {
+                      if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
+
+                      const pillTemp = parseFloat(String(fc.pill_temp));
+                      const ctrlTemp = parseFloat(String(fc.current_temp));
+                      const currentDelta = pillTemp - ctrlTemp;
+
+                      log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`);
+
+                      const { data: deltaHistory } = await supabase
+                        .from('temp_delta_history')
+                        .select('delta, recorded_at')
+                        .eq('controller_id', fc.controller_id)
+                        .order('recorded_at', { ascending: false })
+                        .limit(5);
+
+                      if (deltaHistory && deltaHistory.length >= 2) {
+                        const recentDeltas = deltaHistory.map(d => parseFloat(String(d.delta)));
+                        const avgRecentDelta = recentDeltas.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+                        const avgOlderDelta = recentDeltas.slice(2).reduce((a, b) => a + b, 0) / Math.max(recentDeltas.length - 2, 1);
+                        const deltaRising = avgRecentDelta > avgOlderDelta + 0.1;
+
+                        if (deltaRising) {
+                          deltaMultiplier = Math.max(deltaMultiplier, 1.5);
+                          log('DELTA_TREND', 'action', `Delta RISING for ${fc.name} (${avgOlderDelta.toFixed(1)}° → ${avgRecentDelta.toFixed(1)}°)`);
+                        }
+                      }
+
+                      if (currentDelta > 1.5) {
+                        deltaMultiplier = Math.max(deltaMultiplier, 2.0);
+                        log('DELTA_HIGH', 'action', `High delta (${currentDelta.toFixed(1)}°) for ${fc.name} — doubling reduction`);
+                      }
+
+                      // Generate alert if delta exceeds threshold
+                      const alertThreshold = settings.delta_alert_threshold ?? 2.0;
+                      if (currentDelta > alertThreshold) {
+                        const { data: existingAlerts } = await supabase
+                          .from('temp_delta_alerts')
+                          .select('id')
+                          .eq('controller_id', fc.controller_id)
+                          .eq('acknowledged', false)
+                          .limit(1);
+
+                        if (!existingAlerts || existingAlerts.length === 0) {
+                          await supabase.from('temp_delta_alerts').insert({
+                            controller_id: fc.controller_id,
+                            delta: currentDelta,
+                            alert_type: 'high_delta'
+                          } as any);
+                          log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
+                        }
+                      }
+                    }
+
+                    const baseTempReduction = parseFloat(String(settings.temp_reduction_degrees));
+                    const effectiveTempReduction = baseTempReduction * deltaMultiplier;
+
+                    if (deltaMultiplier > 1.0) {
+                      log('DELTA_ADJUSTMENT', 'action', `Delta multiplier: ${deltaMultiplier}x (${baseTempReduction}°C → ${effectiveTempReduction.toFixed(1)}°C reduction)`);
+                    }
+
+                    const proposedNewTarget = currentCoolerTarget - effectiveTempReduction;
+                    const maxAllowedTarget = lowestTargetTemp - parseFloat(String(settings.max_diff_from_lowest));
+
+                    let finalTarget = proposedNewTarget;
+                    if (proposedNewTarget < maxAllowedTarget) {
+                      finalTarget = maxAllowedTarget;
+                      log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget.toFixed(1)}°C`);
+                    }
+
+                    if (finalTarget < currentCoolerTarget) {
+                      const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
+                      const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
+
+                      if (finalTarget < coolerMinTemp) {
+                        log('ADJUSTMENT', 'fail', `Cannot set cooler below minimum (${coolerMinTemp}°C)`);
+                      } else if (finalTarget > coolerMaxTemp) {
+                        log('ADJUSTMENT', 'fail', `Cannot set cooler above maximum (${coolerMaxTemp}°C)`);
+                      } else {
+                        log('ADJUSTMENT', 'action', `Lowering cooler from ${currentCoolerTarget}°C to ${finalTarget}°C`);
+
+                        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                          body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: finalTarget }
+                        });
+
+                        if (!updateResponse.error) {
+                          log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`);
+                          allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget });
+
+                          const lowestFollowedTemp = followedControllersFullData
+                            .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
+                            .reduce((min, temp) => Math.min(min, temp), 999);
+
+                          await supabase.from('auto_cooling_adjustments').insert({
+                            cooler_controller_id: coolerController.controller_id,
+                            cooler_controller_name: coolerController.name,
+                            old_target_temp: currentCoolerTarget,
+                            new_target_temp: finalTarget,
+                            lowest_followed_temp: lowestFollowedTemp,
+                            followed_controller_id: lowestTempController.controller_id,
+                            followed_controller_name: lowestTempController.name,
+                            followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+                            followed_target_temp: parseFloat(String(lowestTempController.target_temp ?? '0')),
+                            followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
+                            reason: `${lowestTempController.name} struggling to cool`
+                          } as any);
+                        } else {
+                          log('ADJUSTMENT', 'fail', 'Failed to update cooler controller');
+                        }
+                      }
+                    } else {
+                      log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
+                    }
+                  } else {
+                    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+                  }
+                }
+              }
+            } else {
+              // Not actively cooling - reset timer
+              await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
+              log('TIMER', 'info', 'Reset timer - not actively cooling');
+            }
+          }
+        }
+      }
+    } else {
+      log('COOLING', 'info', 'Auto cooling adjustment disabled');
+    }
+
+    log('COMPLETE', 'info', `Completed`, { adjustments_made: allAdjustments.length });
+    await printSummary(supabase, allAdjustments.length > 0 ? 'Adjustment made' : 'No adjustment needed', allAdjustments.length > 0);
+
+    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

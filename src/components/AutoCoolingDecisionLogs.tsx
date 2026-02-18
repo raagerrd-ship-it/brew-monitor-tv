@@ -142,7 +142,12 @@ export function AutoCoolingDecisionLogs() {
       const allEntries = [...adjustmentEntries];
       
       // Only add decision logs that don't have a matching adjustment within 10 seconds
+      // Also filter out noisy "Not actively cooling" entries
+      const filteredResults = new Set(['Not actively cooling', 'Not sustained cooling']);
       for (const de of decisionEntries) {
+        const log = de.data as DecisionLog;
+        if (filteredResults.has(log.final_result)) continue;
+        
         const deTime = new Date(de.timestamp).getTime();
         const hasMatchingAdjustment = adjustmentEntries.some(ae => 
           Math.abs(new Date(ae.timestamp).getTime() - deTime) < 10000
