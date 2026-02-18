@@ -151,10 +151,14 @@ Deno.serve(async (req) => {
       .upsert(timerRecord, { onConflict: 'external_user_id' });
 
     if (upsertError) {
-      const isTransient = upsertError.message?.includes('connection') ||
-                          upsertError.message?.includes('reset') ||
-                          upsertError.message?.includes('timeout') ||
-                          upsertError.message?.includes('SendRequest');
+      const msg = upsertError.message || '';
+      const isTransient = msg.includes('connection') ||
+                          msg.includes('reset') ||
+                          msg.includes('timeout') ||
+                          msg.includes('SendRequest') ||
+                          msg.includes('<!DOCTYPE') ||
+                          msg.includes('Internal server error') ||
+                          msg.includes('cloudflare');
       if (isTransient) {
         console.warn('⚠️ Transient upsert error, skipping sync cycle:', upsertError.message);
         return new Response(
