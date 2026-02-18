@@ -64,6 +64,16 @@ serve(async (req) => {
   const decisionLog: DecisionLogEntry[] = [];
   const startTime = Date.now();
 
+  // Parse mode from request body: "all" | "tank-adjustments" | "glycol-cooler"
+  let mode = "all";
+  try {
+    const body = await req.json();
+    mode = body?.mode || "all";
+  } catch { /* no body */ }
+
+  const runTankAdjustments = mode === "all" || mode === "tank-adjustments";
+  const runGlycolCooler = mode === "all" || mode === "glycol-cooler";
+
   const log = (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => {
     const entry: DecisionLogEntry = { step, result, message, details };
     decisionLog.push(entry);
@@ -246,6 +256,34 @@ serve(async (req) => {
       });
     });
 
+    // Check for 30-min cooloff after fermentation profile adjustments
+    const cooloffControllerIds = new Set<string>();
+    if (runTankAdjustments) {
+      const { data: runningSessions } = await supabase
+        .from('fermentation_sessions')
+        .select('id, controller_id')
+        .eq('status', 'running')
+        .in('controller_id', followedControllerIds);
+
+      if (runningSessions && runningSessions.length > 0) {
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        for (const session of runningSessions) {
+          const { data: recentAdj } = await supabase
+            .from('fermentation_step_log')
+            .select('id')
+            .eq('session_id', session.id)
+            .eq('action', 'temp_adjusted')
+            .gte('created_at', thirtyMinAgo)
+            .limit(1);
+
+          if (recentAdj && recentAdj.length > 0) {
+            cooloffControllerIds.add(session.controller_id);
+            log('COOLOFF', 'info', `Controller ${session.controller_id} i 30-min cooloff efter fermenteringsprofilsjustering`);
+          }
+        }
+      }
+    }
+
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
     // Track which controllers stall detection has acted on (stall is prio 1, overshoot must not counteract)
@@ -254,11 +292,17 @@ serve(async (req) => {
     // ====================================================================
     // FEATURE 1: STALL DETECTION (runs first - highest priority)
     // ====================================================================
-    if (stallEnabled) {
+    if (stallEnabled && runTankAdjustments) {
       log('STALL', 'info', '--- Fermentation stall detection check ---');
 
       for (const fc of followedControllersFullData) {
         // Skip if controller data hasn't changed since last adjustment
+        // Skip if controller is in fermentation profile cooloff
+        if (cooloffControllerIds.has(fc.controller_id)) {
+          log('STALL_COOLOFF', 'info', `${fc.name}: Hoppar över stall-check — 30min cooloff efter fermenteringsprofilsjustering`);
+          continue;
+        }
+
         const lastAdjTsStall = lastAdjTimestampMap.get(fc.controller_id);
         if (lastAdjTsStall && fc.last_update && lastAdjTsStall === fc.last_update) {
           log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över (stall)`);
@@ -549,7 +593,7 @@ serve(async (req) => {
     // ====================================================================
     // FEATURE 2: OVERSHOOT PREVENTION (runs after stall - skips if stall acted)
     // ====================================================================
-    if (overshootEnabled) {
+    if (overshootEnabled && runTankAdjustments) {
       log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
 
       // Cooldown: skip overshoot check if last overshoot adjustment was < 10 minutes ago
@@ -588,6 +632,12 @@ serve(async (req) => {
         const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
         if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
           log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`);
+          continue;
+        }
+
+        // Skip if controller is in fermentation profile cooloff
+        if (cooloffControllerIds.has(fc.controller_id)) {
+          log('OVERSHOOT_COOLOFF', 'info', `Hoppar över overshoot för ${fc.name}: 30min cooloff efter fermenteringsprofilsjustering`);
           continue;
         }
 
@@ -793,7 +843,7 @@ serve(async (req) => {
     // ====================================================================
     // FEATURE 3: AUTO COOLING ADJUSTMENT (runs last)
     // ====================================================================
-    if (coolingEnabled) {
+    if (coolingEnabled && runGlycolCooler) {
       log('COOLING', 'info', '--- Auto cooling adjustment check ---');
 
       if (!settings.cooler_controller_id) {
