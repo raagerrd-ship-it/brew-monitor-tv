@@ -289,6 +289,20 @@ Deno.serve(async (req) => {
                 .from('rapt_temp_controllers')
                 .update({ target_temp: effectiveTarget, updated_at: new Date().toISOString() })
                 .eq('controller_id', session.controller_id)
+              
+              // Set original_target_temp so overshoot knows the profile's baseline
+              await supabase
+                .from('auto_cooling_adjustments')
+                .insert({
+                  cooler_controller_id: session.controller_id,
+                  cooler_controller_name: controller.name || session.controller_id,
+                  old_target_temp: controller.target_temp,
+                  new_target_temp: effectiveTarget,
+                  original_target_temp: effectiveTarget,
+                  lowest_followed_temp: effectiveTarget,
+                  reason: `🔧 Fermenteringsprofil enforce: ${effectiveTarget}°C`,
+                  adjusted_against_timestamp: controller.last_update,
+                })
             }
           }
         } else if (effectiveTarget !== null && controller.target_temp > effectiveTarget + 0.2) {
@@ -303,6 +317,20 @@ Deno.serve(async (req) => {
               .from('rapt_temp_controllers')
               .update({ target_temp: effectiveTarget, updated_at: new Date().toISOString() })
               .eq('controller_id', session.controller_id)
+            
+            // Set original_target_temp so overshoot knows the profile's baseline
+            await supabase
+              .from('auto_cooling_adjustments')
+              .insert({
+                cooler_controller_id: session.controller_id,
+                cooler_controller_name: controller.name || session.controller_id,
+                old_target_temp: controller.target_temp,
+                new_target_temp: effectiveTarget,
+                original_target_temp: effectiveTarget,
+                lowest_followed_temp: effectiveTarget,
+                reason: `🔧 Fermenteringsprofil enforce: ${effectiveTarget}°C`,
+                adjusted_against_timestamp: controller.last_update,
+              })
           }
         }
       }
