@@ -296,24 +296,20 @@ serve(async (req) => {
       console.error('Error syncing custom brews:', customBrewSyncError);
     }
 
-    // Run automation orchestrator ONLY if data actually changed
+    // Run automation orchestrator every cycle
     let automationResult = null;
-    if (dataChanged) {
-      try {
-        console.log('Running automation orchestrator (data changed)...');
-        const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
-        
-        if (autoError) {
-          console.error('Error running automation:', autoError);
-        } else {
-          automationResult = autoResult;
-          console.log('Automation complete:', JSON.stringify(autoResult));
-        }
-      } catch (automationError) {
-        console.error('Error running automation:', automationError);
+    try {
+      console.log(`Running automation orchestrator (dataChanged=${dataChanged})...`);
+      const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
+      
+      if (autoError) {
+        console.error('Error running automation:', autoError);
+      } else {
+        automationResult = autoResult;
+        console.log('Automation complete:', JSON.stringify(autoResult));
       }
-    } else {
-      automationResult = { skipped: true, reason: 'No new pill data' };
+    } catch (automationError) {
+      console.error('Error running automation:', automationError);
     }
 
     return new Response(
