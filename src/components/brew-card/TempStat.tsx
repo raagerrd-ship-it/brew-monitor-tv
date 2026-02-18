@@ -102,11 +102,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     if (showBothTargets) {
       label = (
         <span>
-          Temp (
+          Temp{' '}
           <span style={{ color: 'hsl(38 92% 50%)' }}>{controller.target_temp.toFixed(1)}</span>
           /
           <span style={{ color: 'hsl(var(--muted-foreground))' }}>{originalTarget!.toFixed(1)}</span>
-          )
         </span>
       );
     } else {
