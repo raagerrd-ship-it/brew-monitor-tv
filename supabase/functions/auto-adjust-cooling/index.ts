@@ -190,14 +190,18 @@ serve(async (req) => {
 
     // Log each followed controller's status
     followedControllersFullData.forEach(controller => {
+      const pillTemp = controller.pill_temp !== null ? parseFloat(String(controller.pill_temp)) : null;
       const currentTemp = parseFloat(String(controller.current_temp ?? controller.pill_temp ?? '0'));
       const targetTemp = parseFloat(String(controller.target_temp ?? '999'));
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
+      const pillDelta = pillTemp !== null ? pillTemp - currentTemp : null;
       
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
         target_temp: targetTemp,
         current_temp: currentTemp,
+        pill_temp: pillTemp,
+        pill_delta: pillDelta !== null ? parseFloat(pillDelta.toFixed(1)) : null,
         cooling_enabled: controller.cooling_enabled,
         is_actively_cooling: isActivelyCooling
       });
@@ -429,12 +433,20 @@ serve(async (req) => {
 
         log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
           daily_rate: dailyRate,
+          daily_rate_display: `${dailyRate.toFixed(4)} SG/day`,
           sg_to_fg: sgToFg,
           progress_pct: progressPct,
-          threshold: stallThreshold
+          threshold: stallThreshold,
+          pill_temp: fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null,
+          current_temp: fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null,
+          target_temp: fc.target_temp !== null ? parseFloat(String(fc.target_temp)) : null,
         });
 
         const isStalling = dailyRate < stallThreshold && sgToFg > 0.005 && progressPct < 80;
+
+        if (!isStalling) {
+          log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day > threshold ${stallThreshold})`);
+        }
 
         if (isStalling) {
           log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
