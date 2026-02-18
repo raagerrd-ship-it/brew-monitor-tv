@@ -47,31 +47,31 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 1. Check if fermentation profiles need processing
-  const { data: runningSessions } = await supabase
-    .from("fermentation_sessions")
-    .select("id")
-    .eq("status", "running")
-    .limit(1);
+  // Check what needs to run
+  const [{ data: runningSessions }, { data: coolingSettings }] = await Promise.all([
+    supabase.from("fermentation_sessions").select("id").eq("status", "running").limit(1),
+    supabase.from("auto_cooling_settings").select("enabled").eq("enabled", true).limit(1),
+  ]);
 
+  // Build parallel tasks
+  const parallelTasks: Promise<void>[] = [];
+
+  // 1. Fermentation profiles (tank adjustments incl. stall/overshoot run after via auto-adjust-cooling)
   if (runningSessions && runningSessions.length > 0) {
-    await runStep("fermentation-profiles", "process-fermentation-profiles");
+    parallelTasks.push(runStep("fermentation-profiles", "process-fermentation-profiles").then(() => {}));
   } else {
     results.push({ step: "fermentation-profiles", status: "skipped", duration_ms: 0 });
   }
 
-  // 2. Check if auto-cooling is enabled
-  const { data: coolingSettings } = await supabase
-    .from("auto_cooling_settings")
-    .select("enabled")
-    .eq("enabled", true)
-    .limit(1);
-
+  // 2. Auto-cooling (glycol cooler) - runs in parallel, independent of tank adjustments
   if (coolingSettings && coolingSettings.length > 0) {
-    await runStep("auto-cooling", "auto-adjust-cooling");
+    parallelTasks.push(runStep("auto-cooling", "auto-adjust-cooling").then(() => {}));
   } else {
     results.push({ step: "auto-cooling", status: "skipped", duration_ms: 0 });
   }
+
+  // Run all tasks in parallel
+  await Promise.all(parallelTasks);
 
   const totalDuration = Date.now() - startTime;
 

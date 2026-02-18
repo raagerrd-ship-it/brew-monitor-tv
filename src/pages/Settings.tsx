@@ -1654,8 +1654,8 @@ export default function Settings() {
           <TabsContent value="automation" className="space-y-6">
             <SettingsSection
               icon={Snowflake}
-              title="Automatisk Kylreglering"
-              description="Justerar automatiskt måltemperaturen om kylaren inte får ner temperaturen"
+              title="Glykolkylare"
+              description="Reglerar glykolkylarens måltemperatur baserat på de följda jästankarnas behov"
             >
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -2058,8 +2058,46 @@ export default function Settings() {
                     </p>
                   </div>
 
-                  {/* FERMENTATION STALL DETECTION */}
-                  <div className="space-y-4">
+                  {/* INFO - Glycol cooler */}
+                  <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
+                      <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
+                      <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                      <p>• Övervakar controller med lägst måltemperatur bland följda tankar</p>
+                      <p>• Startar nedräkning när temperaturen är över mål + tolerans</p>
+                      <p>• Sänker kylarens mål efter {autoCoolingInterval} min med {tempReduction}°C</p>
+                      <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
+                      <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
+                      <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
+                      <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
+                      <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors group">
+                      <span className="text-sm font-semibold">Justeringshistorik</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <AutoCoolingDecisionLogs />
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              )}
+            </SettingsSection>
+
+            <SettingsSection
+              icon={Thermometer}
+              title="Jästanksjustering"
+              description="AI-styrd justering av enskilda jästankars måltemperatur vid stall eller overshoot"
+            >
+              <div className="space-y-6">
+
+                {/* FERMENTATION STALL DETECTION */}
+                <div className="space-y-4">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <ArrowUp className="h-4 w-4 text-muted-foreground" />
                       Jäsningsstall-detektion
@@ -2194,42 +2232,23 @@ export default function Settings() {
                     </p>
                   </div>
 
-
-                  <Collapsible>
-                    <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-primary transition-colors group">
-                      <span className="text-sm font-semibold">Justeringshistorik</span>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2">
-                      <AutoCoolingDecisionLogs />
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  {/* INFO */}
+                  {/* INFO - Tank adjustments */}
                   <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
                     <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
                       <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
                       <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                      <p>• Övervakar controller med lägst måltemperatur</p>
-                      <p>• Startar nedräkning när temperaturen är över mål + tolerans</p>
-                      <p>• Sänker kylarens mål efter {autoCoolingInterval} min med {tempReduction}°C</p>
-                      <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
-                      <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
-                      <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
-                       <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
+                      <p>• Justerar enskilda jästankars måltemperatur — inte glykolkylaren</p>
+                      <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
                       {autoBoostEnabled && <p>• 🧠 AI analyserar SG-historik, delta-trend, ölstil och rekommenderar exakt temp-ändring</p>}
                       {autoBoostEnabled && <p>• AI-rekommendation verkställs automatiskt (min 50% konfidensgrad)</p>}
                       {autoBoostEnabled && <p>• Om AI inte är tillgänglig: fallback till +{autoBoostDegrees}°C</p>}
-                      <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
-                      <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
                       {overshootEnabled && <p>• 🌡️ Overshoot-prevention: sänker target om pill &gt; target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C</p>}
                       {overshootEnabled && <p>• AI analyserar overshoot-situation och rekommenderar temporär justering</p>}
                     </CollapsibleContent>
                   </Collapsible>
-                </div>
-              )}
+              </div>
             </SettingsSection>
 
             <SettingsSection
