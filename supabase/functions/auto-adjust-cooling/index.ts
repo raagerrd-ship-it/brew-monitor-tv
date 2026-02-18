@@ -425,14 +425,15 @@ serve(async (req) => {
                 const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
 
-                // CRITICAL: Overshoot prevention should ONLY stop heating, NEVER trigger cooling.
-                // Regardless of AI recommendation, we always use pause_heating strategy:
-                // Set target = current controller temp + cooling_hysteresis + safety margin
-                // This ensures the heater stops but the cooler never starts.
+                // CRITICAL: Overshoot prevention should REDUCE heating, NEVER trigger cooling.
+                // Strategy: Set target to midpoint between current ctrl temp and original target.
+                // This creates natural ~50% duty cycling via the controller's own hysteresis:
+                // heater runs until ctrl reaches midpoint, stops, drops, runs again.
                 const coolingHyst = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
-                const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10; // +0.1 safety margin
-                let newTarget = coolingFloor;
-                log('OVERSHOOT_PAUSE', 'info', `Pause heating: target → cooling floor ${newTarget}°C (ctrl=${ctrlTemp.toFixed(1)}° + hyst=${coolingHyst}° + margin=0.1°). AI wanted: ${rec.action} ${rec.degrees}°C`);
+                const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10; // absolute minimum to avoid triggering cooling
+                const midpoint = Math.round(((ctrlTemp + originalTarget) / 2) * 10) / 10; // 50% duty cycle target
+                let newTarget = Math.max(midpoint, coolingFloor); // use midpoint but never below cooling floor
+                log('OVERSHOOT_REDUCE', 'info', `Reducing heating: midpoint=${midpoint}°C (ctrl=${ctrlTemp.toFixed(1)}° ↔ original=${originalTarget}°C), coolingFloor=${coolingFloor}°C, chosen=${newTarget}°C. AI wanted: ${rec.action} ${rec.degrees}°C`);
 
                 // Never raise above current target
                 newTarget = Math.min(newTarget, targetTemp);
