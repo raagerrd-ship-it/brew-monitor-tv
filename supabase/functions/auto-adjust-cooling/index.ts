@@ -189,9 +189,6 @@ serve(async (req) => {
       });
     }
 
-    // pill_temp is now enriched by sync-rapt-data-quick directly from pill data
-    // No need to fetch from brew_readings.sg_data anymore
-
     // Look up original targets for all followed controllers (from first overshoot adjustment)
     const originalTargetMap = new Map<string, number>();
     for (const controller of followedControllersFullData) {
@@ -255,7 +252,302 @@ serve(async (req) => {
     const stallActiveControllerIds = new Set<string>();
 
     // ====================================================================
-    // FEATURE 1: OVERSHOOT PREVENTION (independent toggle)
+    // FEATURE 1: STALL DETECTION (runs first - highest priority)
+    // ====================================================================
+    if (stallEnabled) {
+      log('STALL', 'info', '--- Fermentation stall detection check ---');
+
+      for (const fc of followedControllersFullData) {
+        // Skip if controller data hasn't changed since last adjustment
+        const lastAdjTsStall = lastAdjTimestampMap.get(fc.controller_id);
+        if (lastAdjTsStall && fc.last_update && lastAdjTsStall === fc.last_update) {
+          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över (stall)`);
+          continue;
+        }
+
+        const { data: linkedBrews } = await supabase
+          .from('brew_readings')
+          .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
+          .eq('linked_controller_id', fc.controller_id)
+          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
+          .order('last_update', { ascending: false })
+          .limit(1);
+
+        if (!linkedBrews || linkedBrews.length === 0) {
+          log('STALL_CHECK', 'info', `No active fermenting brew linked to ${fc.name}`);
+          continue;
+        }
+        const brew = linkedBrews[0];
+
+        const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
+        if (!sgData || sgData.length < 3) {
+          log('STALL_CHECK', 'info', `${brew.name}: Not enough SG data points (${sgData?.length ?? 0})`);
+          continue;
+        }
+
+        const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const nowMs = Date.now();
+        const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
+
+        if (last24h.length < 2) {
+          log('STALL_CHECK', 'info', `${brew.name}: Not enough data in last 24h (${last24h.length} points)`);
+          continue;
+        }
+
+        const newest = last24h[0].value;
+        const oldest = last24h[last24h.length - 1].value;
+        const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
+
+        if (hoursSpan < 6) {
+          log('STALL_CHECK', 'info', `${brew.name}: Time span too short (${hoursSpan.toFixed(1)}h < 6h required)`);
+          continue;
+        }
+
+        const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
+        const sgToFg = brew.current_sg - brew.final_gravity;
+        const sgRange = brew.original_gravity - brew.final_gravity;
+        const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
+        const stallThreshold = settings.stall_rate_threshold ?? 0.001;
+
+        // Calculate expected rate based on progress
+        let effectiveThreshold = stallThreshold;
+        let expectedSlowdown = false;
+        if (progressPct > 90) {
+          effectiveThreshold = stallThreshold * 0.3;
+          expectedSlowdown = true;
+        } else if (progressPct > 75) {
+          effectiveThreshold = stallThreshold * 0.6;
+        }
+
+        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, OG=${brew.original_gravity.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
+          daily_rate: dailyRate,
+          daily_rate_display: `${dailyRate.toFixed(4)} SG/day`,
+          og: brew.original_gravity,
+          fg: brew.final_gravity,
+          current_sg: brew.current_sg,
+          sg_to_fg: parseFloat(sgToFg.toFixed(4)),
+          progress_pct: parseFloat(progressPct.toFixed(1)),
+          threshold: stallThreshold,
+          effective_threshold: effectiveThreshold,
+          expected_slowdown: expectedSlowdown,
+          pill_temp: round1(fc.pill_temp),
+          current_temp: round1(fc.current_temp),
+          target_temp: round1(fc.target_temp),
+        });
+
+        // Stall conditions
+        const isStalling = dailyRate < effectiveThreshold && sgToFg > 0.005 && progressPct < 95;
+
+        if (!isStalling) {
+          if (expectedSlowdown && progressPct >= 95) {
+            log('STALL_CHECK', 'pass', `${brew.name}: Natural slowdown near FG (${progressPct.toFixed(0)}% done, SG ${sgToFg.toFixed(4)} from FG)`);
+          } else if (expectedSlowdown) {
+            log('STALL_CHECK', 'pass', `${brew.name}: Rate OK for late fermentation (effective threshold: ${effectiveThreshold.toFixed(4)})`);
+          } else {
+            log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day vs threshold ${effectiveThreshold.toFixed(4)})`);
+          }
+        }
+
+        if (isStalling) {
+          log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
+
+          // Fetch context for AI
+          const { data: deltaHistoryForAI } = await supabase
+            .from('temp_delta_history')
+            .select('delta, recorded_at')
+            .eq('controller_id', fc.controller_id)
+            .order('recorded_at', { ascending: false })
+            .limit(10);
+
+          const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
+          const { data: tempHistory } = await supabase
+            .from('temp_controller_history')
+            .select('target_temp, recorded_at')
+            .eq('controller_id', fc.controller_id)
+            .order('recorded_at', { ascending: false })
+            .limit(100);
+
+          let hoursAtCurrentTemp = 0;
+          if (tempHistory && tempHistory.length > 0) {
+            for (const record of tempHistory) {
+              if (Math.abs(parseFloat(String(record.target_temp)) - currentTarget) > 0.1) break;
+              const recordTime = new Date(record.recorded_at).getTime();
+              hoursAtCurrentTemp = (nowMs - recordTime) / (1000 * 60 * 60);
+            }
+          }
+
+          const pillTemp = fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null;
+          const ctrlTemp = fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null;
+          const currentDelta = (pillTemp !== null && ctrlTemp !== null) ? pillTemp - ctrlTemp : null;
+
+          log('AI_ADVISOR', 'info', `Consulting AI for ${brew.name}...`);
+
+          try {
+            const aiResponse = await supabase.functions.invoke('ai-fermentation-advisor', {
+              body: {
+                brewName: brew.name,
+                beerStyle: brew.style || 'Unknown',
+                originalGravity: brew.original_gravity,
+                finalGravity: brew.final_gravity,
+                currentSG: brew.current_sg,
+                currentTemp: ctrlTemp ?? currentTarget,
+                targetTemp: currentTarget,
+                pillTemp,
+                controllerTemp: ctrlTemp,
+                delta: currentDelta,
+                dailyRate,
+                progressPercent: progressPct,
+                sgHistory: sorted.slice(0, 20).map(s => ({ date: s.date, value: s.value })),
+                deltaHistory: (deltaHistoryForAI || []).map(d => ({ delta: parseFloat(String(d.delta)), recorded_at: d.recorded_at })),
+                controllerName: fc.name,
+                maxTargetTemp: parseFloat(String(fc.max_target_temp ?? '25')),
+                minTargetTemp: parseFloat(String(fc.min_target_temp ?? '-5')),
+                hoursAtCurrentTemp,
+              }
+            });
+
+            if (!aiResponse.error && aiResponse.data && !aiResponse.data.fallback) {
+              const rec = aiResponse.data.recommendation;
+              log('AI_ADVISOR', 'pass', `AI recommends: ${rec.action} ${rec.degrees}°C (confidence: ${rec.confidence}%)`, {
+                action: rec.action,
+                degrees: rec.degrees,
+                confidence: rec.confidence,
+                reasoning: rec.reasoning,
+                newTargetTemp: rec.newTargetTemp
+              });
+
+              if ((rec.action === 'raise_temp' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
+                const newTarget = rec.newTargetTemp;
+                const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+                const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+
+                if (newTarget >= minTemp && newTarget <= maxTemp) {
+                  log('AI_BOOST', 'action', `AI: ${rec.action === 'raise_temp' ? 'Raising' : 'Lowering'} ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
+
+                  const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                    body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+                  });
+
+                  if (!updateResponse.error) {
+                    log('AI_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
+                    allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                    stallActiveControllerIds.add(fc.controller_id);
+
+                    await supabase.from('auto_cooling_adjustments').insert({
+                      cooler_controller_id: fc.controller_id,
+                      cooler_controller_name: fc.name,
+                      old_target_temp: currentTarget,
+                      new_target_temp: newTarget,
+                      lowest_followed_temp: currentTarget,
+                      followed_controller_id: fc.controller_id,
+                      followed_controller_name: fc.name,
+                      followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                      followed_target_temp: currentTarget,
+                      reason: `🧠 AI: ${rec.reasoning} (${rec.confidence}% säker)`,
+                      adjusted_against_timestamp: fc.last_update
+                    } as any);
+                  } else {
+                    log('AI_BOOST', 'fail', `Failed to update ${fc.name}`);
+                  }
+                } else {
+                  log('AI_BOOST', 'info', `AI suggestion ${newTarget}°C outside bounds [${minTemp}, ${maxTemp}]`);
+                }
+              } else if (rec.action === 'hold' || rec.action === 'wait') {
+                log('AI_ADVISOR', 'info', `AI says ${rec.action}: ${rec.reasoning}`);
+              } else if (rec.confidence < 50) {
+                log('AI_ADVISOR', 'info', `AI confidence too low (${rec.confidence}%), skipping action`);
+              }
+            } else {
+              // AI failed — fall back to fixed boost
+              log('AI_ADVISOR', 'fail', 'AI unavailable, falling back to fixed boost');
+              const boostDegrees = settings.auto_boost_degrees ?? 1.0;
+              const newTarget = currentTarget + boostDegrees;
+              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+
+              if (newTarget <= maxTemp) {
+                log('AUTO_BOOST_FALLBACK', 'action', `Fallback: Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
+
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+                });
+
+                if (!updateResponse.error) {
+                  log('AUTO_BOOST_FALLBACK', 'pass', `Boosted ${fc.name} to ${newTarget}°C`);
+                  allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                  stallActiveControllerIds.add(fc.controller_id);
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: fc.controller_id,
+                    cooler_controller_name: fc.name,
+                    old_target_temp: currentTarget,
+                    new_target_temp: newTarget,
+                    lowest_followed_temp: currentTarget,
+                    followed_controller_id: fc.controller_id,
+                    followed_controller_name: fc.name,
+                    followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                    followed_target_temp: currentTarget,
+                    reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — fallback +${boostDegrees}°C`,
+                    adjusted_against_timestamp: fc.last_update
+                  } as any);
+                }
+              }
+            }
+          } catch (aiError) {
+            log('AI_ADVISOR', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}. Using fallback.`);
+            const boostDegrees = settings.auto_boost_degrees ?? 1.0;
+            const newTarget = currentTarget + boostDegrees;
+            const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+
+            if (newTarget <= maxTemp) {
+              const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
+              });
+
+              if (!updateResponse.error) {
+                allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
+                stallActiveControllerIds.add(fc.controller_id);
+                await supabase.from('auto_cooling_adjustments').insert({
+                  cooler_controller_id: fc.controller_id,
+                  cooler_controller_name: fc.name,
+                  old_target_temp: currentTarget,
+                  new_target_temp: newTarget,
+                  lowest_followed_temp: currentTarget,
+                  followed_controller_id: fc.controller_id,
+                  followed_controller_name: fc.name,
+                  followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+                  followed_target_temp: currentTarget,
+                  reason: `Jäsning stannat — AI ej tillgänglig, fallback +${boostDegrees}°C`,
+                  adjusted_against_timestamp: fc.last_update
+                } as any);
+              }
+            }
+          }
+
+          // Always create an alert for stall detection
+          const { data: existingStallAlerts } = await supabase
+            .from('temp_delta_alerts')
+            .select('id')
+            .eq('controller_id', fc.controller_id)
+            .eq('alert_type', 'fermentation_stall')
+            .eq('acknowledged', false)
+            .limit(1);
+
+          if (!existingStallAlerts || existingStallAlerts.length === 0) {
+            await supabase.from('temp_delta_alerts').insert({
+              controller_id: fc.controller_id,
+              delta: dailyRate,
+              alert_type: 'fermentation_stall'
+            } as any);
+            log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
+          }
+        }
+      }
+    } else {
+      log('STALL', 'info', 'Stall detection disabled');
+    }
+
+    // ====================================================================
+    // FEATURE 2: OVERSHOOT PREVENTION (runs after stall - skips if stall acted)
     // ====================================================================
     if (overshootEnabled) {
       log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
@@ -274,7 +566,6 @@ serve(async (req) => {
         if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
           const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
           log('OVERSHOOT_COOLDOWN', 'info', `Cooldown active: ${remainingMin}min remaining since last overshoot adjustment`);
-          // Skip entire overshoot block
         }
       }
 
@@ -300,19 +591,9 @@ serve(async (req) => {
           continue;
         }
 
-        // PRIORITY CHECK: If stall detection recently acted on this controller (last 24h),
-        // skip overshoot to avoid counteracting stall boost. Stall is prio 1.
-        const { data: recentStallAdj } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('id, created_at')
-          .eq('cooler_controller_id', fc.controller_id)
-          .like('reason', '🧠%')
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (recentStallAdj && recentStallAdj.length > 0) {
-          log('OVERSHOOT_SKIP_STALL', 'info', `Skipping overshoot for ${fc.name}: stall detection active (last stall action ${recentStallAdj[0].created_at})`);
+        // PRIORITY CHECK: If stall detection acted on this controller THIS RUN, skip overshoot
+        if (stallActiveControllerIds.has(fc.controller_id)) {
+          log('OVERSHOOT_SKIP_STALL', 'info', `Skipping overshoot for ${fc.name}: stall detection acted this run`);
           continue;
         }
 
@@ -426,13 +707,10 @@ serve(async (req) => {
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
 
                 // CRITICAL: Overshoot prevention should REDUCE heating, NEVER trigger cooling.
-                // Strategy: Set target to midpoint between current ctrl temp and original target.
-                // This creates natural ~50% duty cycling via the controller's own hysteresis:
-                // heater runs until ctrl reaches midpoint, stops, drops, runs again.
                 const coolingHyst = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
-                const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10; // absolute minimum to avoid triggering cooling
-                const midpoint = Math.round(((ctrlTemp + originalTarget) / 2) * 10) / 10; // 50% duty cycle target
-                let newTarget = Math.max(midpoint, coolingFloor); // use midpoint but never below cooling floor
+                const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10;
+                const midpoint = Math.round(((ctrlTemp + originalTarget) / 2) * 10) / 10;
+                let newTarget = Math.max(midpoint, coolingFloor);
                 log('OVERSHOOT_REDUCE', 'info', `Reducing heating: midpoint=${midpoint}°C (ctrl=${ctrlTemp.toFixed(1)}° ↔ original=${originalTarget}°C), coolingFloor=${coolingFloor}°C, chosen=${newTarget}°C. AI wanted: ${rec.action} ${rec.degrees}°C`);
 
                 // Never raise above current target
@@ -476,8 +754,7 @@ serve(async (req) => {
             } else {
               log('OVERSHOOT_AI', 'fail', 'AI unavailable for overshoot, using simple fallback');
               if (pillTemp > targetTemp + 1.0) {
-                // Fallback: set to controller temp (pause heating without starting cooling)
-                const fallbackTarget = Math.min(Math.round(ctrlTemp * 10) / 10, targetTemp); // Never raise, 0.1° precision
+                const fallbackTarget = Math.min(Math.round(ctrlTemp * 10) / 10, targetTemp);
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
                 if (fallbackTarget >= minTemp && Math.abs(fallbackTarget - targetTemp) >= 0.1) {
                   log('OVERSHOOT_FALLBACK', 'action', `Fallback: Lowering ${fc.name} from ${targetTemp}°C to ${fallbackTarget.toFixed(1)}°C`);
@@ -514,301 +791,7 @@ serve(async (req) => {
     }
 
     // ====================================================================
-    // FEATURE 2: STALL DETECTION (independent toggle)
-    // ====================================================================
-    if (stallEnabled) {
-      log('STALL', 'info', '--- Fermentation stall detection check ---');
-
-      for (const fc of followedControllersFullData) {
-        // Skip if controller data hasn't changed since last adjustment
-        const lastAdjTsStall = lastAdjTimestampMap.get(fc.controller_id);
-        if (lastAdjTsStall && fc.last_update && lastAdjTsStall === fc.last_update) {
-          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över (stall)`);
-          continue;
-        }
-
-        const { data: linkedBrews } = await supabase
-          .from('brew_readings')
-          .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
-          .eq('linked_controller_id', fc.controller_id)
-          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
-          .order('last_update', { ascending: false })
-          .limit(1);
-
-        if (!linkedBrews || linkedBrews.length === 0) {
-          log('STALL_CHECK', 'info', `No active fermenting brew linked to ${fc.name}`);
-          continue;
-        }
-        const brew = linkedBrews[0];
-
-        const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
-        if (!sgData || sgData.length < 3) {
-          log('STALL_CHECK', 'info', `${brew.name}: Not enough SG data points (${sgData?.length ?? 0})`);
-          continue;
-        }
-
-        const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const nowMs = Date.now();
-        const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
-
-        if (last24h.length < 2) {
-          log('STALL_CHECK', 'info', `${brew.name}: Not enough data in last 24h (${last24h.length} points)`);
-          continue;
-        }
-
-        const newest = last24h[0].value;
-        const oldest = last24h[last24h.length - 1].value;
-        const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
-
-        if (hoursSpan < 6) {
-          log('STALL_CHECK', 'info', `${brew.name}: Time span too short (${hoursSpan.toFixed(1)}h < 6h required)`);
-          continue;
-        }
-
-        const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
-        const sgToFg = brew.current_sg - brew.final_gravity;
-        const sgRange = brew.original_gravity - brew.final_gravity;
-        const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
-        const stallThreshold = settings.stall_rate_threshold ?? 0.001;
-
-        // Calculate expected rate based on progress - fermentation naturally slows near FG
-        // At >90% progress, the expected rate is much lower, so the threshold should be relaxed
-        let effectiveThreshold = stallThreshold;
-        let expectedSlowdown = false;
-        if (progressPct > 90) {
-          // Near FG: rate naturally drops. Only flag stall if SG is still notably above FG
-          effectiveThreshold = stallThreshold * 0.3; // Much lower threshold near end
-          expectedSlowdown = true;
-        } else if (progressPct > 75) {
-          effectiveThreshold = stallThreshold * 0.6; // Moderately lower threshold
-        }
-
-        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, OG=${brew.original_gravity.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
-          daily_rate: dailyRate,
-          daily_rate_display: `${dailyRate.toFixed(4)} SG/day`,
-          og: brew.original_gravity,
-          fg: brew.final_gravity,
-          current_sg: brew.current_sg,
-          sg_to_fg: parseFloat(sgToFg.toFixed(4)),
-          progress_pct: parseFloat(progressPct.toFixed(1)),
-          threshold: stallThreshold,
-          effective_threshold: effectiveThreshold,
-          expected_slowdown: expectedSlowdown,
-          pill_temp: round1(fc.pill_temp),
-          current_temp: round1(fc.current_temp),
-          target_temp: round1(fc.target_temp),
-        });
-
-        // Stall conditions: rate below effective threshold, still far from FG, and not too close to completion
-        const isStalling = dailyRate < effectiveThreshold && sgToFg > 0.005 && progressPct < 95;
-
-        if (!isStalling) {
-          if (expectedSlowdown && progressPct >= 95) {
-            log('STALL_CHECK', 'pass', `${brew.name}: Natural slowdown near FG (${progressPct.toFixed(0)}% done, SG ${sgToFg.toFixed(4)} from FG)`);
-          } else if (expectedSlowdown) {
-            log('STALL_CHECK', 'pass', `${brew.name}: Rate OK for late fermentation (effective threshold: ${effectiveThreshold.toFixed(4)})`);
-          } else {
-            log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day vs threshold ${effectiveThreshold.toFixed(4)})`);
-          }
-        }
-
-        if (isStalling) {
-          log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
-
-          // Fetch context for AI
-          const { data: deltaHistoryForAI } = await supabase
-            .from('temp_delta_history')
-            .select('delta, recorded_at')
-            .eq('controller_id', fc.controller_id)
-            .order('recorded_at', { ascending: false })
-            .limit(10);
-
-          const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
-          const { data: tempHistory } = await supabase
-            .from('temp_controller_history')
-            .select('target_temp, recorded_at')
-            .eq('controller_id', fc.controller_id)
-            .order('recorded_at', { ascending: false })
-            .limit(100);
-
-          let hoursAtCurrentTemp = 0;
-          if (tempHistory && tempHistory.length > 0) {
-            for (const record of tempHistory) {
-              if (Math.abs(parseFloat(String(record.target_temp)) - currentTarget) > 0.1) break;
-              const recordTime = new Date(record.recorded_at).getTime();
-              hoursAtCurrentTemp = (nowMs - recordTime) / (1000 * 60 * 60);
-            }
-          }
-
-          const pillTemp = fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null;
-          const ctrlTemp = fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null;
-          const currentDelta = (pillTemp !== null && ctrlTemp !== null) ? pillTemp - ctrlTemp : null;
-
-          log('AI_ADVISOR', 'info', `Consulting AI for ${brew.name}...`);
-
-          try {
-            const aiResponse = await supabase.functions.invoke('ai-fermentation-advisor', {
-              body: {
-                brewName: brew.name,
-                beerStyle: brew.style || 'Unknown',
-                originalGravity: brew.original_gravity,
-                finalGravity: brew.final_gravity,
-                currentSG: brew.current_sg,
-                currentTemp: ctrlTemp ?? currentTarget,
-                targetTemp: currentTarget,
-                pillTemp,
-                controllerTemp: ctrlTemp,
-                delta: currentDelta,
-                dailyRate,
-                progressPercent: progressPct,
-                sgHistory: sorted.slice(0, 20).map(s => ({ date: s.date, value: s.value })),
-                deltaHistory: (deltaHistoryForAI || []).map(d => ({ delta: parseFloat(String(d.delta)), recorded_at: d.recorded_at })),
-                controllerName: fc.name,
-                maxTargetTemp: parseFloat(String(fc.max_target_temp ?? '25')),
-                minTargetTemp: parseFloat(String(fc.min_target_temp ?? '-5')),
-                hoursAtCurrentTemp,
-              }
-            });
-
-            if (!aiResponse.error && aiResponse.data && !aiResponse.data.fallback) {
-              const rec = aiResponse.data.recommendation;
-              log('AI_ADVISOR', 'pass', `AI recommends: ${rec.action} ${rec.degrees}°C (confidence: ${rec.confidence}%)`, {
-                action: rec.action,
-                degrees: rec.degrees,
-                confidence: rec.confidence,
-                reasoning: rec.reasoning,
-                newTargetTemp: rec.newTargetTemp
-              });
-
-              if ((rec.action === 'raise_temp' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
-                const newTarget = rec.newTargetTemp;
-                const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-                const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
-
-                if (newTarget >= minTemp && newTarget <= maxTemp) {
-                  log('AI_BOOST', 'action', `AI: ${rec.action === 'raise_temp' ? 'Raising' : 'Lowering'} ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
-
-                  const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                    body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
-                  });
-
-                  if (!updateResponse.error) {
-                    log('AI_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
-                    allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
-
-                    await supabase.from('auto_cooling_adjustments').insert({
-                      cooler_controller_id: fc.controller_id,
-                      cooler_controller_name: fc.name,
-                      old_target_temp: currentTarget,
-                      new_target_temp: newTarget,
-                      lowest_followed_temp: currentTarget,
-                      followed_controller_id: fc.controller_id,
-                      followed_controller_name: fc.name,
-                      followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
-                      followed_target_temp: currentTarget,
-                      reason: `🧠 AI: ${rec.reasoning} (${rec.confidence}% säker)`,
-                      adjusted_against_timestamp: fc.last_update
-                    } as any);
-                  } else {
-                    log('AI_BOOST', 'fail', `Failed to update ${fc.name}`);
-                  }
-                } else {
-                  log('AI_BOOST', 'info', `AI suggestion ${newTarget}°C outside bounds [${minTemp}, ${maxTemp}]`);
-                }
-              } else if (rec.action === 'hold' || rec.action === 'wait') {
-                log('AI_ADVISOR', 'info', `AI says ${rec.action}: ${rec.reasoning}`);
-              } else if (rec.confidence < 50) {
-                log('AI_ADVISOR', 'info', `AI confidence too low (${rec.confidence}%), skipping action`);
-              }
-            } else {
-              // AI failed — fall back to fixed boost
-              log('AI_ADVISOR', 'fail', 'AI unavailable, falling back to fixed boost');
-              const boostDegrees = settings.auto_boost_degrees ?? 1.0;
-              const newTarget = currentTarget + boostDegrees;
-              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-
-              if (newTarget <= maxTemp) {
-                log('AUTO_BOOST_FALLBACK', 'action', `Fallback: Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C`);
-
-                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
-                });
-
-                if (!updateResponse.error) {
-                  log('AUTO_BOOST_FALLBACK', 'pass', `Boosted ${fc.name} to ${newTarget}°C`);
-                  allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
-
-                  await supabase.from('auto_cooling_adjustments').insert({
-                    cooler_controller_id: fc.controller_id,
-                    cooler_controller_name: fc.name,
-                    old_target_temp: currentTarget,
-                    new_target_temp: newTarget,
-                    lowest_followed_temp: currentTarget,
-                    followed_controller_id: fc.controller_id,
-                    followed_controller_name: fc.name,
-                    followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
-                    followed_target_temp: currentTarget,
-                    reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — fallback +${boostDegrees}°C`,
-                    adjusted_against_timestamp: fc.last_update
-                  } as any);
-                }
-              }
-            }
-          } catch (aiError) {
-            log('AI_ADVISOR', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}. Using fallback.`);
-            const boostDegrees = settings.auto_boost_degrees ?? 1.0;
-            const newTarget = currentTarget + boostDegrees;
-            const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-
-            if (newTarget <= maxTemp) {
-              const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
-              });
-
-              if (!updateResponse.error) {
-                allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
-                await supabase.from('auto_cooling_adjustments').insert({
-                  cooler_controller_id: fc.controller_id,
-                  cooler_controller_name: fc.name,
-                  old_target_temp: currentTarget,
-                  new_target_temp: newTarget,
-                  lowest_followed_temp: currentTarget,
-                  followed_controller_id: fc.controller_id,
-                  followed_controller_name: fc.name,
-                  followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
-                  followed_target_temp: currentTarget,
-                  reason: `Jäsning stannat — AI ej tillgänglig, fallback +${boostDegrees}°C`,
-                  adjusted_against_timestamp: fc.last_update
-                } as any);
-              }
-            }
-          }
-
-          // Always create an alert for stall detection
-          const { data: existingStallAlerts } = await supabase
-            .from('temp_delta_alerts')
-            .select('id')
-            .eq('controller_id', fc.controller_id)
-            .eq('alert_type', 'fermentation_stall')
-            .eq('acknowledged', false)
-            .limit(1);
-
-          if (!existingStallAlerts || existingStallAlerts.length === 0) {
-            await supabase.from('temp_delta_alerts').insert({
-              controller_id: fc.controller_id,
-              delta: dailyRate,
-              alert_type: 'fermentation_stall'
-            } as any);
-            log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
-          }
-        }
-      }
-    } else {
-      log('STALL', 'info', 'Stall detection disabled');
-    }
-
-    // ====================================================================
-    // FEATURE 3: AUTO COOLING ADJUSTMENT (independent toggle)
+    // FEATURE 3: AUTO COOLING ADJUSTMENT (runs last)
     // ====================================================================
     if (coolingEnabled) {
       log('COOLING', 'info', '--- Auto cooling adjustment check ---');
