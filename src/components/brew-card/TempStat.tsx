@@ -157,49 +157,54 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full px-1 cursor-help" style={{ height: '10px' }}>
+            <div className="w-full px-2 cursor-help" style={{ height: '16px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
-              <div className="relative w-full h-[4px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.3)', marginTop: '3px' }}>
+              <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
                 {/* Span fill between pill and controller */}
                 <div 
                   className="absolute h-full rounded-full"
                   style={{ 
                     left: `${leftPct}%`, 
-                    width: `${rightPct - leftPct}%`,
-                    background: spanColor,
-                    opacity: 0.4,
+                    width: `${Math.max(rightPct - leftPct, 2)}%`,
+                    background: `linear-gradient(90deg, hsl(var(--temp-blue)), ${spanColor})`,
+                    opacity: 0.5,
                   }} 
                 />
                 {/* Target marker line */}
                 <div 
-                  className="absolute top-[-2px] h-[8px] rounded-sm"
+                  className="absolute rounded-sm"
                   style={{ 
                     left: `${targetPct}%`, 
+                    top: '-3px',
                     width: '2px',
+                    height: '12px',
                     background: 'hsl(38 92% 50%)',
                     transform: 'translateX(-1px)',
+                    boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
                   }} 
                 />
-                {/* Controller dot (core) */}
+                {/* Controller dot (core) - blue */}
                 <div 
-                  className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                  className="absolute top-1/2 rounded-full"
                   style={{ 
                     left: `${ctrlPct}%`, 
-                    width: '5px', height: '5px',
+                    width: '8px', height: '8px',
                     background: 'hsl(var(--temp-blue))',
                     transform: 'translate(-50%, -50%)',
-                    boxShadow: '0 0 4px hsl(var(--temp-blue) / 0.5)',
+                    boxShadow: '0 0 6px hsl(var(--temp-blue) / 0.7)',
+                    border: '1px solid hsl(var(--temp-blue) / 0.3)',
                   }} 
                 />
-                {/* Pill dot (surface) */}
+                {/* Pill dot (surface) - green */}
                 <div 
-                  className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                  className="absolute top-1/2 rounded-full"
                   style={{ 
                     left: `${pillPct}%`, 
-                    width: '5px', height: '5px',
+                    width: '8px', height: '8px',
                     background: 'hsl(var(--ferment-green))',
                     transform: 'translate(-50%, -50%)',
-                    boxShadow: '0 0 4px hsl(var(--ferment-green) / 0.5)',
+                    boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
+                    border: '1px solid hsl(var(--ferment-green) / 0.3)',
                   }} 
                 />
               </div>
