@@ -1,66 +1,84 @@
 
 
-# Uppdaterad plan: Automationsfoerbattringar
+# AI-analys av automationssystemet
 
-## Oversikt
+## Sammanfattning
+Automationen ar valbyggd med bra prioritering och sakerhet, men har ett **kritiskt problem** och nagra forbattringsmojligheter.
 
-Implementera foerbattringar foer att goera automationen mer robust och saeker. Notera att befintliga `min_target_temp` / `max_target_temp` per controller redan anvaends som saekerhetsgranser foer alla justeringar -- ingen separat `max_stall_boost_24h`-kolumn behoevs.
+## KRITISKT: Dubbla korningar (Race Condition)
 
-## Aendringar
-
-### 1. Overshoot Recovery
-Automatisk aaterhaemtning av `target_temp` till `original_target_temp` naer overshoot avklingat.
-
-- I overshoot-loopen: om `pill_temp < original_target + overshoot_pill_threshold` OCH `target_temp < original_target`, aaterstall target till `original_target`
-- Logga som `OVERSHOOT_RECOVERY`
-- Spara justering med reason som indikerar recovery
-- **Begransas av controllerns `max_target_temp`** -- kan aldrig aaterstalla oever max
-
-### 2. Stall-boost saekerhet via min/max
-Ingen ny databaskolumn. Befintliga `min_target_temp` och `max_target_temp` per controller anvaends redan som absoluta graenser:
-
-- AI-foerslag klippas mot `[min_target_temp, max_target_temp]` (redan implementerat rad 466-468)
-- Fallback-boost klippas mot `max_target_temp` (redan implementerat rad 509-511)
-- Overshoot klippas mot `[min_target_temp, max_target_temp]` (redan implementerat rad 757-768)
-- **Ingen ytterligare kodaendring behoevs** -- detta aer redan paa plats
-
-### 3. Timeout-skydd i orchestratorn (`run-automation`)
-Lagg till `AbortSignal.timeout()` per steg foer att foerhindra att hela orchestratorn timeout:ar.
+Triggern `automation_on_rapt_update` ar satt till `FOR EACH ROW`. Eftersom 3 controllers uppdateras vid varje RAPT-sync triggas `run-automation` **3 ganger parallellt**. Loggarna bekraftar detta:
 
 ```text
-Steg 1 (fermenteringsprofiler): 15s timeout (ingen AI)
-Steg 2 (jaestanksjustering):    20s timeout (kan anropa AI)
-Steg 3 (glykolkylare):          20s timeout
+10:50:11 booted (time: 29ms)
+10:50:11 booted (time: 28ms)
+=> 4 decision logs vid 10:50
 ```
 
-- Om ett steg timeout:ar loggas det som error men naesta steg koers aendaa
-- Lagg till `signal` parameter i `runStep`-funktionens fetch-anrop
+Detta kan leda till:
+- Dubbla RAPT API-anrop (target setts tva ganger)
+- Inkonsistent data mellan parallella korningar
+- Onodiga AI-anrop (och kostnader)
 
-### 4. Faersk data i glycol-steget
-Se till att steg 3 (Glykolkylare) anvaender uppdaterade `target_temp`-vaerden fraan steg 2.
+### Fix
+Andra triggern fran `FOR EACH ROW` till `FOR EACH STATEMENT` sa att orchestratorn bara kors **en gang** per sync-batch, oavsett hur manga controllers som uppdateras.
 
-- `run-automation`: Faanga returvaerdet fraan steg 2 (`tankResult`)
-- Skicka med `tankAdjustments` i request body till steg 3
-- `auto-adjust-cooling` glycol-cooler: Oeverskirv `target_temp` i `followedControllersFullData` med vaerden fraan `tankAdjustments` innan berakning av laegsta target
+```sql
+DROP TRIGGER IF EXISTS automation_on_rapt_update ON rapt_temp_controllers;
 
-### 5. Glykolkylare aaterhaemtning
-Gradvis hoejning av kylaren tillbaka mot baseline naer inget aktivt kylbehov finns.
+CREATE TRIGGER automation_on_rapt_update
+  AFTER UPDATE ON rapt_temp_controllers
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION trigger_automation_on_rapt_update();
+```
 
-- I glycol-cooler `else`-grenen (naer controllern INTE aktivt kyler):
-  - Beraekna idealt maaltarget: `lowestTargetTemp - temp_reduction_degrees`
-  - Om nuvarande cooler target aer laegre aen idealt, hoej stegvis (t.ex. halva skillnaden)
-  - **Begransas av kylarkontrollerns `min_target_temp` / `max_target_temp`**
-  - Logga som `COOLING_RECOVERY`
+Notera: `WHEN`-villkoret (old.last_update IS DISTINCT FROM new.last_update) stods inte med `FOR EACH STATEMENT`, men det behovs inte -- om inget andrats gors inget UPDATE alls.
 
-## Teknisk sammanfattning
+## Forbattringsforslag
 
-| Aendring | Fil | Typ |
+### 1. Stall-boost utan undo-mekanism
+Nar stall detection hojer temperaturen (t.ex. +1 grader) finns ingen automatisk aterstallning nar jasningen aterupptas. Overshoot har recovery, men stall saknar det.
+
+**Forslag**: Lagg till stall recovery-logik liknande overshoot recovery. Om jasningshastigheten atervander till normal (> threshold * 2 under 12h) och temperaturen hojts av stall, overag att sanka tillbaka.
+
+**Bedomning**: Inte kritiskt -- stall-boost ar ofta onskad permanent. Kan implementeras senare om det visar sig behovas.
+
+### 2. AI-optimering
+Varje tank med stall/overshoot gor ett separat AI-anrop. Med 3 tankar kan det bli 3+ AI-anrop per cykel.
+
+**Forslag**: Batcha alla tankar i ett enda AI-anrop med kontext for alla. Minskar latens och kostnad.
+
+**Bedomning**: Bra optimering men inte kritiskt. Nuvarande totaltid ar ~15s vilket ar inom budget.
+
+### 3. Cooling recovery kan oscillera
+Glykolkylaren hojer gradvis (halva gapet) nar kylbehovet minskar. Om tanken sedan borjar kyla igen i nasta cykel, sanks kylaren, sedan hojs den igen, osv.
+
+**Nuvarande skydd**: Check interval (t.ex. 60 min) forhindrar for snabba sankning. Men recovery sker varje cykel (var 5 min) utan interval-skydd.
+
+**Forslag**: Lagg till en minsta tid sedan senaste cooling recovery (t.ex. 30 min) for att undvika oscillation.
+
+### 4. Decision log storlek
+Varje korning sparar hela decision log som JSONB. Med dubbla korningar och detaljerad loggning vaxer tabellen snabbt.
+
+**Forslag**: Lagg till automatisk rensning (t.ex. behall senaste 7 dagars loggar via cron).
+
+## Befintliga styrkor (ingen andring behovs)
+
+- Prioriteringsordning (Stall > Overshoot > Cooling) ar korrekt
+- Min/max per controller som absolut sakerhet fungerar val
+- 30-min cooloff efter fermenteringsprofilsjustering ar bra
+- adjusted_against_timestamp forhindrar dubbeljustering pa samma data
+- Timeout-skydd per steg i orchestratorn ar robust
+- Overshoot recovery (aterstallning till original_target) ar val implementerat
+- Cooling floor (forhindrar att overshoot-prevention triggar kylning) ar kritiskt och korrekt
+
+## Rekommenderad prioritering
+
+| Prioritet | Andring | Komplexitet |
 |---|---|---|
-| Overshoot recovery | `auto-adjust-cooling/index.ts` | ~30 rader ny logik i overshoot-sektionen |
-| Min/max som saekerhet | Redan implementerat | Ingen aendring |
-| Timeout-skydd | `run-automation/index.ts` | ~10 rader (AbortSignal + signal i fetch) |
-| Faersk data glycol | `run-automation/index.ts` + `auto-adjust-cooling/index.ts` | ~20 rader |
-| Glycol recovery | `auto-adjust-cooling/index.ts` | ~25 rader i glycol-cooler-sektionen |
-
-**Totalt**: 0 databasmigrationer, 2 edge functions uppdaterade, inga UI-aendringar.
+| 1 (Kritiskt) | Fixa FOR EACH ROW → FOR EACH STATEMENT | En migration |
+| 2 (Bra att ha) | Cooling recovery interval-skydd | ~10 rader |
+| 3 (Nice to have) | Decision log rensning | En cron-migration |
+| 4 (Framtida) | Stall recovery | ~30 rader |
+| 5 (Framtida) | AI-batchning | Storre refaktor |
 
