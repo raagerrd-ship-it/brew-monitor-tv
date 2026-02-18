@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       auto_cooling_adjustments: {
         Row: {
+          adjusted_against_timestamp: string | null
           cooler_controller_id: string
           cooler_controller_name: string
           created_at: string
@@ -32,6 +33,7 @@ export type Database = {
           reason: string
         }
         Insert: {
+          adjusted_against_timestamp?: string | null
           cooler_controller_id: string
           cooler_controller_name: string
           created_at?: string
@@ -48,6 +50,7 @@ export type Database = {
           reason: string
         }
         Update: {
+          adjusted_against_timestamp?: string | null
           cooler_controller_id?: string
           cooler_controller_name?: string
           created_at?: string

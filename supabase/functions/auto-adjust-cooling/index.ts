@@ -35,6 +35,7 @@ interface TempController {
   cooling_hysteresis: number | null;
   min_target_temp: number | null;
   max_target_temp: number | null;
+  last_update: string | null;
 }
 
 interface FollowedController {
@@ -212,6 +213,21 @@ serve(async (req) => {
       return parseFloat(parseFloat(String(v)).toFixed(1));
     };
 
+    // Build map of last adjusted_against_timestamp per controller
+    const lastAdjTimestampMap = new Map<string, string>();
+    for (const fc of followedControllersFullData) {
+      const { data: lastAdj } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('adjusted_against_timestamp')
+        .eq('cooler_controller_id', fc.controller_id)
+        .not('adjusted_against_timestamp', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (lastAdj?.[0]?.adjusted_against_timestamp) {
+        lastAdjTimestampMap.set(fc.controller_id, lastAdj[0].adjusted_against_timestamp);
+      }
+    }
+
     followedControllersFullData.forEach(controller => {
       const pillTemp = round1(controller.pill_temp);
       const currentTemp = round1(controller.current_temp ?? controller.pill_temp) ?? 0;
@@ -223,6 +239,7 @@ serve(async (req) => {
       
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
         original_target: originalTarget,
+        last_update: controller.last_update,
         target_temp: targetTemp,
         current_temp: currentTemp,
         pill_temp: pillTemp,
@@ -275,6 +292,13 @@ serve(async (req) => {
         if (!canRunOvershoot) break; // Skip all controllers during cooldown
         if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
         if (fc.target_temp === null || fc.target_temp === undefined) continue;
+
+        // Skip if controller data hasn't changed since last adjustment
+        const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
+        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
+          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`);
+          continue;
+        }
 
         // PRIORITY CHECK: If stall detection recently acted on this controller (last 24h),
         // skip overshoot to avoid counteracting stall boost. Stall is prio 1.
@@ -443,7 +467,8 @@ serve(async (req) => {
                       followed_controller_name: fc.name,
                       followed_current_temp: ctrlTemp,
                       followed_target_temp: originalTarget,
-                      reason: `🌡️ Overshoot: ${rec.reasoning} (${rec.confidence}% säker)`
+                      reason: `🌡️ Overshoot: ${rec.reasoning} (${rec.confidence}% säker)`,
+                      adjusted_against_timestamp: fc.last_update
                     } as any);
                   } else {
                     log('OVERSHOOT_ACTION', 'fail', `Failed to update ${fc.name}`);
@@ -476,7 +501,8 @@ serve(async (req) => {
                       followed_controller_name: fc.name,
                       followed_current_temp: ctrlTemp,
                       followed_target_temp: originalTarget,
-                      reason: `🌡️ Overshoot fallback: pill ${pillTemp.toFixed(1)}° > original mål ${originalTarget}°C, sänker temporärt`
+                      reason: `🌡️ Overshoot fallback: pill ${pillTemp.toFixed(1)}° > original mål ${originalTarget}°C, sänker temporärt`,
+                      adjusted_against_timestamp: fc.last_update
                     } as any);
                   }
                 }
@@ -498,6 +524,13 @@ serve(async (req) => {
       log('STALL', 'info', '--- Fermentation stall detection check ---');
 
       for (const fc of followedControllersFullData) {
+        // Skip if controller data hasn't changed since last adjustment
+        const lastAdjTsStall = lastAdjTimestampMap.get(fc.controller_id);
+        if (lastAdjTsStall && fc.last_update && lastAdjTsStall === fc.last_update) {
+          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över (stall)`);
+          continue;
+        }
+
         const { data: linkedBrews } = await supabase
           .from('brew_readings')
           .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
@@ -677,7 +710,8 @@ serve(async (req) => {
                       followed_controller_name: fc.name,
                       followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
                       followed_target_temp: currentTarget,
-                      reason: `🧠 AI: ${rec.reasoning} (${rec.confidence}% säker)`
+                      reason: `🧠 AI: ${rec.reasoning} (${rec.confidence}% säker)`,
+                      adjusted_against_timestamp: fc.last_update
                     } as any);
                   } else {
                     log('AI_BOOST', 'fail', `Failed to update ${fc.name}`);
@@ -718,7 +752,8 @@ serve(async (req) => {
                     followed_controller_name: fc.name,
                     followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
                     followed_target_temp: currentTarget,
-                    reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — fallback +${boostDegrees}°C`
+                    reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — fallback +${boostDegrees}°C`,
+                    adjusted_against_timestamp: fc.last_update
                   } as any);
                 }
               }
@@ -746,7 +781,8 @@ serve(async (req) => {
                   followed_controller_name: fc.name,
                   followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
                   followed_target_temp: currentTarget,
-                  reason: `Jäsning stannat — AI ej tillgänglig, fallback +${boostDegrees}°C`
+                  reason: `Jäsning stannat — AI ej tillgänglig, fallback +${boostDegrees}°C`,
+                  adjusted_against_timestamp: fc.last_update
                 } as any);
               }
             }
