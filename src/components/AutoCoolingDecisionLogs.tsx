@@ -143,7 +143,7 @@ export function AutoCoolingDecisionLogs() {
       
       // Only add decision logs that don't have a matching adjustment within 10 seconds
       // Also filter out noisy "Not actively cooling" entries
-      const filteredResults = new Set(['Not actively cooling', 'Not sustained cooling']);
+      const filteredResults = new Set(['Not actively cooling', 'Not sustained cooling', 'Lowest not cooling']);
       for (const de of decisionEntries) {
         const log = de.data as DecisionLog;
         if (filteredResults.has(log.final_result)) continue;
