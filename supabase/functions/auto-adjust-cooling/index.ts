@@ -212,6 +212,9 @@ serve(async (req) => {
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
+    // Track which controllers stall detection has acted on (stall is prio 1, overshoot must not counteract)
+    const stallActiveControllerIds = new Set<string>();
+
     // ====================================================================
     // FEATURE 1: OVERSHOOT PREVENTION (independent toggle)
     // ====================================================================
@@ -250,6 +253,22 @@ serve(async (req) => {
         if (!canRunOvershoot) break; // Skip all controllers during cooldown
         if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
         if (fc.target_temp === null || fc.target_temp === undefined) continue;
+
+        // PRIORITY CHECK: If stall detection recently acted on this controller (last 24h),
+        // skip overshoot to avoid counteracting stall boost. Stall is prio 1.
+        const { data: recentStallAdj } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('id, created_at')
+          .eq('cooler_controller_id', fc.controller_id)
+          .like('reason', '🧠%')
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (recentStallAdj && recentStallAdj.length > 0) {
+          log('OVERSHOOT_SKIP_STALL', 'info', `Skipping overshoot for ${fc.name}: stall detection active (last stall action ${recentStallAdj[0].created_at})`);
+          continue;
+        }
 
         const pillTemp = parseFloat(String(fc.pill_temp));
         const ctrlTemp = parseFloat(String(fc.current_temp));
