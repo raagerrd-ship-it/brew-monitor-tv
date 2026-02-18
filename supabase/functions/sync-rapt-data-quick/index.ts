@@ -265,12 +265,30 @@ serve(async (req) => {
       console.error('Error syncing custom brews:', customBrewSyncError);
     }
 
+    // Run automation orchestrator (fermentation profiles → stall/overshoot → glycol cooler)
+    // This runs ONCE after all data is synced — no trigger cascades
+    let automationResult = null;
+    try {
+      console.log('Running automation orchestrator...');
+      const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
+      
+      if (autoError) {
+        console.error('Error running automation:', autoError);
+      } else {
+        automationResult = autoResult;
+        console.log('Automation complete:', JSON.stringify(autoResult));
+      }
+    } catch (automationError) {
+      console.error('Error running automation:', automationError);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         pillsUpdated,
         controllersUpdated,
-        customBrewsUpdated
+        customBrewsUpdated,
+        automation: automationResult
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

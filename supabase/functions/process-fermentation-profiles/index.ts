@@ -111,22 +111,6 @@ async function calculateCompensatedTarget(
   currentControllerTarget: number,
   controllerName: string
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
-  // Cooldown: skip if a pill-compensation adjustment was made in the last 4 minutes
-  // This prevents cascading when our own target_temp update triggers another automation cycle
-  const cooldownAgo = new Date(Date.now() - 4 * 60 * 1000).toISOString()
-  const { data: recentComp } = await supabase
-    .from('auto_cooling_adjustments')
-    .select('id, created_at')
-    .eq('cooler_controller_id', controllerId)
-    .gte('created_at', cooldownAgo)
-    .like('reason', '🎯%')
-    .limit(1)
-
-  if (recentComp && recentComp.length > 0) {
-    console.log(`🎯 Pill-kompensation cooldown för ${controllerName}: senaste justering ${recentComp[0].created_at}, väntar`)
-    return null
-  }
-
   // Fetch last 3 delta measurements
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
