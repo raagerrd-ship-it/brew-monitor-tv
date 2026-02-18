@@ -342,6 +342,11 @@ Deno.serve(async (req) => {
           const compensation = pillCompEnabled ? await calculateCompensatedTarget(
             supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
           ) : null
+
+          // If pill-comp is enabled but returned null, the target is already correctly compensated — skip enforce
+          if (pillCompEnabled && !compensation) {
+            console.log(`Step ${session.current_step_index} (${currentStep.step_type}): pill-komp aktiv men redan nära mål (${controller.target_temp}°C), skippar enforce`)
+          } else {
           const targetToEnforce = compensation ? compensation.compensatedTarget : effectiveTarget
 
           if (controller.target_temp < targetToEnforce - 0.2) {
@@ -425,6 +430,7 @@ Deno.serve(async (req) => {
                 })
             }
           }
+          } // end else (pill-comp not skipping)
         }
       }
 
