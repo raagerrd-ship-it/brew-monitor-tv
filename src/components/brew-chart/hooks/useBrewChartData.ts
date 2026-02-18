@@ -31,6 +31,12 @@ interface UseBrewChartDataReturn {
   isLoading: boolean;
 }
 
+// Profile target timeline entry
+interface ProfileTargetPoint {
+  timestamp: number;
+  target: number;
+}
+
 export function useBrewChartData({
   data,
   controllerId,
@@ -38,7 +44,7 @@ export function useBrewChartData({
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [originalTargetTemp, setOriginalTargetTemp] = useState<number | null>(null);
+  const [profileTargets, setProfileTargets] = useState<ProfileTargetPoint[]>([]);
   const { isTvMode } = useTvMode();
   
   // Use ref to track if we've already fetched for this controller/data combo
@@ -56,6 +62,7 @@ export function useBrewChartData({
       if (controllerTempData.length > 0) {
         setControllerTempData([]);
       }
+      setProfileTargets([]);
       return;
     }
 
@@ -99,22 +106,96 @@ export function useBrewChartData({
           setControllerTempData(allRows);
         }
 
-        // Fetch original target from auto_cooling_adjustments
-        const { data: adjData } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('original_target_temp')
-          .or(`followed_controller_id.eq.${controllerId},cooler_controller_id.eq.${controllerId}`)
-          .not('original_target_temp', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (adjData?.[0]?.original_target_temp != null) {
-          setOriginalTargetTemp(adjData[0].original_target_temp);
-        } else {
-          setOriginalTargetTemp(null);
-        }
+        // Fetch fermentation session + profile steps to build profile target timeline
+        await fetchProfileTargetTimeline(controllerId);
       } finally {
         setIsLoading(false);
+      }
+    };
+
+    const fetchProfileTargetTimeline = async (ctrlId: string) => {
+      try {
+        // Find active/recent fermentation session for this controller
+        const { data: sessions } = await supabase
+          .from('fermentation_sessions')
+          .select('id, profile_id, started_at, current_step_index')
+          .eq('controller_id', ctrlId)
+          .in('status', ['running', 'completed', 'paused'])
+          .order('started_at', { ascending: false })
+          .limit(1);
+
+        if (!sessions?.[0]) {
+          setProfileTargets([]);
+          return;
+        }
+
+        const session = sessions[0];
+
+        // Fetch profile steps and step start logs in parallel
+        const [stepsResult, stepStartsResult] = await Promise.all([
+          supabase
+            .from('fermentation_profile_steps')
+            .select('step_order, step_type, target_temp, duration_hours')
+            .eq('profile_id', session.profile_id)
+            .order('step_order', { ascending: true }),
+          supabase
+            .from('fermentation_step_log')
+            .select('step_index, created_at')
+            .eq('session_id', session.id)
+            .eq('action', 'started')
+            .order('created_at', { ascending: true }),
+        ]);
+
+        const steps = stepsResult.data;
+        const stepStarts = stepStartsResult.data;
+        if (!steps || steps.length === 0) {
+          setProfileTargets([]);
+          return;
+        }
+
+        // Build step start time map (first 'started' entry per step)
+        const stepStartMap: Record<number, number> = {};
+        stepStartMap[0] = new Date(session.started_at).getTime();
+        if (stepStarts) {
+          for (const log of stepStarts) {
+            if (!(log.step_index in stepStartMap)) {
+              stepStartMap[log.step_index] = new Date(log.created_at).getTime();
+            }
+          }
+        }
+
+        // Build profile target timeline
+        const timeline: ProfileTargetPoint[] = [];
+        let lastTarget: number | null = null;
+
+        for (const step of steps) {
+          const startTime = stepStartMap[step.step_order];
+          if (!startTime) break; // step hasn't started yet
+
+          const stepTarget = step.target_temp ?? lastTarget;
+
+          if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
+            // Ramp: generate intermediate points (every 30 min)
+            const durationMs = step.duration_hours * 3600 * 1000;
+            const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
+            for (let i = 0; i <= numPoints; i++) {
+              const t = i / numPoints;
+              const ts = startTime + t * durationMs;
+              const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
+              timeline.push({ timestamp: ts, target });
+            }
+          } else if (stepTarget !== null) {
+            // Hold/wait: flat line at target
+            timeline.push({ timestamp: startTime, target: stepTarget });
+          }
+
+          if (stepTarget !== null) lastTarget = stepTarget;
+        }
+
+        setProfileTargets(timeline);
+      } catch (err) {
+        console.error("Error fetching profile target timeline:", err);
+        setProfileTargets([]);
       }
     };
 
@@ -144,17 +225,28 @@ export function useBrewChartData({
     const dataWithControllerTemp = mergeWithControllerTemp(sourceData, controllerDataSampled);
     const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
     const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
-    
-    // Override targetTemp with original base target if available (show "Mål" not "Auto")
-    const finalData = originalTargetTemp !== null
-      ? smoothedData.map(point => ({
-          ...point,
-          targetTemp: point.controllerTemp !== null ? originalTargetTemp : null,
-        }))
-      : smoothedData;
-    
-    return addTimestamps(finalData);
-  }, [data, controllerTempData, smoothLines, isTvMode, originalTargetTemp]);
+    const withTimestamps = addTimestamps(smoothedData);
+
+    // Override targetTemp with fermentation profile targets if available
+    if (profileTargets.length > 0) {
+      return withTimestamps.map(point => {
+        if (point.controllerTemp == null) return point;
+
+        // Binary search for the nearest preceding profile target
+        let profileTarget: number | null = null;
+        for (let i = profileTargets.length - 1; i >= 0; i--) {
+          if (profileTargets[i].timestamp <= point.timestamp) {
+            profileTarget = profileTargets[i].target;
+            break;
+          }
+        }
+
+        return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
+      });
+    }
+
+    return withTimestamps;
+  }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
 
