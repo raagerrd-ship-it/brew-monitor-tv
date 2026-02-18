@@ -274,7 +274,7 @@ serve(async (req) => {
         // ALL controllers with running sessions are profile-owned
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
-          log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall/overshoot skippad`);
+          log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall skippad, overshoot tillåts`);
         }
 
         const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -697,10 +697,6 @@ serve(async (req) => {
           continue;
         }
 
-        if (profileOwnedControllerIds.has(fc.controller_id)) {
-          log('OVERSHOOT_PROFILE_SKIP', 'info', `Hoppar över overshoot för ${fc.name}: aktiv fermenteringsprofil äger temperaturen`);
-          continue;
-        }
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('OVERSHOOT_COOLOFF', 'info', `Hoppar över overshoot för ${fc.name}: 30min cooloff efter fermenteringsprofilsjustering`);
           continue;
