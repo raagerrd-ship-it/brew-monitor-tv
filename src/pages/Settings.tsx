@@ -439,8 +439,8 @@ export default function Settings() {
         setAutoBoostDegrees(((data as any).auto_boost_degrees ?? 1).toString());
         setStallRateThreshold(((data as any).stall_rate_threshold ?? 0.001).toString());
         setOvershootEnabled((data as any).overshoot_prevention_enabled ?? true);
-        setOvershootPillThreshold(((data as any).overshoot_pill_threshold ?? 0.3).toString());
-        setOvershootDeltaThreshold(((data as any).overshoot_delta_threshold ?? 2.0).toString());
+        setOvershootPillThreshold(parseFloat(String((data as any).overshoot_pill_threshold ?? 0.3)).toFixed(1));
+        setOvershootDeltaThreshold(parseFloat(String((data as any).overshoot_delta_threshold ?? 2.0)).toFixed(1));
       }
 
       // Load followed controllers
