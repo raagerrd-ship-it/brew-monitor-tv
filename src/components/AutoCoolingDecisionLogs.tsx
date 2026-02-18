@@ -116,9 +116,8 @@ export function AutoCoolingDecisionLogs() {
         supabase
           .from('auto_cooling_decision_logs')
           .select('*')
-          .eq('adjustment_made', true)
           .order('created_at', { ascending: false })
-          .limit(15),
+          .limit(30),
         supabase
           .from('auto_cooling_adjustments')
           .select('*')
