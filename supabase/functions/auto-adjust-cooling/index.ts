@@ -360,10 +360,12 @@ serve(async (req) => {
                 // For lower_temp: use AI's suggestion
                 let newTarget: number;
                 if (rec.action === 'pause_heating') {
-                  newTarget = Math.round(ctrlTemp * 2) / 2; // Round to nearest 0.5
+                  // Set target = ctrl temp (rounded to 0.1°C) — smallest possible change to stop heating
+                  newTarget = Math.round(ctrlTemp * 10) / 10;
                   log('OVERSHOOT_PAUSE', 'info', `Pause heating: target → ctrl temp ${newTarget}°C (ctrl=${ctrlTemp.toFixed(1)}°C)`);
                 } else {
-                  newTarget = rec.newTargetTemp ?? (targetTemp - rec.degrees);
+                  // For lower_temp: use AI suggestion but ensure minimal change
+                  newTarget = rec.newTargetTemp ?? (targetTemp - Math.min(rec.degrees, 1.0)); // Cap at max 1°C step
                 }
 
                 // CRITICAL: Overshoot prevention must NEVER raise the target above current
@@ -407,7 +409,7 @@ serve(async (req) => {
               log('OVERSHOOT_AI', 'fail', 'AI unavailable for overshoot, using simple fallback');
               if (pillTemp > targetTemp + 1.0) {
                 // Fallback: set to controller temp (pause heating without starting cooling)
-                const fallbackTarget = Math.min(Math.round(ctrlTemp * 2) / 2, targetTemp); // Never raise
+                const fallbackTarget = Math.min(Math.round(ctrlTemp * 10) / 10, targetTemp); // Never raise, 0.1° precision
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
                 if (fallbackTarget >= minTemp && Math.abs(fallbackTarget - targetTemp) >= 0.1) {
                   log('OVERSHOOT_FALLBACK', 'action', `Fallback: Lowering ${fc.name} from ${targetTemp}°C to ${fallbackTarget.toFixed(1)}°C`);
