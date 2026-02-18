@@ -34,22 +34,27 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     && pillTemp >= targetTemp + 0.3
     && (delta ?? 0) > 2.0;
 
-  // Fetch latest overshoot AI recommendation for this controller
+  // Fetch latest overshoot AI recommendation and original target for this controller
   const [overshootReason, setOvershootReason] = useState<string | null>(null);
+  const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   useEffect(() => {
     if (!controller?.controller_id) return;
     
     const fetchLatestOvershoot = async () => {
       const { data } = await supabase
         .from('auto_cooling_adjustments')
-        .select('reason, created_at')
+        .select('reason, created_at, original_target_temp')
         .or(`followed_controller_id.eq.${controller.controller_id},cooler_controller_id.eq.${controller.controller_id}`)
         .like('reason', '🌡️%')
         .order('created_at', { ascending: false })
         .limit(1);
       
       if (data && data.length > 0) {
-        // Only show if recent (within 6 hours)
+        // Show original target if it differs from current target
+        if (data[0].original_target_temp !== null && data[0].original_target_temp !== undefined) {
+          setOriginalTarget(data[0].original_target_temp);
+        }
+        // Only show reason if recent (within 6 hours)
         const age = Date.now() - new Date(data[0].created_at).getTime();
         if (age < 6 * 60 * 60 * 1000) {
           setOvershootReason(data[0].reason.replace('🌡️ ', ''));
@@ -88,9 +93,18 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     </svg>
   );
 
-  const label = controller && controller.target_temp !== null 
-    ? `Temp (${controller.target_temp.toFixed(1)}°)` 
-    : 'Temp';
+  // Show both targets if original differs from current (auto-adjusted)
+  const showBothTargets = originalTarget !== null && targetTemp !== null && targetTemp !== undefined
+    && Math.abs(originalTarget - targetTemp) >= 0.1;
+  
+  let label = 'Temp';
+  if (controller && controller.target_temp !== null) {
+    if (showBothTargets) {
+      label = `Temp (${controller.target_temp.toFixed(1)}° / ${originalTarget!.toFixed(1)}°)`;
+    } else {
+      label = `Temp (${controller.target_temp.toFixed(1)}°)`;
+    }
+  }
 
   // Build tooltip text showing temp source
   const tooltipParts: string[] = [];
@@ -171,9 +185,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     </TooltipProvider>
   ) : null;
 
-  // Combined sub-value with delta and overshoot
+  // Combined sub-value with delta and overshoot on the same row
   const subValueContent = (deltaIndicator || overshootIndicator) ? (
-    <div className="flex flex-col items-center gap-0.5">
+    <div className="flex items-center justify-center gap-1.5">
       {deltaIndicator}
       {overshootIndicator}
     </div>
