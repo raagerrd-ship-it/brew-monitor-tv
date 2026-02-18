@@ -66,9 +66,11 @@ serve(async (req) => {
 
   // Parse mode from request body: "all" | "tank-adjustments" | "glycol-cooler"
   let mode = "all";
+  let tankAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> | null = null;
   try {
     const body = await req.json();
     mode = body?.mode || "all";
+    tankAdjustments = body?.tankAdjustments || null;
   } catch { /* no body */ }
 
   const runTankAdjustments = mode === "all" || mode === "tank-adjustments";
@@ -835,6 +837,50 @@ serve(async (req) => {
             log('OVERSHOOT_AI', 'fail', `AI error: ${aiError instanceof Error ? aiError.message : 'Unknown'}`);
           }
         }
+
+        // ---- OVERSHOOT RECOVERY ----
+        // If pill has come back down and target was lowered by overshoot, restore to original
+        if (!stallActiveControllerIds.has(fc.controller_id) && !isHeatingOvershoot) {
+          const originalTarget = originalTargetMap.get(fc.controller_id);
+          if (originalTarget !== undefined && targetTemp < originalTarget) {
+            // Pill is below original + threshold → overshoot has subsided
+            if (pillTemp < originalTarget + overshootPillThreshold) {
+              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+              const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+              const recoveryTarget = Math.max(minTemp, Math.min(maxTemp, originalTarget));
+
+              if (Math.abs(recoveryTarget - targetTemp) >= 0.1) {
+                log('OVERSHOOT_RECOVERY', 'action', `Restoring ${fc.name} from ${targetTemp}°C back to original ${recoveryTarget}°C (pill=${pillTemp.toFixed(1)}°C)`);
+
+                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
+                });
+
+                if (!updateResponse.error) {
+                  log('OVERSHOOT_RECOVERY', 'pass', `Restored ${fc.name} to ${recoveryTarget}°C`);
+                  allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: recoveryTarget });
+
+                  await supabase.from('auto_cooling_adjustments').insert({
+                    cooler_controller_id: fc.controller_id,
+                    cooler_controller_name: fc.name,
+                    old_target_temp: targetTemp,
+                    new_target_temp: recoveryTarget,
+                    original_target_temp: originalTarget,
+                    lowest_followed_temp: originalTarget,
+                    followed_controller_id: fc.controller_id,
+                    followed_controller_name: fc.name,
+                    followed_current_temp: ctrlTemp,
+                    followed_target_temp: originalTarget,
+                    reason: `🔄 Overshoot recovery: pill ${pillTemp.toFixed(1)}°C tillbaka under ${(originalTarget + overshootPillThreshold).toFixed(1)}°C, återställer mål`,
+                    adjusted_against_timestamp: fc.last_update
+                  } as any);
+                } else {
+                  log('OVERSHOOT_RECOVERY', 'fail', `Failed to restore ${fc.name}`);
+                }
+              }
+            }
+          }
+        }
       }
     } else {
       log('OVERSHOOT', 'info', 'Overshoot prevention disabled');
@@ -905,6 +951,17 @@ serve(async (req) => {
             }
           } else {
             log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`);
+
+            // Apply fresh tankAdjustments from orchestrator (step 2 may have changed targets)
+            if (tankAdjustments && tankAdjustments.length > 0) {
+              for (const adj of tankAdjustments) {
+                const match = followedControllersFullData.find(c => c.name === adj.cooler);
+                if (match) {
+                  log('TANK_ADJ_APPLY', 'info', `Applying fresh target from step 2: ${match.name} ${match.target_temp}→${adj.newTarget}°C`);
+                  (match as any).target_temp = adj.newTarget;
+                }
+              }
+            }
 
             // Find the controller with the lowest target temperature AMONG those with cooling enabled
             const lowestTempController = controllersWithCooling.reduce((lowest, current) => {
@@ -1150,9 +1207,46 @@ serve(async (req) => {
                 }
               }
             } else {
-              // Not actively cooling - reset timer
+              // Not actively cooling - check if cooler can recover (raise back toward baseline)
               await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
               log('TIMER', 'info', 'Reset timer - not actively cooling');
+
+              const idealTarget = lowestTargetTemp - parseFloat(String(settings.temp_reduction_degrees));
+              const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
+              const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
+
+              if (currentCoolerTarget < idealTarget - 0.2) {
+                // Raise gradually: half the gap
+                const gap = idealTarget - currentCoolerTarget;
+                let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
+                recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
+
+                if (recoveryTarget > currentCoolerTarget + 0.1) {
+                  log('COOLING_RECOVERY', 'action', `Raising cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
+
+                  const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
+                    body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
+                  });
+
+                  if (!updateResponse.error) {
+                    log('COOLING_RECOVERY', 'pass', `Raised cooler to ${recoveryTarget}°C`);
+                    allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget });
+
+                    await supabase.from('auto_cooling_adjustments').insert({
+                      cooler_controller_id: coolerController.controller_id,
+                      cooler_controller_name: coolerController.name,
+                      old_target_temp: currentCoolerTarget,
+                      new_target_temp: recoveryTarget,
+                      lowest_followed_temp: lowestTargetTemp,
+                      followed_controller_id: lowestTempController.controller_id,
+                      followed_controller_name: lowestTempController.name,
+                      followed_current_temp: lowestCurrentTemp,
+                      followed_target_temp: lowestTargetTemp,
+                      reason: `🔄 Cooling recovery: kylbehov minskat, höjer mot ideal ${idealTarget.toFixed(1)}°C`
+                    } as any);
+                  }
+                }
+              }
             }
           }
         }

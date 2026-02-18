@@ -17,8 +17,13 @@ Deno.serve(async (req) => {
 
   const results: { step: string; status: string; duration_ms: number; error?: string; details?: any }[] = [];
 
-  // Helper to call an edge function and wait for completion
-  async function runStep(name: string, functionName: string, body: Record<string, unknown> = {}) {
+  // Helper to call an edge function with timeout protection
+  async function runStep(
+    name: string,
+    functionName: string,
+    body: Record<string, unknown> = {},
+    timeoutMs: number = 20000
+  ) {
     const stepStart = Date.now();
     try {
       const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
@@ -28,6 +33,7 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       const duration_ms = Date.now() - stepStart;
@@ -43,7 +49,13 @@ Deno.serve(async (req) => {
       return data;
     } catch (err) {
       const duration_ms = Date.now() - stepStart;
-      results.push({ step: name, status: "error", duration_ms, error: String(err) });
+      const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+      results.push({
+        step: name,
+        status: isTimeout ? "timeout" : "error",
+        duration_ms,
+        error: isTimeout ? `Timeout after ${timeoutMs}ms` : String(err),
+      });
       return null;
     }
   }
@@ -59,33 +71,37 @@ Deno.serve(async (req) => {
   const hasCooling = settings?.enabled;
 
   // ============================================================
-  // STEP 1: Fermentation Profiles (wait until complete)
-  // If it adjusted a tank, that tank gets 30-min cooloff
+  // STEP 1: Fermentation Profiles (15s timeout, no AI)
   // ============================================================
   if (runningSessions && runningSessions.length > 0) {
     console.log("Step 1: Running fermentation profiles...");
-    await runStep("fermentation-profiles", "process-fermentation-profiles");
+    await runStep("fermentation-profiles", "process-fermentation-profiles", {}, 15000);
   } else {
     results.push({ step: "fermentation-profiles", status: "skipped", duration_ms: 0 });
   }
 
   // ============================================================
-  // STEP 2: Tank adjustments - Stall & Overshoot (wait until complete)
-  // auto-adjust-cooling checks fermentation_step_log for 30-min cooloff
+  // STEP 2: Tank adjustments - Stall & Overshoot (20s timeout)
+  // Capture result to pass fresh data to step 3
   // ============================================================
+  let tankResult: any = null;
   if (hasStallOrOvershoot) {
     console.log("Step 2: Running tank adjustments (stall/overshoot)...");
-    await runStep("tank-adjustments", "auto-adjust-cooling", { mode: "tank-adjustments" });
+    tankResult = await runStep("tank-adjustments", "auto-adjust-cooling", { mode: "tank-adjustments" }, 20000);
   } else {
     results.push({ step: "tank-adjustments", status: "skipped", duration_ms: 0 });
   }
 
   // ============================================================
-  // STEP 3: Glycol cooler - uses fresh values from steps 1 & 2
+  // STEP 3: Glycol cooler - pass fresh adjustments from step 2
   // ============================================================
   if (hasCooling) {
     console.log("Step 3: Running glycol cooler regulation...");
-    await runStep("glycol-cooler", "auto-adjust-cooling", { mode: "glycol-cooler" });
+    const glycolBody: Record<string, unknown> = { mode: "glycol-cooler" };
+    if (tankResult?.adjustments && tankResult.adjustments.length > 0) {
+      glycolBody.tankAdjustments = tankResult.adjustments;
+    }
+    await runStep("glycol-cooler", "auto-adjust-cooling", glycolBody, 20000);
   } else {
     results.push({ step: "glycol-cooler", status: "skipped", duration_ms: 0 });
   }
