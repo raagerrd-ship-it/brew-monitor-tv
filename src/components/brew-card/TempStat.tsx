@@ -32,8 +32,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const isOvershoot = !isInactive && targetTemp !== null && targetTemp !== undefined
     && ctrlTemp !== null && ctrlTemp !== undefined
     && pillTemp >= targetTemp + 0.3
-    && ctrlTemp < targetTemp - 0.2
-    && (delta ?? 0) > 0.5;
+    && (delta ?? 0) > 2.0;
 
   // Fetch latest overshoot AI recommendation for this controller
   const [overshootReason, setOvershootReason] = useState<string | null>(null);
