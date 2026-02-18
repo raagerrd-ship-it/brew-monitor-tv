@@ -217,11 +217,37 @@ serve(async (req) => {
     // ====================================================================
     if (overshootEnabled) {
       log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
+
+      // Cooldown: skip overshoot check if last overshoot adjustment was < 10 minutes ago
+      const OVERSHOOT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+      const { data: lastOvershootAdj } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('created_at')
+        .like('reason', '🌡️%')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (lastOvershootAdj && lastOvershootAdj.length > 0) {
+        const timeSinceLastAdj = Date.now() - new Date(lastOvershootAdj[0].created_at).getTime();
+        if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
+          const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
+          log('OVERSHOOT_COOLDOWN', 'info', `Cooldown active: ${remainingMin}min remaining since last overshoot adjustment`);
+          // Skip entire overshoot block
+        }
+      }
+
+      const canRunOvershoot = !lastOvershootAdj || lastOvershootAdj.length === 0 || 
+        (Date.now() - new Date(lastOvershootAdj[0].created_at).getTime()) >= OVERSHOOT_COOLDOWN_MS;
+
+      if (!canRunOvershoot) {
+        log('OVERSHOOT', 'info', 'Skipping overshoot check due to cooldown');
+      }
       
       const overshootPillThreshold = parseFloat(String(settings.overshoot_pill_threshold ?? 0.3));
       const overshootDeltaThreshold = parseFloat(String(settings.overshoot_delta_threshold ?? 2.0));
 
       for (const fc of followedControllersFullData) {
+        if (!canRunOvershoot) break; // Skip all controllers during cooldown
         if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
         if (fc.target_temp === null || fc.target_temp === undefined) continue;
 
@@ -325,13 +351,27 @@ serve(async (req) => {
                 newTargetTemp: rec.newTargetTemp
               });
 
-              if ((rec.action === 'pause_heating' || rec.action === 'lower_temp') && rec.newTargetTemp !== null && rec.confidence >= 50) {
-                const newTarget = rec.newTargetTemp;
+              if ((rec.action === 'pause_heating' || rec.action === 'lower_temp') && rec.confidence >= 50) {
                 const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
 
-                if (newTarget >= minTemp && newTarget <= maxTemp) {
-                  log('OVERSHOOT_ACTION', 'action', `AI: Lowering ${fc.name} from ${targetTemp}°C to ${newTarget}°C to prevent overshoot`);
+                // For pause_heating: set target = controller current temp (equilibrium)
+                // This stops heating WITHOUT starting cooling
+                // For lower_temp: use AI's suggestion
+                let newTarget: number;
+                if (rec.action === 'pause_heating') {
+                  newTarget = Math.round(ctrlTemp * 2) / 2; // Round to nearest 0.5
+                  log('OVERSHOOT_PAUSE', 'info', `Pause heating: target → ctrl temp ${newTarget}°C (ctrl=${ctrlTemp.toFixed(1)}°C)`);
+                } else {
+                  newTarget = rec.newTargetTemp ?? (targetTemp - rec.degrees);
+                }
+
+                newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
+
+                if (Math.abs(newTarget - targetTemp) < 0.1) {
+                  log('OVERSHOOT_SKIP', 'info', `Target already at ${targetTemp}°C, no change needed`);
+                } else {
+                  log('OVERSHOOT_ACTION', 'action', `AI: Setting ${fc.name} from ${targetTemp}°C → ${newTarget}°C`);
 
                   const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
                     body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
@@ -363,7 +403,8 @@ serve(async (req) => {
             } else {
               log('OVERSHOOT_AI', 'fail', 'AI unavailable for overshoot, using simple fallback');
               if (pillTemp > targetTemp + 1.0) {
-                const fallbackTarget = pillTemp - 0.5;
+                // Fallback: set to controller temp (pause heating without starting cooling)
+                const fallbackTarget = Math.round(ctrlTemp * 2) / 2;
                 const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
                 if (fallbackTarget >= minTemp) {
                   log('OVERSHOOT_FALLBACK', 'action', `Fallback: Lowering ${fc.name} from ${targetTemp}°C to ${fallbackTarget.toFixed(1)}°C`);
