@@ -188,6 +188,32 @@ serve(async (req) => {
       });
     }
 
+    // Enrich controllers with pill_temp from linked brew's sg_data when controlDeviceTemperature is unavailable
+    for (const controller of followedControllersFullData) {
+      if (controller.pill_temp === null || controller.pill_temp === undefined || controller.pill_temp === 0) {
+        const { data: linkedBrews } = await supabase
+          .from('brew_readings')
+          .select('sg_data')
+          .eq('linked_controller_id', controller.controller_id)
+          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
+          .order('last_update', { ascending: false })
+          .limit(1);
+
+        const brew = linkedBrews?.[0];
+        if (brew) {
+          const sgData = brew.sg_data as Array<{ date: string; value: number; temp?: number }> | null;
+          if (sgData && sgData.length > 0) {
+            const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const latestTemp = sorted[0]?.temp;
+            if (latestTemp !== undefined && latestTemp !== null) {
+              controller.pill_temp = latestTemp;
+              log('PILL_TEMP_ENRICHED', 'pass', `Resolved pill_temp for ${controller.name} from brew sg_data: ${latestTemp.toFixed(1)}°`);
+            }
+          }
+        }
+      }
+    }
+
     // Log each followed controller's status
     followedControllersFullData.forEach(controller => {
       const pillTemp = controller.pill_temp !== null ? parseFloat(String(controller.pill_temp)) : null;
@@ -237,6 +263,8 @@ serve(async (req) => {
             .from('brew_readings')
             .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
             .eq('linked_controller_id', fc.controller_id)
+            .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
+            .order('last_update', { ascending: false })
             .limit(1);
 
           const brew = linkedBrews?.[0];
@@ -403,27 +431,39 @@ serve(async (req) => {
           .from('brew_readings')
           .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
           .eq('linked_controller_id', fc.controller_id)
+          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
+          .order('last_update', { ascending: false })
           .limit(1);
 
-        if (!linkedBrews || linkedBrews.length === 0) continue;
+        if (!linkedBrews || linkedBrews.length === 0) {
+          log('STALL_CHECK', 'info', `No active fermenting brew linked to ${fc.name}`);
+          continue;
+        }
         const brew = linkedBrews[0];
 
-        if (brew.status !== 'Jäser' && brew.status !== 'Fermenting') continue;
-
         const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
-        if (!sgData || sgData.length < 3) continue;
+        if (!sgData || sgData.length < 3) {
+          log('STALL_CHECK', 'info', `${brew.name}: Not enough SG data points (${sgData?.length ?? 0})`);
+          continue;
+        }
 
         const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         const nowMs = Date.now();
         const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
 
-        if (last24h.length < 2) continue;
+        if (last24h.length < 2) {
+          log('STALL_CHECK', 'info', `${brew.name}: Not enough data in last 24h (${last24h.length} points)`);
+          continue;
+        }
 
         const newest = last24h[0].value;
         const oldest = last24h[last24h.length - 1].value;
         const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
 
-        if (hoursSpan < 6) continue;
+        if (hoursSpan < 6) {
+          log('STALL_CHECK', 'info', `${brew.name}: Time span too short (${hoursSpan.toFixed(1)}h < 6h required)`);
+          continue;
+        }
 
         const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
         const sgToFg = brew.current_sg - brew.final_gravity;
