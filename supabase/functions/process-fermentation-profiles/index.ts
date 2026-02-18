@@ -102,15 +102,16 @@ function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: s
 }
 
 // Calculate pill-compensated target temperature
-// Uses the delta between pill (surface) and probe (core) to lower the controller target,
-// so the pill temperature lands closer to the profile's goal.
+// Targets the AVERAGE of pill (surface) and probe (core) to equal the profile goal.
+// Formula: compensatedTarget = profileTarget - avgDelta/2
+// This ensures (pill + ctrl) / 2 ≈ profileTarget
 async function calculateCompensatedTarget(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
   profileTarget: number,
   currentControllerTarget: number,
   controllerName: string,
-  dampingFactor: number = 0.4,
+  _dampingFactor: number = 0.5,
   maxChangePerCycle: number = 0.3
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   // Fetch last 3 delta measurements
@@ -133,11 +134,11 @@ async function calculateCompensatedTarget(
     return null
   }
 
-  const DAMPING_FACTOR = dampingFactor
   const MAX_CHANGE_PER_CYCLE = maxChangePerCycle
   const MAX_COMPENSATION = 5.0
 
-  const compensation = avgDelta * DAMPING_FACTOR
+  // Target average: compensate by half the delta so (pill+ctrl)/2 = profileTarget
+  const compensation = avgDelta / 2
   let compensatedTarget = profileTarget - compensation
 
   // Safety floor: never more than 5°C below profile target
@@ -158,7 +159,7 @@ async function calculateCompensatedTarget(
     return null
   }
 
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, komp=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
+  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, komp=delta/2=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
   return { compensatedTarget, compensation, avgDelta }
 }
