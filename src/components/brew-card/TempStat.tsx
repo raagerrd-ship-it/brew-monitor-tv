@@ -129,76 +129,98 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     ? () => onControllerClick(controller) 
     : undefined;
 
-  // Delta indicator sub-element
-  const deltaIndicator = delta !== null && !isInactive ? (
-    <span 
-      className="text-[9px] font-medium leading-none flex items-center gap-0.5"
-      style={{ 
-        color: delta > 0 
-          ? 'hsl(var(--ferment-green))' 
-          : delta < 0 
-            ? 'hsl(210 80% 60%)' 
-            : 'hsl(var(--muted-foreground))'
-      }}
-    >
-      {delta > 0 ? '▲' : delta < 0 ? '▼' : '─'}
-      {delta >= 0 ? '+' : ''}{delta.toFixed(1)}°
-    </span>
-  ) : null;
+  // Temperature span bar: visual range showing pill↔controller with target marker
+  const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
+    const pTemp = brew.currentTemp;       // pill (surface)
+    const cTemp = controller.current_temp!; // controller (core)
+    const tTemp = targetTemp;
+    
+    // Range: show from min-1 to max+1 for padding
+    const allTemps = [pTemp, cTemp, tTemp];
+    const rangeMin = Math.min(...allTemps) - 0.5;
+    const rangeMax = Math.max(...allTemps) + 0.5;
+    const range = rangeMax - rangeMin || 1;
+    
+    const pct = (t: number) => Math.max(0, Math.min(100, ((t - rangeMin) / range) * 100));
+    
+    const pillPct = pct(pTemp);
+    const ctrlPct = pct(cTemp);
+    const targetPct = pct(tTemp);
+    const leftPct = Math.min(pillPct, ctrlPct);
+    const rightPct = Math.max(pillPct, ctrlPct);
+    
+    const spanColor = isOvershoot 
+      ? 'hsl(38 92% 50%)' 
+      : 'hsl(var(--temp-blue))';
 
-  // Overshoot warning indicator
-  const overshootIndicator = isOvershoot ? (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span 
-            className="text-[9px] font-semibold leading-none flex items-center gap-0.5 cursor-help animate-pulse"
-            style={{ color: 'hsl(38 92% 50%)' }}
-          >
-            ⚠ Overshoot
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[250px] text-xs">
-          <p className="font-semibold mb-1" style={{ color: 'hsl(38 92% 50%)' }}>
-            🌡️ Uppvärmnings-overshoot
-          </p>
-          <p className="text-muted-foreground mb-1">
-            Pill ({pillTemp.toFixed(1)}°) är över target ({targetTemp?.toFixed(1)}°) medan kärnan ({ctrlTemp?.toFixed(1)}°) fortfarande ligger under.
-          </p>
-          {overshootReason && (
-            <p className="text-foreground border-t border-border pt-1 mt-1">
-              <span className="font-medium">AI:</span> {overshootReason}
-            </p>
-          )}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : overshootReason ? (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span 
-            className="text-[9px] font-medium leading-none flex items-center gap-0.5 cursor-help"
-            style={{ color: 'hsl(38 92% 50% / 0.7)' }}
-          >
-            🌡️
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[250px] text-xs">
-          <p className="font-semibold mb-1">Senaste AI-justering</p>
-          <p className="text-foreground">{overshootReason}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : null;
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full px-1 cursor-help" style={{ height: '10px' }}>
+              {/* Track */}
+              <div className="relative w-full h-[4px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.3)', marginTop: '3px' }}>
+                {/* Span fill between pill and controller */}
+                <div 
+                  className="absolute h-full rounded-full"
+                  style={{ 
+                    left: `${leftPct}%`, 
+                    width: `${rightPct - leftPct}%`,
+                    background: spanColor,
+                    opacity: 0.4,
+                  }} 
+                />
+                {/* Target marker line */}
+                <div 
+                  className="absolute top-[-2px] h-[8px] rounded-sm"
+                  style={{ 
+                    left: `${targetPct}%`, 
+                    width: '2px',
+                    background: 'hsl(38 92% 50%)',
+                    transform: 'translateX(-1px)',
+                  }} 
+                />
+                {/* Controller dot (core) */}
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                  style={{ 
+                    left: `${ctrlPct}%`, 
+                    width: '5px', height: '5px',
+                    background: 'hsl(var(--temp-blue))',
+                    transform: 'translate(-50%, -50%)',
+                    boxShadow: '0 0 4px hsl(var(--temp-blue) / 0.5)',
+                  }} 
+                />
+                {/* Pill dot (surface) */}
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                  style={{ 
+                    left: `${pillPct}%`, 
+                    width: '5px', height: '5px',
+                    background: 'hsl(var(--ferment-green))',
+                    transform: 'translate(-50%, -50%)',
+                    boxShadow: '0 0 4px hsl(var(--ferment-green) / 0.5)',
+                  }} 
+                />
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            <div className="space-y-0.5">
+              <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>
+              <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>
+              <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Mål: {tTemp.toFixed(1)}°</p>
+              <p className="text-muted-foreground">Δ {delta! >= 0 ? '+' : ''}{delta!.toFixed(1)}°</p>
+              {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
+              {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  })() : null;
 
-  // Combined sub-value with delta and overshoot on the same row
-  const subValueContent = (deltaIndicator || overshootIndicator) ? (
-    <div className="flex items-center justify-center gap-1.5">
-      {deltaIndicator}
-      {overshootIndicator}
-    </div>
-  ) : null;
+  const subValueContent = spanBar;
 
   return (
     <StatCard
