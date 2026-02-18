@@ -1,114 +1,81 @@
 
 
-# Refaktorera RAPT-datahämtning: Centraliserad cache-tabell
+# Undvik duplicerade justeringar mot samma temperaturdata
 
-## Bakgrund
+## Problem
+Auto-cooling funktionen kors varje minut, men RAPT-kontrollerna uppdaterar sin temperatur bara ca var 15:e minut. Det innebar att funktionen kan gora flera justeringar baserat pa samma temperaturavskning -- samma pill_temp och current_temp som redan hanterats.
 
-Idag hämtar flera edge functions RAPT-data oberoende av varandra via separata API-anrop:
-- `sync-rapt-data` och `sync-rapt-data-quick` hämtar pills + controllers direkt från RAPT API
-- `sync-custom-brew-pills` hämtar en ny auth-token och telemetri separat
-- `auto-adjust-cooling` försöker berika `pill_temp` genom att gräva i `brew_readings.sg_data`
-
-Detta leder till:
-- Onödiga API-anrop mot RAPT
-- `pill_temp` som saknas i `rapt_temp_controllers` (API returnerar 0 för `controlDeviceTemperature`)
-- Stall-detektion som inte ser jäshastighet eftersom den inte har rätt data
-
-## Ny arkitektur
-
-```text
-RAPT API
-   |
-   v
-[sync-rapt-data-quick]  <-- cron (var 5:e min eller inställd)
-   |
-   +-- Hämtar Pills + Controllers + Telemetri (senaste)
-   +-- Skriver ALLT till rapt_pills + rapt_temp_controllers
-   +-- Berikar pill_temp från telemetri direkt
-   |
-   v
-rapt_pills / rapt_temp_controllers  (med realtime)
-   |
-   +---> auto-adjust-cooling (läser BARA från DB, ingen RAPT API)
-   +---> sync-custom-brew-pills (läser pill_temp från DB, hämtar telemetri för SG)
-   +---> UI-komponenter (via realtime)
-```
-
-## Steg-för-steg
-
-### 1. Uppdatera `sync-rapt-data-quick` att berika pill_temp
-
-Problemet idag: RAPT API returnerar `controlDeviceTemperature = 0` för controllers. Men pill-telemetrin (via `GetHydrometers`) har korrekt temperatur.
-
-**Ändring:** Efter att ha hämtat pills OCH controllers:
-- Matcha controllers `linkedDevice`-fält mot pill-id
-- Hämta senaste temperatur från pill-data (pill.temperature eller senaste telemetri-punkt)
-- Skriv detta som `pill_temp` till `rapt_temp_controllers`
-- Spara även `linked_pill_id` på controllern om det inte redan finns
-
-### 2. Uppdatera `auto-adjust-cooling` att BARA läsa från databasen
-
-Ta bort all "enrichment"-logik som hämtar pill_temp från brew_readings.sg_data. Funktionen ska:
-- Läsa `rapt_temp_controllers` (som nu har korrekt `pill_temp`)
-- Läsa `brew_readings` för OG/FG/SG/jäshastighet (redan implementerat)
-- Inte anropa RAPT API alls
-
-### 3. Aktivera Realtime på `rapt_temp_controllers` och `rapt_pills`
-
-Lägg till dessa tabeller i `supabase_realtime` så att UI:t och andra konsumenter kan reagera direkt när synken uppdaterar datan.
-
-### 4. Spara pill-till-controller-koppling
-
-RAPT API returnerar vilken pill som är kopplad till vilken controller. Synka detta till `rapt_temp_controllers.linked_pill_id` automatiskt.
+## Losning
+Spara tidsstampeln (`last_update`) fran kontrollern nar en justering gors, och jamfor mot den vid nasta korning. Om `last_update` inte andrats sedan senaste justeringen -- hoppa over den kontrollern.
 
 ## Tekniska detaljer
 
-### Dataflöde i `sync-rapt-data-quick` (uppdaterad)
-
-```text
-1. Hämta RAPT auth token
-2. Hämta alla Pills (GetHydrometers)
-   - Varje pill har: id, name, battery, lastActivityTime, temperature
-3. Hämta alla Controllers (GetTemperatureControllers)  
-   - Varje controller har: id, name, temperature, targetTemperature,
-     controlDeviceTemperature (ofta 0!), coolingEnabled, etc.
-4. Bygg pill-temp-map: { pill_id -> senaste temp från pill-data }
-5. För varje controller:
-   - Kolla om RAPT returnerar en linked pill (via API-data)
-   - Hämta pill_temp från pill-temp-map istället för controlDeviceTemperature
-   - Skriv allt till rapt_temp_controllers inkl pill_temp och linked_pill_id
-6. Skriv pill-data till rapt_pills
-```
-
-### Ändring i `auto-adjust-cooling`
-
-```text
-FÖRE (rad 192-215):
-  - Om pill_temp saknas, hämta från brew_readings.sg_data
-  
-EFTER:
-  - Läs pill_temp direkt från rapt_temp_controllers (redan berikat av synk)
-  - Ta bort hela enrichment-blocket
-```
-
-### Migration: Realtime
+### 1. Databas: Lagg till kolumn `adjusted_against_timestamp`
+Lagg till en kolumn i `auto_cooling_adjustments` som sparar vilken `last_update` fran kontrollern som justeringen baserades pa.
 
 ```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.rapt_temp_controllers;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.rapt_pills;
+ALTER TABLE auto_cooling_adjustments 
+  ADD COLUMN adjusted_against_timestamp timestamptz;
 ```
 
-## Filer som ändras
+### 2. Edge function: `auto-adjust-cooling/index.ts`
 
-1. **`supabase/functions/sync-rapt-data-quick/index.ts`** - Berika pill_temp från pill-data, spara linked_pill_id
-2. **`supabase/functions/auto-adjust-cooling/index.ts`** - Ta bort enrichment-logik (rad 192-215), lita på DB-data
-3. **Databasmigration** - Aktivera realtime på rapt_temp_controllers och rapt_pills
+**A. Hamta senaste justeringens timestamp per controller**
 
-## Vad detta löser
+Innan overshoot- och stall-looparna, hamta senaste `adjusted_against_timestamp` per followed controller:
 
-- pill_temp blir korrekt i databasen (hämtas från pill, inte controller API)
-- auto-adjust-cooling slipper hacka ihop pill_temp från brew_readings
-- Stall-detektion och overshoot har alltid korrekt temperaturdata
-- Alla konsumenter läser samma datakälla
-- Färre API-anrop mot RAPT
+```typescript
+const lastAdjTimestampMap = new Map<string, string>();
+for (const fc of followedControllersFullData) {
+  const { data: lastAdj } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('adjusted_against_timestamp')
+    .eq('cooler_controller_id', fc.controller_id)
+    .not('adjusted_against_timestamp', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (lastAdj?.[0]?.adjusted_against_timestamp) {
+    lastAdjTimestampMap.set(fc.controller_id, lastAdj[0].adjusted_against_timestamp);
+  }
+}
+```
+
+**B. Kontrollera i varje loop (overshoot + stall)**
+
+I borjan av varje controller-iteration, jamfor `last_update` fran `rapt_temp_controllers` med sparad timestamp:
+
+```typescript
+// Fetch last_update from controller data (need to add to query)
+const controllerLastUpdate = fc.last_update; 
+const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
+
+if (lastAdjTs && controllerLastUpdate && lastAdjTs === controllerLastUpdate) {
+  log('SKIP_SAME_DATA', 'info', 
+    `${fc.name}: Samma data som senaste justering (${controllerLastUpdate}), hoppar over`);
+  continue;
+}
+```
+
+**C. Spara timestamp vid justering**
+
+I alla `insert` till `auto_cooling_adjustments`, lagg till:
+```typescript
+adjusted_against_timestamp: fc.last_update
+```
+
+**D. Uppdatera TempController-interfacet**
+
+Lagg till `last_update` i TempController-interfacet och se till att SELECT-fragan inkluderar det.
+
+### 3. Logg-visning (valfritt)
+
+Logga `last_update` i `FOLLOWED_DATA`-blocket sa det syns i beslutloggen:
+```typescript
+last_update: fc.last_update
+```
+
+### Sammanfattning av andringar
+- **Migration**: 1 ny kolumn pa `auto_cooling_adjustments`
+- **Edge function**: ~20 rader ny kod for att hamta, jamfora och spara timestamps
+- Inga UI-andringar behovs
 
