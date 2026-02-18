@@ -1,84 +1,79 @@
 
+# Samverkan mellan fermenteringsprofil och overshoot-skydd
 
-# AI-analys av automationssystemet
+## Problemet idag
+Två system slåss om temperaturen:
+1. **Fermenteringsprofilen** enforce:ar 22°C varje cykel (var 5:e minut)
+2. **Overshoot-skyddet** sänker till ex. 20°C när pill-temp visar att ytan kokar
 
-## Sammanfattning
-Automationen ar valbyggd med bra prioritering och sakerhet, men har ett **kritiskt problem** och nagra forbattringsmojligheter.
+Resultatet blir att profilen omedelbart skriver tillbaka 22°C, och overshoot-skyddet aldrig hinner verka.
 
-## KRITISKT: Dubbla korningar (Race Condition)
+Att helt skippa overshoot (nuvarande lösning) innebär att pill kan vara 6°C över target utan att systemet reagerar.
 
-Triggern `automation_on_rapt_update` ar satt till `FOR EACH ROW`. Eftersom 3 controllers uppdateras vid varje RAPT-sync triggas `run-automation` **3 ganger parallellt**. Loggarna bekraftar detta:
+## Lösning: Profilen sätter mål, overshoot får agera under det
+
+Strategin är enkel:
+- Overshoot-skyddet ska fortsätta fungera precis som vanligt, även för profilstyrda tanks
+- Fermenteringsprofilen ska INTE tvinga tillbaka temperaturen om overshoot nyligen har sänkt den
+- Profilen definierar "original target" som overshoot räknar utifrån
+
+## Tekniska ändringar
+
+### 1. `auto-adjust-cooling/index.ts` -- Ta bort PROFILE_SKIP för overshoot
+- Ta bort raden som skippar overshoot för profilstyrda controllers (`OVERSHOOT_PROFILE_SKIP`)
+- Behåll `STALL_PROFILE_SKIP` (stall-boost ska fortfarande inte köras på profilstyrda tanks, profilen hanterar det)
+- Overshoot-logiken använder redan `originalTarget` från `original_target_temp`-kolumnen, som profilen sätter -- detta fungerar redan korrekt
+
+### 2. `process-fermentation-profiles/index.ts` -- Respektera overshoot-sänkningar
+- I den nya "enforce effective target"-logiken: innan vi tvingar tillbaka temperaturen, kolla om det finns en nylig overshoot-justering (senaste 15 minuter) för denna controller
+- Om overshoot nyligen har sänkt temperaturen, skippa enforce och låt overshoot verka
+- Om ingen nylig overshoot finns (dvs recovery har redan skett eller det gått tillräckligt lång tid), enforce:a som vanligt
+
+Konkret:
+```
+// Pseudokod för process-fermentation-profiles
+if (currentStep.target_temp === null && controller) {
+  const effectiveTarget = getEffectiveTargetTemp(steps, index)
+  if (effectiveTarget && controller.target_temp < effectiveTarget) {
+    // Temp är LÄGRE än profilen vill ha -- kolla om overshoot sänkt den
+    const recentOvershoot = await checkRecentOvershootAdjustment(controllerId, 15 min)
+    if (recentOvershoot) {
+      console.log("Overshoot aktiv, låter den verka")
+      // Skippa enforce
+    } else {
+      // Ingen aktiv overshoot, enforce profil-target
+      setControllerTargetTemp(controllerId, effectiveTarget)
+    }
+  }
+}
+```
+
+### 3. Säkerställ att `original_target_temp` sätts korrekt
+- Verifiera att `original_target_temp` i `rapt_temp_controllers`-tabellen reflekterar profilens mål-temperatur (22°C), inte den sänkta overshoot-temperaturen
+- Profilen ska sätta `original_target_temp` till profilens effective target vid steg-start, så overshoot vet vad "normal" är
+
+## Sammanfattning av flödet efter ändringarna
 
 ```text
-10:50:11 booted (time: 29ms)
-10:50:11 booted (time: 28ms)
-=> 4 decision logs vid 10:50
+Sync-cykel var 5:e minut:
+                                                  
+  1. process-fermentation-profiles               
+     - Profil säger 22°C                          
+     - Controller är på 20°C                      
+     - Kolla: finns nylig overshoot-justering?     
+       JA  -> Skippa, overshoot hanterar det       
+       NEJ -> Enforce 22°C                         
+                                                  
+  2. auto-adjust-cooling (overshoot)              
+     - Pill = 28°C, target = 22°C                 
+     - Overshoot detekterad!                       
+     - Sänk till midpoint: ~20°C                  
+     - Overshoot recovery höjer tillbaka           
+       gradvis när pill sjunker                    
 ```
 
-Detta kan leda till:
-- Dubbla RAPT API-anrop (target setts tva ganger)
-- Inkonsistent data mellan parallella korningar
-- Onodiga AI-anrop (och kostnader)
-
-### Fix
-Andra triggern fran `FOR EACH ROW` till `FOR EACH STATEMENT` sa att orchestratorn bara kors **en gang** per sync-batch, oavsett hur manga controllers som uppdateras.
-
-```sql
-DROP TRIGGER IF EXISTS automation_on_rapt_update ON rapt_temp_controllers;
-
-CREATE TRIGGER automation_on_rapt_update
-  AFTER UPDATE ON rapt_temp_controllers
-  FOR EACH STATEMENT
-  EXECUTE FUNCTION trigger_automation_on_rapt_update();
-```
-
-Notera: `WHEN`-villkoret (old.last_update IS DISTINCT FROM new.last_update) stods inte med `FOR EACH STATEMENT`, men det behovs inte -- om inget andrats gors inget UPDATE alls.
-
-## Forbattringsforslag
-
-### 1. Stall-boost utan undo-mekanism
-Nar stall detection hojer temperaturen (t.ex. +1 grader) finns ingen automatisk aterstallning nar jasningen aterupptas. Overshoot har recovery, men stall saknar det.
-
-**Forslag**: Lagg till stall recovery-logik liknande overshoot recovery. Om jasningshastigheten atervander till normal (> threshold * 2 under 12h) och temperaturen hojts av stall, overag att sanka tillbaka.
-
-**Bedomning**: Inte kritiskt -- stall-boost ar ofta onskad permanent. Kan implementeras senare om det visar sig behovas.
-
-### 2. AI-optimering
-Varje tank med stall/overshoot gor ett separat AI-anrop. Med 3 tankar kan det bli 3+ AI-anrop per cykel.
-
-**Forslag**: Batcha alla tankar i ett enda AI-anrop med kontext for alla. Minskar latens och kostnad.
-
-**Bedomning**: Bra optimering men inte kritiskt. Nuvarande totaltid ar ~15s vilket ar inom budget.
-
-### 3. Cooling recovery kan oscillera
-Glykolkylaren hojer gradvis (halva gapet) nar kylbehovet minskar. Om tanken sedan borjar kyla igen i nasta cykel, sanks kylaren, sedan hojs den igen, osv.
-
-**Nuvarande skydd**: Check interval (t.ex. 60 min) forhindrar for snabba sankning. Men recovery sker varje cykel (var 5 min) utan interval-skydd.
-
-**Forslag**: Lagg till en minsta tid sedan senaste cooling recovery (t.ex. 30 min) for att undvika oscillation.
-
-### 4. Decision log storlek
-Varje korning sparar hela decision log som JSONB. Med dubbla korningar och detaljerad loggning vaxer tabellen snabbt.
-
-**Forslag**: Lagg till automatisk rensning (t.ex. behall senaste 7 dagars loggar via cron).
-
-## Befintliga styrkor (ingen andring behovs)
-
-- Prioriteringsordning (Stall > Overshoot > Cooling) ar korrekt
-- Min/max per controller som absolut sakerhet fungerar val
-- 30-min cooloff efter fermenteringsprofilsjustering ar bra
-- adjusted_against_timestamp forhindrar dubbeljustering pa samma data
-- Timeout-skydd per steg i orchestratorn ar robust
-- Overshoot recovery (aterstallning till original_target) ar val implementerat
-- Cooling floor (forhindrar att overshoot-prevention triggar kylning) ar kritiskt och korrekt
-
-## Rekommenderad prioritering
-
-| Prioritet | Andring | Komplexitet |
-|---|---|---|
-| 1 (Kritiskt) | Fixa FOR EACH ROW → FOR EACH STATEMENT | En migration |
-| 2 (Bra att ha) | Cooling recovery interval-skydd | ~10 rader |
-| 3 (Nice to have) | Decision log rensning | En cron-migration |
-| 4 (Framtida) | Stall recovery | ~30 rader |
-| 5 (Framtida) | AI-batchning | Storre refaktor |
-
+## Resultat
+- Pill-temp 6°C över target triggar fortfarande overshoot-skydd
+- Profilen skriver inte över overshoot-sänkningar
+- När overshoot-skyddet har recoverat tillbaka till target, tar profilen vid igen
+- Stall-boost körs fortfarande inte på profilstyrda tanks (profilen hanterar temperaturhöjningar)
