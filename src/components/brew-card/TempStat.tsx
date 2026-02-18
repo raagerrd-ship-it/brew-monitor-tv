@@ -163,16 +163,50 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
             <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
               <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
-                {/* Span fill between pill and controller */}
-                <div 
-                  className="absolute h-full rounded-full"
-                  style={{ 
-                    left: `${leftPct}%`, 
-                    width: `${Math.max(rightPct - leftPct, 2)}%`,
-                    background: `linear-gradient(90deg, hsl(var(--temp-blue)), ${spanColor})`,
-                    opacity: 0.5,
-                  }} 
-                />
+                {/* Left segment: ctrl → target (blue) */}
+                {ctrlPct < targetPct && (
+                  <div 
+                    className="absolute h-full rounded-l-full"
+                    style={{ 
+                      left: `${ctrlPct}%`, 
+                      width: `${targetPct - ctrlPct}%`,
+                      background: 'hsl(var(--temp-blue) / 0.5)',
+                    }} 
+                  />
+                )}
+                {/* Right segment: target → pill (green/orange) */}
+                {pillPct > targetPct && (
+                  <div 
+                    className="absolute h-full rounded-r-full"
+                    style={{ 
+                      left: `${targetPct}%`, 
+                      width: `${pillPct - targetPct}%`,
+                      background: isOvershoot ? 'hsl(38 92% 50% / 0.5)' : 'hsl(var(--ferment-green) / 0.4)',
+                    }} 
+                  />
+                )}
+                {/* If ctrl is above target (unusual) */}
+                {ctrlPct > targetPct && (
+                  <div 
+                    className="absolute h-full rounded-r-full"
+                    style={{ 
+                      left: `${targetPct}%`, 
+                      width: `${ctrlPct - targetPct}%`,
+                      background: 'hsl(var(--temp-blue) / 0.5)',
+                    }} 
+                  />
+                )}
+                {/* If pill is below target (unusual) */}
+                {pillPct < targetPct && (
+                  <div 
+                    className="absolute h-full rounded-l-full"
+                    style={{ 
+                      left: `${pillPct}%`, 
+                      width: `${targetPct - pillPct}%`,
+                      background: 'hsl(var(--ferment-green) / 0.4)',
+                    }} 
+                  />
+                )}
                 {/* Target marker line */}
                 <div 
                   className="absolute rounded-sm"
