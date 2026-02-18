@@ -255,12 +255,45 @@ Deno.serve(async (req) => {
       const now = new Date()
       const elapsedHours = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
 
+      let stepCompleted = false
+      let actionTaken = 'checked'
+      let actionDetails: any = {}
+
       // For steps without explicit target_temp, enforce the effective target from previous steps
-      // This prevents other automation (overshoot, stall) from drifting the temperature
+      // BUT respect recent overshoot adjustments — let overshoot prevention do its job
       if (currentStep.target_temp === null && controller) {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
-        if (effectiveTarget !== null && Math.abs(controller.target_temp - effectiveTarget) > 0.2) {
-          console.log(`Step ${session.current_step_index} (${currentStep.step_type}) has no target_temp, enforcing effective target ${effectiveTarget}°C (current: ${controller.target_temp}°C)`)
+        if (effectiveTarget !== null && controller.target_temp < effectiveTarget - 0.2) {
+          // Controller target is LOWER than profile wants — check if overshoot caused it
+          const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+          const { data: recentOvershoot } = await supabase
+            .from('auto_cooling_adjustments')
+            .select('id, reason, new_target_temp, created_at')
+            .eq('cooler_controller_id', session.controller_id)
+            .gte('created_at', fifteenMinAgo)
+            .or('reason.like.🌡️%,reason.like.🔄%')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (recentOvershoot && recentOvershoot.length > 0) {
+            console.log(`Step ${session.current_step_index} (${currentStep.step_type}): Overshoot aktiv (${recentOvershoot[0].reason.substring(0, 50)}), låter den verka istället för att enforce:a ${effectiveTarget}°C`)
+          } else {
+            // No recent overshoot — safe to enforce profile target
+            console.log(`Step ${session.current_step_index} (${currentStep.step_type}) has no target_temp, enforcing effective target ${effectiveTarget}°C (current: ${controller.target_temp}°C)`)
+            const success = await setControllerTargetTemp(session.controller_id, effectiveTarget)
+            if (success) {
+              actionTaken = 'temp_enforced'
+              actionDetails = { effective_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type }
+              
+              await supabase
+                .from('rapt_temp_controllers')
+                .update({ target_temp: effectiveTarget, updated_at: new Date().toISOString() })
+                .eq('controller_id', session.controller_id)
+            }
+          }
+        } else if (effectiveTarget !== null && controller.target_temp > effectiveTarget + 0.2) {
+          // Controller target is HIGHER than profile wants — always enforce down
+          console.log(`Step ${session.current_step_index} (${currentStep.step_type}): target ${controller.target_temp}°C > effective ${effectiveTarget}°C, enforcing down`)
           const success = await setControllerTargetTemp(session.controller_id, effectiveTarget)
           if (success) {
             actionTaken = 'temp_enforced'
@@ -273,10 +306,6 @@ Deno.serve(async (req) => {
           }
         }
       }
-
-      let stepCompleted = false
-      let actionTaken = 'checked'
-      let actionDetails: any = {}
 
       switch (currentStep.step_type) {
         case 'hold': {
