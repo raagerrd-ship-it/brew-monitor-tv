@@ -188,31 +188,8 @@ serve(async (req) => {
       });
     }
 
-    // Enrich controllers with pill_temp from linked brew's sg_data when controlDeviceTemperature is unavailable
-    for (const controller of followedControllersFullData) {
-      if (controller.pill_temp === null || controller.pill_temp === undefined || controller.pill_temp === 0) {
-        const { data: linkedBrews } = await supabase
-          .from('brew_readings')
-          .select('sg_data')
-          .eq('linked_controller_id', controller.controller_id)
-          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
-          .order('last_update', { ascending: false })
-          .limit(1);
-
-        const brew = linkedBrews?.[0];
-        if (brew) {
-          const sgData = brew.sg_data as Array<{ date: string; value: number; temp?: number }> | null;
-          if (sgData && sgData.length > 0) {
-            const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            const latestTemp = sorted[0]?.temp;
-            if (latestTemp !== undefined && latestTemp !== null) {
-              controller.pill_temp = latestTemp;
-              log('PILL_TEMP_ENRICHED', 'pass', `Resolved pill_temp for ${controller.name} from brew sg_data: ${latestTemp.toFixed(1)}°`);
-            }
-          }
-        }
-      }
-    }
+    // pill_temp is now enriched by sync-rapt-data-quick directly from pill data
+    // No need to fetch from brew_readings.sg_data anymore
 
     // Log each followed controller's status
     followedControllersFullData.forEach(controller => {
