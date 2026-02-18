@@ -38,6 +38,7 @@ export function useBrewChartData({
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [originalTargetTemp, setOriginalTargetTemp] = useState<number | null>(null);
   const { isTvMode } = useTvMode();
   
   // Use ref to track if we've already fetched for this controller/data combo
@@ -97,6 +98,21 @@ export function useBrewChartData({
         if (allRows.length > 0) {
           setControllerTempData(allRows);
         }
+
+        // Fetch original target from auto_cooling_adjustments
+        const { data: adjData } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('original_target_temp')
+          .or(`followed_controller_id.eq.${controllerId},cooler_controller_id.eq.${controllerId}`)
+          .not('original_target_temp', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (adjData?.[0]?.original_target_temp != null) {
+          setOriginalTargetTemp(adjData[0].original_target_temp);
+        } else {
+          setOriginalTargetTemp(null);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -128,8 +144,17 @@ export function useBrewChartData({
     const dataWithControllerTemp = mergeWithControllerTemp(sourceData, controllerDataSampled);
     const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
     const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
-    return addTimestamps(smoothedData);
-  }, [data, controllerTempData, smoothLines, isTvMode]);
+    
+    // Override targetTemp with original base target if available (show "Mål" not "Auto")
+    const finalData = originalTargetTemp !== null
+      ? smoothedData.map(point => ({
+          ...point,
+          targetTemp: point.controllerTemp !== null ? originalTargetTemp : null,
+        }))
+      : smoothedData;
+    
+    return addTimestamps(finalData);
+  }, [data, controllerTempData, smoothLines, isTvMode, originalTargetTemp]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
 
