@@ -207,21 +207,26 @@ serve(async (req) => {
     }
 
     // Log each followed controller's status
+    const round1 = (v: number | null | undefined): number | null => {
+      if (v === null || v === undefined) return null;
+      return parseFloat(parseFloat(String(v)).toFixed(1));
+    };
+
     followedControllersFullData.forEach(controller => {
-      const pillTemp = controller.pill_temp !== null ? parseFloat(String(controller.pill_temp)) : null;
-      const currentTemp = parseFloat(String(controller.current_temp ?? controller.pill_temp ?? '0'));
-      const targetTemp = parseFloat(String(controller.target_temp ?? '999'));
+      const pillTemp = round1(controller.pill_temp);
+      const currentTemp = round1(controller.current_temp ?? controller.pill_temp) ?? 0;
+      const targetTemp = round1(controller.target_temp) ?? 999;
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
-      const pillDelta = pillTemp !== null ? pillTemp - currentTemp : null;
-      const originalTarget = originalTargetMap.get(controller.controller_id);
+      const pillDelta = pillTemp !== null ? round1(pillTemp - currentTemp) : null;
+      const originalTarget = round1(originalTargetMap.get(controller.controller_id) ?? null) ?? targetTemp;
       
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
-        original_target: originalTarget ?? targetTemp,
+        original_target: originalTarget,
         target_temp: targetTemp,
         current_temp: currentTemp,
         pill_temp: pillTemp,
-        pill_delta: pillDelta !== null ? parseFloat(pillDelta.toFixed(1)) : null,
+        pill_delta: pillDelta,
         cooling_enabled: controller.cooling_enabled,
         is_actively_cooling: isActivelyCooling
       });
@@ -560,9 +565,9 @@ serve(async (req) => {
           threshold: stallThreshold,
           effective_threshold: effectiveThreshold,
           expected_slowdown: expectedSlowdown,
-          pill_temp: fc.pill_temp !== null ? parseFloat(String(fc.pill_temp)) : null,
-          current_temp: fc.current_temp !== null ? parseFloat(String(fc.current_temp)) : null,
-          target_temp: fc.target_temp !== null ? parseFloat(String(fc.target_temp)) : null,
+          pill_temp: round1(fc.pill_temp),
+          current_temp: round1(fc.current_temp),
+          target_temp: round1(fc.target_temp),
         });
 
         // Stall conditions: rate below effective threshold, still far from FG, and not too close to completion
