@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake } from "lucide-react";
@@ -90,6 +92,7 @@ function extractAiReasoning(reason: string): string | null {
 export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hideSystem, setHideSystem] = useState(true);
 
   useEffect(() => {
     loadAll();
@@ -182,9 +185,18 @@ export function AutoCoolingDecisionLogs() {
   if (loading) return <p className="text-sm text-muted-foreground">Laddar...</p>;
   if (entries.length === 0) return <p className="text-sm text-muted-foreground italic">Inga justeringar har gjorts ännu.</p>;
 
+  const filteredEntries = hideSystem ? entries.filter(e => e.type !== 'decision') : entries;
+
   return (
     <div className="space-y-2">
-      {entries.map((entry) => {
+      <div className="flex items-center gap-2 pb-1">
+        <Switch id="hide-system" checked={hideSystem} onCheckedChange={setHideSystem} />
+        <Label htmlFor="hide-system" className="text-xs text-muted-foreground cursor-pointer">Dölj systemloggar</Label>
+      </div>
+      {filteredEntries.length === 0 && (
+        <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>
+      )}
+      {filteredEntries.map((entry) => {
         if (entry.type === 'adjustment') {
           const adj = entry.data;
           const category = entry.category;
