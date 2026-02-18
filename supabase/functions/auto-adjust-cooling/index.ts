@@ -106,7 +106,8 @@ serve(async (req) => {
     
     console.log('='.repeat(60) + '\n');
 
-    if (supabase) {
+    // Only persist to DB on the final step (glycol-cooler or all), not on tank-adjustments
+    if (supabase && mode !== "tank-adjustments") {
       try {
         await supabase.from('auto_cooling_decision_logs').insert({
           duration_ms: duration,
