@@ -382,6 +382,9 @@ Deno.serve(async (req) => {
                     new_target_temp: targetToEnforce,
                     original_target_temp: effectiveTarget,
                     lowest_followed_temp: effectiveTarget,
+                    followed_current_temp: controller.pill_temp,
+                    followed_target_temp: controller.current_temp,
+                    followed_hysteresis: compensation?.avgDelta ?? null,
                     reason,
                     adjusted_against_timestamp: controller.last_update,
                   })
@@ -413,6 +416,9 @@ Deno.serve(async (req) => {
                   new_target_temp: targetToEnforce,
                   original_target_temp: effectiveTarget,
                   lowest_followed_temp: effectiveTarget,
+                  followed_current_temp: controller.pill_temp,
+                  followed_target_temp: controller.current_temp,
+                  followed_hysteresis: compensation?.avgDelta ?? null,
                   reason,
                   adjusted_against_timestamp: controller.last_update,
                 })
@@ -455,6 +461,9 @@ Deno.serve(async (req) => {
                       new_target_temp: holdTarget,
                       original_target_temp: currentStep.target_temp,
                       lowest_followed_temp: currentStep.target_temp,
+                      followed_current_temp: controller.pill_temp,
+                      followed_target_temp: controller.current_temp,
+                      followed_hysteresis: holdCompensation.avgDelta,
                       reason: `🎯 Pill-kompensation: ${currentStep.target_temp.toFixed(1)}°C -> ${holdTarget.toFixed(1)}°C (delta=${holdCompensation.avgDelta.toFixed(2)}, komp=${holdCompensation.compensation.toFixed(2)}°C)`,
                       adjusted_against_timestamp: controller.last_update,
                     })

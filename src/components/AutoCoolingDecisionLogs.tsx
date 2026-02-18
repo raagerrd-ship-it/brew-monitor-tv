@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake, Pill } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DecisionEntry {
@@ -29,23 +29,26 @@ interface AdjustmentLog {
   reason: string;
   old_target_temp: number;
   new_target_temp: number;
+  original_target_temp: number | null;
   cooler_controller_name: string;
   followed_controller_name: string | null;
   followed_current_temp: number | null;
   followed_target_temp: number | null;
+  followed_hysteresis: number | null;
 }
 
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
-  | { type: 'adjustment'; data: AdjustmentLog; category: 'cooling' | 'overshoot' | 'stall'; timestamp: string };
+  | { type: 'adjustment'; data: AdjustmentLog; category: 'cooling' | 'overshoot' | 'stall' | 'pill-comp'; timestamp: string };
 
-function categorizeAdjustment(reason: string): 'overshoot' | 'stall' | 'cooling' {
+function categorizeAdjustment(reason: string): 'overshoot' | 'stall' | 'pill-comp' | 'cooling' {
   if (reason.startsWith('🌡️')) return 'overshoot';
   if (reason.startsWith('🧠')) return 'stall';
+  if (reason.startsWith('🎯')) return 'pill-comp';
   return 'cooling';
 }
 
-function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall') {
+function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall' | 'pill-comp') {
   switch (category) {
     case 'overshoot':
       return (
@@ -67,6 +70,17 @@ function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall') {
         }}>
           <TrendingUp className="h-2.5 w-2.5 mr-0.5" />
           Stall
+        </Badge>
+      );
+    case 'pill-comp':
+      return (
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
+          background: 'hsl(280 60% 60% / 0.2)', 
+          color: 'hsl(280 60% 60%)', 
+          borderColor: 'hsl(280 60% 60% / 0.3)' 
+        }}>
+          <Pill className="h-2.5 w-2.5 mr-0.5" />
+          Pill-komp
         </Badge>
       );
     default:
@@ -229,7 +243,38 @@ export function AutoCoolingDecisionLogs() {
                     {adj.followed_current_temp !== null && <span>Aktuell: {adj.followed_current_temp.toFixed(1)}°</span>}
                   </div>
                   
-                  {aiReasoning && (
+                  {category === 'pill-comp' && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(280 60% 60%)' }}>
+                        🎯 Pill-kompensation
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                        <div className="text-muted-foreground">Profilmål:</div>
+                        <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°C` : '—'}</div>
+                        <div className="text-muted-foreground">Pill (yta):</div>
+                        <div className="font-medium" style={{ color: 'hsl(38 92% 50%)' }}>
+                          {adj.followed_current_temp !== null ? `${adj.followed_current_temp.toFixed(1)}°C` : '—'}
+                        </div>
+                        <div className="text-muted-foreground">Probe (kärna):</div>
+                        <div className="font-medium">
+                          {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°C` : '—'}
+                        </div>
+                        <div className="text-muted-foreground">Delta (yta−kärna):</div>
+                        <div className="font-medium" style={{ 
+                          color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
+                        }}>
+                          {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°C` : '—'}
+                        </div>
+                        <div className="text-muted-foreground">Kompensation:</div>
+                        <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}°C nedjustering</div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 italic">
+                        Sänker styrenhetens mål så att pill-temperaturen (ytan) hamnar närmare profilmålet
+                      </p>
+                    </div>
+                  )}
+
+                  {category !== 'pill-comp' && aiReasoning && (
                     <div className="text-xs space-y-1">
                       <p className="font-semibold flex items-center gap-1" style={{ 
                         color: category === 'overshoot' ? 'hsl(38 92% 50%)' : 'hsl(var(--ferment-green))' 
@@ -240,7 +285,7 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
                   
-                  {!aiReasoning && (
+                  {category !== 'pill-comp' && !aiReasoning && (
                     <p className="text-[11px] text-muted-foreground">{adj.reason}</p>
                   )}
                 </div>
