@@ -136,7 +136,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
     const pTemp = brew.currentTemp;       // pill (surface)
     const cTemp = controller.current_temp!; // controller (core)
-    const tTemp = targetTemp;
+    const tTemp = originalTarget ?? targetTemp; // profile goal (original), fallback to current target
     
     // Fixed range: target ±3°C so the bar visually shrinks as temps converge
     const rangeMin = tTemp - 3;
