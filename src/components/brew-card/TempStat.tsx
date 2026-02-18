@@ -97,10 +97,18 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const showBothTargets = originalTarget !== null && targetTemp !== null && targetTemp !== undefined
     && Math.abs(originalTarget - targetTemp) >= 0.1;
   
-  let label = 'Temp';
+  let label: React.ReactNode = 'Temp';
   if (controller && controller.target_temp !== null) {
     if (showBothTargets) {
-      label = `Temp (${controller.target_temp.toFixed(1)}/${originalTarget!.toFixed(1)})`;
+      label = (
+        <span>
+          Temp (
+          <span style={{ color: 'hsl(38 92% 50%)' }}>{controller.target_temp.toFixed(1)}</span>
+          /
+          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{originalTarget!.toFixed(1)}</span>
+          )
+        </span>
+      );
     } else {
       label = `Temp (${controller.target_temp.toFixed(1)}°)`;
     }

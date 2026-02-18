@@ -2,7 +2,7 @@ import { ReactNode, CSSProperties } from "react";
 import { colorWithOpacity } from "./utils";
 
 interface StatCardProps {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
   color?: string;
   isUpdated?: boolean;
