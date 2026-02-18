@@ -443,6 +443,15 @@ serve(async (req) => {
                 newTarget = Math.min(newTarget, targetTemp);
                 newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
 
+                // CRITICAL: Never set target below (current_temp + cooling_hysteresis)
+                // to avoid triggering the cooling relay. The goal is to STOP heating, not START cooling.
+                const coolingHyst = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
+                const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10; // +0.1 safety margin
+                if (newTarget < coolingFloor) {
+                  log('OVERSHOOT_FLOOR', 'info', `Clamping target from ${newTarget}°C to cooling floor ${coolingFloor}°C (ctrl=${ctrlTemp.toFixed(1)}° + hyst=${coolingHyst}° + margin=0.1°)`);
+                  newTarget = coolingFloor;
+                }
+
                 if (Math.abs(newTarget - targetTemp) < 0.1) {
                   log('OVERSHOOT_SKIP', 'info', `Target already at ${targetTemp}°C, no change needed`);
                 } else {
