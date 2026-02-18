@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake, Pill } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DecisionEntry {
@@ -37,19 +37,25 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
+type AdjustmentCategory = 'overshoot' | 'stall' | 'pill-comp' | 'profil' | 'glykol';
+
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
-  | { type: 'adjustment'; data: AdjustmentLog; category: 'cooling' | 'overshoot' | 'stall' | 'pill-comp'; timestamp: string };
+  | { type: 'adjustment'; data: AdjustmentLog; category: AdjustmentCategory; timestamp: string };
 
-function categorizeAdjustment(reason: string): 'overshoot' | 'stall' | 'pill-comp' | 'cooling' {
+function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('🌡️')) return 'overshoot';
   if (reason.startsWith('🧠')) return 'stall';
   if (reason.startsWith('🎯')) return 'pill-comp';
-  if (reason.startsWith('🔄')) return 'cooling';
-  return 'cooling';
+  if (reason.startsWith('🔧')) return 'profil';
+  // 🔄 Cooling recovery and other glycol cooler adjustments
+  if (reason.startsWith('🔄')) return 'glykol';
+  // Fallback: if reason mentions "Cooling recovery" or cooler-specific phrases
+  if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
+  return 'glykol';
 }
 
-function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall' | 'pill-comp') {
+function getCategoryBadge(category: AdjustmentCategory) {
   switch (category) {
     case 'overshoot':
       return (
@@ -84,7 +90,18 @@ function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall' | 'pill-co
           Pill-komp
         </Badge>
       );
-    default:
+    case 'profil':
+      return (
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
+          background: 'hsl(160 60% 45% / 0.2)', 
+          color: 'hsl(160 60% 45%)', 
+          borderColor: 'hsl(160 60% 45% / 0.3)' 
+        }}>
+          <Workflow className="h-2.5 w-2.5 mr-0.5" />
+          Profil
+        </Badge>
+      );
+    case 'glykol':
       return (
         <Badge variant="default" className="text-[10px] px-1.5" style={{ 
           background: 'hsl(210 80% 60% / 0.2)', 
@@ -92,7 +109,18 @@ function getCategoryBadge(category: 'cooling' | 'overshoot' | 'stall' | 'pill-co
           borderColor: 'hsl(210 80% 60% / 0.3)' 
         }}>
           <Snowflake className="h-2.5 w-2.5 mr-0.5" />
-          Kylning
+          Glykol
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
+          background: 'hsl(210 80% 60% / 0.2)', 
+          color: 'hsl(210 80% 60%)', 
+          borderColor: 'hsl(210 80% 60% / 0.3)' 
+        }}>
+          <Gauge className="h-2.5 w-2.5 mr-0.5" />
+          System
         </Badge>
       );
   }
@@ -275,10 +303,31 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
 
-                  {category === 'cooling' && (
+                  {category === 'profil' && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(160 60% 45%)' }}>
+                        🔧 Fermenteringsprofil
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                        <div className="text-muted-foreground">Controller:</div>
+                        <div className="font-medium">{adj.cooler_controller_name}</div>
+                        {adj.original_target_temp !== null && (
+                          <>
+                            <div className="text-muted-foreground">Profilmål:</div>
+                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°C</div>
+                          </>
+                        )}
+                        <div className="text-muted-foreground">Tankmål:</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
+                    </div>
+                  )}
+
+                  {category === 'glykol' && (
                     <div className="text-xs space-y-1.5">
                       <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(210 80% 60%)' }}>
-                        ❄️ Kylreglering
+                        ❄️ Glykolkylare
                       </p>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                         <div className="text-muted-foreground">Styrande tank:</div>
