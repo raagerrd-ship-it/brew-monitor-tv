@@ -138,8 +138,8 @@ export const SonosWidget = memo(function SonosWidget({
   if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
 
   const isHeader = variant === "header";
-  const trackFontSize = isHeader ? "13px" : isMobile ? "0.8rem" : "18px";
-  const artistFontSize = isHeader ? "11px" : isMobile ? "0.7rem" : "14px";
+  const trackFontSize = isHeader ? "15px" : isMobile ? "0.8rem" : "18px";
+  const artistFontSize = isHeader ? "12px" : isMobile ? "0.7rem" : "14px";
   const progressHeight = isHeader ? "2px" : isMobile ? "2px" : "5px";
   const widgetHeight = isHeader ? "50px" : isMobile ? "56px" : "130px";
   const widgetWidth = isHeader ? "300px" : isMobile ? "140px" : "280px";
