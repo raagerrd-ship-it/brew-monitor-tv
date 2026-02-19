@@ -142,7 +142,7 @@ export const SonosWidget = memo(function SonosWidget({
   const artistFontSize = isHeader ? "16px" : isMobile ? "0.7rem" : "14px";
   const progressHeight = isHeader ? "2px" : isMobile ? "2px" : "5px";
   const widgetHeight = isHeader ? "50px" : isMobile ? "56px" : "130px";
-  const widgetWidth = isHeader ? "300px" : isMobile ? "140px" : "280px";
+  const widgetWidth = isHeader ? "380px" : isMobile ? "140px" : "280px";
   const hasAlbumArt = !!displayedArtUrl;
 
   return (
