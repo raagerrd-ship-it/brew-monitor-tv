@@ -138,8 +138,8 @@ export const SonosWidget = memo(function SonosWidget({
   if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
 
   const isHeader = variant === "header";
-  const trackFontSize = isHeader ? "15px" : isMobile ? "0.8rem" : "18px";
-  const artistFontSize = isHeader ? "12px" : isMobile ? "0.7rem" : "14px";
+  const trackFontSize = isHeader ? "16px" : isMobile ? "0.8rem" : "18px";
+  const artistFontSize = isHeader ? "16px" : isMobile ? "0.7rem" : "14px";
   const progressHeight = isHeader ? "2px" : isMobile ? "2px" : "5px";
   const widgetHeight = isHeader ? "50px" : isMobile ? "56px" : "130px";
   const widgetWidth = isHeader ? "300px" : isMobile ? "140px" : "280px";
@@ -197,15 +197,26 @@ export const SonosWidget = memo(function SonosWidget({
 
       {/* Content */}
       <div className={`relative h-full flex flex-col justify-center ${isHeader ? "px-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
-        <div ref={containerRef} className="overflow-hidden">
-          <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
-            {nowPlaying.track_name}
+        {isHeader ? (
+          <div className="truncate text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+            <span className="font-semibold">{nowPlaying.track_name}</span>
+            {nowPlaying.artist_name && (
+              <span className="text-white/70 font-normal"> — {nowPlaying.artist_name}</span>
+            )}
           </div>
-        </div>
-        {nowPlaying.artist_name && (
-          <div className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
-            {nowPlaying.artist_name}
-          </div>
+        ) : (
+          <>
+            <div ref={containerRef} className="overflow-hidden">
+              <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+                {nowPlaying.track_name}
+              </div>
+            </div>
+            {nowPlaying.artist_name && (
+              <div className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
+                {nowPlaying.artist_name}
+              </div>
+            )}
+          </>
         )}
 
         {/* Progress Bar with countdown */}
