@@ -251,7 +251,7 @@ function BrewChartComponent({
           {/* Target temp - dashed line showing setpoint */}
           <Line
             yAxisId="temp"
-            type="stepAfter"
+            type="linear"
             dataKey="targetTemp"
             stroke={COLORS.targetTemp}
             strokeWidth={DATA_SERIES_CONFIG.targetTemp.strokeWidth}
