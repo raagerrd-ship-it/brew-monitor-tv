@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
-import { SettingsSection, SettingsDivider } from "@/components/ui/settings-section";
+import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
 import { TempController } from "@/types/brew";
 
 export default function Settings() {
@@ -1451,6 +1451,8 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            <CategorySeparator icon={Cloud} label="RAPT" />
+
             <SettingsSection
               icon={Cloud}
               title="RAPT"
@@ -1596,15 +1598,7 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
-            {/* TV-MODE SEPARATOR */}
-            <div className="relative flex items-center gap-4 pt-4">
-              <div className="flex-1 h-px bg-border" />
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border/60">
-                <Tv className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">TV-läge</span>
-              </div>
-              <div className="flex-1 h-px bg-border" />
-            </div>
+            <CategorySeparator icon={Tv} label="TV-läge" />
 
             <SettingsSection
               icon={Tv}
@@ -1626,6 +1620,8 @@ export default function Settings() {
                 Uppdatera TV:ar
               </Button>
             </SettingsSection>
+
+            <CategorySeparator icon={Timer} label="Integrationer" />
 
             <SettingsSection
               icon={Timer}
@@ -2135,6 +2131,8 @@ export default function Settings() {
               )}
             </SettingsSection>
 
+            <CategorySeparator icon={Thermometer} label="Justering" />
+
             <SettingsSection
               icon={Thermometer}
               title="Jästanksjustering"
@@ -2376,6 +2374,8 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            <CategorySeparator icon={FlaskConical} label="Profiler" />
+
             <SettingsSection
               icon={FlaskConical}
               title="Fermenteringsprofiler"
@@ -2383,6 +2383,8 @@ export default function Settings() {
             >
               <FermentationProfilesManagement />
             </SettingsSection>
+
+            <CategorySeparator icon={History} label="Historik" />
 
             <SettingsSection
               icon={History}

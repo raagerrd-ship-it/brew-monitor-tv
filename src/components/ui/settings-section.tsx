@@ -63,3 +63,28 @@ export function SettingsDivider({ className }: { className?: string }) {
     <div className={cn("h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent", className)} />
   );
 }
+
+/**
+ * A category separator with a centered label pill, used to visually
+ * group related settings sections. Matches the TV-LÄGE separator style.
+ */
+export function CategorySeparator({ 
+  icon: Icon, 
+  label, 
+  className 
+}: { 
+  icon: LucideIcon; 
+  label: string; 
+  className?: string;
+}) {
+  return (
+    <div className={cn("relative flex items-center gap-4 pt-4", className)}>
+      <div className="flex-1 h-px bg-border" />
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border/60">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      </div>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
