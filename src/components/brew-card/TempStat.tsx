@@ -250,7 +250,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={<span style={{ marginTop: '-3px', display: 'block' }}>{label}</span>}
-      value={<span style={{ marginTop: '-3px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
+      value={<span style={{ marginTop: '-3px', marginBottom: '-4px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
       subValue={sensorSubValue}
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
