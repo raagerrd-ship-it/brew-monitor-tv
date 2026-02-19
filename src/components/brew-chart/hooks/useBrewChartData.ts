@@ -230,7 +230,7 @@ export function useBrewChartData({
 
     // Override targetTemp with fermentation profile targets if available
     if (profileTargets.length > 0) {
-      return withTimestamps.map(point => {
+      const mappedData = withTimestamps.map(point => {
         if (point.controllerTemp == null) return point;
 
         // Binary search for the nearest preceding profile target
@@ -244,6 +244,29 @@ export function useBrewChartData({
 
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       });
+
+      // Add synthetic future points for profile targets beyond last data point
+      // This makes upcoming ramps/holds visible on the chart
+      const lastTimestamp = mappedData.length > 0 
+        ? mappedData[mappedData.length - 1].timestamp 
+        : 0;
+      
+      const futureTargets = profileTargets.filter(pt => pt.timestamp > lastTimestamp);
+      if (futureTargets.length > 0) {
+        for (const ft of futureTargets) {
+          mappedData.push({
+            date: new Date(ft.timestamp).toISOString(),
+            value: undefined as unknown as number,
+            temp: undefined as unknown as number,
+            timestamp: ft.timestamp,
+            targetTemp: ft.target,
+            controllerTemp: null,
+            pillTemp: undefined,
+          });
+        }
+      }
+
+      return mappedData;
     }
 
     return withTimestamps;
