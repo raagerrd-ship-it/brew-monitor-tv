@@ -198,7 +198,7 @@ export const SonosWidget = memo(function SonosWidget({
       {/* Content */}
       <div className={`relative h-full flex flex-col justify-center ${isHeader ? "px-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         {isHeader ? (
-          <div className="truncate text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+          <div className="truncate text-white" style={{ fontSize: trackFontSize, textShadow: "0 1px 4px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.6)" }}>
             {nowPlaying.artist_name && (
               <span className="font-semibold">{nowPlaying.artist_name}</span>
             )}
