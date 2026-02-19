@@ -138,8 +138,8 @@ export const SonosWidget = memo(function SonosWidget({
   if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
 
   const isHeader = variant === "header";
-  const trackFontSize = isHeader ? "16px" : isMobile ? "0.8rem" : "18px";
-  const artistFontSize = isHeader ? "16px" : isMobile ? "0.7rem" : "14px";
+  const trackFontSize = isHeader ? "18px" : isMobile ? "0.8rem" : "18px";
+  const artistFontSize = isHeader ? "18px" : isMobile ? "0.7rem" : "14px";
   const progressHeight = isHeader ? "2px" : isMobile ? "2px" : "5px";
   const widgetHeight = isHeader ? "50px" : isMobile ? "56px" : "130px";
   const widgetWidth = isHeader ? "380px" : isMobile ? "140px" : "280px";
@@ -199,10 +199,13 @@ export const SonosWidget = memo(function SonosWidget({
       <div className={`relative h-full flex flex-col justify-center ${isHeader ? "px-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         {isHeader ? (
           <div className="truncate text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
-            <span className="font-semibold">{nowPlaying.track_name}</span>
             {nowPlaying.artist_name && (
-              <span className="text-white/70 font-normal"> — {nowPlaying.artist_name}</span>
+              <span className="font-semibold">{nowPlaying.artist_name}</span>
             )}
+            {nowPlaying.artist_name && nowPlaying.track_name && (
+              <span className="text-white/70 font-normal"> — </span>
+            )}
+            <span className="text-white/70 font-normal">{nowPlaying.track_name}</span>
           </div>
         ) : (
           <>
