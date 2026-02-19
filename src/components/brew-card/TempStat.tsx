@@ -230,17 +230,16 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
                   }} 
                 />
-                {/* Average marker line (white) */}
+                {/* Average marker line (dashed white) */}
                 <div 
-                  className="absolute rounded-sm"
+                  className="absolute"
                   style={{ 
                     left: `${avgPct}%`, 
                     top: '-2px',
                     width: '2px',
                     height: '10px',
-                    background: 'hsl(var(--foreground) / 0.7)',
+                    backgroundImage: 'repeating-linear-gradient(to bottom, hsl(var(--foreground)), hsl(var(--foreground)) 2px, transparent 2px, transparent 4px)',
                     transform: 'translateX(-1px)',
-                    boxShadow: '0 0 4px hsl(var(--foreground) / 0.4)',
                   }} 
                 />
               </div>
