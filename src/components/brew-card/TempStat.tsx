@@ -123,19 +123,17 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     && Math.abs(profileTarget - targetTemp) >= 0.1;
   
   let label: React.ReactNode = 'Temp';
-  if (controller && controller.target_temp !== null) {
-    if (showBothTargets) {
-      label = (
-        <span>
-          Temp{' '}
-          <span style={{ color: 'hsl(38 92% 50%)' }}>{controller.target_temp.toFixed(1)}</span>
-          /
-          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{profileTarget!.toFixed(1)}</span>
-        </span>
-      );
-    } else {
-      label = `Temp (${controller.target_temp.toFixed(1)}°)`;
-    }
+  if (hasBothSensors) {
+    label = (
+      <span>
+        Temp{' '}
+        <span style={{ color: 'hsl(var(--temp-blue))' }}>{controller.current_temp!.toFixed(1)}</span>
+        {' / '}
+        <span style={{ color: 'hsl(var(--ferment-green))' }}>{brew.currentTemp.toFixed(1)}</span>
+      </span>
+    );
+  } else if (controller && controller.target_temp !== null) {
+    label = `Temp (${controller.target_temp.toFixed(1)}°)`;
   }
 
   // Build tooltip text showing temp source
