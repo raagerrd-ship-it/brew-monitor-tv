@@ -126,10 +126,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   if (hasBothSensors) {
     label = (
       <span>
-        Temp{' '}
-        <span style={{ color: 'hsl(var(--temp-blue))' }}>{controller.current_temp!.toFixed(1)}</span>
-        {' / '}
-        <span style={{ color: 'hsl(var(--ferment-green))' }}>{brew.currentTemp.toFixed(1)}</span>
+        <span style={{ color: 'hsl(var(--temp-blue))' }}>Ctrl {controller.current_temp!.toFixed(1)}</span>
+        {'  '}
+        <span style={{ color: 'hsl(var(--ferment-green))' }}>Pill {brew.currentTemp.toFixed(1)}</span>
       </span>
     );
   } else if (controller && controller.target_temp !== null) {
