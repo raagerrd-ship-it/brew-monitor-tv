@@ -96,9 +96,31 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     </svg>
   );
 
-  // Show both targets if original differs from current (auto-adjusted)
-  const showBothTargets = originalTarget !== null && targetTemp !== null && targetTemp !== undefined
-    && Math.abs(originalTarget - targetTemp) >= 0.1;
+  // Calculate the current profile target (interpolated during ramps)
+  const currentProfileTarget = (() => {
+    const session = brew.fermentationSession;
+    if (!session?.steps?.length) return originalTarget ?? targetTemp ?? null;
+    
+    const step = session.steps[session.current_step_index];
+    if (!step) return originalTarget ?? targetTemp ?? null;
+    
+    const stepTarget = step.target_temp;
+    if (stepTarget == null) return originalTarget ?? targetTemp ?? null;
+    
+    // During a ramp with duration, interpolate between start temp and target
+    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null) {
+      const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
+      const progress = Math.min(elapsed / step.duration_hours, 1);
+      return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
+    }
+    
+    return stepTarget;
+  })();
+
+  // Show both targets if profile target differs from current (auto-adjusted)
+  const profileTarget = currentProfileTarget ?? originalTarget;
+  const showBothTargets = profileTarget !== null && targetTemp !== null && targetTemp !== undefined
+    && Math.abs(profileTarget - targetTemp) >= 0.1;
   
   let label: React.ReactNode = 'Temp';
   if (controller && controller.target_temp !== null) {
@@ -108,7 +130,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
           Temp{' '}
           <span style={{ color: 'hsl(38 92% 50%)' }}>{controller.target_temp.toFixed(1)}</span>
           /
-          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{originalTarget!.toFixed(1)}</span>
+          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{profileTarget!.toFixed(1)}</span>
         </span>
       );
     } else {
@@ -131,27 +153,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const handleClick = controller && onControllerClick 
     ? () => onControllerClick(controller) 
     : undefined;
-
-  // Calculate the current profile target (interpolated during ramps)
-  const currentProfileTarget = (() => {
-    const session = brew.fermentationSession;
-    if (!session?.steps?.length) return originalTarget ?? targetTemp ?? null;
-    
-    const step = session.steps[session.current_step_index];
-    if (!step) return originalTarget ?? targetTemp ?? null;
-    
-    const stepTarget = step.target_temp;
-    if (stepTarget == null) return originalTarget ?? targetTemp ?? null;
-    
-    // During a ramp with duration, interpolate between start temp and target
-    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null) {
-      const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
-      const progress = Math.min(elapsed / step.duration_hours, 1);
-      return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
-    }
-    
-    return stepTarget;
-  })();
 
   // Temperature span bar: visual range showing pill↔controller with target marker
   const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
