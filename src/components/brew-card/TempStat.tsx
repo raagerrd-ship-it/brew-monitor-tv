@@ -122,7 +122,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const showBothTargets = profileTarget !== null && targetTemp !== null && targetTemp !== undefined
     && Math.abs(profileTarget - targetTemp) >= 0.1;
   
-  let label: React.ReactNode = 'Temp';
+  let label: React.ReactNode = hasBothSensors ? '' : 'Temp';
   let sensorSubValue: React.ReactNode = null;
   if (hasBothSensors) {
     const goalTemp = targetTemp?.toFixed(1);
