@@ -171,6 +171,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     const ctrlPct = pct(cTemp);
     const pillPct = pct(pTemp);
     const targetPct = pct(tTemp);
+    const avgPct = pct(displayTemp); // average marker
     const leftPct = Math.min(ctrlPct, pillPct);
     const rightPct = Math.max(ctrlPct, pillPct);
     
@@ -229,6 +230,19 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
                   }} 
                 />
+                {/* Average marker line (white) */}
+                <div 
+                  className="absolute rounded-sm"
+                  style={{ 
+                    left: `${avgPct}%`, 
+                    top: '-2px',
+                    width: '2px',
+                    height: '10px',
+                    background: 'hsl(var(--foreground) / 0.7)',
+                    transform: 'translateX(-1px)',
+                    boxShadow: '0 0 4px hsl(var(--foreground) / 0.4)',
+                  }} 
+                />
               </div>
             </div>
           </TooltipTrigger>
@@ -237,7 +251,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
               <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>
               <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>
               <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Mål: {tTemp.toFixed(1)}°</p>
-              <p className="text-muted-foreground">Δ {delta! >= 0 ? '+' : ''}{delta!.toFixed(1)}°</p>
+              <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>
               {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
               {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
             </div>
