@@ -124,11 +124,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   
   let label: React.ReactNode = 'Temp';
   if (hasBothSensors) {
+    const goalTemp = targetTemp?.toFixed(1);
     label = (
       <span>
         <span style={{ color: 'hsl(var(--temp-blue))' }}>Ctrl {controller.current_temp!.toFixed(1)}</span>
         {'  '}
         <span style={{ color: 'hsl(var(--ferment-green))' }}>Pill {brew.currentTemp.toFixed(1)}</span>
+        {goalTemp && <>{'  '}<span style={{ color: 'hsl(38 92% 50%)' }}>Mål {goalTemp}</span></>}
       </span>
     );
   } else if (controller && controller.target_temp !== null) {
