@@ -127,10 +127,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   if (hasBothSensors) {
     const goalTemp = targetTemp?.toFixed(1);
     sensorSubValue = (
-      <span style={{ fontSize: '10px', letterSpacing: '0.02em', marginTop: '-2px', display: 'block' }}>
+      <span style={{ fontSize: '10px', letterSpacing: '0.01em', marginTop: '-2px', display: 'block', whiteSpace: 'nowrap' }}>
         <span style={{ color: 'hsl(var(--temp-blue))' }}>C:{controller.current_temp!.toFixed(1)}</span>
-        {goalTemp && <>{' \u00A0 '}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{goalTemp}</span></>}
-        {' \u00A0 '}
+        {goalTemp && <>{' '}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{goalTemp}</span></>}
+        {' '}
         <span style={{ color: 'hsl(var(--ferment-green))' }}>P:{brew.currentTemp.toFixed(1)}</span>
       </span>
     );
