@@ -132,11 +132,32 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     ? () => onControllerClick(controller) 
     : undefined;
 
+  // Calculate the current profile target (interpolated during ramps)
+  const currentProfileTarget = (() => {
+    const session = brew.fermentationSession;
+    if (!session?.steps?.length) return originalTarget ?? targetTemp ?? null;
+    
+    const step = session.steps[session.current_step_index];
+    if (!step) return originalTarget ?? targetTemp ?? null;
+    
+    const stepTarget = step.target_temp;
+    if (stepTarget == null) return originalTarget ?? targetTemp ?? null;
+    
+    // During a ramp with duration, interpolate between start temp and target
+    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null) {
+      const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
+      const progress = Math.min(elapsed / step.duration_hours, 1);
+      return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
+    }
+    
+    return stepTarget;
+  })();
+
   // Temperature span bar: visual range showing pill↔controller with target marker
   const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
     const pTemp = brew.currentTemp;       // pill (surface)
     const cTemp = controller.current_temp!; // controller (core)
-    const tTemp = originalTarget ?? targetTemp; // profile goal (original), fallback to current target
+    const tTemp = currentProfileTarget ?? targetTemp; // interpolated profile goal
     
     // Fixed range: target ±3°C so the bar visually shrinks as temps converge
     const rangeMin = tTemp - 3;
