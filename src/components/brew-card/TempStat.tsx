@@ -128,8 +128,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     label = (
       <span>
         <span style={{ color: 'hsl(var(--temp-blue))' }}>C:{controller.current_temp!.toFixed(1)}</span>
-        {goalTemp && <>{' '}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{goalTemp}</span></>}
-        {' '}
+        {goalTemp && <>{' \u00A0 '}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{goalTemp}</span></>}
+        {' \u00A0 '}
         <span style={{ color: 'hsl(var(--ferment-green))' }}>P:{brew.currentTemp.toFixed(1)}</span>
       </span>
     );
