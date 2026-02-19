@@ -123,10 +123,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     && Math.abs(profileTarget - targetTemp) >= 0.1;
   
   let label: React.ReactNode = 'Temp';
+  let sensorSubValue: React.ReactNode = null;
   if (hasBothSensors) {
     const goalTemp = targetTemp?.toFixed(1);
-    label = (
-      <span>
+    sensorSubValue = (
+      <span style={{ fontSize: '10px', letterSpacing: '0.02em' }}>
         <span style={{ color: 'hsl(var(--temp-blue))' }}>C:{controller.current_temp!.toFixed(1)}</span>
         {goalTemp && <>{' \u00A0 '}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{goalTemp}</span></>}
         {' \u00A0 '}
@@ -249,7 +250,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={<span style={{ marginTop: '-3px', display: 'block' }}>{label}</span>}
-      value={<span style={{ marginTop: '-5px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
+      value={<span style={{ marginTop: '-3px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
+      subValue={sensorSubValue}
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
