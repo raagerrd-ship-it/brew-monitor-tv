@@ -99,13 +99,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   // Calculate the current profile target (interpolated during ramps)
   const currentProfileTarget = (() => {
     const session = brew.fermentationSession;
-    if (!session?.steps?.length) return originalTarget ?? targetTemp ?? null;
+    if (!session?.steps?.length) return null;
     
     const step = session.steps[session.current_step_index];
-    if (!step) return originalTarget ?? targetTemp ?? null;
+    if (!step) return null;
     
     const stepTarget = step.target_temp;
-    if (stepTarget == null) return originalTarget ?? targetTemp ?? null;
+    if (stepTarget == null) return null;
     
     // During a ramp with duration, interpolate between start temp and target
     if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null) {
