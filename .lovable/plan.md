@@ -1,43 +1,44 @@
 
+# UI-finslipning: Omgang 4
 
-# UI-finslipning: Proffsigare detaljer (Omgang 3)
+## 1. Dod kod: `getStatGlowStyles` anvands inte
 
-Dashboarden ser proffsig ut redan. Har ar de sista detaljerna som kan hoja den ytterligare.
+**Fil:** `src/components/brew-card/utils.ts` (rad 56-69) och `src/components/brew-card/index.ts` (rad 8)
 
-## 1. Doda hjalpfunktioner i utils.ts
+Funktionen `getStatGlowStyles` exporteras men importeras aldrig i nagon komponent. Ren dod kod som bor tas bort.
 
-**Fil:** `src/components/brew-card/utils.ts`
+## 2. Etikettbild-placeholder: rundare fallback
 
-Funktionerna `calculateThermometerFill`, `calculateBatteryFillWidth` och `calculateAbvFillOffset` (rad 74-89) anvands inte langre efter att ikonerna togs bort i forra omgangen. Ta bort dem for renare kod.
+**Fil:** `src/components/brew-card/BrewCard.tsx` (rad 113-123)
 
-## 2. Subtitle-separator: bygg en visuell separator
+Nar etikettbilden laddas visas en tom gratorig fyrkant (`bg-muted/30`). Tva forbattringar:
+- Lagg till en subtil laddningsindikation med en `skeleton`-liknande gradient i bakgrunden
+- Lagg till `loading="lazy"` pa `<img>`-taggen for battre prestanda
 
-**Fil:** `src/components/brew-card/BrewCard.tsx`
+## 3. Stat-kortens grid: femte kortet (Batteri) centrerat
 
-Subtiteln under olnamnet anvander ` • ` (text-separator) mellan stil, datum och batchnummer. Byt till samma pipeseparator-stil (`│`) som fermenterings-sessionen anvander, for visuell konsekvens. Alternativt, anvand en tunn `·` (middot) istallet for `•` (bullet) som ar mer diskret och proffsig.
+**Fil:** `src/components/brew-card/BrewCard.tsx` (rad 258-265)
 
-## 3. Controller-barens batteriprocent: fadad decimal
+Stat-griden har 3 kolumner och 2 rader. Gravity tar `rowSpan=2`, sa rad 1 har: Gravity (span 2) + ABV + Temp, och rad 2 har: (Gravity fortsatter) + Utjasning + Batteri. Det ar 5 kort i en 3x2 grid dar Gravity tar 2 rader — layouten ar redan korrekt. Ingen andring behovs har.
 
-**Fil:** `src/components/DashboardHeader.tsx` (rad 200-205)
+## 4. ABV och Utjasning: fadade procenttecken
 
-I controller-baren visas batteriprocenten som t.ex. `59%`. Brew-kartens BatteryStat visar batteriet med fadad decimal (t.ex. `60.4%` dar `.4%` ar fadad). For konsekvens, visa decimaler aven i controller-baren, med fadad decimal-stil.
+**Fil:** `src/components/brew-card/AbvStat.tsx` och `src/components/brew-card/AttenuationStat.tsx`
 
-## 4. Stat-kortens "TEMP"-etikett: finare formatering
+For konsekvens med BatteryStat (som fadar decimalen) bor procenttecknet i ABV och Utjasning ocksa vara svagt fadat:
+- `5.1%` blir `5.1` + fadat `%`
+- `77%` blir `77` + fadat `%`
 
-**Fil:** `src/components/brew-card/TempStat.tsx` (rad 111-115)
+Detta ger en enhetlig "viktigast forst"-hierarki dar siffran dominerar och enheten ar nedtonad.
 
-Etiketten `TEMP (14.0°)` ser lite trång ut. Andringen ar att gora parenteserna och malsiffran fadade (som en subtitel snarare an del av labeln) for att dra ner visuellt brus:
-- `Temp` i full opacitet, `(14.0°)` i `text-muted-foreground/50`
+## 5. Trailing newline i utils.ts
 
-## 5. Klockans datumrad: liten polering
+**Fil:** `src/components/brew-card/utils.ts` (rad 70)
 
-**Fil:** `src/components/Clock.tsx` (rad 36-44)
-
-Datumraden visar "FRE 20 FEB." med stor bokstav och punkt. Ta bort den avslutande punkten (`.`) fran formateringen for en renare look -- den laggs till automatiskt av `toLocaleDateString` i vissa lokaler.
+Filen slutar med en extra blank rad efter att funktionerna togs bort i foreg aende omgang. Ren upp sa filen slutar pa rad 69.
 
 ## Teknisk sammanfattning
 
-- 5 filer berors
-- Inga logikandrigar, bara visuell polish och kodrensning
+- 4 filer berors
+- Inga logikandringar, bara visuell konsekvens och kodrensning
 - Alla andringar ar sma och isolerade
-
