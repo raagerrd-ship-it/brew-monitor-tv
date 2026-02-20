@@ -255,11 +255,14 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     // Clear existing
     if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    syncIntervalRef.current = null;
 
-    const syncMs = active ? FAST_SYNC_MS : SLOW_SYNC_MS;
+    // Only sync edge function when timer is active
+    if (active) {
+      syncIntervalRef.current = setInterval(() => triggerSync(), FAST_SYNC_MS);
+    }
+
     const pollMs = active ? FAST_POLL_MS : SLOW_POLL_MS;
-
-    syncIntervalRef.current = setInterval(() => triggerSync(), syncMs);
     pollIntervalRef.current = setInterval(() => fetchFromCache(), pollMs);
   }, [triggerSync, fetchFromCache]);
 
@@ -272,29 +275,12 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       onCachedTimerChangeRef.current = () => fetchFromCache();
     }
 
-    const channel = supabase
-      .channel('cached-timer-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cached_external_timer',
-        },
-        () => {
-          console.log('[Timer] Realtime update received, fetching cache...');
-          fetchFromCache();
-        }
-      )
-      .subscribe();
-
     // Start with slow intervals; fetchFromCache will update isActiveRef
     setupIntervals(false);
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      supabase.removeChannel(channel);
       if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
   }, [fetchFromCache, triggerSync, onCachedTimerChangeRef, setupIntervals]);
