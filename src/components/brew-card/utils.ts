@@ -53,4 +53,3 @@ export function getStatusDisplayText(brew: BrewData): string {
   return brew.status;
 }
 
-

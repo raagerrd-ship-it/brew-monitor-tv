@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check, Hand } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
-import { ProgressOverlay, PulseOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
+import { ProgressOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
 import { 
   getBackgroundStyle, 
@@ -455,27 +455,6 @@ export function FermentationSessionCompact({
 // Small sub-components to reduce main component size
 function Separator() {
   return <span className="shrink-0 text-muted-foreground/40 font-light select-none" style={{ fontSize: '10px' }}>│</span>;
-}
-
-interface ProgressBadgeProps {
-  progress: number;
-  color: 'amber' | 'purple';
-}
-
-function ProgressBadge({ progress, color }: ProgressBadgeProps) {
-  const styles = {
-    amber: { bg: 'hsl(38 92% 50% / 0.2)', text: 'hsl(38 92% 60%)' },
-    purple: { bg: 'hsl(280 70% 50% / 0.2)', text: 'hsl(280 70% 70%)' },
-  };
-  
-  return (
-    <span 
-      className="text-xs font-bold shrink-0 rounded px-1"
-      style={{ background: styles[color].bg, color: styles[color].text }}
-    >
-      {Math.round(progress * 100)}%
-    </span>
-  );
 }
 
 interface TemperatureDisplayProps {

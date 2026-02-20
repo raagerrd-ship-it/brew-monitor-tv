@@ -48,7 +48,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       }
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.sg}
-      centered
+      
       rowSpan={2}
       customBackground={customBackground}
       labelSize="18px"

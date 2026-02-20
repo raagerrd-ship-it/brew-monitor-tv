@@ -34,26 +34,7 @@ export const ProgressOverlay = memo(function ProgressOverlay({
   );
 });
 
-interface PulseOverlayProps {
-  active: boolean;
-  color: 'blue';
-}
 
-export const PulseOverlay = memo(function PulseOverlay({ 
-  active, 
-  color 
-}: PulseOverlayProps) {
-  if (!active) return null;
-  
-  return (
-    <div 
-      className="absolute inset-0 pointer-events-none animate-pulse"
-      style={{
-        background: 'linear-gradient(90deg, hsl(200 90% 50% / 0.1) 0%, hsl(200 90% 50% / 0.05) 100%)',
-      }}
-    />
-  );
-});
 
 export const ShimmerOverlay = memo(function ShimmerOverlay() {
   return (
