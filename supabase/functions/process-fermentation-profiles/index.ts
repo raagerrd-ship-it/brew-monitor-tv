@@ -134,7 +134,6 @@ async function calculateCompensatedTarget(
     return null
   }
 
-  const MAX_CHANGE_PER_CYCLE = maxChangePerCycle
   const MAX_COMPENSATION = 5.0
 
   // Target average: compensate by half the delta so (pill+ctrl)/2 = profileTarget
@@ -144,25 +143,25 @@ async function calculateCompensatedTarget(
   // Safety floor: never more than 5°C below profile target
   compensatedTarget = Math.max(profileTarget - MAX_COMPENSATION, compensatedTarget)
 
-  // Rate limit: scale with distance from target for faster recovery from spikes
-  // When very far (>3°C), skip rate limit entirely to fix dangerous deviations immediately
+  // Dynamic rate limit: scales down as we approach the target
+  // Far away = full maxChangePerCycle (0.8°C), close = softer steps
+  // Formula: effectiveLimit = maxChange * clamp(distanceToIdeal / 2, 0.15, 1.0)
+  // At 2°C+ away: full 0.8°C steps
+  // At 1°C away: 0.4°C steps  
+  // At 0.3°C away: 0.15 * 0.8 = 0.12°C steps (minimum)
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
+  
   if (distanceFromIdeal > 3.0) {
     // Emergency: large deviation, set directly without rate limiting
     console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C, sätter direkt utan rate-limit`)
-  } else if (distanceFromIdeal > 2.0) {
-    const limit = MAX_CHANGE_PER_CYCLE * 3
-    if (distanceFromIdeal > limit) {
-      compensatedTarget = currentControllerTarget + (diff > 0 ? limit : -limit)
+  } else {
+    const scaleFactor = Math.min(1.0, Math.max(0.15, distanceFromIdeal / 2.0))
+    const effectiveLimit = maxChangePerCycle * scaleFactor
+    if (distanceFromIdeal > effectiveLimit) {
+      compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveLimit : -effectiveLimit)
+      console.log(`🎯 Rate-limit: ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
     }
-  } else if (distanceFromIdeal > 1.0) {
-    const limit = MAX_CHANGE_PER_CYCLE * 2
-    if (distanceFromIdeal > limit) {
-      compensatedTarget = currentControllerTarget + (diff > 0 ? limit : -limit)
-    }
-  } else if (distanceFromIdeal > MAX_CHANGE_PER_CYCLE) {
-    compensatedTarget = currentControllerTarget + (diff > 0 ? MAX_CHANGE_PER_CYCLE : -MAX_CHANGE_PER_CYCLE)
   }
 
   // Round to 1 decimal
