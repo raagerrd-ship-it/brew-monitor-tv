@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
-import { isBrewInactive, calculateBatteryFillWidth } from "./utils";
+import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 
 interface BatteryStatProps {
@@ -21,24 +21,6 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
   const isLowBattery = !isInactive && batteryValue !== null && batteryValue < 20;
   const displayColor = isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
 
-  const batteryIcon = (
-    <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-      <rect x="2" y="6" width="18" height="12" rx="2" stroke={batteryColor} strokeWidth="0.75" fill="none"/>
-      <path d="M22 9v6" stroke={batteryColor} strokeWidth="0.75" strokeLinecap="round"/>
-      {batteryValue !== null && (
-        <rect 
-          x="4" 
-          y="8" 
-          width={`${calculateBatteryFillWidth(batteryValue)}`} 
-          height="8" 
-          rx="1" 
-          fill={batteryColor}
-          className={isBrewInactive(brew.status) ? '' : 'transition-all duration-500'}
-          opacity="0.6"
-        />
-      )}
-    </svg>
-  );
 
   // Format battery with 1 decimal, fading the decimal part including dot
   const formatBatteryValue = () => {
@@ -61,7 +43,6 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
       color={displayColor}
       isUpdated={updatedFields[brew.batch_id]?.battery}
       isInactive={isInactive}
-      icon={batteryIcon}
       className={isLowBattery ? 'animate-battery-pulse' : ''}
     />
   );

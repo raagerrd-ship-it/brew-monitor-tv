@@ -11,7 +11,6 @@ interface StatCardProps {
   onClick?: () => void;
   clickable?: boolean;
   title?: string;
-  icon?: ReactNode;
   children?: ReactNode;
   subValue?: ReactNode;
   colSpan?: number;
@@ -32,7 +31,6 @@ export function StatCard({
   onClick,
   clickable = false,
   title,
-  icon,
   children,
   subValue,
   colSpan = 1,

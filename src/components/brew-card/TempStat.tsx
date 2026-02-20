@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
-import { isBrewInactive, calculateThermometerFill } from "./utils";
+import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -70,31 +70,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     fetchLatestOvershoot();
   }, [controller?.controller_id, brew.lastUpdateRaw]);
 
-  const thermometerIcon = (
-    <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
-      <path 
-        d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" 
-        stroke={tempColor}
-        strokeWidth="0.75" 
-        fill="none"
-      />
-      <defs>
-        <clipPath id={`thermo-clip-${brew.batch_id}`}>
-          <path d="M14 4v10a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z" />
-        </clipPath>
-      </defs>
-      <rect 
-        x="8" 
-        y={`${calculateThermometerFill(displayTemp)}`}
-        width="8" 
-        height="20" 
-        fill={tempColor}
-        clipPath={`url(#thermo-clip-${brew.batch_id})`}
-        className="transition-none"
-        opacity="0.6"
-      />
-    </svg>
-  );
 
   // Calculate the current profile target (interpolated during ramps)
   // Falls back through previous steps to find the most recent target_temp
@@ -253,7 +228,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
-      icon={thermometerIcon}
+      
       onClick={handleClick}
       clickable={!!handleClick}
     >
