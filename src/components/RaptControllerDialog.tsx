@@ -216,7 +216,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
       
       toast({
         title: "Måltemperatur uppdaterad",
-        description: `${controller.name} måltemperatur är nu ${targetTemp}°C`,
+        description: `${controller.name} måltemperatur är nu ${targetTemp}°`,
       });
     } catch (error) {
       console.error('Error updating target temperature:', error);
@@ -310,7 +310,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               </p>
               {currentController.pill_temp !== null && (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
-                  Pill: {currentController.pill_temp.toFixed(1)}°C
+                  Pill: {currentController.pill_temp.toFixed(1)}°
                 </p>
               )}
             </div>
@@ -324,7 +324,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                   Ändra måltemperatur
                 </Label>
                 <span className="text-lg font-bold text-primary tabular-nums">
-                  {targetTemp}°C
+                  {targetTemp}°
                 </span>
               </div>
               
@@ -339,8 +339,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 className="py-1"
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>{currentController.min_target_temp ?? -5}°C</span>
-                <span>{currentController.max_target_temp ?? 25}°C</span>
+                <span>{currentController.min_target_temp ?? -5}°</span>
+                <span>{currentController.max_target_temp ?? 25}°</span>
               </div>
               <Button 
                 onClick={handleSetTargetTemperature} 
