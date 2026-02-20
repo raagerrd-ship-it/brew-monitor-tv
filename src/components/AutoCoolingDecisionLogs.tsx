@@ -298,7 +298,7 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}°C nedjustering</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
-                        Sänker styrenhetens mål så att pill-temperaturen (ytan) hamnar närmare profilmålet
+                        Justerar styrenhetens mål så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
                       </p>
                     </div>
                   )}
