@@ -132,21 +132,12 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const showBothTargets = profileTarget !== null && targetTemp !== null && targetTemp !== undefined
     && Math.abs(profileTarget - targetTemp) >= 0.1;
   
-  let label: React.ReactNode = hasBothSensors ? '' : 'Temp';
-  let sensorSubValue: React.ReactNode = null;
-  if (hasBothSensors) {
-    const profileGoal = profileTarget?.toFixed(1);
-    sensorSubValue = (
-      <span style={{ fontSize: '10px', letterSpacing: '0.01em', marginTop: '-2px', display: 'block', whiteSpace: 'nowrap' }}>
-        <span style={{ color: 'hsl(var(--temp-blue))' }}>C:{controller.current_temp!.toFixed(1)}</span>
-        {profileGoal && <>{'\u2003'}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{profileGoal}</span></>}
-        {'\u2003'}
-        <span style={{ color: 'hsl(var(--ferment-green))' }}>P:{brew.currentTemp.toFixed(1)}</span>
-      </span>
-    );
-  } else if (controller && controller.target_temp !== null) {
-    label = `Temp (${controller.target_temp.toFixed(1)}°)`;
-  }
+  const profileGoal = profileTarget?.toFixed(1);
+  const label: React.ReactNode = profileGoal
+    ? `Temp (M:${profileGoal})`
+    : targetTemp !== null && targetTemp !== undefined
+      ? `Temp (${targetTemp.toFixed(1)}°)`
+      : 'Temp';
 
   // Build tooltip text showing temp source
   const tooltipParts: string[] = [];
@@ -256,7 +247,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     <StatCard
       label={<span style={{ marginTop: '-3px', display: 'block' }}>{label}</span>}
       value={<span style={{ marginTop: '-12px', marginBottom: '-2px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
-      subValue={sensorSubValue}
+      subValue={null}
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
