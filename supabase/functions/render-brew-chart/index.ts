@@ -21,7 +21,9 @@ const COLORS = {
   sgLine: '#e8a225',         // beer-amber
   sgGlow: '#e8a22599',       // beer-amber glow
   controllerArea: '#268bd214', // temp-blue 0.08
-  controllerLine: '#268bd2',   // temp-blue
+  controllerLine: '#268bd24d',   // temp-blue 0.3 (faint, like desktop)
+  avgTempLine: '#268bd2',        // temp-blue (main temp line)
+  avgTempFill: '#268bd226',      // temp-blue 0.15
   targetLine: '#268bd280',     // temp-blue 0.5
   pillTempLine: '#268bd24d',   // temp-blue 0.3
   grid: '#3a3d4e',
@@ -240,8 +242,8 @@ function generateChartSvg(
         ...tempDown.flatMap(p => [p.current, p.target]),
         ...pillTemps,
       ];
-      const tempMin = Math.min(...allTemps) - 0.5;
-      const tempMax = Math.max(...allTemps) + 0.5;
+      const tempMin = Math.min(...allTemps) - 1;
+      const tempMax = Math.max(...allTemps) + 1;
 
       // Right Y-axis for temp
       const tempScaleY = (v: number) => {
@@ -255,13 +257,50 @@ function generateChartSvg(
         x: scaleX(p.t, tMin, tMax),
         y: tempScaleY(ctrlSmoothed[i]),
       }));
-      const baseY = MARGIN.top + PLOT_H;
+
+      // Build average temp from pill + controller where both exist
+      // Match pill temps to controller timestamps
+      const pillTempMap = new Map<number, number>();
+      for (const sg of sgParsed) {
+        if (sg.temp != null) pillTempMap.set(sg.t, sg.temp);
+      }
+
+      // Compute avg temp points (interpolate pill to nearest controller timestamp)
+      const avgTempPoints: { x: number; y: number }[] = [];
+      for (let i = 0; i < tempDown.length; i++) {
+        const ct = ctrlSmoothed[i];
+        // Find closest pill temp within 30 min
+        let closestPill: number | null = null;
+        let closestDist = Infinity;
+        for (const [pt, pv] of pillTempMap) {
+          const dist = Math.abs(pt - tempDown[i].t);
+          if (dist < closestDist && dist < 30 * 60 * 1000) {
+            closestDist = dist;
+            closestPill = pv;
+          }
+        }
+        if (closestPill !== null) {
+          const avg = (ct + closestPill) / 2;
+          avgTempPoints.push({
+            x: scaleX(tempDown[i].t, tMin, tMax),
+            y: tempScaleY(avg),
+          });
+        }
+      }
+
+      // Average temp line with gradient fill (main temp visualization)
+      if (avgTempPoints.length > 1) {
+        const baseY = MARGIN.top + PLOT_H;
+        const avgSmoothD = buildSmoothPath(avgTempPoints);
+        const avgAreaPath = avgSmoothD +
+          ` L${avgTempPoints[avgTempPoints.length - 1].x.toFixed(1)},${baseY} L${avgTempPoints[0].x.toFixed(1)},${baseY} Z`;
+        tempSvgParts += `<path d="${avgAreaPath}" fill="${COLORS.avgTempFill}" stroke="none"/>`;
+        tempSvgParts += `<path d="${avgSmoothD}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
+      }
+
+      // Controller temp line (faint)
       const ctrlSmoothD = buildSmoothPath(ctrlPoints);
-      const areaPath = ctrlSmoothD + 
-        ` L${ctrlPoints[ctrlPoints.length - 1].x.toFixed(1)},${baseY} L${ctrlPoints[0].x.toFixed(1)},${baseY} Z`;
-      
-      tempSvgParts += `<path d="${areaPath}" fill="${COLORS.controllerArea}" stroke="none"/>`;
-      tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1.5"/>`;
+      tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`;
 
       // Target temp (step-after)
       const targetPoints = tempDown.map(p => ({
@@ -293,11 +332,11 @@ function generateChartSvg(
         target: tp.target_temp,
       }));
       const allTemps = [...tempParsed.flatMap(tp => [tp.current, tp.target]), ...pillTempsAll];
-      pillTempMin = Math.min(...allTemps) - 0.5;
-      pillTempMax = Math.max(...allTemps) + 0.5;
+      pillTempMin = Math.min(...allTemps) - 1;
+      pillTempMax = Math.max(...allTemps) + 1;
     } else {
-      pillTempMin = Math.min(...pillTempsAll) - 0.5;
-      pillTempMax = Math.max(...pillTempsAll) + 0.5;
+      pillTempMin = Math.min(...pillTempsAll) - 1;
+      pillTempMax = Math.max(...pillTempsAll) + 1;
     }
 
     const pillTempScaleY = (v: number) => {
