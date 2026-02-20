@@ -1,51 +1,59 @@
 
 
-# Ytterligare optimeringar -- runda 3
+# UI-förbättringar -- visuell granskning
 
-Kodbasen ar valoptimerad efter tidigare rundor. Har ar de kvarvarande forbattringarna, alla med lagre paverkan:
+Dashboarden ser redan professionell ut med sin glassmorphism-estetik. Här är de förbättringar jag identifierat efter att ha jämfört alla komponenter:
 
-## 1. Clock skapar nytt Date-objekt for datum varje sekund (LOW impact)
+## 1. Fermenteringskortet -- informationsraden är svårläst
 
-`Clock.tsx` anropar `now.toLocaleDateString()` varje sekund, trots att datumet bara andras en gang per dag. Genom att separera datum- och tidsrendering kan vi undvika onodiga strangangallokeringar.
+**Problem:** Raden under profilnamnet ("West Coast Ale") har för mycket information packad horisontellt med små prickar som separatorer. Texten "14.0°C -> 13.7° . Håll temperatur . 40h 25min kvar" flyter ihop och är svårläst, speciellt på TV-avstånd.
 
-**Fix:** Memorisera datumsstrangen och bara uppdatera den nar datumet faktiskt andras (en gang per minut racker).
+**Fix:** Ersätt prickseparatorerna med tydligare vertikala streck (`|`) med mer kontrast. Ge stegtypen ("Håll temperatur") och tidsvillkoret ("40h 25min kvar") lite olika färgton för att visuellt skilja dem åt. Gör stegtyp-ikonen färgkodad.
 
-## 2. RaptControllerBar hover-handlers skapas inline (LOW impact)
+## 2. Fermenteringskortet -- ikonen saknar puls-animation
 
-I `DashboardHeader.tsx` skapas `onMouseEnter`/`onMouseLeave` inline-funktioner for varje controller vid varje render. Pa TV-mode ar detta onodigt da hover aldrig anvands.
+**Problem:** SessionStatusIcon har statiska glow-effekter men ingen subtil animation som visar att sessionen är aktiv. Jämfört med t.ex. "Jäsning dag 8"-badgen som har tydlig färg, känns ikonen lite livlös.
 
-**Fix:** Redan villkorat med `!isTvMode`, sa detta ar redan hanterat. Inget att gora.
+**Fix:** Lägg till en subtil puls-animation (CSS `animate-pulse` med låg opacitet) på glöd-skuggan runt ikonen för aktiva sessioner. Pausade sessioner förblir statiska.
 
-## 3. `auto_cooling_settings` hamtas utan cache (LOW impact)
+## 3. Stegbadgen (6/8) -- kan förstärkas
 
-`BrewingDashboard.tsx` rad 108-122 gor en DB-fraga for `coolerControllerId` vid varje mount. Denna data andras extremt sallan.
+**Problem:** Steg-badgen "6 / 8" är funktionell men visuellt platt. Den har samma stil oavsett hur långt man kommit i profilen.
 
-**Fix:** Ingen atgard nodvandig -- den kor bara en gang vid mount.
+**Fix:** Lägg till en liten cirkulär progressindikator (ring) runt steg-siffran som visar total progress genom profilen. Alternativt, ge badgen en gradient-bakgrund som reflekterar hur långt man kommit (t.ex. mer ifylld färg vid 6/8 = 75%).
 
-## 4. Unused SLOW_SYNC_MS constant (trivial, stadning)
+## 4. Stat-kortens temperatur saknar enhetsformatering
 
-`use-external-timer.ts` rad 60 definierar `SLOW_SYNC_MS = 30_000` som inte langre anvands efter att vi tog bort edge function-anrop i idle-lage.
+**Problem:** I vänstra kortet syns "9.8°" utan "C" och i det högra "13.9°" -- inkonsekvent med resten av interfacet.
 
-**Fix:** Ta bort den oanvanda konstanten.
+**Fix:** Säkerställ att temperaturvärden konsekvent visar "°C" i stat-korten, alternativt gör det konsekvent utan "C" överallt.
 
-## 5. `debounceTimer` i config-updates-kanal aldrig anvands (trivial, stadning)
+## 5. Vänstra kortet saknar temperatur-stat (klippt)
 
-`use-brew-data.ts` rad 615 deklarerar `debounceTimer` som aldrig tilldelas -- dead code fran en tidigare refaktorering.
+**Problem:** Det vänstra kortet ("Prags Gyllene Lejon") verkar ha en klippt temperatur-stat i övre högra hörnet av stat-griden -- texten "TEMP (18.0°)" syns men värdet och ikonen är avklippta.
 
-**Fix:** Ta bort den oanvanda variabeln och dess cleanup.
+**Fix:** Kontrollera att stat-griden inte klipper innehåll. Det kan vara ett overflow-problem i gridens container.
 
 ---
 
-## Sammanfattning
+## Tekniska detaljer
 
-Det finns inga fler hogt-paverkande optimeringar att gora. De tva stadnings-atgarderna (punkt 4 och 5) ar rena dead-code-borttagningar som inte paverkar prestanda men haller kodbasen ren.
+### Fil: `src/components/fermentation/FermentationSessionCompact.tsx`
+- Ändra `Separator`-komponenten (rad 432-434) från en liten prick till ett vertikalt streck med bättre kontrast
+- Ge stegtypens label en färg som matchar ikonens färgschema istället för `text-muted-foreground`
+- Ge tidsvillkoret en ljusare nyans för att skilja det från stegtypen
 
-### Tekniska detaljer
+### Fil: `src/components/fermentation/SessionStatusIcon.tsx`
+- Lägg till en CSS-klass med subtil puls på den yttre `div`-en för aktiva sessioner (inte paused)
+- Använda en nyckelbildruteanimation med opacitet 0.6 -> 1.0 på box-shadow för att simulera "levande" glöd
 
-**Fil: `src/hooks/use-external-timer.ts`**
-- Ta bort rad 60: `const SLOW_SYNC_MS = 30_000;`
+### Fil: `src/components/fermentation/FermentationSessionCompact.tsx` (stegbadge)
+- Lägg till en gradient-bakgrund på badgen baserat på `currentStepIndex / totalSteps`
+- Bakgrunden går från primary/10 (start) till primary/30 (nästan klar)
 
-**Fil: `src/hooks/use-brew-data.ts`**
-- Ta bort rad 615: `let debounceTimer: NodeJS.Timeout | null = null;`
-- Ta bort rad 647: `if (debounceTimer) clearTimeout(debounceTimer);`
+### Fil: `src/components/brew-card/TempStat.tsx`
+- Verifiera att temperaturen formateras konsekvent med eller utan "C"
+
+### Fil: `src/components/brew-card/BrewCard.tsx`
+- Kontrollera `CARD_STATS_HEIGHT` och overflow-hantering i stat-griden (rad ~217) för att säkerställa att inget klipps
 
