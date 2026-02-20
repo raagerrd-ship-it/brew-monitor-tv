@@ -112,7 +112,10 @@ async function calculateCompensatedTarget(
   currentControllerTarget: number,
   controllerName: string,
   _dampingFactor: number = 0.5,
-  maxChangePerCycle: number = 0.3
+  maxChangePerCycle: number = 0.3,
+  emergencyThreshold: number = 3.0,
+  minScaleFactor: number = 0.15,
+  maxCompensation: number = 5.0
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   // Fetch last 3 delta measurements
   const { data: deltaHistory } = await supabase
@@ -134,29 +137,22 @@ async function calculateCompensatedTarget(
     return null
   }
 
-  const MAX_COMPENSATION = 5.0
-
   // Target average: compensate by half the delta so (pill+ctrl)/2 = profileTarget
   const compensation = avgDelta / 2
   let compensatedTarget = profileTarget - compensation
 
-  // Safety floor: never more than 5°C below profile target
-  compensatedTarget = Math.max(profileTarget - MAX_COMPENSATION, compensatedTarget)
+  // Safety floor: never more than maxCompensation below profile target
+  compensatedTarget = Math.max(profileTarget - maxCompensation, compensatedTarget)
 
   // Dynamic rate limit: scales down as we approach the target
-  // Far away = full maxChangePerCycle (0.8°C), close = softer steps
-  // Formula: effectiveLimit = maxChange * clamp(distanceToIdeal / 2, 0.15, 1.0)
-  // At 2°C+ away: full 0.8°C steps
-  // At 1°C away: 0.4°C steps  
-  // At 0.3°C away: 0.15 * 0.8 = 0.12°C steps (minimum)
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
   
-  if (distanceFromIdeal > 3.0) {
+  if (distanceFromIdeal > emergencyThreshold) {
     // Emergency: large deviation, set directly without rate limiting
-    console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C, sätter direkt utan rate-limit`)
+    console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C (>${emergencyThreshold}), sätter direkt utan rate-limit`)
   } else {
-    const scaleFactor = Math.min(1.0, Math.max(0.15, distanceFromIdeal / 2.0))
+    const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
     const effectiveLimit = maxChangePerCycle * scaleFactor
     if (distanceFromIdeal > effectiveLimit) {
       compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveLimit : -effectiveLimit)
@@ -262,13 +258,16 @@ Deno.serve(async (req) => {
     // Load pill compensation settings
     const { data: acSettings } = await supabase
       .from('auto_cooling_settings')
-      .select('pill_compensation_enabled, pill_compensation_damping, pill_compensation_rate_limit')
+      .select('pill_compensation_enabled, pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation')
       .limit(1)
       .maybeSingle()
 
     const pillCompEnabled = (acSettings as any)?.pill_compensation_enabled ?? true
     const pillCompDamping = parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 0.4))
     const pillCompRateLimit = parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.8))
+    const pillCompEmergencyThreshold = parseFloat(String((acSettings as any)?.pill_compensation_emergency_threshold ?? 3.0))
+    const pillCompMinScale = parseFloat(String((acSettings as any)?.pill_compensation_min_scale ?? 0.15))
+    const pillCompMaxCompensation = parseFloat(String((acSettings as any)?.pill_compensation_max_compensation ?? 5.0))
 
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
@@ -373,7 +372,7 @@ Deno.serve(async (req) => {
         if (effectiveTarget !== null) {
           // Calculate pill-compensated target
           const compensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
+            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit, pillCompEmergencyThreshold, pillCompMinScale, pillCompMaxCompensation
           ) : null
 
           // If pill-comp is enabled but returned null, the target is already correctly compensated — skip enforce
@@ -473,7 +472,7 @@ Deno.serve(async (req) => {
           if (currentStep.target_temp !== null && controller) {
             // Calculate pill-compensated target for hold steps
             const holdCompensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
+              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit, pillCompEmergencyThreshold, pillCompMinScale, pillCompMaxCompensation
             ) : null
 
             // If pill-comp is enabled but returned null (already at ideal or same data), don't enforce raw profile target

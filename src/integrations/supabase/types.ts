@@ -132,7 +132,10 @@ export type Database = {
           overshoot_pill_threshold: number
           overshoot_prevention_enabled: boolean
           pill_compensation_damping: number
+          pill_compensation_emergency_threshold: number
           pill_compensation_enabled: boolean
+          pill_compensation_max_compensation: number
+          pill_compensation_min_scale: number
           pill_compensation_rate_limit: number
           stall_rate_threshold: number
           temp_reduction_degrees: number
@@ -153,7 +156,10 @@ export type Database = {
           overshoot_pill_threshold?: number
           overshoot_prevention_enabled?: boolean
           pill_compensation_damping?: number
+          pill_compensation_emergency_threshold?: number
           pill_compensation_enabled?: boolean
+          pill_compensation_max_compensation?: number
+          pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
@@ -174,7 +180,10 @@ export type Database = {
           overshoot_pill_threshold?: number
           overshoot_prevention_enabled?: boolean
           pill_compensation_damping?: number
+          pill_compensation_emergency_threshold?: number
           pill_compensation_enabled?: boolean
+          pill_compensation_max_compensation?: number
+          pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
