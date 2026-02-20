@@ -269,7 +269,6 @@ export function AutoCoolingDecisionLogs() {
                   <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border flex-wrap">
                     <span>Styrenhet: {adj.followed_controller_name || adj.cooler_controller_name}</span>
                     <span>Mål: {adj.old_target_temp}° → {adj.new_target_temp}° (probe)</span>
-                    {adj.followed_current_temp !== null && <span>Pill: {adj.followed_current_temp.toFixed(1)}°</span>}
                   </div>
                   
                   {category === 'pill-comp' && (
