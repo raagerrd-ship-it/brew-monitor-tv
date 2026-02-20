@@ -806,7 +806,8 @@ serve(async (req) => {
         }
 
         // ---- OVERSHOOT RECOVERY (no AI needed) ----
-        if (!stallActiveControllerIds.has(fc.controller_id) && !isHeatingOvershoot) {
+        // Skip recovery for profile-owned controllers — the profile + pill-comp manage the target
+        if (!stallActiveControllerIds.has(fc.controller_id) && !isHeatingOvershoot && !profileOwnedControllerIds.has(fc.controller_id)) {
           const origTarget = originalTargetMap.get(fc.controller_id);
           if (origTarget !== undefined && targetTemp < origTarget) {
             if (pillTemp < origTarget + overshootPillThreshold) {
