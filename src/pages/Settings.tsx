@@ -1787,9 +1787,9 @@ export default function Settings() {
                           <div className="space-y-1">
                             {(current || target) && (
                               <div className="text-xs text-muted-foreground">
-                                {current && <span>{current}°C</span>}
+                                {current && <span>{current}°</span>}
                                 {current && target && <span className="mx-1">→</span>}
-                                {target && <span className="text-foreground">{target}°C mål</span>}
+                                {target && <span className="text-foreground">{target}° mål</span>}
                               </div>
                             )}
                             <div className={`text-[11px] flex items-center gap-1 ${
@@ -1884,7 +1884,7 @@ export default function Settings() {
                           <div className="flex items-start gap-2">
                             <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                             <span className="text-muted-foreground">
-                              Övervakar <span className="text-foreground font-medium">{lowestController?.name}</span> mot mål {lowestTargetTemp.toFixed(1)}°C 
+                              Övervakar <span className="text-foreground font-medium">{lowestController?.name}</span> mot mål {lowestTargetTemp.toFixed(1)}° 
                               (±{hysteresis.toFixed(1)}°)
                             </span>
                           </div>
@@ -1893,8 +1893,8 @@ export default function Settings() {
                             <div className="flex items-start gap-2">
                               <ArrowDown className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
                               <span className="text-muted-foreground">
-                                Temp <span className="text-foreground">{currentTemp!.toFixed(1)}°C</span> är över mål — 
-                                om den inte når ner <span className="text-foreground">sänks kylaren med {tempReduction}°C</span>
+                                Temp <span className="text-foreground">{currentTemp!.toFixed(1)}°</span> är över mål — 
+                                om den inte når ner <span className="text-foreground">sänks kylaren med {tempReduction}°</span>
                               </span>
                             </div>
                           ) : (
@@ -1910,7 +1910,7 @@ export default function Settings() {
                             <div className="flex items-start gap-2">
                               <ArrowUp className="h-3.5 w-3.5 text-orange-400 shrink-0 mt-0.5" />
                               <span className="text-muted-foreground">
-                                Kylaren är {Math.abs(tempDiff).toFixed(1)}°C kallare än lägsta mål — 
+                                Kylaren är {Math.abs(tempDiff).toFixed(1)}° kallare än lägsta mål — 
                                 <span className="text-foreground"> kan höjas automatiskt</span>
                               </span>
                             </div>
@@ -1934,7 +1934,7 @@ export default function Settings() {
                         <div className="flex items-center gap-2 text-xs">
                           <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="text-muted-foreground">
-                            Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}°C → {lastAdjustment.new_target_temp}°C</span>
+                            Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}° → {lastAdjustment.new_target_temp}°</span>
                             {lastAdjustment.new_target_temp < lastAdjustment.old_target_temp 
                               ? <ArrowDown className="h-3 w-3 text-blue-400 inline ml-1" />
                               : <ArrowUp className="h-3 w-3 text-orange-400 inline ml-1" />
@@ -1944,8 +1944,8 @@ export default function Settings() {
                         {lastAdjustment.followed_controller_name && (
                           <p className="text-[11px] text-muted-foreground pl-5">
                             Orsak: {lastAdjustment.followed_controller_name} 
-                            {lastAdjustment.followed_current_temp !== null && ` (${lastAdjustment.followed_current_temp.toFixed(1)}°C)`}
-                            {lastAdjustment.followed_target_temp !== null && ` → mål ${lastAdjustment.followed_target_temp.toFixed(1)}°C`}
+                            {lastAdjustment.followed_current_temp !== null && ` (${lastAdjustment.followed_current_temp.toFixed(1)}°)`}
+                            {lastAdjustment.followed_target_temp !== null && ` → mål ${lastAdjustment.followed_target_temp.toFixed(1)}°`}
                           </p>
                         )}
                       </div>
@@ -2111,14 +2111,14 @@ export default function Settings() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="1">1°C</SelectItem>
-                            <SelectItem value="2">2°C</SelectItem>
-                            <SelectItem value="3">3°C</SelectItem>
-                            <SelectItem value="4">4°C</SelectItem>
-                            <SelectItem value="5">5°C</SelectItem>
-                            <SelectItem value="6">6°C</SelectItem>
-                            <SelectItem value="8">8°C</SelectItem>
-                            <SelectItem value="10">10°C</SelectItem>
+                            <SelectItem value="1">1°</SelectItem>
+                            <SelectItem value="2">2°</SelectItem>
+                            <SelectItem value="3">3°</SelectItem>
+                            <SelectItem value="4">4°</SelectItem>
+                            <SelectItem value="5">5°</SelectItem>
+                            <SelectItem value="6">6°</SelectItem>
+                            <SelectItem value="8">8°</SelectItem>
+                            <SelectItem value="10">10°</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2130,11 +2130,11 @@ export default function Settings() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="5">5°C</SelectItem>
-                            <SelectItem value="7.5">7.5°C</SelectItem>
-                            <SelectItem value="10">10°C</SelectItem>
-                            <SelectItem value="12.5">12.5°C</SelectItem>
-                            <SelectItem value="15">15°C</SelectItem>
+                            <SelectItem value="5">5°</SelectItem>
+                            <SelectItem value="7.5">7.5°</SelectItem>
+                            <SelectItem value="10">10°</SelectItem>
+                            <SelectItem value="12.5">12.5°</SelectItem>
+                            <SelectItem value="15">15°</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2146,12 +2146,12 @@ export default function Settings() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="1">1°C</SelectItem>
-                            <SelectItem value="1.5">1.5°C</SelectItem>
-                            <SelectItem value="2">2°C</SelectItem>
-                            <SelectItem value="2.5">2.5°C</SelectItem>
-                            <SelectItem value="3">3°C</SelectItem>
-                            <SelectItem value="5">5°C</SelectItem>
+                            <SelectItem value="1">1°</SelectItem>
+                            <SelectItem value="1.5">1.5°</SelectItem>
+                            <SelectItem value="2">2°</SelectItem>
+                            <SelectItem value="2.5">2.5°</SelectItem>
+                            <SelectItem value="3">3°</SelectItem>
+                            <SelectItem value="5">5°</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

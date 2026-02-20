@@ -397,7 +397,7 @@ export function RaptControllersManagement() {
 
       toast({
         title: "Temperaturintervall uppdaterat",
-        description: `${controller.name}: ${minTemp}°C till ${maxTemp}°C`,
+        description: `${controller.name}: ${minTemp}° till ${maxTemp}°`,
       });
     } catch (error) {
       console.error('Error updating limits:', error);
@@ -768,7 +768,7 @@ export function RaptControllersManagement() {
                           type="number"
                           value={tempMinTemp}
                           onChange={(e) => setTempMinTemp(e.target.value)}
-                          placeholder="°C"
+                          placeholder="°"
                           className="w-20 h-8"
                           disabled={updating}
                         />
@@ -777,7 +777,7 @@ export function RaptControllersManagement() {
                           type="number"
                           value={tempMaxTemp}
                           onChange={(e) => setTempMaxTemp(e.target.value)}
-                          placeholder="°C"
+                          placeholder="°"
                           className="w-20 h-8"
                           disabled={updating}
                         />
@@ -811,7 +811,7 @@ export function RaptControllersManagement() {
                       <Settings2 className="h-4 w-4 group-hover:text-primary transition-colors" />
                       <span>Temperaturintervall:</span>
                       <span className="font-medium text-foreground">
-                        {controller.min_target_temp ?? -5}°C — {controller.max_target_temp ?? 25}°C
+                        {controller.min_target_temp ?? -5}° — {controller.max_target_temp ?? 25}°
                       </span>
                     </button>
                   )}

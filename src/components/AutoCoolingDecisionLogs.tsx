@@ -245,7 +245,7 @@ export function AutoCoolingDecisionLogs() {
           const category = entry.category;
           const aiReasoning = extractAiReasoning(adj.reason);
           const tempChange = adj.new_target_temp - adj.old_target_temp;
-          const tempChangeStr = `${tempChange >= 0 ? '+' : ''}${tempChange.toFixed(1)}°C`;
+          const tempChangeStr = `${tempChange >= 0 ? '+' : ''}${tempChange.toFixed(1)}°`;
 
           return (
             <Collapsible key={`adj-${adj.id}`}>
@@ -278,31 +278,31 @@ export function AutoCoolingDecisionLogs() {
                       </p>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                         <div className="text-muted-foreground">Profilmål:</div>
-                        <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°C` : '—'}</div>
+                        <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°` : '—'}</div>
                         <div className="text-muted-foreground">Pill (yta):</div>
                         <div className="font-medium" style={{ color: 'hsl(38 92% 50%)' }}>
-                          {adj.followed_current_temp !== null ? `${adj.followed_current_temp.toFixed(1)}°C` : '—'}
+                          {adj.followed_current_temp !== null ? `${adj.followed_current_temp.toFixed(1)}°` : '—'}
                         </div>
                         <div className="text-muted-foreground">Probe (styrenhet):</div>
                         <div className="font-medium">
-                          {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°C` : '—'}
+                          {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°` : '—'}
                         </div>
                         <div className="text-muted-foreground">Delta / Medel:</div>
                         <div className="font-medium">
                           <span style={{ 
                             color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
                           }}>
-                            {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°C` : '—'}
+                            {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°` : '—'}
                           </span>
                           {' / '}
                           <span>
                             {adj.followed_current_temp !== null && adj.followed_target_temp !== null
-                              ? `${((adj.followed_current_temp + adj.followed_target_temp) / 2).toFixed(1)}°C`
+                              ? `${((adj.followed_current_temp + adj.followed_target_temp) / 2).toFixed(1)}°`
                               : '—'}
                           </span>
                         </div>
                         <div className="text-muted-foreground">Kompensation:</div>
-                        <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}°C nedjustering</div>
+                        <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}° nedjustering</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
                         Justerar styrenhetens mål (probe) så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
@@ -321,11 +321,11 @@ export function AutoCoolingDecisionLogs() {
                         {adj.original_target_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Profilmål:</div>
-                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°</div>
                           </>
                         )}
                         <div className="text-muted-foreground">Tankmål:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
                     </div>
@@ -342,17 +342,17 @@ export function AutoCoolingDecisionLogs() {
                         {adj.followed_current_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Tank aktuell:</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
                           </>
                         )}
                         {adj.followed_target_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Tank mål:</div>
-                            <div className="font-medium">{adj.followed_target_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.followed_target_temp.toFixed(1)}°</div>
                           </>
                         )}
                         <div className="text-muted-foreground">Kylare:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
                     </div>
@@ -369,17 +369,17 @@ export function AutoCoolingDecisionLogs() {
                         {adj.followed_current_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Probe (kärna):</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
                           </>
                         )}
                         {adj.original_target_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Originalmål:</div>
-                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°</div>
                           </>
                         )}
                         <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
                       </div>
                       {aiReasoning && (
                         <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
@@ -398,11 +398,11 @@ export function AutoCoolingDecisionLogs() {
                         {adj.followed_current_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Aktuell temp:</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°C</div>
+                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
                           </>
                         )}
                         <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°C</div>
+                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
                       </div>
                       {aiReasoning && (
                         <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
