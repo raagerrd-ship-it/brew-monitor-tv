@@ -1,40 +1,27 @@
 
 
-# UI-polering -- 3 forbattringar
+# UI-polering: Slutgiltig enhetsstandardisering
 
-## 1. Tooltip-text i header har fortfarande "°C"
+Standardisera alla kvarvarande "°C" till "°" over hela kodbasen. Klockans separator behalls som den ar.
 
-Controller-barens hover-tooltip visar `°C` trots att alla synliga varden nu anvander `°`. En enkel textersattning for konsistens.
+## Filer att andra
 
-**Fil:** `src/components/DashboardHeader.tsx` rad 170
+### `src/components/RaptControllerDialog.tsx`
+- Toast-beskrivning, pill-temperatur och slider-visning: byt `°C` till `°`
 
-## 2. Branded laddningsskarm
+### `src/components/fermentation/FermentationStepDisplay.tsx`
+- Alla temperaturvisningar (~8 stallen): byt `°C` till `°`
 
-Nuvarande laddningssida visar bara en generisk spinner. Byter till logotypen med fade-in-animation for en mer professionell forstaintryck.
+### `src/components/brew-chart/BrewChart.tsx`
+- Y-axel tick-format och tooltip-formatering: byt `°C` till `°`
 
-**Fil:** `src/components/BrewingDashboard.tsx` rad 280-282
-- Importera `Logo` och visa den ovanfor spinnern
-- Lagg till fade-in-animation och dammad spinner-farg
+### `src/components/controller-chart/ControllerTempChart.tsx`
+- Tooltip-formatering: byt `°C` till `°`
 
-## 3. Temperaturenhet i DashboardHeader tooltip
-
-Alla `°C` i tooltip-texten (rad 170) ersatts med `°`.
-
----
+### `src/components/AutoCoolingCountdown.tsx`
+- Temperaturvisning: byt `°C` till `°`
 
 ## Teknisk sammanfattning
 
-### DashboardHeader.tsx (rad 170)
-Ersatt alla `°C` med `°` i title-attributets strang.
-
-### BrewingDashboard.tsx (rad 280-282)
-```tsx
-return (
-  <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
-    <Logo />
-    <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-  </div>
-);
-```
-Kraver import av `Logo` fran `./Logo`.
+Totalt ~15 enkla textersattningar over 5 filer. Alla ar strangbyten fran `°C` till `°`. Ingen logik andras. Klockans separator behalls oforandrad.
 
