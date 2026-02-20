@@ -29,9 +29,13 @@ export const DATA_SERIES_CONFIG = {
     dotRadius: 5,
     filter: "drop-shadow(0 0 6px hsl(var(--beer-amber) / 0.6))",
   },
-  controllerTemp: {
+  avgTemp: {
     strokeWidth: 1.5,
     dotRadius: 4,
+  },
+  controllerTemp: {
+    strokeWidth: 1,
+    dotRadius: 3,
   },
   pillTemp: {
     strokeWidth: 1,

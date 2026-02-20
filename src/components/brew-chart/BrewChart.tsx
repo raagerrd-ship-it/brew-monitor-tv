@@ -82,7 +82,7 @@ function BrewChartComponent({
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
           <defs>
-            <linearGradient id={`ctrlTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`avgTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.15} />
               <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0} />
             </linearGradient>
@@ -175,35 +175,42 @@ function BrewChartComponent({
              labelStyle={{ color: COLORS.mutedForeground, marginBottom: "1px" }}
              itemStyle={{ lineHeight: "1.1", padding: "1px 0" }}
              labelFormatter={formatTooltipLabel}
-             formatter={(value: number, name: string, payload: any) => {
-               // Use raw (unsmoothed) values for tooltip display
-               const rawPayload = payload?.payload;
-               
-               if (name === "value") {
-                 const displayValue = rawPayload?.rawValue ?? value;
-                 return [displayValue.toFixed(3), "SG"];
-               }
-               if (name === "controllerTemp") {
-                 const displayValue = rawPayload?.rawControllerTemp ?? value;
-                 return [
-                   <span key="v" style={{ color: COLORS.temp }}>{displayValue.toFixed(1)}°C</span>,
-                   <span key="l" style={{ color: COLORS.temp }}>Nuv:</span>,
-                 ];
-               }
-               if (name === "targetTemp")
-                 return [
-                   <span key="v" style={{ color: COLORS.targetTemp }}>{value.toFixed(1)}°C</span>,
-                   <span key="l" style={{ color: COLORS.targetTemp }}>Mål:</span>,
-                 ];
-               if (name === "pillTemp") {
-                 const displayValue = rawPayload?.rawPillTemp ?? value;
-                 return [
-                   <span key="v" style={{ color: COLORS.tempFaint }}>{displayValue.toFixed(1)}°C</span>,
-                   <span key="l" style={{ color: COLORS.tempFaint }}>Pill:</span>,
-                 ];
-               }
-               return [value, name];
-             }}
+              formatter={(value: number, name: string, payload: any) => {
+                // Use raw (unsmoothed) values for tooltip display
+                const rawPayload = payload?.payload;
+                
+                if (name === "value") {
+                  const displayValue = rawPayload?.rawValue ?? value;
+                  return [displayValue.toFixed(3), "SG"];
+                }
+                if (name === "avgTemp") {
+                  const displayValue = rawPayload?.rawAvgTemp ?? value;
+                  return [
+                    <span key="v" style={{ color: COLORS.temp }}>{displayValue.toFixed(1)}°C</span>,
+                    <span key="l" style={{ color: COLORS.temp }}>Snitt:</span>,
+                  ];
+                }
+                if (name === "controllerTemp") {
+                  const displayValue = rawPayload?.rawControllerTemp ?? value;
+                  return [
+                    <span key="v" style={{ color: COLORS.tempFaint }}>{displayValue.toFixed(1)}°C</span>,
+                    <span key="l" style={{ color: COLORS.tempFaint }}>Probe:</span>,
+                  ];
+                }
+                if (name === "targetTemp")
+                  return [
+                    <span key="v" style={{ color: COLORS.targetTemp }}>{value.toFixed(1)}°C</span>,
+                    <span key="l" style={{ color: COLORS.targetTemp }}>Mål:</span>,
+                  ];
+                if (name === "pillTemp") {
+                  const displayValue = rawPayload?.rawPillTemp ?? value;
+                  return [
+                    <span key="v" style={{ color: COLORS.tempFaint }}>{displayValue.toFixed(1)}°C</span>,
+                    <span key="l" style={{ color: COLORS.tempFaint }}>Pill:</span>,
+                  ];
+                }
+                return [value, name];
+              }}
            />
 
           {/* SG Line */}
@@ -220,19 +227,32 @@ function BrewChartComponent({
             style={{ filter: DATA_SERIES_CONFIG.sg.filter }}
           />
 
-          {/* Controller temp - main temperature with gradient that fades downward */}
+          {/* Average temp - main temperature with gradient that fades downward */}
           <Area
             yAxisId="temp"
             type={areaType}
-            dataKey="controllerTemp"
+            dataKey="avgTemp"
             stroke={COLORS.temp}
-            strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
-            fill={`url(#ctrlTempGrad-${chartIndex})`}
+            strokeWidth={DATA_SERIES_CONFIG.avgTemp.strokeWidth}
+            fill={`url(#avgTempGrad-${chartIndex})`}
             dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: COLORS.temp }}
-            name="controllerTemp"
+            activeDot={{ r: DATA_SERIES_CONFIG.avgTemp.dotRadius, fill: COLORS.temp }}
+            name="avgTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
+          />
+
+          {/* Controller temp (probe) - faint secondary line */}
+          <Line
+            yAxisId="temp"
+            type={areaType}
+            dataKey="controllerTemp"
+            stroke={COLORS.tempFaint}
+            strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
+            dot={false}
+            activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
+            name="controllerTemp"
+            isAnimationActive={isAnimationActive}
           />
 
           {/* Pill temp - faint secondary line */}
