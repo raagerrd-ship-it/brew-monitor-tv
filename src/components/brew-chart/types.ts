@@ -6,6 +6,8 @@ export interface ChartDataPoint {
   controllerTemp?: number | null;
   targetTemp?: number | null;
   avgTemp?: number | null;
+  /** Delta between pill and controller for stacked area span rendering */
+  tempSpan?: number | null;
   // Raw (unsmoothed) values for tooltip display
   rawValue?: number;
   rawPillTemp?: number;
