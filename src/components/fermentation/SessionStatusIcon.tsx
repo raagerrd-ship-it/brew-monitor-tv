@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Play, Pause, ArrowDown, ArrowUp, Timer } from "lucide-react";
+import { Play, Pause, ArrowDown, ArrowUp, Timer, Thermometer, Activity, Hand, Clock } from "lucide-react";
 
 interface SessionStatusIconProps {
   status: string;
@@ -7,6 +7,7 @@ interface SessionStatusIconProps {
   isRamping: boolean;
   isRampingUp: boolean;
   isTvMode: boolean;
+  stepType?: string;
 }
 
 export const SessionStatusIcon = memo(function SessionStatusIcon({
@@ -15,6 +16,7 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
   isRamping,
   isRampingUp,
   isTvMode,
+  stepType,
 }: SessionStatusIconProps) {
   if (status === 'paused') {
     return (
@@ -53,17 +55,74 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
     );
   }
 
-  // Active/running state
+  // Active/running state — show icon based on step type
+  const { Icon, color } = getStepIconConfig(stepType);
+  
   return (
-    <div className="relative flex items-center justify-center w-7 h-7">
-      {/* Solid indicator */}
-      <div 
-        className="relative w-3 h-3 rounded-full"
-        style={{ 
-          background: 'linear-gradient(135deg, hsl(142 70% 55%) 0%, hsl(142 70% 40%) 100%)',
-          boxShadow: '0 0 8px hsl(142 70% 50% / 0.6)'
-        }}
-      />
+    <div 
+      className="p-1.5 rounded-full"
+      style={{ 
+        background: `linear-gradient(135deg, ${color.bg} 0%, ${color.bgDark} 100%)`,
+        boxShadow: `0 0 12px ${color.glow}`
+      }}
+    >
+      <Icon className="h-4 w-4" style={{ color: color.icon }} />
     </div>
   );
 });
+
+function getStepIconConfig(stepType?: string) {
+  switch (stepType) {
+    case 'hold':
+      return {
+        Icon: Thermometer,
+        color: {
+          bg: 'hsl(142 70% 50% / 0.3)',
+          bgDark: 'hsl(142 70% 50% / 0.15)',
+          glow: 'hsl(142 70% 50% / 0.4)',
+          icon: 'hsl(142 70% 60%)',
+        },
+      };
+    case 'wait_for_gravity_stable':
+    case 'wait_for_sg':
+      return {
+        Icon: Activity,
+        color: {
+          bg: 'hsl(280 70% 50% / 0.3)',
+          bgDark: 'hsl(280 70% 50% / 0.15)',
+          glow: 'hsl(280 70% 50% / 0.4)',
+          icon: 'hsl(280 70% 70%)',
+        },
+      };
+    case 'wait_for_temp':
+      return {
+        Icon: Thermometer,
+        color: {
+          bg: 'hsl(200 90% 50% / 0.3)',
+          bgDark: 'hsl(200 90% 50% / 0.15)',
+          glow: 'hsl(200 90% 50% / 0.4)',
+          icon: 'hsl(200 90% 60%)',
+        },
+      };
+    case 'wait_for_acknowledgement':
+      return {
+        Icon: Hand,
+        color: {
+          bg: 'hsl(38 92% 50% / 0.3)',
+          bgDark: 'hsl(38 92% 50% / 0.15)',
+          glow: 'hsl(38 92% 50% / 0.4)',
+          icon: 'hsl(38 92% 60%)',
+        },
+      };
+    default:
+      return {
+        Icon: Thermometer,
+        color: {
+          bg: 'hsl(142 70% 50% / 0.3)',
+          bgDark: 'hsl(142 70% 50% / 0.15)',
+          glow: 'hsl(142 70% 50% / 0.4)',
+          icon: 'hsl(142 70% 60%)',
+        },
+      };
+  }
+}
