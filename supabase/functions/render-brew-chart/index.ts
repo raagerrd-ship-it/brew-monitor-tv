@@ -295,7 +295,7 @@ function generateChartSvg(
         const ctrlPathReversed = [...spanPoints].reverse().map(p => ({ x: p.x, y: p.ctrlY }));
         const spanD = buildSmoothPath(pillPath) + ' ' +
           buildSmoothPath(ctrlPathReversed).replace('M', 'L') + ' Z';
-        tempSvgParts += `<path d="${spanD}" fill="${COLORS.avgTempFill}" stroke="none"/>`;
+        tempSvgParts += `<path d="${spanD}" fill="url(#tempSpanGrad)" stroke="none"/>`;
 
         // Average temp line (main)
         const avgPath = spanPoints.map(p => ({ x: p.x, y: p.avgY }));
@@ -419,6 +419,12 @@ function generateChartSvg(
   // Current SG value label removed - shown in stat cards instead
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
+    <defs>
+      <linearGradient id="tempSpanGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#268bd2" stop-opacity="0.15"/>
+        <stop offset="100%" stop-color="#268bd2" stop-opacity="0.08"/>
+      </linearGradient>
+    </defs>
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
