@@ -101,15 +101,16 @@ export function FermentationSessionCompact({
   const isRamping = isRampingProp;
   const rampProgress = rampProgressProp;
 
-  const getStepIcon = (stepType: string) => {
+  const getStepIconWithColor = (stepType: string) => {
+    const iconClass = "h-3 w-3";
     switch (stepType) {
-      case 'ramp': return isRampingUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
-      case 'hold': return <Thermometer className="h-3 w-3" />;
-      case 'wait_for_temp': return <Thermometer className="h-3 w-3" />;
-      case 'wait_for_gravity_stable': return <Activity className="h-3 w-3" />;
-      case 'wait_for_sg': return <Activity className="h-3 w-3" />;
-      case 'wait_for_acknowledgement': return <Hand className="h-3 w-3" />;
-      default: return <Clock className="h-3 w-3" />;
+      case 'ramp': return { icon: isRampingUp ? <ArrowUp className={iconClass} /> : <ArrowDown className={iconClass} />, color: 'hsl(38 92% 60%)' };
+      case 'hold': return { icon: <Thermometer className={iconClass} />, color: 'hsl(142 70% 60%)' };
+      case 'wait_for_temp': return { icon: <Thermometer className={iconClass} />, color: 'hsl(200 90% 60%)' };
+      case 'wait_for_gravity_stable': return { icon: <Activity className={iconClass} />, color: 'hsl(280 70% 70%)' };
+      case 'wait_for_sg': return { icon: <Activity className={iconClass} />, color: 'hsl(280 70% 70%)' };
+      case 'wait_for_acknowledgement': return { icon: <Hand className={iconClass} />, color: 'hsl(38 92% 60%)' };
+      default: return { icon: <Clock className={iconClass} />, color: 'hsl(var(--muted-foreground))' };
     }
   };
 
@@ -326,13 +327,22 @@ export function FermentationSessionCompact({
             {profileName}
           </span>
           <div className="flex-1" />
-          <Badge 
-            variant="outline"
-            className="shrink-0 font-medium border-primary/30 bg-primary/5 px-2 py-0.5"
-            style={{ fontSize: '14px' }}
-          >
-            {currentStepIndex + 1} / {totalSteps}
-          </Badge>
+          {(() => {
+            const progress = totalSteps > 0 ? (currentStepIndex + 1) / totalSteps : 0;
+            return (
+              <Badge 
+                variant="outline"
+                className="shrink-0 font-medium border-primary/30 px-2 py-0.5"
+                style={{ 
+                  fontSize: '14px',
+                  background: `linear-gradient(135deg, hsl(var(--primary) / ${0.05 + progress * 0.25}) 0%, hsl(var(--primary) / ${0.02 + progress * 0.15}) 100%)`,
+                  boxShadow: progress > 0.5 ? `0 0 8px hsl(var(--primary) / ${progress * 0.2})` : undefined,
+                }}
+              >
+                {currentStepIndex + 1} / {totalSteps}
+              </Badge>
+            );
+          })()}
           {waitingForTemp && (
             <Badge 
               variant="outline"
@@ -405,12 +415,17 @@ export function FermentationSessionCompact({
             <Separator />
             
             {/* Step type label + next step condition */}
-            <span className="flex items-center gap-1 text-muted-foreground">
-              {getStepIcon(currentStep.step_type)}
-              <span className="font-medium">{STEP_TYPE_LABELS[currentStep.step_type]}</span>
-            </span>
+            {(() => {
+              const { icon, color } = getStepIconWithColor(currentStep.step_type);
+              return (
+                <span className="flex items-center gap-1" style={{ color }}>
+                  {icon}
+                  <span className="font-semibold">{STEP_TYPE_LABELS[currentStep.step_type]}</span>
+                </span>
+              );
+            })()}
             <Separator />
-            <span className="flex items-center gap-1 text-muted-foreground">
+            <span className="flex items-center gap-1 text-muted-foreground/80">
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
 
@@ -430,7 +445,7 @@ export function FermentationSessionCompact({
 
 // Small sub-components to reduce main component size
 function Separator() {
-  return <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />;
+  return <span className="shrink-0 text-muted-foreground/40 font-light select-none" style={{ fontSize: '10px' }}>│</span>;
 }
 
 interface ProgressBadgeProps {
