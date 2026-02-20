@@ -520,9 +520,11 @@ Deno.serve(async (req) => {
           }
           
           // Verify temp is at target before allowing completion (within 0.3°C)
+          // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
           const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+          const holdCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
           const holdTempOk = !holdEffectiveTarget || !controller || 
-            (controller.current_temp !== null && Math.abs(controller.current_temp - holdEffectiveTarget) <= 0.3)
+            (holdCheckTemp !== null && Math.abs(holdCheckTemp - holdEffectiveTarget) <= 0.3)
           
           if (!holdTempOk) {
             console.log(`Hold step: condition met but temp not at target (current ${controller?.current_temp}°C, target ${holdEffectiveTarget}°C) - waiting`)
@@ -562,8 +564,10 @@ Deno.serve(async (req) => {
               }
             }
             // Don't mark complete until temperature is actually reached
-            if (controller && controller.current_temp !== null &&
-                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3) {
+            // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
+            const immRampCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
+            if (controller && immRampCheckTemp !== null &&
+                Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
               console.log(`Immediate ramp complete: temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
             } else {
@@ -601,9 +605,11 @@ Deno.serve(async (req) => {
               }
               
               // Check if BOTH time has passed AND target temperature is reached (within 0.3°C)
+              // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
               const timeComplete = elapsedHours >= currentStep.duration_hours
-              const tempReached = controller.current_temp !== null && 
-                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3
+              const rampCheckTemp = controller.pill_temp ?? controller.current_temp
+              const tempReached = rampCheckTemp !== null && 
+                Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
               
               if (timeComplete && tempReached) {
                 stepCompleted = true
@@ -624,11 +630,27 @@ Deno.serve(async (req) => {
         }
 
         case 'wait_for_temp': {
-          if (currentStep.target_temp !== null && controller && controller.current_temp !== null) {
-            // Check if current temp has reached target
-            if (Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3) {
+          if (currentStep.target_temp !== null && controller) {
+            // Ensure the controller target is actually set to this step's target
+            // (in case no preceding ramp/hold set it)
+            if (Math.abs((controller.target_temp ?? 0) - currentStep.target_temp) > 0.1) {
+              console.log(`wait_for_temp: setting target to ${currentStep.target_temp}°C (was ${controller.target_temp}°C)`)
+              const success = await setControllerTargetTemp(session.controller_id, currentStep.target_temp)
+              if (success) {
+                actionTaken = 'temp_adjusted'
+                actionDetails = { target_temp: currentStep.target_temp, step_type: 'wait_for_temp' }
+                await supabase
+                  .from('rapt_temp_controllers')
+                  .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                  .eq('controller_id', session.controller_id)
+              }
+            }
+
+            // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
+            const waitCheckTemp = controller.pill_temp ?? controller.current_temp ?? null
+            if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
-              actionDetails = { current_temp: controller.current_temp, target_temp: currentStep.target_temp }
+              actionDetails = { current_temp: waitCheckTemp, target_temp: currentStep.target_temp }
             }
           }
           break
