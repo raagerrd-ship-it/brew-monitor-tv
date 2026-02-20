@@ -210,13 +210,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             );
           })}
         </div>
-        {/* Fade gradient on right edge to indicate scrollable content */}
-        <div
-          className="absolute top-0 right-0 bottom-0 w-6 rounded-r-lg pointer-events-none"
-          style={{
-            background: 'linear-gradient(to right, transparent, hsl(222 20% 11% / 0.9))',
-          }}
-        />
       </div>
     </div>
   );

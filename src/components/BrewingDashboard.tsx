@@ -354,7 +354,12 @@ export function BrewingDashboard() {
       {/* Main Display Area */}
       <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
         {brews.length === 0 ? <div className="flex items-center justify-center h-full p-4">
-            <Card className="max-w-2xl w-full p-8 text-center">
+            <div className="max-w-2xl w-full p-8 text-center rounded-xl" style={{
+              background: 'linear-gradient(145deg, hsl(222 20% 14% / 0.7) 0%, hsl(222 20% 12% / 0.7) 100%)',
+              border: '1px solid hsl(222 15% 25% / 0.4)',
+              boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
+              backdropFilter: 'blur(20px)',
+            }}>
               <h2 className="text-2xl font-bold mb-4">Inga öl valda</h2>
               <p className="text-muted-foreground mb-6">
                 Gå till inställningar för att välja vilka öl du vill visa på dashboarden
@@ -363,7 +368,7 @@ export function BrewingDashboard() {
                 <Settings className="mr-2 h-4 w-4" />
                 Öppna Inställningar
               </Button>
-            </Card>
+            </div>
           </div> : isMobile ? <div className="flex flex-col flex-1">
             {brews.length > 1 && <div className="relative py-2 flex-shrink-0">
                 <div className="flex justify-center gap-2">
