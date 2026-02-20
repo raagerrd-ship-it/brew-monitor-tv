@@ -32,6 +32,7 @@ interface TempController {
   pill_temp: number | null;
   target_temp: number | null;
   cooling_enabled: boolean | null;
+  heating_enabled: boolean | null;
   cooling_hysteresis: number | null;
   min_target_temp: number | null;
   max_target_temp: number | null;
@@ -748,6 +749,12 @@ serve(async (req) => {
 
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('OVERSHOOT_COOLOFF', 'info', `Hoppar över overshoot för ${fc.name}: 30min cooloff efter fermenteringsprofilsjustering`);
+          continue;
+        }
+
+        // Skip controllers without active heating — overshoot is a heating phenomenon
+        if (!fc.heating_enabled) {
+          log('OVERSHOOT_NO_HEATING', 'info', `Skipping overshoot for ${fc.name}: heating not enabled`);
           continue;
         }
 
