@@ -65,7 +65,7 @@ function BrewChartComponent({
       if (p.avgTemp != null && isFinite(p.avgTemp)) { min = Math.min(min, p.avgTemp); max = Math.max(max, p.avgTemp); }
     }
     if (!isFinite(min)) return [0, 30];
-    return [min - 0.5, max + 0.5];
+    return [min - 1, max + 1];
   }, [chartData]);
 
   // Check if data is empty or has no values
