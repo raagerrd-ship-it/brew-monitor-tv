@@ -245,7 +245,8 @@ serve(async (req) => {
     const profileTargetMap = new Map<string, number>();
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
-    if (runTankAdjustments) {
+    // Always fetch profile data (needed for correct original_target in all modes)
+    {
       const { data: runningSessions } = await supabase
         .from('fermentation_sessions')
         .select('id, controller_id, profile_id, current_step_index')
@@ -282,19 +283,22 @@ serve(async (req) => {
           log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall skippad, overshoot tillåts`);
         }
 
-        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-        for (const session of runningSessions) {
-          const { data: recentAdj } = await supabase
-            .from('fermentation_step_log')
-            .select('id')
-            .eq('session_id', session.id)
-            .eq('action', 'temp_adjusted')
-            .gte('created_at', thirtyMinAgo)
-            .limit(1);
+        // Cooloff check only needed for tank adjustments
+        if (runTankAdjustments) {
+          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          for (const session of runningSessions) {
+            const { data: recentAdj } = await supabase
+              .from('fermentation_step_log')
+              .select('id')
+              .eq('session_id', session.id)
+              .eq('action', 'temp_adjusted')
+              .gte('created_at', thirtyMinAgo)
+              .limit(1);
 
-          if (recentAdj && recentAdj.length > 0) {
-            cooloffControllerIds.add(session.controller_id);
-            log('COOLOFF', 'info', `Controller ${session.controller_id} i 30-min cooloff efter fermenteringsprofilsjustering`);
+            if (recentAdj && recentAdj.length > 0) {
+              cooloffControllerIds.add(session.controller_id);
+              log('COOLOFF', 'info', `Controller ${session.controller_id} i 30-min cooloff efter fermenteringsprofilsjustering`);
+            }
           }
         }
       }
