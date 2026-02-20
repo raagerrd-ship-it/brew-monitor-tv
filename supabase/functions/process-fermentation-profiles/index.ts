@@ -145,16 +145,24 @@ async function calculateCompensatedTarget(
   compensatedTarget = Math.max(profileTarget - MAX_COMPENSATION, compensatedTarget)
 
   // Rate limit: scale with distance from target for faster recovery from spikes
-  // When far from target (>2°C), allow up to 3x the normal rate
+  // When very far (>3°C), skip rate limit entirely to fix dangerous deviations immediately
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
-  const effectiveRateLimit = distanceFromIdeal > 2.0 
-    ? MAX_CHANGE_PER_CYCLE * 3 
-    : distanceFromIdeal > 1.0 
-      ? MAX_CHANGE_PER_CYCLE * 2 
-      : MAX_CHANGE_PER_CYCLE
-  if (distanceFromIdeal > effectiveRateLimit) {
-    compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveRateLimit : -effectiveRateLimit)
+  if (distanceFromIdeal > 3.0) {
+    // Emergency: large deviation, set directly without rate limiting
+    console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C, sätter direkt utan rate-limit`)
+  } else if (distanceFromIdeal > 2.0) {
+    const limit = MAX_CHANGE_PER_CYCLE * 3
+    if (distanceFromIdeal > limit) {
+      compensatedTarget = currentControllerTarget + (diff > 0 ? limit : -limit)
+    }
+  } else if (distanceFromIdeal > 1.0) {
+    const limit = MAX_CHANGE_PER_CYCLE * 2
+    if (distanceFromIdeal > limit) {
+      compensatedTarget = currentControllerTarget + (diff > 0 ? limit : -limit)
+    }
+  } else if (distanceFromIdeal > MAX_CHANGE_PER_CYCLE) {
+    compensatedTarget = currentControllerTarget + (diff > 0 ? MAX_CHANGE_PER_CYCLE : -MAX_CHANGE_PER_CYCLE)
   }
 
   // Round to 1 decimal
