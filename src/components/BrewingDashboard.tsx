@@ -18,7 +18,7 @@ import { useExternalTimer } from "@/hooks/use-external-timer";
 import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
-import { TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
+import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -174,7 +174,7 @@ export function BrewingDashboard() {
       } catch {
         // Ignore polling errors
       }
-    }, 10000);
+    }, 30000);
 
     return () => {
       onSyncSettingsChange.current = null;
@@ -398,5 +398,7 @@ export function BrewingDashboard() {
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
 
+      {/* Timer Footer - rendered here to share hook data instead of duplicating */}
+      <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
     </div>;
 }
