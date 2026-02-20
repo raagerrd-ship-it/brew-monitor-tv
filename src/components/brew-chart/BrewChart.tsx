@@ -54,6 +54,20 @@ function BrewChartComponent({
   // Memoize sorted events
   const sortedEvents = useMemo(() => getEventsPerDay(events), [events]);
 
+  // Compute explicit temp domain from actual values (stacked areas skew dataMax)
+  const tempDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 30];
+    let min = Infinity;
+    let max = -Infinity;
+    for (const p of chartData) {
+      if (p.pillTemp != null && isFinite(p.pillTemp)) { min = Math.min(min, p.pillTemp); max = Math.max(max, p.pillTemp); }
+      if (p.controllerTemp != null && isFinite(p.controllerTemp)) { min = Math.min(min, p.controllerTemp); max = Math.max(max, p.controllerTemp); }
+      if (p.avgTemp != null && isFinite(p.avgTemp)) { min = Math.min(min, p.avgTemp); max = Math.max(max, p.avgTemp); }
+    }
+    if (!isFinite(min)) return [0, 30];
+    return [min - 0.5, max + 0.5];
+  }, [chartData]);
+
   // Check if data is empty or has no values
   if (!data || data.length === 0) {
     return (
@@ -159,7 +173,7 @@ function BrewChartComponent({
           <YAxis
             yAxisId="temp"
             orientation="right"
-            domain={["dataMin - 0.5", "dataMax + 0.5"]}
+            domain={tempDomain}
             stroke={COLORS.temp}
             style={{ fontSize: AXIS_STYLES.fontSize.y }}
             tick={{ fill: COLORS.temp }}
