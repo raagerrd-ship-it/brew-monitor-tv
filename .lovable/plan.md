@@ -1,67 +1,39 @@
 
+# Ytterligare optimeringar
 
-# Prestandaoptimering -- TV-mode och nätverkstrafik
+## 1. Dubbel Realtime-kanal for cached_external_timer (MEDIUM impact)
 
-Klockan behåller sekundvisning som du vill. Övriga optimeringar genomförs:
+`use-external-timer.ts` skapar en egen Realtime-kanal (`cached-timer-changes`) som lyssnar pa `cached_external_timer` (rad 275-289). Samtidigt lyssnar `use-brew-data.ts` redan pa samma tabell via sin config-updates-kanal (rad 638) och anropar `onCachedTimerChange.current?.()` -- som pekar tillbaka till samma `fetchFromCache` i `use-external-timer.ts` (rad 272).
 
-## Vad ändras
+Det innebar TVA Realtime-kanaler for samma tabell som gor exakt samma sak.
 
-### 1. Ta bort dubbla timer-hooks (störst effekt)
-`TimerFooter` skapar egna instanser av `useExternalTimer` och `useExternalUserSettings`, trots att `BrewingDashboard` redan kör samma hooks. Det innebär dubbla edge function-anrop (var 3:e sekund), dubbla databaspolls (var 5:e sekund) och dubbla Realtime-kanaler.
+**Fix:** Ta bort den egna kanalen i `use-external-timer.ts` (rad 275-289). Behall bara callback-mekanismen via `onCachedTimerChange` som redan fungerar via `use-brew-data.ts`.
 
-Lösning: Flytta timer-data från `BrewingDashboard` ner till `TimerFooter` via props istället.
+## 2. Oanvand use-realtime-subscription.ts (LOW impact, stadning)
 
-- `AspectRatioLayout.tsx` -- Lägg till props-vidarebefordring från dashboard till TimerFooter via en React context eller lyft TimerFooter in i BrewingDashboard
-- `TimerFooter.tsx` -- Ta bort egna `useExternalTimer()` och `useExternalUserSettings()`, ta emot data som props istället
+`useRealtimeSubscription` och `useMultiTableRealtime` anvands inte langre nagonstandans i kodbasen -- all Realtime hanteras nu via konsoliderade kanaler i `use-brew-data.ts`. Filen kan tas bort for att minska kodbasen.
 
-### 2. Minska TV force-refresh polling
-`BrewingDashboard.tsx` pollar `sync_settings` var 10:e sekund (rad 177) för force-refresh. Realtime hanterar det snabba fallet redan, pollning är bara fallback.
+**Fix:** Ta bort `src/hooks/use-realtime-subscription.ts`.
 
-Lösning: Öka intervallet från 10 000ms till 30 000ms.
+## 3. Timer sync kors aven nar Sonos ar IDLE och ingen timer ar aktiv (LOW impact)
 
-### 3. Idle-läge för timer-synk
-`useExternalTimer` triggar edge function var 3:e sekund och pollar databasen var 5:e sekund oavsett om en timer faktiskt körs. När ingen timer är aktiv slösas resurser.
+`triggerSync` anropar edge function `sync-external-timer` aven i slow mode (var 30:e sekund). Nar timern ar inaktiv och ingen extern timer kors, ar detta onodigt. Initialt fetch + Realtime racker -- polling behovs bara som fallback.
 
-Lösning: Efter initial hämtning, om ingen timer är aktiv, växla till långsamt läge (30s sync, 60s poll). När timer aktiveras via Realtime eller poll, växla till snabbt läge (3s sync, 5s poll).
+**Fix:** Lagg till en check i `triggerSync` som bara anropar edge function om `isActiveRef.current === true`, eller vid forsta anropet. I slow mode, anvand bara DB-poll (skippa edge function-synken helt).
 
 ---
 
 ## Tekniska detaljer
 
-### TimerFooter props-refaktorering
-
-Eftersom `TimerFooter` renderas i `AspectRatioLayout.tsx` (utanför `BrewingDashboard`), behöver vi en av två strategier:
-
-**Alternativ A (enklast):** Flytta `TimerFooter` in i `BrewingDashboard` istället för `AspectRatioLayout`, och skicka timer-state som props. Dashboard har redan all data.
-
-**Alternativ B:** Skapa en liten TimerContext som BrewingDashboard fyller med sin existerande timer-data, och som TimerFooter konsumerar.
-
-Jag föreslår **Alternativ A** -- enklare och färre abstraktioner.
-
-### Fil: `src/components/AspectRatioLayout.tsx`
-- Ta bort `<TimerFooter />` därifrån
-
-### Fil: `src/components/BrewingDashboard.tsx`
-- Importera och rendera `<TimerFooter>` direkt, med props:
-  ```
-  <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
-  ```
-- Ändra polling-intervall från 10000 till 30000 (rad 177)
-
-### Fil: `src/components/TimerFooter.tsx`
-- Ändra signatur till att ta emot `timer` och `timerTvModeOnly` som props
-- Ta bort interna `useExternalTimer()` och `useExternalUserSettings()`-anrop
-
 ### Fil: `src/hooks/use-external-timer.ts`
-- Lägg till idle/active-läge:
-  - Håll koll på `isActive` från senaste fetch
-  - Om inaktiv: syncInterval = 30s, pollInterval = 60s
-  - Om aktiv: syncInterval = 3s, pollInterval = 5s
-  - Växla dynamiskt när status ändras via Realtime-callback
+- Ta bort rad 275-289 (kanal `cached-timer-changes` samt subscribe/cleanup)
+- Behall `onCachedTimerChangeRef.current = () => fetchFromCache()` (rad 272) -- den anvands av `use-brew-data.ts` redan
+- I `setupIntervals`: nar `active === false`, skippa `triggerSync`-intervallet helt (satt bara poll-intervall). Edge function behovs bara nar timer ar aktiv.
 
-### Förväntad effekt
-- Ca 50% färre nätverksanrop relaterade till timern (dubbel instans elimineras)
-- Dramatiskt färre anrop när ingen timer körs (idle-läge)
-- Minskad polling för force-refresh (10s till 30s)
-- Mindre CPU/minne på Chromecast-hårdvara
+### Fil: `src/hooks/use-realtime-subscription.ts`
+- Ta bort hela filen (oanvand)
 
+### Forvantad effekt
+- En farre Realtime-kanal (3 istallet for 4 totalt)
+- Eliminerar edge function-anrop var 30:e sekund nar ingen timer ar aktiv
+- Renare kodbas utan dead code
