@@ -158,27 +158,24 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
     const pTemp = brew.currentTemp;       // pill (surface)
     const cTemp = controller.current_temp!; // controller (core)
-    // Use profile/original target as the center reference, fall back to controller target
-    const tTemp = profileTarget ?? targetTemp; // Profilmål som mittlinje
+    const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
+    const compensatedT = targetTemp; // Pill-kompenserat controllermål
     
-    // Fixed range: target ±3°C so the bar visually shrinks as temps converge
-    const rangeMin = tTemp - 3;
-    const rangeMax = tTemp + 3;
-    const range = rangeMax - rangeMin; // always 6
+    // Fixed range: profile target ±3°C
+    const rangeMin = profileT - 3;
+    const rangeMax = profileT + 3;
+    const range = rangeMax - rangeMin;
     
     const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
     
-    // Controller is always left anchor, pill is always right anchor
     const ctrlPct = pct(cTemp);
     const pillPct = pct(pTemp);
-    const targetPct = pct(tTemp);
-    const avgPct = pct(displayTemp); // average marker
+    const profilePct = pct(profileT);
+    const compensatedPct = pct(compensatedT);
     const leftPct = Math.min(ctrlPct, pillPct);
     const rightPct = Math.max(ctrlPct, pillPct);
     
-    const spanColor = isOvershoot 
-      ? 'hsl(38 92% 50%)' 
-      : 'hsl(var(--temp-blue))';
+    const showCompensatedMarker = Math.abs(profileT - compensatedT) >= 0.1;
 
     return (
       <TooltipProvider delayDuration={200}>
@@ -187,7 +184,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
             <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
               {/* Track */}
               <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.4)' }}>
-                {/* Single span bar from ctrl to pill */}
+                {/* Span bar from ctrl to pill */}
                 <div 
                   className="absolute h-full rounded-full"
                   style={{ 
@@ -196,11 +193,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     background: `linear-gradient(90deg, hsl(var(--temp-blue) / 0.6), ${isOvershoot ? 'hsl(38 92% 50% / 0.6)' : 'hsl(var(--ferment-green) / 0.5)'})`,
                   }} 
                 />
-                {/* Target marker line */}
+                {/* Profile target marker (solid yellow) */}
                 <div 
                   className="absolute rounded-sm"
                   style={{ 
-                    left: `${targetPct}%`, 
+                    left: `${profilePct}%`, 
                     top: '-3px',
                     width: '2px',
                     height: '12px',
@@ -209,6 +206,20 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
                   }} 
                 />
+                {/* Compensated target marker (dashed yellow) - only if different from profile */}
+                {showCompensatedMarker && (
+                  <div 
+                    className="absolute"
+                    style={{ 
+                      left: `${compensatedPct}%`, 
+                      top: '-3px',
+                      width: '2px',
+                      height: '12px',
+                      backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50%), hsl(38 92% 50%) 2px, transparent 2px, transparent 4px)',
+                      transform: 'translateX(-1px)',
+                    }} 
+                  />
+                )}
                 {/* Controller dot (blue) */}
                 <div 
                   className="absolute top-1/2 rounded-full"
@@ -231,18 +242,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
                   }} 
                 />
-                {/* Average marker line (dashed white) */}
-                <div 
-                  className="absolute"
-                  style={{ 
-                    left: `${avgPct}%`, 
-                    top: '-2px',
-                    width: '2px',
-                    height: '10px',
-                    backgroundImage: 'repeating-linear-gradient(to bottom, hsl(var(--foreground)), hsl(var(--foreground)) 2px, transparent 2px, transparent 4px)',
-                    transform: 'translateX(-1px)',
-                  }} 
-                />
               </div>
             </div>
           </TooltipTrigger>
@@ -250,7 +249,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
             <div className="space-y-0.5">
               <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>
               <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>
-              <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Mål: {tTemp.toFixed(1)}°</p>
+              <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Profilmål: {profileT.toFixed(1)}°</p>
+              {showCompensatedMarker && (
+                <p><span style={{ color: 'hsl(38 92% 50% / 0.7)' }}>┊</span> Kompenserat: {compensatedT.toFixed(1)}°</p>
+              )}
               <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>
               {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
               {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
