@@ -97,24 +97,34 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   );
 
   // Calculate the current profile target (interpolated during ramps)
+  // Falls back through previous steps to find the most recent target_temp
   const currentProfileTarget = (() => {
     const session = brew.fermentationSession;
     if (!session?.steps?.length) return null;
     
-    const step = session.steps[session.current_step_index];
+    const stepIdx = session.current_step_index;
+    const step = session.steps[stepIdx];
     if (!step) return null;
     
     const stepTarget = step.target_temp;
-    if (stepTarget == null) return null;
     
     // During a ramp with duration, interpolate between start temp and target
-    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null) {
+    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null && stepTarget != null) {
       const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
       const progress = Math.min(elapsed / step.duration_hours, 1);
       return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
     }
     
-    return stepTarget;
+    if (stepTarget != null) return stepTarget;
+    
+    // Current step has no target_temp (e.g. wait steps) — look back through previous steps
+    for (let i = stepIdx - 1; i >= 0; i--) {
+      if (session.steps[i]?.target_temp != null) {
+        return session.steps[i].target_temp;
+      }
+    }
+    
+    return null;
   })();
 
   // Show both targets if profile target differs from current (auto-adjusted)
