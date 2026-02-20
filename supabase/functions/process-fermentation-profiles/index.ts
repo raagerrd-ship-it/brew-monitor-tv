@@ -329,6 +329,25 @@ Deno.serve(async (req) => {
         .eq('controller_id', session.controller_id)
         .single()
 
+      // Check if pill-comp already adjusted against this exact data snapshot
+      // RAPT updates ~every 15 min but automation runs every 5 min — without this guard,
+      // pill-comp would rate-limit 0.3°C × 3 cycles = 0.9°C on stale data before seeing effect
+      let pillCompSkipSameData = false
+      if (pillCompEnabled && controller?.last_update) {
+        const { data: lastPillCompAdj } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('adjusted_against_timestamp')
+          .eq('cooler_controller_id', session.controller_id)
+          .like('reason', '🎯%')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        
+        if (lastPillCompAdj?.[0]?.adjusted_against_timestamp === controller.last_update) {
+          pillCompSkipSameData = true
+          console.log(`Pill-komp: samma data som senaste justering (${controller.last_update}), hoppar över för ${controller.name || session.controller_id}`)
+        }
+      }
+
       // Get brew data if linked
       let brewData: { sg_data: SgDataPoint[] } | null = null
       if (session.brew_id) {
@@ -354,7 +373,7 @@ Deno.serve(async (req) => {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
           // Calculate pill-compensated target
-          const compensation = pillCompEnabled ? await calculateCompensatedTarget(
+          const compensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
             supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
           ) : null
 
@@ -454,7 +473,7 @@ Deno.serve(async (req) => {
           // Hold temperature for duration or until SG target is met
           if (currentStep.target_temp !== null && controller) {
             // Calculate pill-compensated target for hold steps
-            const holdCompensation = pillCompEnabled ? await calculateCompensatedTarget(
+            const holdCompensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
               supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
             ) : null
             const holdTarget = holdCompensation ? holdCompensation.compensatedTarget : currentStep.target_temp
