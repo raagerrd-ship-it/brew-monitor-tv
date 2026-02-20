@@ -15,7 +15,7 @@ function AttenuationStatComponent({ brew, updatedFields }: AttenuationStatProps)
   return (
     <StatCard
       label="Utjäsning"
-      value={`${brew.attenuation}%`}
+      value={<span className="tabular-nums">{brew.attenuation}<span className="text-muted-foreground/40">%</span></span>}
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.attenuation}
     />
