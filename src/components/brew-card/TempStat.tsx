@@ -231,28 +231,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     }} 
                   />
                 )}
-                {/* Controller dot (blue) */}
-                <div 
-                  className="absolute top-1/2 rounded-full"
-                  style={{ 
-                    left: `${ctrlPct}%`, 
-                    width: '6px', height: '6px',
-                    background: 'hsl(var(--temp-blue))',
-                    transform: 'translate(-50%, -50%)',
-                    boxShadow: '0 0 6px hsl(var(--temp-blue) / 0.7)',
-                  }} 
-                />
-                {/* Pill dot (green) */}
-                <div 
-                  className="absolute top-1/2 rounded-full"
-                  style={{ 
-                    left: `${pillPct}%`, 
-                    width: '6px', height: '6px',
-                    background: 'hsl(var(--ferment-green))',
-                    transform: 'translate(-50%, -50%)',
-                    boxShadow: '0 0 6px hsl(var(--ferment-green) / 0.7)',
-                  }} 
-                />
               </div>
             </div>
           </TooltipTrigger>
