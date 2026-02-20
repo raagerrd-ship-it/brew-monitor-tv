@@ -225,11 +225,12 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     className="absolute"
                     style={{ 
                       left: `${compensatedPct}%`, 
-                      top: '-3px',
+                      top: '-4px',
                       width: '2px',
-                      height: '12px',
-                      backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50%), hsl(38 92% 50%) 2px, transparent 2px, transparent 4px)',
+                      height: '14px',
+                      backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50% / 0.9), hsl(38 92% 50% / 0.9) 2px, transparent 2px, transparent 4px)',
                       transform: 'translateX(-1px)',
+                      boxShadow: '0 0 4px hsl(38 92% 50% / 0.4)',
                     }} 
                   />
                 )}
