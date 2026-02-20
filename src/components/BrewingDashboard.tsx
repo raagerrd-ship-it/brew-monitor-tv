@@ -279,13 +279,26 @@ export function BrewingDashboard() {
 
   // Minimum splash time (2s) so logo is always visible
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setMinTimeElapsed(true), 2000);
     return () => clearTimeout(timer);
   }, []);
 
+  // Mark content ready after data loads + one paint cycle so SVGs render
+  useEffect(() => {
+    if (!loading) {
+      const raf = requestAnimationFrame(() => {
+        // Wait one more frame + 200ms for SVGs/images to settle
+        const timer = setTimeout(() => setContentReady(true), 200);
+        return () => clearTimeout(timer);
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [loading]);
+
   // Loading state - AFTER all hooks
-  if (loading || !minTimeElapsed) {
+  if (!minTimeElapsed || !contentReady) {
     return <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
         <img src={dbLogo} alt="Bryggövervakare" className="h-96" />
         <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
