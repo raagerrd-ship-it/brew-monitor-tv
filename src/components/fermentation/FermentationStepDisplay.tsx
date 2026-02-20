@@ -62,11 +62,11 @@ export function FermentationStepDisplay({
     
     switch (step.step_type) {
       case 'hold':
-        return `${step.target_temp}°C i ${step.duration_hours}h`;
+        return `${step.target_temp}° i ${step.duration_hours}h`;
       case 'ramp':
-        return `${step.ramp_type === 'immediate' ? '→' : rampArrow} ${step.target_temp}°C`;
+        return `${step.ramp_type === 'immediate' ? '→' : rampArrow} ${step.target_temp}°`;
       case 'wait_for_temp':
-        return `Vänta tills ${step.target_temp}°C`;
+        return `Vänta tills ${step.target_temp}°`;
       case 'wait_for_gravity_stable':
         return `Stabil SG ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
@@ -154,7 +154,7 @@ export function FermentationStepDisplay({
         return formatRemainingTime(remaining);
       }
       case 'wait_for_temp':
-        return `Nå ${step.target_temp}°C`;
+        return `Nå ${step.target_temp}°`;
       case 'wait_for_gravity_stable':
         return `Stabil i ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
@@ -217,19 +217,19 @@ export function FermentationStepDisplay({
               {/* Show start temp for ramp steps */}
               {isRamping && stepStartTemp != null && (
                 <>
-                  <span className="text-muted-foreground">{Math.round(stepStartTemp)}°C</span>
+                  <span className="text-muted-foreground">{Math.round(stepStartTemp)}°</span>
                   <span className="text-muted-foreground">→</span>
                 </>
               )}
               
               <span className={`font-medium ${waitingForTemp ? 'text-blue-400' : isRamping ? 'text-amber-500' : 'text-primary'}`}>
-                {targetTemp.toFixed(1)}°C
+                {targetTemp.toFixed(1)}°
               </span>
               
               {isRamping && currentStep.target_temp && Math.abs(targetTemp - currentStep.target_temp) > 0.1 && (
                 <>
                   <span className="text-muted-foreground">→</span>
-                  <span className="text-primary/70">{currentStep.target_temp}°C</span>
+                  <span className="text-primary/70">{currentStep.target_temp}°</span>
                 </>
               )}
               
@@ -237,7 +237,7 @@ export function FermentationStepDisplay({
                 <>
                   <span className="text-muted-foreground/40 mx-1">|</span>
                   <span className="text-muted-foreground">
-                    Aktuell: <span className={`font-medium ${waitingForTemp ? 'text-blue-400' : 'text-foreground'}`}>{currentTemp.toFixed(1)}°C</span>
+                    Aktuell: <span className={`font-medium ${waitingForTemp ? 'text-blue-400' : 'text-foreground'}`}>{currentTemp.toFixed(1)}°</span>
                   </span>
                 </>
               )}
@@ -250,7 +250,7 @@ export function FermentationStepDisplay({
           <div className="flex items-center gap-2 py-1.5 px-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-400">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>
-              Tid klar, väntar på att temperaturen når {currentStep.target_temp}°C 
+              Tid klar, väntar på att temperaturen når {currentStep.target_temp}° 
               ({Math.abs(currentTemp - currentStep.target_temp).toFixed(1)}° kvar)
             </span>
           </div>

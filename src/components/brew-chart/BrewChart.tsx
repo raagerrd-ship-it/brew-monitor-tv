@@ -178,7 +178,7 @@ function BrewChartComponent({
             stroke={COLORS.temp}
             style={{ fontSize: AXIS_STYLES.fontSize.y }}
             tick={{ fill: COLORS.temp }}
-            tickFormatter={(value) => `${value.toFixed(1)}°C`}
+            tickFormatter={(value) => `${value.toFixed(1)}°`}
           />
 
           {/* Tooltip */}
@@ -202,17 +202,17 @@ function BrewChartComponent({
                  }
                  if (name === "avgTemp") {
                    const dv = rawPayload?.rawAvgTemp ?? value;
-                   return [<span key="v" style={{ color: COLORS.temp }}>Snitt: {dv.toFixed(1)}°C</span>, null];
-                 }
-                 if (name === "controllerTemp") {
-                   const dv = rawPayload?.rawControllerTemp ?? value;
-                   return [<span key="v" style={{ color: COLORS.tempFaint }}>Probe: {dv.toFixed(1)}°C</span>, null];
-                 }
-                 if (name === "targetTemp")
-                   return [<span key="v" style={{ color: COLORS.targetTemp }}>Mål: {value.toFixed(1)}°C</span>, null];
-                 if (name === "pillTemp") {
-                   const dv = rawPayload?.rawPillTemp ?? value;
-                   return [<span key="v" style={{ color: COLORS.tempFaint }}>Pill: {dv.toFixed(1)}°C</span>, null];
+                    return [<span key="v" style={{ color: COLORS.temp }}>Snitt: {dv.toFixed(1)}°</span>, null];
+                  }
+                  if (name === "controllerTemp") {
+                    const dv = rawPayload?.rawControllerTemp ?? value;
+                    return [<span key="v" style={{ color: COLORS.tempFaint }}>Probe: {dv.toFixed(1)}°</span>, null];
+                  }
+                  if (name === "targetTemp")
+                    return [<span key="v" style={{ color: COLORS.targetTemp }}>Mål: {value.toFixed(1)}°</span>, null];
+                  if (name === "pillTemp") {
+                    const dv = rawPayload?.rawPillTemp ?? value;
+                    return [<span key="v" style={{ color: COLORS.tempFaint }}>Pill: {dv.toFixed(1)}°</span>, null];
                  }
                  return [value, name];
                }}

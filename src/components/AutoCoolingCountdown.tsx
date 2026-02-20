@@ -113,7 +113,7 @@ export const AutoCoolingCountdown = ({
     <div className="flex items-center gap-1">
       <Clock className="w-3 h-3 text-primary" />
       <span className="font-mono text-sm font-medium text-primary">
-        {timeRemaining} <span className="text-xs text-muted-foreground">(+{roundedDiff.toFixed(1)}°C över mål)</span>
+        {timeRemaining} <span className="text-xs text-muted-foreground">(+{roundedDiff.toFixed(1)}° över mål)</span>
       </span>
     </div>
   );

@@ -75,7 +75,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             <Tooltip 
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => [
-                `${value.toFixed(1)}°C`, 
+                `${value.toFixed(1)}°`, 
                 name === 'currentTemp' ? 'Aktuell' : 'Mål'
               ]}
               labelFormatter={(label) => `Tid: ${label}`}
