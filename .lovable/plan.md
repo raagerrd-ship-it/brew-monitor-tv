@@ -1,42 +1,25 @@
 
+## Fixa avklippt logo pa splashskarmen
 
-# UI-finslipning: Omgang 5
+Loggan (`db-logo.png`) anvander `h-96` (384px) som kan bli for stort for viewporten, sarskilt pa mobil. Dessutom saknas overflow-hantering sa bilden klipps i toppen.
 
-## 1. Dod kod: `ProgressBadge` i FermentationSessionCompact
+### Andring
 
-**Fil:** `src/components/fermentation/FermentationSessionCompact.tsx` (rad 460-479)
+**Fil:** `src/components/BrewingDashboard.tsx` (rad 342)
 
-Komponenten `ProgressBadge` ar definierad men anvands aldrig i JSX:en — procentvardena renderas inline istallet (rad 443-447). Ta bort hela `ProgressBadge`-komponenten och dess interface.
+Byt ut den fasta hojden `h-96` mot en responsiv storlek som aldrig overskrider viewporten:
 
-## 2. Dod kod: `PulseOverlay` anvands aldrig
+- Anvand `max-h-[60vh]` tillsammans med `w-auto` och `object-contain` sa att loggan alltid far plats och centreras korrekt.
+- Lagg till `overflow-hidden` pa containern for extra sakerhet.
 
-**Fil:** `src/components/fermentation/FermentationSessionCompact.tsx` (rad 6) och `src/components/fermentation/SessionProgressOverlays.tsx` (rad 37-56)
+Fran:
+```tsx
+<img src={dbLogo} alt="Bryggövervakare" className="h-96" />
+```
 
-`PulseOverlay` importeras men renderas aldrig i nagon komponent. Dessutom tar den emot en `color`-prop som aldrig anvands i sin egen implementation. Ta bort:
-- Importen av `PulseOverlay` fran `FermentationSessionCompact.tsx`
-- Hela `PulseOverlay`-komponenten och dess interface fran `SessionProgressOverlays.tsx`
+Till:
+```tsx
+<img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain" />
+```
 
-## 3. Oanvand prop: `centered` i StatCard
-
-**Fil:** `src/components/brew-card/StatCard.tsx` (rad 18, 38)
-
-Proppen `centered` tas emot och destruktureras men anvands aldrig i JSX:en (layout ar alltid centrerad via `items-center justify-center`). Ta bort den fran interfacet och destruktureringen. Uppdatera ocksa `GravityStat.tsx` som skickar `centered` (rad 51).
-
-## 4. Onodigt `subValue={null}` i TempStat
-
-**Fil:** `src/components/brew-card/TempStat.tsx` (rad 225)
-
-`subValue={null}` skickas explicit till StatCard, men `null` ar redan default-beteendet (prop ar optional). Ta bort for renare kod.
-
-## 5. Trailing blank rad i utils.ts
-
-**Fil:** `src/components/brew-card/utils.ts` (rad 55-56)
-
-Filen slutar med en extra tom rad. Rensa sa filen slutar direkt efter sista funktionen.
-
-## Teknisk sammanfattning
-
-- 5 filer berors
-- Enbart kodrensning — inga visuella eller logiska andringar
-- Alla andringar ar isolerade och riskfria
-
+Detta gor att loggan alltid syns i sin helhet, centrerad, oavsett skarmstorlek.
