@@ -1360,9 +1360,8 @@ serve(async (req) => {
                 if (timeSinceLastRecovery < RECOVERY_INTERVAL_MS) {
                   log('COOLING_RECOVERY', 'info', `Skipping recovery - only ${Math.round(timeSinceLastRecovery / 60000)}min since last (need ${RECOVERY_INTERVAL_MS / 60000}min)`);
                 } else {
-                  // Move gradually: half the gap toward ideal
-                  const gap = idealTarget - currentCoolerTarget;
-                  let recoveryTarget = Math.round((currentCoolerTarget + gap / 2) * 10) / 10;
+                  // Set directly to ideal — glycol cooler doesn't need ramping
+                  let recoveryTarget = Math.round(idealTarget * 10) / 10;
                   recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget));
 
                   const significantChange = needsLowering
