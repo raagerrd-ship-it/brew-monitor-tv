@@ -113,7 +113,7 @@ function BrewCardComponent({
           {brew.label_image_url && (
             <div 
               className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse"
-              style={{ width: '68px', height: '68px' }}
+              style={{ width: '52px', height: '52px' }}
             >
               <img
                 src={brew.label_image_url}

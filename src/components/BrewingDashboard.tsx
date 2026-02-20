@@ -280,7 +280,7 @@ export function BrewingDashboard() {
   // Loading state - AFTER all hooks
   if (loading) {
     return <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
-        <img src={dbLogo} alt="Bryggövervakare" className="h-24" />
+        <img src={dbLogo} alt="Bryggövervakare" className="h-96" />
         <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
       </div>;
   }
