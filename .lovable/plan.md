@@ -1,23 +1,40 @@
 
 
-# UI-förbättringar (utan punkt 4)
+# UI-polering -- 3 forbattringar
 
-Tre förbättringar att implementera:
+## 1. Tooltip-text i header har fortfarande "°C"
 
-## 1. Standardisera temperaturenheter -- ta bort "C"
-Alla temperaturvisningar ska använda `°` utan "C" för konsistens.
+Controller-barens hover-tooltip visar `°C` trots att alla synliga varden nu anvander `°`. En enkel textersattning for konsistens.
 
-- **`src/components/DashboardHeader.tsx`** rad 186: Ändra `°C` till `°` (och `--°C` till `--°`)
-- **`src/components/fermentation/FermentationSessionCompact.tsx`** rad 511 och 528: Ändra `°C` till `°`
+**Fil:** `src/components/DashboardHeader.tsx` rad 170
 
-## 2. Öka stats-höjd för att undvika klippning
-- **`src/components/brew-card/BrewCard.tsx`** rad 23: Ändra `CARD_STATS_HEIGHT` från `140` till `148`
+## 2. Branded laddningsskarm
 
-## 3. Lägg till klock-ikon före tidsvillkor
-Ge villkorstexten (t.ex. "40h 25min kvar") en liten ikon för bättre visuell rytm.
+Nuvarande laddningssida visar bara en generisk spinner. Byter till logotypen med fade-in-animation for en mer professionell forstaintryck.
 
-- **`src/components/fermentation/FermentationSessionCompact.tsx`** rad 428-430: Lägg till en `Clock`-ikon (redan importerad) framför villkorstexten för tidsstyrda steg (`hold` med duration, `ramp`). För `wait_for_gravity_stable` använd `Activity`, för `wait_for_sg` använd `Activity`, för `wait_for_acknowledgement` använd `Hand`. Dessa ikoner finns redan i filen.
+**Fil:** `src/components/BrewingDashboard.tsx` rad 280-282
+- Importera `Logo` och visa den ovanfor spinnern
+- Lagg till fade-in-animation och dammad spinner-farg
 
-### Teknisk detalj
-Villkors-ikonen väljs med samma `getStepIconWithColor`-logik som redan finns, men i en dämpad/mindre variant för att skilja den från stegtyp-ikonen. Alternativt en enkel `Clock`-ikon i `text-muted-foreground/60` för alla tidsbaserade villkor.
+## 3. Temperaturenhet i DashboardHeader tooltip
+
+Alla `°C` i tooltip-texten (rad 170) ersatts med `°`.
+
+---
+
+## Teknisk sammanfattning
+
+### DashboardHeader.tsx (rad 170)
+Ersatt alla `°C` med `°` i title-attributets strang.
+
+### BrewingDashboard.tsx (rad 280-282)
+```tsx
+return (
+  <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+    <Logo />
+    <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+  </div>
+);
+```
+Kraver import av `Logo` fran `./Logo`.
 
