@@ -86,6 +86,10 @@ function BrewChartComponent({
               <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.15} />
               <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0} />
             </linearGradient>
+            <linearGradient id={`tempSpanGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.06} />
+            </linearGradient>
           </defs>
           <CartesianGrid
             strokeDasharray={GRID_CONFIG.strokeDasharray}
@@ -242,30 +246,33 @@ function BrewChartComponent({
             connectNulls={false}
           />
 
-          {/* Controller temp (probe) - faint secondary line */}
-          <Line
-            yAxisId="temp"
-            type={areaType}
-            dataKey="controllerTemp"
-            stroke={COLORS.tempFaint}
-            strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
-            dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
-            name="controllerTemp"
-            isAnimationActive={isAnimationActive}
-          />
-
-          {/* Pill temp - faint secondary line */}
-          <Line
+          {/* Pill temp area (upper bound of span) - filled to show gap */}
+          <Area
             yAxisId="temp"
             type={areaType}
             dataKey="pillTemp"
             stroke={COLORS.tempFaint}
             strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
+            fill={`url(#tempSpanGrad-${chartIndex})`}
             dot={false}
             activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
             name="pillTemp"
             isAnimationActive={isAnimationActive}
+          />
+
+          {/* Controller temp area (lower bound) - fills with background to "cut out" overlap, leaving only the span colored */}
+          <Area
+            yAxisId="temp"
+            type={areaType}
+            dataKey="controllerTemp"
+            stroke={COLORS.tempFaint}
+            strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
+            fill={COLORS.card}
+            dot={false}
+            activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
+            name="controllerTemp"
+            isAnimationActive={isAnimationActive}
+            connectNulls={false}
           />
 
           {/* Target temp - dashed line showing setpoint */}
