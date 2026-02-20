@@ -277,8 +277,15 @@ export function BrewingDashboard() {
     second: '2-digit'
   }), [appLoadTime]);
 
+  // Minimum splash time (2s) so logo is always visible
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimeElapsed(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Loading state - AFTER all hooks
-  if (loading) {
+  if (loading || !minTimeElapsed) {
     return <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
         <img src={dbLogo} alt="Bryggövervakare" className="h-96" />
         <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
