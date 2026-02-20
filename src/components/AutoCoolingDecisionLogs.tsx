@@ -267,9 +267,9 @@ export function AutoCoolingDecisionLogs() {
               <CollapsibleContent>
                 <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-2">
                   <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border flex-wrap">
-                    <span>Controller: {adj.followed_controller_name || adj.cooler_controller_name}</span>
-                    <span>{adj.old_target_temp}° → {adj.new_target_temp}°</span>
-                    {adj.followed_current_temp !== null && <span>Aktuell: {adj.followed_current_temp.toFixed(1)}°</span>}
+                    <span>Styrenhet: {adj.followed_controller_name || adj.cooler_controller_name}</span>
+                    <span>Mål: {adj.old_target_temp}° → {adj.new_target_temp}° (probe)</span>
+                    {adj.followed_current_temp !== null && <span>Pill: {adj.followed_current_temp.toFixed(1)}°</span>}
                   </div>
                   
                   {category === 'pill-comp' && (
@@ -284,7 +284,7 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium" style={{ color: 'hsl(38 92% 50%)' }}>
                           {adj.followed_current_temp !== null ? `${adj.followed_current_temp.toFixed(1)}°C` : '—'}
                         </div>
-                        <div className="text-muted-foreground">Probe (kärna):</div>
+                        <div className="text-muted-foreground">Probe (styrenhet):</div>
                         <div className="font-medium">
                           {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°C` : '—'}
                         </div>
@@ -306,7 +306,7 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}°C nedjustering</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
-                        Justerar styrenhetens mål så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
+                        Justerar styrenhetens mål (probe) så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
                       </p>
                     </div>
                   )}
