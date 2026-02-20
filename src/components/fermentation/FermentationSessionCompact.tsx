@@ -404,9 +404,13 @@ export function FermentationSessionCompact({
             
             <Separator />
             
-            {/* Next step condition */}
+            {/* Step type label + next step condition */}
             <span className="flex items-center gap-1 text-muted-foreground">
               {getStepIcon(currentStep.step_type)}
+              <span className="font-medium">{STEP_TYPE_LABELS[currentStep.step_type]}</span>
+            </span>
+            <Separator />
+            <span className="flex items-center gap-1 text-muted-foreground">
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
 
