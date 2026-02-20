@@ -83,6 +83,9 @@ export default function Settings() {
   const [pillCompEnabled, setPillCompEnabled] = useState(true);
   const [pillCompDamping, setPillCompDamping] = useState<string>("0.4");
   const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.8");
+  const [pillCompEmergencyThreshold, setPillCompEmergencyThreshold] = useState<string>("3.0");
+  const [pillCompMinScale, setPillCompMinScale] = useState<string>("0.15");
+  const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -447,6 +450,9 @@ export default function Settings() {
         setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
         setPillCompDamping(parseFloat(String((data as any).pill_compensation_damping ?? 0.4)).toString());
         setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.8)).toString());
+        setPillCompEmergencyThreshold(parseFloat(String((data as any).pill_compensation_emergency_threshold ?? 3.0)).toString());
+        setPillCompMinScale(parseFloat(String((data as any).pill_compensation_min_scale ?? 0.15)).toString());
+        setPillCompMaxCompensation(parseFloat(String((data as any).pill_compensation_max_compensation ?? 5.0)).toString());
       }
 
       // Load followed controllers
@@ -1100,6 +1106,54 @@ export default function Settings() {
       toast({ title: "Inställningar sparade", description: "Rate-limit uppdaterad" });
     } catch (error) {
       console.error('Error updating pill comp rate limit:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompEmergencyThresholdChange = async (value: string) => {
+    setPillCompEmergencyThreshold(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_emergency_threshold: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Emergency-tröskel uppdaterad" });
+    } catch (error) {
+      console.error('Error updating emergency threshold:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompMinScaleChange = async (value: string) => {
+    setPillCompMinScale(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_min_scale: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Min-skala uppdaterad" });
+    } catch (error) {
+      console.error('Error updating min scale:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handlePillCompMaxCompensationChange = async (value: string) => {
+    setPillCompMaxCompensation(value);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ pill_compensation_max_compensation: parseFloat(value) } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: "Max kompensation uppdaterad" });
+    } catch (error) {
+      console.error('Error updating max compensation:', error);
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
@@ -2318,23 +2372,70 @@ export default function Settings() {
 
                 {pillCompEnabled && (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
-                      <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          <SelectItem value="0.3">0.3°C (försiktig)</SelectItem>
-                          <SelectItem value="0.5">0.5°C</SelectItem>
-                          <SelectItem value="0.8">0.8°C (standard)</SelectItem>
-                          <SelectItem value="1.0">1.0°C (aggressiv)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
+                        <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.3">0.3°C (försiktig)</SelectItem>
+                            <SelectItem value="0.5">0.5°C</SelectItem>
+                            <SelectItem value="0.8">0.8°C (standard)</SelectItem>
+                            <SelectItem value="1.0">1.0°C (aggressiv)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Min skala (nära mål)</label>
+                        <Select value={pillCompMinScale} onValueChange={handlePillCompMinScaleChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.1">10% (mjuk)</SelectItem>
+                            <SelectItem value="0.15">15% (standard)</SelectItem>
+                            <SelectItem value="0.25">25% (snabbare)</SelectItem>
+                            <SelectItem value="0.5">50% (aggressiv)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Emergency-tröskel</label>
+                        <Select value={pillCompEmergencyThreshold} onValueChange={handlePillCompEmergencyThresholdChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="2">2.0°C</SelectItem>
+                            <SelectItem value="3">3.0°C (standard)</SelectItem>
+                            <SelectItem value="4">4.0°C</SelectItem>
+                            <SelectItem value="5">5.0°C</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Max kompensation</label>
+                        <Select value={pillCompMaxCompensation} onValueChange={handlePillCompMaxCompensationChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="3">3.0°C</SelectItem>
+                            <SelectItem value="5">5.0°C (standard)</SelectItem>
+                            <SelectItem value="7">7.0°C</SelectItem>
+                            <SelectItem value="10">10.0°C</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Kompenserar med delta/2 så att medelvärdet av pill och probe = profilens mål. Dynamisk rate-limit: max {pillCompRateLimit}°C långt från mål, mjukare nära mål. Justerar bara vid ny RAPT-data (~var 15:e min).
+                      Dynamisk rate-limit: max {pillCompRateLimit}°C långt från mål, min {parseFloat(pillCompMinScale) * 100}% nära mål. Skippar rate-limit vid avvikelse &gt;{pillCompEmergencyThreshold}°C. Max {pillCompMaxCompensation}°C under profilmål.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2345,9 +2446,10 @@ export default function Settings() {
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
                         <p>• Beräknar medelvärde av senaste 3 delta-mätningar (pill − probe)</p>
                         <p>• Kompensation = delta/2, så att (pill + probe) / 2 = profilens mål</p>
-                        <p>• Dynamisk rate-limit: {pillCompRateLimit}°C långt bort, minskar proportionellt nära mål</p>
+                        <p>• Dynamisk rate-limit: {pillCompRateLimit}°C långt bort, ner till {parseFloat(pillCompMinScale) * 100}% nära mål</p>
+                        <p>• Emergency: skippar rate-limit vid avvikelse &gt;{pillCompEmergencyThreshold}°C</p>
+                        <p>• Säkerhetsgolv: aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
                         <p>• Justerar bara vid ny RAPT-data (hoppar över om samma data som förra cykeln)</p>
-                        <p>• Säkerhetsgolv: aldrig mer än 5°C under profilens mål</p>
                         <p>• Kompenserar bara vid positivt delta (pill varmare än probe)</p>
                         <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
                       </CollapsibleContent>
