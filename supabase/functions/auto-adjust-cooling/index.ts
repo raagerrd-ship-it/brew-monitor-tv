@@ -202,26 +202,9 @@ serve(async (req) => {
       });
     }
 
-    // Look up original targets for followed controllers (from first overshoot adjustment)
-    // CRITICAL: Skip profile-owned controllers — their target is managed by the profile,
-    // and stale historical records could contain dangerously wrong values (e.g. 22°C vs 14°C)
+    // NOTE: originalTargetMap is populated AFTER profileOwnedControllerIds is filled (below)
+    // to avoid using stale historical targets for profile-owned controllers.
     const originalTargetMap = new Map<string, number>();
-    for (const controller of followedControllersFullData) {
-      if (profileOwnedControllerIds.has(controller.controller_id)) {
-        log('ORIGINAL_TARGET', 'info', `Skipping originalTargetMap for profile-owned controller: ${controller.name}`);
-        continue;
-      }
-      const { data: prevAdj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('old_target_temp, original_target_temp')
-        .eq('cooler_controller_id', controller.controller_id)
-        .like('reason', '🌡️%')
-        .order('created_at', { ascending: true })
-        .limit(1);
-      if (prevAdj && prevAdj.length > 0) {
-        originalTargetMap.set(controller.controller_id, prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp);
-      }
-    }
 
     // Log each followed controller's status
     const round1 = (v: number | null | undefined): number | null => {
@@ -323,6 +306,26 @@ serve(async (req) => {
             log('COOLOFF', 'info', `Controller ${session.controller_id} i 30-min cooloff efter fermenteringsprofilsjustering`);
           }
         }
+      }
+    }
+
+    // NOW populate originalTargetMap — after profileOwnedControllerIds is filled
+    // Skip profile-owned controllers: their target is managed by the profile,
+    // and stale historical records could contain dangerously wrong values (e.g. 22°C vs 14°C)
+    for (const controller of followedControllersFullData) {
+      if (profileOwnedControllerIds.has(controller.controller_id)) {
+        log('ORIGINAL_TARGET', 'info', `Skipping originalTargetMap for profile-owned controller: ${controller.name}`);
+        continue;
+      }
+      const { data: prevAdj } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('old_target_temp, original_target_temp')
+        .eq('cooler_controller_id', controller.controller_id)
+        .like('reason', '🌡️%')
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (prevAdj && prevAdj.length > 0) {
+        originalTargetMap.set(controller.controller_id, prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp);
       }
     }
 
