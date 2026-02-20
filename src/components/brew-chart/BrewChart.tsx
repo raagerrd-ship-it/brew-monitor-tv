@@ -174,6 +174,7 @@ function BrewChartComponent({
             yAxisId="temp"
             orientation="right"
             domain={tempDomain}
+            allowDataOverflow={true}
             stroke={COLORS.temp}
             style={{ fontSize: AXIS_STYLES.fontSize.y }}
             tick={{ fill: COLORS.temp }}
