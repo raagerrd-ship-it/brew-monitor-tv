@@ -246,7 +246,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={label}
-      value={<span style={{ marginTop: '-8px', marginBottom: '-4px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
+      value={<span style={{ marginTop: '-10px', marginBottom: '-6px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
       subValue={null}
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
