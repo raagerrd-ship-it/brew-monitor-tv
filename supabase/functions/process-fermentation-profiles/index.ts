@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
 
     const pillCompEnabled = (acSettings as any)?.pill_compensation_enabled ?? true
     const pillCompDamping = parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 0.4))
-    const pillCompRateLimit = parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.3))
+    const pillCompRateLimit = parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.8))
 
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
