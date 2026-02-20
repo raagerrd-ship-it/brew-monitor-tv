@@ -2318,41 +2318,23 @@ export default function Settings() {
 
                 {pillCompEnabled && (
                   <div className="space-y-4">
-                    <div className="grid gap-4 grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Dämpningsfaktor</label>
-                        <Select value={pillCompDamping} onValueChange={handlePillCompDampingChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.2">0.2 (svag)</SelectItem>
-                            <SelectItem value="0.3">0.3</SelectItem>
-                            <SelectItem value="0.4">0.4 (standard)</SelectItem>
-                            <SelectItem value="0.5">0.5</SelectItem>
-                            <SelectItem value="0.6">0.6 (aggressiv)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
-                        <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.1">0.1°C</SelectItem>
-                            <SelectItem value="0.2">0.2°C</SelectItem>
-                            <SelectItem value="0.3">0.3°C (standard)</SelectItem>
-                            <SelectItem value="0.5">0.5°C</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
+                      <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="0.1">0.1°C</SelectItem>
+                          <SelectItem value="0.2">0.2°C</SelectItem>
+                          <SelectItem value="0.3">0.3°C (standard)</SelectItem>
+                          <SelectItem value="0.5">0.5°C</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Sänker controllerns target med {pillCompDamping} × delta per cykel, max {pillCompRateLimit}°C åt gången. Pill-temperaturen hamnar närmare profilens mål.
+                      Kompenserar med delta/2 så att medelvärdet av pill och probe = profilens mål. Max {pillCompRateLimit}°C ändring per cykel.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2362,7 +2344,7 @@ export default function Settings() {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
                         <p>• Beräknar medelvärde av senaste 3 delta-mätningar (pill − probe)</p>
-                        <p>• Multiplicerar med dämpningsfaktor ({pillCompDamping}) och drar av från profilens mål</p>
+                        <p>• Kompensation = delta/2, så att (pill + probe) / 2 = profilens mål</p>
                         <p>• Rate-limiterar till max {pillCompRateLimit}°C ändring per 5-minuterscykel</p>
                         <p>• Säkerhetsgolv: aldrig mer än 5°C under profilens mål</p>
                         <p>• Kompenserar bara vid positivt delta (pill varmare än probe)</p>
