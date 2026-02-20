@@ -136,13 +136,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   let sensorSubValue: React.ReactNode = null;
   if (hasBothSensors) {
     const profileGoal = profileTarget?.toFixed(1);
-    const compensatedGoal = targetTemp?.toFixed(1);
-    const showCompensated = showBothTargets && compensatedGoal;
     sensorSubValue = (
       <span style={{ fontSize: '10px', letterSpacing: '0.01em', marginTop: '-2px', display: 'block', whiteSpace: 'nowrap' }}>
         <span style={{ color: 'hsl(var(--temp-blue))' }}>C:{controller.current_temp!.toFixed(1)}</span>
         {profileGoal && <>{'\u2003'}<span style={{ color: 'hsl(38 92% 50%)' }}>M:{profileGoal}</span></>}
-        {showCompensated && <span style={{ color: 'hsl(38 92% 50% / 0.6)' }}>→{compensatedGoal}</span>}
         {'\u2003'}
         <span style={{ color: 'hsl(var(--ferment-green))' }}>P:{brew.currentTemp.toFixed(1)}</span>
       </span>
