@@ -279,31 +279,26 @@ export function BrewingDashboard() {
 
   // Minimum splash time (2s) so logo is always visible
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
-  const [contentReady, setContentReady] = useState(false);
+  const [contentPainted, setContentPainted] = useState(false);
+  const showSplash = !minTimeElapsed || !contentPainted;
+  
   useEffect(() => {
     const timer = setTimeout(() => setMinTimeElapsed(true), 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Mark content ready after data loads + one paint cycle so SVGs render
+  // Once data is loaded, wait for two animation frames (render + paint) then mark ready
   useEffect(() => {
     if (!loading) {
-      const raf = requestAnimationFrame(() => {
-        // Wait one more frame + 200ms for SVGs/images to settle
-        const timer = setTimeout(() => setContentReady(true), 200);
-        return () => clearTimeout(timer);
+      let cancelled = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!cancelled) setContentPainted(true);
+        });
       });
-      return () => cancelAnimationFrame(raf);
+      return () => { cancelled = true; };
     }
   }, [loading]);
-
-  // Loading state - AFTER all hooks
-  if (!minTimeElapsed || !contentReady) {
-    return <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
-        <img src={dbLogo} alt="Bryggövervakare" className="h-96" />
-        <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-      </div>;
-  }
 
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
@@ -340,7 +335,15 @@ export function BrewingDashboard() {
     return null;
   };
   
-  return <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
+  return <>
+    {/* Splash overlay - covers content until fully painted */}
+    {showSplash && (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+        <img src={dbLogo} alt="Bryggövervakare" className="h-96" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+      </div>
+    )}
+    <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
     height: getContainerHeight(),
     background: 'transparent'
   }}>
@@ -428,5 +431,6 @@ export function BrewingDashboard() {
 
       {/* Timer Footer - rendered here to share hook data instead of duplicating */}
       <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
-    </div>;
+    </div>
+  </>;
 }
