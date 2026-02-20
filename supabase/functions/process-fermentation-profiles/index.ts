@@ -624,7 +624,7 @@ Deno.serve(async (req) => {
         }
 
         case 'wait_for_temp': {
-          if (currentStep.target_temp !== null && controller) {
+          if (currentStep.target_temp !== null && controller && controller.current_temp !== null) {
             // Check if current temp has reached target
             if (Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true

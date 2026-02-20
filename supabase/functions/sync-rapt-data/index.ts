@@ -144,6 +144,15 @@ serve(async (req) => {
       activeSessions?.map(s => s.controller_id) || []
     );
 
+    // Get cooler controller to avoid overwriting its target temp (managed by auto-cooling)
+    const { data: autoCoolingSettings } = await supabase
+      .from('auto_cooling_settings')
+      .select('cooler_controller_id, enabled')
+      .limit(1)
+      .single();
+    
+    const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
+
     // Prepare Temperature Controllers data for upsert
     const controllersData = controllers.map((controller: any) => {
       return {
@@ -169,7 +178,7 @@ serve(async (req) => {
     if (controllersData.length > 0) {
       for (const controllerData of controllersData) {
         const hasActiveSession = controllersWithActiveSessions.has(controllerData.controller_id);
-        
+        const isCoolerController = controllerData.controller_id === coolerControllerId;
         // Build update object - skip target_temp if controller is managed by fermentation profile
         const updateData: Record<string, any> = {
           name: controllerData.name,
@@ -188,11 +197,12 @@ serve(async (req) => {
           updated_at: new Date().toISOString()
         };
 
-        // Only update target_temp if NOT managed by a fermentation profile
-        if (!hasActiveSession) {
+        // Only update target_temp if NOT managed by a fermentation profile AND NOT the cooler controller
+        if (!hasActiveSession && !isCoolerController) {
           updateData.target_temp = controllerData.target_temp;
         } else {
-          console.log(`Skipping target_temp update for controller ${controllerData.controller_id} - managed by fermentation profile`);
+          const reason = hasActiveSession ? 'fermentation profile' : 'auto-cooling';
+          console.log(`Skipping target_temp update for controller ${controllerData.controller_id} - managed by ${reason}`);
         }
 
         // Try update first, then insert if not exists
