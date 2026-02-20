@@ -246,7 +246,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={label}
-      value={`${displayTemp.toFixed(1)}°`}
+      value={<span style={{ marginTop: '-6px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
       subValue={null}
       className="justify-start pt-0.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
