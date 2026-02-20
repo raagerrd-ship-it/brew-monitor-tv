@@ -74,21 +74,6 @@ export function StatCard({
       onClick={onClick}
       title={title}
     >
-      {/* Background icon for visual identification */}
-      {icon && (
-        <div 
-          className="absolute pointer-events-none"
-          style={{
-            right: '-4px',
-            bottom: '-4px',
-            width: '70%',
-            height: '70%',
-            opacity: 0.08,
-          }}
-        >
-          {icon}
-        </div>
-      )}
       
       {/* Top light reflection */}
       <div 
