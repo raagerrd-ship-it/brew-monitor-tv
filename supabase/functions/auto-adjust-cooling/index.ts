@@ -202,9 +202,15 @@ serve(async (req) => {
       });
     }
 
-    // Look up original targets for all followed controllers (from first overshoot adjustment)
+    // Look up original targets for followed controllers (from first overshoot adjustment)
+    // CRITICAL: Skip profile-owned controllers — their target is managed by the profile,
+    // and stale historical records could contain dangerously wrong values (e.g. 22°C vs 14°C)
     const originalTargetMap = new Map<string, number>();
     for (const controller of followedControllersFullData) {
+      if (profileOwnedControllerIds.has(controller.controller_id)) {
+        log('ORIGINAL_TARGET', 'info', `Skipping originalTargetMap for profile-owned controller: ${controller.name}`);
+        continue;
+      }
       const { data: prevAdj } = await supabase
         .from('auto_cooling_adjustments')
         .select('old_target_temp, original_target_temp')
