@@ -121,7 +121,7 @@ export function CustomBrewDialog({
     return sgData
       .map((point, index) => {
         const temp = point.pillTemp || point.controllerTemp || point.temp;
-        const tempStr = temp !== undefined ? `${temp.toFixed(1)}°C` : "?°C";
+        const tempStr = temp !== undefined ? `${temp.toFixed(1)}°` : "?°";
         // Support both 'sg' and 'value' field names
         const sgValue = point.sg ?? point.value;
         const sgStr = sgValue !== undefined ? sgValue.toFixed(4) : "?";

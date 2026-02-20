@@ -162,7 +162,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
     const compensatedT = targetTemp; // Pill-kompenserat controllermål
     
-    // Fixed range: profile target ±3°C
+    // Fixed range: profile target ±3°
     const rangeMin = profileT - 3;
     const rangeMax = profileT + 3;
     const range = rangeMax - rangeMin;

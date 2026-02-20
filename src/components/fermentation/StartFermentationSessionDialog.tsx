@@ -233,11 +233,11 @@ export function StartFermentationSessionDialog({
   const getStepDescription = (step: FermentationProfileStep) => {
     switch (step.step_type) {
       case 'hold':
-        return `${step.target_temp}°C i ${step.duration_hours}h`;
+        return `${step.target_temp}° i ${step.duration_hours}h`;
       case 'ramp':
-        return `${step.ramp_type === 'immediate' ? '→' : '↘'} ${step.target_temp}°C${step.duration_hours ? ` (${step.duration_hours}h)` : ''}`;
+        return `${step.ramp_type === 'immediate' ? '→' : '↘'} ${step.target_temp}°${step.duration_hours ? ` (${step.duration_hours}h)` : ''}`;
       case 'wait_for_temp':
-        return `Vänta tills ${step.target_temp}°C`;
+        return `Vänta tills ${step.target_temp}°`;
       case 'wait_for_gravity_stable':
         return `Stabil SG ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
@@ -322,7 +322,7 @@ export function StartFermentationSessionDialog({
                   ) : (
                     controllers.map((controller) => (
                       <SelectItem key={controller.controller_id} value={controller.controller_id}>
-                        {controller.name} ({controller.current_temp?.toFixed(1) ?? '-'}°C → {controller.target_temp?.toFixed(1) ?? '-'}°C)
+                        {controller.name} ({controller.current_temp?.toFixed(1) ?? '-'}° → {controller.target_temp?.toFixed(1) ?? '-'}°)
                       </SelectItem>
                     ))
                   )}

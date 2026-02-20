@@ -309,13 +309,13 @@ export function FermentationProfilesManagement() {
     switch (step.step_type) {
       case 'hold':
         if (step.target_sg !== null) {
-          return `Håll ${step.target_temp}°C tills SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+          return `Håll ${step.target_temp}° tills SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
         }
-        return `Håll ${step.target_temp}°C i ${step.duration_hours}h`;
+        return `Håll ${step.target_temp}° i ${step.duration_hours}h`;
       case 'ramp':
-        return `${step.ramp_type === 'immediate' ? 'Ställ in' : 'Rampa till'} ${step.target_temp}°C${step.duration_hours ? ` över ${step.duration_hours}h` : ''}`;
+        return `${step.ramp_type === 'immediate' ? 'Ställ in' : 'Rampa till'} ${step.target_temp}°${step.duration_hours ? ` över ${step.duration_hours}h` : ''}`;
       case 'wait_for_temp':
-        return `Vänta tills temp når ${step.target_temp}°C`;
+        return `Vänta tills temp når ${step.target_temp}°`;
       case 'wait_for_gravity_stable':
         return `Vänta på stabil SG i ${step.gravity_stable_days} dagar (±${step.gravity_threshold})`;
       case 'wait_for_sg':
