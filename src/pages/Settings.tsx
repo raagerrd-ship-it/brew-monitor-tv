@@ -82,7 +82,7 @@ export default function Settings() {
   const [overshootDeltaThreshold, setOvershootDeltaThreshold] = useState<string>("2.0");
   const [pillCompEnabled, setPillCompEnabled] = useState(true);
   const [pillCompDamping, setPillCompDamping] = useState<string>("0.4");
-  const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.3");
+  const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.8");
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -446,7 +446,7 @@ export default function Settings() {
         setOvershootDeltaThreshold(parseFloat(String((data as any).overshoot_delta_threshold ?? 2.0)).toFixed(1));
         setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
         setPillCompDamping(parseFloat(String((data as any).pill_compensation_damping ?? 0.4)).toString());
-        setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.3)).toString());
+        setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.8)).toString());
       }
 
       // Load followed controllers
@@ -2325,16 +2325,16 @@ export default function Settings() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border z-50">
-                          <SelectItem value="0.1">0.1°C</SelectItem>
-                          <SelectItem value="0.2">0.2°C</SelectItem>
-                          <SelectItem value="0.3">0.3°C (standard)</SelectItem>
+                          <SelectItem value="0.3">0.3°C (försiktig)</SelectItem>
                           <SelectItem value="0.5">0.5°C</SelectItem>
+                          <SelectItem value="0.8">0.8°C (standard)</SelectItem>
+                          <SelectItem value="1.0">1.0°C (aggressiv)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Kompenserar med delta/2 så att medelvärdet av pill och probe = profilens mål. Max {pillCompRateLimit}°C ändring per cykel.
+                      Kompenserar med delta/2 så att medelvärdet av pill och probe = profilens mål. Dynamisk rate-limit: max {pillCompRateLimit}°C långt från mål, mjukare nära mål. Justerar bara vid ny RAPT-data (~var 15:e min).
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2345,7 +2345,8 @@ export default function Settings() {
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
                         <p>• Beräknar medelvärde av senaste 3 delta-mätningar (pill − probe)</p>
                         <p>• Kompensation = delta/2, så att (pill + probe) / 2 = profilens mål</p>
-                        <p>• Rate-limiterar till max {pillCompRateLimit}°C ändring per 5-minuterscykel</p>
+                        <p>• Dynamisk rate-limit: {pillCompRateLimit}°C långt bort, minskar proportionellt nära mål</p>
+                        <p>• Justerar bara vid ny RAPT-data (hoppar över om samma data som förra cykeln)</p>
                         <p>• Säkerhetsgolv: aldrig mer än 5°C under profilens mål</p>
                         <p>• Kompenserar bara vid positivt delta (pill varmare än probe)</p>
                         <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
