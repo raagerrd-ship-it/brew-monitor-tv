@@ -265,11 +265,10 @@ function generateChartSvg(
         if (sg.temp != null) pillTempMap.set(sg.t, sg.temp);
       }
 
-      // Compute avg temp points (interpolate pill to nearest controller timestamp)
-      const avgTempPoints: { x: number; y: number }[] = [];
+      // Build matched pill+controller points for span fill and avg line
+      const spanPoints: { x: number; pillY: number; ctrlY: number; avgY: number }[] = [];
       for (let i = 0; i < tempDown.length; i++) {
         const ct = ctrlSmoothed[i];
-        // Find closest pill temp within 30 min
         let closestPill: number | null = null;
         let closestDist = Infinity;
         for (const [pt, pv] of pillTempMap) {
@@ -280,22 +279,27 @@ function generateChartSvg(
           }
         }
         if (closestPill !== null) {
-          const avg = (ct + closestPill) / 2;
-          avgTempPoints.push({
-            x: scaleX(tempDown[i].t, tMin, tMax),
-            y: tempScaleY(avg),
+          const x = scaleX(tempDown[i].t, tMin, tMax);
+          spanPoints.push({
+            x,
+            pillY: tempScaleY(closestPill),
+            ctrlY: tempScaleY(ct),
+            avgY: tempScaleY((ct + closestPill) / 2),
           });
         }
       }
 
-      // Average temp line with gradient fill (main temp visualization)
-      if (avgTempPoints.length > 1) {
-        const baseY = MARGIN.top + PLOT_H;
-        const avgSmoothD = buildSmoothPath(avgTempPoints);
-        const avgAreaPath = avgSmoothD +
-          ` L${avgTempPoints[avgTempPoints.length - 1].x.toFixed(1)},${baseY} L${avgTempPoints[0].x.toFixed(1)},${baseY} Z`;
-        tempSvgParts += `<path d="${avgAreaPath}" fill="${COLORS.avgTempFill}" stroke="none"/>`;
-        tempSvgParts += `<path d="${avgSmoothD}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
+      // Span fill between pill and controller lines only
+      if (spanPoints.length > 1) {
+        const pillPath = spanPoints.map(p => ({ x: p.x, y: p.pillY }));
+        const ctrlPathReversed = [...spanPoints].reverse().map(p => ({ x: p.x, y: p.ctrlY }));
+        const spanD = buildSmoothPath(pillPath) + ' ' +
+          buildSmoothPath(ctrlPathReversed).replace('M', 'L') + ' Z';
+        tempSvgParts += `<path d="${spanD}" fill="${COLORS.avgTempFill}" stroke="none"/>`;
+
+        // Average temp line (main)
+        const avgPath = spanPoints.map(p => ({ x: p.x, y: p.avgY }));
+        tempSvgParts += `<path d="${buildSmoothPath(avgPath)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
       }
 
       // Controller temp line (faint)
