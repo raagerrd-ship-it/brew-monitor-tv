@@ -28,6 +28,15 @@
   animation: marquee 8s linear infinite;
 }
 
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px var(--glow-color, hsl(142 70% 50% / 0.4));
+  }
+  50% {
+    box-shadow: 0 0 20px var(--glow-color, hsl(142 70% 50% / 0.6));
+  }
+}
+
 @keyframes progress-grow {
   from {
     width: var(--progress-start, 0%);
