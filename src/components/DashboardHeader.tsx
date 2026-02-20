@@ -183,7 +183,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     fontSize: isMobile ? undefined : '16px',
                     color: linkedPill?.color || 'hsl(var(--foreground))'
                   }}>
-                    {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°C` : '--°C'}
+                    {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
                   </span>
 
                   {linkedPill && (

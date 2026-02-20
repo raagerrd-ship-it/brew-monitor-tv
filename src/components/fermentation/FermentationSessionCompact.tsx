@@ -148,7 +148,7 @@ export function FermentationSessionCompact({
         return formatRemainingTime(remaining);
       }
       case 'wait_for_temp':
-        return `Nå ${step.target_temp}°C`;
+        return `Nå ${step.target_temp}°`;
       case 'wait_for_gravity_stable': {
         if (stabilityDuration) {
           const { days, hours, stableSince } = stabilityDuration;
@@ -426,6 +426,15 @@ export function FermentationSessionCompact({
             })()}
             <Separator />
             <span className="flex items-center gap-1 text-muted-foreground/80">
+              {(() => {
+                const stepType = currentStep.step_type;
+                if (waitingForTemp) return <Thermometer className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                if (stepType === 'wait_for_acknowledgement') return <Hand className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                return null;
+              })()}
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
             </span>
 
@@ -508,7 +517,7 @@ function TemperatureDisplay({
               className="font-semibold"
               style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
             >
-              {targetTemp.toFixed(1)}°C
+              {targetTemp.toFixed(1)}°
             </span>
           )}
           
@@ -525,7 +534,7 @@ function TemperatureDisplay({
               className="font-semibold"
               style={{ color: 'hsl(var(--primary))' }}
             >
-              {currentStep.target_temp.toFixed(1)}°C
+              {currentStep.target_temp.toFixed(1)}°
             </span>
           )}
           {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && targetTemp != null && (

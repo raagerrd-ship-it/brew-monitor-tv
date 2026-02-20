@@ -20,7 +20,7 @@ import { SyncedDataDialog } from "./SyncedDataDialog";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
-const CARD_STATS_HEIGHT = 140;
+const CARD_STATS_HEIGHT = 148;
 
 /** Small icon for brew status badge */
 function StatusIcon({ status }: { status: string }) {
