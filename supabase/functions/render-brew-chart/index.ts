@@ -23,7 +23,7 @@ const COLORS = {
   controllerArea: '#268bd214', // temp-blue 0.08
   controllerLine: '#268bd24d',   // temp-blue 0.3 (faint, like desktop)
   avgTempLine: '#268bd2',        // temp-blue (main temp line)
-  avgTempFill: '#268bd226',      // temp-blue 0.15
+  avgTempFill: '#268bd215',      // temp-blue ~0.08 (subtle span fill)
   targetLine: '#268bd280',     // temp-blue 0.5
   pillTempLine: '#268bd24d',   // temp-blue 0.3
   grid: '#3a3d4e',
