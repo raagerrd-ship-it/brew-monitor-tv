@@ -14,7 +14,7 @@ function AbvStatComponent({ brew, updatedFields }: AbvStatProps) {
   return (
     <StatCard
       label="ABV"
-      value={`${brew.abv.toFixed(1)}%`}
+      value={<span className="tabular-nums">{brew.abv.toFixed(1)}<span className="text-muted-foreground/40">%</span></span>}
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.abv}
     />

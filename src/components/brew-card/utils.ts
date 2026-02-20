@@ -53,18 +53,4 @@ export function getStatusDisplayText(brew: BrewData): string {
   return brew.status;
 }
 
-/**
- * Get the appropriate color for a stat based on whether it's glowing
- */
-export function getStatGlowStyles(isGlowing: boolean, color: string): React.CSSProperties {
-  if (isGlowing) {
-    return {
-      boxShadow: `0 0 25px ${colorWithOpacity(color, 0.5)}`,
-      borderColor: colorWithOpacity(color, 0.5)
-    };
-  }
-  return {
-    boxShadow: '0 6px 20px hsl(222 30% 3% / 0.6), 0 3px 8px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)'
-  };
-}
 

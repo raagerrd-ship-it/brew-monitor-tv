@@ -5,7 +5,6 @@ export {
   isBrewInactive, 
   calculateDaysSinceStart, 
   getStatusDisplayText,
-  getStatGlowStyles,
 } from "./utils";
 export { GravityStat } from "./GravityStat";
 export { AbvStat } from "./AbvStat";

@@ -112,13 +112,15 @@ function BrewCardComponent({
           {/* Label image thumbnail */}
           {brew.label_image_url && (
             <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30"
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse"
               style={{ width: '52px', height: '52px' }}
             >
               <img
                 src={brew.label_image_url}
                 alt={`${brew.name} etikett`}
                 className="h-full w-full object-cover"
+                loading="lazy"
+                onLoad={(e) => (e.currentTarget.parentElement as HTMLElement)?.classList.remove('animate-pulse')}
               />
             </div>
           )}
