@@ -556,6 +556,16 @@ export function ActiveFermentationSession({
     const stepTargetSg = currentStep?.target_sg ?? null;
     const stepSgComparison = currentStep?.sg_comparison ?? null;
     
+    // Calculate effective profile target (look back through steps for last target_temp)
+    const profileStepTarget = (() => {
+      if (currentStep?.target_temp != null) return currentStep.target_temp;
+      const steps = session.steps || [];
+      for (let i = session.current_step_index - 1; i >= 0; i--) {
+        if (steps[i]?.target_temp != null) return steps[i].target_temp;
+      }
+      return null;
+    })();
+    
     return (
       <FermentationSessionCompact
         profileName={session.profile?.name || ''}
@@ -566,6 +576,7 @@ export function ActiveFermentationSession({
         stepStartedAt={session.step_started_at}
         stepStartTemp={session.step_start_temp}
         targetTemp={controllerData?.target_temp ?? null}
+        profileStepTarget={profileStepTarget}
         currentTemp={controllerData?.current_temp ?? null}
         isRamping={isRamping}
         rampProgress={rampProgress}

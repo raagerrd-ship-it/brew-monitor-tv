@@ -29,6 +29,7 @@ interface FermentationSessionCompactProps {
   stepStartedAt: string;
   stepStartTemp?: number | null;
   targetTemp: number | null;
+  profileStepTarget?: number | null;
   currentTemp?: number | null;
   isRamping: boolean;
   rampProgress: number | null;
@@ -65,6 +66,15 @@ export function FermentationSessionCompact({
   onAcknowledgeStep,
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
+
+  // Calculate the effective profile target by looking back through steps
+  const effectiveStepTarget = (() => {
+    if (currentStep?.target_temp != null) return currentStep.target_temp;
+    // No target on current step - look back through previous steps
+    // We need step data from the parent, but we only have currentStep
+    // Use targetTemp as fallback if no step target
+    return null;
+  })();
 
   const progress = useFermentationProgress({
     currentStep,
@@ -489,14 +499,29 @@ function TemperatureDisplay({
           </span>
         </>
       ) : (
-        targetTemp != null && (
-          <span 
-            className="font-semibold"
-            style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))' }}
-          >
-            {targetTemp.toFixed(1)}°C
-          </span>
-        )
+        <>
+          {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && (
+            <span 
+              className="font-semibold"
+              style={{ color: 'hsl(var(--primary))' }}
+            >
+              {currentStep.target_temp.toFixed(1)}°C
+            </span>
+          )}
+          {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && targetTemp != null && (
+            <span className="text-muted-foreground/40">→</span>
+          )}
+          {targetTemp != null && (
+            <span 
+              className={currentStep.target_temp != null && currentStep.target_temp !== targetTemp ? "font-medium text-muted-foreground/70" : "font-semibold"}
+              style={currentStep.target_temp == null || currentStep.target_temp === targetTemp 
+                ? { color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))' } 
+                : undefined}
+            >
+              {targetTemp.toFixed(1)}°
+            </span>
+          )}
+        </>
       )}
     </span>
   );
