@@ -206,11 +206,11 @@ function BrewCardComponent({
             >
               {brew.batch_id.startsWith('custom_') ? (
                 <>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate}
+                  {brew.style && brew.style !== "Okänd stil" ? <>{brew.style} <span className="opacity-40">·</span> </> : ""}{brew.lastUpdate}
                 </>
               ) : (
                 <>
-                  {brew.style && brew.style !== "Okänd stil" ? `${brew.style} • ` : ""}{brew.lastUpdate} • {brew.batchNumber}
+                  {brew.style && brew.style !== "Okänd stil" ? <>{brew.style} <span className="opacity-40">·</span> </> : ""}{brew.lastUpdate} <span className="opacity-40">·</span> {brew.batchNumber}
                 </>
               )}
             </p>

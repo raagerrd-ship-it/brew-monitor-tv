@@ -109,9 +109,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   
   const profileGoal = profileTarget?.toFixed(1);
   const label: React.ReactNode = profileGoal
-    ? `Temp (${profileGoal}°)`
+    ? <>Temp <span className="text-muted-foreground/50">({profileGoal}°)</span></>
     : targetTemp !== null && targetTemp !== undefined
-      ? `Temp (${targetTemp.toFixed(1)}°)`
+      ? <>Temp <span className="text-muted-foreground/50">({targetTemp.toFixed(1)}°)</span></>
       : 'Temp';
 
   // Build tooltip text showing temp source

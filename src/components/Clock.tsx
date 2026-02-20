@@ -40,7 +40,7 @@ function ClockComponent() {
           weekday: "short",
           day: "numeric",
           month: "short",
-        })}
+        }).replace(/\.$/, '')}
       </p>
     </div>
   );

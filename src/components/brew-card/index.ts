@@ -6,9 +6,6 @@ export {
   calculateDaysSinceStart, 
   getStatusDisplayText,
   getStatGlowStyles,
-  calculateThermometerFill,
-  calculateBatteryFillWidth,
-  calculateAbvFillOffset
 } from "./utils";
 export { GravityStat } from "./GravityStat";
 export { AbvStat } from "./AbvStat";
