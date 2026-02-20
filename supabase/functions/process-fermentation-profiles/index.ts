@@ -475,6 +475,12 @@ Deno.serve(async (req) => {
             const holdCompensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
               supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit
             ) : null
+
+            // If pill-comp is enabled but returned null (already at ideal or same data), don't enforce raw profile target
+            // — that would undo the active compensation every other cycle
+            if (pillCompEnabled && !holdCompensation) {
+              console.log(`Hold step: pill-komp aktiv men redan nära mål (${controller.target_temp}°C vs profil ${currentStep.target_temp}°C), skippar enforce`)
+            } else {
             const holdTarget = holdCompensation ? holdCompensation.compensatedTarget : currentStep.target_temp
 
             // Check if we need to adjust temperature
@@ -510,6 +516,7 @@ Deno.serve(async (req) => {
                 }
               }
             }
+            } // end else (pill-comp not skipping for hold step)
           }
           
           // Check completion conditions - either duration OR SG target
