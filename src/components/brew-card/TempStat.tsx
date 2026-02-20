@@ -134,7 +134,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   
   const profileGoal = profileTarget?.toFixed(1);
   const label: React.ReactNode = profileGoal
-    ? `Temp (M:${profileGoal})`
+    ? `Temp (${profileGoal}°)`
     : targetTemp !== null && targetTemp !== undefined
       ? `Temp (${targetTemp.toFixed(1)}°)`
       : 'Temp';
