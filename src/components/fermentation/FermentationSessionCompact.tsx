@@ -308,6 +308,7 @@ export function FermentationSessionCompact({
           isRamping={isRamping}
           isRampingUp={isRampingUp}
           isTvMode={true}
+          stepType={currentStep?.step_type}
         />
       </div>
       
