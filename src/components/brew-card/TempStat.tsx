@@ -191,9 +191,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full cursor-help" style={{ height: '14px', display: 'flex', alignItems: 'center' }}>
+            <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
               {/* Track background – full ±3° range */}
-              <div className="relative w-full h-[8px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.6)' }}>
+              <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.6)' }}>
                 {/* Colored span bar from ctrl to pill */}
                 <div 
                   className="absolute h-full rounded-full"
