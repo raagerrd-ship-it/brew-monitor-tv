@@ -369,6 +369,11 @@ serve(async (req) => {
       const stallCandidates: StallCandidate[] = [];
 
       for (const fc of followedControllersFullData) {
+        // Skip controllers without active heating — stall boost raises temp which requires heating
+        if (!fc.heating_enabled) {
+          log('STALL_NO_HEATING', 'info', `${fc.name}: Hoppar över stall-check — värme ej aktiverad`);
+          continue;
+        }
         if (profileOwnedControllerIds.has(fc.controller_id)) {
           log('STALL_PROFILE_SKIP', 'info', `${fc.name}: Hoppar över stall-check — aktiv fermenteringsprofil äger temperaturen`);
           continue;
