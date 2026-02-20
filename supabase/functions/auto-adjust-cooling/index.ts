@@ -227,6 +227,8 @@ serve(async (req) => {
       }
     }
 
+    // Store full data for logging after profile targets are resolved
+    const followedDataForLog: Array<{controller: typeof followedControllersFullData[0], pillTemp: number|null, currentTemp: number, targetTemp: number, hysteresis: number, isActivelyCooling: boolean, pillDelta: number|null}> = [];
     followedControllersFullData.forEach(controller => {
       const pillTemp = round1(controller.pill_temp);
       const currentTemp = round1(controller.current_temp ?? controller.pill_temp) ?? 0;
@@ -234,18 +236,7 @@ serve(async (req) => {
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
       const pillDelta = pillTemp !== null ? round1(pillTemp - currentTemp) : null;
-      const originalTarget = round1(originalTargetMap.get(controller.controller_id) ?? null) ?? targetTemp;
-      
-      log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
-        original_target: originalTarget,
-        last_update: controller.last_update,
-        target_temp: targetTemp,
-        current_temp: currentTemp,
-        pill_temp: pillTemp,
-        pill_delta: pillDelta,
-        cooling_enabled: controller.cooling_enabled,
-        is_actively_cooling: isActivelyCooling
-      });
+      followedDataForLog.push({controller, pillTemp, currentTemp, targetTemp, hysteresis, isActivelyCooling, pillDelta});
     });
 
     // Controllers with active fermentation profiles — profile owns the temperature
@@ -327,6 +318,26 @@ serve(async (req) => {
       if (prevAdj && prevAdj.length > 0) {
         originalTargetMap.set(controller.controller_id, prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp);
       }
+    }
+
+    // Now log FOLLOWED_DATA with correct original_target (profile target takes precedence)
+    for (const entry of followedDataForLog) {
+      const { controller, pillTemp, currentTemp, targetTemp, isActivelyCooling, pillDelta } = entry;
+      const profileTarget = profileTargetMap.get(controller.controller_id);
+      const originalTarget = profileTarget !== undefined
+        ? profileTarget
+        : (round1(originalTargetMap.get(controller.controller_id) ?? null) ?? targetTemp);
+      
+      log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
+        original_target: originalTarget,
+        last_update: controller.last_update,
+        target_temp: targetTemp,
+        current_temp: currentTemp,
+        pill_temp: pillTemp,
+        pill_delta: pillDelta,
+        cooling_enabled: controller.cooling_enabled,
+        is_actively_cooling: isActivelyCooling
+      });
     }
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
