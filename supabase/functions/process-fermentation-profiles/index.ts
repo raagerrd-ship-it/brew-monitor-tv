@@ -519,19 +519,22 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Complete if EITHER condition is met (whichever comes first)
-          // If only duration is set, complete when duration passes
-          // If only SG is set, complete when SG is met
-          // If both are set, complete when EITHER is met
+          // Verify temp is at target before allowing completion (within 0.3°C)
+          const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+          const holdTempOk = !holdEffectiveTarget || !controller || 
+            (controller.current_temp !== null && Math.abs(controller.current_temp - holdEffectiveTarget) <= 0.3)
+          
+          if (!holdTempOk) {
+            console.log(`Hold step: condition met but temp not at target (current ${controller?.current_temp}°C, target ${holdEffectiveTarget}°C) - waiting`)
+          }
+          
+          // Complete if EITHER condition is met AND temp is at target
           if (currentStep.duration_hours && currentStep.target_sg !== null) {
-            // Both conditions set - either one can trigger completion
-            stepCompleted = durationComplete || sgTargetMet
+            stepCompleted = (durationComplete || sgTargetMet) && holdTempOk
           } else if (currentStep.duration_hours) {
-            // Only duration set
-            stepCompleted = durationComplete
+            stepCompleted = durationComplete && holdTempOk
           } else if (currentStep.target_sg !== null) {
-            // Only SG set
-            stepCompleted = sgTargetMet
+            stepCompleted = sgTargetMet && holdTempOk
           }
           
           if (stepCompleted && sgTargetMet) {
@@ -558,7 +561,14 @@ Deno.serve(async (req) => {
                   .eq('controller_id', session.controller_id)
               }
             }
-            stepCompleted = true
+            // Don't mark complete until temperature is actually reached
+            if (controller && controller.current_temp !== null &&
+                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3) {
+              stepCompleted = true
+              console.log(`Immediate ramp complete: temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
+            } else {
+              console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
+            }
           } else {
             // Linear ramp - use saved start temp or save it now
             if (controller && currentStep.duration_hours) {
@@ -590,10 +600,10 @@ Deno.serve(async (req) => {
                 }
               }
               
-              // Check if BOTH time has passed AND target temperature is reached
+              // Check if BOTH time has passed AND target temperature is reached (within 0.3°C)
               const timeComplete = elapsedHours >= currentStep.duration_hours
               const tempReached = controller.current_temp !== null && 
-                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.5
+                Math.abs(controller.current_temp - currentStep.target_temp) <= 0.3
               
               if (timeComplete && tempReached) {
                 stepCompleted = true
@@ -606,7 +616,7 @@ Deno.serve(async (req) => {
                 }
                 console.log(`Ramp complete: time elapsed and temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
               } else if (timeComplete && !tempReached) {
-                console.log(`Ramp time complete but temp not reached: current ${controller.current_temp}°C, target ${currentStep.target_temp}°C - waiting for temp`)
+                console.log(`Ramp time complete but temp not reached: current ${controller.current_temp}°C, target ${currentStep.target_temp}°C (need within 0.3°C) - waiting for temp`)
               }
             }
           }
