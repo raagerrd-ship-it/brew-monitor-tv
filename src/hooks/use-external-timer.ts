@@ -54,9 +54,18 @@ const initialState: ExternalTimerState = {
   beerStyle: null,
 };
 
+// Interval constants
+const FAST_SYNC_MS = 3_000;
+const FAST_POLL_MS = 5_000;
+const SLOW_SYNC_MS = 30_000;
+const SLOW_POLL_MS = 60_000;
+
 export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isActiveRef = useRef(false); // Track active state for interval switching
   const timerDataRef = useRef<{
     startedAt: string | null;
     remainingAtStart: number;
@@ -70,31 +79,18 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
   const calculateRemainingSeconds = useCallback(() => {
     const data = timerDataRef.current;
     if (!data || !data.startedAt) return 0;
-
-    // Don't count down if paused (either manually or by milestone)
-    if (data.isPaused) {
-      return data.remainingAtStart;
-    }
-
+    if (data.isPaused) return data.remainingAtStart;
     const startedAt = new Date(data.startedAt).getTime();
     const now = Date.now();
     const elapsed = Math.floor((now - startedAt) / 1000);
-    const remaining = Math.max(0, data.remainingAtStart - elapsed);
-    return remaining;
+    return Math.max(0, data.remainingAtStart - elapsed);
   }, []);
 
-  // Calculate next milestone based on current remaining seconds
   const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
     const data = timerDataRef.current;
     if (!data || !data.milestones.length) return null;
-
-    // Sort milestones by time ascending (lowest time = will be reached last)
     const sortedMilestones = [...data.milestones].sort((a, b) => a.time - b.time);
-    
-    // Find upcoming milestones: not yet triggered, time < remainingSeconds
     const upcomingMilestones = sortedMilestones.filter(m => m.time < remainingSeconds && !m.triggered);
-    
-    // The next milestone is the one with the highest time (will be reached soonest)
     return upcomingMilestones.length > 0 ? upcomingMilestones[upcomingMilestones.length - 1] : null;
   }, []);
 
@@ -109,12 +105,10 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       setTimerState(initialState);
       return;
     }
-
     const remainingSeconds = calculateRemainingSeconds();
     const nextMilestone = calculateNextMilestone(remainingSeconds);
     const timeToNextMilestone = calculateTimeToNextMilestone(remainingSeconds, nextMilestone);
     const progress = data.totalSeconds > 0 ? ((data.totalSeconds - remainingSeconds) / data.totalSeconds) * 100 : 0;
-
     setTimerState(prev => ({
       ...prev,
       remainingSeconds,
@@ -124,7 +118,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     }));
   }, [calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
-  // Parse a milestone from raw JSON
   const parseMilestone = useCallback((m: unknown): TimerMilestone => {
     const milestone = m as Record<string, unknown>;
     return {
@@ -139,7 +132,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     };
   }, []);
 
-  // Parse nextConfig from raw JSON
   const parseNextConfig = useCallback((raw: unknown): NextConfig | null => {
     if (!raw || typeof raw !== 'object') return null;
     const obj = raw as Record<string, unknown>;
@@ -150,7 +142,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     };
   }, []);
 
-  // Fetch from local cache
   const fetchFromCache = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -167,6 +158,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
 
       if (!data) {
         timerDataRef.current = null;
+        isActiveRef.current = false;
         setTimerState(initialState);
         return;
       }
@@ -174,12 +166,10 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       const rawMilestones = Array.isArray(data.milestones) ? data.milestones : [];
       const milestones: TimerMilestone[] = rawMilestones.map(parseMilestone);
 
-      // Calculate elapsed time since last sync
       const lastSynced = new Date(data.last_synced_at).getTime();
       const now = Date.now();
       const elapsedSinceSync = Math.floor((now - lastSynced) / 1000);
       
-      // Adjust remaining seconds based on elapsed time (if not paused)
       const adjustedRemaining = data.is_paused 
         ? data.remaining_seconds 
         : Math.max(0, data.remaining_seconds - elapsedSinceSync);
@@ -188,12 +178,10 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         ? data.time_to_next_milestone
         : Math.max(0, data.time_to_next_milestone - elapsedSinceSync);
 
-      // Parse next_milestone
       const nextMilestone: TimerMilestone | null = data.next_milestone 
         ? parseMilestone(data.next_milestone)
         : null;
 
-      // Parse new fields (may be null if not yet in DB schema)
       const nextConfig = parseNextConfig((data as Record<string, unknown>).next_config);
 
       timerDataRef.current = {
@@ -206,15 +194,15 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         timeToNextMilestoneAtStart: adjustedTimeToNext,
       };
 
-      // If timer is not active, reset to initial state
       if (!data.is_active) {
+        isActiveRef.current = false;
         setTimerState(initialState);
         return;
       }
 
-      // Progress from API is 0-100, keep as-is
+      isActiveRef.current = true;
+
       const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
-      // Recalculate locally for accuracy
       const localProgress = data.total_seconds > 0 
         ? ((data.total_seconds - adjustedRemaining) / data.total_seconds) * 100 
         : apiProgress;
@@ -241,12 +229,10 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     }
   }, [parseMilestone, parseNextConfig]);
 
-  // Trigger server-side sync directly from client (like Sonos pattern)
   const triggerSync = useCallback(async () => {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-
       await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-external-timer`,
         {
@@ -264,7 +250,20 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     }
   }, []);
 
-  // Initial fetch and subscribe to updates
+  // Helper to set up sync/poll intervals based on active state
+  const setupIntervals = useCallback((active: boolean) => {
+    // Clear existing
+    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+    const syncMs = active ? FAST_SYNC_MS : SLOW_SYNC_MS;
+    const pollMs = active ? FAST_POLL_MS : SLOW_POLL_MS;
+
+    syncIntervalRef.current = setInterval(() => triggerSync(), syncMs);
+    pollIntervalRef.current = setInterval(() => fetchFromCache(), pollMs);
+  }, [triggerSync, fetchFromCache]);
+
+  // Initial fetch, subscribe, and set up intervals
   useEffect(() => {
     fetchFromCache();
     triggerSync();
@@ -273,7 +272,6 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       onCachedTimerChangeRef.current = () => fetchFromCache();
     }
 
-    // Realtime subscription for immediate updates when cache changes
     const channel = supabase
       .channel('cached-timer-changes')
       .on(
@@ -290,23 +288,21 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       )
       .subscribe();
 
-    // Client-triggered sync every 3s
-    const syncInterval = setInterval(() => {
-      triggerSync();
-    }, 3_000);
-
-    // Cache read fallback every 5s (in case Realtime drops)
-    const pollInterval = setInterval(() => {
-      fetchFromCache();
-    }, 5_000);
+    // Start with slow intervals; fetchFromCache will update isActiveRef
+    setupIntervals(false);
 
     return () => {
-      clearInterval(syncInterval);
-      clearInterval(pollInterval);
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       supabase.removeChannel(channel);
       if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
     };
-  }, [fetchFromCache, triggerSync, onCachedTimerChangeRef]);
+  }, [fetchFromCache, triggerSync, onCachedTimerChangeRef, setupIntervals]);
+
+  // Switch intervals when active state changes
+  useEffect(() => {
+    setupIntervals(timerState.isActive);
+  }, [timerState.isActive, setupIntervals]);
 
   // Update remaining seconds every second when timer is active and not paused
   useEffect(() => {

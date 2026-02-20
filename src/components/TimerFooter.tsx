@@ -1,8 +1,7 @@
 import { memo, useRef, useState, useEffect } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
-import { useExternalTimer, TimerMilestone } from '@/hooks/use-external-timer';
+import { TimerMilestone, ExternalTimerState } from '@/hooks/use-external-timer';
 import { useTvMode } from '@/contexts/TvModeContext';
-import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { cn } from '@/lib/utils';
 
 // Export constant for use in layout calculations
@@ -148,10 +147,13 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-export const TimerFooter = memo(function TimerFooter() {
+interface TimerFooterProps {
+  timer: ExternalTimerState;
+  timerTvModeOnly: boolean;
+}
+
+export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }: TimerFooterProps) {
   const { isTvMode } = useTvMode();
-  const timer = useExternalTimer();
-  const { timerTvModeOnly, isLoading: settingsLoading } = useExternalUserSettings();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
@@ -169,7 +171,7 @@ export const TimerFooter = memo(function TimerFooter() {
     .sort((a, b) => a.time - b.time)[0] || null;
 
   // Check if we should show based on TV mode setting
-  const shouldShow = settingsLoading ? true : (timerTvModeOnly ? isTvMode : true);
+  const shouldShow = timerTvModeOnly ? isTvMode : true;
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
