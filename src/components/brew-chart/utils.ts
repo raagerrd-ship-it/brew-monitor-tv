@@ -177,12 +177,16 @@ export function mergeWithControllerTemp(
     const avgTemp = (controllerTemp != null && point.temp != null)
       ? (controllerTemp + point.temp) / 2
       : null;
+    const tempSpan = (controllerTemp != null && point.temp != null)
+      ? Math.abs(point.temp - controllerTemp)
+      : null;
     return {
       ...point,
       pillTemp: point.temp,
       controllerTemp,
       targetTemp,
-      avgTemp
+      avgTemp,
+      tempSpan
     };
   });
 }

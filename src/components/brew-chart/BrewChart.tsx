@@ -87,8 +87,8 @@ function BrewChartComponent({
               <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0} />
             </linearGradient>
             <linearGradient id={`tempSpanGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.12} />
-              <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.06} />
+              <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.08} />
             </linearGradient>
           </defs>
           <CartesianGrid
@@ -246,33 +246,48 @@ function BrewChartComponent({
             connectNulls={false}
           />
 
-          {/* Pill temp area (upper bound of span) - filled to show gap */}
-          <Area
-            yAxisId="temp"
-            type={areaType}
-            dataKey="pillTemp"
-            stroke={COLORS.tempFaint}
-            strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
-            fill={`url(#tempSpanGrad-${chartIndex})`}
-            dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
-            name="pillTemp"
-            isAnimationActive={isAnimationActive}
-          />
-
-          {/* Controller temp area (lower bound) - fills with background to "cut out" overlap, leaving only the span colored */}
+          {/* Stacked areas: controller as invisible base + tempSpan as colored band between pill & controller */}
           <Area
             yAxisId="temp"
             type={areaType}
             dataKey="controllerTemp"
+            stackId="tempSpan"
             stroke={COLORS.tempFaint}
             strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
-            fill={COLORS.card}
+            fill="transparent"
             dot={false}
             activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
             name="controllerTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
+          />
+          <Area
+            yAxisId="temp"
+            type={areaType}
+            dataKey="tempSpan"
+            stackId="tempSpan"
+            stroke="none"
+            strokeWidth={0}
+            fill={`url(#tempSpanGrad-${chartIndex})`}
+            dot={false}
+            activeDot={false}
+            name="tempSpan"
+            isAnimationActive={isAnimationActive}
+            connectNulls={false}
+            tooltipType="none"
+          />
+
+          {/* Pill temp line on top */}
+          <Line
+            yAxisId="temp"
+            type={areaType}
+            dataKey="pillTemp"
+            stroke={COLORS.tempFaint}
+            strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
+            dot={false}
+            activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
+            name="pillTemp"
+            isAnimationActive={isAnimationActive}
           />
 
           {/* Target temp - dashed line showing setpoint */}

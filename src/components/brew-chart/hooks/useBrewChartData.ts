@@ -227,13 +227,19 @@ export function useBrewChartData({
     const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
     const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
     const withTimestamps = addTimestamps(smoothedData);
+    // Compute tempSpan from smoothed values for stacked area rendering
+    const withSpan = withTimestamps.map(point => ({
+      ...point,
+      tempSpan: (point.controllerTemp != null && point.pillTemp != null)
+        ? Math.abs(point.pillTemp - point.controllerTemp)
+        : null,
+    }));
 
     // Override targetTemp with fermentation profile targets if available
     if (profileTargets.length > 0) {
-      const mappedData = withTimestamps.map(point => {
+      const mappedData = withSpan.map(point => {
         if (point.controllerTemp == null) return point;
 
-        // Binary search for the nearest preceding profile target
         let profileTarget: number | null = null;
         for (let i = profileTargets.length - 1; i >= 0; i--) {
           if (profileTargets[i].timestamp <= point.timestamp) {
@@ -245,8 +251,6 @@ export function useBrewChartData({
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       });
 
-      // Add synthetic future points for profile targets beyond last data point
-      // This makes upcoming ramps/holds visible on the chart
       const lastTimestamp = mappedData.length > 0 
         ? mappedData[mappedData.length - 1].timestamp 
         : 0;
@@ -262,6 +266,7 @@ export function useBrewChartData({
             targetTemp: ft.target,
             controllerTemp: null,
             pillTemp: undefined,
+            tempSpan: null,
           });
         }
       }
@@ -269,7 +274,7 @@ export function useBrewChartData({
       return mappedData;
     }
 
-    return withTimestamps;
+    return withSpan;
   }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
