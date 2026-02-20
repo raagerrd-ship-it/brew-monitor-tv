@@ -15,7 +15,7 @@ interface StatCardProps {
   subValue?: ReactNode;
   colSpan?: number;
   rowSpan?: number;
-  centered?: boolean;
+  
   customBackground?: string;
   labelSize?: string;
   valueSize?: string;
@@ -35,7 +35,7 @@ export function StatCard({
   subValue,
   colSpan = 1,
   rowSpan = 1,
-  centered = false,
+  
   customBackground,
   labelSize,
   valueSize,
