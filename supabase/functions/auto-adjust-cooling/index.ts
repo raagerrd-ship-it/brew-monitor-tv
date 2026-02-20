@@ -267,12 +267,14 @@ serve(async (req) => {
 
     // Controllers with active fermentation profiles — profile owns the temperature
     const profileOwnedControllerIds = new Set<string>();
+    // Map controller_id → profile target temp (the REAL goal, not the compensated controller target)
+    const profileTargetMap = new Map<string, number>();
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
     if (runTankAdjustments) {
       const { data: runningSessions } = await supabase
         .from('fermentation_sessions')
-        .select('id, controller_id')
+        .select('id, controller_id, profile_id, current_step_index')
         .eq('status', 'running')
         .in('controller_id', followedControllerIds);
 
@@ -280,6 +282,29 @@ serve(async (req) => {
         // ALL controllers with running sessions are profile-owned
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
+          
+          // Fetch the profile's effective target temp for this controller
+          const { data: profileSteps } = await supabase
+            .from('fermentation_profile_steps')
+            .select('target_temp, step_order')
+            .eq('profile_id', session.profile_id)
+            .order('step_order', { ascending: true });
+          
+          if (profileSteps && profileSteps.length > 0) {
+            // Walk backward from current step to find effective target
+            let effectiveTarget: number | null = null;
+            for (let i = Math.min(session.current_step_index, profileSteps.length - 1); i >= 0; i--) {
+              if (profileSteps[i].target_temp !== null) {
+                effectiveTarget = parseFloat(String(profileSteps[i].target_temp));
+                break;
+              }
+            }
+            if (effectiveTarget !== null) {
+              profileTargetMap.set(session.controller_id, effectiveTarget);
+              log('PROFILE_TARGET', 'info', `Controller ${session.controller_id}: profil-mål=${effectiveTarget}°C (steg ${session.current_step_index})`);
+            }
+          }
+          
           log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall skippad, overshoot tillåts`);
         }
 
@@ -718,13 +743,18 @@ serve(async (req) => {
         const targetTemp = parseFloat(String(fc.target_temp));
         const pillDelta = pillTemp - ctrlTemp;
 
-        const originalTarget = originalTargetMap.get(fc.controller_id) ?? targetTemp;
+        // CRITICAL: For profile-owned controllers, use the PROFILE target as baseline for overshoot detection.
+        // The controller target may be much lower due to pill-compensation (e.g. 12°C when profile wants 14°C).
+        // Using the compensated target would cause false overshoot detections.
         const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id);
-        // Profile-owned controllers now use pill-compensation in process-fermentation-profiles,
-        // so standard overshoot thresholds apply as a safety net
+        const profileTarget = profileTargetMap.get(fc.controller_id);
+        const originalTarget = isProfileOwned && profileTarget !== undefined
+          ? profileTarget
+          : (originalTargetMap.get(fc.controller_id) ?? targetTemp);
+        
         const effectivePillThreshold = overshootPillThreshold;
         const effectiveDeltaThreshold = overshootDeltaThreshold;
-        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: original target=${originalTarget}°C, current target=${targetTemp}°C${isProfileOwned ? ' (profile-owned, pill-kompensation aktiv)' : ''}`);
+        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: overshoot baseline=${originalTarget}°C (${isProfileOwned ? `profile-mål=${profileTarget}°C` : 'originalTargetMap'}), current target=${targetTemp}°C`);
 
         const pillOverTarget = pillTemp >= originalTarget + effectivePillThreshold;
         const isHeatingOvershoot = pillOverTarget && pillDelta > effectiveDeltaThreshold;
