@@ -1,47 +1,43 @@
 
 
-# UI-finslipning: Slutfor enhetsstandardisering
+# UI-finslipning: Proffsigare detaljer
 
-Forra omgangen tackade 5 filer, men det finns fortfarande **~30 synliga instanser** av `°C` i ytterligare 6 frontend-filer. Dashboarden ser bra ut visuellt -- det som aterstar ar konsekvens i alla dialoger, instellningar och loggar.
+Dashboarden ser redan riktigt bra ut. De sista sakerna som sticker ut vid en noggrann granskning ar:
 
-## Filer att andra
+## 1. ABV-etikett: "Abv" till "ABV"
 
-### 1. `src/pages/Settings.tsx`
-De flesta kvarvarande `°C` finns har (~20 stallen):
-- Rad 1790, 1792: Controller-temperatur i auto-cooling-sektionen
-- Rad 1887, 1896-1897, 1913, 1937, 1947-1948: Status-texter for kylautomatik
-- Rad 2114-2121: SelectItem-varden for temperatursteg (1°C, 2°C, etc.)
-- Rad 2133-2137: SelectItem for min-kyltemperatur
-- Rad 2149-2151: SelectItem for hysteres
+**Fil:** `src/components/brew-card/AbvStat.tsx` (rad 33)
 
-### 2. `src/components/AutoCoolingDecisionLogs.tsx`
-~15 instanser i detalj-panelerna:
-- Rad 248: tempChangeStr
-- Rad 281, 284, 288, 295, 300, 305: Pill-kompensations-detaljer
-- Rad 324, 328: Fermenteringsprofil-detaljer
-- Rad 345, 351, 355: Glykolkylare-detaljer
-- Rad 372, 378, 382: Overshoot-detaljer
-- Rad 401, 405: Stall-detektion-detaljer
+ABV ar en akronym (Alcohol By Volume) och bor skrivas med versaler. Just nu star det "Abv" som label i StatCard. Andras till "ABV".
 
-### 3. `src/components/CustomBrewDialog.tsx`
-- Rad 124: `°C` i datapunktsbeskrivning och `?°C` fallback
+## 2. Ta bort oanvand `icon`-prop fran StatCard
 
-### 4. `src/components/RaptControllersManagement.tsx`
-- Rad 400: Toast-beskrivning
-- Rad 771, 780: Placeholder-text i input-falt (behalles som `°C` da det ar en enhetsetikett i ett tomt falt, men bor ocksa andras for konsekvens)
-- Rad 814: Temperaturintervall-visning
+**Fil:** `src/components/brew-card/StatCard.tsx`
 
-### 5. `src/components/fermentation/StartFermentationSessionDialog.tsx`
-- Rad 236, 238, 240: Stegbeskrivningar
-- Rad 325: Controller-val i select
+Proppen `icon` tas emot men renderas aldrig i JSX:en. Fyra stat-komponenter (AbvStat, TempStat, AttenuationStat, BatteryStat) bygger SVG-ikoner som aldrig visas. Dod kod gor komponenten rorig.
 
-### 6. `src/components/fermentation/FermentationProfilesManagement.tsx`
-- Rad 312, 314, 316, 318: Stegbeskrivningar
+**Atgard:**
+- Ta bort `icon` fran StatCard-interfacet och destruktureringen
+- Ta bort hela SVG-ikonberakningen fran AbvStat, TempStat, AttenuationStat och BatteryStat (de rader som skapar `glassIcon`, `thermometerIcon`, `bubblesIcon`, `batteryIcon`)
+- Ta bort `icon={...}` props fran varje StatCard-anrop
 
-### 7. `src/components/brew-card/TempStat.tsx`
-- Rad 165: Enbart en kodkommentar (`±3°C`) -- andras for konsistens men paverkar inte UI
+## 3. Tom-tillstand med glassmorphism-stil
+
+**Fil:** `src/components/BrewingDashboard.tsx` (rad 356-366)
+
+Nar inga ol ar valda visas en vanlig `Card` utan den glassmorphism-stil som resten av dashboarden har. Uppdatera den sa den matchar:
+- Lagg till `style` med glassmorphism-bakgrund, border och skugga
+- Byt ut den generiska `Card` mot ett `div` med samma stil som brew-korten
+
+## 4. Controller-barens hogergrad
+
+**Fil:** `src/components/DashboardHeader.tsx` (rad 214-219)
+
+Det finns en fade-gradient pa hogersidan av controller-baren som alltid visas, aven nar innehallet inte overflowdar. For ett renare utseende bor denna gradient tas bort (den ar ett kvarlevande fran nar baren var mer kompakt och hade mer overflow-risk).
 
 ## Teknisk sammanfattning
 
-Totalt **~35 textersattningar** over 7 filer. Alla ar enkla strangbyten fran `°C` till `°`. Ingen logik andras. Edge functions (supabase/) lamnas ororada da de ar backend-loggar, inte synliga for anvandaren.
+- 6 filer berors
+- Ingen logik andras, bara visuell polish och kodrensning
+- Alla andringarna ar sma och isolerade
 
