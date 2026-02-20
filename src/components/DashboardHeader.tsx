@@ -167,7 +167,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                  title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°C${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°C` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°C\n\nKlicka för att ändra inställningar` : undefined}
+                  title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°\n\nKlicka för att ändra inställningar` : undefined}
                 >
                   {!isMobile && (
                     <AirVent style={{

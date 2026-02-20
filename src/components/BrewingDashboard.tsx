@@ -8,6 +8,7 @@ import { SonosWidget } from "./sonos/SonosWidget";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Logo } from "./Logo";
 import { Settings, Loader2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import useEmblaCarousel from "embla-carousel-react";
@@ -277,8 +278,9 @@ export function BrewingDashboard() {
 
   // Loading state - AFTER all hooks
   if (loading) {
-    return <div className="min-h-screen w-full bg-background flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    return <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+        <Logo />
+        <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
       </div>;
   }
 
