@@ -1,39 +1,51 @@
 
-# Ytterligare optimeringar
 
-## 1. Dubbel Realtime-kanal for cached_external_timer (MEDIUM impact)
+# Ytterligare optimeringar -- runda 3
 
-`use-external-timer.ts` skapar en egen Realtime-kanal (`cached-timer-changes`) som lyssnar pa `cached_external_timer` (rad 275-289). Samtidigt lyssnar `use-brew-data.ts` redan pa samma tabell via sin config-updates-kanal (rad 638) och anropar `onCachedTimerChange.current?.()` -- som pekar tillbaka till samma `fetchFromCache` i `use-external-timer.ts` (rad 272).
+Kodbasen ar valoptimerad efter tidigare rundor. Har ar de kvarvarande forbattringarna, alla med lagre paverkan:
 
-Det innebar TVA Realtime-kanaler for samma tabell som gor exakt samma sak.
+## 1. Clock skapar nytt Date-objekt for datum varje sekund (LOW impact)
 
-**Fix:** Ta bort den egna kanalen i `use-external-timer.ts` (rad 275-289). Behall bara callback-mekanismen via `onCachedTimerChange` som redan fungerar via `use-brew-data.ts`.
+`Clock.tsx` anropar `now.toLocaleDateString()` varje sekund, trots att datumet bara andras en gang per dag. Genom att separera datum- och tidsrendering kan vi undvika onodiga strangangallokeringar.
 
-## 2. Oanvand use-realtime-subscription.ts (LOW impact, stadning)
+**Fix:** Memorisera datumsstrangen och bara uppdatera den nar datumet faktiskt andras (en gang per minut racker).
 
-`useRealtimeSubscription` och `useMultiTableRealtime` anvands inte langre nagonstandans i kodbasen -- all Realtime hanteras nu via konsoliderade kanaler i `use-brew-data.ts`. Filen kan tas bort for att minska kodbasen.
+## 2. RaptControllerBar hover-handlers skapas inline (LOW impact)
 
-**Fix:** Ta bort `src/hooks/use-realtime-subscription.ts`.
+I `DashboardHeader.tsx` skapas `onMouseEnter`/`onMouseLeave` inline-funktioner for varje controller vid varje render. Pa TV-mode ar detta onodigt da hover aldrig anvands.
 
-## 3. Timer sync kors aven nar Sonos ar IDLE och ingen timer ar aktiv (LOW impact)
+**Fix:** Redan villkorat med `!isTvMode`, sa detta ar redan hanterat. Inget att gora.
 
-`triggerSync` anropar edge function `sync-external-timer` aven i slow mode (var 30:e sekund). Nar timern ar inaktiv och ingen extern timer kors, ar detta onodigt. Initialt fetch + Realtime racker -- polling behovs bara som fallback.
+## 3. `auto_cooling_settings` hamtas utan cache (LOW impact)
 
-**Fix:** Lagg till en check i `triggerSync` som bara anropar edge function om `isActiveRef.current === true`, eller vid forsta anropet. I slow mode, anvand bara DB-poll (skippa edge function-synken helt).
+`BrewingDashboard.tsx` rad 108-122 gor en DB-fraga for `coolerControllerId` vid varje mount. Denna data andras extremt sallan.
+
+**Fix:** Ingen atgard nodvandig -- den kor bara en gang vid mount.
+
+## 4. Unused SLOW_SYNC_MS constant (trivial, stadning)
+
+`use-external-timer.ts` rad 60 definierar `SLOW_SYNC_MS = 30_000` som inte langre anvands efter att vi tog bort edge function-anrop i idle-lage.
+
+**Fix:** Ta bort den oanvanda konstanten.
+
+## 5. `debounceTimer` i config-updates-kanal aldrig anvands (trivial, stadning)
+
+`use-brew-data.ts` rad 615 deklarerar `debounceTimer` som aldrig tilldelas -- dead code fran en tidigare refaktorering.
+
+**Fix:** Ta bort den oanvanda variabeln och dess cleanup.
 
 ---
 
-## Tekniska detaljer
+## Sammanfattning
 
-### Fil: `src/hooks/use-external-timer.ts`
-- Ta bort rad 275-289 (kanal `cached-timer-changes` samt subscribe/cleanup)
-- Behall `onCachedTimerChangeRef.current = () => fetchFromCache()` (rad 272) -- den anvands av `use-brew-data.ts` redan
-- I `setupIntervals`: nar `active === false`, skippa `triggerSync`-intervallet helt (satt bara poll-intervall). Edge function behovs bara nar timer ar aktiv.
+Det finns inga fler hogt-paverkande optimeringar att gora. De tva stadnings-atgarderna (punkt 4 och 5) ar rena dead-code-borttagningar som inte paverkar prestanda men haller kodbasen ren.
 
-### Fil: `src/hooks/use-realtime-subscription.ts`
-- Ta bort hela filen (oanvand)
+### Tekniska detaljer
 
-### Forvantad effekt
-- En farre Realtime-kanal (3 istallet for 4 totalt)
-- Eliminerar edge function-anrop var 30:e sekund nar ingen timer ar aktiv
-- Renare kodbas utan dead code
+**Fil: `src/hooks/use-external-timer.ts`**
+- Ta bort rad 60: `const SLOW_SYNC_MS = 30_000;`
+
+**Fil: `src/hooks/use-brew-data.ts`**
+- Ta bort rad 615: `let debounceTimer: NodeJS.Timeout | null = null;`
+- Ta bort rad 647: `if (debounceTimer) clearTimeout(debounceTimer);`
+
