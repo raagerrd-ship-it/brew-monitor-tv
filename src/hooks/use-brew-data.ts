@@ -612,7 +612,7 @@ export function useBrewData(): UseBrewDataReturn {
 
   // Channel 2: Config/session changes (just trigger reload, no payload needed)
   useEffect(() => {
-    let debounceTimer: NodeJS.Timeout | null = null;
+
 
     const handleConfigChange = (table: string) => {
       if (table === 'selected_brews') {
@@ -644,7 +644,6 @@ export function useBrewData(): UseBrewDataReturn {
       .subscribe();
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [loadBrews, loadRaptData]);

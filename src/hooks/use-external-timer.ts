@@ -57,7 +57,6 @@ const initialState: ExternalTimerState = {
 // Interval constants
 const FAST_SYNC_MS = 3_000;
 const FAST_POLL_MS = 5_000;
-const SLOW_SYNC_MS = 30_000;
 const SLOW_POLL_MS = 60_000;
 
 export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
