@@ -68,23 +68,3 @@ export function getStatGlowStyles(isGlowing: boolean, color: string): React.CSSP
   };
 }
 
-/**
- * Calculate thermometer fill height based on temperature (0-30°C range)
- */
-export function calculateThermometerFill(temp: number): number {
-  return 24 - (Math.min(Math.max(temp, 0), 30) / 30) * 20;
-}
-
-/**
- * Calculate battery fill width based on percentage
- */
-export function calculateBatteryFillWidth(percentage: number): number {
-  return (percentage / 100) * 14;
-}
-
-/**
- * Calculate ABV fill offset for gradient
- */
-export function calculateAbvFillOffset(abv: number): number {
-  return 100 - Math.min((abv / 10) * 100, 100);
-}

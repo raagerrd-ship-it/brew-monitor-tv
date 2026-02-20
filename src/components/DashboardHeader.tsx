@@ -201,7 +201,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         fontSize: isMobile ? undefined : '14px',
                         color: linkedPill.color
                       }}>
-                        {linkedPill.battery_level}%
+                        {Math.floor(linkedPill.battery_level)}<span style={{ opacity: 0.4 }}>.{(linkedPill.battery_level % 1).toFixed(1).slice(2)}%</span>
                       </span>
                     </div>
                   )}
