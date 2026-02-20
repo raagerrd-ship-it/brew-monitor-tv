@@ -144,10 +144,17 @@ async function calculateCompensatedTarget(
   // Safety floor: never more than 5°C below profile target
   compensatedTarget = Math.max(profileTarget - MAX_COMPENSATION, compensatedTarget)
 
-  // Rate limit: max 0.3°C change from current controller target per cycle
+  // Rate limit: scale with distance from target for faster recovery from spikes
+  // When far from target (>2°C), allow up to 3x the normal rate
   const diff = compensatedTarget - currentControllerTarget
-  if (Math.abs(diff) > MAX_CHANGE_PER_CYCLE) {
-    compensatedTarget = currentControllerTarget + (diff > 0 ? MAX_CHANGE_PER_CYCLE : -MAX_CHANGE_PER_CYCLE)
+  const distanceFromIdeal = Math.abs(diff)
+  const effectiveRateLimit = distanceFromIdeal > 2.0 
+    ? MAX_CHANGE_PER_CYCLE * 3 
+    : distanceFromIdeal > 1.0 
+      ? MAX_CHANGE_PER_CYCLE * 2 
+      : MAX_CHANGE_PER_CYCLE
+  if (distanceFromIdeal > effectiveRateLimit) {
+    compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveRateLimit : -effectiveRateLimit)
   }
 
   // Round to 1 decimal
