@@ -140,7 +140,8 @@ export function mergeWithControllerTemp(
       ...point,
       pillTemp: point.temp,
       controllerTemp: null,
-      targetTemp: null
+      targetTemp: null,
+      avgTemp: null
     }));
   }
   
@@ -173,11 +174,15 @@ export function mergeWithControllerTemp(
     const timestamp = new Date(point.date).getTime();
     const controllerTemp = interpolateValue(timestamp, prepared.currentTemp);
     const targetTemp = findTargetTemp(timestamp);
+    const avgTemp = (controllerTemp != null && point.temp != null)
+      ? (controllerTemp + point.temp) / 2
+      : null;
     return {
       ...point,
       pillTemp: point.temp,
       controllerTemp,
-      targetTemp
+      targetTemp,
+      avgTemp
     };
   });
 }
@@ -203,76 +208,97 @@ export function calculateMovingAverage(
    const valueValid: boolean[] = new Array(len);
    const pillTemps: number[] = new Array(len);
    const pillTempValid: boolean[] = new Array(len);
-   const controllerTemps: number[] = new Array(len);
-   const controllerValid: boolean[] = new Array(len);
-   
-   for (let i = 0; i < len; i++) {
-     const d = data[i];
-     const v = d.value;
-     valueValid[i] = v !== null && v !== undefined && !isNaN(v);
-     values[i] = valueValid[i] ? v : 0;
-     const pt = d.pillTemp ?? d.temp;
-     pillTempValid[i] = pt !== null && pt !== undefined && !isNaN(pt);
-     pillTemps[i] = pillTempValid[i] ? pt : 0;
-     const ct = d.controllerTemp;
-     controllerTemps[i] = ct ?? 0;
-     controllerValid[i] = ct !== null && ct !== undefined;
-   }
+    const controllerTemps: number[] = new Array(len);
+    const controllerValid: boolean[] = new Array(len);
+    const avgTemps: number[] = new Array(len);
+    const avgValid: boolean[] = new Array(len);
+    
+    for (let i = 0; i < len; i++) {
+      const d = data[i];
+      const v = d.value;
+      valueValid[i] = v !== null && v !== undefined && !isNaN(v);
+      values[i] = valueValid[i] ? v : 0;
+      const pt = d.pillTemp ?? d.temp;
+      pillTempValid[i] = pt !== null && pt !== undefined && !isNaN(pt);
+      pillTemps[i] = pillTempValid[i] ? pt : 0;
+      const ct = d.controllerTemp;
+      controllerTemps[i] = ct ?? 0;
+      controllerValid[i] = ct !== null && ct !== undefined;
+      const at = d.avgTemp;
+      avgTemps[i] = at ?? 0;
+      avgValid[i] = at !== null && at !== undefined;
+    }
    
    // Use true sliding window - O(n) instead of O(n*windowSize)
    let valueSum = 0; let valueCount = 0;
    let pillTempSum = 0; let pillTempCount = 0;
-   let controllerTempSum = 0;
-   let controllerTempCount = 0;
-   
-   // Initialize window for first element
-   const firstEnd = Math.min(len, halfWindow + 1);
-   for (let j = 0; j < firstEnd; j++) {
-     if (valueValid[j]) { valueSum += values[j]; valueCount++; }
-     if (pillTempValid[j]) { pillTempSum += pillTemps[j]; pillTempCount++; }
-     if (controllerValid[j]) {
-       controllerTempSum += controllerTemps[j];
-       controllerTempCount++;
-     }
-   }
+    let controllerTempSum = 0;
+    let controllerTempCount = 0;
+    let avgTempSum = 0;
+    let avgTempCount = 0;
+    
+    // Initialize window for first element
+    const firstEnd = Math.min(len, halfWindow + 1);
+    for (let j = 0; j < firstEnd; j++) {
+      if (valueValid[j]) { valueSum += values[j]; valueCount++; }
+      if (pillTempValid[j]) { pillTempSum += pillTemps[j]; pillTempCount++; }
+      if (controllerValid[j]) {
+        controllerTempSum += controllerTemps[j];
+        controllerTempCount++;
+      }
+      if (avgValid[j]) {
+        avgTempSum += avgTemps[j];
+        avgTempCount++;
+      }
+    }
    
    for (let i = 0; i < len; i++) {
      // Add new element entering the window (right side)
      if (i > 0) {
        const newIdx = i + halfWindow;
-       if (newIdx < len) {
-         if (valueValid[newIdx]) { valueSum += values[newIdx]; valueCount++; }
-         if (pillTempValid[newIdx]) { pillTempSum += pillTemps[newIdx]; pillTempCount++; }
-         if (controllerValid[newIdx]) {
-           controllerTempSum += controllerTemps[newIdx];
-           controllerTempCount++;
-         }
-       }
-       
-       // Remove element leaving the window (left side)
-       const oldIdx = i - halfWindow - 1;
-       if (oldIdx >= 0) {
-         if (valueValid[oldIdx]) { valueSum -= values[oldIdx]; valueCount--; }
-         if (pillTempValid[oldIdx]) { pillTempSum -= pillTemps[oldIdx]; pillTempCount--; }
-         if (controllerValid[oldIdx]) {
-           controllerTempSum -= controllerTemps[oldIdx];
-           controllerTempCount--;
-         }
-       }
-     }
-     
-     result[i] = {
-       ...data[i],
-       // Store raw (unsmoothed) values for tooltip display
-       rawValue: data[i].value,
-       rawPillTemp: data[i].pillTemp,
-       rawControllerTemp: data[i].controllerTemp,
-       // Store smoothed values for chart rendering
-       value: valueValid[i] ? (valueCount > 0 ? valueSum / valueCount : data[i].value) : undefined as unknown as number,
-       pillTemp: pillTempValid[i] ? (pillTempCount > 0 ? pillTempSum / pillTempCount : data[i].pillTemp) : undefined as unknown as number,
-       controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
-       targetTemp: data[i].targetTemp
-     };
+         if (newIdx < len) {
+          if (valueValid[newIdx]) { valueSum += values[newIdx]; valueCount++; }
+          if (pillTempValid[newIdx]) { pillTempSum += pillTemps[newIdx]; pillTempCount++; }
+          if (controllerValid[newIdx]) {
+            controllerTempSum += controllerTemps[newIdx];
+            controllerTempCount++;
+          }
+          if (avgValid[newIdx]) {
+            avgTempSum += avgTemps[newIdx];
+            avgTempCount++;
+          }
+        }
+        
+        // Remove element leaving the window (left side)
+        const oldIdx = i - halfWindow - 1;
+        if (oldIdx >= 0) {
+          if (valueValid[oldIdx]) { valueSum -= values[oldIdx]; valueCount--; }
+          if (pillTempValid[oldIdx]) { pillTempSum -= pillTemps[oldIdx]; pillTempCount--; }
+          if (controllerValid[oldIdx]) {
+            controllerTempSum -= controllerTemps[oldIdx];
+            controllerTempCount--;
+          }
+          if (avgValid[oldIdx]) {
+            avgTempSum -= avgTemps[oldIdx];
+            avgTempCount--;
+          }
+        }
+      }
+      
+      result[i] = {
+        ...data[i],
+        // Store raw (unsmoothed) values for tooltip display
+        rawValue: data[i].value,
+        rawPillTemp: data[i].pillTemp,
+        rawControllerTemp: data[i].controllerTemp,
+        rawAvgTemp: data[i].avgTemp,
+        // Store smoothed values for chart rendering
+        value: valueValid[i] ? (valueCount > 0 ? valueSum / valueCount : data[i].value) : undefined as unknown as number,
+        pillTemp: pillTempValid[i] ? (pillTempCount > 0 ? pillTempSum / pillTempCount : data[i].pillTemp) : undefined as unknown as number,
+        controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
+        avgTemp: avgTempCount > 0 ? avgTempSum / avgTempCount : null,
+        targetTemp: data[i].targetTemp
+      };
    }
    
    return result;

@@ -5,10 +5,12 @@ export interface ChartDataPoint {
   pillTemp?: number;
   controllerTemp?: number | null;
   targetTemp?: number | null;
+  avgTemp?: number | null;
   // Raw (unsmoothed) values for tooltip display
   rawValue?: number;
   rawPillTemp?: number;
   rawControllerTemp?: number | null;
+  rawAvgTemp?: number | null;
 }
 
 export interface ChartDataPointWithTimestamp extends ChartDataPoint {
