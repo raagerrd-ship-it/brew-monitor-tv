@@ -113,16 +113,85 @@ Deno.serve(async (req) => {
     }
 
     const results: { sessionId: string; action: string; details: any }[] = []
+    const typedSessions = sessions as Session[]
 
-    for (const session of sessions as Session[]) {
-      // Get profile steps
-      const { data: steps, error: stepsError } = await supabase
+    // ---- Batch pre-fetch: profile steps, controllers, pill-comp adjustments, brew data ----
+    const uniqueProfileIds = [...new Set(typedSessions.map(s => s.profile_id))]
+    const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
+    const brewIds = typedSessions.map(s => s.brew_id).filter((id): id is string => id !== null)
+
+    const [
+      { data: allSteps },
+      { data: allControllers },
+      { data: allPillCompAdj },
+      { data: allBrewData },
+    ] = await Promise.all([
+      supabase
         .from('fermentation_profile_steps')
         .select('*')
-        .eq('profile_id', session.profile_id)
-        .order('step_order', { ascending: true })
+        .in('profile_id', uniqueProfileIds)
+        .order('step_order', { ascending: true }),
+      supabase
+        .from('rapt_temp_controllers')
+        .select('*')
+        .in('controller_id', uniqueControllerIds),
+      pillCompSettings.enabled
+        ? supabase
+            .from('auto_cooling_adjustments')
+            .select('cooler_controller_id, adjusted_against_timestamp, created_at')
+            .in('cooler_controller_id', uniqueControllerIds)
+            .like('reason', '🎯%')
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: null } as { data: null }),
+      brewIds.length > 0
+        ? supabase
+            .from('brew_readings')
+            .select('id, sg_data')
+            .in('id', brewIds)
+        : Promise.resolve({ data: null } as { data: null }),
+    ])
 
-      if (stepsError || !steps || steps.length === 0) {
+    // Group steps by profile_id
+    const batchStepsMap = new Map<string, any[]>()
+    if (allSteps) {
+      for (const step of allSteps) {
+        const list = batchStepsMap.get(step.profile_id) || []
+        list.push(step)
+        batchStepsMap.set(step.profile_id, list)
+      }
+    }
+
+    // Map controllers by controller_id
+    const batchControllerMap = new Map<string, any>()
+    if (allControllers) {
+      for (const c of allControllers) {
+        batchControllerMap.set(c.controller_id, c)
+      }
+    }
+
+    // Map latest pill-comp adjustment timestamp per controller
+    const batchPillCompAdjMap = new Map<string, string>()
+    if (allPillCompAdj) {
+      for (const adj of allPillCompAdj) {
+        if (!batchPillCompAdjMap.has(adj.cooler_controller_id)) {
+          batchPillCompAdjMap.set(adj.cooler_controller_id, adj.adjusted_against_timestamp)
+        }
+      }
+    }
+
+    // Map brew data by brew id
+    const batchBrewDataMap = new Map<string, { sg_data: SgDataPoint[] }>()
+    if (allBrewData) {
+      for (const b of allBrewData as any[]) {
+        batchBrewDataMap.set(b.id, { sg_data: b.sg_data as SgDataPoint[] })
+      }
+    }
+
+    for (const session of typedSessions) {
+      // Get profile steps from batched data
+      const steps = batchStepsMap.get(session.profile_id)
+
+      if (!steps || steps.length === 0) {
         console.error(`No steps found for profile ${session.profile_id}`)
         continue
       }
@@ -147,40 +216,21 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Get controller data
-      const { data: controller } = await supabase
-        .from('rapt_temp_controllers')
-        .select('*')
-        .eq('controller_id', session.controller_id)
-        .single()
+      // Get controller data from batched data
+      const controller = batchControllerMap.get(session.controller_id) ?? null
 
       // Check if pill-comp already adjusted against this exact data snapshot
       let pillCompSkipSameData = false
       if (pillCompSettings.enabled && controller?.last_update) {
-        const { data: lastPillCompAdj } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('adjusted_against_timestamp')
-          .eq('cooler_controller_id', session.controller_id)
-          .like('reason', '🎯%')
-          .order('created_at', { ascending: false })
-          .limit(1)
-        
-        if (lastPillCompAdj?.[0]?.adjusted_against_timestamp === controller.last_update) {
+        const lastAdjTs = batchPillCompAdjMap.get(session.controller_id)
+        if (lastAdjTs === controller.last_update) {
           pillCompSkipSameData = true
           console.log(`Pill-komp: samma data som senaste justering (${controller.last_update}), hoppar över för ${controller.name || session.controller_id}`)
         }
       }
 
-      // Get brew data if linked
-      let brewData: { sg_data: SgDataPoint[] } | null = null
-      if (session.brew_id) {
-        const { data } = await supabase
-          .from('brew_readings')
-          .select('sg_data')
-          .eq('id', session.brew_id)
-          .single()
-        brewData = data as { sg_data: SgDataPoint[] } | null
-      }
+      // Get brew data from batched data
+      const brewData = session.brew_id ? (batchBrewDataMap.get(session.brew_id) ?? null) : null
 
       const stepStartedAt = new Date(session.step_started_at)
       const now = new Date()
