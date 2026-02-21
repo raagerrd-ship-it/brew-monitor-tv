@@ -1114,7 +1114,7 @@ serve(async (req) => {
                         reason: `🔄 Cooling recovery: ${needsLowering ? 'kylbehov ökat' : 'kylbehov minskat'}, ${needsLowering ? 'sänker' : 'höjer'} mot ideal ${idealTarget.toFixed(1)}°C`
                       } as any);
                     } else {
-                      log('COOLING_RECOVERY', 'fail', `Failed to update cooler: ${JSON.stringify(updateResponse.error)}`);
+                      log('COOLING_RECOVERY', 'fail', `Failed to update cooler`);
                     }
                   }
                 }
