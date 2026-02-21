@@ -338,7 +338,7 @@ export function BrewingDashboard() {
   return <>
     {/* Splash overlay - covers content until fully painted */}
     {showSplash && (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4">
         <img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain" />
         <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
       </div>
