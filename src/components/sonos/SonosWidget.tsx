@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { NowPlaying, PrefetchStatus, ArtStatus, pushToBgBuffer, stripQuery } from "./hooks/types";
+import { NowPlaying, ArtStatus, pushToBgBuffer, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
@@ -25,12 +25,6 @@ export const SonosWidget = memo(function SonosWidget({
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
-  const [prefetchStatus, setPrefetchStatus] = useState<PrefetchStatus>("idle");
-  const prefetchStatusRef = useRef<PrefetchStatus>("idle");
-  const setPrefetchStatusTracked = useCallback((status: PrefetchStatus) => {
-    prefetchStatusRef.current = status;
-    setPrefetchStatus(status);
-  }, []);
   const [currentArtStatus, setCurrentArtStatus] = useState<ArtStatus>("displayed");
 
   // --- DOM refs for zero-rerender progress updates ---
@@ -47,9 +41,7 @@ export const SonosWidget = memo(function SonosWidget({
   onAlbumArtChangeRef.current = onAlbumArtChange;
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
-  const prefetchTriggeredForTrackRef = useRef<string | null>(null);
   const trackChangeOffsetRef = useRef<number>(0);
-  const prefetchSecondsRef = useRef<number>(30);
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
 
@@ -58,7 +50,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   // --- Hooks ---
   const { isConnected, showWidget } = useSonosInit({
-    setNowPlaying, localProgressRef, trackChangeOffsetRef, prefetchSecondsRef,
+    setNowPlaying, localProgressRef, trackChangeOffsetRef,
   });
 
   const { handleTrackChange } = useSonosTrackChange({
@@ -69,10 +61,9 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosPlaybackTicker({
-    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus: setPrefetchStatusTracked, handleTrackChange,
+    nowPlaying, nowPlayingRef, setNowPlaying, handleTrackChange,
     localProgressRef, trackChangedAtRef,
-    lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
-    prefetchSecondsRef,
+    lastPredictivePollRef, predictiveScheduledRef,
     progressBarRef, debugTimeRef, addDebugLog,
   });
 
@@ -113,12 +104,6 @@ export const SonosWidget = memo(function SonosWidget({
     }
   }, [isNewArtPending, currentArtStatus]);
 
-  // Auto-transition prefetch to "loaded" when server sync is done
-  useEffect(() => {
-    if (prefetchStatus === 'ready') {
-      setPrefetchStatusTracked('loaded');
-    }
-  }, [prefetchStatus]);
 
   const handleNewImageLoaded = useCallback(() => {
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;

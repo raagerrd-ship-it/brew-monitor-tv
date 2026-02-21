@@ -6,7 +6,6 @@ interface UseSonosInitParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangeOffsetRef: React.MutableRefObject<number>;
-  prefetchSecondsRef: React.MutableRefObject<number>;
 }
 
 /**
@@ -14,7 +13,7 @@ interface UseSonosInitParams {
  * Returns connection state and widget visibility.
  */
 export function useSonosInit(params: UseSonosInitParams) {
-  const { setNowPlaying, localProgressRef, trackChangeOffsetRef, prefetchSecondsRef } = params;
+  const { setNowPlaying, localProgressRef, trackChangeOffsetRef } = params;
   const [isConnected, setIsConnected] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
 
@@ -25,7 +24,7 @@ export function useSonosInit(params: UseSonosInitParams) {
         const [settingsResult, nowPlayingResult] = await Promise.all([
           (supabase as any)
             .from('sonos_settings')
-            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds, prefetch_seconds')
+            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
             .limit(1)
             .maybeSingle(),
           (supabase as any)
@@ -54,7 +53,6 @@ export function useSonosInit(params: UseSonosInitParams) {
         const show = settings?.show_on_dashboard ?? true;
         setShowWidget(show);
         trackChangeOffsetRef.current = Number(settings?.track_change_offset_seconds) || 0;
-        prefetchSecondsRef.current = Number(settings?.prefetch_seconds) || 30;
 
         const { data: npData, error: npError } = nowPlayingResult;
         if (npError) {

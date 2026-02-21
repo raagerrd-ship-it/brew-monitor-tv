@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
-  NowPlaying, PrefetchStatus,
+  NowPlaying,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
   updateProgressDOM,
@@ -18,15 +18,12 @@ interface UseSonosPlaybackTickerParams {
   nowPlaying: NowPlaying | null;
   nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
-  setPrefetchStatus: (status: PrefetchStatus) => void;
   handleTrackChange: (data: TrackChangeData) => void;
   addDebugLog?: (event: string) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
   predictiveScheduledRef: React.MutableRefObject<boolean>;
-  prefetchTriggeredForTrackRef: React.MutableRefObject<string | null>;
-  prefetchSecondsRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
 }
@@ -35,14 +32,12 @@ interface UseSonosPlaybackTickerParams {
  * 1-second ticker handling:
  * - Progress bar updates via DOM ref (zero re-renders)
  * - Predictive polling near track end
- * - Prefetch trigger for warm-caching current track images on server
  */
 export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
-    nowPlaying, nowPlayingRef, setNowPlaying, setPrefetchStatus, handleTrackChange,
+    nowPlaying, nowPlayingRef, setNowPlaying, handleTrackChange,
     localProgressRef, trackChangedAtRef,
-    lastPredictivePollRef, predictiveScheduledRef, prefetchTriggeredForTrackRef,
-    prefetchSecondsRef,
+    lastPredictivePollRef, predictiveScheduledRef,
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
@@ -105,34 +100,6 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         const timeRemaining = duration - next;
 
-        // Prefetch: trigger server sync to warm-cache CURRENT track's images
-        if (timeRemaining <= prefetchSecondsRef.current * 1000 && timeRemaining > 0 && prefetchTriggeredForTrackRef.current !== trackName) {
-          prefetchTriggeredForTrackRef.current = trackName;
-          setPrefetchStatus('fetching');
-          addDebugLog?.(`🔴 Prefetch: server warm-cache started (${Math.round(timeRemaining / 1000)}s left)`);
-          console.log(`[Sonos:BG] prefetchStatus: fetching (warm-cache, ${Math.round(timeRemaining / 1000)}s remaining)`);
-          const ac = new AbortController();
-          const t = setTimeout(() => ac.abort(), 15000);
-          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            signal: ac.signal,
-          }).then(async res => {
-            if (res.ok) {
-              const body = await res.json().catch(() => ({}));
-              const dur = body.duration_ms ? `${body.duration_ms}ms` : '?';
-              setPrefetchStatus('ready');
-              addDebugLog?.(`🟡 Prefetch: server done (${dur})`);
-              console.log('[Sonos:BG] prefetchStatus: ready');
-            }
-          })
-            .catch(() => {})
-            .finally(() => clearTimeout(t));
-        }
-
         // Predictive poll: schedule when <10s remain (once per track)
         if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
           predictiveScheduledRef.current = true;
@@ -145,13 +112,10 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
     }, 1000);
 
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
     return () => {
       clearInterval(ticker);
       if (predictiveTimer) clearTimeout(predictiveTimer);
-      if (idleTimer) clearTimeout(idleTimer);
       predictiveScheduledRef.current = false;
-      idleTimer = setTimeout(() => setPrefetchStatus('idle'), 2000);
     };
   }, [nowPlaying?.track_name, nowPlaying?.playback_state, nowPlaying?.duration_ms]);
 }

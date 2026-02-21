@@ -29,7 +29,7 @@ export function SonosSettings() {
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(0);
-  const [prefetchSeconds, setPrefetchSeconds] = useState(30);
+  
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
@@ -48,7 +48,7 @@ export function SonosSettings() {
         }),
         (supabase as any)
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds, prefetch_seconds')
+          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -76,7 +76,7 @@ export function SonosSettings() {
         setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
         setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
         setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
-        setPrefetchSeconds(settings.prefetch_seconds ?? 30);
+        
       } else if (!isConnected) {
         setIsConnected(false);
       }
@@ -127,10 +127,6 @@ export function SonosSettings() {
     saveField({ track_change_offset_seconds: value });
   };
 
-  const handlePrefetchCommit = (value: number) => {
-    setPrefetchSeconds(value);
-    saveField({ prefetch_seconds: value });
-  };
 
   const loadGroups = async () => {
     setIsLoadingGroups(true);
@@ -369,24 +365,6 @@ export function SonosSettings() {
               </p>
             </div>
 
-            {/* Prefetch Threshold */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Förladdning av albumomslag</Label>
-                <span className="text-sm text-muted-foreground tabular-nums">{prefetchSeconds}s</span>
-              </div>
-              <Slider
-                value={[prefetchSeconds]}
-                min={10}
-                max={60}
-                step={5}
-                onValueChange={(v) => setPrefetchSeconds(v[0])}
-                onValueCommit={(v) => handlePrefetchCommit(v[0])}
-              />
-              <p className="text-xs text-muted-foreground">
-                Hur långt innan låtslut som nästa låts omslag och bakgrund förladdas
-              </p>
-            </div>
           </div>
 
           {/* Background Image Processing Section */}
