@@ -41,13 +41,17 @@ interface LabelOptions {
 
 /** Load an image, returns null on failure */
 async function loadImage(url: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
+  const tryLoad = (useCors: boolean): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      if (useCors) img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  const result = await tryLoad(true);
+  if (result) return result;
+  return tryLoad(false);
 }
 
 /** Get brew date from events or fallback */
