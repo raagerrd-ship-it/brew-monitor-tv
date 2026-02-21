@@ -538,6 +538,8 @@ Deno.serve(async (req) => {
                         new_target_temp: finalTarget,
                         original_target_temp: newTarget,
                         lowest_followed_temp: newTarget,
+                        followed_controller_id: session.controller_id,
+                        followed_controller_name: controller.name || session.controller_id,
                         followed_current_temp: controller.current_temp,
                         followed_target_temp: currentStep.target_temp,
                         followed_hysteresis: pillCompensation?.avgDelta ?? null,
