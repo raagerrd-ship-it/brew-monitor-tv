@@ -87,12 +87,6 @@ function drawLabelImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | n
   ctx.drawImage(img, x, y, LABEL_IMG_SIZE, LABEL_IMG_SIZE);
   ctx.restore();
   
-  // Border around image
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(x, y, LABEL_IMG_SIZE, LABEL_IMG_SIZE, 6);
-  ctx.stroke();
 }
 
 /** Render Jästank (fermentation tank) label */
