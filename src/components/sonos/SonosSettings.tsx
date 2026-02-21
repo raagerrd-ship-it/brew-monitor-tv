@@ -222,17 +222,29 @@ export function SonosSettings() {
         bg_top_gradient_height: bgTopGradientHeight,
       };
 
+      console.log('saveAndRegenerate: saving bgFields', bgFields, 'settingsId:', settingsId);
       if (settingsId) {
-        await (supabase as any)
+        const { error } = await (supabase as any)
           .from('sonos_settings')
           .update(bgFields)
           .eq('id', settingsId);
+        if (error) {
+          console.error('saveAndRegenerate: update failed:', error.message);
+          toast.error('Kunde inte spara inställningar: ' + error.message);
+          return;
+        }
+        console.log('saveAndRegenerate: update succeeded');
       } else {
-        const { data } = await (supabase as any)
+        const { data, error } = await (supabase as any)
           .from('sonos_settings')
           .insert(bgFields)
           .select('id')
           .single();
+        if (error) {
+          console.error('saveAndRegenerate: insert failed:', error.message);
+          toast.error('Kunde inte spara inställningar: ' + error.message);
+          return;
+        }
         if (data) setSettingsId(data.id);
       }
 
