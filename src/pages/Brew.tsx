@@ -50,6 +50,15 @@ export default function Brew() {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
+
+  // Show splash for at least 2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setMinSplashElapsed(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const showSplash = !minSplashElapsed || loading;
 
   useDocumentTitleAndIcon(brew?.name ?? null);
 
@@ -216,6 +225,13 @@ export default function Brew() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
+      {/* Splash overlay */}
+      {showSplash && (
+        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+          <img src={dbLogo} alt="Dahlsjö Brewing" className="max-h-[60vh] w-auto object-contain" />
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Logo header */}
         <div className="flex justify-center">
