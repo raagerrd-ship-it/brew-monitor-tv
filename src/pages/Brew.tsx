@@ -176,7 +176,9 @@ export default function Brew() {
           events: brewEvents,
           fermentationSession,
           label_image_url: reading.label_image_url || null,
-          description: reading.description || null
+          description: reading.description || null,
+          overshootReason: null,
+          originalTarget: null,
         };
 
         setBrew(brewData);
