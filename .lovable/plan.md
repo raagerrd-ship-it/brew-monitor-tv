@@ -1,60 +1,36 @@
 
-# Ta bort PROFILE_STATUS-logg + visa aktivt rampmål i FOLLOWED_DATA
+# Fix: Splash-skärmen blinkar innehåll bakom
 
-## Problem 1: Redundant PROFILE_STATUS-logg
-Blocket på rad 374-388 i `auto-adjust-cooling/index.ts` skriver fortfarande separata PROFILE_STATUS-loggar trots att informationen redan finns i FOLLOWED_DATA.
+## Orsak
 
-## Problem 2: Saknar interpolerat rampmål i loggen
-Under en ramp-fas visar `profile_target` i loggen bara steg-slutmålet (t.ex. 18.0 grader), inte det aktuella interpolerade målet (t.ex. 14.2 grader efter 3h av en 24h ramp). Det gör det svårt att förstå vad systemet faktiskt styr mot just nu.
+Splash-overlayen i `BrewingDashboard.tsx` har klassen `animate-in fade-in duration-500`. Detta gör att splashen **fadar in fran transparent till synlig** under 500ms. Under den tiden syns dashboardinnehallet ("Inga ol valda") bakom overlyen.
 
-## Ändringar
+## Losning
 
-### Fil: `supabase/functions/auto-adjust-cooling/index.ts`
+**Fil: `src/components/BrewingDashboard.tsx`**
 
-**A. Utöka session-frågan (rad 243)**
+1. Ta bort `animate-in fade-in duration-500` fran splash-overlayens className sa den ar omedelbart synlig (opacity: 1) fran forsta renderingen.
 
-Lägg till `step_started_at, step_start_temp` i select:
+2. Lagg istallet till en fade-out-animation nar `showSplash` blir `false`. Det enklaste sattet ar att anvanda en extra state (`splashFadingOut`) med en CSS-transition:
+   - Nar `showSplash` blir `false`, satt `splashFadingOut = true` och starta en timer (500ms)
+   - Under fade-out, applicera `opacity-0 transition-opacity duration-500`
+   - Nar timern gar ut, ta bort splashen helt fran DOM
+
+### Alternativ (enklare variant)
+Om vi vill halla det minimalt: ta bara bort `animate-in fade-in duration-500` sa splashen visas direkt utan animation. Den forsvinner abrupt nar data ar redo, men det ar battre an att visa "Inga ol valda" forst.
+
+Jag rekommenderar den enklare varianten for att undvika extra komplexitet.
+
+## Teknisk detalj
+
+Andring pa en rad i `src/components/BrewingDashboard.tsx`:
+
+Fran:
 ```
-.select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
-```
-
-**B. Utöka profile steps-frågan (rad 276)**
-
-Lägg till `step_type, duration_hours, ramp_type` i select:
-```
-.select('profile_id, target_temp, step_order, step_type, duration_hours, ramp_type')
-```
-
-**C. Beräkna interpolerat rampmål i sessionsloopen (rad 290-313)**
-
-Efter att `effectiveTarget` satts, kolla om aktuellt steg är en linjär ramp med `duration_hours`. Om så, beräkna interpolerat mål med samma logik som `calculateRampTemp` i process-fermentation-profiles:
-
-```
-interpolatedTarget = startTemp + (targetTemp - startTemp) * min(elapsed / duration, 1)
+className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500"
 ```
 
-Spara detta i `profileStatusMap` som en ny property `activeTarget`.
-
-**D. Inkludera `active_target` i FOLLOWED_DATA-loggen (rad 366-370)**
-
-Om `profileInfo.activeTarget` finns och skiljer sig från `profileInfo.profileTarget`, lägg till `details.profile_active_target` med det interpolerade värdet. Detta visas bara under aktiva ramper.
-
-**E. Ta bort PROFILE_STATUS-blocket (rad 374-388)**
-
-Ta bort hela `if (profileStatusMap.size > 0)` blocket.
-
-## Resultat
-
-FOLLOWED_DATA-loggen visar nu t.ex.:
+Till:
 ```
-profile_target: 18.0      (steg-slutmål)
-profile_active_target: 14.2 (interpolerat just nu - bara under ramp)
-profile_step: 2
+className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4"
 ```
-
-Ingen separat PROFILE_STATUS-logg skapas.
-
-## Omfattning
-
-- 1 fil, ~20 rader ändrade
-- Deploya `auto-adjust-cooling`
