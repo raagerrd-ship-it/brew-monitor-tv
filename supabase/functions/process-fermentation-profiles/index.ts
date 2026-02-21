@@ -485,29 +485,66 @@ Deno.serve(async (req) => {
                   console.log(`Ramp complete: time elapsed and temp reached ${currentStep.target_temp}°C`)
                 }
               } else {
-                // Still ramping - calculate and set intermediate target
+                // Still ramping - calculate intermediate target and pill compensation LOCALLY,
+                // then send a SINGLE setTemp call with the final value
                 const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
                 
-                console.log(`Ramp intermediate: newTarget=${newTarget.toFixed(1)}°C, controllerTarget=${controller.target_temp}°C`)
+                // Calculate pill compensation against the intermediate target BEFORE any API call
+                let finalTarget = Math.round(newTarget * 10) / 10
+                let pillCompensation: { compensatedTarget: number; compensation: number; avgDelta: number } | null = null
                 
-                if (Math.abs((controller.target_temp ?? 0) - newTarget) > 0.1) {
-                  const success = await setTemp(session.controller_id, Math.round(newTarget * 10) / 10)
-                  if (success) {
-                    actionTaken = 'temp_adjusted'
-                    actionDetails = { start_temp: startTemp, target_temp: newTarget, final_temp: currentStep.target_temp, progress: elapsedHours / currentStep.duration_hours }
-                    
-                    await supabase
-                      .from('rapt_temp_controllers')
-                      .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
-                      .eq('controller_id', session.controller_id)
+                if (pillCompSettings.enabled && !pillCompSkipSameData) {
+                  pillCompensation = await calculateCompensatedTarget(
+                    supabase, session.controller_id, newTarget, controller.target_temp,
+                    controller.name || session.controller_id, pillCompSettings
+                  )
+                  if (pillCompensation) {
+                    finalTarget = pillCompensation.compensatedTarget
                   }
                 }
                 
-                // Apply pill compensation against the INTERMEDIATE target (not the final target)
-                const pillResult = await applyPillCompensation(newTarget, 'Linear ramp (intermediate)')
-                if (pillResult) {
-                  actionTaken = pillResult.actionTaken
-                  actionDetails = { ...actionDetails, ...pillResult.actionDetails }
+                console.log(`Ramp intermediate: newTarget=${newTarget.toFixed(1)}°C, pillComp=${pillCompensation ? pillCompensation.compensation.toFixed(2) : 'none'}°C, finalTarget=${finalTarget}°C, controllerTarget=${controller.target_temp}°C`)
+                
+                // ONE single API call with the final adjusted value
+                if (Math.abs((controller.target_temp ?? 0) - finalTarget) > 0.1) {
+                  const success = await setTemp(session.controller_id, finalTarget)
+                  if (success) {
+                    actionTaken = 'temp_adjusted'
+                    actionDetails = {
+                      start_temp: startTemp,
+                      target_temp: newTarget,
+                      effective_target: finalTarget,
+                      final_temp: currentStep.target_temp,
+                      progress: elapsedHours / currentStep.duration_hours,
+                      pill_compensation: pillCompensation?.compensation ?? 0,
+                    }
+                    
+                    await supabase
+                      .from('rapt_temp_controllers')
+                      .update({ target_temp: finalTarget, updated_at: new Date().toISOString() })
+                      .eq('controller_id', session.controller_id)
+                    
+                    // Log ramp + compensation in a single adjustment entry
+                    const reason = pillCompensation
+                      ? `🎯 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C, pill-komp=${pillCompensation.compensation.toFixed(2)}°C → ${finalTarget}°C`
+                      : `📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C`
+                    
+                    await supabase
+                      .from('auto_cooling_adjustments')
+                      .insert({
+                        cooler_controller_id: session.controller_id,
+                        cooler_controller_name: controller.name || session.controller_id,
+                        old_target_temp: controller.target_temp,
+                        new_target_temp: finalTarget,
+                        original_target_temp: newTarget,
+                        lowest_followed_temp: newTarget,
+                        followed_current_temp: controller.current_temp,
+                        followed_target_temp: currentStep.target_temp,
+                        followed_hysteresis: pillCompensation?.avgDelta ?? null,
+                        reason,
+                        adjusted_against_timestamp: controller.last_update,
+                      })
+                  }
                 }
                 
                 if (timeComplete) {
