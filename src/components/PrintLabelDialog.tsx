@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, Bluetooth, BluetoothOff, Printer, Loader2, CheckCircle2, Minus, Plus } from "lucide-react";
+import { Download, Bluetooth, BluetoothOff, Printer, Loader2, CheckCircle2, Minus, Plus, FileText } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { connectPrinter, disconnectPrinter, printBitmap, isBluetoothSupported, type PrinterConnection } from "@/lib/thermal-printer";
@@ -85,6 +85,17 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     link.click();
   };
 
+  const handleDownloadPdf = async () => {
+    if (!canvasRef.current) return;
+    const { default: jsPDF } = await import('jspdf');
+    const trimmed = trimCanvas(canvasRef.current, 4);
+    // Label: 70x50mm portrait (height 70, width 50)
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [50, 70] });
+    pdf.addImage(trimmed.toDataURL('image/png'), 'PNG', 0, 0, 50, 70);
+    const safeName = (brew.name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
+    pdf.save(`${safeName}-${labelType}.pdf`);
+  };
+
   const handleConnect = async () => {
     setStatus('connecting');
     setErrorMsg('');
@@ -155,13 +166,19 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           />
         </div>
 
-        {/* Primary action: Download image */}
-        <Button onClick={handleDownload} className="w-full gap-2" size="lg">
-          <Download className="h-4 w-4" />
-          Spara etikett som bild
-        </Button>
+        {/* Primary actions */}
+        <div className="flex gap-2">
+          <Button onClick={handleDownloadPdf} className="flex-1 gap-2" size="lg">
+            <FileText className="h-4 w-4" />
+            Spara som PDF
+          </Button>
+          <Button onClick={handleDownload} variant="outline" className="gap-2" size="lg">
+            <Download className="h-4 w-4" />
+            Bild
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground text-center -mt-2">
-          Öppna bilden i Phomemo-appen för att skriva ut
+          Öppna PDF:en i PrintMaster → PDF Print
         </p>
 
         {/* BLE section (collapsible, secondary) */}
