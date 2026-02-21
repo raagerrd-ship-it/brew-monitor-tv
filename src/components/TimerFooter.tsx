@@ -165,9 +165,8 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
   
   // Find the current step: triggered but not yet acknowledged = active
   // If none active, fall back to most recently completed milestone
-  const activeMilestone = timer.milestones.find(m => m.triggered && !m.acknowledged) || null;
-  const currentMilestone = activeMilestone || timer.milestones
-    .filter(m => m.triggered && m.acknowledged)
+  const currentMilestone = timer.milestones
+    .filter(m => m.triggered === true || (m.triggered !== false && m.time >= timer.remainingSeconds))
     .sort((a, b) => a.time - b.time)[0] || null;
 
   // Check if we should show based on TV mode setting
