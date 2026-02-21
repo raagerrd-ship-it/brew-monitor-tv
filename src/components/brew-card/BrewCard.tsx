@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2 } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer } from "lucide-react";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText } from "./utils";
@@ -17,6 +17,7 @@ import { AttenuationStat } from "./AttenuationStat";
 import { BatteryStat } from "./BatteryStat";
 
 import { SyncedDataDialog } from "./SyncedDataDialog";
+import { PrintLabelDialog } from "../PrintLabelDialog";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
@@ -49,6 +50,7 @@ function BrewCardComponent({
   brewCount,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
+  const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -197,6 +199,13 @@ function BrewCardComponent({
                         </button>
                       }
                     />
+                    <button
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      onClick={() => { setPrintLabelOpen(true); setMenuOpen(false); }}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      Skriv ut etikett
+                    </button>
                   </div>
                 )}
               </div>
@@ -284,6 +293,13 @@ function BrewCardComponent({
           controllerId={brew.linked_controller_id}
         />
       )}
+      
+      {/* Print Label Dialog */}
+      <PrintLabelDialog
+        open={printLabelOpen}
+        onOpenChange={setPrintLabelOpen}
+        brew={brew}
+      />
     </Card>
   );
 }
