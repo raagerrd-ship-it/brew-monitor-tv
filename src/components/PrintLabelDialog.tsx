@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Bluetooth, BluetoothOff, Printer, Loader2, CheckCircle2, Minus, Plus } from "lucide-react";
+import { Download, Bluetooth, BluetoothOff, Printer, Loader2, CheckCircle2, Minus, Plus } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { connectPrinter, disconnectPrinter, printBitmap, isBluetoothSupported, type PrinterConnection } from "@/lib/thermal-printer";
@@ -20,6 +20,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [copies, setCopies] = useState(1);
   const [status, setStatus] = useState<PrintStatus>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showBle, setShowBle] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const connectionRef = useRef<PrinterConnection | null>(null);
   const btSupported = isBluetoothSupported();
@@ -37,7 +38,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
 
   useEffect(() => {
     if (open) {
-      // Small delay to ensure canvas is mounted
       const t = setTimeout(renderPreview, 50);
       return () => clearTimeout(t);
     }
@@ -52,6 +52,15 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     }
   }, [open]);
 
+  const handleDownload = () => {
+    if (!canvasRef.current) return;
+    const link = document.createElement('a');
+    const safeName = (brew.name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
+    link.download = `${safeName}-${labelType}.png`;
+    link.href = canvasRef.current.toDataURL('image/png');
+    link.click();
+  };
+
   const handleConnect = async () => {
     setStatus('connecting');
     setErrorMsg('');
@@ -59,7 +68,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
       const conn = await connectPrinter();
       connectionRef.current = conn;
       setStatus('connected');
-
       conn.device.addEventListener('gattserverdisconnected', () => {
         connectionRef.current = null;
         setStatus('idle');
@@ -81,26 +89,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     } catch (err: any) {
       setErrorMsg(err?.message || 'Utskriften misslyckades');
       setStatus('error');
-    }
-  };
-
-  const statusLabel = () => {
-    switch (status) {
-      case 'connecting': return 'Ansluter...';
-      case 'connected': return 'Ansluten';
-      case 'printing': return 'Skriver ut...';
-      case 'done': return 'Klart!';
-      case 'error': return errorMsg;
-      default: return 'Ej ansluten';
-    }
-  };
-
-  const statusColor = () => {
-    switch (status) {
-      case 'connected': case 'done': return 'text-green-400';
-      case 'error': return 'text-red-400';
-      case 'connecting': case 'printing': return 'text-yellow-400';
-      default: return 'text-muted-foreground';
     }
   };
 
@@ -139,82 +127,95 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           <canvas
             ref={canvasRef}
             className="w-full"
-            style={{ maxWidth: '559px', imageRendering: 'auto' }}
+            style={{ maxWidth: '399px', imageRendering: 'auto' }}
           />
         </div>
 
-        {/* Bluetooth status */}
-        {!btSupported ? (
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-            <BluetoothOff className="h-4 w-4 inline mr-2" />
-            Web Bluetooth stöds inte. Använd Chrome eller Edge på desktop.
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div className={`flex items-center gap-2 text-sm ${statusColor()}`}>
-              {status === 'connecting' || status === 'printing' ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : status === 'connected' || status === 'done' ? (
-                <Bluetooth className="h-4 w-4" />
-              ) : status === 'error' ? (
-                <BluetoothOff className="h-4 w-4" />
-              ) : (
-                <BluetoothOff className="h-4 w-4" />
-              )}
-              <span className="truncate max-w-[200px]">{statusLabel()}</span>
-            </div>
+        {/* Primary action: Download image */}
+        <Button onClick={handleDownload} className="w-full gap-2" size="lg">
+          <Download className="h-4 w-4" />
+          Spara etikett som bild
+        </Button>
+        <p className="text-xs text-muted-foreground text-center -mt-2">
+          Öppna bilden i Phomemo-appen för att skriva ut
+        </p>
 
-            {(status === 'idle' || status === 'error') && (
-              <Button size="sm" variant="outline" onClick={handleConnect}>
-                <Bluetooth className="h-3.5 w-3.5 mr-1.5" />
-                Anslut
-              </Button>
+        {/* BLE section (collapsible, secondary) */}
+        {btSupported && (
+          <div className="border-t border-border pt-3 mt-1">
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
+              onClick={() => setShowBle(!showBle)}
+            >
+              {showBle ? '▾ Dölj direktutskrift (BLE)' : '▸ Direktutskrift via Bluetooth (BLE)'}
+            </button>
+
+            {showBle && (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center gap-2 text-sm ${
+                    status === 'connected' || status === 'done' ? 'text-green-400' :
+                    status === 'error' ? 'text-red-400' :
+                    status === 'connecting' || status === 'printing' ? 'text-yellow-400' :
+                    'text-muted-foreground'
+                  }`}>
+                    {status === 'connecting' || status === 'printing' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : status === 'connected' || status === 'done' ? (
+                      <Bluetooth className="h-4 w-4" />
+                    ) : (
+                      <BluetoothOff className="h-4 w-4" />
+                    )}
+                    <span className="truncate max-w-[200px]">
+                      {status === 'connecting' ? 'Ansluter...' :
+                       status === 'connected' ? 'Ansluten' :
+                       status === 'printing' ? 'Skriver ut...' :
+                       status === 'done' ? 'Klart!' :
+                       status === 'error' ? errorMsg :
+                       'Ej ansluten'}
+                    </span>
+                  </div>
+
+                  {(status === 'idle' || status === 'error') && (
+                    <Button size="sm" variant="outline" onClick={handleConnect}>
+                      <Bluetooth className="h-3.5 w-3.5 mr-1.5" />
+                      Anslut
+                    </Button>
+                  )}
+                </div>
+
+                {(status === 'connected' || status === 'printing' || status === 'done') && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Antal:</span>
+                      <div className="flex items-center gap-1">
+                        <Button size="icon" variant="outline" className="h-7 w-7"
+                          onClick={() => setCopies(Math.max(1, copies - 1))} disabled={copies <= 1}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm font-medium">{copies}</span>
+                        <Button size="icon" variant="outline" className="h-7 w-7"
+                          onClick={() => setCopies(Math.min(10, copies + 1))} disabled={copies >= 10}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <Button onClick={handlePrint} disabled={status === 'printing'} className="gap-2">
+                      {status === 'printing' ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                       status === 'done' ? <CheckCircle2 className="h-4 w-4" /> :
+                       <Printer className="h-4 w-4" />}
+                      Skriv ut
+                    </Button>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  OBS: M110 använder ofta klassisk Bluetooth, inte BLE. Om skrivaren inte hittas, använd "Spara som bild" ovan.
+                </p>
+              </div>
             )}
           </div>
         )}
-
-        {/* Copies + Print */}
-        <div className="flex items-center justify-between pt-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Antal:</span>
-            <div className="flex items-center gap-1">
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-7 w-7"
-                onClick={() => setCopies(Math.max(1, copies - 1))}
-                disabled={copies <= 1}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="w-6 text-center text-sm font-medium">{copies}</span>
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-7 w-7"
-                onClick={() => setCopies(Math.min(10, copies + 1))}
-                disabled={copies >= 10}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-
-          <Button
-            onClick={handlePrint}
-            disabled={status !== 'connected'}
-            className="gap-2"
-          >
-            {status === 'printing' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : status === 'done' ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              <Printer className="h-4 w-4" />
-            )}
-            Skriv ut
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   );
