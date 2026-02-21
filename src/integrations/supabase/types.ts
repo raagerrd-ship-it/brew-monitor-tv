@@ -958,6 +958,7 @@ export type Database = {
           last_sync_time: string | null
           rapt_sync_interval: number
           show_fps_counter: boolean
+          splash_delay_ms: number
           sync_interval: number
           updated_at: string
         }
@@ -977,6 +978,7 @@ export type Database = {
           last_sync_time?: string | null
           rapt_sync_interval?: number
           show_fps_counter?: boolean
+          splash_delay_ms?: number
           sync_interval?: number
           updated_at?: string
         }
@@ -996,6 +998,7 @@ export type Database = {
           last_sync_time?: string | null
           rapt_sync_interval?: number
           show_fps_counter?: boolean
+          splash_delay_ms?: number
           sync_interval?: number
           updated_at?: string
         }

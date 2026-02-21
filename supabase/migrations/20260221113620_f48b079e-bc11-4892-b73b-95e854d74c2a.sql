@@ -1,0 +1,1 @@
+ALTER TABLE public.sync_settings ADD COLUMN splash_delay_ms integer NOT NULL DEFAULT 1000;

@@ -60,6 +60,7 @@ export default function Settings() {
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
   const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
+  const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [lastBrewfatherQuickSync, setLastBrewfatherQuickSync] = useState<string | null>(null);
   const [apiSettings, setApiSettings] = useState<{
@@ -412,6 +413,7 @@ export default function Settings() {
         setLastRaptSync(data.last_rapt_sync_at);
         setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
+        setSplashDelayMs((data as any).splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
         setLastBrewfatherQuickSync(data.last_sync_time);
         console.log('Last RAPT sync:', data.last_rapt_sync_at);
@@ -1673,6 +1675,44 @@ export default function Settings() {
                 <Tv className="h-4 w-4 mr-2" />
                 Uppdatera TV:ar
               </Button>
+            </SettingsSection>
+
+            <SettingsSection
+              icon={Clock}
+              title="Splash-skärm"
+              description="Fördröjning efter datan laddats innan splash-loggan försvinner"
+            >
+              <div className="flex items-center gap-3">
+                <Select
+                  value={splashDelayMs}
+                  onValueChange={async (value) => {
+                    setSplashDelayMs(value);
+                    if (settingsId) {
+                      const { error } = await supabase
+                        .from('sync_settings')
+                        .update({ splash_delay_ms: parseInt(value) })
+                        .eq('id', settingsId);
+                      if (error) {
+                        toast({ title: "Fel", description: "Kunde inte spara inställningen", variant: "destructive" });
+                      } else {
+                        toast({ title: "Sparat", description: `Splash-fördröjning: ${parseInt(value) / 1000}s` });
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Ingen (0s)</SelectItem>
+                    <SelectItem value="500">0.5 sekunder</SelectItem>
+                    <SelectItem value="1000">1 sekund</SelectItem>
+                    <SelectItem value="1500">1.5 sekunder</SelectItem>
+                    <SelectItem value="2000">2 sekunder</SelectItem>
+                    <SelectItem value="3000">3 sekunder</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </SettingsSection>
 
             <CategorySeparator icon={Timer} label="Integrationer" />
