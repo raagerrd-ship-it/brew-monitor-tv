@@ -229,13 +229,14 @@ export function SonosSettings() {
         if (data) setSettingsId(data.id);
       }
 
-      // Trigger server sync to regenerate background with new settings
+      // Trigger server sync to regenerate background without touching playback state
       await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ bg_only: true }),
       });
       toast.success('Bakgrundsbild genereras om med nya inställningar');
     } catch (error) {
