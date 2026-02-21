@@ -167,6 +167,19 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     }} 
                   />
                 )}
+                {/* Average temp dot – shows where the big displayed number sits on the scale */}
+                <div 
+                  className="absolute rounded-full"
+                  style={{ 
+                    left: `${pct(displayTemp)}%`, 
+                    top: '50%',
+                    width: '6px',
+                    height: '6px',
+                    background: 'hsl(var(--foreground))',
+                    transform: 'translate(-3px, -50%)',
+                    boxShadow: '0 0 4px hsl(var(--foreground) / 0.5)',
+                  }} 
+                />
               </div>
             </div>
           </TooltipTrigger>
