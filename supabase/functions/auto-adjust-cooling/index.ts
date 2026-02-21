@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { round1, TempController } from '../_shared/temp-utils.ts';
+import { round1, TempController, setControllerTargetTemp } from '../_shared/temp-utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -544,11 +544,9 @@ serve(async (req) => {
 
         log('STALL_BOOST', 'action', `Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C (+${boostDegrees}°C, style=${brew.style || 'standard'})`);
 
-        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-          body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
-        });
+        const stallSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
 
-        if (!updateResponse.error) {
+        if (stallSuccess) {
           log('STALL_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
           allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
           stallActiveControllerIds.add(fc.controller_id);
@@ -580,35 +578,29 @@ serve(async (req) => {
     if (overshootEnabled && runTankAdjustments) {
       log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
 
-      // Cooldown: skip overshoot check if last overshoot adjustment was < 10 minutes ago
       const OVERSHOOT_COOLDOWN_MS = 10 * 60 * 1000;
-      const { data: lastOvershootAdj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('created_at')
-        .like('reason', '🌡️%')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (lastOvershootAdj && lastOvershootAdj.length > 0) {
-        const timeSinceLastAdj = Date.now() - new Date(lastOvershootAdj[0].created_at).getTime();
-        if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
-          const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
-          log('OVERSHOOT_COOLDOWN', 'info', `Cooldown active: ${remainingMin}min remaining since last overshoot adjustment`);
-        }
-      }
-
-      const canRunOvershoot = !lastOvershootAdj || lastOvershootAdj.length === 0 || 
-        (Date.now() - new Date(lastOvershootAdj[0].created_at).getTime()) >= OVERSHOOT_COOLDOWN_MS;
-
-      if (!canRunOvershoot) {
-        log('OVERSHOOT', 'info', 'Skipping overshoot check due to cooldown');
-      }
-      
       const overshootPillThreshold = parseFloat(String(settings.overshoot_pill_threshold ?? 0.3));
       const overshootDeltaThreshold = parseFloat(String(settings.overshoot_delta_threshold ?? 2.0));
 
       for (const fc of followedControllersFullData) {
-        if (!canRunOvershoot) break;
+        // Per-controller cooldown check
+        const { data: lastOvershootAdj } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('created_at')
+          .eq('cooler_controller_id', fc.controller_id)
+          .like('reason', '🌡️%')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (lastOvershootAdj && lastOvershootAdj.length > 0) {
+          const timeSinceLastAdj = Date.now() - new Date(lastOvershootAdj[0].created_at).getTime();
+          if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
+            const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
+            log('OVERSHOOT_COOLDOWN', 'info', `${fc.name}: Cooldown active: ${remainingMin}min remaining`);
+            continue;
+          }
+        }
+
         if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
         if (fc.target_temp === null || fc.target_temp === undefined) continue;
 
@@ -670,10 +662,8 @@ serve(async (req) => {
             log('OVERSHOOT_SKIP', 'info', `Target already at ${targetTemp}°C, no change needed`);
           } else {
             log('OVERSHOOT_ACTION', 'action', `Setting ${fc.name} from ${targetTemp}°C → ${newTarget}°C`);
-            const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-              body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: newTarget }
-            });
-            if (!updateResponse.error) {
+            const overshootSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
+            if (overshootSuccess) {
               log('OVERSHOOT_ACTION', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
               allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
               await supabase.from('auto_cooling_adjustments').insert({
@@ -707,10 +697,8 @@ serve(async (req) => {
 
               if (Math.abs(recoveryTarget - targetTemp) >= 0.1) {
                 log('OVERSHOOT_RECOVERY', 'action', `Restoring ${fc.name} from ${targetTemp}°C back to original ${recoveryTarget}°C (pill=${pillTemp.toFixed(1)}°C)`);
-                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                  body: { controllerId: fc.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
-                });
-                if (!updateResponse.error) {
+                const recoverySuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, recoveryTarget);
+                if (recoverySuccess) {
                   log('OVERSHOOT_RECOVERY', 'pass', `Restored ${fc.name} to ${recoveryTarget}°C`);
                   allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: recoveryTarget });
                   await supabase.from('auto_cooling_adjustments').insert({
@@ -782,11 +770,9 @@ serve(async (req) => {
               if (defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
                 log('ADJUSTMENT', 'action', `Setting cooler to default ${defaultTemp}°C`);
 
-                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                  body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: defaultTemp }
-                });
+                const defaultSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, coolerController.controller_id, defaultTemp);
 
-                if (!updateResponse.error) {
+                if (defaultSuccess) {
                   log('ADJUSTMENT', 'pass', `Set cooler to ${defaultTemp}°C`);
 
                   await supabase.from('auto_cooling_adjustments').insert({
@@ -845,11 +831,9 @@ serve(async (req) => {
               if (newTarget > currentCoolerTarget && newTarget >= coolerMinTemp && newTarget <= coolerMaxTemp) {
                 log('ADJUSTMENT', 'action', `Increasing cooler from ${currentCoolerTarget}°C to ${newTarget}°C`);
 
-                const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                  body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: newTarget }
-                });
+                const overCoolSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, coolerController.controller_id, newTarget);
 
-                if (!updateResponse.error) {
+                if (overCoolSuccess) {
                   log('ADJUSTMENT', 'pass', `Increased cooler to ${newTarget}°C`);
 
                   await supabase.from('auto_cooling_adjustments').insert({
@@ -1022,11 +1006,9 @@ serve(async (req) => {
                       } else {
                         log('ADJUSTMENT', 'action', `Lowering cooler from ${currentCoolerTarget}°C to ${finalTarget}°C`);
 
-                        const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                          body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: finalTarget }
-                        });
+                        const lowerSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, coolerController.controller_id, finalTarget);
 
-                        if (!updateResponse.error) {
+                        if (lowerSuccess) {
                           log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`);
                           allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget });
 
@@ -1113,11 +1095,9 @@ serve(async (req) => {
                     const direction = needsLowering ? 'Sänker' : 'Höjer';
                     log('COOLING_RECOVERY', 'action', `${direction} cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`);
 
-                    const updateResponse = await supabase.functions.invoke('rapt-update-controller', {
-                      body: { controllerId: coolerController.controller_id, action: 'setTargetTemperature', value: recoveryTarget }
-                    });
+                    const coolRecSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, coolerController.controller_id, recoveryTarget);
 
-                    if (!updateResponse.error) {
+                    if (coolRecSuccess) {
                       log('COOLING_RECOVERY', 'pass', `Set cooler to ${recoveryTarget}°C`);
                       allAdjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget });
 

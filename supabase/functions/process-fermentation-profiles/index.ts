@@ -194,145 +194,110 @@ Deno.serve(async (req) => {
       const setTemp = (controllerId: string, targetTemp: number) =>
         setControllerTargetTemp(supabaseUrl, supabaseServiceKey, controllerId, targetTemp)
 
+      // ---- Shared pill-compensation helper (deduplicates no-target & hold blocks) ----
+      async function applyPillCompensation(
+        profileTarget: number,
+        stepLabel: string,
+      ): Promise<{ actionTaken: string; actionDetails: any } | null> {
+        if (!controller) return null
+
+        const compensation = (pillCompSettings.enabled && !pillCompSkipSameData)
+          ? await calculateCompensatedTarget(
+              supabase, session.controller_id, profileTarget, controller.target_temp,
+              controller.name || session.controller_id, pillCompSettings
+            )
+          : null
+
+        if (pillCompSettings.enabled && !compensation) {
+          console.log(`${stepLabel}: pill-komp aktiv men redan nära mål (${controller.target_temp}°C vs profil ${profileTarget}°C), skippar enforce`)
+          return null
+        }
+
+        const targetToEnforce = compensation ? compensation.compensatedTarget : profileTarget
+        const diff = controller.target_temp - targetToEnforce
+
+        // Skip if already within tolerance
+        if (Math.abs(diff) <= 0.2) return null
+
+        // Overshoot guard: if controller target is BELOW desired, check for recent overshoot
+        if (diff < -0.2) {
+          const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+          const { data: recentOvershoot } = await supabase
+            .from('auto_cooling_adjustments')
+            .select('id, reason, new_target_temp, created_at')
+            .eq('cooler_controller_id', session.controller_id)
+            .gte('created_at', fifteenMinAgo)
+            .or('reason.like.🌡️%,reason.like.🔄%')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (recentOvershoot && recentOvershoot.length > 0) {
+            console.log(`${stepLabel}: Overshoot aktiv (${recentOvershoot[0].reason.substring(0, 50)}), låter den verka istället för att enforce:a ${targetToEnforce}°C`)
+            return null
+          }
+        }
+
+        console.log(`${stepLabel}: enforcing target ${targetToEnforce}°C (profile=${profileTarget}°C, current=${controller.target_temp}°C${compensation ? `, komp=${compensation.compensation.toFixed(2)}°C` : ''})`)
+        const success = await setTemp(session.controller_id, targetToEnforce)
+        if (!success) return null
+
+        await supabase
+          .from('rapt_temp_controllers')
+          .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
+          .eq('controller_id', session.controller_id)
+
+        const reason = compensation
+          ? `🎯 Pill-kompensation: ${profileTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`
+          : `🔧 Fermenteringsprofil enforce: ${profileTarget}°C`
+
+        await supabase
+          .from('auto_cooling_adjustments')
+          .insert({
+            cooler_controller_id: session.controller_id,
+            cooler_controller_name: controller.name || session.controller_id,
+            old_target_temp: controller.target_temp,
+            new_target_temp: targetToEnforce,
+            original_target_temp: profileTarget,
+            lowest_followed_temp: profileTarget,
+            followed_current_temp: controller.current_temp,
+            followed_target_temp: profileTarget,
+            followed_hysteresis: compensation?.avgDelta ?? null,
+            reason,
+            adjusted_against_timestamp: controller.last_update,
+          })
+
+        return {
+          actionTaken: 'temp_enforced',
+          actionDetails: {
+            effective_target: targetToEnforce,
+            profile_target: profileTarget,
+            previous_target: controller.target_temp,
+            step_type: currentStep.step_type,
+            pill_compensation: compensation?.compensation ?? 0,
+          },
+        }
+      }
+
       // For steps without explicit target_temp, enforce the effective target from previous steps
       if (currentStep.target_temp === null && controller) {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
-          const compensation = (pillCompSettings.enabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompSettings
-          ) : null
-
-          if (pillCompSettings.enabled && !compensation) {
-            console.log(`Step ${session.current_step_index} (${currentStep.step_type}): pill-komp aktiv men redan nära mål (${controller.target_temp}°C), skippar enforce`)
-          } else {
-          const targetToEnforce = compensation ? compensation.compensatedTarget : effectiveTarget
-
-          if (controller.target_temp < targetToEnforce - 0.2) {
-            const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-            const { data: recentOvershoot } = await supabase
-              .from('auto_cooling_adjustments')
-              .select('id, reason, new_target_temp, created_at')
-              .eq('cooler_controller_id', session.controller_id)
-              .gte('created_at', fifteenMinAgo)
-              .or('reason.like.🌡️%,reason.like.🔄%')
-              .order('created_at', { ascending: false })
-              .limit(1)
-
-            if (recentOvershoot && recentOvershoot.length > 0) {
-              console.log(`Step ${session.current_step_index} (${currentStep.step_type}): Overshoot aktiv (${recentOvershoot[0].reason.substring(0, 50)}), låter den verka istället för att enforce:a ${targetToEnforce}°C`)
-            } else {
-              console.log(`Step ${session.current_step_index} (${currentStep.step_type}) enforcing target ${targetToEnforce}°C (profile=${effectiveTarget}°C, current=${controller.target_temp}°C${compensation ? `, komp=${compensation.compensation.toFixed(2)}°C` : ''})`)
-              const success = await setTemp(session.controller_id, targetToEnforce)
-              if (success) {
-                actionTaken = 'temp_enforced'
-                actionDetails = { effective_target: targetToEnforce, profile_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type, pill_compensation: compensation?.compensation ?? 0 }
-                
-                await supabase
-                  .from('rapt_temp_controllers')
-                  .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
-                  .eq('controller_id', session.controller_id)
-                
-                const reason = compensation
-                  ? `🎯 Pill-kompensation: ${effectiveTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`
-                  : `🔧 Fermenteringsprofil enforce: ${effectiveTarget}°C`
-                
-                await supabase
-                  .from('auto_cooling_adjustments')
-                  .insert({
-                    cooler_controller_id: session.controller_id,
-                    cooler_controller_name: controller.name || session.controller_id,
-                    old_target_temp: controller.target_temp,
-                    new_target_temp: targetToEnforce,
-                    original_target_temp: effectiveTarget,
-                    lowest_followed_temp: effectiveTarget,
-                    followed_current_temp: controller.pill_temp,
-                    followed_target_temp: controller.current_temp,
-                    followed_hysteresis: compensation?.avgDelta ?? null,
-                    reason,
-                    adjusted_against_timestamp: controller.last_update,
-                  })
-              }
-            }
-          } else if (controller.target_temp > targetToEnforce + 0.2) {
-            console.log(`Step ${session.current_step_index} (${currentStep.step_type}): target ${controller.target_temp}°C > desired ${targetToEnforce}°C, enforcing down`)
-            const success = await setTemp(session.controller_id, targetToEnforce)
-            if (success) {
-              actionTaken = 'temp_enforced'
-              actionDetails = { effective_target: targetToEnforce, profile_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type, pill_compensation: compensation?.compensation ?? 0 }
-              
-              await supabase
-                .from('rapt_temp_controllers')
-                .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
-                .eq('controller_id', session.controller_id)
-              
-              const reason = compensation
-                ? `🎯 Pill-kompensation: ${effectiveTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`
-                : `🔧 Fermenteringsprofil enforce: ${effectiveTarget}°C`
-              
-              await supabase
-                .from('auto_cooling_adjustments')
-                .insert({
-                  cooler_controller_id: session.controller_id,
-                  cooler_controller_name: controller.name || session.controller_id,
-                  old_target_temp: controller.target_temp,
-                  new_target_temp: targetToEnforce,
-                  original_target_temp: effectiveTarget,
-                  lowest_followed_temp: effectiveTarget,
-                  followed_current_temp: controller.pill_temp,
-                  followed_target_temp: controller.current_temp,
-                  followed_hysteresis: compensation?.avgDelta ?? null,
-                  reason,
-                  adjusted_against_timestamp: controller.last_update,
-                })
-            }
+          const result = await applyPillCompensation(effectiveTarget, `Step ${session.current_step_index} (${currentStep.step_type})`)
+          if (result) {
+            actionTaken = result.actionTaken
+            actionDetails = result.actionDetails
           }
-          } // end else (pill-comp not skipping)
         }
       }
 
       switch (currentStep.step_type) {
         case 'hold': {
           if (currentStep.target_temp !== null && controller) {
-            const holdCompensation = (pillCompSettings.enabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompSettings
-            ) : null
-
-            if (pillCompSettings.enabled && !holdCompensation) {
-              console.log(`Hold step: pill-komp aktiv men redan nära mål (${controller.target_temp}°C vs profil ${currentStep.target_temp}°C), skippar enforce`)
-            } else {
-            const holdTarget = holdCompensation ? holdCompensation.compensatedTarget : currentStep.target_temp
-
-            if (Math.abs(controller.target_temp - holdTarget) > 0.1) {
-              const success = await setTemp(session.controller_id, holdTarget)
-              if (success) {
-                actionTaken = 'temp_adjusted'
-                actionDetails = { target_temp: holdTarget, profile_target: currentStep.target_temp, pill_compensation: holdCompensation?.compensation ?? 0 }
-                
-                await supabase
-                  .from('rapt_temp_controllers')
-                  .update({ target_temp: holdTarget, updated_at: new Date().toISOString() })
-                  .eq('controller_id', session.controller_id)
-
-                if (holdCompensation) {
-                  await supabase
-                    .from('auto_cooling_adjustments')
-                    .insert({
-                      cooler_controller_id: session.controller_id,
-                      cooler_controller_name: controller.name || session.controller_id,
-                      old_target_temp: controller.target_temp,
-                      new_target_temp: holdTarget,
-                      original_target_temp: currentStep.target_temp,
-                      lowest_followed_temp: currentStep.target_temp,
-                      followed_current_temp: controller.pill_temp,
-                      followed_target_temp: controller.current_temp,
-                      followed_hysteresis: holdCompensation.avgDelta,
-                      reason: `🎯 Pill-kompensation: ${currentStep.target_temp.toFixed(1)}°C -> ${holdTarget.toFixed(1)}°C (delta=${holdCompensation.avgDelta.toFixed(2)}, komp=${holdCompensation.compensation.toFixed(2)}°C)`,
-                      adjusted_against_timestamp: controller.last_update,
-                    })
-                }
-              }
+            const holdResult = await applyPillCompensation(currentStep.target_temp, 'Hold step')
+            if (holdResult) {
+              actionTaken = holdResult.actionTaken
+              actionDetails = holdResult.actionDetails
             }
-            } // end else (pill-comp not skipping for hold step)
           }
           
           let durationComplete = false
