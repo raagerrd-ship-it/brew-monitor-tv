@@ -43,7 +43,7 @@ async function backgroundExists(supabase: any, fileName: string): Promise<string
     const { data: urlData } = supabase.storage
       .from('sonos-backgrounds')
       .getPublicUrl(fileName);
-    return urlData?.publicUrl || null;
+    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
   }
   return null;
 }

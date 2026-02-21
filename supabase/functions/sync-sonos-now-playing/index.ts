@@ -141,7 +141,7 @@ serve(async (req) => {
 
     // --- bg_only mode: only regenerate background for existing track, don't touch playback state ---
     if (bgOnly) {
-      const artUrl = existingRow?.album_art_url || currentArt?.medium;
+      const artUrl = existingRow?.album_art_url || null;
       if (!existingRow || !artUrl) {
         const duration = Date.now() - startTime;
         console.log(`[SonosSync] bg_only: no existing row or art → skip in ${duration}ms`);
@@ -152,7 +152,7 @@ serve(async (req) => {
       const trackId = track?.id?.objectId || track?.name || existingRow.track_name || '';
       const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null, true);
       if (result.bgUrl || result.widgetUrl) {
-        const updateFields: Record<string, any> = {};
+        const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
         if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
         if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
