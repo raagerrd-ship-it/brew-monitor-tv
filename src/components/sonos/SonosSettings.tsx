@@ -386,7 +386,7 @@ export function SonosSettings() {
               <Slider
                 value={[bgBlur]}
                 min={0}
-                max={200}
+                max={50}
                 step={1}
                 onValueChange={(v) => setBgBlur(v[0])}
               />
@@ -401,7 +401,7 @@ export function SonosSettings() {
               <Slider
                 value={[bgBrightness]}
                 min={10}
-                max={255}
+                max={100}
                 step={5}
                 onValueChange={(v) => setBgBrightness(v[0])}
               />
