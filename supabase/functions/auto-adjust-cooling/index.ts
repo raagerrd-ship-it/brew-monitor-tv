@@ -340,7 +340,9 @@ serve(async (req) => {
       const profileInfo = profileStatusMap.get(controller.controller_id);
       const details: Record<string, unknown> = {
         original_target: originalTarget,
-        last_update: controller.last_update,
+        last_update: controller.last_update
+          ? new Date(controller.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          : null,
         target_temp: targetTemp,
         current_temp: currentTemp,
         pill_temp: pillTemp,
