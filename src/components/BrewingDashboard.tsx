@@ -280,6 +280,7 @@ export function BrewingDashboard() {
   // Minimum splash time (2s) so logo is always visible
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const [contentPainted, setContentPainted] = useState(false);
+  const [splashDelayMs, setSplashDelayMs] = useState(1000);
   const showSplash = !minTimeElapsed || !contentPainted;
   
   useEffect(() => {
@@ -287,8 +288,14 @@ export function BrewingDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Load splash delay from DB
+  useEffect(() => {
+    supabase.from('sync_settings').select('splash_delay_ms').limit(1).maybeSingle().then(({ data }) => {
+      if (data?.splash_delay_ms != null) setSplashDelayMs(data.splash_delay_ms);
+    });
+  }, []);
+
   // Once data is loaded, wait for lazy-loaded charts to resolve before removing splash.
-  // Lazy chunks need time beyond just 2 rAF frames, so add a small delay first.
   useEffect(() => {
     if (!loading) {
       let cancelled = false;
@@ -298,10 +305,10 @@ export function BrewingDashboard() {
             if (!cancelled) setContentPainted(true);
           });
         });
-      }, 1000);
+      }, splashDelayMs);
       return () => { cancelled = true; clearTimeout(timer); };
     }
-  }, [loading]);
+  }, [loading, splashDelayMs]);
 
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
