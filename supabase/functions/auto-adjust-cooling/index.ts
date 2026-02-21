@@ -249,18 +249,40 @@ serve(async (req) => {
         const cooloffSet = new Set<string>();
         if (runTankAdjustments) {
           const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-          for (const session of runningSessions) {
-            const { data: recentAdj } = await supabase
-              .from('fermentation_step_log')
-              .select('id')
-              .eq('session_id', session.id)
-              .eq('action', 'temp_adjusted')
-              .gte('created_at', thirtyMinAgo)
-              .limit(1);
-            if (recentAdj && recentAdj.length > 0) {
-              cooloffSet.add(session.controller_id);
-              cooloffControllerIds.add(session.controller_id);
+          const sessionIds = runningSessions.map(s => s.id);
+          const { data: recentAdjs } = await supabase
+            .from('fermentation_step_log')
+            .select('session_id')
+            .in('session_id', sessionIds)
+            .eq('action', 'temp_adjusted')
+            .gte('created_at', thirtyMinAgo);
+          
+          if (recentAdjs) {
+            const sessionControllerMap = new Map(runningSessions.map(s => [s.id, s.controller_id]));
+            for (const adj of recentAdjs) {
+              const cId = sessionControllerMap.get(adj.session_id);
+              if (cId) {
+                cooloffSet.add(cId);
+                cooloffControllerIds.add(cId);
+              }
             }
+          }
+        }
+
+        // Batch fetch all profile steps for all running sessions
+        const uniqueProfileIds = [...new Set(runningSessions.map(s => s.profile_id))];
+        const { data: allProfileSteps } = await supabase
+          .from('fermentation_profile_steps')
+          .select('profile_id, target_temp, step_order')
+          .in('profile_id', uniqueProfileIds)
+          .order('step_order', { ascending: true });
+        
+        const profileStepsMap = new Map<string, Array<{ target_temp: number | null; step_order: number }>>();
+        if (allProfileSteps) {
+          for (const step of allProfileSteps) {
+            const list = profileStepsMap.get(step.profile_id) || [];
+            list.push(step);
+            profileStepsMap.set(step.profile_id, list);
           }
         }
 
@@ -268,13 +290,8 @@ serve(async (req) => {
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
           
-          // Fetch the profile's effective target temp for this controller
           let effectiveTarget: number | null = null;
-          const { data: profileSteps } = await supabase
-            .from('fermentation_profile_steps')
-            .select('target_temp, step_order')
-            .eq('profile_id', session.profile_id)
-            .order('step_order', { ascending: true });
+          const profileSteps = profileStepsMap.get(session.profile_id);
           
           if (profileSteps && profileSteps.length > 0) {
             for (let i = Math.min(session.current_step_index, profileSteps.length - 1); i >= 0; i--) {
@@ -582,18 +599,30 @@ serve(async (req) => {
       const overshootPillThreshold = parseFloat(String(settings.overshoot_pill_threshold ?? 0.3));
       const overshootDeltaThreshold = parseFloat(String(settings.overshoot_delta_threshold ?? 2.0));
 
-      for (const fc of followedControllersFullData) {
-        // Per-controller cooldown check
-        const { data: lastOvershootAdj } = await supabase
+      // Batch: fetch latest overshoot adjustment per controller for cooldown check
+      const overshootCooldownMap = new Map<string, number>();
+      {
+        const { data: allOvershootAdj } = await supabase
           .from('auto_cooling_adjustments')
-          .select('created_at')
-          .eq('cooler_controller_id', fc.controller_id)
+          .select('cooler_controller_id, created_at')
+          .in('cooler_controller_id', followedControllerIds)
           .like('reason', '🌡️%')
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .order('created_at', { ascending: false });
+        
+        if (allOvershootAdj) {
+          for (const adj of allOvershootAdj) {
+            if (!overshootCooldownMap.has(adj.cooler_controller_id)) {
+              overshootCooldownMap.set(adj.cooler_controller_id, new Date(adj.created_at).getTime());
+            }
+          }
+        }
+      }
 
-        if (lastOvershootAdj && lastOvershootAdj.length > 0) {
-          const timeSinceLastAdj = Date.now() - new Date(lastOvershootAdj[0].created_at).getTime();
+      for (const fc of followedControllersFullData) {
+        // Per-controller cooldown check (from batched data)
+        const lastOvershootTime = overshootCooldownMap.get(fc.controller_id);
+        if (lastOvershootTime) {
+          const timeSinceLastAdj = Date.now() - lastOvershootTime;
           if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
             const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
             log('OVERSHOOT_COOLDOWN', 'info', `${fc.name}: Cooldown active: ${remainingMin}min remaining`);
@@ -925,6 +954,40 @@ serve(async (req) => {
                     // === DELTA ANALYSIS ===
                     let deltaMultiplier = 1.0;
 
+                    // Batch: fetch recent delta history for all followed controllers (last 24h)
+                    const batchDeltaMap = new Map<string, Array<{ delta: number; recorded_at: string }>>();
+                    {
+                      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                      const { data: allDeltaHistory } = await supabase
+                        .from('temp_delta_history')
+                        .select('controller_id, delta, recorded_at')
+                        .in('controller_id', followedControllerIds)
+                        .gte('recorded_at', twentyFourHoursAgo)
+                        .order('recorded_at', { ascending: false });
+                      
+                      if (allDeltaHistory) {
+                        for (const d of allDeltaHistory) {
+                          const list = batchDeltaMap.get(d.controller_id) || [];
+                          if (list.length < 5) list.push(d);
+                          batchDeltaMap.set(d.controller_id, list);
+                        }
+                      }
+                    }
+
+                    // Batch: fetch all unacknowledged delta alerts for followed controllers
+                    const existingAlertControllerIds = new Set<string>();
+                    {
+                      const { data: allAlerts } = await supabase
+                        .from('temp_delta_alerts')
+                        .select('controller_id')
+                        .in('controller_id', followedControllerIds)
+                        .eq('acknowledged', false);
+                      
+                      if (allAlerts) {
+                        for (const a of allAlerts) existingAlertControllerIds.add(a.controller_id);
+                      }
+                    }
+
                     for (const fc of followedControllersFullData) {
                       if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
 
@@ -934,12 +997,7 @@ serve(async (req) => {
 
                       log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`);
 
-                      const { data: deltaHistory } = await supabase
-                        .from('temp_delta_history')
-                        .select('delta, recorded_at')
-                        .eq('controller_id', fc.controller_id)
-                        .order('recorded_at', { ascending: false })
-                        .limit(5);
+                      const deltaHistory = batchDeltaMap.get(fc.controller_id);
 
                       if (deltaHistory && deltaHistory.length >= 2) {
                         const recentDeltas = deltaHistory.map(d => parseFloat(String(d.delta)));
@@ -960,22 +1018,14 @@ serve(async (req) => {
 
                       // Generate alert if delta exceeds threshold
                       const alertThreshold = settings.delta_alert_threshold ?? 2.0;
-                      if (currentDelta > alertThreshold) {
-                        const { data: existingAlerts } = await supabase
-                          .from('temp_delta_alerts')
-                          .select('id')
-                          .eq('controller_id', fc.controller_id)
-                          .eq('acknowledged', false)
-                          .limit(1);
-
-                        if (!existingAlerts || existingAlerts.length === 0) {
-                          await supabase.from('temp_delta_alerts').insert({
-                            controller_id: fc.controller_id,
-                            delta: currentDelta,
-                            alert_type: 'high_delta'
-                          } as any);
-                          log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
-                        }
+                      if (currentDelta > alertThreshold && !existingAlertControllerIds.has(fc.controller_id)) {
+                        await supabase.from('temp_delta_alerts').insert({
+                          controller_id: fc.controller_id,
+                          delta: currentDelta,
+                          alert_type: 'high_delta'
+                        } as any);
+                        existingAlertControllerIds.add(fc.controller_id);
+                        log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
                       }
                     }
 
