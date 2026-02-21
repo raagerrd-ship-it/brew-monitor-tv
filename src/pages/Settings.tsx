@@ -1682,7 +1682,18 @@ export default function Settings() {
               title="Splash-skärm"
               description="Fördröjning efter datan laddats innan splash-loggan försvinner"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Fördröjning</p>
+                    <p className="text-sm text-muted-foreground">
+                      {splashDelayMs === "0" ? "Ingen fördröjning" : `${parseInt(splashDelayMs) / 1000} sekunder`}
+                    </p>
+                  </div>
+                </div>
                 <Select
                   value={splashDelayMs}
                   onValueChange={async (value) => {
@@ -1700,16 +1711,16 @@ export default function Settings() {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">Ingen (0s)</SelectItem>
-                    <SelectItem value="500">0.5 sekunder</SelectItem>
-                    <SelectItem value="1000">1 sekund</SelectItem>
-                    <SelectItem value="1500">1.5 sekunder</SelectItem>
-                    <SelectItem value="2000">2 sekunder</SelectItem>
-                    <SelectItem value="3000">3 sekunder</SelectItem>
+                    <SelectItem value="500">0.5s</SelectItem>
+                    <SelectItem value="1000">1s</SelectItem>
+                    <SelectItem value="1500">1.5s</SelectItem>
+                    <SelectItem value="2000">2s</SelectItem>
+                    <SelectItem value="3000">3s</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
