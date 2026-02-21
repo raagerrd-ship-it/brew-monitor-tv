@@ -248,4 +248,12 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
     ctx.font = dataFont;
     ctx.fillText(row.value, PADDING + 150, y);
   }
+  
+  // QR code in bottom-right corner
+  const qrImg = await generateQrImage(getBrewShareUrl(brew));
+  if (qrImg) {
+    const qrX = LABEL_WIDTH - PADDING - QR_SIZE;
+    const qrY = LABEL_HEIGHT - PADDING - QR_SIZE;
+    ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
+  }
 }
