@@ -125,10 +125,23 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   
   const textMaxWidth = logoImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
   
+  // Title: JÄSTANK
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText('JÄSTANK', PADDING, PADDING + 20);
+  
+  // Separator line
+  ctx.beginPath();
+  ctx.moveTo(PADDING, PADDING + 30);
+  ctx.lineTo(PADDING + textMaxWidth, PADDING + 30);
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
   // Brew name (large)
   ctx.fillStyle = '#000000';
   ctx.font = 'bold 44px sans-serif';
-  let y = PADDING + 50;
+  let y = PADDING + 78;
   const name = brew.name || 'Okänd';
   
   // Word-wrap brew name if needed
