@@ -8,7 +8,7 @@ import QRCode from 'qrcode';
 const LABEL_WIDTH = 399;
 const LABEL_HEIGHT = 559;
 const PADDING = 24;
-const LABEL_IMG_SIZE = 120;
+const LABEL_IMG_SIZE = 150;
 const QR_SIZE = 150;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
 
@@ -67,20 +67,10 @@ function getFermentationTemp(brew: BrewData): string {
   return '—';
 }
 
-/** Draw common label background and border */
+/** Draw common label background */
 function drawLabelBase(ctx: CanvasRenderingContext2D) {
-  // White background
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, LABEL_WIDTH, LABEL_HEIGHT);
-  
-  // Border
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(2, 2, LABEL_WIDTH - 4, LABEL_HEIGHT - 4);
-  
-  // Inner decorative line
-  ctx.lineWidth = 1;
-  ctx.strokeRect(8, 8, LABEL_WIDTH - 16, LABEL_HEIGHT - 16);
 }
 
 /** Draw label image in top-right corner if available */
@@ -181,13 +171,6 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
     const qrX = LABEL_WIDTH - PADDING - QR_SIZE;
     const qrY = LABEL_HEIGHT - PADDING - QR_SIZE;
     ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
-    // Small label under QR
-    ctx.font = '10px sans-serif';
-    ctx.fillStyle = '#666666';
-    ctx.textAlign = 'center';
-    ctx.fillText('Skanna för info', qrX + QR_SIZE / 2, qrY + QR_SIZE + 12);
-    ctx.textAlign = 'start';
-    ctx.fillStyle = '#000000';
   }
 }
 
