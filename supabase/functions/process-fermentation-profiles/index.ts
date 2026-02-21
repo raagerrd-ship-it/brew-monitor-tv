@@ -1,23 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  ProfileStep,
+  getEffectiveTargetTemp,
+  calculateCompensatedTarget,
+  setControllerTargetTemp,
+  loadPillCompSettings,
+  PillCompensationSettings,
+} from '../_shared/temp-utils.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
-
-interface ProfileStep {
-  id: string
-  profile_id: string
-  step_order: number
-  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement'
-  target_temp: number | null
-  duration_hours: number | null
-  ramp_type: 'linear' | 'immediate' | null
-  gravity_stable_days: number | null
-  gravity_threshold: number | null
-  target_sg: number | null
-  sg_comparison: 'at_or_below' | 'at_or_above' | null
-  notes: string | null
 }
 
 interface Session {
@@ -39,12 +32,9 @@ interface SgDataPoint {
 }
 
 // Check if gravity has been stable for the required number of days
-// Stability means SG hasn't been more than threshold ABOVE current SG
-// (During fermentation SG drops, so we check when it was last higher than current + threshold)
 function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
   if (!sgData || sgData.length < 2) return false
   
-  // Sort by date descending (newest first)
   const sortedData = [...sgData].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   )
@@ -52,19 +42,14 @@ function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: n
   const currentSg = sortedData[0].value
   let stableFromDate = new Date(sortedData[0].date)
   
-  // Walk backward to find when SG was last more than threshold ABOVE current
   for (let i = 1; i < sortedData.length; i++) {
     const reading = sortedData[i]
-    // Check if reading was more than threshold above current SG
     if (reading.value > currentSg + threshold) {
-      // This reading was too high, so stability started after this point
       break
     }
-    // Reading is within threshold of current (not more than threshold higher), so stable since this point
     stableFromDate = new Date(reading.date)
   }
   
-  // Calculate how long it's been stable
   const now = new Date()
   const stableHours = (now.getTime() - stableFromDate.getTime()) / (1000 * 60 * 60)
   const stableDaysActual = stableHours / 24
@@ -74,21 +59,10 @@ function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: n
   return stableDaysActual >= stableDays
 }
 
-// Find the effective target temp by looking back through previous steps
-function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: number): number | null {
-  for (let i = currentStepIndex; i >= 0; i--) {
-    if (steps[i].target_temp !== null) {
-      return steps[i].target_temp
-    }
-  }
-  return null
-}
-
 // Check if SG condition is met
 function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: string): boolean {
   if (!sgData || sgData.length === 0) return false
   
-  // Get the latest reading
   const sortedData = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   const latestSg = sortedData[0].value
   
@@ -101,147 +75,11 @@ function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: s
   return false
 }
 
-// Calculate pill-compensated target temperature
-// Targets the AVERAGE of pill (surface) and probe (core) to equal the profile goal.
-// Formula: compensatedTarget = profileTarget - avgDelta/2
-// This ensures (pill + ctrl) / 2 ≈ profileTarget
-async function calculateCompensatedTarget(
-  supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-  profileTarget: number,
-  currentControllerTarget: number,
-  controllerName: string,
-  _dampingFactor: number = 0.5,
-  maxChangePerCycle: number = 0.3,
-  emergencyThreshold: number = 3.0,
-  minScaleFactor: number = 0.15,
-  maxCompensation: number = 5.0
-): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
-  // Fetch last 3 delta measurements
-  const { data: deltaHistory } = await supabase
-    .from('temp_delta_history')
-    .select('delta')
-    .eq('controller_id', controllerId)
-    .order('recorded_at', { ascending: false })
-    .limit(3)
-
-  if (!deltaHistory || deltaHistory.length === 0) {
-    return null
-  }
-
-  const deltas = deltaHistory.map(d => parseFloat(String(d.delta)))
-  const avgDelta = deltas.reduce((sum, d) => sum + d, 0) / deltas.length
-
-  // Only compensate when pill is warmer than probe (positive delta)
-  if (avgDelta <= 0) {
-    return null
-  }
-
-  // Target average: compensate by half the delta so (pill+ctrl)/2 = profileTarget
-  const compensation = avgDelta / 2
-  let compensatedTarget = profileTarget - compensation
-
-  // Safety floor: never more than maxCompensation below profile target
-  compensatedTarget = Math.max(profileTarget - maxCompensation, compensatedTarget)
-
-  // Dynamic rate limit: scales down as we approach the target
-  const diff = compensatedTarget - currentControllerTarget
-  const distanceFromIdeal = Math.abs(diff)
-  
-  if (distanceFromIdeal > emergencyThreshold) {
-    // Emergency: large deviation, set directly without rate limiting
-    console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C (>${emergencyThreshold}), sätter direkt utan rate-limit`)
-  } else {
-    const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    const effectiveLimit = maxChangePerCycle * scaleFactor
-    if (distanceFromIdeal > effectiveLimit) {
-      compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveLimit : -effectiveLimit)
-      console.log(`🎯 Rate-limit: ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
-    }
-  }
-
-  // Round to 1 decimal
-  compensatedTarget = Math.round(compensatedTarget * 10) / 10
-
-  // Skip if change is negligible (< 0.1°C)
-  if (Math.abs(compensatedTarget - currentControllerTarget) < 0.1) {
-    console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
-    return null
-  }
-
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, komp=delta/2=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
-
-  return { compensatedTarget, compensation, avgDelta }
-}
-
 // Calculate the target temperature for a linear ramp
 function calculateRampTemp(startTemp: number, endTemp: number, durationHours: number, elapsedHours: number): number {
   if (elapsedHours >= durationHours) return endTemp
-  
   const progress = elapsedHours / durationHours
   return startTemp + (endTemp - startTemp) * progress
-}
-
-// Set target temperature via RAPT API
-async function setControllerTargetTemp(controllerId: string, targetTemp: number): Promise<boolean> {
-  const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET')
-  const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME')
-  
-  if (!RAPT_API_SECRET || !RAPT_USERNAME) {
-    console.error('Missing RAPT credentials')
-    return false
-  }
-
-  try {
-    // Get auth token
-    const formData = new URLSearchParams()
-    formData.append('client_id', 'rapt-user')
-    formData.append('grant_type', 'password')
-    formData.append('username', RAPT_USERNAME)
-    formData.append('password', RAPT_API_SECRET)
-
-    const authResponse = await fetch('https://id.rapt.io/connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
-    })
-
-    if (!authResponse.ok) {
-      console.error('RAPT auth failed:', authResponse.status, await authResponse.text())
-      return false
-    }
-
-    const authData = await authResponse.json()
-    const accessToken = authData.access_token
-
-    // Set target temperature using correct API endpoint
-    const queryParams = new URLSearchParams()
-    queryParams.append('temperatureControllerId', controllerId)
-    queryParams.append('target', targetTemp.toString())
-    
-    const apiUrl = `https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature?${queryParams.toString()}`
-    console.log('Setting temperature via:', apiUrl)
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      console.error('Failed to set temperature:', response.status, await response.text())
-      return false
-    }
-
-    const result = await response.json()
-    console.log('Temperature set successfully, result:', result)
-    return result === true
-  } catch (error) {
-    console.error('Error setting temperature:', error)
-    return false
-  }
 }
 
 Deno.serve(async (req) => {
@@ -255,19 +93,8 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Load pill compensation settings
-    const { data: acSettings } = await supabase
-      .from('auto_cooling_settings')
-      .select('pill_compensation_enabled, pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation')
-      .limit(1)
-      .maybeSingle()
-
-    const pillCompEnabled = (acSettings as any)?.pill_compensation_enabled ?? true
-    const pillCompDamping = parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 0.4))
-    const pillCompRateLimit = parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.8))
-    const pillCompEmergencyThreshold = parseFloat(String((acSettings as any)?.pill_compensation_emergency_threshold ?? 3.0))
-    const pillCompMinScale = parseFloat(String((acSettings as any)?.pill_compensation_min_scale ?? 0.15))
-    const pillCompMaxCompensation = parseFloat(String((acSettings as any)?.pill_compensation_max_compensation ?? 5.0))
+    // Load pill compensation settings via shared helper
+    const pillCompSettings = await loadPillCompSettings(supabase)
 
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
@@ -328,10 +155,8 @@ Deno.serve(async (req) => {
         .single()
 
       // Check if pill-comp already adjusted against this exact data snapshot
-      // RAPT updates ~every 15 min but automation runs every 5 min — without this guard,
-      // pill-comp would rate-limit 0.3°C × 3 cycles = 0.9°C on stale data before seeing effect
       let pillCompSkipSameData = false
-      if (pillCompEnabled && controller?.last_update) {
+      if (pillCompSettings.enabled && controller?.last_update) {
         const { data: lastPillCompAdj } = await supabase
           .from('auto_cooling_adjustments')
           .select('adjusted_against_timestamp')
@@ -365,24 +190,24 @@ Deno.serve(async (req) => {
       let actionTaken = 'checked'
       let actionDetails: any = {}
 
+      // Helper to call shared setControllerTargetTemp
+      const setTemp = (controllerId: string, targetTemp: number) =>
+        setControllerTargetTemp(supabaseUrl, supabaseServiceKey, controllerId, targetTemp)
+
       // For steps without explicit target_temp, enforce the effective target from previous steps
-      // BUT respect recent overshoot adjustments — let overshoot prevention do its job
       if (currentStep.target_temp === null && controller) {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
-          // Calculate pill-compensated target
-          const compensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit, pillCompEmergencyThreshold, pillCompMinScale, pillCompMaxCompensation
+          const compensation = (pillCompSettings.enabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
+            supabase, session.controller_id, effectiveTarget, controller.target_temp, controller.name || session.controller_id, pillCompSettings
           ) : null
 
-          // If pill-comp is enabled but returned null, the target is already correctly compensated — skip enforce
-          if (pillCompEnabled && !compensation) {
+          if (pillCompSettings.enabled && !compensation) {
             console.log(`Step ${session.current_step_index} (${currentStep.step_type}): pill-komp aktiv men redan nära mål (${controller.target_temp}°C), skippar enforce`)
           } else {
           const targetToEnforce = compensation ? compensation.compensatedTarget : effectiveTarget
 
           if (controller.target_temp < targetToEnforce - 0.2) {
-            // Controller target is LOWER than desired — check if overshoot caused it
             const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
             const { data: recentOvershoot } = await supabase
               .from('auto_cooling_adjustments')
@@ -397,7 +222,7 @@ Deno.serve(async (req) => {
               console.log(`Step ${session.current_step_index} (${currentStep.step_type}): Overshoot aktiv (${recentOvershoot[0].reason.substring(0, 50)}), låter den verka istället för att enforce:a ${targetToEnforce}°C`)
             } else {
               console.log(`Step ${session.current_step_index} (${currentStep.step_type}) enforcing target ${targetToEnforce}°C (profile=${effectiveTarget}°C, current=${controller.target_temp}°C${compensation ? `, komp=${compensation.compensation.toFixed(2)}°C` : ''})`)
-              const success = await setControllerTargetTemp(session.controller_id, targetToEnforce)
+              const success = await setTemp(session.controller_id, targetToEnforce)
               if (success) {
                 actionTaken = 'temp_enforced'
                 actionDetails = { effective_target: targetToEnforce, profile_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type, pill_compensation: compensation?.compensation ?? 0 }
@@ -429,9 +254,8 @@ Deno.serve(async (req) => {
               }
             }
           } else if (controller.target_temp > targetToEnforce + 0.2) {
-            // Controller target is HIGHER than desired — always enforce down
             console.log(`Step ${session.current_step_index} (${currentStep.step_type}): target ${controller.target_temp}°C > desired ${targetToEnforce}°C, enforcing down`)
-            const success = await setControllerTargetTemp(session.controller_id, targetToEnforce)
+            const success = await setTemp(session.controller_id, targetToEnforce)
             if (success) {
               actionTaken = 'temp_enforced'
               actionDetails = { effective_target: targetToEnforce, profile_target: effectiveTarget, previous_target: controller.target_temp, step_type: currentStep.step_type, pill_compensation: compensation?.compensation ?? 0 }
@@ -468,34 +292,27 @@ Deno.serve(async (req) => {
 
       switch (currentStep.step_type) {
         case 'hold': {
-          // Hold temperature for duration or until SG target is met
           if (currentStep.target_temp !== null && controller) {
-            // Calculate pill-compensated target for hold steps
-            const holdCompensation = (pillCompEnabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
-              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompDamping, pillCompRateLimit, pillCompEmergencyThreshold, pillCompMinScale, pillCompMaxCompensation
+            const holdCompensation = (pillCompSettings.enabled && !pillCompSkipSameData) ? await calculateCompensatedTarget(
+              supabase, session.controller_id, currentStep.target_temp, controller.target_temp, controller.name || session.controller_id, pillCompSettings
             ) : null
 
-            // If pill-comp is enabled but returned null (already at ideal or same data), don't enforce raw profile target
-            // — that would undo the active compensation every other cycle
-            if (pillCompEnabled && !holdCompensation) {
+            if (pillCompSettings.enabled && !holdCompensation) {
               console.log(`Hold step: pill-komp aktiv men redan nära mål (${controller.target_temp}°C vs profil ${currentStep.target_temp}°C), skippar enforce`)
             } else {
             const holdTarget = holdCompensation ? holdCompensation.compensatedTarget : currentStep.target_temp
 
-            // Check if we need to adjust temperature
             if (Math.abs(controller.target_temp - holdTarget) > 0.1) {
-              const success = await setControllerTargetTemp(session.controller_id, holdTarget)
+              const success = await setTemp(session.controller_id, holdTarget)
               if (success) {
                 actionTaken = 'temp_adjusted'
                 actionDetails = { target_temp: holdTarget, profile_target: currentStep.target_temp, pill_compensation: holdCompensation?.compensation ?? 0 }
                 
-                // Update controller in database
                 await supabase
                   .from('rapt_temp_controllers')
                   .update({ target_temp: holdTarget, updated_at: new Date().toISOString() })
                   .eq('controller_id', session.controller_id)
 
-                // Log pill-compensation adjustment
                 if (holdCompensation) {
                   await supabase
                     .from('auto_cooling_adjustments')
@@ -518,16 +335,13 @@ Deno.serve(async (req) => {
             } // end else (pill-comp not skipping for hold step)
           }
           
-          // Check completion conditions - either duration OR SG target
           let durationComplete = false
           let sgTargetMet = false
           
-          // Check if duration has passed (if set)
           if (currentStep.duration_hours && elapsedHours >= currentStep.duration_hours) {
             durationComplete = true
           }
           
-          // Check if SG target is met (if set)
           if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
             sgTargetMet = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
             if (sgTargetMet) {
@@ -543,8 +357,6 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Verify temp is at target before allowing completion (within 0.3°C)
-          // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
           const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
           const holdCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
           const holdTempOk = !holdEffectiveTarget || !controller || 
@@ -554,7 +366,6 @@ Deno.serve(async (req) => {
             console.log(`Hold step: condition met but temp not at target (current ${controller?.current_temp}°C, target ${holdEffectiveTarget}°C) - waiting`)
           }
           
-          // Complete if EITHER condition is met AND temp is at target
           if (currentStep.duration_hours && currentStep.target_sg !== null) {
             stepCompleted = (durationComplete || sgTargetMet) && holdTempOk
           } else if (currentStep.duration_hours) {
@@ -574,9 +385,8 @@ Deno.serve(async (req) => {
           if (currentStep.target_temp === null) break
 
           if (currentStep.ramp_type === 'immediate') {
-            // Set temperature immediately
             if (controller && Math.abs(controller.target_temp - currentStep.target_temp) > 0.1) {
-              const success = await setControllerTargetTemp(session.controller_id, currentStep.target_temp)
+              const success = await setTemp(session.controller_id, currentStep.target_temp)
               if (success) {
                 actionTaken = 'temp_adjusted'
                 actionDetails = { target_temp: currentStep.target_temp }
@@ -587,8 +397,6 @@ Deno.serve(async (req) => {
                   .eq('controller_id', session.controller_id)
               }
             }
-            // Don't mark complete until temperature is actually reached
-            // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
             const immRampCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
             if (controller && immRampCheckTemp !== null &&
                 Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
@@ -598,11 +406,9 @@ Deno.serve(async (req) => {
               console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
             }
           } else {
-            // Linear ramp - use saved start temp or save it now
             if (controller && currentStep.duration_hours) {
               let startTemp: number = session.step_start_temp ?? controller.target_temp ?? currentStep.target_temp
               
-              // If no start temp saved yet, save the current controller target temp
               if (session.step_start_temp === null) {
                 await supabase
                   .from('fermentation_sessions')
@@ -616,7 +422,7 @@ Deno.serve(async (req) => {
               console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, newTarget: ${newTarget.toFixed(1)}°C, current: ${controller.target_temp}°C`)
               
               if (Math.abs(controller.target_temp - newTarget) > 0.1) {
-                const success = await setControllerTargetTemp(session.controller_id, Math.round(newTarget * 10) / 10)
+                const success = await setTemp(session.controller_id, Math.round(newTarget * 10) / 10)
                 if (success) {
                   actionTaken = 'temp_adjusted'
                   actionDetails = { start_temp: startTemp, target_temp: newTarget, final_temp: currentStep.target_temp, progress: elapsedHours / currentStep.duration_hours }
@@ -628,8 +434,6 @@ Deno.serve(async (req) => {
                 }
               }
               
-              // Check if BOTH time has passed AND target temperature is reached (within 0.3°C)
-              // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
               const timeComplete = elapsedHours >= currentStep.duration_hours
               const rampCheckTemp = controller.pill_temp ?? controller.current_temp
               const tempReached = rampCheckTemp !== null && 
@@ -655,11 +459,9 @@ Deno.serve(async (req) => {
 
         case 'wait_for_temp': {
           if (currentStep.target_temp !== null && controller) {
-            // Ensure the controller target is actually set to this step's target
-            // (in case no preceding ramp/hold set it)
             if (Math.abs((controller.target_temp ?? 0) - currentStep.target_temp) > 0.1) {
               console.log(`wait_for_temp: setting target to ${currentStep.target_temp}°C (was ${controller.target_temp}°C)`)
-              const success = await setControllerTargetTemp(session.controller_id, currentStep.target_temp)
+              const success = await setTemp(session.controller_id, currentStep.target_temp)
               if (success) {
                 actionTaken = 'temp_adjusted'
                 actionDetails = { target_temp: currentStep.target_temp, step_type: 'wait_for_temp' }
@@ -670,7 +472,6 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Use pill_temp (beer temp) if available, since pill-comp deliberately lowers probe temp
             const waitCheckTemp = controller.pill_temp ?? controller.current_temp ?? null
             if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
@@ -715,8 +516,6 @@ Deno.serve(async (req) => {
         }
 
         case 'wait_for_acknowledgement': {
-          // This step never auto-completes - it requires manual acknowledgement from the user
-          // The edge function just skips it; the UI handles the acknowledge action
           actionTaken = 'checked'
           break
         }
@@ -737,7 +536,6 @@ Deno.serve(async (req) => {
         const nextStepIndex = session.current_step_index + 1
         
         if (nextStepIndex >= steps.length) {
-          // Profile completed
           await supabase
             .from('fermentation_sessions')
             .update({ status: 'completed', completed_at: new Date().toISOString() })
@@ -752,13 +550,12 @@ Deno.serve(async (req) => {
 
           results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
         } else {
-          // Move to next step - reset step_start_temp for new step
           await supabase
             .from('fermentation_sessions')
             .update({ 
               current_step_index: nextStepIndex, 
               step_started_at: new Date().toISOString(),
-              step_start_temp: null  // Reset for new step
+              step_start_temp: null
             })
             .eq('id', session.id)
 
@@ -766,24 +563,33 @@ Deno.serve(async (req) => {
             session_id: session.id,
             step_index: nextStepIndex,
             action: 'started',
-            details: { step_type: steps[nextStepIndex].step_type },
+            details: { 
+              previous_step: currentStep.step_type,
+              new_step: steps[nextStepIndex]?.step_type || 'unknown',
+            },
           })
 
-          results.push({ sessionId: session.id, action: 'step_advanced', details: { newStepIndex: nextStepIndex } })
+          results.push({ 
+            sessionId: session.id, 
+            action: 'step_advanced', 
+            details: { 
+              from: session.current_step_index, 
+              to: nextStepIndex,
+              new_step_type: steps[nextStepIndex]?.step_type || 'unknown',
+            } 
+          })
         }
       } else {
         results.push({ sessionId: session.id, action: actionTaken, details: actionDetails })
       }
     }
 
-    return new Response(JSON.stringify({ success: true, results }), {
+    return new Response(JSON.stringify({ results }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-
   } catch (error) {
     console.error('Error processing fermentation profiles:', error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

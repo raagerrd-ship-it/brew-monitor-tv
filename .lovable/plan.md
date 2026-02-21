@@ -1,54 +1,34 @@
 
 # Temperaturlogik -- Forenkling och Optimering
 
-## Sammanfattning
+## Status
 
-Temperaturlogiken ar funktionell men uppdelad over tva stora edge functions (totalt ~2270 rader) med betydande duplicering. Denna plan forenklar, batchar och gor logiken mer robust.
+### ✅ Steg 1: Delad modul (KLART)
+Skapade `supabase/functions/_shared/temp-utils.ts` med:
+- `calculateCompensatedTarget()` - pill-kompensationslogik
+- `getEffectiveTargetTemp()` - target-uppslag genom steg
+- `round1()` - avrundningshjälpare
+- `setControllerTargetTemp()` - enhetlig RAPT API-wrapper via edge function
+- `loadPillCompSettings()` - ladda pill-komp-inställningar
+- Gemensamma interfaces: ProfileStep, TempController, PillCompensationSettings
 
-## Problem som atsardas
+### ✅ Steg 2: Uppdatera process-fermentation-profiles (KLART)
+- Importerar från delad modul
+- Byter direkta RAPT API-anrop mot `setControllerTargetTemp()` (via rapt-update-controller)
+- Timeout 10s på alla RAPT-anrop via AbortSignal
+- ~200 rader mindre kod (från 791 till ~590)
 
-### 1. Duplicerad logik
-Samma funktioner (pill-kompensation, target-uppslag, RAPT API-anrop) finns i bade `process-fermentation-profiles` och `auto-adjust-cooling`. Risk for divergens vid bugfixar.
+### ✅ Steg 3: Uppdatera auto-adjust-cooling (KLART)
+- Importerar `round1` och `TempController` från delad modul
+- Batchat `lastAdjTimestampMap` - EN fråga istället för N sekventiella
+- Batchat `originalTargetMap` - EN fråga istället för N sekventiella
+- ~10-15 färre DB-anrop per cykel med 3 controllers
 
-### 2. For manga databasanrop
-`auto-adjust-cooling` gor 20-30+ sekventiella databasanrop per cykel med 3 controllers. Kan batchas till en handfull.
+### 🔲 Steg 4: Flytta TempStat DB-fråga (KVAR)
+- Flytta `auto_cooling_adjustments`-frågan från `TempStat.tsx` till `use-brew-data.ts`
+- Skicka ner som prop istället för att hämta per-komponent
+- Eliminerar N+1 frontend-problem
 
-### 3. Inkonsekvent RAPT API-anvandning
-En funktion pratar direkt med RAPT, den andra gar via `rapt-update-controller`. Bor vara enhetligt.
-
-### 4. Frontend N+1-problem
-`TempStat.tsx` gor separata databasanrop per brew-kort. Bor centraliseras.
-
-### 5. Saknad robusthet
-Inga timeouts pa RAPT-anrop, DB-fel ignoreras tyst.
-
-## Implementationssteg
-
-### Steg 1: Skapa delad modul
-Ny fil: `supabase/functions/_shared/temp-utils.ts`
-- Flytta `calculateCompensatedTarget()`, `getEffectiveTargetTemp()`, `round1()`
-- Gemensamma interfaces
-
-### Steg 2: Uppdatera process-fermentation-profiles
-- Importera fran delad modul
-- Byt direkta RAPT-anrop mot `rapt-update-controller`
-- Lagg till `AbortSignal.timeout(10000)`
-
-### Steg 3: Uppdatera auto-adjust-cooling
-- Importera fran delad modul
-- Batcha DB-fragor med `.in()` (lastAdjTimestampMap, originalTargetMap, linked brews)
-- Ta bort duplicerade definitioner
-
-### Steg 4: Flytta TempStat DB-fraga
-- Flytta `auto_cooling_adjustments`-fragan fran `TempStat.tsx` till `use-brew-data.ts`
-- Skicka ner som prop
-
-### Steg 5: Testa
+### 🔲 Steg 5: Testa
 - Trigga run-automation och verifiera beslutsloggen
 - Kontrollera att TempStat visar korrekt info
-
-## Prioritering
-
-- **Hog**: Delad modul + batchade DB-fragor
-- **Medel**: Enhetlig RAPT-wrapper + frontend-optimering
-- **Lag**: Timeout och felhantering

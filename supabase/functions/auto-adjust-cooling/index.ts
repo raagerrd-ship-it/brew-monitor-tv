@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
+import { round1, TempController } from '../_shared/temp-utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,20 +24,6 @@ interface AutoCoolingSettings {
   overshoot_prevention_enabled: boolean;
   overshoot_pill_threshold: number;
   overshoot_delta_threshold: number;
-}
-
-interface TempController {
-  controller_id: string;
-  name: string;
-  current_temp: number | null;
-  pill_temp: number | null;
-  target_temp: number | null;
-  cooling_enabled: boolean | null;
-  heating_enabled: boolean | null;
-  cooling_hysteresis: number | null;
-  min_target_temp: number | null;
-  max_target_temp: number | null;
-  last_update: string | null;
 }
 
 interface FollowedController {
@@ -207,24 +194,26 @@ serve(async (req) => {
     // to avoid using stale historical targets for profile-owned controllers.
     const originalTargetMap = new Map<string, number>();
 
-    // Log each followed controller's status
-    const round1 = (v: number | null | undefined): number | null => {
-      if (v === null || v === undefined) return null;
-      return parseFloat(parseFloat(String(v)).toFixed(1));
-    };
+    // Log each followed controller's status — round1 imported from shared module
 
-    // Build map of last adjusted_against_timestamp per controller
+    // Build map of last adjusted_against_timestamp per controller — BATCHED single query
     const lastAdjTimestampMap = new Map<string, string>();
-    for (const fc of followedControllersFullData) {
-      const { data: lastAdj } = await supabase
+    {
+      const allIds = followedControllersFullData.map(c => c.controller_id);
+      const { data: allLastAdj } = await supabase
         .from('auto_cooling_adjustments')
-        .select('adjusted_against_timestamp')
-        .eq('cooler_controller_id', fc.controller_id)
+        .select('cooler_controller_id, adjusted_against_timestamp, created_at')
+        .in('cooler_controller_id', allIds)
         .not('adjusted_against_timestamp', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (lastAdj?.[0]?.adjusted_against_timestamp) {
-        lastAdjTimestampMap.set(fc.controller_id, lastAdj[0].adjusted_against_timestamp);
+        .order('created_at', { ascending: false });
+      
+      // Keep only the most recent per controller
+      if (allLastAdj) {
+        for (const adj of allLastAdj) {
+          if (!lastAdjTimestampMap.has(adj.cooler_controller_id)) {
+            lastAdjTimestampMap.set(adj.cooler_controller_id, adj.adjusted_against_timestamp);
+          }
+        }
       }
     }
 
@@ -312,20 +301,28 @@ serve(async (req) => {
     }
 
     // NOW populate originalTargetMap — after profileOwnedControllerIds is filled
-    // Skip profile-owned controllers: their target is managed by the profile
-    for (const controller of followedControllersFullData) {
-      if (profileOwnedControllerIds.has(controller.controller_id)) {
-        continue; // included in PROFILE_STATUS above
-      }
-      const { data: prevAdj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('old_target_temp, original_target_temp')
-        .eq('cooler_controller_id', controller.controller_id)
-        .like('reason', '🌡️%')
-        .order('created_at', { ascending: true })
-        .limit(1);
-      if (prevAdj && prevAdj.length > 0) {
-        originalTargetMap.set(controller.controller_id, prevAdj[0].original_target_temp ?? prevAdj[0].old_target_temp);
+    // BATCHED: single query for all non-profile-owned controllers
+    {
+      const nonProfileIds = followedControllersFullData
+        .filter(c => !profileOwnedControllerIds.has(c.controller_id))
+        .map(c => c.controller_id);
+      
+      if (nonProfileIds.length > 0) {
+        const { data: allPrevAdj } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('cooler_controller_id, old_target_temp, original_target_temp, created_at')
+          .in('cooler_controller_id', nonProfileIds)
+          .like('reason', '🌡️%')
+          .order('created_at', { ascending: true });
+        
+        if (allPrevAdj) {
+          // Keep the FIRST (oldest) per controller to find the original target
+          for (const adj of allPrevAdj) {
+            if (!originalTargetMap.has(adj.cooler_controller_id)) {
+              originalTargetMap.set(adj.cooler_controller_id, adj.original_target_temp ?? adj.old_target_temp);
+            }
+          }
+        }
       }
     }
 
