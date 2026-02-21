@@ -298,7 +298,7 @@ export function BrewingDashboard() {
             if (!cancelled) setContentPainted(true);
           });
         });
-      }, 600);
+      }, 1000);
       return () => { cancelled = true; clearTimeout(timer); };
     }
   }, [loading]);
