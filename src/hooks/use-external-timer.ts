@@ -183,15 +183,51 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
 
       const nextConfig = parseNextConfig((data as Record<string, unknown>).next_config);
 
-      timerDataRef.current = {
-        startedAt: new Date().toISOString(),
-        remainingAtStart: adjustedRemaining,
-        totalSeconds: data.total_seconds,
-        isPaused: data.is_paused,
-        milestones,
-        nextMilestone,
-        timeToNextMilestoneAtStart: adjustedTimeToNext,
-      };
+      // Drift-aware update: only reset the countdown base if there's significant drift (>3s)
+      // or if the pause/active state changed. This prevents the 1-2 second flicker
+      // caused by network latency on each sync.
+      const prev = timerDataRef.current;
+      const stateChanged = !prev || 
+        prev.isPaused !== data.is_paused || 
+        prev.totalSeconds !== data.total_seconds;
+      
+      if (stateChanged) {
+        // State changed — full reset
+        timerDataRef.current = {
+          startedAt: new Date().toISOString(),
+          remainingAtStart: adjustedRemaining,
+          totalSeconds: data.total_seconds,
+          isPaused: data.is_paused,
+          milestones,
+          nextMilestone,
+          timeToNextMilestoneAtStart: adjustedTimeToNext,
+        };
+      } else {
+        // Same state — check drift before resetting
+        const localRemaining = calculateRemainingSeconds();
+        const drift = Math.abs(localRemaining - adjustedRemaining);
+        
+        if (drift > 3) {
+          // Significant drift, correct it
+          timerDataRef.current = {
+            startedAt: new Date().toISOString(),
+            remainingAtStart: adjustedRemaining,
+            totalSeconds: data.total_seconds,
+            isPaused: data.is_paused,
+            milestones,
+            nextMilestone,
+            timeToNextMilestoneAtStart: adjustedTimeToNext,
+          };
+        } else {
+          // Small drift — only update milestones/metadata, keep countdown base stable
+          timerDataRef.current = {
+            ...prev,
+            milestones,
+            nextMilestone,
+            timeToNextMilestoneAtStart: adjustedTimeToNext,
+          };
+        }
+      }
 
       if (!data.is_active) {
         isActiveRef.current = false;
@@ -202,14 +238,15 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
       isActiveRef.current = true;
 
       const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
+      const currentRemaining = calculateRemainingSeconds();
       const localProgress = data.total_seconds > 0 
-        ? ((data.total_seconds - adjustedRemaining) / data.total_seconds) * 100 
+        ? ((data.total_seconds - currentRemaining) / data.total_seconds) * 100 
         : apiProgress;
 
       setTimerState({
-        isActive: data.is_active && adjustedRemaining > 0,
+        isActive: data.is_active && currentRemaining > 0,
         label: data.label || '',
-        remainingSeconds: adjustedRemaining,
+        remainingSeconds: currentRemaining,
         totalSeconds: data.total_seconds,
         isPaused: data.is_paused,
         pausedByMilestone: data.paused_by_milestone,
@@ -226,7 +263,7 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     } catch (error) {
       console.error('Error fetching cached timer:', error);
     }
-  }, [parseMilestone, parseNextConfig]);
+  }, [parseMilestone, parseNextConfig, calculateRemainingSeconds]);
 
   const triggerSync = useCallback(async () => {
     try {
