@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
       progress: timerData?.progress || 0,
       next_config: timerData?.nextConfig || null,
       wizard_step: wizardData?.step || null,
-      wizard_started_at: wizardData?.startedAt || null,
+      wizard_started_at: wizardData?.startedAt ? (typeof wizardData.startedAt === 'number' ? new Date(wizardData.startedAt).toISOString() : wizardData.startedAt) : null,
       recipe_name: responseData?.recipeName || null,
       beer_style: responseData?.beerStyle || null,
       last_synced_at: new Date().toISOString(),
