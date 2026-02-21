@@ -175,13 +175,16 @@ export function useBrewChartData({
 
           const stepTarget = step.target_temp ?? lastTarget;
 
-          if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
-            // Ramp: generate intermediate points (every 30 min)
+        if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
+            // Ramp: generate intermediate points (every 30 min), capped at current time
             const durationMs = step.duration_hours * 3600 * 1000;
+            const now = Date.now();
+            const endTime = Math.min(startTime + durationMs, now);
             const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
             for (let i = 0; i <= numPoints; i++) {
               const t = i / numPoints;
               const ts = startTime + t * durationMs;
+              if (ts > now) break; // Don't project ramp into the future
               const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
               timeline.push({ timestamp: ts, target });
             }
@@ -250,26 +253,6 @@ export function useBrewChartData({
 
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       });
-
-      const lastTimestamp = mappedData.length > 0 
-        ? mappedData[mappedData.length - 1].timestamp 
-        : 0;
-      
-      const futureTargets = profileTargets.filter(pt => pt.timestamp > lastTimestamp);
-      if (futureTargets.length > 0) {
-        for (const ft of futureTargets) {
-          mappedData.push({
-            date: new Date(ft.timestamp).toISOString(),
-            value: undefined as unknown as number,
-            temp: undefined as unknown as number,
-            timestamp: ft.timestamp,
-            targetTemp: ft.target,
-            controllerTemp: null,
-            pillTemp: undefined,
-            tempSpan: null,
-          });
-        }
-      }
 
       return mappedData;
     }
