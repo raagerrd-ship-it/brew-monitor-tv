@@ -246,6 +246,8 @@ serve(async (req) => {
     const profileTargetMap = new Map<string, number>();
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
+    // Collect profile status per controller for consolidated logging
+    const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean }>();
     // Always fetch profile data (needed for correct original_target in all modes)
     {
       const { data: runningSessions } = await supabase
@@ -255,36 +257,8 @@ serve(async (req) => {
         .in('controller_id', followedControllerIds);
 
       if (runningSessions && runningSessions.length > 0) {
-        // ALL controllers with running sessions are profile-owned
-        for (const session of runningSessions) {
-          profileOwnedControllerIds.add(session.controller_id);
-          
-          // Fetch the profile's effective target temp for this controller
-          const { data: profileSteps } = await supabase
-            .from('fermentation_profile_steps')
-            .select('target_temp, step_order')
-            .eq('profile_id', session.profile_id)
-            .order('step_order', { ascending: true });
-          
-          if (profileSteps && profileSteps.length > 0) {
-            // Walk backward from current step to find effective target
-            let effectiveTarget: number | null = null;
-            for (let i = Math.min(session.current_step_index, profileSteps.length - 1); i >= 0; i--) {
-              if (profileSteps[i].target_temp !== null) {
-                effectiveTarget = parseFloat(String(profileSteps[i].target_temp));
-                break;
-              }
-            }
-            if (effectiveTarget !== null) {
-              profileTargetMap.set(session.controller_id, effectiveTarget);
-              log('PROFILE_TARGET', 'info', `Controller ${session.controller_id}: profil-mål=${effectiveTarget}°C (steg ${session.current_step_index})`);
-            }
-          }
-          
-          log('PROFILE_OWNED', 'info', `Controller ${session.controller_id} har aktiv fermenteringsprofil — stall skippad, overshoot tillåts`);
-        }
-
-        // Cooloff check only needed for tank adjustments
+        // Pre-check cooloff for all sessions if needed
+        const cooloffSet = new Set<string>();
         if (runTankAdjustments) {
           const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           for (const session of runningSessions) {
@@ -295,23 +269,62 @@ serve(async (req) => {
               .eq('action', 'temp_adjusted')
               .gte('created_at', thirtyMinAgo)
               .limit(1);
-
             if (recentAdj && recentAdj.length > 0) {
+              cooloffSet.add(session.controller_id);
               cooloffControllerIds.add(session.controller_id);
-              log('COOLOFF', 'info', `Controller ${session.controller_id} i 30-min cooloff efter fermenteringsprofilsjustering`);
             }
           }
+        }
+
+        // ALL controllers with running sessions are profile-owned
+        for (const session of runningSessions) {
+          profileOwnedControllerIds.add(session.controller_id);
+          
+          // Fetch the profile's effective target temp for this controller
+          let effectiveTarget: number | null = null;
+          const { data: profileSteps } = await supabase
+            .from('fermentation_profile_steps')
+            .select('target_temp, step_order')
+            .eq('profile_id', session.profile_id)
+            .order('step_order', { ascending: true });
+          
+          if (profileSteps && profileSteps.length > 0) {
+            for (let i = Math.min(session.current_step_index, profileSteps.length - 1); i >= 0; i--) {
+              if (profileSteps[i].target_temp !== null) {
+                effectiveTarget = parseFloat(String(profileSteps[i].target_temp));
+                break;
+              }
+            }
+            if (effectiveTarget !== null) {
+              profileTargetMap.set(session.controller_id, effectiveTarget);
+            }
+          }
+
+          profileStatusMap.set(session.controller_id, {
+            profileTarget: effectiveTarget,
+            stepIndex: session.current_step_index,
+            hasCooloff: cooloffSet.has(session.controller_id),
+          });
+        }
+
+        // Log one consolidated PROFILE_STATUS line per profile-owned controller
+        for (const [cId, info] of profileStatusMap) {
+          const controllerName = followedControllersFullData.find(c => c.controller_id === cId)?.name ?? cId;
+          const parts: string[] = [];
+          if (info.profileTarget !== null) parts.push(`profil-mål=${info.profileTarget}°C`);
+          parts.push(`steg ${info.stepIndex}`);
+          if (info.hasCooloff) parts.push('cooloff=ja');
+          parts.push('ställ=skippad', 'overshoot=tillåts');
+          log('PROFILE_STATUS', 'info', `${controllerName}: ${parts.join(', ')}`);
         }
       }
     }
 
     // NOW populate originalTargetMap — after profileOwnedControllerIds is filled
-    // Skip profile-owned controllers: their target is managed by the profile,
-    // and stale historical records could contain dangerously wrong values (e.g. 22°C vs 14°C)
+    // Skip profile-owned controllers: their target is managed by the profile
     for (const controller of followedControllersFullData) {
       if (profileOwnedControllerIds.has(controller.controller_id)) {
-        log('ORIGINAL_TARGET', 'info', `Skipping originalTargetMap for profile-owned controller: ${controller.name}`);
-        continue;
+        continue; // included in PROFILE_STATUS above
       }
       const { data: prevAdj } = await supabase
         .from('auto_cooling_adjustments')
