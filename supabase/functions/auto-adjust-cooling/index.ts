@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { round1, TempController, setControllerTargetTemp } from '../_shared/temp-utils.ts';
+import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget } from '../_shared/temp-utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -761,6 +761,134 @@ serve(async (req) => {
       }
     } else {
       log('OVERSHOOT', 'info', 'Overshoot prevention disabled');
+    }
+
+    // ====================================================================
+    // FEATURE 2.5: STANDALONE PILL COMPENSATION (for non-profile controllers)
+    // Adjusts target temp to account for pill-probe delta so the average
+    // of surface (pill) and core (probe) equals the intended target.
+    // ====================================================================
+    const pillCompSettings = await loadPillCompSettings(supabase);
+    if (pillCompSettings.enabled && runTankAdjustments) {
+      log('PILL_COMP', 'info', '--- Standalone pill compensation check ---');
+
+      // Build map of original targets for pill-comp (from 🎯 adjustments)
+      const pillCompOriginalTargetMap = new Map<string, number>();
+      {
+        const nonProfileIds = followedControllersFullData
+          .filter(c => !profileOwnedControllerIds.has(c.controller_id))
+          .map(c => c.controller_id);
+
+        if (nonProfileIds.length > 0) {
+          const { data: pillCompAdj } = await supabase
+            .from('auto_cooling_adjustments')
+            .select('cooler_controller_id, original_target_temp, created_at')
+            .in('cooler_controller_id', nonProfileIds)
+            .like('reason', '🎯%')
+            .order('created_at', { ascending: true });
+
+          if (pillCompAdj) {
+            for (const adj of pillCompAdj) {
+              if (!pillCompOriginalTargetMap.has(adj.cooler_controller_id) && adj.original_target_temp != null) {
+                pillCompOriginalTargetMap.set(adj.cooler_controller_id, parseFloat(String(adj.original_target_temp)));
+              }
+            }
+          }
+        }
+      }
+
+      for (const fc of followedControllersFullData) {
+        // Skip profile-owned controllers — handled by process-fermentation-profiles
+        if (profileOwnedControllerIds.has(fc.controller_id)) {
+          continue;
+        }
+
+        // Skip if stall just acted
+        if (stallActiveControllerIds.has(fc.controller_id)) {
+          log('PILL_COMP_SKIP', 'info', `${fc.name}: Stall detection acted this run, skipping pill-comp`);
+          continue;
+        }
+
+        // Skip cooloff controllers
+        if (cooloffControllerIds.has(fc.controller_id)) {
+          log('PILL_COMP_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping pill-comp`);
+          continue;
+        }
+
+        // Must have heating OR cooling active
+        if (!fc.heating_enabled && !fc.cooling_enabled) {
+          continue;
+        }
+
+        // Must have pill data
+        if (fc.pill_temp === null || fc.pill_temp === undefined) {
+          continue;
+        }
+
+        // Same-data guard
+        const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
+        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
+          log('PILL_COMP_SKIP', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`);
+          continue;
+        }
+
+        const targetTemp = parseFloat(String(fc.target_temp ?? '20'));
+
+        // Determine the "base target" — the intended goal before any pill-comp
+        // Use saved original_target from previous pill-comp adjustments, or current target
+        const baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
+
+        const compensation = await calculateCompensatedTarget(
+          supabase, fc.controller_id, baseTarget, targetTemp,
+          fc.name || fc.controller_id, pillCompSettings
+        );
+
+        if (!compensation) {
+          continue;
+        }
+
+        // Safety bounds
+        const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
+        const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
+        let newTarget = Math.max(minTemp, Math.min(maxTemp, compensation.compensatedTarget));
+
+        if (Math.abs(newTarget - targetTemp) < 0.1) {
+          continue;
+        }
+
+        log('PILL_COMP_ACTION', 'action', `${fc.name}: pill-komp ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`);
+
+        const success = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
+
+        if (success) {
+          log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${newTarget}°C`);
+          allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
+
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id);
+
+          await supabase.from('auto_cooling_adjustments').insert({
+            cooler_controller_id: fc.controller_id,
+            cooler_controller_name: fc.name,
+            old_target_temp: targetTemp,
+            new_target_temp: newTarget,
+            original_target_temp: baseTarget,
+            lowest_followed_temp: baseTarget,
+            followed_controller_id: fc.controller_id,
+            followed_controller_name: fc.name,
+            followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
+            followed_target_temp: baseTarget,
+            followed_hysteresis: compensation.avgDelta,
+            reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`,
+            adjusted_against_timestamp: fc.last_update,
+          } as any);
+        } else {
+          log('PILL_COMP_ACTION', 'fail', `Failed to update ${fc.name}`);
+        }
+      }
+    } else if (!pillCompSettings.enabled) {
+      log('PILL_COMP', 'info', 'Pill compensation disabled');
     }
 
     // ====================================================================
