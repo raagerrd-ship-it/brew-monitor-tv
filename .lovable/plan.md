@@ -1,61 +1,62 @@
 
 
-# Riktningsmedveten temperaturramping
+# Fix: Pill-kompensation under ramp - konflikter och logikfel
 
-## Problem
+## Identifierade problem
 
-Nuvarande ramp-logik anvander alltid `pill_temp ?? current_temp` for att avgora om malet ar natt. Detta kan leda till overshoot:
+### 1. Ramp och pill-komp skriver over varandras target
+Under linjar ramp satter koden forst ett mellanmal (rad 449-460), sedan skriver pill-komp over det (rad 470-477). Nasta cykel skriver rampen over pill-komp igen. Resultat: oscillation.
 
-- **Ramp upp**: Proben varmer sig snabbare an olet (pill). Om vi gar efter proben nar proben malet innan olet hunnit dit, och varmen fortsatter att "sippra" in i olet.
-- **Ramp ner**: Proben kyls snabbare an olet. Om vi gar efter pill sa har proben redan kylts langt under malet innan pill-sensorn reagerar.
+### 2. Fel referenstemperatur for pill-komp under ramp
+`applyPillCompensation(currentStep.target_temp)` anvander slutmalet som referens. Under en pagaende ramp borde referensen vara det aktuella mellanmalet, inte sluttemperaturen.
+
+### 3. tempReached vid ramp ner ar verkningslos
+Vid ramp ner checkas probe-temp mot slutmalet. Men rampen har inte satt slutmalet pa controllern annu - sa proben kan inte na dit. Pill-komp triggar aldrig.
 
 ## Losning
 
-Andra ramp-logiken i `process-fermentation-profiles/index.ts` sa att riktningen bestammer vilken sensor som anvands:
+Andra logiken i linjar ramp (rad 434-492) till:
 
-### Regler
+1. **Om tempReached ar sant: SLUTA rampa, anvand bara pill-komp**
+   - Skippa mellanmals-berakningen
+   - Applicera pill-komp med slutmalet som referens (korrekt, for nu AR vi vid slutmalet)
 
-| Riktning | Sensor under ramp | Sensor for "natt malet" | Darefter |
-|----------|-------------------|------------------------|----------|
-| Upp (target > start) | pill_temp | pill_temp inom 0.3C av malet | Pill-kompensation |
-| Ner (target < start) | current_temp (probe) | current_temp inom 0.3C av malet | Pill-kompensation |
+2. **Om tempReached ar falskt och rampen pagar: applicera pill-komp mot mellanmalet**
+   - Under ramp upp: anvand pill-komp relativt det beraknade mellanmalet (inte slutmalet)
+   - Under ramp ner: samma princip
 
-### Paverkar tva stallen i ramp-logiken
+3. **Omedelbar ramp: behovs ingen andring** - dar satter vi slutmalet direkt, sa pill-komp mot slutmalet ar korrekt
 
-**1. Linjar ramp (rad ~452-469)**
+### Ny logik for linjar ramp (pseudokod)
 
-Nuvarande kod:
-```typescript
-const rampCheckTemp = controller.pill_temp ?? controller.current_temp
-const tempReached = rampCheckTemp !== null && 
-  Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
-```
+```text
+startTemp = session.step_start_temp
+newTarget = calculateRampTemp(start, end, duration, elapsed)
 
-Ny kod:
-```typescript
-const rampingUp = currentStep.target_temp > startTemp
-const rampCheckTemp = rampingUp
-  ? (controller.pill_temp ?? controller.current_temp)   // Upp: pill
-  : (controller.current_temp ?? controller.pill_temp)   // Ner: probe
-const tempReached = rampCheckTemp !== null && 
-  Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
-```
-
-**2. Omedelbar ramp / immediate (rad ~415-422)**
-
-Samma princip - bestam riktning fran `session.step_start_temp` (eller controller.target_temp fore andring) vs `currentStep.target_temp`:
-
-```typescript
-const immStartTemp = session.step_start_temp ?? controller.target_temp ?? currentStep.target_temp
-const immRampingUp = currentStep.target_temp > immStartTemp
-const immRampCheckTemp = immRampingUp
-  ? (controller.pill_temp ?? controller.current_temp)
-  : (controller.current_temp ?? controller.pill_temp)
+if (tempReached):
+    // Temperaturen har natt slutmalet - sluta rampa
+    // Satt controllern till slutmalet om den inte redan ar dar
+    // Applicera pill-komp mot slutmalet
+    applyPillCompensation(currentStep.target_temp)
+    
+    if (timeComplete):
+        stepCompleted = true
+else:
+    // Fortfarande rampar - satt mellanmal
+    setTemp(newTarget)
+    
+    // Applicera pill-komp mot mellanmalet (inte slutmalet)
+    if (pillCompEnabled):
+        applyPillCompensation(newTarget)  // <-- mellanmal, inte slutmal
 ```
 
 ### Fil som andras
 
-- `supabase/functions/process-fermentation-profiles/index.ts` - tva stallen i `case 'ramp'`-blocket
+- `supabase/functions/process-fermentation-profiles/index.ts` - omstrukturera rad 434-492 (linjar ramp-blocket)
 
-Ingen databasandring behovs. Pill-kompensation tar over automatiskt i nasta steg (hold) efter att rampen ar klar.
+### Vad som INTE andras
+
+- Omedelbar ramp (rad 402-432) - fungerar korrekt, dar satter vi slutmalet direkt
+- Riktningsmedveten sensorval (pill/probe) - behalles som det ar
+- Hold-steg, wait-steg etc - oforandrade
 
