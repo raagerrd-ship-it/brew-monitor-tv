@@ -273,7 +273,6 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
     { label: 'ABV', value: brew.abv ? `${brew.abv.toFixed(1)}%` : '—' },
     { label: 'OG → FG', value: `${brew.originalGravity?.toFixed(3) || '—'} → ${brew.finalGravity?.toFixed(3) || '—'}` },
     { label: 'Tappat', value: new Date().toLocaleDateString('sv-SE') },
-    { label: 'Batch', value: brew.batchNumber || '—' },
   ];
   
   for (const row of rows) {
