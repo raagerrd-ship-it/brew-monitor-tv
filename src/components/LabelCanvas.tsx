@@ -5,11 +5,11 @@
 import { BrewData } from "@/types/brew";
 import QRCode from 'qrcode';
 
-const LABEL_WIDTH = 560;
-const LABEL_HEIGHT = 780;
-const PADDING = 32;
-const LABEL_IMG_SIZE = 100;
-const QR_SIZE = 160;
+const LABEL_WIDTH = 399;
+const LABEL_HEIGHT = 559;
+const PADDING = 24;
+const LABEL_IMG_SIZE = 120;
+const QR_SIZE = 150;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
 
 /** Get the share URL for a brew */
