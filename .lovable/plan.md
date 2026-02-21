@@ -24,10 +24,11 @@ Skapade `supabase/functions/_shared/temp-utils.ts` med:
 - Batchat `originalTargetMap` - EN fråga istället för N sekventiella
 - ~10-15 färre DB-anrop per cykel med 3 controllers
 
-### 🔲 Steg 4: Flytta TempStat DB-fråga (KVAR)
-- Flytta `auto_cooling_adjustments`-frågan från `TempStat.tsx` till `use-brew-data.ts`
-- Skicka ner som prop istället för att hämta per-komponent
-- Eliminerar N+1 frontend-problem
+### ✅ Steg 4: Flytta TempStat DB-fråga (KLART)
+- Flyttade `auto_cooling_adjustments`-frågan från `TempStat.tsx` till `use-brew-data.ts`
+- Batch-hämtar overshoot-data för alla controllers i en enda fråga
+- Data skickas via `BrewData.overshootReason` och `BrewData.originalTarget`
+- Eliminerar N+1 frontend-problem (N separata DB-anrop → 1)
 
 ### 🔲 Steg 5: Testa
 - Trigga run-automation och verifiera beslutsloggen

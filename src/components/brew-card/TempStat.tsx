@@ -1,9 +1,8 @@
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
-import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TempStatProps {
@@ -37,38 +36,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     && pillTemp >= targetTemp + 0.3
     && (delta ?? 0) > 2.0;
 
-  // Fetch latest overshoot AI recommendation and original target for this controller
-  const [overshootReason, setOvershootReason] = useState<string | null>(null);
-  const [originalTarget, setOriginalTarget] = useState<number | null>(null);
-  useEffect(() => {
-    if (!controller?.controller_id) return;
-    
-    const fetchLatestOvershoot = async () => {
-      const { data } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('reason, created_at, original_target_temp')
-        .or(`followed_controller_id.eq.${controller.controller_id},cooler_controller_id.eq.${controller.controller_id}`)
-        .like('reason', '🌡️%')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (data && data.length > 0) {
-        // Show original target if it differs from current target
-        if (data[0].original_target_temp !== null && data[0].original_target_temp !== undefined) {
-          setOriginalTarget(data[0].original_target_temp);
-        }
-        // Only show reason if recent (within 6 hours)
-        const age = Date.now() - new Date(data[0].created_at).getTime();
-        if (age < 6 * 60 * 60 * 1000) {
-          setOvershootReason(data[0].reason.replace('🌡️ ', ''));
-        } else {
-          setOvershootReason(null);
-        }
-      }
-    };
-    
-    fetchLatestOvershoot();
-  }, [controller?.controller_id, brew.lastUpdateRaw]);
+  // Overshoot data now comes pre-fetched from the hook (no per-card DB query)
+  const overshootReason = brew.overshootReason;
+  const originalTarget = brew.originalTarget;
 
 
   // Calculate the current profile target (interpolated during ramps)

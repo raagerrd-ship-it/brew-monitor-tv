@@ -242,6 +242,37 @@ export function useBrewData(): UseBrewDataReturn {
       eventsByBrewId[event.brew_id].push(event);
     });
 
+    // Batch-fetch recent overshoot adjustments for all linked controllers
+    const allControllerIds = brewReadings
+      .filter((r: any) => r.linked_controller_id)
+      .map((r: any) => r.linked_controller_id);
+    
+    const overshootMap = new Map<string, { reason: string | null; original_target: number | null }>();
+    if (allControllerIds.length > 0) {
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+      const { data: adjData } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
+        .or(allControllerIds.map((id: string) => `followed_controller_id.eq.${id},cooler_controller_id.eq.${id}`).join(','))
+        .like('reason', '🌡️%')
+        .order('created_at', { ascending: false });
+      
+      // For each controller, find the most recent overshoot adjustment
+      const uniqueIds = [...new Set(allControllerIds)] as string[];
+      for (const cid of uniqueIds) {
+        const match = (adjData || []).find((a: any) => 
+          a.followed_controller_id === cid || a.cooler_controller_id === cid
+        );
+        if (match) {
+          const age = Date.now() - new Date(match.created_at).getTime();
+          overshootMap.set(cid, {
+            reason: age < 6 * 60 * 60 * 1000 ? match.reason.replace('🌡️ ', '') : null,
+            original_target: match.original_target_temp ?? null,
+          });
+        }
+      }
+    }
+
     return brewReadings.map((reading: any) => {
       const originalSgData = reading.sg_data || [];
       let sgData = originalSgData;
@@ -313,6 +344,12 @@ export function useBrewData(): UseBrewDataReturn {
         fermentationSession: sessionsByBrewId.get(reading.id) || null,
         label_image_url: reading.label_image_url || null,
         description: reading.description || null,
+        overshootReason: reading.linked_controller_id 
+          ? overshootMap.get(reading.linked_controller_id)?.reason ?? null 
+          : null,
+        originalTarget: reading.linked_controller_id 
+          ? overshootMap.get(reading.linked_controller_id)?.original_target ?? null 
+          : null,
       };
     });
   }, []);

@@ -59,6 +59,8 @@ export interface BrewData {
   fermentationSession: FermentationSessionData | null;
   label_image_url: string | null;
   description: string | null;
+  overshootReason: string | null;
+  originalTarget: number | null;
 }
 
 export interface PillData {
