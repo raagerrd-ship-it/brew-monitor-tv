@@ -235,12 +235,12 @@ serve(async (req) => {
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
     // Collect profile status per controller for consolidated logging
-    const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean }>();
+    const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null }>();
     // Always fetch profile data (needed for correct original_target in all modes)
     {
       const { data: runningSessions } = await supabase
         .from('fermentation_sessions')
-        .select('id, controller_id, profile_id, current_step_index')
+        .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
         .eq('status', 'running')
         .in('controller_id', followedControllerIds);
 
@@ -273,11 +273,11 @@ serve(async (req) => {
         const uniqueProfileIds = [...new Set(runningSessions.map(s => s.profile_id))];
         const { data: allProfileSteps } = await supabase
           .from('fermentation_profile_steps')
-          .select('profile_id, target_temp, step_order')
+          .select('profile_id, target_temp, step_order, step_type, duration_hours, ramp_type')
           .in('profile_id', uniqueProfileIds)
           .order('step_order', { ascending: true });
         
-        const profileStepsMap = new Map<string, Array<{ target_temp: number | null; step_order: number }>>();
+        const profileStepsMap = new Map<string, Array<{ target_temp: number | null; step_order: number; step_type: string; duration_hours: number | null; ramp_type: string | null }>>();
         if (allProfileSteps) {
           for (const step of allProfileSteps) {
             const list = profileStepsMap.get(step.profile_id) || [];
@@ -305,10 +305,28 @@ serve(async (req) => {
             }
           }
 
+          // Calculate interpolated ramp target if applicable
+          let activeTarget: number | null = null;
+          if (profileSteps && profileSteps.length > 0) {
+            const currentStepIdx = Math.min(session.current_step_index, profileSteps.length - 1);
+            const currentStep = profileSteps[currentStepIdx];
+            if (currentStep.step_type === 'ramp' && currentStep.ramp_type !== 'immediate' && currentStep.duration_hours && currentStep.duration_hours > 0) {
+              const stepStartTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : null;
+              const stepTarget = currentStep.target_temp != null ? parseFloat(String(currentStep.target_temp)) : null;
+              if (stepStartTemp != null && stepTarget != null && session.step_started_at) {
+                const elapsedMs = Date.now() - new Date(session.step_started_at).getTime();
+                const elapsedHours = elapsedMs / (1000 * 60 * 60);
+                const progress = Math.min(elapsedHours / currentStep.duration_hours, 1);
+                activeTarget = round1(stepStartTemp + (stepTarget - stepStartTemp) * progress);
+              }
+            }
+          }
+
           profileStatusMap.set(session.controller_id, {
             profileTarget: effectiveTarget,
             stepIndex: session.current_step_index,
             hasCooloff: cooloffSet.has(session.controller_id),
+            activeTarget,
           });
         }
 
@@ -365,27 +383,16 @@ serve(async (req) => {
       };
       if (profileInfo) {
         details.profile_target = profileInfo.profileTarget;
+        if (profileInfo.activeTarget != null && profileInfo.activeTarget !== profileInfo.profileTarget) {
+          details.profile_active_target = profileInfo.activeTarget;
+        }
         details.profile_step = profileInfo.stepIndex;
         if (profileInfo.hasCooloff) details.profile_cooloff = true;
       }
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
-    // Consolidated PROFILE_STATUS: one summary line per profile-owned controller
-    if (profileStatusMap.size > 0) {
-      for (const [cId, info] of profileStatusMap) {
-        const controllerName = followedControllersFullData.find(c => c.controller_id === cId)?.name ?? cId;
-        const parts: string[] = [];
-        if (info.profileTarget !== null) parts.push(`profil-mål=${round1(info.profileTarget)}°C`);
-        parts.push(`steg ${info.stepIndex}`);
-        if (info.hasCooloff) parts.push('cooloff=ja');
-        if (profileOwnedControllerIds.has(cId)) {
-          parts.push('stall=skippad');
-          parts.push('overshoot=tillåts');
-        }
-        log('PROFILE_STATUS', 'info', `${controllerName}: ${parts.join(', ')}`);
-      }
-    }
+    // PROFILE_STATUS removed — all profile info is now embedded in FOLLOWED_DATA above
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
