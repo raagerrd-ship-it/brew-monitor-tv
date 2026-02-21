@@ -5,11 +5,11 @@
 import { BrewData } from "@/types/brew";
 import QRCode from 'qrcode';
 
-const LABEL_WIDTH = 399;
-const LABEL_HEIGHT = 559;
-const PADDING = 24;
-const LABEL_IMG_SIZE = 80;
-const QR_SIZE = 100;
+const LABEL_WIDTH = 560;
+const LABEL_HEIGHT = 780;
+const PADDING = 32;
+const LABEL_IMG_SIZE = 100;
+const QR_SIZE = 160;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
 
 /** Get the share URL for a brew */
@@ -119,22 +119,10 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   
   const textMaxWidth = labelImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
   
-  // Title: JÄSTANK
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('JÄSTANK', PADDING, PADDING + 16);
-  
-  // Separator line
-  ctx.beginPath();
-  ctx.moveTo(PADDING, PADDING + 24);
-  ctx.lineTo(PADDING + textMaxWidth, PADDING + 24);
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  
   // Brew name (large)
-  ctx.font = 'bold 36px sans-serif';
-  let y = PADDING + 68;
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 44px sans-serif';
+  let y = PADDING + 50;
   const name = brew.name || 'Okänd';
   
   // Word-wrap brew name if needed
@@ -145,7 +133,7 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
     if (ctx.measureText(testLine).width > textMaxWidth && line) {
       ctx.fillText(line, PADDING, y);
       line = word;
-      y += 40;
+      y += 48;
     } else {
       line = testLine;
     }
@@ -155,8 +143,8 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   
   // Style
   if (brew.style && brew.style !== 'Okänd stil') {
-    ctx.font = 'italic 20px sans-serif';
-    y += 28;
+    ctx.font = 'italic 24px sans-serif';
+    y += 32;
     ctx.fillText(brew.style, PADDING, y);
   }
   
@@ -171,8 +159,8 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   y += 8;
   
   // Data rows
-  ctx.font = '18px sans-serif';
-  const dataFont = 'bold 18px sans-serif';
+  ctx.font = '22px sans-serif';
+  const dataFont = 'bold 22px sans-serif';
   const rows = [
     { label: 'OG', value: brew.originalGravity ? brew.originalGravity.toFixed(3) : '—' },
     { label: 'Datum', value: getBrewDate(brew) },
@@ -180,11 +168,11 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   ];
   
   for (const row of rows) {
-    y += 28;
-    ctx.font = '18px sans-serif';
+    y += 34;
+    ctx.font = '22px sans-serif';
     ctx.fillText(`${row.label}:`, PADDING, y);
     ctx.font = dataFont;
-    ctx.fillText(row.value, PADDING + 120, y);
+    ctx.fillText(row.value, PADDING + 150, y);
   }
   
   // QR code in bottom-right corner
@@ -217,22 +205,22 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   
   const textMaxWidth = labelImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
   
-  // Title: FAT
+  // Title: FAT / KEG
   ctx.fillStyle = '#000000';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('FAT / KEG', PADDING, PADDING + 16);
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText('FAT / KEG', PADDING, PADDING + 20);
   
   // Separator line
   ctx.beginPath();
-  ctx.moveTo(PADDING, PADDING + 24);
-  ctx.lineTo(PADDING + textMaxWidth, PADDING + 24);
+  ctx.moveTo(PADDING, PADDING + 30);
+  ctx.lineTo(PADDING + textMaxWidth, PADDING + 30);
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1;
   ctx.stroke();
   
   // Brew name (large)
-  ctx.font = 'bold 36px sans-serif';
-  let y = PADDING + 68;
+  ctx.font = 'bold 44px sans-serif';
+  let y = PADDING + 78;
   const name = brew.name || 'Okänd';
   
   // Word-wrap brew name
@@ -243,7 +231,7 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
     if (ctx.measureText(testLine).width > textMaxWidth && line) {
       ctx.fillText(line, PADDING, y);
       line = word;
-      y += 40;
+      y += 48;
     } else {
       line = testLine;
     }
@@ -253,8 +241,8 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   
   // Style
   if (brew.style && brew.style !== 'Okänd stil') {
-    ctx.font = 'italic 20px sans-serif';
-    y += 28;
+    ctx.font = 'italic 24px sans-serif';
+    y += 32;
     ctx.fillText(brew.style, PADDING, y);
   }
   
@@ -269,7 +257,7 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   y += 8;
   
   // Data rows
-  const dataFont = 'bold 18px sans-serif';
+  const dataFont = 'bold 22px sans-serif';
   const rows = [
     { label: 'ABV', value: brew.abv ? `${brew.abv.toFixed(1)}%` : '—' },
     { label: 'OG → FG', value: `${brew.originalGravity?.toFixed(3) || '—'} → ${brew.finalGravity?.toFixed(3) || '—'}` },
@@ -278,10 +266,10 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   ];
   
   for (const row of rows) {
-    y += 28;
-    ctx.font = '18px sans-serif';
+    y += 34;
+    ctx.font = '22px sans-serif';
     ctx.fillText(`${row.label}:`, PADDING, y);
     ctx.font = dataFont;
-    ctx.fillText(row.value, PADDING + 120, y);
+    ctx.fillText(row.value, PADDING + 150, y);
   }
 }

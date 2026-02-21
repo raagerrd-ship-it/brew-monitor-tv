@@ -127,7 +127,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           <canvas
             ref={canvasRef}
             className="w-full"
-            style={{ maxWidth: '399px', imageRendering: 'auto' }}
+            style={{ maxWidth: '560px', imageRendering: 'auto' }}
           />
         </div>
 
