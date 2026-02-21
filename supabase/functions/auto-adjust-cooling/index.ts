@@ -131,7 +131,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     supabase = createClient(supabaseUrl, supabaseKey);
 
-    log('START', 'info', 'Starting auto cooling adjustment check', { timestamp: new Date().toISOString() });
+    log('START', 'info', 'Starting auto cooling adjustment check', { timestamp: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
 
     // Get settings
     const { data: settingsData, error: settingsError } = await supabase
