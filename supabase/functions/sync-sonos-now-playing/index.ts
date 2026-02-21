@@ -30,6 +30,13 @@ serve(async (req) => {
   const viewportW = 1280;
   const viewportH = 720;
 
+  // Check for bg_only mode (regenerate background without touching playback state)
+  let bgOnly = false;
+  try {
+    const body = await req.json().catch(() => null);
+    bgOnly = body?.bg_only === true;
+  } catch { /* no body */ }
+
   try {
     // Fetch settings
     const { data: settings } = await supabase
@@ -127,10 +134,35 @@ serve(async (req) => {
     // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, widget_art_url, updated_at, playback_state')
+      .select('id, track_name, bg_image_url, widget_art_url, updated_at, playback_state, album_art_url')
       .eq('group_id', groupId)
       .limit(1)
       .single();
+
+    // --- bg_only mode: only regenerate background for existing track, don't touch playback state ---
+    if (bgOnly) {
+      const artUrl = existingRow?.album_art_url || currentArt?.medium;
+      if (!existingRow || !artUrl) {
+        const duration = Date.now() - startTime;
+        console.log(`[SonosSync] bg_only: no existing row or art → skip in ${duration}ms`);
+        return new Response(JSON.stringify({ ok: true, bg_only: true, skipped: true, duration_ms: duration }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const trackId = track?.id?.objectId || track?.name || existingRow.track_name || '';
+      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null);
+      if (result.bgUrl || result.widgetUrl) {
+        const updateFields: Record<string, any> = {};
+        if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
+        if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
+        await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
+      }
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] bg_only: regenerated in ${duration}ms (bg: ${result.bgUrl ? 'yes' : 'no'}, widget: ${result.widgetUrl ? 'yes' : 'no'})`);
+      return new Response(JSON.stringify({ ok: true, bg_only: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // --- Server-side pause timeout (5 min) ---
     const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
