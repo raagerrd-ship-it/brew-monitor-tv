@@ -26,9 +26,9 @@ async function generateQrImage(url: string): Promise<HTMLImageElement | null> {
   try {
     const dataUrl = await QRCode.toDataURL(url, {
       width: QR_SIZE * 2, // 2x for sharpness
-      margin: 1,
+      margin: 0,
       color: { dark: '#000000', light: '#ffffff' },
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'L',
     });
     return loadImage(dataUrl);
   } catch {
