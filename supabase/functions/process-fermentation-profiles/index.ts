@@ -442,23 +442,6 @@ Deno.serve(async (req) => {
                 console.log(`Saved start temp ${startTemp}°C for ramp`)
               }
               
-              const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
-              
-              console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, newTarget: ${newTarget.toFixed(1)}°C, current: ${controller.target_temp}°C`)
-              
-              if (Math.abs(controller.target_temp - newTarget) > 0.1) {
-                const success = await setTemp(session.controller_id, Math.round(newTarget * 10) / 10)
-                if (success) {
-                  actionTaken = 'temp_adjusted'
-                  actionDetails = { start_temp: startTemp, target_temp: newTarget, final_temp: currentStep.target_temp, progress: elapsedHours / currentStep.duration_hours }
-                  
-                  await supabase
-                    .from('rapt_temp_controllers')
-                    .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
-                    .eq('controller_id', session.controller_id)
-                }
-              }
-              
               const timeComplete = elapsedHours >= currentStep.duration_hours
               const rampingUp = currentStep.target_temp > startTemp
               const rampCheckTemp = rampingUp
@@ -467,27 +450,69 @@ Deno.serve(async (req) => {
               const tempReached = rampCheckTemp !== null && 
                 Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
               
+              console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, rampingUp: ${rampingUp}, sensor: ${rampingUp ? 'pill' : 'probe'}, sensorTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
+              
               if (tempReached) {
-                // Apply pill compensation as soon as target is reached, regardless of time
+                // Temperature has reached the final target - stop ramping, use pill compensation only
+                // Ensure controller is set to the final target (not an intermediate)
+                if (Math.abs((controller.target_temp ?? 0) - currentStep.target_temp) > 0.1) {
+                  const success = await setTemp(session.controller_id, Math.round(currentStep.target_temp * 10) / 10)
+                  if (success) {
+                    await supabase
+                      .from('rapt_temp_controllers')
+                      .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                      .eq('controller_id', session.controller_id)
+                    console.log(`Ramp: temp reached, set controller to final target ${currentStep.target_temp}°C`)
+                  }
+                }
+                
+                // Apply pill compensation against the FINAL target (correct, since we're at the target)
                 const pillResult = await applyPillCompensation(currentStep.target_temp, 'Linear ramp (target reached)')
                 if (pillResult) {
                   actionTaken = pillResult.actionTaken
                   actionDetails = { ...actionDetails, ...pillResult.actionDetails }
                 }
-              }
-              
-              if (timeComplete && tempReached) {
-                stepCompleted = true
-                actionDetails = { 
-                  ...actionDetails, 
-                  time_complete: true, 
-                  temp_reached: true,
-                  current_temp: controller.current_temp,
-                  target_temp: currentStep.target_temp
+                
+                if (timeComplete) {
+                  stepCompleted = true
+                  actionDetails = { 
+                    ...actionDetails, 
+                    time_complete: true, 
+                    temp_reached: true,
+                    current_temp: controller.current_temp,
+                    target_temp: currentStep.target_temp
+                  }
+                  console.log(`Ramp complete: time elapsed and temp reached ${currentStep.target_temp}°C`)
                 }
-                console.log(`Ramp complete: time elapsed and temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
-              } else if (timeComplete && !tempReached) {
-                console.log(`Ramp time complete but temp not reached: current ${controller.current_temp}°C, target ${currentStep.target_temp}°C (need within 0.3°C) - waiting for temp`)
+              } else {
+                // Still ramping - calculate and set intermediate target
+                const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
+                
+                console.log(`Ramp intermediate: newTarget=${newTarget.toFixed(1)}°C, controllerTarget=${controller.target_temp}°C`)
+                
+                if (Math.abs((controller.target_temp ?? 0) - newTarget) > 0.1) {
+                  const success = await setTemp(session.controller_id, Math.round(newTarget * 10) / 10)
+                  if (success) {
+                    actionTaken = 'temp_adjusted'
+                    actionDetails = { start_temp: startTemp, target_temp: newTarget, final_temp: currentStep.target_temp, progress: elapsedHours / currentStep.duration_hours }
+                    
+                    await supabase
+                      .from('rapt_temp_controllers')
+                      .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+                      .eq('controller_id', session.controller_id)
+                  }
+                }
+                
+                // Apply pill compensation against the INTERMEDIATE target (not the final target)
+                const pillResult = await applyPillCompensation(newTarget, 'Linear ramp (intermediate)')
+                if (pillResult) {
+                  actionTaken = pillResult.actionTaken
+                  actionDetails = { ...actionDetails, ...pillResult.actionDetails }
+                }
+                
+                if (timeComplete) {
+                  console.log(`Ramp time complete but temp not reached: sensor=${rampCheckTemp}°C, target=${currentStep.target_temp}°C (need within 0.3°C) - waiting`)
+                }
               }
             }
           }
