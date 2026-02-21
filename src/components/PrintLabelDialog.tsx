@@ -6,6 +6,29 @@ import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { connectPrinter, disconnectPrinter, printBitmap, isBluetoothSupported, type PrinterConnection } from "@/lib/thermal-printer";
 
+/** Trim white pixels from canvas edges, keeping a small margin */
+function trimCanvas(source: HTMLCanvasElement, margin = 4): HTMLCanvasElement {
+  const w = source.width, h = source.height;
+  const ctx = source.getContext('2d')!;
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const isWhite = (i: number) => data[i] > 250 && data[i+1] > 250 && data[i+2] > 250;
+
+  let top = 0, bottom = h - 1, left = 0, right = w - 1;
+  findTop: for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!isWhite((y * w + x) * 4)) { top = y; break findTop; }
+  findBtm: for (let y = h - 1; y >= top; y--) for (let x = 0; x < w; x++) if (!isWhite((y * w + x) * 4)) { bottom = y; break findBtm; }
+  findLft: for (let x = 0; x < w; x++) for (let y = top; y <= bottom; y++) if (!isWhite((y * w + x) * 4)) { left = x; break findLft; }
+  findRgt: for (let x = w - 1; x >= left; x--) for (let y = top; y <= bottom; y++) if (!isWhite((y * w + x) * 4)) { right = x; break findRgt; }
+
+  const t = Math.max(0, top - margin), l = Math.max(0, left - margin);
+  const b = Math.min(h - 1, bottom + margin), r = Math.min(w - 1, right + margin);
+  const tw = r - l + 1, th = b - t + 1;
+
+  const out = document.createElement('canvas');
+  out.width = tw; out.height = th;
+  out.getContext('2d')!.drawImage(source, l, t, tw, th, 0, 0, tw, th);
+  return out;
+}
+
 type LabelType = 'tank' | 'keg';
 type PrintStatus = 'idle' | 'connecting' | 'connected' | 'printing' | 'done' | 'error';
 
@@ -54,10 +77,11 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
 
   const handleDownload = () => {
     if (!canvasRef.current) return;
+    const trimmed = trimCanvas(canvasRef.current, 4);
     const link = document.createElement('a');
     const safeName = (brew.name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
     link.download = `${safeName}-${labelType}.png`;
-    link.href = canvasRef.current.toDataURL('image/png');
+    link.href = trimmed.toDataURL('image/png');
     link.click();
   };
 
