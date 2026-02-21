@@ -1,24 +1,34 @@
 
-## Trimma etikettbilden vid sparning
+## Fix: "Nu:" visar fel steg i timer-footern
 
 ### Problem
-Canvasen renderar etiketten med 24px padding runt om. Nar bilden importeras i PrintMaster (Phomemo-appen) laggs ytterligare marginaler till, vilket ger for mycket vitt runt etiketten.
+"Nu:" visar alltid "Proteinrast: 52°C" trots att det steget ar passerat for lange sedan. Orsaken ar att logiken letar efter forsta milestone som ar `triggered` men inte `acknowledged`. Proteinrast triggades forst men kvitterades aldrig (den behover inte kvitteras), sa den "fastnar" som aktivt steg.
 
 ### Losning
-Trimma bort vita pixlar fran canvasens kanter innan bilden sparas. Detta gors genom att skanna bildens pixeldata och hitta den faktiska "bounding box" for innehallet (allt som inte ar vitt).
+Andra logiken for att valja "Nu:"-steget. Istallet for att prioritera okvitterade milestones, valj det senast triggade steget baserat pa tid. Det senast triggade steget ar det med lagst `time`-varde bland alla triggade milestones (hogre `time` = tidigare i processen).
 
 ### Tekniska detaljer
 
-**`src/components/PrintLabelDialog.tsx`** - Uppdatera `handleDownload`:
+**`src/components/TimerFooter.tsx`** - Rad ~162-166
 
-1. Lasa canvasens pixeldata med `getImageData`
-2. Skanna rad for rad och kolumn for kolumn for att hitta forsta/sista icke-vita pixeln i varje riktning
-3. Skapa en ny trimmed canvas med bara det omrandet
-4. Exportera den trimmade canvasen som PNG
+Nuvarande logik:
+```typescript
+const activeMilestone = timer.milestones.find(m => m.triggered && !m.acknowledged) || null;
+const currentMilestone = activeMilestone || timer.milestones
+  .filter(m => m.triggered && m.acknowledged)
+  .sort((a, b) => a.time - b.time)[0] || null;
+```
 
-Implementationen blir en hjalp-funktion `trimCanvas(canvas)` som returnerar en ny canvas utan vita marginaler. En liten marginal pa ca 4px kan behalles for att undvika att innehall klipps.
+Ny logik:
+```typescript
+const currentMilestone = timer.milestones
+  .filter(m => m.triggered === true || (m.triggered !== false && m.time >= timer.remainingSeconds))
+  .sort((a, b) => a.time - b.time)[0] || null;
+```
 
-### Paverkan
-- Bara `handleDownload` i `PrintLabelDialog.tsx` andras
-- Sjalva label-renderingen (LabelCanvas.tsx) forblir oforandrad sa forhandsvisningen ser likadan ut
-- BLE-utskrift anvander fortfarande den otrimmade canvasen (dar marginalerna behovs)
+Detta valjer det milestone med lagst `time` bland alla triggade, vilket ar det senast passerade steget (= det steg vi ar "i" just nu).
+
+### Resultat
+- Med ~2800s kvar visas "Nu: Sackarifikation: 67°C i 60 min" (korrekt)
+- "Nasta: Mashout: 78°C i 10 min" (redan korrekt)
+- Nar Mashout triggas byts "Nu:" till Mashout
