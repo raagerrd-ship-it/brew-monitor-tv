@@ -5,9 +5,16 @@
  * Label size: 70x50mm at 203 DPI = 559x399 pixels
  */
 
-// Known Phomemo M110 BLE UUIDs
-const PHOMEMO_SERVICE_UUID = '0000ff00-0000-1000-8000-00805f9b34fb';
-const PHOMEMO_CHAR_UUID = '0000ff02-0000-1000-8000-00805f9b34fb';
+// Known Phomemo BLE UUIDs (varies between models/firmware)
+const PHOMEMO_SERVICE_UUIDS = [
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '000018f0-0000-1000-8000-00805f9b34fb',
+];
+const PHOMEMO_CHAR_UUIDS = [
+  '0000ff02-0000-1000-8000-00805f9b34fb',
+  'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
+];
 
 // Chunk size for BLE writes (bytes)
 const BLE_CHUNK_SIZE = 100;
@@ -29,14 +36,45 @@ export async function connectPrinter(): Promise<PrinterConnection> {
     throw new Error('Web Bluetooth stöds inte i denna webbläsare. Använd Chrome eller Edge.');
   }
 
-  const device = await (navigator as any).bluetooth.requestDevice({
-    filters: [{ namePrefix: 'M110' }, { namePrefix: 'M120' }, { namePrefix: 'Phomemo' }],
-    optionalServices: [PHOMEMO_SERVICE_UUID],
-  });
+  // Try name-based filters first, fall back to acceptAllDevices
+  let device: any;
+  try {
+    device = await (navigator as any).bluetooth.requestDevice({
+      filters: [
+        { namePrefix: 'M110' }, { namePrefix: 'M120' }, { namePrefix: 'D110' },
+        { namePrefix: 'Phomemo' }, { namePrefix: 'PHOMEMO' },
+      ],
+      optionalServices: PHOMEMO_SERVICE_UUIDS,
+    });
+  } catch {
+    // Fallback: show all BLE devices and let user pick
+    device = await (navigator as any).bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: PHOMEMO_SERVICE_UUIDS,
+    });
+  }
 
   const server = await device.gatt!.connect();
-  const service = await server.getPrimaryService(PHOMEMO_SERVICE_UUID);
-  const characteristic = await service.getCharacteristic(PHOMEMO_CHAR_UUID);
+  
+  // Try each known service UUID until one works
+  let service: any = null;
+  for (const uuid of PHOMEMO_SERVICE_UUIDS) {
+    try {
+      service = await server.getPrimaryService(uuid);
+      break;
+    } catch { /* try next */ }
+  }
+  if (!service) throw new Error('Kunde inte hitta skrivarens BLE-tjänst. Kontrollera att skrivaren är påslagen.');
+
+  // Try each known characteristic UUID
+  let characteristic: any = null;
+  for (const uuid of PHOMEMO_CHAR_UUIDS) {
+    try {
+      characteristic = await service.getCharacteristic(uuid);
+      break;
+    } catch { /* try next */ }
+  }
+  if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
   return { device, characteristic };
 }
