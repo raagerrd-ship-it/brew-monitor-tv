@@ -394,6 +394,9 @@ serve(async (req) => {
 
     // PROFILE_STATUS removed — all profile info is now embedded in FOLLOWED_DATA above
 
+    // Load pill-comp settings early — needed by overshoot to decide whether to skip profile-owned controllers
+    const pillCompSettings = await loadPillCompSettings(supabase);
+
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
     // Track which controllers stall detection has acted on (stall is prio 1, overshoot must not counteract)
@@ -626,6 +629,14 @@ serve(async (req) => {
       }
 
       for (const fc of followedControllersFullData) {
+        // Skip profile-owned controllers when pill-compensation is active —
+        // pill-comp already handles the thermal delta by adjusting the target,
+        // overshoot would counteract it by raising the target back up.
+        if (profileOwnedControllerIds.has(fc.controller_id) && pillCompSettings.enabled) {
+          log('OVERSHOOT_SKIP_PILLCOMP', 'info', `${fc.name}: Pill-komp aktiv för profilstyrd controller, hoppar över overshoot`);
+          continue;
+        }
+
         // Per-controller cooldown check (from batched data)
         const lastOvershootTime = overshootCooldownMap.get(fc.controller_id);
         if (lastOvershootTime) {
@@ -768,7 +779,6 @@ serve(async (req) => {
     // Adjusts target temp to account for pill-probe delta so the average
     // of surface (pill) and core (probe) equals the intended target.
     // ====================================================================
-    const pillCompSettings = await loadPillCompSettings(supabase);
     if (pillCompSettings.enabled && runTankAdjustments) {
       log('PILL_COMP', 'info', '--- Standalone pill compensation check ---');
 
