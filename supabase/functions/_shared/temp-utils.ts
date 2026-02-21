@@ -35,7 +35,6 @@ export interface TempController {
 
 export interface PillCompensationSettings {
   enabled: boolean
-  damping: number
   rateLimit: number
   emergencyThreshold: number
   minScale: number
@@ -182,13 +181,12 @@ export async function loadPillCompSettings(
 ): Promise<PillCompensationSettings> {
   const { data: acSettings } = await supabase
     .from('auto_cooling_settings')
-    .select('pill_compensation_enabled, pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation')
+    .select('pill_compensation_enabled, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation')
     .limit(1)
     .maybeSingle()
 
   return {
     enabled: (acSettings as any)?.pill_compensation_enabled ?? true,
-    damping: parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 0.4)),
     rateLimit: parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.8)),
     emergencyThreshold: parseFloat(String((acSettings as any)?.pill_compensation_emergency_threshold ?? 3.0)),
     minScale: parseFloat(String((acSettings as any)?.pill_compensation_min_scale ?? 0.15)),
