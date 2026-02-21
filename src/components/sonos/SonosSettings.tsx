@@ -93,17 +93,24 @@ export function SonosSettings() {
   const saveField = useCallback(async (fields: Record<string, any>) => {
     try {
       if (settingsId) {
-        await (supabase as any)
+        const { error } = await (supabase as any)
           .from('sonos_settings')
           .update(fields)
           .eq('id', settingsId);
+        if (error) {
+          console.error('Failed to save setting:', error.message, fields);
+        }
       } else {
-        const { data } = await (supabase as any)
+        const { data, error } = await (supabase as any)
           .from('sonos_settings')
           .insert(fields)
           .select('id')
           .single();
-        if (data) setSettingsId(data.id);
+        if (error) {
+          console.error('Failed to insert setting:', error.message, fields);
+        } else if (data) {
+          setSettingsId(data.id);
+        }
       }
     } catch (error) {
       console.error('Failed to auto-save setting:', error);
