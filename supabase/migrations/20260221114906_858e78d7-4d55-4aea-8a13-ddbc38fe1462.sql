@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings DROP COLUMN IF EXISTS prefetch_seconds;

@@ -10,7 +10,7 @@ export interface NowPlaying {
   playback_state: string;
 }
 
-export type PrefetchStatus = 'idle' | 'fetching' | 'ready' | 'loaded';
+
 export type ArtStatus = 'displayed' | 'detecting' | 'loading';
 
 export const PLAYBACK_POLL_INTERVAL = 5000;

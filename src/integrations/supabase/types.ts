@@ -864,7 +864,6 @@ export type Database = {
           bg_top_gradient_opacity: number
           created_at: string
           id: string
-          prefetch_seconds: number
           selected_group_id: string | null
           selected_group_name: string | null
           show_on_dashboard: boolean
@@ -882,7 +881,6 @@ export type Database = {
           bg_top_gradient_opacity?: number
           created_at?: string
           id?: string
-          prefetch_seconds?: number
           selected_group_id?: string | null
           selected_group_name?: string | null
           show_on_dashboard?: boolean
@@ -900,7 +898,6 @@ export type Database = {
           bg_top_gradient_opacity?: number
           created_at?: string
           id?: string
-          prefetch_seconds?: number
           selected_group_id?: string | null
           selected_group_name?: string | null
           show_on_dashboard?: boolean
