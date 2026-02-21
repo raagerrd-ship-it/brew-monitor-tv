@@ -404,8 +404,7 @@ serve(async (req) => {
           continue;
         }
         if (profileOwnedControllerIds.has(fc.controller_id)) {
-          log('STALL_PROFILE_SKIP', 'info', `${fc.name}: Hoppar över stall-check — aktiv fermenteringsprofil äger temperaturen`);
-          continue;
+          continue; // Covered by PROFILE_STATUS
         }
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('STALL_COOLOFF', 'info', `${fc.name}: Hoppar över stall-check — 30min cooloff efter fermenteringsprofilsjustering`);
@@ -782,8 +781,7 @@ serve(async (req) => {
         }
 
         if (cooloffControllerIds.has(fc.controller_id)) {
-          log('OVERSHOOT_COOLOFF', 'info', `Hoppar över overshoot för ${fc.name}: 30min cooloff efter fermenteringsprofilsjustering`);
-          continue;
+          continue; // Covered by PROFILE_STATUS
         }
 
         // Skip controllers without active heating — overshoot is a heating phenomenon
