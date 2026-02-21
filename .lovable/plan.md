@@ -1,89 +1,60 @@
 
+# Ta bort PROFILE_STATUS-logg + visa aktivt rampmål i FOLLOWED_DATA
 
-# Optimera sekventiella DB-fragor i auto-adjust-cooling och process-fermentation-profiles
+## Problem 1: Redundant PROFILE_STATUS-logg
+Blocket på rad 374-388 i `auto-adjust-cooling/index.ts` skriver fortfarande separata PROFILE_STATUS-loggar trots att informationen redan finns i FOLLOWED_DATA.
 
-## Oversikt
+## Problem 2: Saknar interpolerat rampmål i loggen
+Under en ramp-fas visar `profile_target` i loggen bara steg-slutmålet (t.ex. 18.0 grader), inte det aktuella interpolerade målet (t.ex. 14.2 grader efter 3h av en 24h ramp). Det gör det svårt att förstå vad systemet faktiskt styr mot just nu.
 
-Bada edge functions gor flera databasfragor inne i for-loopar (en per controller/session). Genom att batcha dessa till en eller tva fragor FORE loopen minskar vi antalet databas-roundtrips avsevart.
+## Ändringar
 
-## auto-adjust-cooling/index.ts
+### Fil: `supabase/functions/auto-adjust-cooling/index.ts`
 
-### A. Batch cooloff-check (rad 252-265)
+**A. Utöka session-frågan (rad 243)**
 
-**Nu:** For varje session gors en separat fraga till `fermentation_step_log` for att kolla om profilen justerat temp senaste 30 min.
+Lägg till `step_started_at, step_start_temp` i select:
+```
+.select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
+```
 
-**Fix:** En enda fraga som hamtar alla `temp_adjusted`-loggar for alla session-IDs de senaste 30 min, sedan bygg cooloffSet fran resultatet i minnet.
+**B. Utöka profile steps-frågan (rad 276)**
 
-### B. Batch profilsteg (rad 273-289)
+Lägg till `step_type, duration_hours, ramp_type` i select:
+```
+.select('profile_id, target_temp, step_order, step_type, duration_hours, ramp_type')
+```
 
-**Nu:** For varje session gors en separat fraga till `fermentation_profile_steps` per `profile_id`.
+**C. Beräkna interpolerat rampmål i sessionsloopen (rad 290-313)**
 
-**Fix:** Samla alla unika `profile_id` fran running sessions, gor EN fraga med `.in('profile_id', uniqueProfileIds)`, och gruppera stegen per profile_id i en Map.
+Efter att `effectiveTarget` satts, kolla om aktuellt steg är en linjär ramp med `duration_hours`. Om så, beräkna interpolerat mål med samma logik som `calculateRampTemp` i process-fermentation-profiles:
 
-### C. Batch overshoot cooldown (rad 587-602)
+```
+interpolatedTarget = startTemp + (targetTemp - startTemp) * min(elapsed / duration, 1)
+```
 
-**Nu:** For varje controller i overshoot-loopen gors en separat fraga till `auto_cooling_adjustments` for att kolla 10-min cooldown.
+Spara detta i `profileStatusMap` som en ny property `activeTarget`.
 
-**Fix:** Fore loopen, gor EN fraga som hamtar senaste overshoot-justering per controller (filtrerad pa `reason LIKE '...'` och alla followedControllerIds). Bygg en Map med senaste created_at per controller.
+**D. Inkludera `active_target` i FOLLOWED_DATA-loggen (rad 366-370)**
 
-### D. Batch delta-historik (rad 937-942)
+Om `profileInfo.activeTarget` finns och skiljer sig från `profileInfo.profileTarget`, lägg till `details.profile_active_target` med det interpolerade värdet. Detta visas bara under aktiva ramper.
 
-**Nu:** I delta-analysloopen gors en fraga per controller till `temp_delta_history`.
+**E. Ta bort PROFILE_STATUS-blocket (rad 374-388)**
 
-**Fix:** En fraga fore loopen: hamta de 5 senaste delta-posterna for ALLA followed controllers. Gruppera per controller_id i minnet. Alternativt: hamma senaste N per controller via en enda `.in()` med `.order().limit()` -- har begransas vi av Supabase (limit galler totalt, inte per grupp). Darfor hamtar vi alla senaste N timmar istallet och filtrerar i minnet.
+Ta bort hela `if (profileStatusMap.size > 0)` blocket.
 
-### E. Batch existerande delta-alerts (rad 964-969)
+## Resultat
 
-**Nu:** Per controller kollas om det redan finns en ej kvitterad alert.
+FOLLOWED_DATA-loggen visar nu t.ex.:
+```
+profile_target: 18.0      (steg-slutmål)
+profile_active_target: 14.2 (interpolerat just nu - bara under ramp)
+profile_step: 2
+```
 
-**Fix:** En fraga fore loopen: hamta alla okvitterade alerts for alla followed controllers. Bygg en Set med controller_ids som redan har alert.
+Ingen separat PROFILE_STATUS-logg skapas.
 
-## process-fermentation-profiles/index.ts
+## Omfattning
 
-### F. Batch profilsteg (rad 119-123)
-
-**Nu:** For varje session hamtas profil-stegen separat.
-
-**Fix:** Samla unika profile_ids fran alla sessions, gor EN fraga, och gruppera i en Map.
-
-### G. Batch controller-data (rad 151-155)
-
-**Nu:** For varje session hamtas controller-data separat.
-
-**Fix:** Samla alla unika controller_ids, gor EN fraga med `.in('controller_id', ids)`, bygg en Map.
-
-### H. Batch pill-komp senaste justering (rad 160-166)
-
-**Nu:** For varje session kollas senaste pill-komp-justering separat.
-
-**Fix:** Gor EN fraga med `.in('cooler_controller_id', allControllerIds).like('reason', '...')`, hamta senaste per controller, bygg Map.
-
-### I. Batch brew-data (rad 177-182)
-
-**Nu:** For varje session med brew_id hamtas brew_readings separat.
-
-**Fix:** Samla alla icke-null brew_ids, gor EN fraga med `.in('id', brewIds).select('id, sg_data')`, bygg Map.
-
-## Teknisk sammanfattning
-
-### auto-adjust-cooling/index.ts
-
-5 optimeringar (A-E) som ersatter ca 5 * N sekventiella fragor med 5 batchade fragor (dar N ar antal controllers/sessions).
-
-Ovrig looplogik (villkor, berakningar, API-anrop till RAPT) paverkas inte -- bara DB-reads batchas.
-
-### process-fermentation-profiles/index.ts
-
-4 optimeringar (F-I) som ersatter ca 4 * N sekventiella fragor med 4 batchade fragor fore session-loopen.
-
-### Risker
-
-- Batchade fragor returnerar ALLA rader for ALLA controllers/sessions, vilket kan vara mer data an nodvandigt om de flesta sessions inte behovde just den datan. Men med typiskt 1-5 aktiva sessions/controllers ar detta forsumbart.
-- `temp_delta_history` saknar `.limit()` per grupp i batch-mode. Losningen ar att hamta senaste 24h och ta de 5 senaste per controller i minnet.
-
-### Testning
-
-- Deploya bada edge functions
-- Kor run-automation och verifiera att loggarna visar samma resultat som fore
-- Jamfor exekveringstid i `auto_cooling_decision_logs.duration_ms`
-
+- 1 fil, ~20 rader ändrade
+- Deploya `auto-adjust-cooling`
