@@ -1,92 +1,54 @@
-✅ GENOMFÖRD 2026-02-21
 
-# Ersatt AI-anrop med deterministisk logik
+# Fixa identifierade temperaturlogik-problem
 
-## Bakgrund
+## 1. Swappade falt i process-fermentation-profiles
 
-Analysen visar att AI-anropen ger minimalt mervarde:
+I `process-fermentation-profiles/index.ts` ar `followed_current_temp` och `followed_target_temp` omvanda pa tre stallen (raderna 248-249, 281-282, 326-327 i auto_cooling_adjustments-inserts):
+- `followed_current_temp` sats till `controller.pill_temp` (borde vara `controller.current_temp`)
+- `followed_target_temp` sats till `controller.current_temp` (borde vara profilens mal)
 
-- **Stall**: AI:n returnerar oftast "raise_temp +1C" eller "wait". Fallback-logiken gor redan samma sak med en fast boost.
-- **Overshoot**: Koden **ignorerar AI:ns temperaturvarde** och beraknar istallet en deterministisk midpoint-formel. AI:n fungerar bara som en "gate" (confidence >= 50).
+Atgard: Byt sa att `followed_current_temp = controller.current_temp` och `followed_target_temp = effectiveTarget/currentStep.target_temp`.
 
-Bada scenarierna har redan full fallback-logik som kopierar exakt vad AI:n brukar gora.
+## 2. Ta bort oanvand damping-parameter
 
-## Forandringar
+`pill_compensation_damping` laddas i `_shared/temp-utils.ts` (`loadPillCompSettings`) men anvands aldrig i `calculateCompensatedTarget`. 
 
-### 1. Stall Detection -- ersatt AI med stilbaserad boost
+Atgard: Ta bort `damping` fran `PillCompensationSettings`-interfacet och fran `loadPillCompSettings`. Databasekolumnen behalles (ingen skada), men koden laser inte langre vardet.
 
-Nuvarande flode:
-1. Samla stall-kandidater
-2. Anropa AI batched
-3. Om AI sager raise_temp med confidence >= 50, anvand AI:ns newTargetTemp
-4. Annars fallback: fast boost (+auto_boost_degrees)
+## 3. Enhetliga RAPT-anrop via setControllerTargetTemp
 
-Nytt flode:
-1. Samla stall-kandidater (oforandrat)
-2. For varje kandidat, tillhampa direkt boost med style-baserad logik:
-   - Lager/Pilsner: +0.5C (kannsligare stil)
-   - Standard (ale, etc): +auto_boost_degrees (default 1C)
-   - Belgisk/Saison: +1.5C (talligare stil)
-3. Tidvakt: max en boost per 12 timmar per controller (forhindrar upprepade hopp)
-4. Samma granscheck som idag: max_target_temp, progress < 95%, sgToFg > 0.005
+`auto-adjust-cooling/index.ts` anvander `supabase.functions.invoke('rapt-update-controller')` pa 5 stallen (stall-boost rad 547, overshoot rad 673, overshoot-recovery rad 710, glycol default rad 785, glycol overcooling rad 848, plus ytterligare i glycol-sektionen). Dessa saknar timeout-skydd och felhantering som den delade wrappern erbjuder.
 
-### 2. Overshoot Prevention -- ta bort AI-gate
+Atgard: Ersatt alla `supabase.functions.invoke('rapt-update-controller', ...)` med `setControllerTargetTemp(supabaseUrl, serviceRoleKey, controllerId, value)` fran `_shared/temp-utils.ts`. Importera funktionen samt spara `supabaseUrl`/`supabaseKey` i variabler tillgangliga for dessa anrop.
 
-Nuvarande flode:
-1. Samla overshoot-kandidater
-2. Anropa AI batched
-3. Om AI sager pause_heating/lower_temp med confidence >= 50:
-   - Berakna midpoint = (ctrlTemp + originalTarget) / 2
-   - coolingFloor = ctrlTemp + hysteresis + 0.1
-   - newTarget = max(midpoint, coolingFloor)
-4. Annars fallback: enkel sankning
+## 4. Per-controller overshoot-cooldown
 
-Nytt flode:
-1. Samla overshoot-kandidater (oforandrat)
-2. Tillhampa midpoint-formeln direkt utan AI-gate (exakt samma berakning som idag)
-3. Logga tydligt vad som hande
+Nuvarande overshoot-cooldown (10 min, rad 584-601) ar global -- en justering pa en controller blockerar alla andra.
 
-### 3. Ta bort AI-anropet helt
+Atgard: Flytta cooldown-kontrollen in i for-loopen och filtrera pa `cooler_controller_id = fc.controller_id`. Sa att varje controller har sin egen 10-minuters cooldown oberoende av andra.
 
-- All AI-kontextsamling (deltaHistory, tempHistory, hoursAtCurrentTemp for AI) tas bort fran bade stall och overshoot
-- `aiContext`-objekten byggs inte langre
-- `supabase.functions.invoke('ai-fermentation-advisor')` anropas aldrig
-- Fallback-kodvagar (3 duplicerade block per feature) forsvinner -- ersatts av EN kodvag
+## 5. Deduplicera pill-komp-logiken i process-fermentation-profiles
 
-### 4. Behall ai-fermentation-advisor edge function
+Raderna 198-291 (steg utan target_temp) och 295-336 (hold-steg med target_temp) innehaller nastan identisk pill-kompensationslogik: berakna kompenserat mal, kontrollera overshoot, satt temp, logga justering.
 
-Funktionen tas inte bort -- den kan fortfarande anvandas manuellt eller i framtiden. Vi tar bara bort det automatiska anropet fran auto-adjust-cooling.
+Atgard: Extrahera en lokal hjalparfunktion `applyPillCompensation(supabase, session, controller, profileTarget, pillCompSettings, pillCompSkipSameData)` som returnerar `{ actionTaken, actionDetails }`. Bade no-target-enforce och hold-steg anropar denna funktion istallet for att ha duplicerad kod.
 
-## Teknisk sammanfattning
+## Tekniska detaljer
 
-Filen `supabase/functions/auto-adjust-cooling/index.ts` andras:
+### Fil: `supabase/functions/_shared/temp-utils.ts`
+- Ta bort `damping` fran `PillCompensationSettings`
+- Ta bort `pill_compensation_damping` fran `loadPillCompSettings`
 
-**Stall Detection (raderna ~380-720):**
-- Ta bort stallCandidates-array, aiContext-samling, Phase 2 (AI-anrop), Phase 3 (applicering), alla fallback-block
-- Ersatt med inline deterministisk logik direkt i loopen: stilbaserad boost + tidvakt + samma granscheck
+### Fil: `supabase/functions/process-fermentation-profiles/index.ts`
+- Fixa `followed_current_temp`/`followed_target_temp` pa 3 stallen
+- Skapa lokal `applyPillCompensation()` som hanterar: berakna kompenserat mal, overshoot-guard, satt temp, logga auto_cooling_adjustments
+- Ersatt duplicerad logik i no-target-blocket (rad 198-291) och hold-blocket (rad 295-336)
 
-**Overshoot Prevention (raderna ~726-1050):**
-- Ta bort overshootCandidates-array, aiContext-samling, Phase 2 (AI-anrop), fallback-block
-- Ersatt med inline deterministisk midpoint-berakning direkt i loopen
+### Fil: `supabase/functions/auto-adjust-cooling/index.ts`
+- Importera `setControllerTargetTemp` fran shared module
+- Ersatt 5+ `supabase.functions.invoke('rapt-update-controller')` med `setControllerTargetTemp()`
+- Flytta overshoot-cooldown fran global (rad 584-601) till per-controller inne i for-loopen (filtrera `cooler_controller_id = fc.controller_id`)
 
-**Resultat:**
-- ~300-400 rader mindre kod (3 kodvagar per feature blir 1)
-- 0 AI-anrop per cykel (var 2 st)
-- 2-5 sekunder snabbare per cykel
-- Inga rate-limit eller kredit-problem
-- 100% forutsagbart beteende
-
-## Stilbaserade boost-grader
-
-```text
-Stil (matchas via regex)     Boost
---------------------------   -----
-lager, pilsner, kolsch       +0.5C
-belgian, saison, farmhouse   +1.5C
-ovriga (ale, stout, etc)     +auto_boost_degrees (default 1.0C)
-```
-
-## Tidvakt for stall
-
-En controller far max boostas en gang per 12 timmar. Kontrolleras via senaste `auto_cooling_adjustments` med reason som borjar pa "Jäsning stannat" for den controllern.
-
+### Testning
+- Deploya bada edge functions
+- Trigga run-automation och verifiera att loggen visar korrekta faltnamn och att timeout-skydd ar aktivt
