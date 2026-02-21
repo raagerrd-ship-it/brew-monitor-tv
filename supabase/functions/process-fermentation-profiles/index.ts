@@ -421,6 +421,12 @@ Deno.serve(async (req) => {
                 Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
               console.log(`Immediate ramp complete: temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
+              // Apply pill compensation now that target is reached
+              const pillResult = await applyPillCompensation(currentStep.target_temp, 'Immediate ramp (target reached)')
+              if (pillResult) {
+                actionTaken = pillResult.actionTaken
+                actionDetails = { ...actionDetails, ...pillResult.actionDetails }
+              }
             } else {
               console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
             }
@@ -460,6 +466,15 @@ Deno.serve(async (req) => {
                 : (controller.current_temp ?? controller.pill_temp)
               const tempReached = rampCheckTemp !== null && 
                 Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
+              
+              if (tempReached) {
+                // Apply pill compensation as soon as target is reached, regardless of time
+                const pillResult = await applyPillCompensation(currentStep.target_temp, 'Linear ramp (target reached)')
+                if (pillResult) {
+                  actionTaken = pillResult.actionTaken
+                  actionDetails = { ...actionDetails, ...pillResult.actionDetails }
+                }
+              }
               
               if (timeComplete && tempReached) {
                 stepCompleted = true
