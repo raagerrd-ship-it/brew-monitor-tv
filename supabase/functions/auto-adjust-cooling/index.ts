@@ -1061,8 +1061,8 @@ serve(async (req) => {
           log('COOLER_STATUS', 'fail', 'Cooler controller not found or cooling not enabled');
         } else {
           log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
-            target_temp: coolerController.target_temp,
-            current_temp: coolerController.current_temp
+            target_temp: round1(coolerController.target_temp),
+            current_temp: round1(coolerController.current_temp)
           });
 
           const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'));
@@ -1125,9 +1125,9 @@ serve(async (req) => {
             const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'));
 
             log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
-              target_temp: lowestTargetTemp,
-              cooler_target: currentCoolerTarget,
-              diff: (currentCoolerTarget - lowestTargetTemp).toFixed(1)
+              target_temp: round1(lowestTargetTemp),
+              cooler_target: round1(currentCoolerTarget),
+              diff: round1(currentCoolerTarget - lowestTargetTemp)
             });
 
             // Temperature difference analysis
@@ -1178,8 +1178,8 @@ serve(async (req) => {
 
             log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info',
               isActivelyCooling ? `${lowestTempController.name} IS actively cooling` : `${lowestTempController.name} is NOT actively cooling`, {
-              current_temp: lowestCurrentTemp,
-              threshold: coolingThreshold.toFixed(2)
+              current_temp: round1(lowestCurrentTemp),
+              threshold: round1(coolingThreshold)
             });
 
             if (isActivelyCooling) {
