@@ -80,6 +80,7 @@ export async function resolveBackgroundAndWidget(
   targetW: number,
   targetH: number,
   cachedWidgetUrl?: string | null,
+  forceRegenerate?: boolean,
 ): Promise<{ bgUrl: string | null; widgetUrl: string | null }> {
   if (!artUrl) return { bgUrl: null, widgetUrl: null };
 
@@ -88,9 +89,9 @@ export async function resolveBackgroundAndWidget(
   const bgFileName = `${trackHash}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
   const widgetFileName = `${trackHash}-widget-v1.jpg`;
 
-  // Check cache: always check bg by filename, optionally skip widget if cached
+  // Check cache: skip if forceRegenerate for bg (always regenerate bg on demand)
   const [existingBg, existingWidget] = await Promise.all([
-    backgroundExists(supabase, bgFileName),
+    forceRegenerate ? Promise.resolve(null) : backgroundExists(supabase, bgFileName),
     cachedWidgetUrl ? Promise.resolve(cachedWidgetUrl) : backgroundExists(supabase, widgetFileName),
   ]);
 

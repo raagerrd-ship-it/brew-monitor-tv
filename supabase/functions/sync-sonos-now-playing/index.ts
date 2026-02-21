@@ -150,7 +150,7 @@ serve(async (req) => {
         });
       }
       const trackId = track?.id?.objectId || track?.name || existingRow.track_name || '';
-      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null);
+      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null, true);
       if (result.bgUrl || result.widgetUrl) {
         const updateFields: Record<string, any> = {};
         if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
