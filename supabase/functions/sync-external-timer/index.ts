@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
       total_seconds: timerData?.totalSeconds || 0,
       is_paused: timerData?.isPaused || false,
       paused_by_milestone: timerData?.pausedByMilestone || false,
-      paused_at: timerData?.pausedAt || null,
+      paused_at: timerData?.pausedAt ? (typeof timerData.pausedAt === 'number' ? new Date(timerData.pausedAt).toISOString() : timerData.pausedAt) : null,
       milestones: milestones,
       next_milestone: timerData?.nextMilestone || null,
       time_to_next_milestone: timerData?.timeToNextMilestone || null,
