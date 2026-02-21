@@ -1,54 +1,70 @@
 
-# Fixa identifierade temperaturlogik-problem
+# Implementera de 5 identifierade temperaturlogik-fixarna
 
-## 1. Swappade falt i process-fermentation-profiles
+## 1. Ta bort damping fran PillCompensationSettings
 
-I `process-fermentation-profiles/index.ts` ar `followed_current_temp` och `followed_target_temp` omvanda pa tre stallen (raderna 248-249, 281-282, 326-327 i auto_cooling_adjustments-inserts):
-- `followed_current_temp` sats till `controller.pill_temp` (borde vara `controller.current_temp`)
-- `followed_target_temp` sats till `controller.current_temp` (borde vara profilens mal)
+**Fil:** `supabase/functions/_shared/temp-utils.ts`
+- Ta bort `damping: number` fran `PillCompensationSettings` (rad 38)
+- Ta bort `pill_compensation_damping` fran SELECT-fragan i `loadPillCompSettings` (rad 185)
+- Ta bort `damping: parseFloat(...)` raden i return-objektet (rad 191)
 
-Atgard: Byt sa att `followed_current_temp = controller.current_temp` och `followed_target_temp = effectiveTarget/currentStep.target_temp`.
+## 2. Fixa swappade falt i process-fermentation-profiles
 
-## 2. Ta bort oanvand damping-parameter
+**Fil:** `supabase/functions/process-fermentation-profiles/index.ts`
 
-`pill_compensation_damping` laddas i `_shared/temp-utils.ts` (`loadPillCompSettings`) men anvands aldrig i `calculateCompensatedTarget`. 
+Pa 3 stallen (rad 248-249, 281-282, 326-327) byta:
+- `followed_current_temp: controller.pill_temp` --> `followed_current_temp: controller.current_temp`
+- `followed_target_temp: controller.current_temp` --> `followed_target_temp: effectiveTarget` (eller `currentStep.target_temp` i hold-blocket)
 
-Atgard: Ta bort `damping` fran `PillCompensationSettings`-interfacet och fran `loadPillCompSettings`. Databasekolumnen behalles (ingen skada), men koden laser inte langre vardet.
+## 3. Deduplicera pill-komp-logiken i process-fermentation-profiles
 
-## 3. Enhetliga RAPT-anrop via setControllerTargetTemp
+**Fil:** `supabase/functions/process-fermentation-profiles/index.ts`
 
-`auto-adjust-cooling/index.ts` anvander `supabase.functions.invoke('rapt-update-controller')` pa 5 stallen (stall-boost rad 547, overshoot rad 673, overshoot-recovery rad 710, glycol default rad 785, glycol overcooling rad 848, plus ytterligare i glycol-sektionen). Dessa saknar timeout-skydd och felhantering som den delade wrappern erbjuder.
+Skapa en lokal hjalparfunktion:
+```text
+async function applyPillCompensation(
+  supabase, supabaseUrl, supabaseKey,
+  session, controller, profileTarget,
+  pillCompSettings, pillCompSkipSameData
+): Promise<{ actionTaken: string; actionDetails: any }>
+```
 
-Atgard: Ersatt alla `supabase.functions.invoke('rapt-update-controller', ...)` med `setControllerTargetTemp(supabaseUrl, serviceRoleKey, controllerId, value)` fran `_shared/temp-utils.ts`. Importera funktionen samt spara `supabaseUrl`/`supabaseKey` i variabler tillgangliga for dessa anrop.
+Funktionen hanterar:
+- Berakna kompenserat mal via `calculateCompensatedTarget`
+- Overshoot-guard (kolla 15min `auto_cooling_adjustments`)
+- Satt temp via `setControllerTargetTemp`
+- Logga justering till `auto_cooling_adjustments` med **korrekta** faltnamn (`followed_current_temp = controller.current_temp`, `followed_target_temp = profileTarget`)
 
-## 4. Per-controller overshoot-cooldown
+Bade no-target-blocket (rad 198-291) och hold-blocket (rad 295-336) anropar denna funktion istallet for duplicerad kod.
 
-Nuvarande overshoot-cooldown (10 min, rad 584-601) ar global -- en justering pa en controller blockerar alla andra.
+## 4. Ersatt supabase.functions.invoke med setControllerTargetTemp i auto-adjust-cooling
 
-Atgard: Flytta cooldown-kontrollen in i for-loopen och filtrera pa `cooler_controller_id = fc.controller_id`. Sa att varje controller har sin egen 10-minuters cooldown oberoende av andra.
+**Fil:** `supabase/functions/auto-adjust-cooling/index.ts`
 
-## 5. Deduplicera pill-komp-logiken i process-fermentation-profiles
+- Importera `setControllerTargetTemp` fran `../_shared/temp-utils.ts` (lagg till i befintlig import pa rad 3)
+- Spara `supabaseUrl` och `supabaseKey` i variabler (finns redan pa rad 116-117)
+- Ersatt alla 7 `supabase.functions.invoke('rapt-update-controller', ...)` (rad 547, 673, 710, 785, 848, 1025, 1116) med `setControllerTargetTemp(supabaseUrl, supabaseKey, controllerId, value)`
+- Anpassa felhanteringen: `setControllerTargetTemp` returnerar `boolean` istallet for `{ error }`, sa byt `if (!updateResponse.error)` till `if (success)`
 
-Raderna 198-291 (steg utan target_temp) och 295-336 (hold-steg med target_temp) innehaller nastan identisk pill-kompensationslogik: berakna kompenserat mal, kontrollera overshoot, satt temp, logga justering.
+## 5. Per-controller overshoot-cooldown
 
-Atgard: Extrahera en lokal hjalparfunktion `applyPillCompensation(supabase, session, controller, profileTarget, pillCompSettings, pillCompSkipSameData)` som returnerar `{ actionTaken, actionDetails }`. Bade no-target-enforce och hold-steg anropar denna funktion istallet for att ha duplicerad kod.
+**Fil:** `supabase/functions/auto-adjust-cooling/index.ts`
 
-## Tekniska detaljer
+Nuvarande kod (rad 583-605) gor en **global** cooldown-check utanfor for-loopen.
 
-### Fil: `supabase/functions/_shared/temp-utils.ts`
-- Ta bort `damping` fran `PillCompensationSettings`
-- Ta bort `pill_compensation_damping` fran `loadPillCompSettings`
+Andring:
+- Flytta cooldown-logiken **in i** for-loopen (rad 610+)
+- Filtrera pa `cooler_controller_id = fc.controller_id` i fragan
+- Ta bort den globala `canRunOvershoot`-variabeln och `if (!canRunOvershoot) break`
+- Varje controller far sin egen 10-minuters cooldown
 
-### Fil: `supabase/functions/process-fermentation-profiles/index.ts`
-- Fixa `followed_current_temp`/`followed_target_temp` pa 3 stallen
-- Skapa lokal `applyPillCompensation()` som hanterar: berakna kompenserat mal, overshoot-guard, satt temp, logga auto_cooling_adjustments
-- Ersatt duplicerad logik i no-target-blocket (rad 198-291) och hold-blocket (rad 295-336)
+## Teknisk sammanfattning
 
-### Fil: `supabase/functions/auto-adjust-cooling/index.ts`
-- Importera `setControllerTargetTemp` fran shared module
-- Ersatt 5+ `supabase.functions.invoke('rapt-update-controller')` med `setControllerTargetTemp()`
-- Flytta overshoot-cooldown fran global (rad 584-601) till per-controller inne i for-loopen (filtrera `cooler_controller_id = fc.controller_id`)
+### Filer som andras:
+1. `supabase/functions/_shared/temp-utils.ts` -- ta bort damping (3 rader)
+2. `supabase/functions/process-fermentation-profiles/index.ts` -- fixa swappade falt, deduplicera pill-komp
+3. `supabase/functions/auto-adjust-cooling/index.ts` -- importera och anvand `setControllerTargetTemp`, per-controller cooldown
 
-### Testning
-- Deploya bada edge functions
-- Trigga run-automation och verifiera att loggen visar korrekta faltnamn och att timeout-skydd ar aktivt
+### Testning:
+- Deploya alla 3 edge functions
+- Anropa `run-automation` och verifiera att loggarna visar korrekta faltnamn och att timeout-skydd ar aktivt
