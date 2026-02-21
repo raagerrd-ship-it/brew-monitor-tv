@@ -52,6 +52,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('🧠')) return 'stall';
   if (reason.startsWith('🎯')) return 'pill-comp';
   if (reason.startsWith('🔧')) return 'profil';
+  if (reason.startsWith('📈')) return 'profil';
   // 🔄 Cooling recovery and other glycol cooler adjustments
   if (reason.startsWith('🔄')) return 'glykol';
   // Fallback: if reason mentions "Cooling recovery" or cooler-specific phrases
