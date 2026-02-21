@@ -287,16 +287,19 @@ export function BrewingDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Once data is loaded, wait for two animation frames (render + paint) then mark ready
+  // Once data is loaded, wait for lazy-loaded charts to resolve before removing splash.
+  // Lazy chunks need time beyond just 2 rAF frames, so add a small delay first.
   useEffect(() => {
     if (!loading) {
       let cancelled = false;
-      requestAnimationFrame(() => {
+      const timer = setTimeout(() => {
         requestAnimationFrame(() => {
-          if (!cancelled) setContentPainted(true);
+          requestAnimationFrame(() => {
+            if (!cancelled) setContentPainted(true);
+          });
         });
-      });
-      return () => { cancelled = true; };
+      }, 600);
+      return () => { cancelled = true; clearTimeout(timer); };
     }
   }, [loading]);
 
