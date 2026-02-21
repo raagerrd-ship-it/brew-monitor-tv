@@ -11,6 +11,7 @@ const PADDING = 24;
 const LABEL_IMG_SIZE = 150;
 const QR_SIZE = 150;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
+const LOGO_URL = '/brew-icon.png';
 
 /** Get the share URL for a brew */
 function getBrewShareUrl(brew: BrewData): string {
@@ -97,11 +98,11 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   
   drawLabelBase(ctx);
   
-  // Load label image
-  const labelImg = brew.label_image_url ? await loadImage(brew.label_image_url) : null;
-  drawLabelImage(ctx, labelImg);
+  // Load logo
+  const logoImg = await loadImage(LOGO_URL);
+  drawLabelImage(ctx, logoImg);
   
-  const textMaxWidth = labelImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
+  const textMaxWidth = logoImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
   
   // Brew name (large)
   ctx.fillStyle = '#000000';
@@ -175,11 +176,11 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   
   drawLabelBase(ctx);
   
-  // Load label image
-  const labelImg = brew.label_image_url ? await loadImage(brew.label_image_url) : null;
-  drawLabelImage(ctx, labelImg);
+  // Load logo
+  const logoImg = await loadImage(LOGO_URL);
+  drawLabelImage(ctx, logoImg);
   
-  const textMaxWidth = labelImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
+  const textMaxWidth = logoImg ? LABEL_WIDTH - PADDING * 2 - LABEL_IMG_SIZE - 12 : LABEL_WIDTH - PADDING * 2;
   
   // Title: FAT / KEG
   ctx.fillStyle = '#000000';
