@@ -75,10 +75,15 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const data = await response.json();
         if (!data.ok) return;
 
-        // Update position via DOM ref
-        localProgressRef.current = data.positionMillis;
+        // Update position — only hard-reset if drift > 3s to avoid visible jumps
+        const localPos = localProgressRef.current ?? 0;
+        const drift = Math.abs(data.positionMillis - localPos);
+        if (drift > 3000) {
+          localProgressRef.current = data.positionMillis;
+        }
         const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, duration);
+        const displayPos = localProgressRef.current ?? data.positionMillis;
+        updateProgressDOM(progressBarRef, debugTimeRef, displayPos, duration);
 
         if (data.trackName) {
           const currentNpSnap = nowPlayingRef.current;
