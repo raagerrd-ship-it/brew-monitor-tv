@@ -307,16 +307,7 @@ serve(async (req) => {
           });
         }
 
-        // Log one consolidated PROFILE_STATUS line per profile-owned controller
-        for (const [cId, info] of profileStatusMap) {
-          const controllerName = followedControllersFullData.find(c => c.controller_id === cId)?.name ?? cId;
-          const parts: string[] = [];
-          if (info.profileTarget !== null) parts.push(`profil-mål=${info.profileTarget}°C`);
-          parts.push(`steg ${info.stepIndex}`);
-          if (info.hasCooloff) parts.push('cooloff=ja');
-          parts.push('ställ=skippad', 'overshoot=tillåts');
-          log('PROFILE_STATUS', 'info', `${controllerName}: ${parts.join(', ')}`);
-        }
+        // Profile status is now included in FOLLOWED_DATA below
       }
     }
 
@@ -346,7 +337,8 @@ serve(async (req) => {
         ? profileTarget
         : (round1(originalTargetMap.get(controller.controller_id) ?? null) ?? targetTemp);
       
-      log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, {
+      const profileInfo = profileStatusMap.get(controller.controller_id);
+      const details: Record<string, unknown> = {
         original_target: originalTarget,
         last_update: controller.last_update,
         target_temp: targetTemp,
@@ -354,8 +346,14 @@ serve(async (req) => {
         pill_temp: pillTemp,
         pill_delta: pillDelta,
         cooling_enabled: controller.cooling_enabled,
-        is_actively_cooling: isActivelyCooling
-      });
+        is_actively_cooling: isActivelyCooling,
+      };
+      if (profileInfo) {
+        details.profile_target = profileInfo.profileTarget;
+        details.profile_step = profileInfo.stepIndex;
+        if (profileInfo.hasCooloff) details.profile_cooloff = true;
+      }
+      log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
