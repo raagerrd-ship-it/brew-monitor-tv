@@ -3,11 +3,35 @@
  * Two label types: Tank (fermentation) and Keg (packaging).
  */
 import { BrewData } from "@/types/brew";
+import QRCode from 'qrcode';
 
 const LABEL_WIDTH = 559;
 const LABEL_HEIGHT = 399;
 const PADDING = 24;
 const LABEL_IMG_SIZE = 80;
+const QR_SIZE = 100;
+const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
+
+/** Get the share URL for a brew */
+function getBrewShareUrl(brew: BrewData): string {
+  const shareId = brew.share_id || brew.batch_id;
+  return `${PUBLISHED_URL}/brew/${encodeURIComponent(shareId)}`;
+}
+
+/** Generate a QR code as an HTMLImageElement */
+async function generateQrImage(url: string): Promise<HTMLImageElement | null> {
+  try {
+    const dataUrl = await QRCode.toDataURL(url, {
+      width: QR_SIZE * 2, // 2x for sharpness
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    });
+    return loadImage(dataUrl);
+  } catch {
+    return null;
+  }
+}
 
 interface LabelOptions {
   brew: BrewData;
@@ -161,6 +185,21 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
     ctx.fillText(`${row.label}:`, PADDING, y);
     ctx.font = dataFont;
     ctx.fillText(row.value, PADDING + 120, y);
+  }
+  
+  // QR code in bottom-right corner
+  const qrImg = await generateQrImage(getBrewShareUrl(brew));
+  if (qrImg) {
+    const qrX = LABEL_WIDTH - PADDING - QR_SIZE;
+    const qrY = LABEL_HEIGHT - PADDING - QR_SIZE;
+    ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
+    // Small label under QR
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.textAlign = 'center';
+    ctx.fillText('Skanna för info', qrX + QR_SIZE / 2, qrY + QR_SIZE + 12);
+    ctx.textAlign = 'start';
+    ctx.fillStyle = '#000000';
   }
 }
 
