@@ -2353,7 +2353,7 @@ export default function Settings() {
             <SettingsSection
               icon={Pill}
               title="Pill-kompensation"
-              description="Kompenserar för temperaturskillnaden mellan pill (yta) och probe (kärna) under fermenteringsprofiler"
+              description="Kompenserar för temperaturskillnaden mellan pill (yta) och probe (kärna) när värme eller kyla är aktivt"
             >
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
