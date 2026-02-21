@@ -1934,7 +1934,7 @@ export default function Settings() {
                         <div className="flex items-center gap-2 text-xs">
                           <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="text-muted-foreground">
-                            Kylare: <span className="text-foreground font-medium">{lastAdjustment.old_target_temp}° → {lastAdjustment.new_target_temp}°</span>
+                            Kylare: <span className="text-foreground font-medium">{parseFloat(Number(lastAdjustment.old_target_temp).toFixed(1))}° → {parseFloat(Number(lastAdjustment.new_target_temp).toFixed(1))}°</span>
                             {lastAdjustment.new_target_temp < lastAdjustment.old_target_temp 
                               ? <ArrowDown className="h-3 w-3 text-blue-400 inline ml-1" />
                               : <ArrowUp className="h-3 w-3 text-orange-400 inline ml-1" />

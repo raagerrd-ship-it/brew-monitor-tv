@@ -6,6 +6,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+const r1 = (v: number | null | undefined): string => {
+  if (v === null || v === undefined) return '—';
+  return parseFloat(Number(v).toFixed(1)).toString();
+};
 interface DecisionEntry {
   step: string;
   result: 'pass' | 'fail' | 'info' | 'action';
@@ -268,7 +272,7 @@ export function AutoCoolingDecisionLogs() {
                 <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-2">
                   <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border flex-wrap">
                     <span>Styrenhet: {adj.followed_controller_name || adj.cooler_controller_name}</span>
-                    <span>Mål: {adj.old_target_temp}° → {adj.new_target_temp}° (probe)</span>
+                    <span>Mål: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}° (probe)</span>
                   </div>
                   
                   {category === 'pill-comp' && (
@@ -325,7 +329,7 @@ export function AutoCoolingDecisionLogs() {
                           </>
                         )}
                         <div className="text-muted-foreground">Tankmål:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
+                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
                     </div>
@@ -352,7 +356,7 @@ export function AutoCoolingDecisionLogs() {
                           </>
                         )}
                         <div className="text-muted-foreground">Kylare:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
+                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
                     </div>
@@ -379,7 +383,7 @@ export function AutoCoolingDecisionLogs() {
                           </>
                         )}
                         <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
+                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
                       </div>
                       {aiReasoning && (
                         <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
@@ -402,7 +406,7 @@ export function AutoCoolingDecisionLogs() {
                           </>
                         )}
                         <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{adj.old_target_temp}° → {adj.new_target_temp}°</div>
+                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
                       </div>
                       {aiReasoning && (
                         <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
