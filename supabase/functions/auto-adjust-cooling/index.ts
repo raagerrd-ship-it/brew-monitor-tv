@@ -358,6 +358,22 @@ serve(async (req) => {
       log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
+    // Consolidated PROFILE_STATUS: one summary line per profile-owned controller
+    if (profileStatusMap.size > 0) {
+      for (const [cId, info] of profileStatusMap) {
+        const controllerName = followedControllersFullData.find(c => c.controller_id === cId)?.name ?? cId;
+        const parts: string[] = [];
+        if (info.profileTarget !== null) parts.push(`profil-mål=${round1(info.profileTarget)}°C`);
+        parts.push(`steg ${info.stepIndex}`);
+        if (info.hasCooloff) parts.push('cooloff=ja');
+        if (profileOwnedControllerIds.has(cId)) {
+          parts.push('stall=skippad');
+          parts.push('overshoot=tillåts');
+        }
+        log('PROFILE_STATUS', 'info', `${controllerName}: ${parts.join(', ')}`);
+      }
+    }
+
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
     // Track which controllers stall detection has acted on (stall is prio 1, overshoot must not counteract)
