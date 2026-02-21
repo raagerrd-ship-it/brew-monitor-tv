@@ -1,57 +1,54 @@
 
+# Temperaturlogik -- Forenkling och Optimering
 
-## Gruppera profilloggar per controller i beslutsloggen
+## Sammanfattning
 
-Idag loggas profil-relaterade beslut (PROFILE_TARGET, PROFILE_OWNED, COOLOFF, ORIGINAL_TARGET) som separata rader med controller-ID, utspridda i loggfloden. Med flera controllers blir det svart att se vilken info som hor till vilken.
+Temperaturlogiken ar funktionell men uppdelad over tva stora edge functions (totalt ~2270 rader) med betydande duplicering. Denna plan forenklar, batchar och gor logiken mer robust.
 
-### Andring
+## Problem som atsardas
 
-**Fil: `supabase/functions/auto-adjust-cooling/index.ts`** (rad 250-326)
+### 1. Duplicerad logik
+Samma funktioner (pill-kompensation, target-uppslag, RAPT API-anrop) finns i bade `process-fermentation-profiles` och `auto-adjust-cooling`. Risk for divergens vid bugfixar.
 
-Istallet for att logga PROFILE_TARGET, PROFILE_OWNED, COOLOFF och ORIGINAL_TARGET som separata rader, samla all profilinfo per controller i EN loggpost per controller:
+### 2. For manga databasanrop
+`auto-adjust-cooling` gor 20-30+ sekventiella databasanrop per cykel med 3 controllers. Kan batchas till en handfull.
 
-**Fran (4 separata rader per controller):**
-```
-PROFILE_TARGET: Controller abc123: profil-mal=14degC (steg 2)
-PROFILE_OWNED: Controller abc123 har aktiv fermenteringsprofil...
-COOLOFF: Controller abc123 i 30-min cooloff...
-ORIGINAL_TARGET: Skipping originalTargetMap for profile-owned controller: Svart
-```
+### 3. Inkonsekvent RAPT API-anvandning
+En funktion pratar direkt med RAPT, den andra gar via `rapt-update-controller`. Bor vara enhetligt.
 
-**Till (1 samlad rad per controller):**
-```
-PROFILE_STATUS: Svart (abc123): profil-mal=14degC, steg 2, cooloff=ja, stall=skippad, overshoot=tillats
-```
+### 4. Frontend N+1-problem
+`TempStat.tsx` gor separata databasanrop per brew-kort. Bor centraliseras.
 
-Konkret:
-1. Samla profil-info i en temporar map (`controllerId -> { name, profileTarget, stepIndex, hasCooloff, isProfileOwned }`) under sessionsloopen
-2. Gor cooloff-kontrollen i samma loop (den itererar redan over sessions)
-3. Logga originalTarget-skip som del av samma sammanslagning
-4. Efter hela loopen: logga EN `PROFILE_STATUS`-rad per controller med all relevant info
+### 5. Saknad robusthet
+Inga timeouts pa RAPT-anrop, DB-fel ignoreras tyst.
 
-Rad ~257-305: Flytta ihop sessionsloopen sa att profil-target-uppslag, PROFILE_OWNED-flagga, och cooloff-kontroll hamnar i samma iteration. Lagra resultaten i en map.
+## Implementationssteg
 
-Rad ~308-326: originalTargetMap-loopen behalls men loggen `ORIGINAL_TARGET` skrivs inte langre separat -- den inkluderas i sammanfattningsraden.
+### Steg 1: Skapa delad modul
+Ny fil: `supabase/functions/_shared/temp-utils.ts`
+- Flytta `calculateCompensatedTarget()`, `getEffectiveTargetTemp()`, `round1()`
+- Gemensamma interfaces
 
-Ny loggning efter rad 306 (efter looparna ar klara):
-```typescript
-// Log one consolidated line per profile-owned controller
-for (const [cId, info] of profileStatusMap) {
-  const controllerName = followedControllersFullData.find(c => c.controller_id === cId)?.name ?? cId;
-  const parts = [`profil-mal=${info.profileTarget}degC`, `steg ${info.stepIndex}`];
-  if (info.hasCooloff) parts.push('cooloff=ja');
-  parts.push('stall=skippad', 'overshoot=tillats');
-  log('PROFILE_STATUS', 'info', `${controllerName}: ${parts.join(', ')}`);
-}
-```
+### Steg 2: Uppdatera process-fermentation-profiles
+- Importera fran delad modul
+- Byt direkta RAPT-anrop mot `rapt-update-controller`
+- Lagg till `AbortSignal.timeout(10000)`
 
-**Fil: `src/components/AutoCoolingDecisionLogs.tsx`** (rad 446-464, besluts-visning)
+### Steg 3: Uppdatera auto-adjust-cooling
+- Importera fran delad modul
+- Batcha DB-fragor med `.in()` (lastAdjTimestampMap, originalTargetMap, linked brews)
+- Ta bort duplicerade definitioner
 
-Ingen andring behovs i UI-koden -- den visar redan `decision.step` och `decision.message` rakt av. Den nya `PROFILE_STATUS`-steg-taggen renderas automatiskt som en rad i beslutsloggen. Men loggen blir mycket mer lasbar tack vare farre rader per controller.
+### Steg 4: Flytta TempStat DB-fraga
+- Flytta `auto_cooling_adjustments`-fragan fran `TempStat.tsx` till `use-brew-data.ts`
+- Skicka ner som prop
 
-### Resultat
+### Steg 5: Testa
+- Trigga run-automation och verifiera beslutsloggen
+- Kontrollera att TempStat visar korrekt info
 
-- Varje controller med aktiv profil far EN tydlig sammanfattningsrad istallet for 3-4 spridda rader
-- Controller-namn (inte bara ID) anvands i meddelandet
-- All relevant info (mal, steg, cooloff-status, vad som skippas) samlas pa ett stalle
+## Prioritering
 
+- **Hog**: Delad modul + batchade DB-fragor
+- **Medel**: Enhetlig RAPT-wrapper + frontend-optimering
+- **Lag**: Timeout och felhantering
