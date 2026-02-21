@@ -412,7 +412,11 @@ Deno.serve(async (req) => {
                   .eq('controller_id', session.controller_id)
               }
             }
-            const immRampCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
+            const immStartTemp = session.step_start_temp ?? controller?.target_temp ?? currentStep.target_temp
+            const immRampingUp = currentStep.target_temp > immStartTemp
+            const immRampCheckTemp = immRampingUp
+              ? (controller?.pill_temp ?? controller?.current_temp ?? null)
+              : (controller?.current_temp ?? controller?.pill_temp ?? null)
             if (controller && immRampCheckTemp !== null &&
                 Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
@@ -450,7 +454,10 @@ Deno.serve(async (req) => {
               }
               
               const timeComplete = elapsedHours >= currentStep.duration_hours
-              const rampCheckTemp = controller.pill_temp ?? controller.current_temp
+              const rampingUp = currentStep.target_temp > startTemp
+              const rampCheckTemp = rampingUp
+                ? (controller.pill_temp ?? controller.current_temp)
+                : (controller.current_temp ?? controller.pill_temp)
               const tempReached = rampCheckTemp !== null && 
                 Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
               
