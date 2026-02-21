@@ -144,20 +144,23 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   let y = PADDING + 78;
   const name = brew.name || 'Okänd';
   
-  // Word-wrap brew name if needed
+  // Word-wrap brew name (max 2 lines)
   const words = name.split(' ');
   let line = '';
+  let lineCount = 0;
   for (const word of words) {
     const testLine = line ? `${line} ${word}` : word;
     if (ctx.measureText(testLine).width > textMaxWidth && line) {
       ctx.fillText(line, PADDING, y);
+      lineCount++;
+      if (lineCount >= 2) { line = ''; break; }
       line = word;
       y += 48;
     } else {
       line = testLine;
     }
   }
-  ctx.fillText(line, PADDING, y);
+  if (line) ctx.fillText(line, PADDING, y);
   y += 20;
   
   // Style
@@ -234,20 +237,23 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   let y = PADDING + 78;
   const name = brew.name || 'Okänd';
   
-  // Word-wrap brew name
+  // Word-wrap brew name (max 2 lines)
   const words = name.split(' ');
   let line = '';
+  let lineCount = 0;
   for (const word of words) {
     const testLine = line ? `${line} ${word}` : word;
     if (ctx.measureText(testLine).width > textMaxWidth && line) {
       ctx.fillText(line, PADDING, y);
+      lineCount++;
+      if (lineCount >= 2) { line = ''; break; }
       line = word;
       y += 48;
     } else {
       line = testLine;
     }
   }
-  ctx.fillText(line, PADDING, y);
+  if (line) ctx.fillText(line, PADDING, y);
   y += 20;
   
   // Style
