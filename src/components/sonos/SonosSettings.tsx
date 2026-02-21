@@ -389,6 +389,7 @@ export function SonosSettings() {
                 max={50}
                 step={1}
                 onValueChange={(v) => setBgBlur(v[0])}
+                onValueCommit={(v) => saveField({ bg_blur: v[0] })}
               />
             </div>
 
@@ -404,6 +405,7 @@ export function SonosSettings() {
                 max={100}
                 step={5}
                 onValueChange={(v) => setBgBrightness(v[0])}
+                onValueCommit={(v) => saveField({ bg_brightness: v[0] })}
               />
               <p className="text-xs text-muted-foreground">
                 Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
@@ -422,6 +424,7 @@ export function SonosSettings() {
                 max={1.0}
                 step={0.05}
                 onValueChange={(v) => setBgTopGradientOpacity(v[0])}
+                onValueCommit={(v) => saveField({ bg_top_gradient_opacity: v[0] })}
               />
               <p className="text-xs text-muted-foreground">
                 Mörkare överkant för bättre läsbarhet av headern
@@ -440,6 +443,7 @@ export function SonosSettings() {
                 max={200}
                 step={5}
                 onValueChange={(v) => setBgTopGradientHeight(v[0])}
+                onValueCommit={(v) => saveField({ bg_top_gradient_height: v[0] })}
               />
             </div>
 
