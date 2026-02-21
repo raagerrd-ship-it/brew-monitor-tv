@@ -1,58 +1,69 @@
 
+# Etikettutskrift fran olkortets meny - M110 Thermoskrivare
 
-# Optimera ramp-logiken: ett enda setTemp-anrop per cykel
+## Oversikt
+Lagt till en "Skriv ut etikett"-funktion direkt i olkortets statusmeny med tva etikettversioner:
 
-## Problem
+1. **Jastank-etikett** - For att markera jastanken under jasning (olnamn, stil, OG, datum, jastemperatur)
+2. **Fat-etikett** - For att markera faten vid tappning (olnamn, stil, ABV, FG, tappningsdatum, batch-nummer)
 
-I den linjara ramp-logiken (rad 487-516) skickas **tva** API-anrop per cykel:
-1. `setTemp(newTarget)` - satter mellanmalet
-2. `applyPillCompensation(newTarget)` som internt anropar `setTemp` igen med det kompenserade vardet
+## Etikettdesign (70x50mm, 203 DPI = 559x399px)
 
-Detta ger dubbla anrop till RAPT API och rate-limitern i `calculateCompensatedTarget` jamfor mot en **stale** `controller.target_temp` (den fran cykelns borjan, inte den just uppdaterade).
+### Jastank-etikett
+- Olnamn (stor text)
+- Stil
+- OG-varde
+- Bryggt datum (fran events eller startdatum)
+- Jastemperatur (fran profil)
+- Etikettbild (om tillganglig, liten i hornet)
 
-## Losning
+### Fat-etikett
+- Olnamn (stor text)
+- Stil
+- ABV %
+- OG -> FG
+- Tappningsdatum (dagens datum som forval)
+- Batch-nummer
+- Etikettbild (om tillganglig, liten i hornet)
 
-Berakna pill-kompensation **lokalt** innan API-anropet och skicka bara **ett** `setTemp` med det slutgiltiga vardet.
+## Tekniska andringar
 
-### Ny logik (pseudokod)
+### 1. Ny fil: `src/lib/thermal-printer.ts`
+Bluetooth-kommunikation med Phomemo M110:
+- `connectPrinter()` - Ansluter via Web Bluetooth API med kanda Phomemo BLE service UUID:er
+- `printBitmap(canvas)` - Konverterar canvas till 1-bit rasterbild, skickar via ESC/POS GS v 0 kommando
+- `disconnect()` - Kopplar fran skrivaren
+- Hanterar chunking (100 byte per paket med delay) for stabil BLE-overforing
 
-```text
-newTarget = calculateRampTemp(...)
+### 2. Ny fil: `src/components/LabelCanvas.tsx`
+Canvas-renderare for etiketterna:
+- `renderTankLabel(canvas, brew)` - Ritar jastank-etiketten med olnamn, stil, OG, datum, temp
+- `renderKegLabel(canvas, brew)` - Ritar fat-etiketten med olnamn, stil, ABV, OG/FG, datum
+- Bada renderar pa 559x399px canvas
+- Floyd-Steinberg dithering for svartvitt konvertering
+- Laddar etikettbild asynkront om tillganglig
 
-// Berakna pill-komp mot mellanmalet INNAN nagot API-anrop
-finalTarget = newTarget
-if (pillCompEnabled && !pillCompSkipSameData):
-    compensation = calculateCompensatedTarget(
-        profileTarget = newTarget,
-        currentControllerTarget = controller.target_temp  // korrekt referens
-    )
-    if (compensation):
-        finalTarget = compensation.compensatedTarget
+### 3. Ny fil: `src/components/PrintLabelDialog.tsx`
+Dialog som oppnas fran menyn:
+- Flikval: "Jastank" / "Fat"
+- Live forhandsvisning av etiketten i canvas
+- "Anslut skrivare" knapp (Web Bluetooth pairing)
+- Antal kopior (1-10)
+- "Skriv ut" knapp
+- Statusindikator (ej ansluten / ansluten / skriver ut / klar)
+- Felhantering om Web Bluetooth inte stods (visar meddelande om att anvanda Chrome)
 
-// ETT enda API-anrop
-if (abs(controller.target_temp - finalTarget) > 0.1):
-    setTemp(finalTarget)
-    updateDB(finalTarget)
-    logAdjustment(...)
-```
+### 4. Uppdatering: `src/components/brew-card/BrewCard.tsx`
+Lagg till i statusmenyn (efter "Handelser"):
+- Ny menyknapp med Printer-ikon och texten "Skriv ut etikett"
+- Oppnar PrintLabelDialog med brew-data
+- Importerar `Printer` fran lucide-react
 
-### Vad som andras
+### 5. Uppdatering: `src/components/brew-card/types.ts`
+Inga andringar behovs - all brew-data som kravs finns redan i `BrewData`-typen (name, style, abv, originalGravity, finalGravity, events, label_image_url, batchNumber).
 
-Fil: `supabase/functions/process-fermentation-profiles/index.ts`
-
-**Ramp else-blocket (rad 487-516)** omstruktureras:
-
-1. Berakna `newTarget` via `calculateRampTemp` (oforandrat)
-2. Om pill-komp ar aktivt: anropa `calculateCompensatedTarget` direkt (inte via `applyPillCompensation`) med `newTarget` som `profileTarget`
-3. Bestam `finalTarget` = kompenserat varde eller `newTarget` om ingen kompensation behovs
-4. Skicka **ett** `setTemp(finalTarget)` och uppdatera databasen
-5. Logga ramp + eventuell kompensation i ett enda `auto_cooling_adjustments`-inlagg
-
-**tempReached-blocket (rad 455-486)** behalles som det ar - dar ar `applyPillCompensation` korrekt eftersom rampen ar klar och vi bara vill underhalla malet.
-
-### Vad som INTE andras
-
-- `applyPillCompensation`-funktionen behalles intakt for hold-steg, wait-steg och tempReached-fallet
-- `calculateCompensatedTarget` i temp-utils.ts - ingen andring
-- Omedelbar ramp - oforandrad
-- Ovriga stegtyper - oforandrade
+## Begransningar
+- Web Bluetooth kraever Chromium-baserad webblasare (Chrome, Edge)
+- Fungerar inte pa iOS Safari eller Firefox
+- Om Bluetooth inte stods visas ett tydligt felmeddelande i dialogen
+- M110:s BLE UUID kan variera mellan firmwareversioner - kan behova justeras efter forsta test
