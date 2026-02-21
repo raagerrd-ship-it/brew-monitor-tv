@@ -154,7 +154,6 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   const rows = [
     { label: 'OG', value: brew.originalGravity ? brew.originalGravity.toFixed(3) : '—' },
     { label: 'Datum', value: getBrewDate(brew) },
-    { label: 'Jästemp', value: getFermentationTemp(brew) },
   ];
   
   for (const row of rows) {
