@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Thermometer, TrendingUp, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const r1 = (v: number | null | undefined): string => {
@@ -41,49 +41,26 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'overshoot' | 'stall' | 'pill-comp' | 'profil' | 'glykol';
+type AdjustmentCategory = 'pill-comp' | 'profil' | 'glykol';
 
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
   | { type: 'adjustment'; data: AdjustmentLog; category: AdjustmentCategory; timestamp: string };
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
-  if (reason.startsWith('🌡️')) return 'overshoot';
-  if (reason.startsWith('🧠')) return 'stall';
   if (reason.startsWith('🎯')) return 'pill-comp';
   if (reason.startsWith('🔧')) return 'profil';
   if (reason.startsWith('📈')) return 'profil';
-  // 🔄 Cooling recovery and other glycol cooler adjustments
+  // Legacy overshoot/stall entries still categorize to pill-comp
+  if (reason.startsWith('🌡️')) return 'pill-comp';
+  if (reason.startsWith('🧠')) return 'pill-comp';
   if (reason.startsWith('🔄')) return 'glykol';
-  // Fallback: if reason mentions "Cooling recovery" or cooler-specific phrases
   if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
   return 'glykol';
 }
 
 function getCategoryBadge(category: AdjustmentCategory) {
   switch (category) {
-    case 'overshoot':
-      return (
-        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
-          background: 'hsl(38 92% 50% / 0.2)', 
-          color: 'hsl(38 92% 50%)', 
-          borderColor: 'hsl(38 92% 50% / 0.3)' 
-        }}>
-          <Thermometer className="h-2.5 w-2.5 mr-0.5" />
-          Overshoot
-        </Badge>
-      );
-    case 'stall':
-      return (
-        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
-          background: 'hsl(var(--ferment-green) / 0.2)', 
-          color: 'hsl(var(--ferment-green))', 
-          borderColor: 'hsl(var(--ferment-green) / 0.3)' 
-        }}>
-          <TrendingUp className="h-2.5 w-2.5 mr-0.5" />
-          Stall
-        </Badge>
-      );
     case 'pill-comp':
       return (
         <Badge variant="default" className="text-[10px] px-1.5" style={{ 
@@ -92,7 +69,7 @@ function getCategoryBadge(category: AdjustmentCategory) {
           borderColor: 'hsl(280 60% 60% / 0.3)' 
         }}>
           <Pill className="h-2.5 w-2.5 mr-0.5" />
-          Pill-komp
+          PID
         </Badge>
       );
     case 'profil':
@@ -469,57 +446,6 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
 
-                  {category === 'overshoot' && (
-                    <div className="text-xs space-y-1.5">
-                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
-                        🌡️ Overshoot-skydd
-                      </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                        <div className="text-muted-foreground">Controller:</div>
-                        <div className="font-medium">{adj.followed_controller_name || adj.cooler_controller_name}</div>
-                        {adj.followed_current_temp !== null && (
-                          <>
-                            <div className="text-muted-foreground">Probe (kärna):</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
-                          </>
-                        )}
-                        {adj.original_target_temp !== null && (
-                          <>
-                            <div className="text-muted-foreground">Originalmål:</div>
-                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°</div>
-                          </>
-                        )}
-                        <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
-                      </div>
-                      {aiReasoning && (
-                        <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {category === 'stall' && (
-                    <div className="text-xs space-y-1.5">
-                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(var(--ferment-green))' }}>
-                        🧠 Stall-detektion
-                      </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                        <div className="text-muted-foreground">Controller:</div>
-                        <div className="font-medium">{adj.followed_controller_name || adj.cooler_controller_name}</div>
-                        {adj.followed_current_temp !== null && (
-                          <>
-                            <div className="text-muted-foreground">Aktuell temp:</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
-                          </>
-                        )}
-                        <div className="text-muted-foreground">Måljustering:</div>
-                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
-                      </div>
-                      {aiReasoning && (
-                        <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{aiReasoning}</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>

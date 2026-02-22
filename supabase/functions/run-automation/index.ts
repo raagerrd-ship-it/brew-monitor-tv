@@ -63,15 +63,15 @@ Deno.serve(async (req) => {
   // Check what needs to run
   const [{ data: runningSessions }, { data: coolingSettings }] = await Promise.all([
     supabase.from("fermentation_sessions").select("id, controller_id").eq("status", "running").limit(100),
-    supabase.from("auto_cooling_settings").select("enabled, auto_boost_enabled, overshoot_prevention_enabled").limit(1),
+    supabase.from("auto_cooling_settings").select("enabled, pill_compensation_enabled").limit(1),
   ]);
 
   const settings = coolingSettings?.[0];
-  const hasStallOrOvershoot = settings?.auto_boost_enabled || settings?.overshoot_prevention_enabled;
+  const hasPillComp = (settings as any)?.pill_compensation_enabled;
   const hasCooling = settings?.enabled;
 
   // ============================================================
-  // STEP 1: Fermentation Profiles (15s timeout, no AI)
+  // STEP 1: Fermentation Profiles (15s timeout)
   // ============================================================
   if (runningSessions && runningSessions.length > 0) {
     console.log("Step 1: Running fermentation profiles...");
@@ -81,29 +81,14 @@ Deno.serve(async (req) => {
   }
 
   // ============================================================
-  // STEP 2: Tank adjustments - Stall & Overshoot (20s timeout)
-  // Capture result to pass fresh data to step 3
+  // STEP 2: PID Pill Compensation + Glycol Cooler (20s timeout)
+  // Both handled by auto-adjust-cooling in a single call
   // ============================================================
-  let tankResult: any = null;
-  if (hasStallOrOvershoot) {
-    console.log("Step 2: Running tank adjustments (stall/overshoot)...");
-    tankResult = await runStep("tank-adjustments", "auto-adjust-cooling", { mode: "tank-adjustments" }, 20000);
+  if (hasPillComp || hasCooling) {
+    console.log("Step 2: Running PID compensation + glycol cooler...");
+    await runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000);
   } else {
-    results.push({ step: "tank-adjustments", status: "skipped", duration_ms: 0 });
-  }
-
-  // ============================================================
-  // STEP 3: Glycol cooler - pass fresh adjustments from step 2
-  // ============================================================
-  if (hasCooling) {
-    console.log("Step 3: Running glycol cooler regulation...");
-    const glycolBody: Record<string, unknown> = { mode: "glycol-cooler" };
-    if (tankResult?.adjustments && tankResult.adjustments.length > 0) {
-      glycolBody.tankAdjustments = tankResult.adjustments;
-    }
-    await runStep("glycol-cooler", "auto-adjust-cooling", glycolBody, 20000);
-  } else {
-    results.push({ step: "glycol-cooler", status: "skipped", duration_ms: 0 });
+    results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0 });
   }
 
   const totalDuration = Date.now() - startTime;
