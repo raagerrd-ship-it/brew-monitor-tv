@@ -296,8 +296,13 @@ Deno.serve(async (req) => {
           .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
           .eq('controller_id', session.controller_id)
 
+        const dTermInfo = compensation
+          ? (compensation.dampingFactor < 1.0
+            ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}`
+            : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0`)
+          : ''
         const reason = compensation
-          ? `🎯 Pill-kompensation: ${profileTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`
+          ? `🎯 Pill-kompensation: ${profileTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`
           : `🔧 Fermenteringsprofil enforce: ${profileTarget}°C`
 
         await supabase
@@ -524,9 +529,13 @@ Deno.serve(async (req) => {
                       .update({ target_temp: finalTarget, updated_at: new Date().toISOString() })
                       .eq('controller_id', session.controller_id)
                     
-                    // Log ramp + compensation in a single adjustment entry
+                    const rampDTermInfo = pillCompensation
+                      ? (pillCompensation.dampingFactor < 1.0
+                        ? `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${pillCompensation.etaMinutes ?? '?'}min, damp=${pillCompensation.dampingFactor.toFixed(2)}`
+                        : `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0`)
+                      : ''
                     const reason = pillCompensation
-                      ? `🎯 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C, pill-komp=${pillCompensation.compensation.toFixed(2)}°C → ${finalTarget}°C`
+                      ? `🎯 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C, pill-komp=${pillCompensation.compensation.toFixed(2)}°C → ${finalTarget}°C${rampDTermInfo}`
                       : `📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C`
                     
                     await supabase

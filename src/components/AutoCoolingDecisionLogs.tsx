@@ -320,6 +320,48 @@ export function AutoCoolingDecisionLogs() {
                           )}
                         </div>
                       </div>
+                      {/* D-term data parsed from reason string */}
+                      {(() => {
+                        const reason = adj.reason || '';
+                        const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
+                        const etaMatch = reason.match(/ETA=(\d+)min/);
+                        const dampMatch = reason.match(/damp=([\d.]+)/);
+                        if (!rateMatch && !dampMatch) return null;
+                        const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
+                        const eta = etaMatch ? parseInt(etaMatch[1]) : null;
+                        const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
+                        return (
+                          <div className="mt-1.5 pt-1.5 border-t border-border/50">
+                            <p className="font-semibold text-[10px] mb-1" style={{ color: 'hsl(200 70% 55%)' }}>
+                              🧮 D-term (hastighetsdämpning)
+                            </p>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                              {rate !== null && (
+                                <>
+                                  <div className="text-muted-foreground">Pill-hastighet:</div>
+                                  <div className="font-medium" style={{ color: rate < 0 ? 'hsl(var(--temp-blue))' : rate > 0 ? 'hsl(38 92% 50%)' : undefined }}>
+                                    {rate >= 0 ? '+' : ''}{rate.toFixed(2)}°C/h
+                                  </div>
+                                </>
+                              )}
+                              {eta !== null && (
+                                <>
+                                  <div className="text-muted-foreground">ETA till mål:</div>
+                                  <div className="font-medium">{eta} min</div>
+                                </>
+                              )}
+                              {damp !== null && (
+                                <>
+                                  <div className="text-muted-foreground">Dämpning:</div>
+                                  <div className="font-medium" style={{ color: damp < 1.0 ? 'hsl(200 70% 55%)' : 'hsl(var(--muted-foreground))' }}>
+                                    {damp < 1.0 ? `${(damp * 100).toFixed(0)}% (aktiv)` : '100% (full komp)'}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
                         Justerar styrenhetens mål (probe) så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
                       </p>

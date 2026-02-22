@@ -866,7 +866,11 @@ serve(async (req) => {
           continue;
         }
 
-        log('PILL_COMP_ACTION', 'action', `${fc.name}: pill-komp ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`);
+        const dTermInfo = compensation.dampingFactor < 1.0
+          ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}`
+          : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0`
+
+        log('PILL_COMP_ACTION', 'action', `${fc.name}: pill-komp ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`);
 
         const success = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
 
@@ -890,7 +894,7 @@ serve(async (req) => {
             followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
             followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
             followed_hysteresis: compensation.avgDelta,
-            reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C)`,
+            reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`,
             adjusted_against_timestamp: fc.last_update,
           } as any);
         } else {
