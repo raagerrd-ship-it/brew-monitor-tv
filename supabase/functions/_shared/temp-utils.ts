@@ -99,6 +99,8 @@ export async function calculateCompensatedTarget(
 
   // === D-term: calculate pill rate and damping factor ===
   let dampingFactor = 1.0
+  let _pillRate: number | null = null
+  let _etaMinutes: number | null = null
   const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours // configurable via settings
 
   if (deltaHistory.length >= 3) {
@@ -112,6 +114,7 @@ export async function calculateCompensatedTarget(
 
     if (timeDiffHours > 0.05) { // at least ~3 min of data
       const pillRate = (pillNow - pillOld) / timeDiffHours // °C/hour (negative = cooling)
+      _pillRate = pillRate
 
       // The goal is for the AVERAGE of pill and probe to equal profileTarget
       const currentAvg = (pillNow + ctrlNow) / 2
@@ -123,9 +126,11 @@ export async function calculateCompensatedTarget(
         // When pill drops, probe rises (controller compensates), so average moves at ~pillRate/2
         const avgRate = Math.abs(pillRate) / 2
         const etaHours = avgDistance / avgRate
+        _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C (dist=${avgDistance.toFixed(1)}), avgRate=${avgRate.toFixed(2)}°C/h, ETA=${(etaHours * 60).toFixed(0)}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C (dist=${avgDistance.toFixed(1)}), avgRate=${avgRate.toFixed(2)}°C/h, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
+        _etaMinutes = null
         console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${profileTarget}°C (ej mot mål eller för långsam), damping=1.0`)
       }
     }
@@ -166,7 +171,7 @@ export async function calculateCompensatedTarget(
 
   console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta }
+  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes }
 }
 
 /**
