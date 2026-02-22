@@ -326,21 +326,26 @@ export function AutoCoolingDecisionLogs() {
                         const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
                         const etaMatch = reason.match(/ETA=(\d+)min/);
                         const dampMatch = reason.match(/damp=([\d.]+)/);
-                        const piMatch = reason.match(/PI=\+([\d.]+)°C\(P=([\d.]+),I=([\d.]+)\)/);
-                        // Fallback: old P-term format
+                        // New format: PI=+X.XX°C(P=X.XX,I=X.XX,learned=X.XX[bucket]n=N)
+                        const piMatch = reason.match(/PI=\+([\d.]+)°C\(P=([\d.]+),I=([\d.]+)(?:,learned=([\d.]+)\[(\w+)\]n=(\d+))?\)/);
                         const pTermMatch = !piMatch ? reason.match(/P-term=\+([\d.]+)°C/) : null;
-                        // Always show this section for pill-comp (avg distance is always available)
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
                         const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
                         const piTotal = piMatch ? parseFloat(piMatch[1]) : (pTermMatch ? parseFloat(pTermMatch[1]) : null);
                         const pVal = piMatch ? parseFloat(piMatch[2]) : piTotal;
                         const iVal = piMatch ? parseFloat(piMatch[3]) : null;
+                        const learnedVal = piMatch && piMatch[4] ? parseFloat(piMatch[4]) : null;
+                        const learnedBucket = piMatch && piMatch[5] ? piMatch[5] : null;
+                        const learnedN = piMatch && piMatch[6] ? parseInt(piMatch[6]) : null;
                         // Calculate average distance to profile target
                         const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
                           ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
                         const profileTarget = adj.original_target_temp;
                         const avgDistance = avgTemp !== null && profileTarget !== null ? avgTemp - profileTarget : null;
+                        
+                        const bucketLabels: Record<string, string> = { 'high': 'Aktiv (>3°)', 'medium': 'Mellan (1.5-3°)', 'low': 'Lugn (<1.5°)' };
+                        
                         return (
                           <div className="mt-1.5 pt-1.5 border-t border-border/50">
                             <p className="font-semibold text-[10px] mb-1" style={{ color: 'hsl(200 70% 55%)' }}>
@@ -370,6 +375,17 @@ export function AutoCoolingDecisionLogs() {
                                         (P={pVal.toFixed(2)} I={iVal.toFixed(2)})
                                       </span>
                                     )}
+                                  </div>
+                                </>
+                              )}
+                              {learnedVal !== null && learnedVal > 0 && (
+                                <>
+                                  <div className="text-muted-foreground">Inlärd baseline:</div>
+                                  <div className="font-medium" style={{ color: 'hsl(280 60% 60%)' }}>
+                                    {learnedVal.toFixed(2)}°C
+                                    <span className="text-muted-foreground ml-1">
+                                      ({bucketLabels[learnedBucket || ''] || learnedBucket}, {learnedN} ggr)
+                                    </span>
                                   </div>
                                 </>
                               )}
