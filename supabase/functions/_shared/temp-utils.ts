@@ -167,7 +167,7 @@ export async function calculateCompensatedTarget(
   let iCorrection = 0
   let errorCorrection = 0
 
-  if (avgError > 0.2) {
+  if (avgError > 0.5) {
     // === UNDERSHOOT: avg below target — push controller target down less (= warm up) ===
     // P-term: proportional to current error
     pCorrection = avgError * 0.6
@@ -191,7 +191,7 @@ export async function calculateCompensatedTarget(
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
     console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
-  } else if (avgError < -0.2) {
+  } else if (avgError < -0.3) {
     // === OVERSHOOT: avg above target — push controller target down more (= cool down) ===
     // Symmetric P-term for overshoot (avgError is negative, so pCorrection becomes negative)
     pCorrection = avgError * 0.6 // negative value
@@ -209,7 +209,7 @@ export async function calculateCompensatedTarget(
 
     errorCorrection = Math.max(pCorrection + iCorrection, -2.5) // cap at -2.5°C (negative = lower target further)
     console.log(`📉 PI-term overshoot ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
-  } else if (avgError > -0.3 && avgError <= 0.2) {
+  } else if (avgError > -0.5 && avgError <= 0.5) {
     // === CONVERGENCE: avg is within ±0.3° of target — update learned baseline ===
     // Use the current total compensation as the "what worked" value
     const totalCompApplied = profileTarget - currentControllerTarget // how far below profile the controller is set
