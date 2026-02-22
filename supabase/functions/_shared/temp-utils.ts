@@ -76,13 +76,13 @@ export async function calculateCompensatedTarget(
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation } = settings
 
-  // Fetch last 3 delta measurements
+  // Fetch last 8 delta measurements (≈40 min at 5-min intervals) including pill_temp and timestamp
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
-    .select('delta')
+    .select('delta, pill_temp, recorded_at')
     .eq('controller_id', controllerId)
     .order('recorded_at', { ascending: false })
-    .limit(3)
+    .limit(8)
 
   if (!deltaHistory || deltaHistory.length === 0) {
     return null
@@ -96,8 +96,36 @@ export async function calculateCompensatedTarget(
     return null
   }
 
-  // Target average: compensate by half the delta so (pill+ctrl)/2 = profileTarget
-  const compensation = avgDelta / 2
+  // === D-term: calculate pill rate and damping factor ===
+  let dampingFactor = 1.0
+  const ANTICIPATION_WINDOW_HOURS = 1.0 // 60 min window for full damping ramp
+
+  if (deltaHistory.length >= 3) {
+    const newest = deltaHistory[0]
+    // Use the oldest available point for best rate estimate
+    const oldest = deltaHistory[deltaHistory.length - 1]
+    const pillNow = parseFloat(String(newest.pill_temp))
+    const pillOld = parseFloat(String(oldest.pill_temp))
+    const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
+    const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+
+    if (timeDiffHours > 0.05) { // at least ~3 min of data
+      const pillRate = (pillNow - pillOld) / timeDiffHours // °C/hour (negative = cooling)
+
+      // Only apply damping when pill is above target and moving toward it (rate < 0 for cooling)
+      if (pillNow > profileTarget && pillRate < -0.1) {
+        const etaHours = (pillNow - profileTarget) / Math.abs(pillRate)
+        dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, pill=${pillNow.toFixed(1)}°C→${profileTarget}°C, ETA=${(etaHours * 60).toFixed(0)}min, damping=${dampingFactor.toFixed(2)}`)
+      } else {
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, pill=${pillNow.toFixed(1)}°C (ej mot mål eller för långsam), damping=1.0`)
+      }
+    }
+  }
+
+  // Target average: compensate by half the delta, scaled by damping factor
+  const rawCompensation = avgDelta / 2
+  const compensation = rawCompensation * dampingFactor
   let compensatedTarget = profileTarget - compensation
 
   // Safety floor: never more than maxCompensation below profile target
@@ -127,7 +155,7 @@ export async function calculateCompensatedTarget(
     return null
   }
 
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, komp=delta/2=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
+  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
   return { compensatedTarget, compensation, avgDelta }
 }
