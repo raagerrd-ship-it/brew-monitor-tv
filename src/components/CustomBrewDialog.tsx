@@ -374,6 +374,18 @@ export function CustomBrewDialog({
           }
         }
 
+        // If fermentation_start changed, remove sg_data points before that date
+        if (fermStart && fermStart !== editBrew.fermentation_start && sgData.length > 0) {
+          const fermStartTime = new Date(fermStart).getTime();
+          const currentSgData = (updateData.sg_data as Array<{ date: string; [key: string]: unknown }>) ?? sgData;
+          const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
+          if (filtered.length < currentSgData.length) {
+            updateData.sg_data = filtered;
+            const removedCount = currentSgData.length - filtered.length;
+            console.log(`Removed ${removedCount} sg_data points before fermentation start`);
+          }
+        }
+
         // Update existing brew
         const { error: updateError } = await supabase
           .from("brew_readings")
