@@ -266,8 +266,8 @@ Deno.serve(async (req) => {
         const targetToEnforce = compensation ? compensation.compensatedTarget : profileTarget
         const diff = controller.target_temp - targetToEnforce
 
-        // Skip if already within tolerance
-        if (Math.abs(diff) <= 0.2) return null
+        // Skip if already within tolerance (must be < not <= to avoid filtering rate-limited steps)
+        if (Math.abs(diff) < 0.15) return null
 
         // Overshoot guard: if controller target is BELOW desired, check for recent overshoot
         if (diff < -0.2) {
