@@ -4,6 +4,7 @@ import { RaptControllersManagement } from "@/components/RaptControllersManagemen
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
+import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
@@ -2522,6 +2523,9 @@ export default function Settings() {
                         <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
                       </CollapsibleContent>
                     </Collapsible>
+
+                    <SettingsDivider />
+                    <LearnedCompensationBaselines />
                   </div>
                 )}
               </div>
