@@ -80,7 +80,7 @@ export async function calculateCompensatedTarget(
   // Fetch last 8 delta measurements (≈40 min at 5-min intervals) including pill_temp and timestamp
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
-    .select('delta, pill_temp, recorded_at')
+    .select('delta, pill_temp, controller_temp, recorded_at')
     .eq('controller_id', controllerId)
     .order('recorded_at', { ascending: false })
     .limit(8)
