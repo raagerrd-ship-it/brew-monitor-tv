@@ -296,7 +296,8 @@ Deno.serve(async (req) => {
           .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
           .eq('controller_id', session.controller_id)
 
-        const piTermInfo = compensation?.errorCorrection && compensation.errorCorrection > 0 ? `, PI=+${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'})` : ''
+        const learnedInfo = compensation?.learnedBaseline && compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
+        const piTermInfo = compensation?.errorCorrection && compensation.errorCorrection > 0 ? `, PI=+${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
         const dTermInfo = compensation
           ? (compensation.dampingFactor < 1.0
             ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
@@ -530,7 +531,8 @@ Deno.serve(async (req) => {
                       .update({ target_temp: finalTarget, updated_at: new Date().toISOString() })
                       .eq('controller_id', session.controller_id)
                     
-                    const rampPIInfo = pillCompensation?.errorCorrection && pillCompensation.errorCorrection > 0 ? `, PI=+${pillCompensation.errorCorrection.toFixed(2)}°C(P=${pillCompensation.pCorrection?.toFixed(2) ?? '0'},I=${pillCompensation.iCorrection?.toFixed(2) ?? '0'})` : ''
+                    const rampLearnedInfo = pillCompensation?.learnedBaseline && pillCompensation.learnedBaseline > 0 ? `, learned=${pillCompensation.learnedBaseline.toFixed(2)}[${pillCompensation.deltaBucket}]n=${pillCompensation.convergenceCount}` : ''
+                    const rampPIInfo = pillCompensation?.errorCorrection && pillCompensation.errorCorrection > 0 ? `, PI=+${pillCompensation.errorCorrection.toFixed(2)}°C(P=${pillCompensation.pCorrection?.toFixed(2) ?? '0'},I=${pillCompensation.iCorrection?.toFixed(2) ?? '0'}${rampLearnedInfo})` : ''
                     const rampDTermInfo = pillCompensation
                       ? (pillCompensation.dampingFactor < 1.0
                         ? `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${pillCompensation.etaMinutes ?? '?'}min, damp=${pillCompensation.dampingFactor.toFixed(2)}${rampPIInfo}`

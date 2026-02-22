@@ -382,6 +382,39 @@ export type Database = {
         }
         Relationships: []
       }
+      controller_learned_compensation: {
+        Row: {
+          controller_id: string
+          convergence_count: number
+          created_at: string
+          delta_bucket: string
+          id: string
+          last_converged_at: string | null
+          learned_pi_correction: number
+          updated_at: string
+        }
+        Insert: {
+          controller_id: string
+          convergence_count?: number
+          created_at?: string
+          delta_bucket: string
+          id?: string
+          last_converged_at?: string | null
+          learned_pi_correction?: number
+          updated_at?: string
+        }
+        Update: {
+          controller_id?: string
+          convergence_count?: number
+          created_at?: string
+          delta_bucket?: string
+          id?: string
+          last_converged_at?: string | null
+          learned_pi_correction?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       external_user_settings: {
         Row: {
           created_at: string

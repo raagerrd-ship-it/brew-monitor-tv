@@ -140,18 +140,27 @@ export async function calculateCompensatedTarget(
   const rawCompensation = avgDelta / 2
   const compensation = rawCompensation * dampingFactor
 
-  // === PI-term: Proportional + Integral error correction ===
-  // When the average temp (pill+probe)/2 is below the profile target,
-  // reduce compensation to push the controller target UP.
-  // P-term: based on current instantaneous error
-  // I-term: accumulated error over historical window — if temperature
-  //         hasn't been converging, increase correction further
+  // === Adaptive PI-term: Proportional + Integral + Learned baseline ===
+  // Categorize current fermentation phase by delta magnitude
+  const deltaBucket = avgDelta > 3 ? 'high' : avgDelta > 1.5 ? 'medium' : 'low'
+
+  // Query learned baseline for this controller + phase
+  const { data: learnedRow } = await supabase
+    .from('controller_learned_compensation')
+    .select('learned_pi_correction, convergence_count')
+    .eq('controller_id', controllerId)
+    .eq('delta_bucket', deltaBucket)
+    .maybeSingle()
+
+  const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
+  const convergenceCount = learnedRow?.convergence_count ?? 0
+
   const historicalAvgs = deltaHistory.map((d: any) => {
     const p = parseFloat(String(d.pill_temp))
     const c = parseFloat(String(d.controller_temp))
     return (p + c) / 2
   })
-  const currentAvgForError = historicalAvgs[0] // newest
+  const currentAvgForError = historicalAvgs[0]
   const avgError = profileTarget - currentAvgForError // positive when below target
 
   let pCorrection = 0
@@ -162,22 +171,48 @@ export async function calculateCompensatedTarget(
     // P-term: proportional to current error
     pCorrection = avgError * 0.6
 
-    // I-term: calculate accumulated error over the historical window
-    // Each sample represents ~5 min. Sum of errors = integral approximation.
+    // I-term: accumulated error over historical window
     const historicalErrors = historicalAvgs.map(avg => profileTarget - avg)
-    const positiveErrors = historicalErrors.filter(e => e > 0.1) // only count samples below target
+    const positiveErrors = historicalErrors.filter(e => e > 0.1)
     
     if (positiveErrors.length >= 3) {
-      // Average persistent error × persistence ratio (how many samples below target)
       const meanError = positiveErrors.reduce((s, e) => s + e, 0) / positiveErrors.length
-      const persistenceRatio = positiveErrors.length / historicalErrors.length // 0..1
-      // I-gain: 0.3 per degree of persistent error, scaled by how consistent the undershoot is
+      const persistenceRatio = positiveErrors.length / historicalErrors.length
       iCorrection = meanError * persistenceRatio * 0.3
       console.log(`📊 I-term ${controllerName}: ${positiveErrors.length}/${historicalErrors.length} under mål, snittfel=${meanError.toFixed(2)}°C, persist=${(persistenceRatio * 100).toFixed(0)}%, I-korr=+${iCorrection.toFixed(2)}°C`)
     }
 
-    errorCorrection = Math.min(pCorrection + iCorrection, 2.0) // cap total PI at 2.0°C
-    console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
+    // Use the greater of calculated PI or learned baseline (learned = what historically worked)
+    const calculatedPI = pCorrection + iCorrection
+    errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), 2.5) // cap at 2.5°C
+    
+    if (learnedBaseline > 0) {
+      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
+    }
+    console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
+  } else if (avgError > -0.3 && avgError <= 0.2) {
+    // === CONVERGENCE: avg is within ±0.3° of target — update learned baseline ===
+    // Use the current total compensation as the "what worked" value
+    const totalCompApplied = profileTarget - currentControllerTarget // how far below profile the controller is set
+    if (totalCompApplied > 0.1) {
+      // Exponential moving average: weight new data more when we have few samples
+      const alpha = convergenceCount < 5 ? 0.5 : 0.2 // learn faster initially
+      const newLearned = learnedBaseline > 0
+        ? learnedBaseline * (1 - alpha) + (rawCompensation * dampingFactor > 0 ? totalCompApplied - rawCompensation * dampingFactor : 0) * alpha
+        : Math.max(0, totalCompApplied - rawCompensation * dampingFactor)
+      const clampedLearned = Math.max(0, Math.min(newLearned, 2.5))
+      
+      await supabase.from('controller_learned_compensation').upsert({
+        controller_id: controllerId,
+        delta_bucket: deltaBucket,
+        learned_pi_correction: clampedLearned,
+        convergence_count: convergenceCount + 1,
+        last_converged_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,delta_bucket' })
+      
+      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1})`)
+    }
   }
 
   let compensatedTarget = profileTarget - compensation + errorCorrection
@@ -218,9 +253,9 @@ export async function calculateCompensatedTarget(
     return null
   }
 
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
+  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection }
+  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
 }
 
 /**
