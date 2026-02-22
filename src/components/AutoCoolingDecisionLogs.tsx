@@ -307,7 +307,11 @@ export function AutoCoolingDecisionLogs() {
                           </span>
                         </div>
                         <div className="text-muted-foreground">Kompensation:</div>
-                        <div className="font-medium">{(adj.old_target_temp - adj.new_target_temp).toFixed(1)}° nedjustering</div>
+                        <div className="font-medium">
+                          {adj.original_target_temp != null
+                            ? `${(adj.original_target_temp - adj.new_target_temp).toFixed(1)}° nedjustering`
+                            : `${adj.old_target_temp > adj.new_target_temp ? '' : '+'}${(adj.new_target_temp - adj.old_target_temp).toFixed(1)}°`}
+                        </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
                         Justerar styrenhetens mål (probe) så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
