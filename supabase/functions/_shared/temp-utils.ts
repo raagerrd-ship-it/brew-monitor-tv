@@ -102,23 +102,30 @@ export async function calculateCompensatedTarget(
 
   if (deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
-    // Use the oldest available point for best rate estimate
     const oldest = deltaHistory[deltaHistory.length - 1]
     const pillNow = parseFloat(String(newest.pill_temp))
     const pillOld = parseFloat(String(oldest.pill_temp))
+    const ctrlNow = parseFloat(String(newest.controller_temp))
     const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
     const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
 
     if (timeDiffHours > 0.05) { // at least ~3 min of data
       const pillRate = (pillNow - pillOld) / timeDiffHours // °C/hour (negative = cooling)
 
-      // Only apply damping when pill is above target and moving toward it (rate < 0 for cooling)
-      if (pillNow > profileTarget && pillRate < -0.1) {
-        const etaHours = (pillNow - profileTarget) / Math.abs(pillRate)
+      // The goal is for the AVERAGE of pill and probe to equal profileTarget
+      const currentAvg = (pillNow + ctrlNow) / 2
+      const avgDistance = currentAvg - profileTarget
+
+      // Only apply damping when average is above target and pill is moving toward it
+      if (avgDistance > 0 && pillRate < -0.1) {
+        // ETA based on how fast the average is converging
+        // When pill drops, probe rises (controller compensates), so average moves at ~pillRate/2
+        const avgRate = Math.abs(pillRate) / 2
+        const etaHours = avgDistance / avgRate
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, pill=${pillNow.toFixed(1)}°C→${profileTarget}°C, ETA=${(etaHours * 60).toFixed(0)}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C (dist=${avgDistance.toFixed(1)}), avgRate=${avgRate.toFixed(2)}°C/h, ETA=${(etaHours * 60).toFixed(0)}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, pill=${pillNow.toFixed(1)}°C (ej mot mål eller för långsam), damping=1.0`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${profileTarget}°C (ej mot mål eller för långsam), damping=1.0`)
       }
     }
   }
