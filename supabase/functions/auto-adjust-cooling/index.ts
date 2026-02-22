@@ -17,12 +17,6 @@ interface AutoCoolingSettings {
   cooler_controller_id: string | null;
   last_check_at: string | null;
   delta_alert_threshold: number;
-  auto_boost_enabled: boolean;
-  auto_boost_degrees: number;
-  stall_rate_threshold: number;
-  overshoot_prevention_enabled: boolean;
-  overshoot_pill_threshold: number;
-  overshoot_delta_threshold: number;
 }
 
 interface FollowedController {
@@ -51,17 +45,8 @@ serve(async (req) => {
   const decisionLog: DecisionLogEntry[] = [];
   const startTime = Date.now();
 
-  // Parse mode from request body: "all" | "tank-adjustments" | "glycol-cooler"
-  let mode = "all";
-  let tankAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> | null = null;
-  try {
-    const body = await req.json();
-    mode = body?.mode || "all";
-    tankAdjustments = body?.tankAdjustments || null;
-  } catch { /* no body */ }
-
-  const runTankAdjustments = mode === "all" || mode === "tank-adjustments";
-  const runGlycolCooler = mode === "all" || mode === "glycol-cooler";
+  // No mode parsing needed — all features run in a single pass
+  try { await req.json(); } catch { /* no body */ }
 
   const log = (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => {
     const entry: DecisionLogEntry = { step, result, message, details };
@@ -93,8 +78,8 @@ serve(async (req) => {
     
     console.log('='.repeat(60) + '\n');
 
-    // Only persist to DB on the final step (glycol-cooler or all), not on tank-adjustments
-    if (supabase && mode !== "tank-adjustments") {
+    // Always persist decision log
+    if (supabase) {
       try {
         await supabase.from('auto_cooling_decision_logs').insert({
           duration_ms: duration,
@@ -138,16 +123,14 @@ serve(async (req) => {
 
     // Check if ANY feature is enabled
     const coolingEnabled = settings.enabled;
-    const overshootEnabled = settings.overshoot_prevention_enabled ?? false;
-    const stallEnabled = settings.auto_boost_enabled ?? false;
+    const pillCompEnabled = pillCompSettings.enabled;
 
     log('SETTINGS', 'info', 'Feature toggles', {
       cooling: coolingEnabled,
-      overshoot: overshootEnabled,
-      stall_detection: stallEnabled,
+      pill_compensation: pillCompEnabled,
     });
 
-    if (!coolingEnabled && !overshootEnabled && !stallEnabled) {
+    if (!coolingEnabled && !pillCompEnabled) {
       log('SETTINGS', 'fail', 'All features disabled');
       await printSummary(supabase, 'All disabled', false);
       return new Response(JSON.stringify({ message: 'All features disabled', decisionLog }), {
@@ -247,7 +230,7 @@ serve(async (req) => {
       if (runningSessions && runningSessions.length > 0) {
         // Pre-check cooloff for all sessions if needed
         const cooloffSet = new Set<string>();
-        if (runTankAdjustments) {
+        {
           const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           const sessionIds = runningSessions.map(s => s.id);
           const { data: recentAdjs } = await supabase
@@ -399,388 +382,12 @@ serve(async (req) => {
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
-    // Track which controllers stall detection has acted on (stall is prio 1, overshoot must not counteract)
-    const stallActiveControllerIds = new Set<string>();
-
     // ====================================================================
-    // FEATURE 1: STALL DETECTION (runs first - highest priority)
+    // FEATURE 1: PILL COMPENSATION (PID-based temperature control)
+    // Handles both undershoot and overshoot via symmetric PI-regulator.
     // ====================================================================
-    if (stallEnabled && runTankAdjustments) {
-      log('STALL', 'info', '--- Fermentation stall detection check ---');
-
-      for (const fc of followedControllersFullData) {
-        // Skip controllers without active heating — stall boost raises temp which requires heating
-        if (!fc.heating_enabled) {
-          log('STALL_NO_HEATING', 'info', `${fc.name}: Hoppar över stall-check — värme ej aktiverad`);
-          continue;
-        }
-        if (profileOwnedControllerIds.has(fc.controller_id)) {
-          continue; // Covered by PROFILE_STATUS
-        }
-        if (cooloffControllerIds.has(fc.controller_id)) {
-          log('STALL_COOLOFF', 'info', `${fc.name}: Hoppar över stall-check — 30min cooloff efter fermenteringsprofilsjustering`);
-          continue;
-        }
-
-        const lastAdjTsStall = lastAdjTimestampMap.get(fc.controller_id);
-        if (lastAdjTsStall && fc.last_update && lastAdjTsStall === fc.last_update) {
-          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över (stall)`);
-          continue;
-        }
-
-        const { data: linkedBrews } = await supabase
-          .from('brew_readings')
-          .select('batch_id, name, current_sg, original_gravity, final_gravity, sg_data, status, style')
-          .eq('linked_controller_id', fc.controller_id)
-          .in('status', ['Jäser', 'Jäsning', 'Fermenting'])
-          .order('last_update', { ascending: false })
-          .limit(1);
-
-        if (!linkedBrews || linkedBrews.length === 0) {
-          log('STALL_CHECK', 'info', `No active fermenting brew linked to ${fc.name}`);
-          continue;
-        }
-        const brew = linkedBrews[0];
-
-        const sgData = brew.sg_data as Array<{ date: string; value: number }> | null;
-        if (!sgData || sgData.length < 3) {
-          log('STALL_CHECK', 'info', `${brew.name}: Not enough SG data points (${sgData?.length ?? 0})`);
-          continue;
-        }
-
-        const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const nowMs = Date.now();
-        const last24h = sorted.filter(d => (nowMs - new Date(d.date).getTime()) < 24 * 60 * 60 * 1000);
-
-        if (last24h.length < 2) {
-          log('STALL_CHECK', 'info', `${brew.name}: Not enough data in last 24h (${last24h.length} points)`);
-          continue;
-        }
-
-        const newest = last24h[0].value;
-        const oldest = last24h[last24h.length - 1].value;
-        const hoursSpan = (new Date(last24h[0].date).getTime() - new Date(last24h[last24h.length - 1].date).getTime()) / (1000 * 60 * 60);
-
-        if (hoursSpan < 6) {
-          log('STALL_CHECK', 'info', `${brew.name}: Time span too short (${hoursSpan.toFixed(1)}h < 6h required)`);
-          continue;
-        }
-
-        const dailyRate = Math.abs(oldest - newest) * (24 / hoursSpan);
-        const sgToFg = brew.current_sg - brew.final_gravity;
-        const sgRange = brew.original_gravity - brew.final_gravity;
-        const progressPct = sgRange > 0 ? ((brew.original_gravity - brew.current_sg) / sgRange) * 100 : 100;
-        const stallThreshold = settings.stall_rate_threshold ?? 0.001;
-
-        let effectiveThreshold = stallThreshold;
-        let expectedSlowdown = false;
-        if (progressPct > 90) {
-          effectiveThreshold = stallThreshold * 0.3;
-          expectedSlowdown = true;
-        } else if (progressPct > 75) {
-          effectiveThreshold = stallThreshold * 0.6;
-        }
-
-        log('STALL_CHECK', 'info', `${brew.name}: rate=${dailyRate.toFixed(4)}/day, SG=${brew.current_sg.toFixed(3)}, OG=${brew.original_gravity.toFixed(3)}, FG=${brew.final_gravity.toFixed(3)}, progress=${progressPct.toFixed(0)}%`, {
-          daily_rate: dailyRate,
-          daily_rate_display: `${dailyRate.toFixed(4)} SG/day`,
-          og: brew.original_gravity,
-          fg: brew.final_gravity,
-          current_sg: brew.current_sg,
-          sg_to_fg: parseFloat(sgToFg.toFixed(4)),
-          progress_pct: parseFloat(progressPct.toFixed(1)),
-          threshold: stallThreshold,
-          effective_threshold: effectiveThreshold,
-          expected_slowdown: expectedSlowdown,
-          pill_temp: round1(fc.pill_temp),
-          current_temp: round1(fc.current_temp),
-          target_temp: round1(fc.target_temp),
-        });
-
-        const isStalling = dailyRate < effectiveThreshold && sgToFg > 0.005 && progressPct < 95;
-
-        if (!isStalling) {
-          if (expectedSlowdown && progressPct >= 95) {
-            log('STALL_CHECK', 'pass', `${brew.name}: Natural slowdown near FG (${progressPct.toFixed(0)}% done, SG ${sgToFg.toFixed(4)} from FG)`);
-          } else if (expectedSlowdown) {
-            log('STALL_CHECK', 'pass', `${brew.name}: Rate OK for late fermentation (effective threshold: ${effectiveThreshold.toFixed(4)})`);
-          } else {
-            log('STALL_CHECK', 'pass', `${brew.name}: No stall (rate ${dailyRate.toFixed(4)}/day vs threshold ${effectiveThreshold.toFixed(4)})`);
-          }
-          continue;
-        }
-
-        log('STALL_DETECTED', 'action', `Fermentation stall detected for ${brew.name}! Rate ${dailyRate.toFixed(4)}/day, ${(100 - progressPct).toFixed(0)}% remaining`);
-
-        // Create stall alert
-        const { data: existingStallAlerts } = await supabase
-          .from('temp_delta_alerts')
-          .select('id')
-          .eq('controller_id', fc.controller_id)
-          .eq('alert_type', 'fermentation_stall')
-          .eq('acknowledged', false)
-          .limit(1);
-
-        if (!existingStallAlerts || existingStallAlerts.length === 0) {
-          await supabase.from('temp_delta_alerts').insert({
-            controller_id: fc.controller_id,
-            delta: dailyRate,
-            alert_type: 'fermentation_stall'
-          } as any);
-          log('STALL_ALERT', 'pass', `Stall alert created for ${fc.name}: rate=${dailyRate.toFixed(4)}/day`);
-        }
-
-        // --- 12h time guard: max one boost per 12 hours per controller ---
-        const STALL_BOOST_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-        const { data: lastStallBoost } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('created_at')
-          .eq('cooler_controller_id', fc.controller_id)
-          .like('reason', 'Jäsning stannat%')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (lastStallBoost && lastStallBoost.length > 0) {
-          const timeSinceBoost = Date.now() - new Date(lastStallBoost[0].created_at).getTime();
-          if (timeSinceBoost < STALL_BOOST_COOLDOWN_MS) {
-            const remainingH = ((STALL_BOOST_COOLDOWN_MS - timeSinceBoost) / 3600000).toFixed(1);
-            log('STALL_TIMEGUARD', 'info', `${fc.name}: Boost redan gjord inom 12h (${remainingH}h kvar), hoppar över`);
-            continue;
-          }
-        }
-
-        // --- Style-based boost degrees ---
-        const style = (brew.style || '').toLowerCase();
-        let boostDegrees: number;
-        if (/lager|pilsner|k[öo]lsch/.test(style)) {
-          boostDegrees = 0.5;
-        } else if (/belgian|saison|farmhouse/.test(style)) {
-          boostDegrees = 1.5;
-        } else {
-          boostDegrees = settings.auto_boost_degrees ?? 1.0;
-        }
-
-        const currentTarget = parseFloat(String(fc.target_temp ?? '20'));
-        const newTarget = Math.round((currentTarget + boostDegrees) * 10) / 10;
-        const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-
-        if (newTarget > maxTemp) {
-          log('STALL_BOOST_SKIP', 'info', `${fc.name}: Boost ${newTarget}°C överstiger max ${maxTemp}°C`);
-          continue;
-        }
-
-        log('STALL_BOOST', 'action', `Boosting ${fc.name} from ${currentTarget}°C to ${newTarget}°C (+${boostDegrees}°C, style=${brew.style || 'standard'})`);
-
-        const stallSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
-
-        if (stallSuccess) {
-          log('STALL_BOOST', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
-          allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget });
-          stallActiveControllerIds.add(fc.controller_id);
-
-          await supabase.from('auto_cooling_adjustments').insert({
-            cooler_controller_id: fc.controller_id,
-            cooler_controller_name: fc.name,
-            old_target_temp: currentTarget,
-            new_target_temp: newTarget,
-            lowest_followed_temp: currentTarget,
-            followed_controller_id: fc.controller_id,
-            followed_controller_name: fc.name,
-            followed_current_temp: parseFloat(String(fc.current_temp ?? fc.pill_temp ?? '0')),
-            followed_target_temp: currentTarget,
-            reason: `Jäsning stannat (${dailyRate.toFixed(4)}/dag, ${(100 - progressPct).toFixed(0)}% kvar) — stilboost +${boostDegrees}°C (${brew.style || 'standard'})`,
-            adjusted_against_timestamp: fc.last_update
-          } as any);
-        } else {
-          log('STALL_BOOST', 'fail', `Failed to update ${fc.name}`);
-        }
-      }
-    } else {
-      log('STALL', 'info', 'Stall detection disabled');
-    }
-
-    // ====================================================================
-    // FEATURE 2: OVERSHOOT PREVENTION (runs after stall - skips if stall acted)
-    // ====================================================================
-    if (overshootEnabled && runTankAdjustments) {
-      log('OVERSHOOT', 'info', '--- Overshoot prevention check ---');
-
-      const OVERSHOOT_COOLDOWN_MS = 10 * 60 * 1000;
-      const overshootPillThreshold = parseFloat(String(settings.overshoot_pill_threshold ?? 0.3));
-      const overshootDeltaThreshold = parseFloat(String(settings.overshoot_delta_threshold ?? 2.0));
-
-      // Batch: fetch latest overshoot adjustment per controller for cooldown check
-      const overshootCooldownMap = new Map<string, number>();
-      {
-        const { data: allOvershootAdj } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('cooler_controller_id, created_at')
-          .in('cooler_controller_id', followedControllerIds)
-          .like('reason', '🌡️%')
-          .order('created_at', { ascending: false });
-        
-        if (allOvershootAdj) {
-          for (const adj of allOvershootAdj) {
-            if (!overshootCooldownMap.has(adj.cooler_controller_id)) {
-              overshootCooldownMap.set(adj.cooler_controller_id, new Date(adj.created_at).getTime());
-            }
-          }
-        }
-      }
-
-      for (const fc of followedControllersFullData) {
-        // Skip profile-owned controllers when pill-compensation is active —
-        // pill-comp already handles the thermal delta by adjusting the target,
-        // overshoot would counteract it by raising the target back up.
-        if (profileOwnedControllerIds.has(fc.controller_id) && pillCompSettings.enabled) {
-          log('OVERSHOOT_SKIP_PILLCOMP', 'info', `${fc.name}: Pill-komp aktiv för profilstyrd controller, hoppar över overshoot`);
-          continue;
-        }
-
-        // Per-controller cooldown check (from batched data)
-        const lastOvershootTime = overshootCooldownMap.get(fc.controller_id);
-        if (lastOvershootTime) {
-          const timeSinceLastAdj = Date.now() - lastOvershootTime;
-          if (timeSinceLastAdj < OVERSHOOT_COOLDOWN_MS) {
-            const remainingMin = ((OVERSHOOT_COOLDOWN_MS - timeSinceLastAdj) / 60000).toFixed(1);
-            log('OVERSHOOT_COOLDOWN', 'info', `${fc.name}: Cooldown active: ${remainingMin}min remaining`);
-            continue;
-          }
-        }
-
-        if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue;
-        if (fc.target_temp === null || fc.target_temp === undefined) continue;
-
-        const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
-        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
-          log('SKIP_SAME_DATA', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`);
-          continue;
-        }
-
-        if (cooloffControllerIds.has(fc.controller_id)) {
-          continue; // Covered by PROFILE_STATUS
-        }
-
-        // Skip controllers without active heating — overshoot is a heating phenomenon
-        if (!fc.heating_enabled) {
-          log('OVERSHOOT_NO_HEATING', 'info', `Skipping overshoot for ${fc.name}: heating not enabled`);
-          continue;
-        }
-
-        if (stallActiveControllerIds.has(fc.controller_id)) {
-          log('OVERSHOOT_SKIP_STALL', 'info', `Skipping overshoot for ${fc.name}: stall detection acted this run`);
-          continue;
-        }
-
-        const pillTemp = parseFloat(String(fc.pill_temp));
-        const ctrlTemp = parseFloat(String(fc.current_temp));
-        const targetTemp = parseFloat(String(fc.target_temp));
-        const pillDelta = pillTemp - ctrlTemp;
-
-        // CRITICAL: For profile-owned controllers, use the PROFILE target as baseline for overshoot detection.
-        const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id);
-        const profileTarget = profileTargetMap.get(fc.controller_id);
-        const originalTarget = isProfileOwned && profileTarget !== undefined
-          ? profileTarget
-          : (originalTargetMap.get(fc.controller_id) ?? targetTemp);
-
-        log('OVERSHOOT_ORIGINAL_TARGET', 'info', `${fc.name}: overshoot baseline=${originalTarget}°C (${isProfileOwned ? `profile-mål=${profileTarget}°C` : 'originalTargetMap'}), current target=${targetTemp}°C`);
-
-        const pillOverTarget = pillTemp >= originalTarget + overshootPillThreshold;
-        const isHeatingOvershoot = pillOverTarget && pillDelta > overshootDeltaThreshold;
-
-        if (isHeatingOvershoot) {
-          log('OVERSHOOT_DETECTED', 'action', `Heating overshoot for ${fc.name}: pill=${pillTemp.toFixed(1)}° > original=${originalTarget}°C, ctrl=${ctrlTemp.toFixed(1)}° (delta=${pillDelta.toFixed(1)}°)`);
-
-          // --- Deterministic midpoint formula (replaces AI call) ---
-          const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-          const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
-          const coolingHyst = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
-          const coolingFloor = Math.round((ctrlTemp + coolingHyst + 0.1) * 10) / 10;
-          const midpoint = Math.round(((ctrlTemp + originalTarget) / 2) * 10) / 10;
-          let newTarget = Math.max(midpoint, coolingFloor);
-
-          log('OVERSHOOT_CALC', 'info', `Midpoint=${midpoint}°C (ctrl=${ctrlTemp.toFixed(1)}° ↔ original=${originalTarget}°C), coolingFloor=${coolingFloor}°C, chosen=${newTarget}°C`);
-
-          newTarget = Math.min(newTarget, targetTemp);
-          newTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
-
-          if (Math.abs(newTarget - targetTemp) < 0.1) {
-            log('OVERSHOOT_SKIP', 'info', `Target already at ${targetTemp}°C, no change needed`);
-          } else {
-            log('OVERSHOOT_ACTION', 'action', `Setting ${fc.name} from ${targetTemp}°C → ${newTarget}°C`);
-            const overshootSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
-            if (overshootSuccess) {
-              log('OVERSHOOT_ACTION', 'pass', `Successfully set ${fc.name} to ${newTarget}°C`);
-              allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget });
-              await supabase.from('auto_cooling_adjustments').insert({
-                cooler_controller_id: fc.controller_id,
-                cooler_controller_name: fc.name,
-                old_target_temp: targetTemp,
-                new_target_temp: newTarget,
-                original_target_temp: originalTarget,
-                lowest_followed_temp: originalTarget,
-                followed_controller_id: fc.controller_id,
-                followed_controller_name: fc.name,
-                followed_current_temp: ctrlTemp,
-                followed_target_temp: originalTarget,
-                reason: `🌡️ Overshoot: pill ${pillTemp.toFixed(1)}°C > mål ${originalTarget}°C, midpoint-sänkning`,
-                adjusted_against_timestamp: fc.last_update
-              } as any);
-            } else {
-              log('OVERSHOOT_ACTION', 'fail', `Failed to update ${fc.name}`);
-            }
-          }
-        }
-
-        // ---- OVERSHOOT RECOVERY (unchanged) ----
-        if (!stallActiveControllerIds.has(fc.controller_id) && !isHeatingOvershoot && !profileOwnedControllerIds.has(fc.controller_id) && fc.heating_enabled) {
-          const origTarget = originalTargetMap.get(fc.controller_id);
-          if (origTarget !== undefined && targetTemp < origTarget) {
-            if (pillTemp < origTarget + overshootPillThreshold) {
-              const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
-              const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
-              const recoveryTarget = Math.max(minTemp, Math.min(maxTemp, origTarget));
-
-              if (Math.abs(recoveryTarget - targetTemp) >= 0.1) {
-                log('OVERSHOOT_RECOVERY', 'action', `Restoring ${fc.name} from ${targetTemp}°C back to original ${recoveryTarget}°C (pill=${pillTemp.toFixed(1)}°C)`);
-                const recoverySuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, recoveryTarget);
-                if (recoverySuccess) {
-                  log('OVERSHOOT_RECOVERY', 'pass', `Restored ${fc.name} to ${recoveryTarget}°C`);
-                  allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: recoveryTarget });
-                  await supabase.from('auto_cooling_adjustments').insert({
-                    cooler_controller_id: fc.controller_id,
-                    cooler_controller_name: fc.name,
-                    old_target_temp: targetTemp,
-                    new_target_temp: recoveryTarget,
-                    original_target_temp: origTarget,
-                    lowest_followed_temp: origTarget,
-                    followed_controller_id: fc.controller_id,
-                    followed_controller_name: fc.name,
-                    followed_current_temp: ctrlTemp,
-                    followed_target_temp: origTarget,
-                    reason: `🔄 Overshoot recovery: pill ${pillTemp.toFixed(1)}°C tillbaka under ${(origTarget + overshootPillThreshold).toFixed(1)}°C, återställer mål`,
-                    adjusted_against_timestamp: fc.last_update
-                  } as any);
-                } else {
-                  log('OVERSHOOT_RECOVERY', 'fail', `Failed to restore ${fc.name}`);
-                }
-              }
-            }
-          }
-        }
-      }
-    } else {
-      log('OVERSHOOT', 'info', 'Overshoot prevention disabled');
-    }
-
-    // ====================================================================
-    // FEATURE 2.5: STANDALONE PILL COMPENSATION (for non-profile controllers)
-    // Adjusts target temp to account for pill-probe delta so the average
-    // of surface (pill) and core (probe) equals the intended target.
-    // ====================================================================
-    if (pillCompSettings.enabled && runTankAdjustments) {
-      log('PILL_COMP', 'info', '--- Standalone pill compensation check ---');
+    if (pillCompSettings.enabled) {
+      log('PILL_COMP', 'info', '--- PID pill compensation check ---');
 
       // Build map of original targets for pill-comp (from 🎯 adjustments)
       const pillCompOriginalTargetMap = new Map<string, number>();
@@ -813,12 +420,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Skip if stall just acted
-        if (stallActiveControllerIds.has(fc.controller_id)) {
-          log('PILL_COMP_SKIP', 'info', `${fc.name}: Stall detection acted this run, skipping pill-comp`);
-          continue;
-        }
-
         // Skip cooloff controllers
         if (cooloffControllerIds.has(fc.controller_id)) {
           log('PILL_COMP_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping pill-comp`);
@@ -845,7 +446,6 @@ serve(async (req) => {
         const targetTemp = parseFloat(String(fc.target_temp ?? '20'));
 
         // Determine the "base target" — the intended goal before any pill-comp
-        // Use saved original_target from previous pill-comp adjustments, or current target
         const baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
 
         const compensation = await calculateCompensatedTarget(
@@ -867,12 +467,12 @@ serve(async (req) => {
         }
 
         const learnedInfo = compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
-        const piTermInfo = compensation.errorCorrection > 0 ? `, PI=+${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
+        const piTermInfo = compensation.errorCorrection !== 0 ? `, PI=${compensation.errorCorrection >= 0 ? '+' : ''}${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
         const dTermInfo = compensation.dampingFactor < 1.0
           ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
           : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${piTermInfo}`
 
-        log('PILL_COMP_ACTION', 'action', `${fc.name}: pill-komp ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`);
+        log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`);
 
         const success = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, newTarget);
 
@@ -910,7 +510,7 @@ serve(async (req) => {
     // ====================================================================
     // FEATURE 3: AUTO COOLING ADJUSTMENT (runs last)
     // ====================================================================
-    if (coolingEnabled && runGlycolCooler) {
+    if (coolingEnabled) {
       log('COOLING', 'info', '--- Auto cooling adjustment check ---');
 
       if (!settings.cooler_controller_id) {
@@ -970,17 +570,6 @@ serve(async (req) => {
             }
           } else {
             log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`);
-
-            // Apply fresh tankAdjustments from orchestrator (step 2 may have changed targets)
-            if (tankAdjustments && tankAdjustments.length > 0) {
-              for (const adj of tankAdjustments) {
-                const match = followedControllersFullData.find(c => c.name === adj.cooler);
-                if (match) {
-                  log('TANK_ADJ_APPLY', 'info', `Applying fresh target from step 2: ${match.name} ${match.target_temp}→${adj.newTarget}°C`);
-                  (match as any).target_temp = adj.newTarget;
-                }
-              }
-            }
 
             // Find the controller with the lowest target temperature AMONG those with cooling enabled
             const lowestTempController = controllersWithCooling.reduce((lowest, current) => {

@@ -76,12 +76,6 @@ export default function Settings() {
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
-  const [autoBoostEnabled, setAutoBoostEnabled] = useState(false);
-  const [autoBoostDegrees, setAutoBoostDegrees] = useState<string>("1");
-  const [stallRateThreshold, setStallRateThreshold] = useState<string>("0.001");
-  const [overshootEnabled, setOvershootEnabled] = useState(true);
-  const [overshootPillThreshold, setOvershootPillThreshold] = useState<string>("0.3");
-  const [overshootDeltaThreshold, setOvershootDeltaThreshold] = useState<string>("2.0");
   const [pillCompEnabled, setPillCompEnabled] = useState(true);
   const [pillCompDamping, setPillCompDamping] = useState<string>("0.4");
   const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.8");
@@ -443,13 +437,7 @@ export default function Settings() {
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         setCoolerControllerId(data.cooler_controller_id || "");
         setLastAutoCoolingCheck(data.last_check_at);
-        setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2).toString());
-        setAutoBoostEnabled((data as any).auto_boost_enabled ?? false);
-        setAutoBoostDegrees(((data as any).auto_boost_degrees ?? 1).toString());
-        setStallRateThreshold(((data as any).stall_rate_threshold ?? 0.001).toString());
-        setOvershootEnabled((data as any).overshoot_prevention_enabled ?? true);
-        setOvershootPillThreshold(parseFloat(String((data as any).overshoot_pill_threshold ?? 0.3)).toFixed(1));
-        setOvershootDeltaThreshold(parseFloat(String((data as any).overshoot_delta_threshold ?? 2.0)).toFixed(1));
+        setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
         setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
         setPillCompDamping(parseFloat(String((data as any).pill_compensation_damping ?? 0.4)).toString());
         setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.8)).toString());
@@ -966,102 +954,6 @@ export default function Settings() {
         description: "Kunde inte spara inställningar",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleAutoBoostEnabledChange = async (checked: boolean) => {
-    setAutoBoostEnabled(checked);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ auto_boost_enabled: checked } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: checked ? "Auto-boost aktiverad" : "Auto-boost inaktiverad" });
-    } catch (error) {
-      console.error('Error updating auto boost:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handleAutoBoostDegreesChange = async (value: string) => {
-    setAutoBoostDegrees(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ auto_boost_degrees: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Boost-grader har uppdaterats" });
-    } catch (error) {
-      console.error('Error updating boost degrees:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handleStallRateThresholdChange = async (value: string) => {
-    setStallRateThreshold(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ stall_rate_threshold: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Stall-tröskelvärde har uppdaterats" });
-    } catch (error) {
-      console.error('Error updating stall threshold:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handleOvershootEnabledChange = async (checked: boolean) => {
-    setOvershootEnabled(checked);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ overshoot_prevention_enabled: checked } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: checked ? "Overshoot-prevention aktiverad" : "Overshoot-prevention inaktiverad" });
-    } catch (error) {
-      console.error('Error updating overshoot:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handleOvershootPillThresholdChange = async (value: string) => {
-    setOvershootPillThreshold(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ overshoot_pill_threshold: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade" });
-    } catch (error) {
-      console.error('Error updating overshoot pill threshold:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handleOvershootDeltaThresholdChange = async (value: string) => {
-    setOvershootDeltaThreshold(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ overshoot_delta_threshold: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade" });
-    } catch (error) {
-      console.error('Error updating overshoot delta threshold:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
 
@@ -2237,169 +2129,8 @@ export default function Settings() {
               )}
             </SettingsSection>
 
-            <CategorySeparator icon={Thermometer} label="Justering" />
 
-            <SettingsSection
-              icon={Thermometer}
-              title="Jästanksjustering"
-              description="Automatisk justering av enskilda jästankars måltemperatur vid stall eller overshoot"
-            >
-              <div className="space-y-6">
-
-                {/* FERMENTATION STALL DETECTION */}
-                <div className="space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <ArrowUp className="h-4 w-4 text-muted-foreground" />
-                      Jäsningsstall-detektion
-                    </h3>
-                    
-                     <p className="text-xs text-muted-foreground">
-                      Upptäcker när jäsningen saktar in för mycket och SG fortfarande är långt från FG. 
-                      Vid stall höjs temperaturen automatiskt baserat på ölstil (Lager: +0.5°C, Belgisk: +1.5°C, övriga: inställd temp-höjning).
-                      12 timmars spärr mellan justeringar per styrenhet.
-                    </p>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="auto-boost-enabled"
-                        checked={autoBoostEnabled}
-                        onCheckedChange={handleAutoBoostEnabledChange}
-                      />
-                       <label
-                        htmlFor="auto-boost-enabled"
-                        className="text-sm cursor-pointer leading-none"
-                      >
-                        Automatisk temp-justering vid stall
-                      </label>
-                    </div>
-
-                    <div className="grid gap-4 grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Stall-tröskel (SG/dag)</label>
-                        <Select value={stallRateThreshold} onValueChange={handleStallRateThresholdChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.0005">0.0005</SelectItem>
-                            <SelectItem value="0.001">0.001</SelectItem>
-                            <SelectItem value="0.002">0.002</SelectItem>
-                            <SelectItem value="0.003">0.003</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {autoBoostEnabled && (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Temp-höjning</label>
-                          <Select value={autoBoostDegrees} onValueChange={handleAutoBoostDegreesChange}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border z-50">
-                              <SelectItem value="0.5">+0.5°C</SelectItem>
-                              <SelectItem value="1">+1°C</SelectItem>
-                              <SelectItem value="1.5">+1.5°C</SelectItem>
-                              <SelectItem value="2">+2°C</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-
-                     <p className="text-xs text-muted-foreground">
-                      Varnar när jäsningshastigheten &lt; {stallRateThreshold} SG/dag och mer än 20% kvar till FG.
-                      {autoBoostEnabled && ` Höjer med +${autoBoostDegrees}°C (eller stilbaserat). 12h spärr per styrenhet.`}
-                    </p>
-                  </div>
-
-                  {/* OVERSHOOT PREVENTION */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Thermometer className="h-4 w-4 text-muted-foreground" />
-                      Overshoot-prevention
-                    </h3>
-                    
-                    <p className="text-xs text-muted-foreground">
-                      Förhindrar att pill-temperaturen (ytan) överstiger måltemperaturen vid uppvärmning. 
-                      Sänker target tillfälligt till mittpunkten mellan probe och mål för att låta värmen fördela sig jämnt.
-                      Automatisk återställning när pill sjunkit tillbaka under tröskeln.
-                    </p>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="overshoot-enabled"
-                        checked={overshootEnabled}
-                        onCheckedChange={handleOvershootEnabledChange}
-                      />
-                      <label
-                        htmlFor="overshoot-enabled"
-                        className="text-sm cursor-pointer leading-none"
-                      >
-                        Automatisk overshoot-prevention
-                      </label>
-                    </div>
-
-                    {overshootEnabled && (
-                      <div className="grid gap-4 grid-cols-2">
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Pill över target</label>
-                          <Select value={overshootPillThreshold} onValueChange={handleOvershootPillThresholdChange}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border z-50">
-                              <SelectItem value="0.2">+0.2°C</SelectItem>
-                              <SelectItem value="0.3">+0.3°C</SelectItem>
-                              <SelectItem value="0.5">+0.5°C</SelectItem>
-                              <SelectItem value="1.0">+1.0°C</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Min delta (pill-ctrl)</label>
-                          <Select value={overshootDeltaThreshold} onValueChange={handleOvershootDeltaThresholdChange}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border z-50">
-                              <SelectItem value="1.0">1.0°C</SelectItem>
-                              <SelectItem value="1.5">1.5°C</SelectItem>
-                              <SelectItem value="2.0">2.0°C</SelectItem>
-                              <SelectItem value="3.0">3.0°C</SelectItem>
-                              <SelectItem value="5.0">5.0°C</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="text-xs text-muted-foreground">
-                      Triggar när pill ≥ target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C.
-                      {overshootEnabled && ' Sänker target till mittpunkt (probe+mål)/2. Återställer automatiskt när pill stabiliserats.'}
-                    </p>
-                  </div>
-
-                  {/* INFO - Tank adjustments */}
-                  <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
-                      <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
-                      <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                      <p>• Justerar enskilda jästankars måltemperatur — inte glykolkylaren</p>
-                      <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
-                      {autoBoostEnabled && <p>• 🧠 Stilbaserad temp-höjning (Lager: +0.5°C, Belgisk: +1.5°C, övriga: +{autoBoostDegrees}°C)</p>}
-                      {autoBoostEnabled && <p>• 12 timmars spärr mellan justeringar per styrenhet</p>}
-                      {overshootEnabled && <p>• 🌡️ Overshoot-prevention: sänker target om pill &gt; target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C</p>}
-                      {overshootEnabled && <p>• Automatisk återställning till bas-target när overshoot avtagit</p>}
-                    </CollapsibleContent>
-                  </Collapsible>
-              </div>
-            </SettingsSection>
-
-            {/* PILL COMPENSATION */}
+            {/* PILL COMPENSATION (was below Jästanksjustering, now directly follows) */}
             <SettingsSection
               icon={Pill}
               title="Pill-kompensation"
