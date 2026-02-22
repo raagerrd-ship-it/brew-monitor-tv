@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame } from "lucide-react";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText } from "./utils";
@@ -27,6 +27,7 @@ const CARD_STATS_HEIGHT = 148;
 function StatusIcon({ status }: { status: string }) {
   const cls = "h-3 w-3";
   switch (status) {
+    case "Bryggning": return <Flame className={cls} />;
     case "Jäsning": return <FlaskConical className={cls} />;
     case "Konditionering": return <PackageCheck className={cls} />;
     case "Klar": return <CheckCircle2 className={cls} />;
@@ -84,6 +85,7 @@ function BrewCardComponent({
   );
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
+  const isBrewing = brew.status === "Bryggning";
   const hasLabel = !!brew.label_image_url;
   
   const showInteractiveElements = isAuthenticated && !isTvMode;
@@ -149,10 +151,14 @@ function BrewCardComponent({
                     fontSize: '10px',
                     background: isCompletedOrConditioning 
                       ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                      : isBrewing
+                      ? "linear-gradient(135deg, hsl(30 90% 50% / 0.25) 0%, hsl(30 90% 50% / 0.1) 100%)"
                       : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
-                    color: isCompletedOrConditioning ? "hsl(var(--primary))" : "hsl(var(--ferment-green))",
+                    color: isCompletedOrConditioning ? "hsl(var(--primary))" : isBrewing ? "hsl(30 90% 55%)" : "hsl(var(--ferment-green))",
                     border: isCompletedOrConditioning
                       ? "1px solid hsl(var(--primary) / 0.3)" 
+                      : isBrewing
+                      ? "1px solid hsl(30 90% 50% / 0.4)"
                       : "1px solid hsl(var(--ferment-green) / 0.4)",
                     boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
                   }}
