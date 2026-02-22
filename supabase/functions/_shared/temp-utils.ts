@@ -139,17 +139,19 @@ export async function calculateCompensatedTarget(
   // Safety floor: never more than maxCompensation below profile target
   compensatedTarget = Math.max(profileTarget - maxCompensation, compensatedTarget)
 
-  // Dynamic rate limit: scales down as we approach the target
+  // Asymmetric rate limit: strict upward (to avoid triggering heater), normal downward
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
+  const isIncreasing = diff > 0 // target going UP = releasing compensation
 
-  // Always apply rate limit (removed emergency bypass to prevent large D-term jumps)
   {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    const effectiveLimit = maxChangePerCycle * scaleFactor
-    if (distanceFromIdeal > effectiveLimit) {
-      compensatedTarget = currentControllerTarget + (diff > 0 ? effectiveLimit : -effectiveLimit)
-      console.log(`🎯 Rate-limit: ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
+    // Upward changes (releasing compensation) use a much tighter limit to avoid triggering heater
+    const upwardLimit = 0.3 // max 0.3°C/cycle upward regardless of settings
+    const baseLimit = isIncreasing ? Math.min(maxChangePerCycle * scaleFactor, upwardLimit) : maxChangePerCycle * scaleFactor
+    if (distanceFromIdeal > baseLimit) {
+      compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
+      console.log(`🎯 Rate-limit (${isIncreasing ? '↑ strikt' : '↓ normal'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
     }
   }
 
