@@ -143,9 +143,8 @@ export async function calculateCompensatedTarget(
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
 
-  if (distanceFromIdeal > emergencyThreshold) {
-    console.log(`⚠️ Pill-komp ${controllerName}: stor avvikelse ${distanceFromIdeal.toFixed(1)}°C (>${emergencyThreshold}), sätter direkt utan rate-limit`)
-  } else {
+  // Always apply rate limit (removed emergency bypass to prevent large D-term jumps)
+  {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
     const effectiveLimit = maxChangePerCycle * scaleFactor
     if (distanceFromIdeal > effectiveLimit) {
