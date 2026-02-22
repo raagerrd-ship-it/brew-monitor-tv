@@ -308,9 +308,16 @@ export function AutoCoolingDecisionLogs() {
                         </div>
                         <div className="text-muted-foreground">Kompensation:</div>
                         <div className="font-medium">
-                          {adj.original_target_temp != null
-                            ? `${(adj.original_target_temp - adj.new_target_temp).toFixed(1)}° nedjustering`
-                            : `${adj.old_target_temp > adj.new_target_temp ? '' : '+'}${(adj.new_target_temp - adj.old_target_temp).toFixed(1)}°`}
+                          {(() => {
+                            const change = adj.new_target_temp - adj.old_target_temp;
+                            const sign = change >= 0 ? '+' : '';
+                            return `${sign}${change.toFixed(1)}°`;
+                          })()}
+                          {adj.original_target_temp != null && (
+                            <span className="text-muted-foreground ml-1">
+                              (totalt {(adj.original_target_temp - adj.new_target_temp).toFixed(1)}° under profil)
+                            </span>
+                          )}
                         </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1 italic">
