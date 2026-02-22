@@ -50,113 +50,119 @@ Deno.serve(async (req) => {
     console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting, autoHideArchived })
 
     // Fetch ALL batches from Brewfather
-    const { data: batchesData, error: batchesError } = await supabase.functions.invoke(
-      'brewfather-batches',
-      { body: {} }
-    )
-
-    if (batchesError) {
-      console.error('Error fetching batches:', batchesError)
-      throw batchesError
-    }
-
-    if (!batchesData || batchesData.length === 0) {
-      console.log('No batches found from Brewfather')
-      return new Response(
-        JSON.stringify({ message: 'No batches found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    let batchesData: any[] = []
+    try {
+      const { data, error: batchesError } = await supabase.functions.invoke(
+        'brewfather-batches',
+        { body: {} }
       )
+
+      if (batchesError) {
+        console.error('Error fetching batches:', batchesError)
+        // Don't throw - continue with custom brews only
+      } else {
+        batchesData = data || []
+      }
+    } catch (e) {
+      console.error('Failed to fetch Brewfather batches:', e)
+      // Continue - there may be custom brews to handle
     }
 
     console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
-    // Auto-manage selected_brews based on fermentation status
-    console.log('Managing selected_brews based on fermentation status...')
-    
-    const fermentingBatches = batchesData
-      .filter((batch: any) => batch.status === 'Fermenting')
-      .sort((a: any, b: any) => {
-        const dateA = new Date(a.brewDate || 0).getTime()
-        const dateB = new Date(b.brewDate || 0).getTime()
-        return dateB - dateA
-      })
+    console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
-    console.log(`Found ${fermentingBatches.length} fermenting batches`)
-
-    const top3Fermenting = fermentingBatches.slice(0, 3)
-    const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
-
-    for (const batch of batchesData) {
-      const isFermenting = batch.status === 'Fermenting'
-      const isCompleted = batch.status === 'Completed'
-      const isConditioning = batch.status === 'Conditioning'
-      const isArchived = batch.status === 'Archived'
-      const isInTop3 = top3FermentingIds.includes(batch._id)
+    // Auto-manage selected_brews based on fermentation status (only for Brewfather batches)
+    if (batchesData.length > 0) {
+      console.log('Managing selected_brews based on fermentation status...')
       
-      const { data: existingBrew } = await supabase
-        .from('selected_brews')
-        .select('*')
-        .eq('batch_id', batch._id)
-        .maybeSingle()
+      const fermentingBatches = batchesData
+        .filter((batch: any) => batch.status === 'Fermenting')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(a.brewDate || 0).getTime()
+          const dateB = new Date(b.brewDate || 0).getTime()
+          return dateB - dateA
+        })
 
-      // Determine if this brew should be visible based on settings
-      let shouldBeVisible = false
-      
-      if (isFermenting && isInTop3 && autoActivateFermenting) {
-        shouldBeVisible = true
-      } else if (existingBrew) {
-        // Keep manually selected brews visible unless they match auto-hide criteria
-        shouldBeVisible = existingBrew.is_visible
+      console.log(`Found ${fermentingBatches.length} fermenting batches`)
+
+      const top3Fermenting = fermentingBatches.slice(0, 3)
+      const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
+
+      for (const batch of batchesData) {
+        const isFermenting = batch.status === 'Fermenting'
+        const isCompleted = batch.status === 'Completed'
+        const isConditioning = batch.status === 'Conditioning'
+        const isArchived = batch.status === 'Archived'
+        const isInTop3 = top3FermentingIds.includes(batch._id)
         
-        if (isCompleted && autoHideCompleted) {
-          shouldBeVisible = false
-        }
-        if (isConditioning && autoHideConditioning) {
-          shouldBeVisible = false
-        }
-        if (isArchived && autoHideArchived) {
-          shouldBeVisible = false
-        }
-      }
+        const { data: existingBrew } = await supabase
+          .from('selected_brews')
+          .select('*')
+          .eq('batch_id', batch._id)
+          .maybeSingle()
 
-      if (shouldBeVisible) {
-        if (existingBrew) {
-          if (!existingBrew.is_visible) {
+        // Determine if this brew should be visible based on settings
+        let shouldBeVisible = false
+        
+        if (isFermenting && isInTop3 && autoActivateFermenting) {
+          shouldBeVisible = true
+        } else if (existingBrew) {
+          // Keep manually selected brews visible unless they match auto-hide criteria
+          shouldBeVisible = existingBrew.is_visible
+          
+          if (isCompleted && autoHideCompleted) {
+            shouldBeVisible = false
+          }
+          if (isConditioning && autoHideConditioning) {
+            shouldBeVisible = false
+          }
+          if (isArchived && autoHideArchived) {
+            shouldBeVisible = false
+          }
+        }
+
+        if (shouldBeVisible) {
+          if (existingBrew) {
+            if (!existingBrew.is_visible) {
+              await supabase
+                .from('selected_brews')
+                .update({ is_visible: true })
+                .eq('batch_id', batch._id)
+              console.log(`Auto-activated brew: ${batch._id} (status: ${batch.status})`)
+            }
+          } else if (autoActivateFermenting && isFermenting && isInTop3) {
+            const { data: maxOrder } = await supabase
+              .from('selected_brews')
+              .select('display_order')
+              .order('display_order', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            
+            const nextOrder = (maxOrder?.display_order || 0) + 1
+            
             await supabase
               .from('selected_brews')
-              .update({ is_visible: true })
-              .eq('batch_id', batch._id)
-            console.log(`Auto-activated brew: ${batch._id} (status: ${batch.status})`)
+              .insert({
+                batch_id: batch._id,
+                display_order: nextOrder,
+                is_visible: true
+              })
+            console.log(`Auto-added fermenting brew: ${batch._id}`)
           }
-        } else if (autoActivateFermenting && isFermenting && isInTop3) {
-          const { data: maxOrder } = await supabase
-            .from('selected_brews')
-            .select('display_order')
-            .order('display_order', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          
-          const nextOrder = (maxOrder?.display_order || 0) + 1
-          
-          await supabase
-            .from('selected_brews')
-            .insert({
-              batch_id: batch._id,
-              display_order: nextOrder,
-              is_visible: true
-            })
-          console.log(`Auto-added fermenting brew: ${batch._id}`)
-        }
-      } else {
-        if (existingBrew && existingBrew.is_visible) {
-          await supabase
-            .from('selected_brews')
-            .update({ is_visible: false })
-            .eq('batch_id', batch._id)
-          
-          console.log(`Auto-deactivated brew: ${batch._id} (status: ${batch.status})`)
+        } else {
+          if (existingBrew && existingBrew.is_visible) {
+            await supabase
+              .from('selected_brews')
+              .update({ is_visible: false })
+              .eq('batch_id', batch._id)
+            
+            console.log(`Auto-deactivated brew: ${batch._id} (status: ${batch.status})`)
+          }
         }
       }
+    } else {
+      console.log('No Brewfather batches - skipping auto-management')
     }
 
     // Get currently visible brews for full syncing
@@ -173,6 +179,13 @@ Deno.serve(async (req) => {
 
     if (!selectedBrews || selectedBrews.length === 0) {
       console.log('No visible brews after auto-management')
+      // Still trigger RAPT sync even with no brews
+      try {
+        await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
+        console.log('RAPT device sync triggered successfully')
+      } catch (e) {
+        console.error('Failed to trigger RAPT sync:', e)
+      }
       return new Response(
         JSON.stringify({ message: 'No visible brews' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -181,21 +194,34 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${selectedBrews.length} visible brews to sync`)
 
-    // Fetch full batch details for selected batches
-    const selectedBatchIds = selectedBrews.map(b => b.batch_id)
-    console.log(`Fetching FULL batch details for ${selectedBatchIds.length} batches...`)
+    // Only fetch Brewfather batch details for non-custom brews
+    const brewfatherBatchIds = selectedBrews
+      .map(b => b.batch_id)
+      .filter(id => !id.startsWith('custom_'))
     
-    const { data: fullBatchesData, error: fullBatchesError } = await supabase.functions.invoke(
-      'brewfather-batches',
-      { body: { batchIds: selectedBatchIds } }
-    )
+    let batchesToSync: any[] = []
+    
+    if (brewfatherBatchIds.length > 0) {
+      console.log(`Fetching FULL batch details for ${brewfatherBatchIds.length} Brewfather batches...`)
+      
+      try {
+        const { data: fullBatchesData, error: fullBatchesError } = await supabase.functions.invoke(
+          'brewfather-batches',
+          { body: { batchIds: brewfatherBatchIds } }
+        )
 
-    if (fullBatchesError) {
-      console.error('Error fetching full batch details:', fullBatchesError)
-      throw fullBatchesError
+        if (fullBatchesError) {
+          console.error('Error fetching full batch details:', fullBatchesError)
+        } else {
+          batchesToSync = fullBatchesData || []
+        }
+      } catch (e) {
+        console.error('Failed to fetch Brewfather batch details:', e)
+      }
+    } else {
+      console.log('No Brewfather batches to sync - only custom brews selected')
     }
-
-    const batchesToSync = fullBatchesData || []
+    
     console.log(`Got ${batchesToSync.length} full batch details`)
 
     // Fetch all readings in parallel for faster sync
