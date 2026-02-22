@@ -139,7 +139,21 @@ export async function calculateCompensatedTarget(
   // Target average: compensate by half the delta, scaled by damping factor
   const rawCompensation = avgDelta / 2
   const compensation = rawCompensation * dampingFactor
-  let compensatedTarget = profileTarget - compensation
+
+  // P-term: if the current average is below the profile target, reduce compensation
+  // to push the controller target UP and drive convergence faster
+  const latestPillForAvg = parseFloat(String(deltaHistory[0].pill_temp))
+  const latestCtrlForAvg = parseFloat(String(deltaHistory[0].controller_temp))
+  const currentAvgForError = (latestPillForAvg + latestCtrlForAvg) / 2
+  const avgError = profileTarget - currentAvgForError // positive when below target
+  let errorCorrection = 0
+  if (avgError > 0.2) {
+    // Apply proportional correction capped at 1.5°C
+    errorCorrection = Math.min(avgError * 0.8, 1.5)
+    console.log(`📈 P-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C under mål=${profileTarget}°C (fel=${avgError.toFixed(2)}°C), korrigering=+${errorCorrection.toFixed(2)}°C`)
+  }
+
+  let compensatedTarget = profileTarget - compensation + errorCorrection
 
   // Safety floor: never more than maxCompensation below profile target
   compensatedTarget = Math.max(profileTarget - maxCompensation, compensatedTarget)
