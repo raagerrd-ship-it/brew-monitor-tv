@@ -326,12 +326,16 @@ export function AutoCoolingDecisionLogs() {
                         const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
                         const etaMatch = reason.match(/ETA=(\d+)min/);
                         const dampMatch = reason.match(/damp=([\d.]+)/);
-                        const pTermMatch = reason.match(/P-term=\+([\d.]+)°C/);
+                        const piMatch = reason.match(/PI=\+([\d.]+)°C\(P=([\d.]+),I=([\d.]+)\)/);
+                        // Fallback: old P-term format
+                        const pTermMatch = !piMatch ? reason.match(/P-term=\+([\d.]+)°C/) : null;
                         // Always show this section for pill-comp (avg distance is always available)
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
                         const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
-                        const pTerm = pTermMatch ? parseFloat(pTermMatch[1]) : null;
+                        const piTotal = piMatch ? parseFloat(piMatch[1]) : (pTermMatch ? parseFloat(pTermMatch[1]) : null);
+                        const pVal = piMatch ? parseFloat(piMatch[2]) : piTotal;
+                        const iVal = piMatch ? parseFloat(piMatch[3]) : null;
                         // Calculate average distance to profile target
                         const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
                           ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
@@ -340,7 +344,7 @@ export function AutoCoolingDecisionLogs() {
                         return (
                           <div className="mt-1.5 pt-1.5 border-t border-border/50">
                             <p className="font-semibold text-[10px] mb-1" style={{ color: 'hsl(200 70% 55%)' }}>
-                              🧮 D-term (hastighetsdämpning)
+                              🧮 PID-reglering
                             </p>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
                               <div className="text-muted-foreground">Medel → Mål:</div>
@@ -356,11 +360,16 @@ export function AutoCoolingDecisionLogs() {
                                   </>
                                 ) : '—'}
                               </div>
-                              {pTerm !== null && pTerm > 0 && (
+                              {piTotal !== null && piTotal > 0 && (
                                 <>
-                                  <div className="text-muted-foreground">P-term (felkorr.):</div>
+                                  <div className="text-muted-foreground">PI-korrigering:</div>
                                   <div className="font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>
-                                    +{pTerm.toFixed(2)}°C
+                                    +{piTotal.toFixed(2)}°C
+                                    {pVal !== null && iVal !== null && (
+                                      <span className="text-muted-foreground ml-1">
+                                        (P={pVal.toFixed(2)} I={iVal.toFixed(2)})
+                                      </span>
+                                    )}
                                   </div>
                                 </>
                               )}
