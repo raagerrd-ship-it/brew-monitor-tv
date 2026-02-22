@@ -326,10 +326,12 @@ export function AutoCoolingDecisionLogs() {
                         const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
                         const etaMatch = reason.match(/ETA=(\d+)min/);
                         const dampMatch = reason.match(/damp=([\d.]+)/);
+                        const pTermMatch = reason.match(/P-term=\+([\d.]+)°C/);
                         // Always show this section for pill-comp (avg distance is always available)
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
                         const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
+                        const pTerm = pTermMatch ? parseFloat(pTermMatch[1]) : null;
                         // Calculate average distance to profile target
                         const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
                           ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
@@ -354,6 +356,14 @@ export function AutoCoolingDecisionLogs() {
                                   </>
                                 ) : '—'}
                               </div>
+                              {pTerm !== null && pTerm > 0 && (
+                                <>
+                                  <div className="text-muted-foreground">P-term (felkorr.):</div>
+                                  <div className="font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>
+                                    +{pTerm.toFixed(2)}°C
+                                  </div>
+                                </>
+                              )}
                               {rate !== null && (
                                 <>
                                   <div className="text-muted-foreground">Pill-hastighet:</div>

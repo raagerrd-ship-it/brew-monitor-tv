@@ -296,10 +296,11 @@ Deno.serve(async (req) => {
           .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
           .eq('controller_id', session.controller_id)
 
+        const pTermInfo = compensation?.errorCorrection && compensation.errorCorrection > 0 ? `, P-term=+${compensation.errorCorrection.toFixed(2)}°C` : ''
         const dTermInfo = compensation
           ? (compensation.dampingFactor < 1.0
-            ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}`
-            : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0`)
+            ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${pTermInfo}`
+            : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${pTermInfo}`)
           : ''
         const reason = compensation
           ? `🎯 Pill-kompensation: ${profileTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`
@@ -529,10 +530,11 @@ Deno.serve(async (req) => {
                       .update({ target_temp: finalTarget, updated_at: new Date().toISOString() })
                       .eq('controller_id', session.controller_id)
                     
+                    const rampPTermInfo = pillCompensation?.errorCorrection && pillCompensation.errorCorrection > 0 ? `, P-term=+${pillCompensation.errorCorrection.toFixed(2)}°C` : ''
                     const rampDTermInfo = pillCompensation
                       ? (pillCompensation.dampingFactor < 1.0
-                        ? `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${pillCompensation.etaMinutes ?? '?'}min, damp=${pillCompensation.dampingFactor.toFixed(2)}`
-                        : `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0`)
+                        ? `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${pillCompensation.etaMinutes ?? '?'}min, damp=${pillCompensation.dampingFactor.toFixed(2)}${rampPTermInfo}`
+                        : `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${rampPTermInfo}`)
                       : ''
                     const reason = pillCompensation
                       ? `🎯 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C, pill-komp=${pillCompensation.compensation.toFixed(2)}°C → ${finalTarget}°C${rampDTermInfo}`
