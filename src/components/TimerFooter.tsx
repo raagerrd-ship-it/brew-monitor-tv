@@ -27,10 +27,11 @@ interface TimelineProps {
   totalSeconds: number;
   remainingSeconds: number;
   isMash: boolean;
+  isWhirlpool: boolean;
   isTvMode: boolean;
 }
 
-const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isTvMode }: TimelineProps) {
+const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isWhirlpool, isTvMode }: TimelineProps) {
   if (!milestones.length || totalSeconds <= 0) return null;
 
   // Sort milestones by time descending (highest time = earliest in process)
@@ -68,7 +69,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
                   ? "text-green-400" 
                   : isMash 
                     ? "text-orange-200" 
-                    : "text-foreground/80"
+                    : isWhirlpool
+                      ? "text-cyan-200"
+                      : "text-foreground/80"
               )}>
                 {formatTimeShort(milestone.time)}
               </span>
@@ -92,10 +95,14 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
             width: `${Math.min(100, progressPercent)}%`,
             background: isMash 
               ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
-              : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
+              : isWhirlpool
+                ? 'linear-gradient(90deg, hsl(180 60% 35%), hsl(180 70% 45%), hsl(185 80% 50%))'
+                : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
             boxShadow: isMash
               ? '0 0 12px hsl(30 90% 50%), 0 0 6px hsl(30 90% 50%)'
-              : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
+              : isWhirlpool
+                ? '0 0 12px hsl(180 70% 45%), 0 0 6px hsl(180 70% 45%)'
+                : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
           }}
         />
         
@@ -132,10 +139,14 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
                   : isNext
                     ? isMash 
                       ? cn("bg-orange-400 border-orange-200 ring-2 ring-orange-400/60 shadow-[0_0_12px_rgba(251,146,60,0.7)]", !isTvMode && "animate-pulse")
-                      : cn("bg-primary border-primary-foreground ring-2 ring-primary/60 shadow-[0_0_12px_rgba(var(--primary),0.7)]", !isTvMode && "animate-pulse")
+                      : isWhirlpool
+                        ? cn("bg-cyan-400 border-cyan-200 ring-2 ring-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.7)]", !isTvMode && "animate-pulse")
+                        : cn("bg-primary border-primary-foreground ring-2 ring-primary/60 shadow-[0_0_12px_rgba(var(--primary),0.7)]", !isTvMode && "animate-pulse")
                     : isMash
                       ? "bg-orange-800 border-orange-600"
-                      : "bg-muted-foreground/50 border-muted-foreground/30"
+                      : isWhirlpool
+                        ? "bg-cyan-800 border-cyan-600"
+                        : "bg-muted-foreground/50 border-muted-foreground/30"
               )} />
             </div>
           );
@@ -161,6 +172,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
   const prevLabelRef = useRef<string>(timer.label);
 
   const isMash = timer.label === 'Mäskschema';
+  const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
   // Find the current step: triggered but not yet acknowledged = active
@@ -284,10 +296,14 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
           height: `${TIMER_FOOTER_HEIGHT}px`,
           background: isMash
             ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.7) 0%, hsl(222 20% 12% / 0.85) 100%)'
-            : 'linear-gradient(145deg, hsl(var(--primary) / 0.15) 0%, hsl(222 20% 12% / 0.85) 100%)',
+            : isWhirlpool
+              ? 'linear-gradient(145deg, hsl(180 60% 15% / 0.7) 0%, hsl(222 20% 12% / 0.85) 100%)'
+              : 'linear-gradient(145deg, hsl(var(--primary) / 0.15) 0%, hsl(222 20% 12% / 0.85) 100%)',
           borderTop: isMash
             ? '1px solid hsl(24 80% 40% / 0.15)'
-            : '1px solid hsl(0 0% 100% / 0.08)',
+            : isWhirlpool
+              ? '1px solid hsl(180 60% 40% / 0.15)'
+              : '1px solid hsl(0 0% 100% / 0.08)',
           boxShadow: '0 -8px 24px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
         }}
       >
@@ -328,7 +344,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
             <div className="flex items-center gap-2">
               <span className={cn(
                 "text-sm uppercase tracking-wide flex-shrink-0 font-medium",
-                isMash ? "text-orange-400/90" : "text-muted-foreground"
+                isMash ? "text-orange-400/90" : isWhirlpool ? "text-cyan-400/90" : "text-muted-foreground"
               )}>
                 Nästa:
               </span>
@@ -340,7 +356,9 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                       ? "text-yellow-400 animate-pulse" 
                       : isMash 
                         ? "text-orange-400" 
-                        : "text-primary"
+                        : isWhirlpool
+                          ? "text-cyan-400"
+                          : "text-primary"
                   )} />
                   <span className={cn(
                     "text-base font-semibold truncate",
@@ -348,7 +366,9 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                       ? "text-yellow-300" 
                       : isMash 
                         ? "text-orange-100" 
-                        : "text-foreground"
+                        : isWhirlpool
+                          ? "text-cyan-100"
+                          : "text-foreground"
                   )}>
                     {timer.nextMilestone.label.replace(/🔥\s*/g, '')}
                   </span>
@@ -357,11 +377,11 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <ArrowRight className={cn(
                     "w-4 h-4 flex-shrink-0",
-                    isMash ? "text-orange-400" : "text-primary"
+                    isMash ? "text-orange-400" : isWhirlpool ? "text-cyan-400" : "text-primary"
                   )} />
                   <span className={cn(
                     "text-base font-semibold truncate",
-                    isMash ? "text-orange-100" : "text-foreground"
+                    isMash ? "text-orange-100" : isWhirlpool ? "text-cyan-100" : "text-foreground"
                   )}>
                     {timer.nextConfig.label} ({timer.nextConfig.minutes} min)
                   </span>
@@ -385,6 +405,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                 totalSeconds={timer.totalSeconds}
                 remainingSeconds={timer.remainingSeconds}
                 isMash={isMash}
+                isWhirlpool={isWhirlpool}
                 isTvMode={isTvMode}
               />
             ) : (
@@ -401,10 +422,14 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                     width: `${timer.totalSeconds > 0 ? Math.min(100, ((timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) * 100) : 0}%`,
                     background: isMash 
                       ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
-                      : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
+                      : isWhirlpool
+                        ? 'linear-gradient(90deg, hsl(180 60% 35%), hsl(180 70% 45%), hsl(185 80% 50%))'
+                        : 'linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--primary)))',
                     boxShadow: isMash
                       ? '0 0 12px hsl(30 90% 50%), 0 0 6px hsl(30 90% 50%)'
-                      : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
+                      : isWhirlpool
+                        ? '0 0 12px hsl(180 70% 45%), 0 0 6px hsl(180 70% 45%)'
+                        : '0 0 12px hsl(var(--primary)), 0 0 6px hsl(var(--primary))',
                   }}
                 />
                 <div 
@@ -432,14 +457,18 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
               style={timer.pausedByMilestone ? {
                 background: isMash 
                   ? 'linear-gradient(135deg, hsl(24 95% 50% / 0.8) 0%, hsl(30 100% 40% / 0.7) 100%)'
-                  : 'linear-gradient(135deg, hsl(45 100% 50% / 0.8) 0%, hsl(35 100% 45% / 0.7) 100%)',
-                color: isMash ? 'hsl(24 100% 95%)' : 'hsl(45 100% 10%)',
+                  : isWhirlpool
+                    ? 'linear-gradient(135deg, hsl(180 80% 45% / 0.8) 0%, hsl(185 90% 35% / 0.7) 100%)'
+                    : 'linear-gradient(135deg, hsl(45 100% 50% / 0.8) 0%, hsl(35 100% 45% / 0.7) 100%)',
+                color: isMash ? 'hsl(24 100% 95%)' : isWhirlpool ? 'hsl(180 100% 95%)' : 'hsl(45 100% 10%)',
                 boxShadow: isMash 
                   ? '0 0 16px hsl(24 95% 50% / 0.5), 0 0 32px hsl(24 95% 50% / 0.2)'
-                  : '0 0 16px hsl(45 100% 50% / 0.5), 0 0 32px hsl(45 100% 50% / 0.2)',
+                  : isWhirlpool
+                    ? '0 0 16px hsl(180 80% 45% / 0.5), 0 0 32px hsl(180 80% 45% / 0.2)'
+                    : '0 0 16px hsl(45 100% 50% / 0.5), 0 0 32px hsl(45 100% 50% / 0.2)',
               } : {
-                background: isMash ? 'hsl(24 60% 20% / 0.6)' : 'hsl(var(--muted))',
-                color: isMash ? 'hsl(24 80% 75%)' : 'hsl(var(--muted-foreground))',
+                background: isMash ? 'hsl(24 60% 20% / 0.6)' : isWhirlpool ? 'hsl(180 40% 20% / 0.6)' : 'hsl(var(--muted))',
+                color: isMash ? 'hsl(24 80% 75%)' : isWhirlpool ? 'hsl(180 60% 75%)' : 'hsl(var(--muted-foreground))',
               }}
               >
                 {timer.pausedByMilestone ? (
@@ -461,7 +490,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
               <div className="flex items-baseline gap-2">
                 <span className={cn(
                   "text-sm",
-                  isMash ? "text-orange-400/80" : "text-muted-foreground"
+                  isMash ? "text-orange-400/80" : isWhirlpool ? "text-cyan-400/80" : "text-muted-foreground"
                 )}>
                   om
                 </span>
@@ -472,7 +501,9 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                       ? "text-yellow-300 animate-pulse drop-shadow-[0_0_8px_rgba(253,224,71,0.5)]" 
                       : isMash 
                         ? "text-orange-100" 
-                        : "text-foreground"
+                        : isWhirlpool
+                          ? "text-cyan-100"
+                          : "text-foreground"
                   )}
                 >
                   {formatTime(timer.timeToNextMilestone)}
@@ -485,7 +516,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
               className={cn(
                 "font-mono tabular-nums text-base",
                 isLowTime && "animate-pulse text-red-400",
-                !isLowTime && (isMash ? "text-orange-400/70" : "text-muted-foreground")
+                !isLowTime && (isMash ? "text-orange-400/70" : isWhirlpool ? "text-cyan-400/70" : "text-muted-foreground")
               )}
             >
               {formatTime(timer.remainingSeconds)} totalt
