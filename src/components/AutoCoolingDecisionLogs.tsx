@@ -330,12 +330,30 @@ export function AutoCoolingDecisionLogs() {
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
                         const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
+                        // Calculate average distance to profile target
+                        const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
+                          ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
+                        const profileTarget = adj.original_target_temp;
+                        const avgDistance = avgTemp !== null && profileTarget !== null ? avgTemp - profileTarget : null;
                         return (
                           <div className="mt-1.5 pt-1.5 border-t border-border/50">
                             <p className="font-semibold text-[10px] mb-1" style={{ color: 'hsl(200 70% 55%)' }}>
                               🧮 D-term (hastighetsdämpning)
                             </p>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                              <div className="text-muted-foreground">Medel → Mål:</div>
+                              <div className="font-medium">
+                                {avgTemp !== null && profileTarget !== null ? (
+                                  <>
+                                    <span>{avgTemp.toFixed(1)}° → {profileTarget.toFixed(1)}°</span>
+                                    <span className="ml-1" style={{ 
+                                      color: avgDistance! > 0.5 ? 'hsl(38 92% 50%)' : avgDistance! < -0.5 ? 'hsl(var(--temp-blue))' : 'hsl(var(--ferment-green))' 
+                                    }}>
+                                      ({avgDistance! >= 0 ? '+' : ''}{avgDistance!.toFixed(1)}°)
+                                    </span>
+                                  </>
+                                ) : '—'}
+                              </div>
                               {rate !== null && (
                                 <>
                                   <div className="text-muted-foreground">Pill-hastighet:</div>
