@@ -151,9 +151,17 @@ export async function calculateCompensatedTarget(
 
   {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    // Upward changes (releasing compensation) use a much tighter limit to avoid triggering heater
-    const upwardLimit = 0.3 // max 0.3°C/cycle upward regardless of settings
+    // Upward changes (releasing compensation) use a tighter limit to avoid triggering heater
+    // BUT: if the average temp is BELOW the profile target, we WANT more heating — use normal limit
+    const latestPill = parseFloat(String(deltaHistory[0].pill_temp))
+    const latestCtrl = parseFloat(String(deltaHistory[0].controller_temp))
+    const currentAvg = (latestPill + latestCtrl) / 2
+    const avgBelowTarget = currentAvg < profileTarget - 0.2
+    const upwardLimit = avgBelowTarget ? maxChangePerCycle : 0.3
     const baseLimit = isIncreasing ? Math.min(maxChangePerCycle * scaleFactor, upwardLimit) : maxChangePerCycle * scaleFactor
+    if (avgBelowTarget && isIncreasing) {
+      console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
+    }
     if (distanceFromIdeal > baseLimit) {
       compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑ strikt' : '↓ normal'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
