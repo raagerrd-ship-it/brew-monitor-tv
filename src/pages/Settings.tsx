@@ -1089,7 +1089,7 @@ export default function Settings() {
         .update({ pill_compensation_damping: parseFloat(value) } as any)
         .eq('id', autoCoolingSettingsId);
       if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Dämpningsfaktor uppdaterad" });
+      toast({ title: "Inställningar sparade", description: "Anticipation-fönster uppdaterat" });
     } catch (error) {
       console.error('Error updating pill comp damping:', error);
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
@@ -2241,7 +2241,7 @@ export default function Settings() {
             <SettingsSection
               icon={Thermometer}
               title="Jästanksjustering"
-              description="AI-styrd justering av enskilda jästankars måltemperatur vid stall eller overshoot"
+              description="Automatisk justering av enskilda jästankars måltemperatur vid stall eller overshoot"
             >
               <div className="space-y-6">
 
@@ -2254,9 +2254,8 @@ export default function Settings() {
                     
                      <p className="text-xs text-muted-foreground">
                       Upptäcker när jäsningen saktar in för mycket och SG fortfarande är långt från FG. 
-                      När aktiverad konsulteras AI med all bryggdata (SG-historik, delta-trend, ölstil, temp) 
-                      och verkställer rekommendationen automatiskt. Om AI inte är tillgänglig faller den tillbaka 
-                      på fast temp-höjning.
+                      Vid stall höjs temperaturen automatiskt baserat på ölstil (Lager: +0.5°C, Belgisk: +1.5°C, övriga: inställd temp-höjning).
+                      12 timmars spärr mellan justeringar per styrenhet.
                     </p>
 
                     <div className="flex items-center space-x-2">
@@ -2269,7 +2268,7 @@ export default function Settings() {
                         htmlFor="auto-boost-enabled"
                         className="text-sm cursor-pointer leading-none"
                       >
-                        AI-styrd temp-justering vid stall
+                        Automatisk temp-justering vid stall
                       </label>
                     </div>
 
@@ -2309,7 +2308,7 @@ export default function Settings() {
 
                      <p className="text-xs text-muted-foreground">
                       Varnar när jäsningshastigheten &lt; {stallRateThreshold} SG/dag och mer än 20% kvar till FG.
-                      {autoBoostEnabled && ` AI bestämmer optimal justering. Fallback: +${autoBoostDegrees}°C om AI ej tillgänglig.`}
+                      {autoBoostEnabled && ` Höjer med +${autoBoostDegrees}°C (eller stilbaserat). 12h spärr per styrenhet.`}
                     </p>
                   </div>
 
@@ -2322,8 +2321,8 @@ export default function Settings() {
                     
                     <p className="text-xs text-muted-foreground">
                       Förhindrar att pill-temperaturen (ytan) överstiger måltemperaturen vid uppvärmning. 
-                      När pill är varmare än target och deltat är stort konsulteras AI för att avgöra 
-                      om måltemperaturen bör sänkas tillfälligt för att låta värmen fördela sig jämnt.
+                      Sänker target tillfälligt till mittpunkten mellan probe och mål för att låta värmen fördela sig jämnt.
+                      Automatisk återställning när pill sjunkit tillbaka under tröskeln.
                     </p>
 
                     <div className="flex items-center space-x-2">
@@ -2336,7 +2335,7 @@ export default function Settings() {
                         htmlFor="overshoot-enabled"
                         className="text-sm cursor-pointer leading-none"
                       >
-                        AI-styrd overshoot-prevention
+                        Automatisk overshoot-prevention
                       </label>
                     </div>
 
@@ -2377,7 +2376,7 @@ export default function Settings() {
 
                     <p className="text-xs text-muted-foreground">
                       Triggar när pill ≥ target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C.
-                      {overshootEnabled && ' AI analyserar situation och kan sänka target tillfälligt. Fallback: sänker 0.5°C om pill > target + 1°C.'}
+                      {overshootEnabled && ' Sänker target till mittpunkt (probe+mål)/2. Återställer automatiskt när pill stabiliserats.'}
                     </p>
                   </div>
 
@@ -2390,11 +2389,10 @@ export default function Settings() {
                     <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
                       <p>• Justerar enskilda jästankars måltemperatur — inte glykolkylaren</p>
                       <p>• Detekterar jäsningsstall (rate &lt; {stallRateThreshold} SG/dag, &gt;20% kvar)</p>
-                      {autoBoostEnabled && <p>• 🧠 AI analyserar SG-historik, delta-trend, ölstil och rekommenderar exakt temp-ändring</p>}
-                      {autoBoostEnabled && <p>• AI-rekommendation verkställs automatiskt (min 50% konfidensgrad)</p>}
-                      {autoBoostEnabled && <p>• Om AI inte är tillgänglig: fallback till +{autoBoostDegrees}°C</p>}
+                      {autoBoostEnabled && <p>• 🧠 Stilbaserad temp-höjning (Lager: +0.5°C, Belgisk: +1.5°C, övriga: +{autoBoostDegrees}°C)</p>}
+                      {autoBoostEnabled && <p>• 12 timmars spärr mellan justeringar per styrenhet</p>}
                       {overshootEnabled && <p>• 🌡️ Overshoot-prevention: sänker target om pill &gt; target + {overshootPillThreshold}°C och delta &gt; {overshootDeltaThreshold}°C</p>}
-                      {overshootEnabled && <p>• AI analyserar overshoot-situation och rekommenderar temporär justering</p>}
+                      {overshootEnabled && <p>• Automatisk återställning till bas-target när overshoot avtagit</p>}
                     </CollapsibleContent>
                   </Collapsible>
               </div>
@@ -2485,8 +2483,26 @@ export default function Settings() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5 col-span-2">
+                        <label className="text-xs font-medium text-muted-foreground">D-term: Anticipation-fönster</label>
+                        <Select value={pillCompDamping} onValueChange={handlePillCompDampingChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="0.5">30 min (aggressiv dämpning)</SelectItem>
+                            <SelectItem value="1">60 min (standard)</SelectItem>
+                            <SelectItem value="1.5">90 min (försiktig)</SelectItem>
+                            <SelectItem value="2">120 min (mycket försiktig)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <p className="text-xs text-muted-foreground">
-                      Dynamisk rate-limit: max {pillCompRateLimit}°C långt från mål, min {parseFloat(pillCompMinScale) * 100}% nära mål. Skippar rate-limit vid avvikelse &gt;{pillCompEmergencyThreshold}°C. Max {pillCompMaxCompensation}°C under profilmål.
+                      D-term: när medelvärdet (pill+probe)/2 närmar sig målet inom {parseFloat(pillCompDamping) * 60} min skalas kompensationen ned progressivt för att undvika overshoot.
+                      Rate-limit: max {pillCompRateLimit}°C/cykel, min {parseFloat(pillCompMinScale) * 100}% nära mål. Emergency &gt;{pillCompEmergencyThreshold}°C. Max {pillCompMaxCompensation}°C under profilmål.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2495,13 +2511,14 @@ export default function Settings() {
                         <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                       </CollapsibleTrigger>
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                        <p>• Beräknar medelvärde av senaste 3 delta-mätningar (pill − probe)</p>
+                        <p>• Beräknar medelvärde av senaste 8 delta-mätningar (pill − probe)</p>
                         <p>• Kompensation = delta/2, så att (pill + probe) / 2 = profilens mål</p>
+                        <p>• <strong>D-term (hastighetsdämpning):</strong> beräknar pill-temperaturens hastighet (°C/h) och ETA för medelvärdet att nå målet</p>
+                        <p>• Om ETA &lt; anticipation-fönstret ({parseFloat(pillCompDamping) * 60} min) skalas kompensationen ned (min 20%) för att förhindra overshoot</p>
                         <p>• Dynamisk rate-limit: {pillCompRateLimit}°C långt bort, ner till {parseFloat(pillCompMinScale) * 100}% nära mål</p>
                         <p>• Emergency: skippar rate-limit vid avvikelse &gt;{pillCompEmergencyThreshold}°C</p>
                         <p>• Säkerhetsgolv: aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
                         <p>• Justerar bara vid ny RAPT-data (hoppar över om samma data som förra cykeln)</p>
-                        <p>• Kompenserar bara vid positivt delta (pill varmare än probe)</p>
                         <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
                       </CollapsibleContent>
                     </Collapsible>

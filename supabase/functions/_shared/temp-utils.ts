@@ -39,6 +39,7 @@ export interface PillCompensationSettings {
   emergencyThreshold: number
   minScale: number
   maxCompensation: number
+  anticipationWindowHours: number
 }
 
 // ============================================================
@@ -74,7 +75,7 @@ export async function calculateCompensatedTarget(
   controllerName: string,
   settings: PillCompensationSettings
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
-  const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation } = settings
+  const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
 
   // Fetch last 8 delta measurements (≈40 min at 5-min intervals) including pill_temp and timestamp
   const { data: deltaHistory } = await supabase
@@ -98,7 +99,7 @@ export async function calculateCompensatedTarget(
 
   // === D-term: calculate pill rate and damping factor ===
   let dampingFactor = 1.0
-  const ANTICIPATION_WINDOW_HOURS = 1.0 // 60 min window for full damping ramp
+  const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours // configurable via settings
 
   if (deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
@@ -216,7 +217,7 @@ export async function loadPillCompSettings(
 ): Promise<PillCompensationSettings> {
   const { data: acSettings } = await supabase
     .from('auto_cooling_settings')
-    .select('pill_compensation_enabled, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation')
+    .select('pill_compensation_enabled, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation, pill_compensation_damping')
     .limit(1)
     .maybeSingle()
 
@@ -226,5 +227,6 @@ export async function loadPillCompSettings(
     emergencyThreshold: parseFloat(String((acSettings as any)?.pill_compensation_emergency_threshold ?? 3.0)),
     minScale: parseFloat(String((acSettings as any)?.pill_compensation_min_scale ?? 0.15)),
     maxCompensation: parseFloat(String((acSettings as any)?.pill_compensation_max_compensation ?? 5.0)),
+    anticipationWindowHours: parseFloat(String((acSettings as any)?.pill_compensation_damping ?? 1.0)),
   }
 }
