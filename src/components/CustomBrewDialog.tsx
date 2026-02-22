@@ -416,8 +416,8 @@ export function CustomBrewDialog({
             final_gravity: fg,
             current_sg: og, // Start at OG
             current_temp: 20, // Default temp
-            attenuation: attenuation,
-            abv: abv,
+            attenuation: 0, // No fermentation yet
+            abv: 0, // No fermentation yet
             sg_data: [],
             linked_controller_id: selectedControllerId || null,
             linked_pill_id: resolvedPillId,
