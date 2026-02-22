@@ -140,17 +140,44 @@ export async function calculateCompensatedTarget(
   const rawCompensation = avgDelta / 2
   const compensation = rawCompensation * dampingFactor
 
-  // P-term: if the current average is below the profile target, reduce compensation
-  // to push the controller target UP and drive convergence faster
-  const latestPillForAvg = parseFloat(String(deltaHistory[0].pill_temp))
-  const latestCtrlForAvg = parseFloat(String(deltaHistory[0].controller_temp))
-  const currentAvgForError = (latestPillForAvg + latestCtrlForAvg) / 2
+  // === PI-term: Proportional + Integral error correction ===
+  // When the average temp (pill+probe)/2 is below the profile target,
+  // reduce compensation to push the controller target UP.
+  // P-term: based on current instantaneous error
+  // I-term: accumulated error over historical window — if temperature
+  //         hasn't been converging, increase correction further
+  const historicalAvgs = deltaHistory.map((d: any) => {
+    const p = parseFloat(String(d.pill_temp))
+    const c = parseFloat(String(d.controller_temp))
+    return (p + c) / 2
+  })
+  const currentAvgForError = historicalAvgs[0] // newest
   const avgError = profileTarget - currentAvgForError // positive when below target
+
+  let pCorrection = 0
+  let iCorrection = 0
   let errorCorrection = 0
+
   if (avgError > 0.2) {
-    // Apply proportional correction capped at 1.5°C
-    errorCorrection = Math.min(avgError * 0.8, 1.5)
-    console.log(`📈 P-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C under mål=${profileTarget}°C (fel=${avgError.toFixed(2)}°C), korrigering=+${errorCorrection.toFixed(2)}°C`)
+    // P-term: proportional to current error
+    pCorrection = avgError * 0.6
+
+    // I-term: calculate accumulated error over the historical window
+    // Each sample represents ~5 min. Sum of errors = integral approximation.
+    const historicalErrors = historicalAvgs.map(avg => profileTarget - avg)
+    const positiveErrors = historicalErrors.filter(e => e > 0.1) // only count samples below target
+    
+    if (positiveErrors.length >= 3) {
+      // Average persistent error × persistence ratio (how many samples below target)
+      const meanError = positiveErrors.reduce((s, e) => s + e, 0) / positiveErrors.length
+      const persistenceRatio = positiveErrors.length / historicalErrors.length // 0..1
+      // I-gain: 0.3 per degree of persistent error, scaled by how consistent the undershoot is
+      iCorrection = meanError * persistenceRatio * 0.3
+      console.log(`📊 I-term ${controllerName}: ${positiveErrors.length}/${historicalErrors.length} under mål, snittfel=${meanError.toFixed(2)}°C, persist=${(persistenceRatio * 100).toFixed(0)}%, I-korr=+${iCorrection.toFixed(2)}°C`)
+    }
+
+    errorCorrection = Math.min(pCorrection + iCorrection, 2.0) // cap total PI at 2.0°C
+    console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
   }
 
   let compensatedTarget = profileTarget - compensation + errorCorrection
@@ -191,9 +218,9 @@ export async function calculateCompensatedTarget(
     return null
   }
 
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, P-term=${errorCorrection.toFixed(2)}°C, ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
+  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C, rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection }
+  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection }
 }
 
 /**

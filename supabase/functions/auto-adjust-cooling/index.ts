@@ -866,10 +866,10 @@ serve(async (req) => {
           continue;
         }
 
-        const pTermInfo = compensation.errorCorrection > 0 ? `, P-term=+${compensation.errorCorrection.toFixed(2)}°C` : ''
+        const piTermInfo = compensation.errorCorrection > 0 ? `, PI=+${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'})` : ''
         const dTermInfo = compensation.dampingFactor < 1.0
-          ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${pTermInfo}`
-          : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${pTermInfo}`
+          ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
+          : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${piTermInfo}`
 
         log('PILL_COMP_ACTION', 'action', `${fc.name}: pill-komp ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`);
 
