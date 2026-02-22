@@ -338,6 +338,18 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                   ? currentMilestone.label.replace(/🔥\s*/g, '') 
                   : timer.label || 'Pågår'}
               </span>
+              {/* Temperature target for whirlpool/pauseForTemperature milestones */}
+              {currentMilestone?.pauseForTemperature && currentMilestone.targetTemperature && (
+                <div className={cn(
+                  "flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold",
+                  isWhirlpool 
+                    ? "bg-cyan-500/20 text-cyan-300" 
+                    : "bg-orange-500/20 text-orange-300"
+                )}>
+                  <Thermometer className="w-3.5 h-3.5" />
+                  <span>Kyl till {currentMilestone.targetTemperature}°C</span>
+                </div>
+              )}
             </div>
             
             {/* Next Step */}
