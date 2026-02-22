@@ -121,6 +121,9 @@ serve(async (req) => {
       });
     }
 
+    // Load pill-comp settings early — needed to check feature toggles
+    const pillCompSettings = await loadPillCompSettings(supabase);
+
     // Check if ANY feature is enabled
     const coolingEnabled = settings.enabled;
     const pillCompEnabled = pillCompSettings.enabled;
@@ -377,8 +380,7 @@ serve(async (req) => {
 
     // PROFILE_STATUS removed — all profile info is now embedded in FOLLOWED_DATA above
 
-    // Load pill-comp settings early — needed by overshoot to decide whether to skip profile-owned controllers
-    const pillCompSettings = await loadPillCompSettings(supabase);
+    // pillCompSettings already loaded above (needed for feature toggle check)
 
     const allAdjustments: Array<{ cooler: string; oldTarget: number; newTarget: number }> = [];
 
