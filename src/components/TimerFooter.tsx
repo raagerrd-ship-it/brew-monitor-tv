@@ -350,6 +350,14 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
                   <span>Kyl till {currentMilestone.targetTemperature}°C</span>
                 </div>
               )}
+              {currentMilestone?.whirlpoolTime && (
+                <div className={cn(
+                  "flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold",
+                  "bg-cyan-500/20 text-cyan-300"
+                )}>
+                  <span>{currentMilestone.whirlpoolTime} min whirlpool</span>
+                </div>
+              )}
             </div>
             
             {/* Next Step */}
