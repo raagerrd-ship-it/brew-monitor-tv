@@ -117,21 +117,31 @@ export function useBrewChartData({
 
     const fetchProfileTargetTimeline = async (ctrlId: string) => {
       try {
-        // Find fermentation session for this brew (or fall back to controller)
-        let query = supabase
-          .from('fermentation_sessions')
-          .select('id, profile_id, started_at, current_step_index')
-          .in('status', ['running', 'completed', 'paused', 'cancelled'])
-          .order('started_at', { ascending: false })
-          .limit(1);
+        // Try to find session by brew_id first, then fall back to controller_id
+        let sessions: any[] | null = null;
 
         if (brewId) {
-          query = query.eq('brew_id', brewId);
-        } else {
-          query = query.eq('controller_id', ctrlId);
+          const { data } = await supabase
+            .from('fermentation_sessions')
+            .select('id, profile_id, started_at, current_step_index')
+            .eq('brew_id', brewId)
+            .in('status', ['running', 'completed', 'paused', 'cancelled'])
+            .order('started_at', { ascending: false })
+            .limit(1);
+          sessions = data;
         }
 
-        const { data: sessions } = await query;
+        // Fall back to controller_id match (covers sessions without brew_id set)
+        if (!sessions?.length) {
+          const { data } = await supabase
+            .from('fermentation_sessions')
+            .select('id, profile_id, started_at, current_step_index')
+            .eq('controller_id', ctrlId)
+            .in('status', ['running', 'completed', 'paused', 'cancelled'])
+            .order('started_at', { ascending: false })
+            .limit(1);
+          sessions = data;
+        }
 
         if (!sessions?.[0]) {
           setProfileTargets([]);
