@@ -310,7 +310,7 @@ function BrewCardComponent({
           open={syncedDataOpen}
           onOpenChange={setSyncedDataOpen}
           brewName={brew.name}
-          sgData={brew.sgData}
+          brewId={brew.id}
           controllerId={brew.linked_controller_id}
         />
       )}

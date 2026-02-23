@@ -191,6 +191,50 @@ export type Database = {
         }
         Relationships: []
       }
+      brew_data_snapshots: {
+        Row: {
+          auto_target_temp: number | null
+          brew_id: string
+          controller_temp: number | null
+          created_at: string
+          id: string
+          pill_temp: number
+          profile_target_temp: number | null
+          recorded_at: string
+          sg: number
+        }
+        Insert: {
+          auto_target_temp?: number | null
+          brew_id: string
+          controller_temp?: number | null
+          created_at?: string
+          id?: string
+          pill_temp: number
+          profile_target_temp?: number | null
+          recorded_at: string
+          sg: number
+        }
+        Update: {
+          auto_target_temp?: number | null
+          brew_id?: string
+          controller_temp?: number | null
+          created_at?: string
+          id?: string
+          pill_temp?: number
+          profile_target_temp?: number | null
+          recorded_at?: string
+          sg?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brew_data_snapshots_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brew_events: {
         Row: {
           brew_id: string

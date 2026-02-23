@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
+import { createBrewSnapshots } from '../_shared/brew-snapshots.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -309,6 +310,21 @@ Deno.serve(async (req) => {
       }
 
       console.log(`Successfully full synced ${brewUpdates.length} brews in parallel`)
+
+      // Create data snapshots for updated brews
+      for (const update of brewUpdates) {
+        const u = update as any
+        if (u.sg_data && Array.isArray(u.sg_data) && u.sg_data.length > 0) {
+          const { data: brewRecord } = await supabase
+            .from('brew_readings')
+            .select('id, linked_controller_id')
+            .eq('batch_id', u.batch_id)
+            .single()
+          if (brewRecord) {
+            await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data)
+          }
+        }
+      }
     }
 
     // Also trigger RAPT device sync

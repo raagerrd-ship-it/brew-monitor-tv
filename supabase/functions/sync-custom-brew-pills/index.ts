@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
+import { createBrewSnapshots } from '../_shared/brew-snapshots.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -266,6 +267,12 @@ serve(async (req) => {
         }
 
         console.log(`Successfully updated brew ${brew.name} with ${uniqueNewData.length} new data points`);
+
+        // Create data snapshots for all sg_data points (locks Datum, SG, Pill, Ctrl, Mål, Auto)
+        if (uniqueNewData.length > 0) {
+          await createBrewSnapshots(supabase, brew.id, brew.linked_controller_id, mergedSgData);
+        }
+
         brewsUpdated++;
 
       } catch (brewError) {
