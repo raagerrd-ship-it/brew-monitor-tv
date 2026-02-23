@@ -32,10 +32,10 @@ interface UseBrewChartDataReturn {
   isLoading: boolean;
 }
 
-// Profile target timeline entry
-interface ProfileTargetPoint {
+// Snapshot target lookup entry
+interface SnapshotTarget {
   timestamp: number;
-  target: number;
+  profileTarget: number | null;
 }
 
 export function useBrewChartData({
@@ -46,7 +46,7 @@ export function useBrewChartData({
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [profileTargets, setProfileTargets] = useState<ProfileTargetPoint[]>([]);
+  const [snapshotTargets, setSnapshotTargets] = useState<SnapshotTarget[]>([]);
   const { isTvMode } = useTvMode();
   
   // Use ref to track if we've already fetched for this controller/data combo
@@ -64,7 +64,7 @@ export function useBrewChartData({
       if (controllerTempData.length > 0) {
         setControllerTempData([]);
       }
-      setProfileTargets([]);
+      setSnapshotTargets([]);
       return;
     }
 
@@ -108,117 +108,27 @@ export function useBrewChartData({
           setControllerTempData(allRows);
         }
 
-        // Fetch fermentation session + profile steps to build profile target timeline
-        await fetchProfileTargetTimeline(controllerId);
+        // Fetch snapshot targets for Mål line (locked, historically correct)
+        if (brewId) {
+          const { data: snapshots } = await supabase
+            .from('brew_data_snapshots')
+            .select('recorded_at, profile_target_temp')
+            .eq('brew_id', brewId)
+            .order('recorded_at', { ascending: true });
+
+          if (snapshots && snapshots.length > 0) {
+            setSnapshotTargets(
+              snapshots.map(s => ({
+                timestamp: new Date(s.recorded_at).getTime(),
+                profileTarget: s.profile_target_temp,
+              }))
+            );
+          } else {
+            setSnapshotTargets([]);
+          }
+        }
       } finally {
         setIsLoading(false);
-      }
-    };
-
-    const fetchProfileTargetTimeline = async (ctrlId: string) => {
-      try {
-        // Try to find session by brew_id first, then fall back to controller_id
-        let sessions: any[] | null = null;
-
-        if (brewId) {
-          const { data } = await supabase
-            .from('fermentation_sessions')
-            .select('id, profile_id, started_at, current_step_index')
-            .eq('brew_id', brewId)
-            .in('status', ['running', 'completed', 'paused', 'cancelled'])
-            .order('started_at', { ascending: false })
-            .limit(1);
-          sessions = data;
-        }
-
-        // Fall back to controller_id match (covers sessions without brew_id set)
-        if (!sessions?.length) {
-          const { data } = await supabase
-            .from('fermentation_sessions')
-            .select('id, profile_id, started_at, current_step_index')
-            .eq('controller_id', ctrlId)
-            .in('status', ['running', 'completed', 'paused', 'cancelled'])
-            .order('started_at', { ascending: false })
-            .limit(1);
-          sessions = data;
-        }
-
-        if (!sessions?.[0]) {
-          setProfileTargets([]);
-          return;
-        }
-
-        const session = sessions[0];
-
-        // Fetch profile steps and step logs in parallel
-        // Use ALL log actions (not just 'started') to find step start times,
-        // since ramp steps may only have 'temp_adjusted' entries
-        const [stepsResult, stepLogsResult] = await Promise.all([
-          supabase
-            .from('fermentation_profile_steps')
-            .select('step_order, step_type, target_temp, duration_hours')
-            .eq('profile_id', session.profile_id)
-            .order('step_order', { ascending: true }),
-          supabase
-            .from('fermentation_step_log')
-            .select('step_index, created_at')
-            .eq('session_id', session.id)
-            .order('created_at', { ascending: true }),
-        ]);
-
-        const steps = stepsResult.data;
-        const stepLogs = stepLogsResult.data;
-        if (!steps || steps.length === 0) {
-          setProfileTargets([]);
-          return;
-        }
-
-        // Build step start time map (earliest log entry per step, any action type)
-        const stepStartMap: Record<number, number> = {};
-        stepStartMap[0] = new Date(session.started_at).getTime();
-        if (stepLogs) {
-          for (const log of stepLogs) {
-            if (!(log.step_index in stepStartMap)) {
-              stepStartMap[log.step_index] = new Date(log.created_at).getTime();
-            }
-          }
-        }
-
-        // Build profile target timeline
-        const timeline: ProfileTargetPoint[] = [];
-        let lastTarget: number | null = null;
-
-        for (const step of steps) {
-          const startTime = stepStartMap[step.step_order];
-          if (!startTime) continue; // step hasn't started yet, skip to next
-
-          const stepTarget = step.target_temp ?? lastTarget;
-
-        if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
-            // Ramp: generate intermediate points (every 30 min), capped at current time
-            const durationMs = step.duration_hours * 3600 * 1000;
-            const now = Date.now();
-            const endTime = Math.min(startTime + durationMs, now);
-            const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
-            for (let i = 0; i <= numPoints; i++) {
-              const t = i / numPoints;
-              const ts = startTime + t * durationMs;
-              if (ts > now) break; // Don't project ramp into the future
-              const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
-              timeline.push({ timestamp: ts, target });
-            }
-          } else if (stepTarget !== null) {
-            // Hold/wait: flat line at target
-            timeline.push({ timestamp: startTime, target: stepTarget });
-          }
-
-          if (stepTarget !== null) lastTarget = stepTarget;
-        }
-
-        setProfileTargets(timeline);
-      } catch (err) {
-        console.error("Error fetching profile target timeline:", err);
-        setProfileTargets([]);
       }
     };
 
@@ -257,70 +167,41 @@ export function useBrewChartData({
         : null,
     }));
 
-    // targetTemp is now set from profile_target_temp (base profile target) by mergeWithControllerTemp.
-    // For old data without profile_target_temp, it falls back to target_temp (PID-adjusted).
-    // Require >50% of records to have stored profile targets to trust them as primary source
-    const storedProfileCount = controllerTempData.filter(d => d.profile_target_temp != null).length;
-    const hasEnoughStoredProfileTargets = storedProfileCount > controllerTempData.length * 0.5;
-    
+    // Apply profile target from snapshots (locked, historically correct)
+    // This replaces the PID-adjusted target_temp with the actual profile target
     let mappedData = withSpan;
 
-    if (hasEnoughStoredProfileTargets) {
-      // Majority of data has stored profile_target_temp — already used via mergeWithControllerTemp
-    } else if (profileTargets.length > 0) {
-      // Use reconstructed profile from session logs (preferred for old/transitional data)
+    if (snapshotTargets.length > 0) {
+      // Build a Set for fast lookup by rounded timestamp (snapshots align with SG data points)
+      const targetMap = new Map<number, number | null>();
+      for (const st of snapshotTargets) {
+        targetMap.set(st.timestamp, st.profileTarget);
+      }
+
       mappedData = withSpan.map(point => {
-        if (point.controllerTemp != null) {
-          let profileTarget: number | null = null;
-          for (let i = profileTargets.length - 1; i >= 0; i--) {
-            if (profileTargets[i].timestamp <= point.timestamp) {
-              profileTarget = profileTargets[i].target;
-              break;
-            }
+        // Direct match first (snapshots and SG data share timestamps)
+        const directTarget = targetMap.get(point.timestamp);
+        if (directTarget !== undefined && directTarget !== null) {
+          return { ...point, targetTemp: directTarget };
+        }
+
+        // Nearest snapshot fallback (step function: use last known target)
+        let profileTarget: number | null = null;
+        for (let i = snapshotTargets.length - 1; i >= 0; i--) {
+          if (snapshotTargets[i].timestamp <= point.timestamp && snapshotTargets[i].profileTarget !== null) {
+            profileTarget = snapshotTargets[i].profileTarget;
+            break;
           }
-          return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
+        }
+        if (profileTarget !== null) {
+          return { ...point, targetTemp: profileTarget };
         }
         return point;
-      });
-    } else {
-      // Old data without any profile info: use mode (most common rounded value) per day
-      // to approximate the base target from noisy PID-adjusted values
-      const dayBuckets = new Map<string, Map<number, number>>();
-      
-      // Count occurrences of each rounded target per day
-      for (const point of withSpan) {
-        if (point.targetTemp == null) continue;
-        const day = new Date(point.timestamp).toISOString().slice(0, 10);
-        if (!dayBuckets.has(day)) dayBuckets.set(day, new Map());
-        const rounded = Math.round(point.targetTemp);
-        const counts = dayBuckets.get(day)!;
-        counts.set(rounded, (counts.get(rounded) || 0) + 1);
-      }
-      
-      // Find the mode (most frequent value) per day
-      const dayModes = new Map<string, number>();
-      for (const [day, counts] of dayBuckets) {
-        let maxCount = 0;
-        let mode = 0;
-        for (const [value, count] of counts) {
-          if (count > maxCount) {
-            maxCount = count;
-            mode = value;
-          }
-        }
-        dayModes.set(day, mode);
-      }
-      
-      mappedData = withSpan.map(point => {
-        if (point.targetTemp == null) return point;
-        const day = new Date(point.timestamp).toISOString().slice(0, 10);
-        const mode = dayModes.get(day);
-        return mode != null ? { ...point, targetTemp: mode } : point;
       });
     }
 
     return mappedData;
-  }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
+  }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
 
