@@ -277,34 +277,16 @@ export function SonosSettings() {
   return (
     <div className="space-y-6">
       {/* Connection Status */}
-      <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-full ${isConnected ? 'bg-primary/10' : 'bg-muted'}`}>
-            <Music className={`h-5 w-5 ${isConnected ? 'text-primary' : 'text-muted-foreground'}`} />
-          </div>
-          <div>
-            <p className="font-medium">Sonos</p>
-            <p className="text-sm text-muted-foreground">
-              {isConnected ? 'Kopplat' : 'Inte kopplat'}
-            </p>
-          </div>
+      <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
+        <div className={`p-2 rounded-full ${isConnected ? 'bg-primary/10' : 'bg-muted'}`}>
+          <Music className={`h-5 w-5 ${isConnected ? 'text-primary' : 'text-muted-foreground'}`} />
         </div>
-        
-        {isConnected ? (
-          <Button variant="outline" size="sm" onClick={handleDisconnect}>
-            <Unlink className="h-4 w-4 mr-2" />
-            Koppla bort
-          </Button>
-        ) : (
-          <Button variant="outline" size="sm" onClick={handleConnect} disabled={isConnecting}>
-            {isConnecting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <ExternalLink className="h-4 w-4 mr-2" />
-            )}
-            Koppla Sonos
-          </Button>
-        )}
+        <div>
+          <p className="font-medium">Sonos</p>
+          <p className="text-sm text-muted-foreground">
+            {isConnected ? 'Kopplat' : 'Inte kopplat — tryck på penn-ikonen för att ansluta'}
+          </p>
+        </div>
       </div>
 
       {/* Settings (only show when connected) */}
