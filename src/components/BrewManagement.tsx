@@ -5,7 +5,8 @@ import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, Pencil, Beer } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical } from "lucide-react";
+import { Badge } from "./ui/badge";
 import { CustomBrewDialog, type CustomBrewData, type CustomBrewPrefill } from "./CustomBrewDialog";
 import type { PillData, TempController } from "@/types/brew";
 interface BrewfatherBatch {
@@ -26,6 +27,23 @@ interface SelectedBrew {
   batch_id: string;
   display_order: number;
   is_visible: boolean;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'Bryggning':
+      return <Badge variant="outline" className="text-orange-400 border-orange-400/30 text-xs"><Flame className="h-3 w-3 mr-1" />Bryggning</Badge>;
+    case 'Jäsning':
+    case 'Fermenting':
+      return <Badge variant="outline" className="text-green-400 border-green-400/30 text-xs"><FlaskConical className="h-3 w-3 mr-1" />Jäsning</Badge>;
+    case 'Konditionering':
+      return <Badge variant="outline" className="text-blue-400 border-blue-400/30 text-xs"><GlassWater className="h-3 w-3 mr-1" />Konditionering</Badge>;
+    case 'Klar':
+    case 'Completed':
+      return <Badge variant="outline" className="text-muted-foreground border-muted text-xs">Klar</Badge>;
+    default:
+      return <Badge variant="outline" className="text-muted-foreground border-muted text-xs">{status}</Badge>;
+  }
 }
 
 export function BrewManagement() {
@@ -345,11 +363,11 @@ export function BrewManagement() {
       </div>
 
       {/* Custom brews section */}
-      {customBrews.length > 0 && (
+      {customBrews.filter(b => b.status !== 'Arkiverad').length > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-muted-foreground">Egna bryggningar</h3>
           <div className="grid gap-4">
-            {customBrews.map((brew) => (
+            {customBrews.filter(b => b.status !== 'Arkiverad').map((brew) => (
               <Card key={brew.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -357,10 +375,14 @@ export function BrewManagement() {
                       checked={isSelected(brew.batch_id)}
                       onCheckedChange={() => toggleBrew(brew.batch_id)}
                     />
-                    <div>
-                      <h3 className="font-semibold">{brew.name}</h3>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{brew.name}</h3>
+                        <StatusBadge status={brew.status} />
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {brew.style || 'Custom'}
+                        {brew.original_gravity ? ` · OG ${brew.original_gravity.toFixed(3)}` : ''}
                       </p>
                     </div>
                   </div>
