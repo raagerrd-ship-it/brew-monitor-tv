@@ -57,6 +57,7 @@ export function StatCard({
     background: customBackground || `linear-gradient(145deg, ${colorWithOpacity(color, 0.06)} 0%, hsl(222 20% 12% / 0.7) 100%)`,
     boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.15)',
     position: 'relative' as const,
+    transition: 'border-color 0.2s ease',
   };
 
   const colSpanClass = colSpan === 2 ? 'col-span-2' : colSpan === 3 ? 'col-span-3' : '';
@@ -82,7 +83,7 @@ export function StatCard({
       />
       
       <p 
-        className="text-muted-foreground/50 uppercase tracking-widest z-10 font-medium text-center"
+        className="text-muted-foreground/60 uppercase tracking-widest z-10 font-medium text-center"
         style={{ fontSize: finalLabelSize, letterSpacing: '0.1em' }}
       >
         {label}

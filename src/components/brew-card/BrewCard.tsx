@@ -229,7 +229,16 @@ function BrewCardComponent({
                 </>
               ) : (
                 <>
-                  {brew.style && brew.style !== "Okänd stil" ? <>{brew.style} <span className="opacity-40">·</span> </> : ""}{brew.lastUpdate} <span className="opacity-40">·</span> {brew.batchNumber}
+                  {brew.style && brew.style !== "Okänd stil" ? <>{brew.style} <span className="opacity-40">·</span> </> : ""}
+                  {brew.lastUpdate}
+                  <span className="opacity-40"> · </span>
+                  <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold tracking-wide" style={{
+                    background: 'hsl(var(--primary) / 0.1)',
+                    color: 'hsl(var(--primary) / 0.7)',
+                    border: '1px solid hsl(var(--primary) / 0.15)',
+                  }}>
+                    #{brew.batchNumber}
+                  </span>
                 </>
               )}
             </p>
