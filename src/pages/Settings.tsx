@@ -1582,6 +1582,21 @@ export default function Settings() {
               icon={Timer}
               title="Brygg-timer synkronisering"
               description="Visa aktiv timer från brygg-appen i sidfoten"
+              headerAction={
+                <button
+                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Ändra timer-inställningar"
+                  onClick={() => {
+                    toast({
+                      title: "⚠️ Varning",
+                      description: "Om du kopplar från eller ändrar timer-kontot kommer aktiva timers att sluta visas på dashboarden.",
+                      variant: "destructive",
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              }
             >
               {externalLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -1650,6 +1665,21 @@ export default function Settings() {
               icon={Music}
               title="Sonos"
               description="Visa vad som spelas på Sonos i headern"
+              headerAction={
+                <button
+                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Ändra Sonos-inställningar"
+                  onClick={() => {
+                    toast({
+                      title: "⚠️ Varning",
+                      description: "Om du ändrar Sonos-uppgifterna kan anslutningen brytas och nu-spelas-widgeten sluta fungera.",
+                      variant: "destructive",
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              }
             >
               <SonosSettings />
             </SettingsSection>
