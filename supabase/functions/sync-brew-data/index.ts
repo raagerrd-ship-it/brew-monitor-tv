@@ -175,10 +175,12 @@ Deno.serve(async (req) => {
 
       console.log(`Successfully quick synced ${brewUpdates.length} brews in parallel`)
 
-      // Create data snapshots for updated brews
+      // Create data snapshots for updated brews (only during fermentation)
       for (const update of brewUpdates) {
         const u = update as any
-        if (u.sg_data && Array.isArray(u.sg_data) && u.sg_data.length > 0) {
+        const status = u.status || ''
+        const isFermenting = status === 'Jäsning' || status === 'Fermenting'
+        if (isFermenting && u.sg_data && Array.isArray(u.sg_data) && u.sg_data.length > 0) {
           const { data: brewRecord } = await supabase
             .from('brew_readings')
             .select('id, linked_controller_id')
