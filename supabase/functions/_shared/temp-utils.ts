@@ -73,7 +73,8 @@ export async function calculateCompensatedTarget(
   profileTarget: number,
   currentControllerTarget: number,
   controllerName: string,
-  settings: PillCompensationSettings
+  settings: PillCompensationSettings,
+  mode: 'heating' | 'cooling' = 'cooling'
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
 
@@ -144,12 +145,13 @@ export async function calculateCompensatedTarget(
   // Categorize current fermentation phase by delta magnitude
   const deltaBucket = avgDelta > 3 ? 'high' : avgDelta > 1.5 ? 'medium' : 'low'
 
-  // Query learned baseline for this controller + phase
+  // Query learned baseline for this controller + phase + mode
   const { data: learnedRow } = await supabase
     .from('controller_learned_compensation')
     .select('learned_pi_correction, convergence_count')
     .eq('controller_id', controllerId)
     .eq('delta_bucket', deltaBucket)
+    .eq('mode', mode)
     .maybeSingle()
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
@@ -191,6 +193,13 @@ export async function calculateCompensatedTarget(
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
     console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
+    // Persist latest PID state for UI visibility
+    await supabase.from('controller_learned_compensation').upsert({
+      controller_id: controllerId, delta_bucket: deltaBucket, mode,
+      latest_p_correction: pCorrection, latest_i_correction: iCorrection,
+      latest_d_damping: dampingFactor, latest_avg_error: avgError,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,delta_bucket,mode', ignoreDuplicates: false })
   } else if (avgError < -0.3) {
     // === OVERSHOOT: avg above target — push controller target down more (= cool down) ===
     // Symmetric P-term for overshoot (avgError is negative, so pCorrection becomes negative)
@@ -209,6 +218,13 @@ export async function calculateCompensatedTarget(
 
     errorCorrection = Math.max(pCorrection + iCorrection, -2.5) // cap at -2.5°C (negative = lower target further)
     console.log(`📉 PI-term overshoot ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
+    // Persist latest PID state for UI visibility
+    await supabase.from('controller_learned_compensation').upsert({
+      controller_id: controllerId, delta_bucket: deltaBucket, mode,
+      latest_p_correction: pCorrection, latest_i_correction: iCorrection,
+      latest_d_damping: dampingFactor, latest_avg_error: avgError,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,delta_bucket,mode', ignoreDuplicates: false })
   } else if (avgError > -0.5 && avgError <= 0.5) {
     // === CONVERGENCE: avg is within ±0.3° of target — update learned baseline ===
     // Use the current total compensation as the "what worked" value
@@ -224,11 +240,16 @@ export async function calculateCompensatedTarget(
       await supabase.from('controller_learned_compensation').upsert({
         controller_id: controllerId,
         delta_bucket: deltaBucket,
+        mode,
         learned_pi_correction: clampedLearned,
         convergence_count: convergenceCount + 1,
         last_converged_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,delta_bucket' })
+        latest_p_correction: pCorrection,
+        latest_i_correction: iCorrection,
+        latest_d_damping: dampingFactor,
+        latest_avg_error: avgError,
+      }, { onConflict: 'controller_id,delta_bucket,mode' })
       
       console.log(`🎓 Lärde ${controllerName} [${deltaBucket}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1})`)
     }

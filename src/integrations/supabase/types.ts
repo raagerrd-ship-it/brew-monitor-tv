@@ -390,7 +390,12 @@ export type Database = {
           delta_bucket: string
           id: string
           last_converged_at: string | null
+          latest_avg_error: number
+          latest_d_damping: number
+          latest_i_correction: number
+          latest_p_correction: number
           learned_pi_correction: number
+          mode: string
           updated_at: string
         }
         Insert: {
@@ -400,7 +405,12 @@ export type Database = {
           delta_bucket: string
           id?: string
           last_converged_at?: string | null
+          latest_avg_error?: number
+          latest_d_damping?: number
+          latest_i_correction?: number
+          latest_p_correction?: number
           learned_pi_correction?: number
+          mode?: string
           updated_at?: string
         }
         Update: {
@@ -410,7 +420,12 @@ export type Database = {
           delta_bucket?: string
           id?: string
           last_converged_at?: string | null
+          latest_avg_error?: number
+          latest_d_damping?: number
+          latest_i_correction?: number
+          latest_p_correction?: number
           learned_pi_correction?: number
+          mode?: string
           updated_at?: string
         }
         Relationships: []
