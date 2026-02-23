@@ -312,6 +312,41 @@ serve(async (req) => {
       console.error('Error running automation:', automationError);
     }
 
+    // ---- Log RAPT API outage if detected ----
+    try {
+      const { data: syncSettings } = await supabase
+        .from('sync_settings')
+        .select('id, last_successful_rapt_sync_at, rapt_sync_interval')
+        .single();
+
+      const lastSuccess = syncSettings?.last_successful_rapt_sync_at;
+      const now = new Date();
+
+      if (lastSuccess) {
+        const gap = (now.getTime() - new Date(lastSuccess).getTime()) / 1000;
+        const threshold = (syncSettings?.rapt_sync_interval || 300) * 2;
+
+        if (gap > threshold) {
+          await supabase.from('rapt_outage_log').insert({
+            outage_start: lastSuccess,
+            outage_end: now.toISOString(),
+            duration_seconds: Math.round(gap),
+          });
+          console.log(`RAPT API outage logged: ${Math.round(gap)}s (${Math.round(gap / 60)} min)`);
+        }
+      }
+
+      // Update last successful sync timestamp
+      if (syncSettings?.id) {
+        await supabase
+          .from('sync_settings')
+          .update({ last_successful_rapt_sync_at: now.toISOString() })
+          .eq('id', syncSettings.id);
+      }
+    } catch (outageLogError) {
+      console.error('Error logging outage:', outageLogError);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
