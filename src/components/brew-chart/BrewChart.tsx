@@ -34,6 +34,7 @@ function BrewChartComponent({
   events = [],
   controllerId,
   chartIndex = 0,
+  brewId,
   smoothLines: externalSmoothLines,
   onSmoothLinesChange,
 }: BrewChartProps) {
@@ -48,6 +49,7 @@ function BrewChartComponent({
   const { chartData, dayBoundaries, dayTicks } = useBrewChartData({
     data: shouldRenderChart ? data : [],
     controllerId: shouldRenderChart ? controllerId : undefined,
+    brewId,
     smoothLines,
   });
 
