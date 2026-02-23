@@ -259,13 +259,14 @@ export function useBrewChartData({
 
     // targetTemp is now set from profile_target_temp (base profile target) by mergeWithControllerTemp.
     // For old data without profile_target_temp, it falls back to target_temp (PID-adjusted).
-    // Apply median filter to smooth out PID noise on old data that lacks profile_target_temp.
     const hasStoredProfileTargets = controllerTempData.some(d => d.profile_target_temp != null);
     
     let mappedData = withSpan;
 
-    // If we have profile targets from reconstruction, override targetTemp
-    if (profileTargets.length > 0 && !hasStoredProfileTargets) {
+    if (hasStoredProfileTargets) {
+      // New data: profile_target_temp is already used via mergeWithControllerTemp, no further processing needed
+    } else if (profileTargets.length > 0) {
+      // Old data with reconstructed profile from session logs: override targetTemp
       mappedData = withSpan.map(point => {
         if (point.controllerTemp != null) {
           let profileTarget: number | null = null;
@@ -279,22 +280,40 @@ export function useBrewChartData({
         }
         return point;
       });
-    } else if (!hasStoredProfileTargets && profileTargets.length === 0) {
-      // Old data without stored profile targets and no reconstructed profile:
-      // apply median filter to strip PID noise
-      const halfWindow = 30;
-      const targets = withSpan.map(p => p.targetTemp);
-      mappedData = withSpan.map((point, i) => {
-        if (point.targetTemp == null) return point;
-        const start = Math.max(0, i - halfWindow);
-        const end = Math.min(targets.length - 1, i + halfWindow);
-        const window: number[] = [];
-        for (let j = start; j <= end; j++) {
-          if (targets[j] != null) window.push(targets[j]!);
+    } else {
+      // Old data without any profile info: use mode (most common rounded value) per day
+      // to approximate the base target from noisy PID-adjusted values
+      const dayBuckets = new Map<string, Map<number, number>>();
+      
+      // Count occurrences of each rounded target per day
+      for (const point of withSpan) {
+        if (point.targetTemp == null) continue;
+        const day = new Date(point.timestamp).toISOString().slice(0, 10);
+        if (!dayBuckets.has(day)) dayBuckets.set(day, new Map());
+        const rounded = Math.round(point.targetTemp);
+        const counts = dayBuckets.get(day)!;
+        counts.set(rounded, (counts.get(rounded) || 0) + 1);
+      }
+      
+      // Find the mode (most frequent value) per day
+      const dayModes = new Map<string, number>();
+      for (const [day, counts] of dayBuckets) {
+        let maxCount = 0;
+        let mode = 0;
+        for (const [value, count] of counts) {
+          if (count > maxCount) {
+            maxCount = count;
+            mode = value;
+          }
         }
-        window.sort((a, b) => a - b);
-        const median = window[Math.floor(window.length / 2)];
-        return { ...point, targetTemp: median };
+        dayModes.set(day, mode);
+      }
+      
+      mappedData = withSpan.map(point => {
+        if (point.targetTemp == null) return point;
+        const day = new Date(point.timestamp).toISOString().slice(0, 10);
+        const mode = dayModes.get(day);
+        return mode != null ? { ...point, targetTemp: mode } : point;
       });
     }
 
