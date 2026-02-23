@@ -270,8 +270,12 @@ export function useBrewChartData({
         }
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       }
-      // No profile: hide target line (raw controller targets are noisy from auto-cooling)
-      return { ...point, targetTemp: null };
+      // No profile: round target to nearest 1°C to strip PID compensation noise
+      // and show the base target the profile intended
+      if (point.targetTemp != null) {
+        return { ...point, targetTemp: Math.round(point.targetTemp) };
+      }
+      return point;
     });
 
     return mappedData;
