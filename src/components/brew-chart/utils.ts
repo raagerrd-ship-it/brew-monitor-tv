@@ -64,12 +64,12 @@ function prepareControllerData(controllerData: ControllerTempPoint[]): SortedCon
     }))
     .sort((a, b) => a.timestamp - b.timestamp);
     
-  // Use profile_target_temp when available (the base profile target),
-  // falling back to target_temp (PID-adjusted) for historical data
+  // target_temp from controller history is PID-adjusted — used only as fallback
+  // when no snapshot data is available. Snapshots provide the real profile target.
   const targetTemp = controllerData
     .map(d => ({
       timestamp: new Date(d.recorded_at).getTime(),
-      value: d.profile_target_temp ?? d.target_temp
+      value: d.target_temp
     }))
     .sort((a, b) => a.timestamp - b.timestamp);
     
