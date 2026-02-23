@@ -1178,36 +1178,21 @@ export type Database = {
     }
     Functions: {
       generate_share_id: { Args: { length?: number }; Returns: string }
-      get_temp_history_sampled:
-        | {
-            Args: {
-              p_controller_id: string
-              p_end_time: string
-              p_sample_interval_minutes?: number
-              p_start_time: string
-            }
-            Returns: {
-              cooling_enabled: boolean
-              current_temp: number
-              profile_target_temp: number
-              recorded_at: string
-              target_temp: number
-            }[]
-          }
-        | {
-            Args: {
-              p_controller_id: string
-              p_end_time: string
-              p_sample_interval_minutes?: number
-              p_start_time: string
-            }
-            Returns: {
-              cooling_enabled: boolean
-              current_temp: number
-              recorded_at: string
-              target_temp: number
-            }[]
-          }
+      get_temp_history_sampled: {
+        Args: {
+          p_controller_id: string
+          p_end_time: string
+          p_sample_interval_minutes?: number
+          p_start_time: string
+        }
+        Returns: {
+          cooling_enabled: boolean
+          current_temp: number
+          profile_target_temp: number
+          recorded_at: string
+          target_temp: number
+        }[]
+      }
       trigger_auto_cooling_adjustment: { Args: never; Returns: undefined }
       trigger_brew_sync: { Args: never; Returns: undefined }
       trigger_custom_brew_sync: { Args: never; Returns: undefined }
