@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
@@ -81,17 +82,29 @@ export function useBrewData(): UseBrewDataReturn {
     controllersRef.current = controllers;
   }, [controllers]);
 
-  // Auth state
+  // Auth state — check both Lovable Cloud and external Supabase
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
+    const checkAuth = async () => {
+      const { data: { session: cloudSession } } = await supabase.auth.getSession();
+      const { data: { session: extSession } } = await externalSupabase.auth.getSession();
+      setIsAuthenticated(!!cloudSession || !!extSession);
+    };
+    checkAuth();
+
+    const { data: { subscription: cloudSub } } = supabase.auth.onAuthStateChange((_, session) => {
+      if (session) setIsAuthenticated(true);
+      else externalSupabase.auth.getSession().then(({ data: { session: ext } }) => setIsAuthenticated(!!ext));
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setIsAuthenticated(!!session);
+    const { data: { subscription: extSub } } = externalSupabase.auth.onAuthStateChange((_, session) => {
+      if (session) setIsAuthenticated(true);
+      else supabase.auth.getSession().then(({ data: { session: cloud } }) => setIsAuthenticated(!!cloud));
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cloudSub.unsubscribe();
+      extSub.unsubscribe();
+    };
   }, []);
 
   const loadBrewEvents = useCallback(async () => {
