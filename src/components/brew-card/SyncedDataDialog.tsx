@@ -45,15 +45,29 @@ export function SyncedDataDialog({
 
     const fetchSnapshots = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("brew_data_snapshots")
-        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp")
-        .eq("brew_id", brewId)
-        .order("recorded_at", { ascending: false });
+      const allSnapshots: SnapshotRow[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (!error && data) {
-        setSnapshots(data);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("brew_data_snapshots")
+          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp")
+          .eq("brew_id", brewId)
+          .order("recorded_at", { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (error || !data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allSnapshots.push(...data);
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        }
       }
+
+      setSnapshots(allSnapshots);
       setLoading(false);
     };
 
