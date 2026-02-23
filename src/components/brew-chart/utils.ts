@@ -64,14 +64,10 @@ function prepareControllerData(controllerData: ControllerTempPoint[]): SortedCon
     }))
     .sort((a, b) => a.timestamp - b.timestamp);
     
-  // target_temp from controller history is PID-adjusted — used only as fallback
-  // when no snapshot data is available. Snapshots provide the real profile target.
-  const targetTemp = controllerData
-    .map(d => ({
-      timestamp: new Date(d.recorded_at).getTime(),
-      value: d.target_temp
-    }))
-    .sort((a, b) => a.timestamp - b.timestamp);
+  // Don't use controller history target_temp for the Mål line —
+  // the chart gets Mål exclusively from brew_data_snapshots (via snapshotTargets).
+  // We still need the sorted data structure for backward compat but set all to null.
+  const targetTemp: { timestamp: number; value: number }[] = [];
     
   return { currentTemp, targetTemp };
 }

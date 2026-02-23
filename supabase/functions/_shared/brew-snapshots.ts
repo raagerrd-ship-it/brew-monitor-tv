@@ -127,22 +127,33 @@ export async function createBrewSnapshots(
   if (!sgData || sgData.length === 0) return 0;
 
   try {
-    // Check which snapshots already exist
-    const { data: existingSnapshots } = await supabase
-      .from('brew_data_snapshots')
-      .select('recorded_at')
-      .eq('brew_id', brewId);
-
-    const existingTimes = new Set(
-      (existingSnapshots || []).map((s: any) => new Date(s.recorded_at).getTime())
-    );
+    // Check which snapshots already exist (paginated to handle >1000)
+    const existingTimes = new Set<number>();
+    {
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from('brew_data_snapshots')
+          .select('recorded_at')
+          .eq('brew_id', brewId)
+          .range(offset, offset + batchSize - 1);
+        if (!batch || batch.length === 0) { hasMore = false; }
+        else {
+          for (const s of batch) existingTimes.add(new Date(s.recorded_at).getTime());
+          offset += batchSize;
+          hasMore = batch.length === batchSize;
+        }
+      }
+    }
 
     const newPoints = sgData.filter(
       (p) => !existingTimes.has(new Date(p.date).getTime())
     );
     if (newPoints.length === 0) return 0;
 
-    // Fetch controller data and profile timeline in parallel
+    // Fetch controller data (paginated) and profile timeline in parallel
     let controllerData: any[] = [];
     let profileTimeline: ProfileTargetPoint[] = [];
 
@@ -153,16 +164,31 @@ export async function createBrewSnapshots(
       const startTime = sorted[0].date;
       const endTime = sorted[sorted.length - 1].date;
 
-      const [ctrlResult, timeline] = await Promise.all([
-        supabase.rpc('get_temp_history_sampled', {
-          p_controller_id: controllerId,
-          p_start_time: startTime,
-          p_end_time: endTime,
-          p_sample_interval_minutes: 15,
-        }),
+      const [ctrlData, timeline] = await Promise.all([
+        (async () => {
+          const allRows: any[] = [];
+          let offset = 0;
+          const batchSize = 1000;
+          let hasMore = true;
+          while (hasMore) {
+            const { data, error } = await supabase.rpc('get_temp_history_sampled', {
+              p_controller_id: controllerId,
+              p_start_time: startTime,
+              p_end_time: endTime,
+              p_sample_interval_minutes: 15,
+            }).range(offset, offset + batchSize - 1);
+            if (error || !data || data.length === 0) { hasMore = false; }
+            else {
+              allRows.push(...data);
+              offset += batchSize;
+              hasMore = data.length === batchSize;
+            }
+          }
+          return allRows;
+        })(),
         getProfileTargetTimeline(supabase, brewId, controllerId),
       ]);
-      controllerData = ctrlResult.data || [];
+      controllerData = ctrlData;
       profileTimeline = timeline;
     }
 
