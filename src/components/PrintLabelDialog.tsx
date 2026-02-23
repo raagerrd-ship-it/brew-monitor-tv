@@ -57,14 +57,18 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     }
   }, [open, renderPreview]);
 
-  const handleDownload = () => {
+  const handlePrint = () => {
     if (!canvasRef.current) return;
     const trimmed = trimCanvas(canvasRef.current, 4);
-    const link = document.createElement('a');
-    const safeName = (brew.name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
-    link.download = `${safeName}-${labelType}.png`;
-    link.href = trimmed.toDataURL('image/png');
-    link.click();
+    const dataUrl = trimmed.toDataURL('image/png');
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Etikett</title>
+      <style>@page{size:50mm 70mm;margin:0}body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh}img{max-width:100%;max-height:100%}</style>
+      </head><body><img src="${dataUrl}" onload="window.print();window.close()"/></body></html>
+    `);
+    win.document.close();
   };
 
   const handleDownloadPdf = async () => {
@@ -123,9 +127,9 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
             <FileText className="h-4 w-4" />
             Spara som PDF
           </Button>
-          <Button onClick={handleDownload} variant="outline" className="gap-2" size="lg">
-            <Download className="h-4 w-4" />
-            Bild
+          <Button onClick={handlePrint} variant="outline" className="gap-2" size="lg">
+            <Printer className="h-4 w-4" />
+            Skriv ut
           </Button>
         </div>
         <p className="text-xs text-muted-foreground text-center -mt-2">
