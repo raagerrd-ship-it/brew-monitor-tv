@@ -259,14 +259,16 @@ export function useBrewChartData({
 
     // targetTemp is now set from profile_target_temp (base profile target) by mergeWithControllerTemp.
     // For old data without profile_target_temp, it falls back to target_temp (PID-adjusted).
-    const hasStoredProfileTargets = controllerTempData.some(d => d.profile_target_temp != null);
+    // Require >50% of records to have stored profile targets to trust them as primary source
+    const storedProfileCount = controllerTempData.filter(d => d.profile_target_temp != null).length;
+    const hasEnoughStoredProfileTargets = storedProfileCount > controllerTempData.length * 0.5;
     
     let mappedData = withSpan;
 
-    if (hasStoredProfileTargets) {
-      // New data: profile_target_temp is already used via mergeWithControllerTemp, no further processing needed
+    if (hasEnoughStoredProfileTargets) {
+      // Majority of data has stored profile_target_temp — already used via mergeWithControllerTemp
     } else if (profileTargets.length > 0) {
-      // Old data with reconstructed profile from session logs: override targetTemp
+      // Use reconstructed profile from session logs (preferred for old/transitional data)
       mappedData = withSpan.map(point => {
         if (point.controllerTemp != null) {
           let profileTarget: number | null = null;
