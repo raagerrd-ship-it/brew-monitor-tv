@@ -8,6 +8,7 @@ interface SettingsSectionProps {
   children: React.ReactNode;
   className?: string;
   variant?: "default" | "muted";
+  headerAction?: React.ReactNode;
 }
 
 /**
@@ -21,6 +22,7 @@ export function SettingsSection({
   children,
   className,
   variant = "default",
+  headerAction,
 }: SettingsSectionProps) {
   return (
     <div
@@ -40,12 +42,13 @@ export function SettingsSection({
             <Icon className="h-4.5 w-4.5 text-primary" />
           </div>
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold tracking-tight">{title}</h2>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}
         </div>
+        {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
       </div>
 
       {/* Content */}
