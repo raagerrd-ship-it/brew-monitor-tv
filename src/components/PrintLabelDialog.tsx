@@ -251,7 +251,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  OBS: M110 använder ofta klassisk Bluetooth, inte BLE. Om skrivaren inte hittas, använd "Spara som bild" ovan.
+                  Skrivaren behöver inte vara parkopplad i telefonens Bluetooth-inställningar – anslutningen sker direkt via BLE.
                 </p>
               </div>
             )}
