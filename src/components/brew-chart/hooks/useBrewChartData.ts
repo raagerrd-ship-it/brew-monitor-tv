@@ -275,7 +275,7 @@ export function useBrewChartData({
 
     // No profile: apply median filter to strip PID compensation noise
     if (profileTargets.length === 0) {
-      const halfWindow = 12; // ±12 points × 15 min = ±3 hours window
+      const halfWindow = 30; // ±30 points × 15 min = ±7.5 hours window
       const targets = mappedData.map(p => p.targetTemp);
       mappedData = mappedData.map((point, i) => {
         if (point.targetTemp == null) return point;
