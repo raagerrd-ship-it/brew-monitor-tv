@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { Clock } from "./Clock";
-import { memo } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
@@ -140,6 +140,20 @@ interface RaptControllerBarProps {
   isTvMode?: boolean;
 }
 
+// Helper to format duration like "3t 24m"
+function formatDuration(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}t ${minutes}m`;
+  return `${minutes}m`;
+}
+
+// Helper to format time like "08:01"
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+}
+
 export const RaptControllerBar = memo(function RaptControllerBar({
   controllers,
   pills,
@@ -147,14 +161,53 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false
 }: RaptControllerBarProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  // Find the most recent last_update across all controllers
+  const latestUpdate = useMemo(() => {
+    let latest: Date | null = null;
+    for (const c of controllers) {
+      if (c.last_update) {
+        const d = new Date(c.last_update);
+        if (!latest || d > latest) latest = d;
+      }
+    }
+    return latest;
+  }, [controllers]);
+
+  const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
+  const isStale = staleMinutes > 15; // 3x the 5-min sync interval
+
+  // Tick every 30s to keep duration updated
+  useEffect(() => {
+    if (!isStale) return;
+    const interval = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, [isStale]);
+
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div className="relative">
         <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide backdrop-blur-xl`} style={{
           background: 'hsl(222 20% 11% / 0.65)',
-          border: '1px solid hsl(222 15% 35% / 0.6)',
-          boxShadow: '0 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+          border: isStale ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
+          boxShadow: isStale
+            ? '0 0 20px rgba(200, 50, 50, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+            : '0 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         }}>
+          {/* RAPT API status indicator */}
+          {isStale && latestUpdate && (
+            <>
+              <div className="flex items-center gap-1.5 flex-shrink-0 pr-1" title={`RAPT API svarar inte sedan ${formatTime(latestUpdate)}. Senaste data är ${formatDuration(now - latestUpdate.getTime())} gammal.`}>
+                <WifiOff className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                <span className="text-[11px] font-medium text-red-400 whitespace-nowrap">
+                  {formatTime(latestUpdate)}–{formatTime(new Date(now))} ({formatDuration(now - latestUpdate.getTime())})
+                </span>
+              </div>
+              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+            </>
+          )}
+
           {controllers.map((controller, index) => {
             const controllerColor = getControllerColor(controller.name);
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
