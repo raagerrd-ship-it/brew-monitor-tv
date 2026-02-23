@@ -523,7 +523,22 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { brewId, compact, brewCount } = await req.json();
+    const { brewId, compact, brewCount, action } = await req.json();
+
+    // Handle delete action – removes all cached SVGs for a brew
+    if (action === 'delete' && brewId) {
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+      const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data: files } = await sb.storage.from('chart-images').list('', { search: `chart_${brewId}` });
+      if (files && files.length > 0) {
+        const paths = files.map(f => f.name);
+        const { error } = await sb.storage.from('chart-images').remove(paths);
+        if (error) console.error('[RenderChart] Delete error:', error);
+        return new Response(JSON.stringify({ deleted: paths }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ deleted: [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     if (!brewId) {
       return new Response(
         JSON.stringify({ error: 'brewId is required' }),
