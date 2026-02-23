@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Trash2, RefreshCw } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -136,10 +140,28 @@ export function LearnedCompensationBaselines() {
             <RefreshCw className="h-3 w-3" />
           </Button>
           {entries.length > 1 && (
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={handleResetAll}>
-              <Trash2 className="h-3 w-3 mr-1" />
-              Nollställ alla
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive">
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Nollställ alla
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Nollställ alla baselines?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Alla inlärda baselines för samtliga kontrollrar tas bort. Systemet börjar om från noll och måste lära sig kompensationen på nytt.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleResetAll}>
+                    Ja, nollställ alla
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>
@@ -165,14 +187,31 @@ export function LearnedCompensationBaselines() {
                     )
                   </span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                  onClick={() => handleReset(item.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Nollställ baseline?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Baseline "{BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}" för {name} tas bort permanent.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleReset(item.id)}>
+                        Nollställ
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             ))}
           </div>
