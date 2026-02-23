@@ -258,8 +258,8 @@ export function useBrewChartData({
     }));
 
     // Override targetTemp with fermentation profile targets if available,
-    // otherwise hide the target line (raw controller targets are noisy from auto-cooling)
-    const mappedData = withSpan.map(point => {
+    // otherwise smooth raw controller targets using median filter to remove PID noise
+    let mappedData = withSpan.map(point => {
       if (profileTargets.length > 0 && point.controllerTemp != null) {
         let profileTarget: number | null = null;
         for (let i = profileTargets.length - 1; i >= 0; i--) {
@@ -270,18 +270,28 @@ export function useBrewChartData({
         }
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       }
-      // No profile: round target to nearest 1°C to strip PID compensation noise
-      // and show the base target the profile intended
-      if (point.targetTemp != null) {
-        return { ...point, targetTemp: Math.round(point.targetTemp) };
-      }
       return point;
     });
 
-    return mappedData;
+    // No profile: apply median filter to strip PID compensation noise
+    if (profileTargets.length === 0) {
+      const halfWindow = 12; // ±12 points × 15 min = ±3 hours window
+      const targets = mappedData.map(p => p.targetTemp);
+      mappedData = mappedData.map((point, i) => {
+        if (point.targetTemp == null) return point;
+        const start = Math.max(0, i - halfWindow);
+        const end = Math.min(targets.length - 1, i + halfWindow);
+        const window: number[] = [];
+        for (let j = start; j <= end; j++) {
+          if (targets[j] != null) window.push(targets[j]!);
+        }
+        window.sort((a, b) => a - b);
+        const median = window[Math.floor(window.length / 2)];
+        return { ...point, targetTemp: median };
+      });
+    }
 
-    // This return is now unreachable but kept for safety
-    return withSpan;
+    return mappedData;
   }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
