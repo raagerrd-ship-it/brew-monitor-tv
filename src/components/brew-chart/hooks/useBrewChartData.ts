@@ -21,6 +21,7 @@ interface SGDataPoint {
 interface UseBrewChartDataProps {
   data: SGDataPoint[];
   controllerId?: string;
+  brewId?: string;
   smoothLines: boolean;
 }
 
@@ -40,6 +41,7 @@ interface ProfileTargetPoint {
 export function useBrewChartData({
   data,
   controllerId,
+  brewId,
   smoothLines,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
@@ -67,7 +69,7 @@ export function useBrewChartData({
     }
 
     // Create a key to detect if we need to refetch
-    const fetchKey = `${controllerId}-${firstDataDate}-${lastDataDate}`;
+    const fetchKey = `${controllerId}-${brewId}-${firstDataDate}-${lastDataDate}`;
     if (fetchKey === lastFetchKey.current) {
       return; // Already fetched this data
     }
@@ -115,14 +117,21 @@ export function useBrewChartData({
 
     const fetchProfileTargetTimeline = async (ctrlId: string) => {
       try {
-        // Find active/recent fermentation session for this controller
-        const { data: sessions } = await supabase
+        // Find fermentation session for this brew (or fall back to controller)
+        let query = supabase
           .from('fermentation_sessions')
           .select('id, profile_id, started_at, current_step_index')
-          .eq('controller_id', ctrlId)
-          .in('status', ['running', 'completed', 'paused'])
+          .in('status', ['running', 'completed', 'paused', 'cancelled'])
           .order('started_at', { ascending: false })
           .limit(1);
+
+        if (brewId) {
+          query = query.eq('brew_id', brewId);
+        } else {
+          query = query.eq('controller_id', ctrlId);
+        }
+
+        const { data: sessions } = await query;
 
         if (!sessions?.[0]) {
           setProfileTargets([]);
@@ -214,7 +223,7 @@ export function useBrewChartData({
       }, 300000); // 5 minutes
       return () => clearInterval(intervalId);
     }
-  }, [controllerId, dataLength, firstDataDate, lastDataDate, isTvMode]);
+  }, [controllerId, brewId, dataLength, firstDataDate, lastDataDate, isTvMode]);
 
   // Memoize all expensive calculations
   const chartData = useMemo(() => {
