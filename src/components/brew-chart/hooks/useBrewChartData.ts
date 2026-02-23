@@ -97,19 +97,35 @@ export function useBrewChartData({
         })();
 
         const snapshotsPromise = brewId
-          ? supabase
-              .from('brew_data_snapshots')
-              .select('recorded_at, profile_target_temp')
-              .eq('brew_id', brewId)
-              .not('profile_target_temp', 'is', null)
-              .order('recorded_at', { ascending: true })
-          : Promise.resolve({ data: null });
+          ? (async () => {
+              const allSnapshots: any[] = [];
+              let offset = 0;
+              const batchSize = 1000;
+              let hasMore = true;
+              while (hasMore) {
+                const { data: batch } = await supabase
+                  .from('brew_data_snapshots')
+                  .select('recorded_at, profile_target_temp')
+                  .eq('brew_id', brewId)
+                  .not('profile_target_temp', 'is', null)
+                  .order('recorded_at', { ascending: true })
+                  .range(offset, offset + batchSize - 1);
+                if (!batch || batch.length === 0) { hasMore = false; }
+                else {
+                  allSnapshots.push(...batch);
+                  offset += batchSize;
+                  hasMore = batch.length === batchSize;
+                }
+              }
+              return allSnapshots;
+            })()
+          : Promise.resolve([] as any[]);
 
         const [ctrlRows, snapshotsResult] = await Promise.all([controllerPromise, snapshotsPromise]);
 
         if (ctrlRows.length > 0) setControllerTempData(ctrlRows);
 
-        const snapshots = (snapshotsResult as any)?.data;
+        const snapshots = snapshotsResult;
         if (snapshots && snapshots.length > 0) {
           setSnapshotTargets(
             snapshots.map((s: any) => ({
