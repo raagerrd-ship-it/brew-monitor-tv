@@ -1,66 +1,86 @@
 
 
-# PID-liknande temperaturreglering med hastighetsdämpning
+# Logga RAPT API-avbrottstid
 
-## Problemanalys
+## Vad
 
-Just nu fungerar pill-kompensationen som en ren P-regulator (proportionell):
-- Formel: `compensatedTarget = profileTarget - delta/2`
-- Problemet: controllern kyls snabbt (23° till 13° pa 1.5h), deltat vaxer, och systemet pressar malet annu lagre i en positiv aterkooplings-loop
-- Resultat: malet drivs ned till 12.4° nar profilen egentligen vill ha 16°, trots att pill-tempen redan faller stadigt
+Nar RAPT API gar ner och sedan kommer tillbaka, logga hur lange avbrottet varade. Detta ger dig historik over alla RAPT API-avbrott.
 
-## Losning: Lagg till D-term (derivata/hastighetsdampning)
+## Hur det fungerar
 
-Utoka `calculateCompensatedTarget` i `_shared/temp-utils.ts` med en dampningsfaktor baserad pa pill-temperaturens forandringshastighet:
-
-1. **Hamta mer historik** - 8 punkter istallet for 3 (40 min vid 5-min intervall)
-2. **Berakna pill-temp-hastighet** (grader/timme) fran historiken
-3. **Berakna ETA till mal** - hur lang tid tills pill nar profileTarget vid nuvarande hastighet
-4. **Dampningsfaktor** - om pill narmar sig malet snabbt, skala ned kompensationen:
-   - ETA < 20 min: dampning = 0.2 (minimal kompensation, vi ar nastan dar)
-   - ETA < 40 min: dampning = 0.4
-   - ETA < 60 min: dampning = 0.6
-   - ETA > 60 min eller pill ror sig at fel hall: dampning = 1.0 (full kompensation)
-
-### Formel
+Systemet sparar tidpunkten for senast lyckade RAPT-synk. Nar en synk misslyckas (som nu med 503-felet) andras inget. Nar nasta synk lyckas jamfor den mot senaste lyckade tidpunkt -- om det gatt langre an forvantad sync-intervall loggas det som ett avbrott.
 
 ```text
-pillRate = (pill_nu - pill_30min_sedan) / tidsdiff_timmar
-eta_hours = (pill_nu - profileTarget) / abs(pillRate)  [om pill sjunker]
-
-dampingFactor = clamp(eta_hours / anticipation_window, 0.2, 1.0)
-compensatedTarget = profileTarget - (delta/2) * dampingFactor
+Synk OK (09:00) --> last_successful_rapt_sync = 09:00
+Synk FAIL (09:05) --> inget andras
+Synk FAIL (09:10) --> inget andras  
+Synk OK (09:25) --> avbrott: 25 min (09:00 - 09:25), loggas i rapt_outage_log
 ```
 
-### Exempel med nuvarande data (Falkens Flykt)
+## Andringar
 
-- Pill: 21.3° (sjunker ~1°/h)
-- Controller: 13.1°
-- Mal: 16.0°
-- Delta: 8.2°
-- ETA: (21.3 - 16.0) / 1.0 = 5.3 timmar → dampingFactor = 1.0 (full komp, pill ar fortfarande langt fran mal)
+### 1. Ny databastabell: `rapt_outage_log`
 
-Men om pill vore 17.0° och sjunker 2°/h:
-- ETA: (17.0 - 16.0) / 2.0 = 0.5h (30 min) → dampingFactor = 0.5
-- Kompensation: delta/2 * 0.5 istallet for delta/2 → mycket mildare justering
+| Kolumn | Typ | Beskrivning |
+|--------|-----|-------------|
+| id | uuid | Primarnykel |
+| outage_start | timestamptz | Senaste lyckade synk fore avbrottet |
+| outage_end | timestamptz | Forsta lyckade synk efter avbrottet |
+| duration_seconds | integer | Beraknad avbrottstid |
+| created_at | timestamptz | Nar raden skapades |
 
-## Tekniska andringar
+RLS: SELECT for alla, INSERT for service role.
 
-### 1. `supabase/functions/_shared/temp-utils.ts` - `calculateCompensatedTarget`
+### 2. Ny kolumn pa `sync_settings`: `last_successful_rapt_sync_at`
 
-- Andra `limit(3)` till `limit(8)` for delta-historik
-- Hamta aven `pill_temp` fran `temp_delta_history`
-- Berakna pill-temperaturens forandringshastighet (rate, grader/timme)
-- Berakna ETA till profileTarget
-- Applicera dampningsfaktor pa kompensationen
-- Logga rate, ETA och dampning for transparens
+Sparar tidpunkten for senaste *lyckade* RAPT API-synk (till skillnad fran `last_rapt_quick_sync_at` som uppdateras oavsett resultat).
 
-### 2. `supabase/functions/process-fermentation-profiles/index.ts`
+### 3. Uppdatera `sync-rapt-data-quick/index.ts`
 
-- Samma logik appliceras pa profil-driven pill-kompensation (den anropar samma `calculateCompensatedTarget`)
-- Ingen extra andring kravs — delad funktion
+Tva andringar:
 
-### 3. Ingen databasandring kravs
+**Vid lyckad synk (efter att pills/controllers uppdaterats):**
+- Las `last_successful_rapt_sync_at` fran `sync_settings`
+- Om det gatt mer an 2x sync-intervallet (tex >10 min vid 5 min intervall): skriv en rad i `rapt_outage_log` med start/slut/varaktighet
+- Uppdatera `last_successful_rapt_sync_at` till nu
 
-- All data som behovs finns redan i `temp_delta_history` (pill_temp, recorded_at)
+**Flytta timestamp-uppdateringen:** `last_rapt_quick_sync_at` uppdateras fortfarande i borjan (som nu), men den nya `last_successful_rapt_sync_at` uppdateras bara vid lyckat resultat.
+
+## Tekniska detaljer
+
+```typescript
+// Efter lyckad synk, innan return:
+const { data: settings } = await supabase
+  .from('sync_settings')
+  .select('last_successful_rapt_sync_at, rapt_sync_interval')
+  .single();
+
+const lastSuccess = settings?.last_successful_rapt_sync_at;
+const now = new Date();
+
+if (lastSuccess) {
+  const gap = (now.getTime() - new Date(lastSuccess).getTime()) / 1000;
+  const threshold = (settings?.rapt_sync_interval || 300) * 2; // 2x intervallet
+  
+  if (gap > threshold) {
+    await supabase.from('rapt_outage_log').insert({
+      outage_start: lastSuccess,
+      outage_end: now.toISOString(),
+      duration_seconds: Math.round(gap),
+    });
+    console.log(`RAPT API outage logged: ${Math.round(gap)}s`);
+  }
+}
+
+// Uppdatera lyckad-tidstampel
+await supabase.from('sync_settings')
+  .update({ last_successful_rapt_sync_at: now.toISOString() })
+  .eq('id', settingsId);
+```
+
+## Vad som INTE andras
+
+- Ingen UI-andring (loggen kan lases via databasen)
+- Felhanteringen i catch-blocket forblir oforandrad
+- `last_rapt_quick_sync_at` fungerar som vanligt
 
