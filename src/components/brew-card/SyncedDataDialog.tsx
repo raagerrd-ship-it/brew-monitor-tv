@@ -20,6 +20,7 @@ interface ControllerTempPoint {
   recorded_at: string;
   current_temp: number;
   target_temp: number;
+  profile_target_temp?: number | null;
 }
 
 interface ProfileTargetPoint {
@@ -222,13 +223,16 @@ export function SyncedDataDialog({
       const closest = findClosest(pointMs);
       const profTarget = lookupProfileTarget(profileTargets, pointMs);
 
+      // Mål = stored profile_target_temp > reconstructed profile > fixed target
+      const profileTarget = closest?.profile_target_temp ?? profTarget ?? closest?.target_temp ?? null;
+
       return {
         date: point.date,
         sg: point.value,
         pillTemp: point.temp,
         controllerTemp: closest?.current_temp ?? null,
         targetTemp: closest?.target_temp ?? null,
-        profileTarget: profTarget,
+        profileTarget: profileTarget,
       };
     });
 
@@ -238,8 +242,9 @@ export function SyncedDataDialog({
   }, [sgData, controllerData, profileTargets]);
 
   const hasControllerData = controllerId && controllerData.length > 0;
-  const hasProfileTargets = profileTargets.length > 0;
-  const hasAutoAdjustments = hasControllerData && hasProfileTargets;
+  const hasAutoAdjustments = hasControllerData && (
+    profileTargets.length > 0 || controllerData.some(d => d.profile_target_temp != null)
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -304,13 +309,11 @@ export function SyncedDataDialog({
                         <td className="py-1.5 text-right font-mono text-muted-foreground">
                           {point.profileTarget !== null
                             ? `${point.profileTarget.toFixed(1)}°`
-                            : point.targetTemp !== null
-                              ? `${point.targetTemp.toFixed(1)}°`
-                              : "-"}
+                            : "-"}
                         </td>
                       )}
                       {hasAutoAdjustments && (
-                        <td className="py-1.5 text-right font-mono text-muted-foreground">
+                        <td className="py-1.5 text-right font-mono text-muted-foreground/60">
                           {point.targetTemp !== null
                             ? `${point.targetTemp.toFixed(1)}°`
                             : "-"}

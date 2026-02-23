@@ -23,6 +23,7 @@ export interface ControllerTempPoint {
   recorded_at: string;
   current_temp: number;
   target_temp: number;
+  profile_target_temp?: number | null;
 }
 
 export interface BrewChartEvent {

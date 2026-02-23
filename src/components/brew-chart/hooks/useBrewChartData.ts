@@ -257,27 +257,34 @@ export function useBrewChartData({
         : null,
     }));
 
-    // Override targetTemp with fermentation profile targets if available,
-    // otherwise smooth raw controller targets using median filter to remove PID noise
-    let mappedData = withSpan.map(point => {
-      if (profileTargets.length > 0 && point.controllerTemp != null) {
-        let profileTarget: number | null = null;
-        for (let i = profileTargets.length - 1; i >= 0; i--) {
-          if (profileTargets[i].timestamp <= point.timestamp) {
-            profileTarget = profileTargets[i].target;
-            break;
-          }
-        }
-        return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
-      }
-      return point;
-    });
+    // targetTemp is now set from profile_target_temp (base profile target) by mergeWithControllerTemp.
+    // For old data without profile_target_temp, it falls back to target_temp (PID-adjusted).
+    // Apply median filter to smooth out PID noise on old data that lacks profile_target_temp.
+    const hasStoredProfileTargets = controllerTempData.some(d => d.profile_target_temp != null);
+    
+    let mappedData = withSpan;
 
-    // No profile: apply median filter to strip PID compensation noise
-    if (profileTargets.length === 0) {
-      const halfWindow = 30; // ±30 points × 15 min = ±7.5 hours window
-      const targets = mappedData.map(p => p.targetTemp);
-      mappedData = mappedData.map((point, i) => {
+    // If we have profile targets from reconstruction, override targetTemp
+    if (profileTargets.length > 0 && !hasStoredProfileTargets) {
+      mappedData = withSpan.map(point => {
+        if (point.controllerTemp != null) {
+          let profileTarget: number | null = null;
+          for (let i = profileTargets.length - 1; i >= 0; i--) {
+            if (profileTargets[i].timestamp <= point.timestamp) {
+              profileTarget = profileTargets[i].target;
+              break;
+            }
+          }
+          return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
+        }
+        return point;
+      });
+    } else if (!hasStoredProfileTargets && profileTargets.length === 0) {
+      // Old data without stored profile targets and no reconstructed profile:
+      // apply median filter to strip PID noise
+      const halfWindow = 30;
+      const targets = withSpan.map(p => p.targetTemp);
+      mappedData = withSpan.map((point, i) => {
         if (point.targetTemp == null) return point;
         const start = Math.max(0, i - halfWindow);
         const end = Math.min(targets.length - 1, i + halfWindow);
