@@ -251,8 +251,11 @@ export function useBrewChartData({
         }
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
       }
-      // No profile targets: hide noisy raw controller target
-      return { ...point, targetTemp: null };
+      // No profile: round target to nearest 0.5°C to approximate base target
+      if (point.targetTemp != null) {
+        return { ...point, targetTemp: Math.round(point.targetTemp * 2) / 2 };
+      }
+      return point;
     });
 
     return mappedData;
