@@ -32,10 +32,10 @@ interface UseBrewChartDataReturn {
   isLoading: boolean;
 }
 
-// Snapshot target lookup entry
-interface SnapshotTarget {
+// Profile target timeline entry (reconstructed from fermentation session + profile steps)
+interface ProfileTargetPoint {
   timestamp: number;
-  profileTarget: number | null;
+  target: number;
 }
 
 export function useBrewChartData({
@@ -46,32 +46,27 @@ export function useBrewChartData({
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [snapshotTargets, setSnapshotTargets] = useState<SnapshotTarget[]>([]);
+  const [profileTargets, setProfileTargets] = useState<ProfileTargetPoint[]>([]);
   const { isTvMode } = useTvMode();
   
-  // Use ref to track if we've already fetched for this controller/data combo
   const lastFetchKey = useRef<string>("");
 
-  // Stable data length for dependency tracking (avoids re-render on same-content arrays)
   const dataLength = data?.length ?? 0;
   const firstDataDate = dataLength > 0 ? data[0].date : "";
   const lastDataDate = dataLength > 0 ? data[dataLength - 1].date : "";
 
-  // Fetch controller temperature history when controllerId is provided
   useEffect(() => {
-    // Skip if no data or no controller
     if (!controllerId || dataLength === 0) {
       if (controllerTempData.length > 0) {
         setControllerTempData([]);
       }
-      setSnapshotTargets([]);
+      setProfileTargets([]);
       return;
     }
 
-    // Create a key to detect if we need to refetch
     const fetchKey = `${controllerId}-${brewId}-${firstDataDate}-${lastDataDate}`;
     if (fetchKey === lastFetchKey.current) {
-      return; // Already fetched this data
+      return;
     }
 
     const fetchControllerTemp = async () => {
@@ -108,48 +103,127 @@ export function useBrewChartData({
           setControllerTempData(allRows);
         }
 
-        // Fetch snapshot targets for Mål line (locked, historically correct)
-        if (brewId) {
-          const { data: snapshots } = await supabase
-            .from('brew_data_snapshots')
-            .select('recorded_at, profile_target_temp')
-            .eq('brew_id', brewId)
-            .order('recorded_at', { ascending: true });
-
-          if (snapshots && snapshots.length > 0) {
-            setSnapshotTargets(
-              snapshots.map(s => ({
-                timestamp: new Date(s.recorded_at).getTime(),
-                profileTarget: s.profile_target_temp,
-              }))
-            );
-          } else {
-            setSnapshotTargets([]);
-          }
-        }
+        // Reconstruct profile target timeline from fermentation session + profile steps
+        await fetchProfileTargetTimeline(controllerId);
       } finally {
         setIsLoading(false);
       }
     };
 
+    const fetchProfileTargetTimeline = async (ctrlId: string) => {
+      try {
+        // Try to find session by brew_id first, then fall back to controller_id
+        let sessions: any[] | null = null;
+
+        if (brewId) {
+          const { data } = await supabase
+            .from('fermentation_sessions')
+            .select('id, profile_id, started_at, current_step_index')
+            .eq('brew_id', brewId)
+            .in('status', ['running', 'completed', 'paused', 'cancelled'])
+            .order('started_at', { ascending: false })
+            .limit(1);
+          sessions = data;
+        }
+
+        if (!sessions?.length) {
+          const { data } = await supabase
+            .from('fermentation_sessions')
+            .select('id, profile_id, started_at, current_step_index')
+            .eq('controller_id', ctrlId)
+            .in('status', ['running', 'completed', 'paused', 'cancelled'])
+            .order('started_at', { ascending: false })
+            .limit(1);
+          sessions = data;
+        }
+
+        if (!sessions?.[0]) {
+          setProfileTargets([]);
+          return;
+        }
+
+        const session = sessions[0];
+
+        const [stepsResult, stepLogsResult] = await Promise.all([
+          supabase
+            .from('fermentation_profile_steps')
+            .select('step_order, step_type, target_temp, duration_hours')
+            .eq('profile_id', session.profile_id)
+            .order('step_order', { ascending: true }),
+          supabase
+            .from('fermentation_step_log')
+            .select('step_index, created_at')
+            .eq('session_id', session.id)
+            .order('created_at', { ascending: true }),
+        ]);
+
+        const steps = stepsResult.data;
+        const stepLogs = stepLogsResult.data;
+        if (!steps || steps.length === 0) {
+          setProfileTargets([]);
+          return;
+        }
+
+        // Build step start time map (earliest log entry per step)
+        const stepStartMap: Record<number, number> = {};
+        stepStartMap[0] = new Date(session.started_at).getTime();
+        if (stepLogs) {
+          for (const log of stepLogs) {
+            if (!(log.step_index in stepStartMap)) {
+              stepStartMap[log.step_index] = new Date(log.created_at).getTime();
+            }
+          }
+        }
+
+        // Build profile target timeline
+        const timeline: ProfileTargetPoint[] = [];
+        let lastTarget: number | null = null;
+
+        for (const step of steps) {
+          const startTime = stepStartMap[step.step_order];
+          if (!startTime) continue;
+
+          const stepTarget = step.target_temp ?? lastTarget;
+
+          if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
+            const durationMs = step.duration_hours * 3600 * 1000;
+            const now = Date.now();
+            const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
+            for (let i = 0; i <= numPoints; i++) {
+              const t = i / numPoints;
+              const ts = startTime + t * durationMs;
+              if (ts > now) break;
+              const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
+              timeline.push({ timestamp: ts, target });
+            }
+          } else if (stepTarget !== null) {
+            timeline.push({ timestamp: startTime, target: stepTarget });
+          }
+
+          if (stepTarget !== null) lastTarget = stepTarget;
+        }
+
+        setProfileTargets(timeline);
+      } catch (err) {
+        console.error("Error fetching profile target timeline:", err);
+        setProfileTargets([]);
+      }
+    };
+
     fetchControllerTemp();
 
-    // In TV mode, refresh controller temp data every 5 minutes (300s) for performance
-    // In normal mode, no auto-refresh (realtime handles it)
     if (isTvMode) {
       const intervalId = setInterval(() => {
-        lastFetchKey.current = ""; // Force refetch
+        lastFetchKey.current = "";
         fetchControllerTemp();
-      }, 300000); // 5 minutes
+      }, 300000);
       return () => clearInterval(intervalId);
     }
   }, [controllerId, brewId, dataLength, firstDataDate, lastDataDate, isTvMode]);
 
-  // Memoize all expensive calculations
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
 
-    // Downsample early in TV mode to reduce all subsequent calculations
     const sourceData = isTvMode ? downsampleForTvMode(data, 80) : data;
     const controllerDataSampled = isTvMode
       ? downsampleForTvMode(controllerTempData, 80)
@@ -159,7 +233,6 @@ export function useBrewChartData({
     const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
     const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
     const withTimestamps = addTimestamps(smoothedData);
-    // Compute tempSpan from smoothed values for stacked area rendering
     const withSpan = withTimestamps.map(point => ({
       ...point,
       tempSpan: (point.controllerTemp != null && point.pillTemp != null)
@@ -167,45 +240,29 @@ export function useBrewChartData({
         : null,
     }));
 
-    // Apply profile target from snapshots (locked, historically correct)
-    // Falls back to controller history target_temp (PID-adjusted) when no snapshots exist yet
+    // Apply profile target from fermentation profile (the source of truth in this app)
     let mappedData = withSpan;
 
-    if (snapshotTargets.length > 0) {
-      // Build a Map for fast lookup by timestamp (snapshots align with SG data points)
-      const targetMap = new Map<number, number | null>();
-      for (const st of snapshotTargets) {
-        targetMap.set(st.timestamp, st.profileTarget);
-      }
-
+    if (profileTargets.length > 0) {
       mappedData = withSpan.map(point => {
-        // Direct match first (snapshots and SG data share timestamps)
-        const directTarget = targetMap.get(point.timestamp);
-        if (directTarget !== undefined && directTarget !== null) {
-          return { ...point, targetTemp: directTarget };
-        }
-
-        // Nearest snapshot fallback (step function: use last known target)
-        let profileTarget: number | null = null;
-        for (let i = snapshotTargets.length - 1; i >= 0; i--) {
-          if (snapshotTargets[i].timestamp <= point.timestamp && snapshotTargets[i].profileTarget !== null) {
-            profileTarget = snapshotTargets[i].profileTarget;
-            break;
+        if (point.controllerTemp != null) {
+          let profileTarget: number | null = null;
+          for (let i = profileTargets.length - 1; i >= 0; i--) {
+            if (profileTargets[i].timestamp <= point.timestamp) {
+              profileTarget = profileTargets[i].target;
+              break;
+            }
           }
-        }
-        if (profileTarget !== null) {
-          return { ...point, targetTemp: profileTarget };
+          return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
         }
         return point;
       });
     }
-    // else: no snapshots available — keep targetTemp from mergeWithControllerTemp (PID-adjusted fallback)
 
     return mappedData;
-  }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets]);
+  }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
-
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
 
   return {
