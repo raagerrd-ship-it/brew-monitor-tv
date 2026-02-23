@@ -120,7 +120,7 @@ export function useBrewChartData({
           .from('fermentation_sessions')
           .select('id, profile_id, started_at, current_step_index')
           .eq('controller_id', ctrlId)
-          .in('status', ['running', 'completed', 'paused', 'cancelled'])
+          .in('status', ['running', 'completed', 'paused'])
           .order('started_at', { ascending: false })
           .limit(1);
 
