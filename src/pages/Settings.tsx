@@ -17,7 +17,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1189,6 +1189,19 @@ export default function Settings() {
                       <AlertCircle className="h-3 w-3" /> Saknas
                     </span>
                   )}
+                  <button
+                    className="ml-auto p-1 rounded-md text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                    title="Varning om API-ändringar"
+                    onClick={() => {
+                      toast({
+                        title: "⚠️ Varning",
+                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Pågående synk-jobb kan misslyckas.",
+                        variant: "destructive",
+                      });
+                    }}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 
                 {apiSettings?.brewfather && (
@@ -1404,6 +1417,19 @@ export default function Settings() {
                       <AlertCircle className="h-3 w-3" /> Saknas
                     </span>
                   )}
+                  <button
+                    className="ml-auto p-1 rounded-md text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                    title="Varning om API-ändringar"
+                    onClick={() => {
+                      toast({
+                        title: "⚠️ Varning",
+                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Pågående synk-jobb kan misslyckas.",
+                        variant: "destructive",
+                      });
+                    }}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 
                 {apiSettings?.rapt && (
