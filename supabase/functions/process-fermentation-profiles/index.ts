@@ -252,11 +252,12 @@ Deno.serve(async (req) => {
         if (!controller) return null
 
         const pidMode: 'heating' | 'cooling' = controller.cooling_enabled ? 'cooling' : 'heating'
+        const currentStepType = currentStep?.step_type ?? 'unknown'
 
         const compensation = (pillCompSettings.enabled && !pillCompSkipSameData)
           ? await calculateCompensatedTarget(
               supabase, session.controller_id, profileTarget, controller.target_temp,
-              controller.name || session.controller_id, pillCompSettings, pidMode
+              controller.name || session.controller_id, pillCompSettings, pidMode, currentStepType
             )
           : null
 
@@ -504,9 +505,10 @@ Deno.serve(async (req) => {
                 
                 if (pillCompSettings.enabled && !pillCompSkipSameData) {
                   const rampPidMode: 'heating' | 'cooling' = controller.cooling_enabled ? 'cooling' : 'heating'
+                  const rampStepType = currentStep?.step_type ?? 'unknown'
                   pillCompensation = await calculateCompensatedTarget(
                     supabase, session.controller_id, newTarget, controller.target_temp,
-                    controller.name || session.controller_id, pillCompSettings, rampPidMode
+                    controller.name || session.controller_id, pillCompSettings, rampPidMode, rampStepType
                   )
                   if (pillCompensation) {
                     finalTarget = pillCompensation.compensatedTarget

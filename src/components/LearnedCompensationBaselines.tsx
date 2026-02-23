@@ -16,6 +16,7 @@ interface LearnedEntry {
   controller_id: string;
   delta_bucket: string;
   mode: string;
+  step_type: string;
   learned_pi_correction: number;
   convergence_count: number;
   last_converged_at: string | null;
@@ -23,6 +24,7 @@ interface LearnedEntry {
   latest_i_correction: number;
   latest_d_damping: number;
   latest_avg_error: number;
+  accumulated_integral: number;
   controller_name: string;
 }
 
@@ -36,6 +38,17 @@ const BUCKET_COLORS: Record<string, string> = {
   low: "bg-green-500/15 text-green-400 border-green-500/30",
   medium: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
   high: "bg-red-500/15 text-red-400 border-red-500/30",
+};
+
+const STEP_TYPE_LABELS: Record<string, string> = {
+  hold: "Håll",
+  ramp: "Rampa",
+  wait_for_gravity_stable: "SG-stabil",
+  wait_for_sg: "SG-mål",
+  wait_for_temp: "Temp-mål",
+  wait_for_acknowledgement: "Torrhumla",
+  standalone: "Fristående",
+  unknown: "Okänd",
 };
 
 const MODE_ICONS: Record<string, { icon: typeof Flame; label: string; className: string }> = {
@@ -52,9 +65,10 @@ export function LearnedCompensationBaselines() {
     try {
       const { data: learned } = await supabase
         .from("controller_learned_compensation")
-        .select("id, controller_id, delta_bucket, mode, learned_pi_correction, convergence_count, last_converged_at, latest_p_correction, latest_i_correction, latest_d_damping, latest_avg_error")
+        .select("id, controller_id, delta_bucket, mode, step_type, learned_pi_correction, convergence_count, last_converged_at, latest_p_correction, latest_i_correction, latest_d_damping, latest_avg_error, accumulated_integral")
         .order("controller_id")
         .order("mode")
+        .order("step_type")
         .order("delta_bucket");
 
       if (!learned || learned.length === 0) {
@@ -194,6 +208,9 @@ export function LearnedCompensationBaselines() {
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${BUCKET_COLORS[item.delta_bucket] ?? ""}`}>
                         {BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}
                       </Badge>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted/30">
+                        {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
+                      </Badge>
                       <span className="text-xs font-mono font-semibold">
                         {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°C
                       </span>
@@ -234,9 +251,10 @@ export function LearnedCompensationBaselines() {
                   {hasLivePid && (
                     <div className="ml-5 flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
                       <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
-                      <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(2)}</span>
+                      <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
                       <span>D={item.latest_d_damping.toFixed(2)}</span>
                       <span className="text-muted-foreground/60">err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
+                      <span className="text-muted-foreground/40">∫={item.accumulated_integral >= 0 ? "+" : ""}{item.accumulated_integral.toFixed(3)}</span>
                     </div>
                   )}
                 </div>

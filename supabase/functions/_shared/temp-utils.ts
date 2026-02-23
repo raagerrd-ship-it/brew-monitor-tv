@@ -74,7 +74,8 @@ export async function calculateCompensatedTarget(
   currentControllerTarget: number,
   controllerName: string,
   settings: PillCompensationSettings,
-  mode: 'heating' | 'cooling' = 'cooling'
+  mode: 'heating' | 'cooling' = 'cooling',
+  stepType: string = 'unknown'
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
 
@@ -145,17 +146,19 @@ export async function calculateCompensatedTarget(
   // Categorize current fermentation phase by delta magnitude
   const deltaBucket = avgDelta > 3 ? 'high' : avgDelta > 1.5 ? 'medium' : 'low'
 
-  // Query learned baseline for this controller + phase + mode
+  // Query learned baseline for this controller + phase + mode + step_type
   const { data: learnedRow } = await supabase
     .from('controller_learned_compensation')
-    .select('learned_pi_correction, convergence_count')
+    .select('learned_pi_correction, convergence_count, accumulated_integral')
     .eq('controller_id', controllerId)
     .eq('delta_bucket', deltaBucket)
     .eq('mode', mode)
+    .eq('step_type', stepType)
     .maybeSingle()
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
+  const persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
 
   const historicalAvgs = deltaHistory.map((d: any) => {
     const p = parseFloat(String(d.pill_temp))
@@ -174,59 +177,62 @@ export async function calculateCompensatedTarget(
     // P-term: proportional to current error
     pCorrection = avgError * 0.6
 
-    // I-term: accumulated error over historical window
-    const historicalErrors = historicalAvgs.map(avg => profileTarget - avg)
-    const positiveErrors = historicalErrors.filter(e => e > 0.1)
+    // Persistent I-term with anti-windup: accumulate error over time, decay toward zero
+    const INTEGRAL_GAIN = 0.15        // how fast integral grows per cycle
+    const INTEGRAL_DECAY = 0.95       // decay factor per cycle (prevents windup)
+    const INTEGRAL_CLAMP = 2.0        // max absolute integral value (anti-windup)
     
-    if (positiveErrors.length >= 3) {
-      const meanError = positiveErrors.reduce((s, e) => s + e, 0) / positiveErrors.length
-      const persistenceRatio = positiveErrors.length / historicalErrors.length
-      iCorrection = meanError * persistenceRatio * 0.3
-      console.log(`📊 I-term ${controllerName}: ${positiveErrors.length}/${historicalErrors.length} under mål, snittfel=${meanError.toFixed(2)}°C, persist=${(persistenceRatio * 100).toFixed(0)}%, I-korr=+${iCorrection.toFixed(2)}°C`)
-    }
+    const newIntegral = persistedIntegral * INTEGRAL_DECAY + avgError * INTEGRAL_GAIN
+    iCorrection = Math.max(-INTEGRAL_CLAMP, Math.min(INTEGRAL_CLAMP, newIntegral))
+    
+    console.log(`📊 I-term ${controllerName}: persistent integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${INTEGRAL_GAIN}, decay=${INTEGRAL_DECAY})`)
 
     // Use the greater of calculated PI or learned baseline (learned = what historically worked)
     const calculatedPI = pCorrection + iCorrection
     errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), 2.5) // cap at 2.5°C
     
     if (learnedBaseline > 0) {
-      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
+      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
     console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode,
+      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
       latest_p_correction: pCorrection, latest_i_correction: iCorrection,
       latest_d_damping: dampingFactor, latest_avg_error: avgError,
+      accumulated_integral: iCorrection,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode', ignoreDuplicates: false })
+    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
   } else if (avgError < -0.3) {
     // === OVERSHOOT: avg above target — push controller target down more (= cool down) ===
     // Symmetric P-term for overshoot (avgError is negative, so pCorrection becomes negative)
     pCorrection = avgError * 0.6 // negative value
 
-    // I-term for persistent overshoot
-    const historicalErrors = historicalAvgs.map(avg => profileTarget - avg)
-    const negativeErrors = historicalErrors.filter(e => e < -0.1)
+    // Persistent I-term for overshoot (symmetric)
+    const INTEGRAL_GAIN = 0.15
+    const INTEGRAL_DECAY = 0.95
+    const INTEGRAL_CLAMP = 2.0
     
-    if (negativeErrors.length >= 3) {
-      const meanError = negativeErrors.reduce((s, e) => s + e, 0) / negativeErrors.length // negative
-      const persistenceRatio = negativeErrors.length / historicalErrors.length
-      iCorrection = meanError * persistenceRatio * 0.3 // negative
-      console.log(`📊 I-term overshoot ${controllerName}: ${negativeErrors.length}/${historicalErrors.length} över mål, snittfel=${meanError.toFixed(2)}°C, persist=${(persistenceRatio * 100).toFixed(0)}%, I-korr=${iCorrection.toFixed(2)}°C`)
-    }
+    const newIntegral = persistedIntegral * INTEGRAL_DECAY + avgError * INTEGRAL_GAIN
+    iCorrection = Math.max(-INTEGRAL_CLAMP, Math.min(INTEGRAL_CLAMP, newIntegral))
+    
+    console.log(`📊 I-term overshoot ${controllerName}: persistent integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
 
     errorCorrection = Math.max(pCorrection + iCorrection, -2.5) // cap at -2.5°C (negative = lower target further)
     console.log(`📉 PI-term overshoot ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode,
+      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
       latest_p_correction: pCorrection, latest_i_correction: iCorrection,
       latest_d_damping: dampingFactor, latest_avg_error: avgError,
+      accumulated_integral: iCorrection,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode', ignoreDuplicates: false })
+    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
   } else if (avgError > -0.5 && avgError <= 0.5) {
-    // === CONVERGENCE: avg is within ±0.3° of target — update learned baseline ===
+    // === CONVERGENCE: avg is within ±0.5° of target — update learned baseline ===
+    // Decay integral toward zero at convergence (anti-windup reset)
+    const decayedIntegral = persistedIntegral * 0.8
+    
     // Use the current total compensation as the "what worked" value
     const totalCompApplied = profileTarget - currentControllerTarget // how far below profile the controller is set
     if (totalCompApplied > 0.1) {
@@ -241,17 +247,19 @@ export async function calculateCompensatedTarget(
         controller_id: controllerId,
         delta_bucket: deltaBucket,
         mode,
+        step_type: stepType,
         learned_pi_correction: clampedLearned,
         convergence_count: convergenceCount + 1,
         last_converged_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         latest_p_correction: pCorrection,
-        latest_i_correction: iCorrection,
+        latest_i_correction: decayedIntegral,
         latest_d_damping: dampingFactor,
         latest_avg_error: avgError,
-      }, { onConflict: 'controller_id,delta_bucket,mode' })
+        accumulated_integral: decayedIntegral,
+      }, { onConflict: 'controller_id,delta_bucket,mode,step_type' })
       
-      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1})`)
+      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
     }
   }
 
