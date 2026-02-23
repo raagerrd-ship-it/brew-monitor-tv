@@ -42,6 +42,11 @@ interface TempHistoryPoint {
   target_temp: number;
 }
 
+interface SnapshotTargetPoint {
+  recorded_at: string;
+  profile_target_temp: number | null;
+}
+
 // Downsample array to max N points
 function downsample<T>(data: T[], maxPoints: number, getX: (d: T) => number, getY: (d: T) => number): T[] {
   if (data.length <= maxPoints) return data;
@@ -174,6 +179,7 @@ function generateChartSvg(
   og: number,
   fg: number,
   tempHistory: TempHistoryPoint[] | null,
+  snapshotTargets: SnapshotTargetPoint[] | null,
   compact: boolean = false,
   brewCount: number = 2,
 ): string {
@@ -238,9 +244,14 @@ function generateChartSvg(
       const pillTemps = sgParsed
         .filter(p => p.temp !== undefined && p.temp !== null)
         .map(p => p.temp!);
+      // Use controller current temps, pill temps, and snapshot profile targets for range
+      const snapshotTemps = (snapshotTargets || [])
+        .filter(s => s.profile_target_temp !== null)
+        .map(s => s.profile_target_temp!);
       const allTemps = [
-        ...tempDown.flatMap(p => [p.current, p.target]),
+        ...tempDown.map(p => p.current),
         ...pillTemps,
+        ...snapshotTemps,
       ];
       const tempMin = Math.min(...allTemps) - 1;
       const tempMax = Math.max(...allTemps) + 1;
@@ -306,13 +317,37 @@ function generateChartSvg(
       const ctrlSmoothD = buildSmoothPath(ctrlPoints);
       tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`;
 
-      // Target temp (step-after)
-      const targetPoints = tempDown.map(p => ({
-        x: scaleX(p.t, tMin, tMax),
-        y: tempScaleY(p.target),
-      }));
-      tempSvgParts += `<path d="${buildStepPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+      // Target temp from snapshots (step-after) — authoritative profile targets only
+      if (snapshotTargets && snapshotTargets.length > 0) {
+        const validTargets = snapshotTargets
+          .filter(s => s.profile_target_temp !== null)
+          .map(s => ({
+            t: new Date(s.recorded_at).getTime(),
+            target: s.profile_target_temp!,
+          }))
+          .filter(s => s.t >= tMin && s.t <= tMax);
 
+        if (validTargets.length > 0) {
+          // Deduplicate: only keep points where target changes (step function)
+          const deduped = [validTargets[0]];
+          for (let i = 1; i < validTargets.length; i++) {
+            if (Math.abs(validTargets[i].target - deduped[deduped.length - 1].target) > 0.05) {
+              deduped.push(validTargets[i]);
+            }
+          }
+          // Add last point to extend line to end
+          const lastValid = validTargets[validTargets.length - 1];
+          if (deduped[deduped.length - 1].t !== lastValid.t) {
+            deduped.push(lastValid);
+          }
+
+          const targetPoints = deduped.map(p => ({
+            x: scaleX(p.t, tMin, tMax),
+            y: tempScaleY(p.target),
+          }));
+          tempSvgParts += `<path d="${buildStepPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+        }
+      }
       // Right axis labels (temp)
       const tempTicks = 4;
       for (let i = 0; i <= tempTicks; i++) {
@@ -331,11 +366,11 @@ function generateChartSvg(
     // Determine temp scale: use controller scale if available, else create standalone
     let pillTempMin: number, pillTempMax: number;
     if (tempHistory && tempHistory.length > 0) {
-      const tempParsed = tempHistory.map(tp => ({
-        current: tp.current_temp,
-        target: tp.target_temp,
-      }));
-      const allTemps = [...tempParsed.flatMap(tp => [tp.current, tp.target]), ...pillTempsAll];
+      const ctrlTemps = tempHistory.map(tp => tp.current_temp);
+      const snapTemps = (snapshotTargets || [])
+        .filter(s => s.profile_target_temp !== null)
+        .map(s => s.profile_target_temp!);
+      const allTemps = [...ctrlTemps, ...snapTemps, ...pillTempsAll];
       pillTempMin = Math.min(...allTemps) - 1;
       pillTempMax = Math.max(...allTemps) + 1;
     } else {
@@ -434,86 +469,6 @@ function generateChartSvg(
   </svg>`;
 }
 
-interface ProfileTargetPoint {
-  timestamp: number;
-  target: number;
-}
-
-async function buildProfileTargetTimeline(supabase: any, controllerId: string): Promise<ProfileTargetPoint[]> {
-  try {
-    // Find active/recent fermentation session for this controller
-    const { data: sessions } = await supabase
-      .from('fermentation_sessions')
-      .select('id, profile_id, started_at, current_step_index')
-      .eq('controller_id', controllerId)
-      .in('status', ['running', 'completed', 'paused'])
-      .order('started_at', { ascending: false })
-      .limit(1);
-
-    if (!sessions?.[0]) return [];
-    const session = sessions[0];
-
-    // Fetch profile steps and step logs in parallel
-    const [stepsResult, stepLogsResult] = await Promise.all([
-      supabase
-        .from('fermentation_profile_steps')
-        .select('step_order, step_type, target_temp, duration_hours')
-        .eq('profile_id', session.profile_id)
-        .order('step_order', { ascending: true }),
-      supabase
-        .from('fermentation_step_log')
-        .select('step_index, created_at')
-        .eq('session_id', session.id)
-        .order('created_at', { ascending: true }),
-    ]);
-
-    const steps = stepsResult.data;
-    const stepLogs = stepLogsResult.data;
-    if (!steps || steps.length === 0) return [];
-
-    // Build step start time map (earliest log entry per step)
-    const stepStartMap: Record<number, number> = {};
-    stepStartMap[0] = new Date(session.started_at).getTime();
-    if (stepLogs) {
-      for (const log of stepLogs) {
-        if (!(log.step_index in stepStartMap)) {
-          stepStartMap[log.step_index] = new Date(log.created_at).getTime();
-        }
-      }
-    }
-
-    // Build profile target timeline
-    const timeline: ProfileTargetPoint[] = [];
-    let lastTarget: number | null = null;
-
-    for (const step of steps) {
-      const startTime = stepStartMap[step.step_order];
-      if (!startTime) continue;
-
-      const stepTarget = step.target_temp ?? lastTarget;
-
-      if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
-        const durationMs = step.duration_hours * 3600 * 1000;
-        const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
-        for (let i = 0; i <= numPoints; i++) {
-          const t = i / numPoints;
-          const ts = startTime + t * durationMs;
-          const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
-          timeline.push({ timestamp: ts, target });
-        }
-      } else if (stepTarget !== null) {
-        timeline.push({ timestamp: startTime, target: stepTarget });
-      }
-
-      if (stepTarget !== null) lastTarget = stepTarget;
-    }
-
-    return timeline;
-  } catch (err) {
-    console.error('[RenderChart] Error building profile target timeline:', err);
-    return [];
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -571,6 +526,8 @@ serve(async (req) => {
     // Use large sample interval so DB returns ~100-200 points max (no pagination needed)
     // When SG data is sparse, extend end time to "now" so controller data fills the chart
     let tempHistory: TempHistoryPoint[] | null = null;
+    let snapshotTargets: SnapshotTargetPoint[] | null = null;
+
     if (brew.linked_controller_id && sgData.length > 0) {
       const startTime = brew.fermentation_start || sgData[0].date;
       const endTime = sgData[sgData.length - 1].date;
@@ -579,38 +536,33 @@ serve(async (req) => {
       const totalMinutes = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000;
       const sampleInterval = Math.max(15, Math.ceil(totalMinutes / 150));
       
-      const { data: tempData } = await supabase.rpc('get_temp_history_sampled', {
-        p_controller_id: brew.linked_controller_id,
-        p_start_time: startTime,
-        p_end_time: endTime,
-        p_sample_interval_minutes: sampleInterval,
-      });
+      // Fetch controller history and snapshot targets in parallel
+      const [tempResult, snapshotResult] = await Promise.all([
+        supabase.rpc('get_temp_history_sampled', {
+          p_controller_id: brew.linked_controller_id,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_sample_interval_minutes: sampleInterval,
+        }),
+        supabase
+          .from('brew_data_snapshots')
+          .select('recorded_at, profile_target_temp')
+          .eq('brew_id', brewId)
+          .not('profile_target_temp', 'is', null)
+          .order('recorded_at', { ascending: true }),
+      ]);
 
-      if (tempData && tempData.length > 0) {
-        tempHistory = tempData as TempHistoryPoint[];
+      if (tempResult.data && tempResult.data.length > 0) {
+        tempHistory = tempResult.data as TempHistoryPoint[];
       }
 
-      // Override target_temp with fermentation profile targets (original-mål)
-      if (tempHistory && tempHistory.length > 0) {
-        const profileTargets = await buildProfileTargetTimeline(supabase, brew.linked_controller_id);
-        if (profileTargets.length > 0) {
-          tempHistory = tempHistory.map(p => {
-            const ts = new Date(p.recorded_at).getTime();
-            let profileTarget: number | null = null;
-            for (let i = profileTargets.length - 1; i >= 0; i--) {
-              if (profileTargets[i].timestamp <= ts) {
-                profileTarget = profileTargets[i].target;
-                break;
-              }
-            }
-            return profileTarget !== null ? { ...p, target_temp: profileTarget } : p;
-          });
-        }
+      if (snapshotResult.data && snapshotResult.data.length > 0) {
+        snapshotTargets = snapshotResult.data as SnapshotTargetPoint[];
       }
     }
 
     // Generate SVG
-    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, !!compact, brewCount ?? 2);
+    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, snapshotTargets, !!compact, brewCount ?? 2);
 
     // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);
