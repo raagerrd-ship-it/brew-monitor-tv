@@ -367,7 +367,13 @@ export function BrewManagement() {
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-muted-foreground">Egna bryggningar</h3>
           <div className="grid gap-4">
-            {customBrews.filter(b => b.status !== 'Arkiverad').map((brew) => (
+            {customBrews
+              .filter(b => b.status !== 'Arkiverad')
+              .sort((a, b) => {
+                const order: Record<string, number> = { 'Planering': 0, 'Bryggning': 1, 'Jäsning': 2, 'Fermenting': 2, 'Konditionering': 3, 'Klar': 4, 'Completed': 4 };
+                return (order[a.status] ?? 5) - (order[b.status] ?? 5);
+              })
+              .map((brew) => (
               <Card key={brew.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
