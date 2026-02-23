@@ -1583,19 +1583,27 @@ export default function Settings() {
               title="Brygg-timer synkronisering"
               description="Visa aktiv timer från brygg-appen i sidfoten"
               headerAction={
-                <button
-                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
-                  title="Ändra timer-inställningar"
-                  onClick={() => {
-                    toast({
-                      title: "⚠️ Varning",
-                      description: "Om du kopplar från eller ändrar timer-kontot kommer aktiva timers att sluta visas på dashboarden.",
-                      variant: "destructive",
-                    });
-                  }}
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+                isExternalAuthenticated ? (
+                  <button
+                    className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Koppla från timer-kontot"
+                    onClick={() => {
+                      if (confirm('Vill du koppla från timer-kontot? Aktiva timers kommer sluta visas på dashboarden.')) {
+                        externalSignOut();
+                      }
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                    title="Anslut timer-konto"
+                    onClick={() => setExternalLoginDialogOpen(true)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )
               }
             >
               {externalLoading ? (
@@ -1604,35 +1612,21 @@ export default function Settings() {
                   Laddar...
                 </div>
               ) : isExternalAuthenticated ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
-                      <Check className="h-4 w-4 text-green-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Ansluten</p>
-                      <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                    <Check className="h-4 w-4 text-green-500" />
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => externalSignOut()}
-                  >
-                    Koppla från
-                  </Button>
+                  <div>
+                    <p className="font-medium">Ansluten</p>
+                    <p className="text-sm text-muted-foreground">{externalUser?.email}</p>
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Inte ansluten</p>
-                    <p className="text-sm text-muted-foreground">
-                      Anslut för att visa aktiva timers från brygg-appen
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => setExternalLoginDialogOpen(true)}>
-                    Anslut
-                  </Button>
+                <div>
+                  <p className="font-medium">Inte ansluten</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tryck på penn-ikonen för att ansluta timer-kontot
+                  </p>
                 </div>
               )}
               
@@ -1668,13 +1662,34 @@ export default function Settings() {
               headerAction={
                 <button
                   className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
-                  title="Ändra Sonos-inställningar"
-                  onClick={() => {
-                    toast({
-                      title: "⚠️ Varning",
-                      description: "Om du ändrar Sonos-uppgifterna kan anslutningen brytas och nu-spelas-widgeten sluta fungera.",
-                      variant: "destructive",
-                    });
+                  title="Anslut eller koppla bort Sonos"
+                  onClick={async () => {
+                    // Check if connected by looking at sonos_tokens
+                    const { data } = await supabase.from('sonos_tokens').select('id').limit(1).maybeSingle();
+                    if (data) {
+                      if (confirm('Vill du koppla bort Sonos? Nu-spelas-widgeten kommer sluta fungera.')) {
+                        try {
+                          await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=disconnect`,
+                            { headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` } }
+                          );
+                          toast({ title: "Sonos bortkopplat", description: "Ladda om sidan för att se ändringen." });
+                        } catch {
+                          toast({ title: "Fel", description: "Kunde inte koppla bort Sonos.", variant: "destructive" });
+                        }
+                      }
+                    } else {
+                      try {
+                        const response = await fetch(
+                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-auth?action=start`,
+                          { headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` } }
+                        );
+                        const result = await response.json();
+                        if (result.authUrl) window.location.href = result.authUrl;
+                      } catch {
+                        toast({ title: "Fel", description: "Kunde inte starta Sonos-koppling.", variant: "destructive" });
+                      }
+                    }
                   }}
                 >
                   <Pencil className="h-4 w-4" />
