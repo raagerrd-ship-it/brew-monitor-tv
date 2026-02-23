@@ -171,13 +171,12 @@ export function useBrewChartData({
         : null,
     }));
 
-    // Apply Mål from snapshots (brew_data_snapshots.profile_target_temp)
-    // Falls back to controller history target_temp until snapshots are populated
+    // Apply Mål exclusively from snapshots (brew_data_snapshots.profile_target_temp)
+    // No fallback — targetTemp stays null until snapshots exist for this brew
     let mappedData = withSpan;
 
     if (snapshotTargets.length > 0) {
       mappedData = withSpan.map(point => {
-        // Step function: find last snapshot target at or before this timestamp
         let target: number | null = null;
         for (let i = snapshotTargets.length - 1; i >= 0; i--) {
           if (snapshotTargets[i].timestamp <= point.timestamp) {
