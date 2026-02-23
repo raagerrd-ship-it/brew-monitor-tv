@@ -238,11 +238,10 @@ export function useBrewChartData({
         : null,
     }));
 
-    // Override targetTemp with fermentation profile targets if available
-    if (profileTargets.length > 0) {
-      const mappedData = withSpan.map(point => {
-        if (point.controllerTemp == null) return point;
-
+    // Override targetTemp with fermentation profile targets if available,
+    // otherwise hide the target line (raw controller targets are noisy from auto-cooling)
+    const mappedData = withSpan.map(point => {
+      if (profileTargets.length > 0 && point.controllerTemp != null) {
         let profileTarget: number | null = null;
         for (let i = profileTargets.length - 1; i >= 0; i--) {
           if (profileTargets[i].timestamp <= point.timestamp) {
@@ -250,13 +249,15 @@ export function useBrewChartData({
             break;
           }
         }
-
         return profileTarget !== null ? { ...point, targetTemp: profileTarget } : point;
-      });
+      }
+      // No profile targets: hide noisy raw controller target
+      return { ...point, targetTemp: null };
+    });
 
-      return mappedData;
-    }
+    return mappedData;
 
+    // This return is now unreachable but kept for safety
     return withSpan;
   }, [data, controllerTempData, smoothLines, isTvMode, profileTargets]);
 
