@@ -46,12 +46,16 @@ serve(async (req) => {
 
     console.log(`Recording history for ${controllers.length} controllers`);
 
+    // Look up fermentation profile targets for each controller
+    const profileTargetMap = await getProfileTargets(supabase, visibleControllerIds);
+
     // Insert history records
     const historyRecords = controllers.map(c => ({
       controller_id: c.controller_id,
       current_temp: c.current_temp ?? c.pill_temp,
       target_temp: c.target_temp,
-      cooling_enabled: c.cooling_enabled || false
+      cooling_enabled: c.cooling_enabled || false,
+      profile_target_temp: profileTargetMap[c.controller_id] ?? null,
     }));
 
     const { error: insertError } = await supabase
@@ -80,15 +84,13 @@ serve(async (req) => {
 
       if (deltaError) {
         console.error('Failed to insert delta history:', deltaError);
-        // Don't throw - delta history is supplementary
       } else {
         console.log(`Recorded ${deltaRecords.length} delta history entries`);
       }
     }
 
-    console.log('Successfully recorded temperature history');
-
-    // History is kept indefinitely to preserve full fermentation data
+    const profileCount = Object.values(profileTargetMap).filter(v => v !== null).length;
+    console.log(`Successfully recorded temperature history (${profileCount} with profile targets)`);
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -107,3 +109,138 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * Look up the current fermentation profile target for each controller.
+ * Returns the base profile target (not the PID-adjusted one).
+ * If no active profile session, returns the controller's fixed target_temp.
+ */
+async function getProfileTargets(
+  supabase: any,
+  controllerIds: string[]
+): Promise<Record<string, number | null>> {
+  const result: Record<string, number | null> = {};
+
+  try {
+    // Get running/paused fermentation sessions for these controllers
+    const { data: sessions } = await supabase
+      .from('fermentation_sessions')
+      .select('id, controller_id, profile_id, started_at, current_step_index')
+      .in('controller_id', controllerIds)
+      .in('status', ['running', 'paused']);
+
+    if (!sessions || sessions.length === 0) {
+      // No active sessions - use the fixed controller target
+      const { data: controllers } = await supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, target_temp')
+        .in('controller_id', controllerIds);
+
+      if (controllers) {
+        for (const c of controllers) {
+          result[c.controller_id] = c.target_temp;
+        }
+      }
+      return result;
+    }
+
+    // For each active session, get the current step's target
+    for (const session of sessions) {
+      const { data: steps } = await supabase
+        .from('fermentation_profile_steps')
+        .select('step_order, target_temp, step_type')
+        .eq('profile_id', session.profile_id)
+        .order('step_order', { ascending: true });
+
+      if (!steps || steps.length === 0) continue;
+
+      // Get the current step's target
+      const currentStep = steps.find((s: any) => s.step_order === session.current_step_index);
+      if (currentStep?.target_temp != null) {
+        // For ramp steps, calculate the interpolated target
+        if (currentStep.step_type === 'ramp') {
+          const interpTarget = await getRampInterpolatedTarget(supabase, session, steps, currentStep);
+          result[session.controller_id] = interpTarget ?? currentStep.target_temp;
+        } else {
+          result[session.controller_id] = currentStep.target_temp;
+        }
+      } else {
+        // Fall back to previous step with a target
+        let target: number | null = null;
+        for (let i = session.current_step_index; i >= 0; i--) {
+          const step = steps.find((s: any) => s.step_order === i);
+          if (step?.target_temp != null) {
+            target = step.target_temp;
+            break;
+          }
+        }
+        result[session.controller_id] = target;
+      }
+    }
+
+    // For controllers without an active session, use fixed target
+    for (const cid of controllerIds) {
+      if (!(cid in result)) {
+        const { data: ctrl } = await supabase
+          .from('rapt_temp_controllers')
+          .select('target_temp')
+          .eq('controller_id', cid)
+          .single();
+        result[cid] = ctrl?.target_temp ?? null;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching profile targets:', err);
+    // Return empty map on error - profile_target_temp will be null
+  }
+
+  return result;
+}
+
+/**
+ * For a ramp step, interpolate the target based on elapsed time.
+ */
+async function getRampInterpolatedTarget(
+  supabase: any,
+  session: any,
+  steps: any[],
+  currentStep: any
+): Promise<number | null> {
+  try {
+    // Get the step start time from step log
+    const { data: logs } = await supabase
+      .from('fermentation_step_log')
+      .select('created_at')
+      .eq('session_id', session.id)
+      .eq('step_index', currentStep.step_order)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (!logs?.[0]) return currentStep.target_temp;
+
+    const stepStartTime = new Date(logs[0].created_at).getTime();
+    const now = Date.now();
+    const elapsed = now - stepStartTime;
+
+    // Find previous step's target for interpolation start
+    let prevTarget: number | null = null;
+    for (let i = currentStep.step_order - 1; i >= 0; i--) {
+      const prevStep = steps.find((s: any) => s.step_order === i);
+      if (prevStep?.target_temp != null) {
+        prevTarget = prevStep.target_temp;
+        break;
+      }
+    }
+
+    if (prevTarget == null || !currentStep.duration_hours) {
+      return currentStep.target_temp;
+    }
+
+    const durationMs = currentStep.duration_hours * 3600 * 1000;
+    const progress = Math.min(1, elapsed / durationMs);
+    const interpolated = prevTarget + (currentStep.target_temp - prevTarget) * progress;
+    return Math.round(interpolated * 10) / 10;
+  } catch {
+    return currentStep.target_temp;
+  }
+}
