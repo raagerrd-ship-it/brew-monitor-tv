@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Trash2, RefreshCw } from "lucide-react";
+import { Brain, Trash2, RefreshCw, Flame, Snowflake } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -15,9 +15,14 @@ interface LearnedEntry {
   id: string;
   controller_id: string;
   delta_bucket: string;
+  mode: string;
   learned_pi_correction: number;
   convergence_count: number;
   last_converged_at: string | null;
+  latest_p_correction: number;
+  latest_i_correction: number;
+  latest_d_damping: number;
+  latest_avg_error: number;
   controller_name: string;
 }
 
@@ -33,6 +38,11 @@ const BUCKET_COLORS: Record<string, string> = {
   high: "bg-red-500/15 text-red-400 border-red-500/30",
 };
 
+const MODE_ICONS: Record<string, { icon: typeof Flame; label: string; className: string }> = {
+  heating: { icon: Flame, label: "Värme", className: "text-orange-400" },
+  cooling: { icon: Snowflake, label: "Kyla", className: "text-blue-400" },
+};
+
 export function LearnedCompensationBaselines() {
   const { toast } = useToast();
   const [entries, setEntries] = useState<LearnedEntry[]>([]);
@@ -42,8 +52,9 @@ export function LearnedCompensationBaselines() {
     try {
       const { data: learned } = await supabase
         .from("controller_learned_compensation")
-        .select("id, controller_id, delta_bucket, learned_pi_correction, convergence_count, last_converged_at")
+        .select("id, controller_id, delta_bucket, mode, learned_pi_correction, convergence_count, last_converged_at, latest_p_correction, latest_i_correction, latest_d_damping, latest_avg_error")
         .order("controller_id")
+        .order("mode")
         .order("delta_bucket");
 
       if (!learned || learned.length === 0) {
@@ -169,51 +180,68 @@ export function LearnedCompensationBaselines() {
       {Object.entries(grouped).map(([name, items]) => (
         <div key={name} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
           <span className="text-xs font-medium">{name}</span>
-          <div className="space-y-1.5">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${BUCKET_COLORS[item.delta_bucket] ?? ""}`}>
-                    {BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}
-                  </Badge>
-                  <span className="text-xs font-mono font-semibold">
-                    +{item.learned_pi_correction.toFixed(2)}°C
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    ({item.convergence_count} konv.
-                    {item.last_converged_at && (
-                      <>, {formatDistanceToNow(new Date(item.last_converged_at), { locale: sv, addSuffix: true })}</>
-                    )}
-                    )
-                  </span>
+          <div className="space-y-2">
+            {items.map((item) => {
+              const modeInfo = MODE_ICONS[item.mode] ?? MODE_ICONS.cooling;
+              const ModeIcon = modeInfo.icon;
+              const hasLivePid = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
+
+              return (
+                <div key={item.id} className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      <ModeIcon className={`h-3 w-3 shrink-0 ${modeInfo.className}`} />
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${BUCKET_COLORS[item.delta_bucket] ?? ""}`}>
+                        {BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}
+                      </Badge>
+                      <span className="text-xs font-mono font-semibold">
+                        {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°C
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        ({item.convergence_count} konv.
+                        {item.last_converged_at && (
+                          <>, {formatDistanceToNow(new Date(item.last_converged_at), { locale: sv, addSuffix: true })}</>
+                        )}
+                        )
+                      </span>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Nollställ baseline?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Baseline "{BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}" ({modeInfo.label}) för {name} tas bort permanent.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleReset(item.id)}>
+                            Nollställ
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                  {hasLivePid && (
+                    <div className="ml-5 flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
+                      <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
+                      <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(2)}</span>
+                      <span>D={item.latest_d_damping.toFixed(2)}</span>
+                      <span className="text-muted-foreground/60">err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
+                    </div>
+                  )}
                 </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Nollställ baseline?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Baseline "{BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}" för {name} tas bort permanent.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleReset(item.id)}>
-                        Nollställ
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

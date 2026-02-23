@@ -450,9 +450,12 @@ serve(async (req) => {
         // Determine the "base target" — the intended goal before any pill-comp
         const baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
 
+        // Determine mode based on which system is active
+        const pidMode: 'heating' | 'cooling' = fc.cooling_enabled ? 'cooling' : 'heating';
+
         const compensation = await calculateCompensatedTarget(
           supabase, fc.controller_id, baseTarget, targetTemp,
-          fc.name || fc.controller_id, pillCompSettings
+          fc.name || fc.controller_id, pillCompSettings, pidMode
         );
 
         if (!compensation) {
