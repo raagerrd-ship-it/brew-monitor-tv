@@ -455,7 +455,7 @@ serve(async (req) => {
 
         const compensation = await calculateCompensatedTarget(
           supabase, fc.controller_id, baseTarget, targetTemp,
-          fc.name || fc.controller_id, pillCompSettings, pidMode
+          fc.name || fc.controller_id, pillCompSettings, pidMode, 'standalone'
         );
 
         if (!compensation) {

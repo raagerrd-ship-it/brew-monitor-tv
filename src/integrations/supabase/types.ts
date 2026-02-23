@@ -384,6 +384,7 @@ export type Database = {
       }
       controller_learned_compensation: {
         Row: {
+          accumulated_integral: number
           controller_id: string
           convergence_count: number
           created_at: string
@@ -396,9 +397,11 @@ export type Database = {
           latest_p_correction: number
           learned_pi_correction: number
           mode: string
+          step_type: string
           updated_at: string
         }
         Insert: {
+          accumulated_integral?: number
           controller_id: string
           convergence_count?: number
           created_at?: string
@@ -411,9 +414,11 @@ export type Database = {
           latest_p_correction?: number
           learned_pi_correction?: number
           mode?: string
+          step_type?: string
           updated_at?: string
         }
         Update: {
+          accumulated_integral?: number
           controller_id?: string
           convergence_count?: number
           created_at?: string
@@ -426,6 +431,7 @@ export type Database = {
           latest_p_correction?: number
           learned_pi_correction?: number
           mode?: string
+          step_type?: string
           updated_at?: string
         }
         Relationships: []
