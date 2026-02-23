@@ -1005,22 +1005,6 @@ export default function Settings() {
     }
   };
 
-  const handlePillCompEmergencyThresholdChange = async (value: string) => {
-    setPillCompEmergencyThreshold(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ pill_compensation_emergency_threshold: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Emergency-tröskel uppdaterad" });
-    } catch (error) {
-      console.error('Error updating emergency threshold:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
   const handlePillCompMinScaleChange = async (value: string) => {
     setPillCompMinScale(value);
     try {
@@ -2170,7 +2154,7 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Min skala (nära mål)</label>
+                        <label className="text-xs font-medium text-muted-foreground">Rate-limit min %</label>
                         <Select value={pillCompMinScale} onValueChange={handlePillCompMinScaleChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -2180,21 +2164,6 @@ export default function Settings() {
                             <SelectItem value="0.15">15% (standard)</SelectItem>
                             <SelectItem value="0.25">25% (snabbare)</SelectItem>
                             <SelectItem value="0.5">50% (aggressiv)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Emergency-tröskel</label>
-                        <Select value={pillCompEmergencyThreshold} onValueChange={handlePillCompEmergencyThresholdChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="2">2.0°C</SelectItem>
-                            <SelectItem value="3">3.0°C (standard)</SelectItem>
-                            <SelectItem value="4">4.0°C</SelectItem>
-                            <SelectItem value="5">5.0°C</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2233,8 +2202,8 @@ export default function Settings() {
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      D-term: när medelvärdet (pill+probe)/2 närmar sig målet inom {parseFloat(pillCompDamping) * 60} min skalas kompensationen ned progressivt för att undvika overshoot.
-                      Rate-limit: max {pillCompRateLimit}°C/cykel, min {parseFloat(pillCompMinScale) * 100}% nära mål. Emergency &gt;{pillCompEmergencyThreshold}°C. Max {pillCompMaxCompensation}°C under profilmål.
+                      PI(D)-loop: medelvärdet (pill+probe)/2 jämförs med profilmålet. P- och I-korrektion driver mot rätt temperatur, D-termen dämpar när ETA &lt; {parseFloat(pillCompDamping) * 60} min.
+                      Rate-limit: max {pillCompRateLimit}°C/cykel, min {parseFloat(pillCompMinScale) * 100}% nära mål. Max {pillCompMaxCompensation}°C under profilmål.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2243,15 +2212,14 @@ export default function Settings() {
                         <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                       </CollapsibleTrigger>
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                        <p>• Beräknar medelvärde av senaste 8 delta-mätningar (pill − probe)</p>
-                        <p>• Kompensation = delta/2, så att (pill + probe) / 2 = profilens mål</p>
-                        <p>• <strong>D-term (hastighetsdämpning):</strong> beräknar pill-temperaturens hastighet (°C/h) och ETA för medelvärdet att nå målet</p>
-                        <p>• Om ETA &lt; anticipation-fönstret ({parseFloat(pillCompDamping) * 60} min) skalas kompensationen ned (min 20%) för att förhindra overshoot</p>
-                        <p>• Dynamisk rate-limit: {pillCompRateLimit}°C långt bort, ner till {parseFloat(pillCompMinScale) * 100}% nära mål</p>
-                        <p>• Emergency: skippar rate-limit vid avvikelse &gt;{pillCompEmergencyThreshold}°C</p>
+                        <p>• <strong>Mål:</strong> medelvärdet (pill+probe)/2 ska matcha profilens måltemperatur</p>
+                        <p>• <strong>P-term:</strong> proportionell korrektion baserad på aktuellt fel (medel vs mål)</p>
+                        <p>• <strong>I-term:</strong> persistent integral med gain 0.15 och decay 0.95/cykel (anti-windup ±2°C)</p>
+                        <p>• <strong>D-term:</strong> beräknar pill-hastighet (°C/h) och ETA — dämpar kompensation när ETA &lt; {parseFloat(pillCompDamping) * 60} min</p>
+                        <p>• <strong>Inlärning:</strong> vid konvergens (±0.5°C) sparas baseline per controller/fas/stegtyp</p>
+                        <p>• Rate-limit: max {pillCompRateLimit}°C/cykel, skalas ned till {parseFloat(pillCompMinScale) * 100}% nära mål</p>
+                        <p>• Asymmetrisk: uppåt-ändringar begränsas till 0.3°C/cykel (om inte medel är under mål)</p>
                         <p>• Säkerhetsgolv: aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
-                        <p>• Justerar bara vid ny RAPT-data (hoppar över om samma data som förra cykeln)</p>
-                        <p>• Kryper tillbaka till profilens mål när jäsningen avtar</p>
                       </CollapsibleContent>
                     </Collapsible>
 
