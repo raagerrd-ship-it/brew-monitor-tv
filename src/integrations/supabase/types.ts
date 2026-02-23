@@ -638,6 +638,30 @@ export type Database = {
         }
         Relationships: []
       }
+      rapt_outage_log: {
+        Row: {
+          created_at: string
+          duration_seconds: number
+          id: string
+          outage_end: string
+          outage_start: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds: number
+          id?: string
+          outage_end: string
+          outage_start: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          outage_end?: string
+          outage_start?: string
+        }
+        Relationships: []
+      }
       rapt_pills: {
         Row: {
           battery_level: number
@@ -984,6 +1008,7 @@ export type Database = {
           last_full_sync_at: string | null
           last_rapt_quick_sync_at: string | null
           last_rapt_sync_at: string | null
+          last_successful_rapt_sync_at: string | null
           last_sync_at: string | null
           last_sync_time: string | null
           rapt_sync_interval: number
@@ -1004,6 +1029,7 @@ export type Database = {
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
+          last_successful_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
           rapt_sync_interval?: number
@@ -1024,6 +1050,7 @@ export type Database = {
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
+          last_successful_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
           rapt_sync_interval?: number
