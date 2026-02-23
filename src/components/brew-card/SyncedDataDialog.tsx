@@ -97,7 +97,7 @@ export function SyncedDataDialog({
                       <th className="text-right py-2 font-medium">Mål</th>
                     )}
                     {hasAutoAdjustments && (
-                      <th className="text-right py-2 font-medium">Auto</th>
+                      <th className="text-right py-2 font-medium">PID</th>
                     )}
                   </tr>
                 </thead>
