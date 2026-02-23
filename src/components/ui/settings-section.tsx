@@ -33,6 +33,7 @@ export function SettingsSection({
           : "bg-muted/20 border-border/60",
         className
       )}
+      style={{ containerType: 'inline-size' as any }}
     >
       {/* Header */}
       <div className="flex items-center gap-3">

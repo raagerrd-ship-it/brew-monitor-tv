@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 
 import { BrewCard } from "./brew-card";
+import { BrewCardSkeleton } from "./brew-card/BrewCardSkeleton";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 import { SonosWidget } from "./sonos/SonosWidget";
 
@@ -391,7 +392,21 @@ export function BrewingDashboard() {
 
       {/* Main Display Area */}
       <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
-        {brews.length === 0 ? <div className="flex items-center justify-center h-full p-4">
+        {loading && brews.length === 0 ? (
+          /* Skeleton loaders while data is loading */
+          <div 
+            className="flex justify-center gap-6 w-full px-4 py-2"
+            style={{ 
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+            }}
+          >
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex-1 min-w-0" style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : 'calc(100% - 16px)' }}>
+                <BrewCardSkeleton />
+              </div>
+            ))}
+          </div>
+        ) : brews.length === 0 ? <div className="flex items-center justify-center h-full p-4">
             <div className="max-w-2xl w-full p-10 text-center rounded-xl flex flex-col items-center gap-2" style={{
               background: 'linear-gradient(145deg, hsl(222 20% 14% / 0.7) 0%, hsl(222 20% 12% / 0.7) 100%)',
               border: '1px solid hsl(222 15% 25% / 0.4)',

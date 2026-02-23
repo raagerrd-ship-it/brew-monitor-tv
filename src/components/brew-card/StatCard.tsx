@@ -83,7 +83,7 @@ export function StatCard({
       />
       
       <p 
-        className="text-muted-foreground/60 uppercase tracking-widest z-10 font-medium text-center"
+        className="text-muted-foreground/70 uppercase tracking-widest z-10 font-medium text-center"
         style={{ fontSize: finalLabelSize, letterSpacing: '0.1em' }}
       >
         {label}
