@@ -17,7 +17,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1175,6 +1175,21 @@ export default function Settings() {
               icon={Beer}
               title="Brewfather"
               description="Synkronisera bryggar-data från Brewfather"
+              headerAction={
+                <button
+                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Ändra API-uppgifter"
+                  onClick={() => {
+                    toast({
+                      title: "⚠️ Varning",
+                      description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Be AI-assistenten i chatten att uppdatera dina Brewfather-uppgifter.",
+                      variant: "destructive",
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              }
             >
               {/* API credentials - flat layout */}
               <div className="space-y-3">
@@ -1189,19 +1204,6 @@ export default function Settings() {
                       <AlertCircle className="h-3 w-3" /> Saknas
                     </span>
                   )}
-                  <button
-                    className="ml-auto p-1 rounded-md text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                    title="Varning om API-ändringar"
-                    onClick={() => {
-                      toast({
-                        title: "⚠️ Varning",
-                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Pågående synk-jobb kan misslyckas.",
-                        variant: "destructive",
-                      });
-                    }}
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                  </button>
                 </div>
                 
                 {apiSettings?.brewfather && (
@@ -1217,34 +1219,6 @@ export default function Settings() {
                   </div>
                 )}
                 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera Brewfather-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera ditt Brewfather User ID",
-                      });
-                    }}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    Uppdatera User ID
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera Brewfather-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera din Brewfather API-nyckel",
-                      });
-                    }}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    Uppdatera API-nyckel
-                  </Button>
-                </div>
               </div>
 
               <SettingsDivider />
@@ -1403,6 +1377,21 @@ export default function Settings() {
               icon={Cloud}
               title="RAPT"
               description="Synkronisera enheter från RAPT Portal"
+              headerAction={
+                <button
+                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Ändra API-uppgifter"
+                  onClick={() => {
+                    toast({
+                      title: "⚠️ Varning",
+                      description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Be AI-assistenten i chatten att uppdatera dina RAPT-uppgifter.",
+                      variant: "destructive",
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              }
             >
               {/* API credentials - flat layout */}
               <div className="space-y-3">
@@ -1417,19 +1406,6 @@ export default function Settings() {
                       <AlertCircle className="h-3 w-3" /> Saknas
                     </span>
                   )}
-                  <button
-                    className="ml-auto p-1 rounded-md text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                    title="Varning om API-ändringar"
-                    onClick={() => {
-                      toast({
-                        title: "⚠️ Varning",
-                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas tills de nya uppgifterna är verifierade. Pågående synk-jobb kan misslyckas.",
-                        variant: "destructive",
-                      });
-                    }}
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                  </button>
                 </div>
                 
                 {apiSettings?.rapt && (
@@ -1444,35 +1420,6 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
-                
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera RAPT-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera ditt RAPT-användarnamn",
-                      });
-                    }}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    Uppdatera användarnamn
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast({
-                        title: "Uppdatera RAPT-uppgifter",
-                        description: "Be AI-assistenten i chatten att uppdatera din RAPT API-nyckel",
-                      });
-                    }}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    Uppdatera API-nyckel
-                  </Button>
-                </div>
               </div>
 
               <SettingsDivider />
