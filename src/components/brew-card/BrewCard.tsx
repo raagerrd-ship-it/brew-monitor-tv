@@ -53,6 +53,7 @@ function BrewCardComponent({
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
+  const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { isTvMode } = useTvMode();
@@ -116,8 +117,9 @@ function BrewCardComponent({
           {/* Label image thumbnail */}
           {brew.label_image_url && (
             <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse"
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
               style={{ width: '52px', height: '52px' }}
+              onClick={() => setLabelExpanded(v => !v)}
             >
               <img
                 src={brew.label_image_url}
@@ -238,21 +240,34 @@ function BrewCardComponent({
       {/* Chart Area - fills remaining space */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
         <div className="flex-1 min-h-0 overflow-hidden">
-          <LazyBrewChart 
-            data={brew.sgData} 
-            og={brew.originalGravity} 
-            fg={brew.finalGravity} 
-            singleView={true}
-            events={brew.events}
-            controllerId={brew.linked_controller_id}
-            chartIndex={cardIndex}
-            brewId={brew.id}
-            hasFermentationSession={!!brew.fermentationSession}
-            lastUpdateRaw={brew.lastUpdateRaw}
-            brewCount={brewCount}
-            smoothLines={smoothLines}
-            onSmoothLinesChange={setSmoothLines}
-          />
+          {labelExpanded && brew.label_image_url ? (
+            <div
+              className="w-full h-full flex items-center justify-center bg-black/20 rounded-lg cursor-pointer"
+              onClick={() => setLabelExpanded(false)}
+            >
+              <img
+                src={brew.label_image_url}
+                alt={`${brew.name} etikett`}
+                className="max-h-full max-w-full object-contain rounded-lg"
+              />
+            </div>
+          ) : (
+            <LazyBrewChart 
+              data={brew.sgData} 
+              og={brew.originalGravity} 
+              fg={brew.finalGravity} 
+              singleView={true}
+              events={brew.events}
+              controllerId={brew.linked_controller_id}
+              chartIndex={cardIndex}
+              brewId={brew.id}
+              hasFermentationSession={!!brew.fermentationSession}
+              lastUpdateRaw={brew.lastUpdateRaw}
+              brewCount={brewCount}
+              smoothLines={smoothLines}
+              onSmoothLinesChange={setSmoothLines}
+            />
+          )}
         </div>
         
         {/* Active Fermentation Session - overflow-visible so shadow isn't clipped */}
