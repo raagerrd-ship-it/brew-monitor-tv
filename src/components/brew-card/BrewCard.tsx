@@ -220,7 +220,7 @@ function BrewCardComponent({
             </div>
             {/* Subtitle row - full width next to label */}
             <p 
-              className="text-muted-foreground/60 truncate font-medium" 
+              className="text-muted-foreground/70 truncate font-medium" 
               style={{ fontSize: '11px', letterSpacing: '0.02em' }}
             >
               {brew.batch_id.startsWith('custom_') ? (
