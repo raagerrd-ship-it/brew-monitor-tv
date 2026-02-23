@@ -168,11 +168,11 @@ export function useBrewChartData({
     }));
 
     // Apply profile target from snapshots (locked, historically correct)
-    // This replaces the PID-adjusted target_temp with the actual profile target
+    // Falls back to controller history target_temp (PID-adjusted) when no snapshots exist yet
     let mappedData = withSpan;
 
     if (snapshotTargets.length > 0) {
-      // Build a Set for fast lookup by rounded timestamp (snapshots align with SG data points)
+      // Build a Map for fast lookup by timestamp (snapshots align with SG data points)
       const targetMap = new Map<number, number | null>();
       for (const st of snapshotTargets) {
         targetMap.set(st.timestamp, st.profileTarget);
@@ -199,6 +199,7 @@ export function useBrewChartData({
         return point;
       });
     }
+    // else: no snapshots available — keep targetTemp from mergeWithControllerTemp (PID-adjusted fallback)
 
     return mappedData;
   }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets]);
