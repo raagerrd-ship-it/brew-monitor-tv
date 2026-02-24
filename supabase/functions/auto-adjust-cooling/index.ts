@@ -686,7 +686,81 @@ serve(async (req) => {
           stall_detected: stallDetected,
         });
 
-        if (!stallDetected) continue;
+        if (!stallDetected) {
+          // === UN-BOOST: If fermentation resumed and there's an active boost, reverse it ===
+          const { data: recentBoost } = await supabase
+            .from('auto_cooling_adjustments')
+            .select('created_at, new_target_temp, old_target_temp')
+            .eq('cooler_controller_id', fc.controller_id)
+            .like('reason', '🔥%')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (recentBoost && recentBoost.length > 0) {
+            const boostAgeHours = (now - new Date(recentBoost[0].created_at).getTime()) / (1000 * 60 * 60);
+            // Only un-boost if the boost was recent (within 24h) and hasn't already been reversed
+            const alreadyReversed = await supabase
+              .from('auto_cooling_adjustments')
+              .select('id')
+              .eq('cooler_controller_id', fc.controller_id)
+              .like('reason', '🔄%')
+              .gt('created_at', recentBoost[0].created_at)
+              .limit(1);
+
+            if (boostAgeHours < 24 && (!alreadyReversed.data || alreadyReversed.data.length === 0)) {
+              const boostDeg = stallSettings.boostDegrees;
+
+              // Remove boost from learned compensation
+              const { data: existingComp } = await supabase
+                .from('controller_learned_compensation')
+                .select('id, learned_pi_correction, accumulated_integral')
+                .eq('controller_id', fc.controller_id)
+                .eq('delta_bucket', 'active')
+                .eq('mode', fc.cooling_enabled ? 'cooling' : 'heating')
+                .limit(1)
+                .maybeSingle();
+
+              if (existingComp) {
+                const newCorrection = Math.max(0, existingComp.learned_pi_correction - boostDeg);
+                const newIntegral = Math.max(0, existingComp.accumulated_integral - boostDeg);
+                await supabase.from('controller_learned_compensation')
+                  .update({
+                    learned_pi_correction: newCorrection,
+                    accumulated_integral: newIntegral,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', existingComp.id);
+
+                log('STALL_UNBOOST', 'action', `${fc.name} (${brewName})`, {
+                  reason: 'Jäsning återupptagits',
+                  sg_rate: `${sgRatePerDay.toFixed(4)}/dag`,
+                  removed: `${boostDeg}°C`,
+                  new_correction: `${newCorrection.toFixed(2)}°C`,
+                  new_integral: `${newIntegral.toFixed(2)}`,
+                  boost_age: `${boostAgeHours.toFixed(1)}h`,
+                });
+
+                // Log the reversal as an adjustment
+                const currentTarget = parseFloat(String(fc.target_temp ?? 20));
+                const profileTarget = session.profileTarget ?? currentTarget;
+                await supabase.from('auto_cooling_adjustments').insert({
+                  cooler_controller_id: fc.controller_id,
+                  cooler_controller_name: fc.name,
+                  old_target_temp: currentTarget,
+                  new_target_temp: currentTarget,
+                  original_target_temp: profileTarget,
+                  lowest_followed_temp: currentTarget,
+                  followed_controller_id: fc.controller_id,
+                  followed_controller_name: fc.name,
+                  followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
+                  followed_target_temp: profileTarget,
+                  reason: `🔄 Un-boost: SG-rate ${sgRatePerDay.toFixed(4)}/dag (över tröskel), PID -${boostDeg}°C`,
+                } as any);
+              }
+            }
+          }
+          continue;
+        }
 
         // Cooldown: don't boost same controller within 6 hours
         const { data: lastBoost } = await supabase
