@@ -314,7 +314,7 @@ export function BrewingDashboard() {
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
   // Mobile header height - logo row (~44px) + controller bar (~48px) + padding (24px) + gaps (12px)
-  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 136 : 72;
+  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
   const activeHeaderHeight = isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT;
   
   // Use actual container height from context (viewport in TV mode, 1080 in desktop preview)
@@ -435,9 +435,9 @@ export function BrewingDashboard() {
                 </div>
               </div>}
             
-            <div className="flex-1 overflow-hidden px-3 pb-2" ref={emblaRef}>
+            <div className="flex-1 overflow-hidden px-1 pb-1" ref={emblaRef}>
               <div className="flex h-full">
-                {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-3">
+                {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-1">
                     <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
                   </div>)}
               </div>
