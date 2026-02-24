@@ -1,6 +1,7 @@
 import { memo, useMemo, useState, useEffect } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_STALL_THRESHOLD = 0.002;
@@ -72,68 +73,79 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
     }
   }
 
+  const tooltipLines = [
+    `Fart (24h): ${rate > 0 ? '-' : '+'}${Math.abs(rate).toFixed(4)}/d`,
+    rate6h != null ? `Senaste 6h: ${rate6h > 0 ? '-' : '+'}${Math.abs(rate6h).toFixed(4)}/d` : null,
+    rate12h != null ? `Föregående 6h: ${rate12h > 0 ? '-' : '+'}${Math.abs(rate12h).toFixed(4)}/d` : null,
+    rate6h != null && rate12h != null ? `Δ: ${(rate6h - rate12h) > 0 ? '+' : ''}${(rate6h - rate12h).toFixed(4)}/d` : null,
+  ].filter(Boolean).join('\n');
+
   return (
-    <div className="w-full px-1 flex flex-col gap-0.5">
-      {/* Bar */}
-      <div className="relative w-full" style={{ height: '6px' }}>
-        {/* Track */}
-        <div 
-          className="absolute inset-0 rounded-full overflow-hidden"
-          style={{ 
-            background: 'hsl(0 0% 0% / 0.5)',
-            boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
-          }}
-        >
-          {/* Stall zone (red gradient) */}
-          <div 
-            className="absolute top-0 bottom-0 left-0"
-            style={{ 
-              width: `${stallPct}%`,
-              background: 'linear-gradient(90deg, hsl(0 70% 35%), hsl(25 80% 40%))',
-              opacity: 0.7,
-            }}
-          />
-          {/* Trend bar */}
-          {trendBarWidth > 0.5 && (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-full px-1 flex flex-col gap-0.5 cursor-help">
+            {/* Bar */}
+            <div className="relative w-full" style={{ height: '6px' }}>
+              <div 
+                className="absolute inset-0 rounded-full overflow-hidden"
+                style={{ 
+                  background: 'hsl(0 0% 0% / 0.5)',
+                  boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
+                }}
+              >
+                <div 
+                  className="absolute top-0 bottom-0 left-0"
+                  style={{ 
+                    width: `${stallPct}%`,
+                    background: 'linear-gradient(90deg, hsl(0 70% 35%), hsl(25 80% 40%))',
+                    opacity: 0.7,
+                  }}
+                />
+                {trendBarWidth > 0.5 && (
+                  <div 
+                    className="absolute top-0 bottom-0"
+                    style={{ 
+                      left: `${trendBarLeft}%`,
+                      width: `${trendBarWidth}%`,
+                      background: trendColor,
+                      opacity: 0.6,
+                      boxShadow: `0 0 6px ${trendColor}`,
+                    }}
+                  />
+                )}
+                <div 
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
+                  }}
+                />
+              </div>
+              <div 
+                className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
+                style={{ 
+                  left: `${ratePct}%`,
+                  background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
+                  boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
+                }}
+              />
+            </div>
+            {/* Scale labels */}
             <div 
-              className="absolute top-0 bottom-0"
-              style={{ 
-                left: `${trendBarLeft}%`,
-                width: `${trendBarWidth}%`,
-                background: trendColor,
-                opacity: 0.6,
-                boxShadow: `0 0 6px ${trendColor}`,
-              }}
-            />
-          )}
-          {/* Glass reflection */}
-          <div 
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
-            }}
-          />
-        </div>
-        {/* Rate marker line */}
-        <div 
-          className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
-          style={{ 
-            left: `${ratePct}%`,
-            background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
-            boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
-          }}
-        />
-      </div>
-      {/* Scale labels */}
-      <div 
-        className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
-        style={{ fontSize: '9px' }}
-      >
-        <span>0.000</span>
-        <span style={{ color: trendColor, fontSize: '10px' }}>{trendIcon}</span>
-        <span>{maxRate.toFixed(3)}</span>
-      </div>
-    </div>
+              className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
+              style={{ fontSize: '9px' }}
+            >
+              <span>0.000</span>
+              <span style={{ color: trendColor, fontSize: '10px' }}>{trendIcon}</span>
+              <span>{maxRate.toFixed(3)}</span>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="whitespace-pre text-xs tabular-nums">
+          {tooltipLines}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
