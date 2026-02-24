@@ -1933,7 +1933,7 @@ export default function Settings() {
               />
               <label htmlFor="auto-cooling-enabled" className="text-sm cursor-pointer leading-none">
                 <Snowflake className="inline h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                Glykolkylare
+                Autojustera glykolkylare
               </label>
               {autoCoolingEnabled && !coolerControllerId && (
                 <span className="text-xs text-amber-500">(ingen markerad under Enheter)</span>
