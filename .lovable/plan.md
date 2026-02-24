@@ -1,79 +1,70 @@
 
-# Professionell Polish - Bryggövervakaren
 
-Planen fokuserar på visuella och UX-förbättringar som ger ett mer polerat, professionellt intryck utan att ändra funktionalitet eller riskera TV-mode-prestanda.
+# Jäsningsfarts-mätare i Gravity-kortet
 
----
+Ersätter texten "-0.012/dygn" med en visuell hastighetsmätare (bar) som visar aktuell jäsningsfart, stall-zon och trend.
 
-## 1. Typografi-uppgradering
+## Koncept
 
-Ladda in **Inter** (eller **DM Sans**) som body-font via Google Fonts. Just nu använder appen bara systemtypsnitt för allt utom logotypen (Cormorant Garamond). En konsekvent, modern sans-serif ger ett omedelbart lyft.
+```text
+Gravity-progress (befintlig):
+[████████████████░░░░░░] 72%
+ 1.052              1.010
 
-**Tekniskt:**
-- Lägg till font-import i `index.html`
-- Uppdatera `font-family` i `@layer base` i `src/index.css`
-- Tabular-nums-stilen behålls for siffror
+Jäsningsfart (ny):
+[▓▓▓▓▓|████████░░░░░░░░░] ▶ 0.008/d
+ STALL         0.015
+  ^rödzon  ^aktuell  ^skala
+      trendpil (▲ ökar / ▼ bromsar / ▶ stabil)
+```
 
----
+Baren visar:
+- **Rödzon** (0 till stall-tröskeln, t.ex. 0.002) -- gradient röd till orange
+- **Aktuell fart** som en markör/linje på baren
+- **Trendpil** som visar om farten ökar, minskar eller är stabil (beräknas genom att jämföra farten senaste 6h mot föregående 6h)
+- Döljs för inaktiva bryggningar (Konditionering/Klar), samma som idag
 
-## 2. Stat-kort: subtil hover-effekt och bättre hierarki
+## Teknisk plan
 
-- Ge klickbara stat-kort en mjuk `border-color`-transition vid hover (ej CSS filter p.g.a. TV-begränsning)
-- Gör label-texten aningen ljusare (`text-muted-foreground/60` istället för `/50`) for bättre läsbarhet
-- Lägg till en tunn `transition: border-color 0.2s` på `StatCard`
+### 1. Beräkna trend i `brew-utils.ts`
 
-**Fil:** `src/components/brew-card/StatCard.tsx`
+Ny funktion `calculateFermentationTrend(sgData)` som returnerar `{ rate6h: number | null, rate12h: number | null, trend: 'rising' | 'falling' | 'stable' | null }`.
 
----
+- Beräknar farten för senaste 6h separat och senaste 6-12h separat
+- Om senaste 6h-farten ar mer an 20% snabbare an foregaende period: `rising`
+- Om mer an 20% långsammare: `falling`
+- Annars: `stable`
 
-## 3. Brew Card header - stilnivå
+### 2. Utoka BrewData-typen
 
-- Lägg till brew-nummer (batchNumber) som en diskret tag vid sidan av stiltext, formaterad som `#123`
-- Visa senaste uppdateringens relativa tid i ett lite mer polerat format (t.ex. "2h sedan" istf rå datumtext)
+Lägg till `fermentationTrend` (optional) i `BrewData`-interfacet i `src/types/brew.ts`.
 
-**Fil:** `src/components/brew-card/BrewCard.tsx`
+### 3. Populera trenden i `use-brew-data.ts`
 
----
+Anropa `calculateFermentationTrend()` och sätt på BrewData-objektet, på samma ställen som `fermentationRate` beräknas.
 
-## 4. Dashboard "empty state" - mer visuellt tilltalande
+### 4. Uppdatera `GravityStat.tsx`
 
-Uppdatera "Inga öl valda"-meddelandet:
-- Lägg till en brewery-ikon (Beer icon från Lucide)
-- Mer luftig layout med bättre typografi
+Ersätt text-raden (rad 99-111) med en visuell bar-komponent:
 
-**Fil:** `src/components/BrewingDashboard.tsx`
+- **Skala**: 0 till `maxRate` (dynamiskt, t.ex. `Math.max(0.015, rate * 1.5)`)
+- **Stall-zon**: Röd gradient från 0 till stallThreshold (hårdkodat 0.002 som default, eller hämtat från settings)
+- **Fart-markör**: Vertikal linje/punkt på rätt position
+- **Trendindikator**: Liten pil (▲/▼/▶) bredvid värdet
+- **Labels**: "STALL" vänster, aktuellt värde höger
+- Samma stilspråk som befintliga progress-baren ovanför (mörk bakgrund, glöd-effekt)
 
----
+### 5. Stall-tröskel
 
-## 5. OG-bild och metadata
+Hårdkoda ett default-värde (0.002) i frontend. Tröskeln finns redan i backend-inställningar men behöver inte hämtas -- det visuella är ett ungefärligt mått.
 
-Byt ut Lovable-defaultbilden i OpenGraph-taggarna mot en egen som matchar appen:
-- Uppdatera `og:image` och `twitter:image` i `index.html` till att peka på `/pwa-512x512.png` eller en dedikerad OG-bild
-- Uppdatera `twitter:site` till korrekt konto
+### Filer som ändras
 
-**Fil:** `index.html`
+| Fil | Ändring |
+|-----|---------|
+| `src/lib/brew-utils.ts` | Ny funktion `calculateFermentationTrend()` |
+| `src/types/brew.ts` | Nytt fält `fermentationTrend` på `BrewData` |
+| `src/hooks/use-brew-data.ts` | Beräkna och populera `fermentationTrend` |
+| `src/pages/Brew.tsx` | Beräkna och populera `fermentationTrend` (delad vy) |
+| `src/components/brew-card/GravityStat.tsx` | Ersätt textrad med visuell fartmätare |
 
----
-
-## 6. Splash-screen - mer raffinerad
-
-Lägg till en subtil fade-out på splashskärmen istf abrupt borttagning:
-- Wrappa splash i en opacity-transition
-- Minimal CSS, ingen blur/filter (TV-säkert)
-
-**Fil:** `src/components/BrewingDashboard.tsx`, `src/index.css`
-
----
-
-## Sammanfattning
-
-| Ändring | Fil(er) | Komplexitet |
-|---------|---------|-------------|
-| Body-font (Inter) | `index.html`, `src/index.css` | Liten |
-| StatCard hover + labels | `StatCard.tsx` | Liten |
-| Brew card header polish | `BrewCard.tsx` | Liten |
-| Empty state | `BrewingDashboard.tsx` | Liten |
-| OG-metadata | `index.html` | Minimal |
-| Splash fade-out | `BrewingDashboard.tsx`, `index.css` | Liten |
-
-Alla ändringar är TV-mode-säkra (inga CSS filters, inga frekventa re-renders). Total påverkan: renare typografi, bättre visuell hierarki, och mer polerade övergångar.
