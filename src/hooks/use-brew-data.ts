@@ -4,7 +4,7 @@ import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
-import { calculateFermentationRate } from '@/lib/brew-utils';
+import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
 import { useTvMode } from '@/contexts/TvModeContext';
 
 interface UseBrewDataReturn {
@@ -310,6 +310,7 @@ export function useBrewData(): UseBrewDataReturn {
       }
 
       const fermentationRate = calculateFermentationRate(originalSgData);
+      const fermentationTrend = calculateFermentationTrend(originalSgData);
 
       // For custom brews (with linked_pill_id), use pill's last_update if brew has no last_update
       let effectiveLastUpdate = reading.last_update;
@@ -363,6 +364,7 @@ export function useBrewData(): UseBrewDataReturn {
         originalTarget: reading.linked_controller_id 
           ? overshootMap.get(reading.linked_controller_id)?.original_target ?? null 
           : null,
+        fermentationTrend,
       };
     });
   }, []);

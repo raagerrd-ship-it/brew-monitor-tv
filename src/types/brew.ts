@@ -61,6 +61,11 @@ export interface BrewData {
   description: string | null;
   overshootReason: string | null;
   originalTarget: number | null;
+  fermentationTrend?: {
+    rate6h: number | null;
+    rate12h: number | null;
+    trend: 'rising' | 'falling' | 'stable' | null;
+  };
 }
 
 export interface PillData {
