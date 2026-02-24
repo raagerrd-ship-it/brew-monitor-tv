@@ -1,8 +1,33 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
+import { supabase } from "@/integrations/supabase/client";
 
-const STALL_THRESHOLD = 0.002;
+const DEFAULT_STALL_THRESHOLD = 0.002;
+
+// Cached module-level value to avoid re-fetching on every render
+let cachedStallThreshold: number | null = null;
+
+function useStallThreshold(): number {
+  const [threshold, setThreshold] = useState(cachedStallThreshold ?? DEFAULT_STALL_THRESHOLD);
+
+  useEffect(() => {
+    if (cachedStallThreshold !== null) return;
+    supabase
+      .from('auto_cooling_settings')
+      .select('stall_rate_threshold')
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.stall_rate_threshold != null) {
+          cachedStallThreshold = Number(data.stall_rate_threshold);
+          setThreshold(cachedStallThreshold);
+        }
+      });
+  }, []);
+
+  return threshold;
+}
 
 interface GravityStatProps {
   brew: BrewData;
@@ -10,12 +35,13 @@ interface GravityStatProps {
   onSyncedDataClick?: () => void;
 }
 
-function FermentationRateBar({ rate, trend }: { 
+function FermentationRateBar({ rate, trend, stallThreshold }: { 
   rate: number; 
   trend?: 'rising' | 'falling' | 'stable' | null;
+  stallThreshold: number;
 }) {
   const maxRate = Math.max(0.015, rate * 1.5);
-  const stallPct = (STALL_THRESHOLD / maxRate) * 100;
+  const stallPct = (stallThreshold / maxRate) * 100;
   const ratePct = Math.min((rate / maxRate) * 100, 100);
   
   const trendIcon = trend === 'rising' ? '▲' : trend === 'falling' ? '▼' : '▶';
@@ -25,7 +51,7 @@ function FermentationRateBar({ rate, trend }: {
       ? 'hsl(0 70% 55%)' 
       : 'hsl(38 70% 50%)';
 
-  const isStalled = rate <= STALL_THRESHOLD;
+  const isStalled = rate <= stallThreshold;
 
   return (
     <div className="w-full px-1 flex flex-col gap-0.5">
@@ -99,6 +125,7 @@ function FermentationRateBar({ rate, trend }: {
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
+  const stallThreshold = useStallThreshold();
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
   const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
@@ -191,6 +218,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
           <FermentationRateBar 
             rate={brew.fermentationRate} 
             trend={brew.fermentationTrend?.trend}
+            stallThreshold={stallThreshold}
           />
         )}
         {!isInactive && brew.fermentationRate === null && (
