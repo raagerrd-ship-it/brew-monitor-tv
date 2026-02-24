@@ -295,6 +295,18 @@ export default function Settings() {
             if (newData.cooler_controller_id !== undefined) {
               setCoolerControllerId(newData.cooler_controller_id || "");
             }
+            if (newData.auto_boost_enabled !== undefined) {
+              setStallDetectionEnabled(newData.auto_boost_enabled);
+            }
+            if (newData.auto_boost_degrees !== undefined) {
+              setStallBoostDegrees(newData.auto_boost_degrees.toString());
+            }
+            if (newData.pill_compensation_enabled !== undefined) {
+              setPillCompEnabled(newData.pill_compensation_enabled);
+            }
+            if (newData.delta_alert_threshold !== undefined) {
+              setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
+            }
           }
         }
       )
@@ -435,6 +447,11 @@ export default function Settings() {
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         // coolerControllerId and followedControllerIds are now derived from availableControllers
         setLastAutoCoolingCheck(data.last_check_at);
+        setStallDetectionEnabled((data as any).auto_boost_enabled ?? false);
+        setStallBoostDegrees(((data as any).auto_boost_degrees ?? 1.0).toString());
+        setPillCompEnabled((data as any).pill_compensation_enabled ?? false);
+        setPillCompMaxCompensation(((data as any).pill_compensation_max_compensation ?? 5.0).toString());
+        setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2.0).toString());
       }
 
       // Load last adjustment
