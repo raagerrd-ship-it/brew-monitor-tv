@@ -5,6 +5,7 @@ import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
+import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
@@ -17,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1847,6 +1848,18 @@ export default function Settings() {
                 </div>
               </SettingsSection>
             )}
+
+            <CategorySeparator icon={Brain} label="Inlärning" />
+
+            <SettingsSection
+              icon={Brain}
+              title="Inlärda värden"
+              description="Systemets inlärda parametrar per controller"
+            >
+              <LearnedStallBoostValues />
+              <SettingsDivider />
+              <LearnedCompensationBaselines />
+            </SettingsSection>
 
             <CategorySeparator icon={FlaskConical} label="Profiler" />
 
