@@ -1111,7 +1111,6 @@ export default function Settings() {
       <DashboardHeader
         controllers={headerControllers}
         pills={headerPills}
-        onLogout={handleLogout}
       />
       <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
@@ -1552,6 +1551,17 @@ export default function Settings() {
                 </Select>
               </div>
             </SettingsSection>
+
+            {/* Logga ut */}
+            <div className="pt-4 pb-2 flex justify-center">
+              <button
+                onClick={handleLogout}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1.5"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Logga ut
+              </button>
+            </div>
           </TabsContent>
 
           {/* AUTOMATION TAB */}
