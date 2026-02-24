@@ -5,7 +5,7 @@ import { BrewCard } from "@/components/brew-card/BrewCard";
 import type { BrewData, PillData, TempController, BrewEvent, FermentationSessionData, FermentationStepData } from "@/types/brew";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { calculateFermentationRate } from "@/lib/brew-utils";
+import { calculateFermentationRate, calculateFermentationTrend } from "@/lib/brew-utils";
 import dbLogo from "@/assets/db-logo.png";
 
 console.log('Brew.tsx loaded - this confirms the route /brew/:id is being matched');
@@ -155,6 +155,7 @@ export default function Brew() {
         // Calculate fermentation rate
         const sgData = reading.sg_data || [];
         const fermentationRate = calculateFermentationRate(sgData);
+        const fermentationTrend = calculateFermentationTrend(sgData);
 
         // Format last update
         const lastUpdate = reading.last_update
@@ -189,6 +190,7 @@ export default function Brew() {
           description: reading.description || null,
           overshootReason: null,
           originalTarget: null,
+          fermentationTrend,
         };
 
         setBrew(brewData);

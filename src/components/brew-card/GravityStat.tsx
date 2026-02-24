@@ -2,10 +2,100 @@ import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 
+const STALL_THRESHOLD = 0.002;
+
 interface GravityStatProps {
   brew: BrewData;
   updatedFields: Record<string, Record<string, boolean>>;
   onSyncedDataClick?: () => void;
+}
+
+function FermentationRateBar({ rate, trend }: { 
+  rate: number; 
+  trend?: 'rising' | 'falling' | 'stable' | null;
+}) {
+  const maxRate = Math.max(0.015, rate * 1.5);
+  const stallPct = (STALL_THRESHOLD / maxRate) * 100;
+  const ratePct = Math.min((rate / maxRate) * 100, 100);
+  
+  const trendIcon = trend === 'rising' ? '▲' : trend === 'falling' ? '▼' : '▶';
+  const trendColor = trend === 'rising' 
+    ? 'hsl(142 70% 50%)' 
+    : trend === 'falling' 
+      ? 'hsl(0 70% 55%)' 
+      : 'hsl(38 70% 50%)';
+
+  const isStalled = rate <= STALL_THRESHOLD;
+
+  return (
+    <div className="w-full px-1 flex flex-col gap-0.5">
+      {/* Bar */}
+      <div className="relative w-full" style={{ height: '6px' }}>
+        {/* Track */}
+        <div 
+          className="absolute inset-0 rounded-full overflow-hidden"
+          style={{ 
+            background: 'hsl(0 0% 0% / 0.5)',
+            boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
+          }}
+        >
+          {/* Stall zone (red gradient) */}
+          <div 
+            className="absolute top-0 bottom-0 left-0"
+            style={{ 
+              width: `${stallPct}%`,
+              background: 'linear-gradient(90deg, hsl(0 70% 35%), hsl(25 80% 40%))',
+              opacity: 0.7,
+            }}
+          />
+          {/* Active zone fill */}
+          {!isStalled && (
+            <div 
+              className="absolute top-0 bottom-0"
+              style={{ 
+                left: `${stallPct}%`,
+                width: `${Math.max(0, ratePct - stallPct)}%`,
+                background: 'hsl(38 90% 50%)',
+                boxShadow: '0 0 8px hsl(38 90% 50% / 0.5)',
+              }}
+            />
+          )}
+          {/* Glass reflection */}
+          <div 
+            className="absolute inset-0 rounded-full pointer-events-none"
+            style={{
+              background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
+            }}
+          />
+        </div>
+        {/* Rate marker line */}
+        <div 
+          className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
+          style={{ 
+            left: `${ratePct}%`,
+            background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
+            boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
+          }}
+        />
+      </div>
+      {/* Labels */}
+      <div 
+        className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
+        style={{ fontSize: '9px' }}
+      >
+        <span style={{ color: isStalled ? 'hsl(0 70% 55%)' : undefined }}>
+          {isStalled ? 'STALL' : 'STALL'}
+        </span>
+        <span 
+          className="font-medium flex items-center gap-0.5"
+          style={{ color: trendColor, fontSize: '9px' }}
+        >
+          <span style={{ fontSize: '7px' }}>{trendIcon}</span>
+          {rate > 0 ? '-' : '+'}{Math.abs(rate).toFixed(3)}/d
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
@@ -59,7 +149,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
       <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
-        {/* Progress bar */}
+        {/* Gravity progress bar */}
         <div className="w-full px-1">
           <div 
             className="w-full rounded-full overflow-hidden relative"
@@ -96,17 +186,19 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
           <span>{brew.finalGravity.toFixed(3)}</span>
         </div>
         
-        {/* Fermentation rate */}
-        {!isInactive && (
+        {/* Fermentation rate bar */}
+        {!isInactive && brew.fermentationRate !== null && (
+          <FermentationRateBar 
+            rate={brew.fermentationRate} 
+            trend={brew.fermentationTrend?.trend}
+          />
+        )}
+        {!isInactive && brew.fermentationRate === null && (
           <p 
             className="font-medium text-muted-foreground/70 truncate leading-tight" 
             style={{ fontSize: '10px' }}
           >
-            {brew.fermentationRate !== null ? (
-              <>{brew.fermentationRate > 0 ? '-' : '+'}{Math.abs(brew.fermentationRate).toFixed(3)}/dygn</>
-            ) : (
-              <>Beräknar...</>
-            )}
+            Beräknar...
           </p>
         )}
       </div>

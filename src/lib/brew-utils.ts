@@ -232,6 +232,51 @@ export function calculateFermentationRate(
 }
 
 /**
+ * Calculate fermentation trend by comparing recent 6h rate vs previous 6h rate
+ */
+export function calculateFermentationTrend(
+  sgData: Array<{ date: string; value: number; temp: number }>
+): { rate6h: number | null; rate12h: number | null; trend: 'rising' | 'falling' | 'stable' | null } {
+  if (!sgData || sgData.length < 3) return { rate6h: null, rate12h: null, trend: null };
+
+  const now = new Date();
+  const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+  const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+
+  const sorted = [...sgData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const calcRate = (data: typeof sorted): number | null => {
+    if (data.length < 2) return null;
+    const first = data[0];
+    const last = data[data.length - 1];
+    const hours = (new Date(last.date).getTime() - new Date(first.date).getTime()) / (1000 * 60 * 60);
+    if (hours < 0.5) return null;
+    return ((first.value - last.value) / hours) * 24;
+  };
+
+  const recent6h = sorted.filter(d => new Date(d.date) >= sixHoursAgo);
+  const prev6h = sorted.filter(d => {
+    const t = new Date(d.date);
+    return t >= twelveHoursAgo && t < sixHoursAgo;
+  });
+
+  const rate6h = calcRate(recent6h);
+  const rate12h = calcRate(prev6h);
+
+  let trend: 'rising' | 'falling' | 'stable' | null = null;
+  if (rate6h !== null && rate12h !== null && rate12h > 0.0005) {
+    const ratio = rate6h / rate12h;
+    if (ratio > 1.2) trend = 'rising';
+    else if (ratio < 0.8) trend = 'falling';
+    else trend = 'stable';
+  } else if (rate6h !== null) {
+    trend = 'stable';
+  }
+
+  return { rate6h, rate12h, trend };
+}
+
+/**
  * Format runtime seconds into a human-readable string (e.g., "2h 15m" or "45m")
  */
 export function formatRunTime(seconds: number | null): string {
