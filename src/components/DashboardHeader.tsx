@@ -63,11 +63,6 @@ export function DashboardHeader({
             <Logo />
           </div>
           <div className="flex items-center gap-1">
-            {isOnSettings && onLogout && (
-              <Button variant="ghost" size="icon" onClick={onLogout} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-9 h-9 rounded-full">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            )}
             {onRefresh && !isOnSettings && (
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
                 <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
@@ -105,11 +100,6 @@ export function DashboardHeader({
           <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
             <Clock />
 
-            {isOnSettings && onLogout && (
-              <Button variant="ghost" size="icon" onClick={onLogout} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-10 h-10 rounded-full">
-                <LogOut className="w-5 h-5" />
-              </Button>
-            )}
 
             {!isTvMode && (
               <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
