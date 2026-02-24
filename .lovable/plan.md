@@ -1,70 +1,103 @@
 
 
-# Jäsningsfarts-mätare i Gravity-kortet
+# PID-kompensationsbar i TempStat + Batteri till header
 
-Ersätter texten "-0.012/dygn" med en visuell hastighetsmätare (bar) som visar aktuell jäsningsfart, stall-zon och trend.
+## Oversikt
 
-## Koncept
+Ta bort BatteryStat-kortet fran stats-griden, visa batteriinfo i headern istallet, och gor TempStat till ett dubbelhogt kort (som GravityStat) med plats for bade temp-span-baren och en ny PID-kompensationsbar.
+
+## Andringar
+
+### 1. Ta bort BatteryStat fran griden
+
+**Fil: `src/components/brew-card/BrewCard.tsx`**
+
+- Ta bort `BatteryStat`-importen och komponenten fran stats-griden
+- Andra griden fran `grid-cols-3 grid-rows-2` till `grid-cols-3 grid-rows-2` (samma grid, men nu med 5 celler istallet for 6 -- GravityStat tar 2 rader, TempStat tar 2 rader, ABV och Attenuation tar varsin cell i mitten)
+
+Layout blir:
 
 ```text
-Gravity-progress (befintlig):
-[████████████████░░░░░░] 72%
- 1.052              1.010
-
-Jäsningsfart (ny):
-[▓▓▓▓▓|████████░░░░░░░░░] ▶ 0.008/d
- STALL         0.015
-  ^rödzon  ^aktuell  ^skala
-      trendpil (▲ ökar / ▼ bromsar / ▶ stabil)
+|  Gravity  |   ABV   |   Temp   |
+|  (row 2)  |  Atten  |  (row 2) |
 ```
 
-Baren visar:
-- **Rödzon** (0 till stall-tröskeln, t.ex. 0.002) -- gradient röd till orange
-- **Aktuell fart** som en markör/linje på baren
-- **Trendpil** som visar om farten ökar, minskar eller är stabil (beräknas genom att jämföra farten senaste 6h mot föregående 6h)
-- Döljs för inaktiva bryggningar (Konditionering/Klar), samma som idag
+### 2. Visa batteri i headern
 
-## Teknisk plan
+**Fil: `src/components/brew-card/BrewCard.tsx`**
 
-### 1. Beräkna trend i `brew-utils.ts`
+- Berakna batterivardet (samma logik som BatteryStat: `brew.battery ?? pill?.battery_level`)
+- Visa som en liten text/ikon bredvid senaste uppdateringen i subtitle-raden
+- Format: `🔋 72.3%` med rod farg om under 20%
+- Behover `devices` (redan beraknat i BrewCard) for att komma at pill-data
 
-Ny funktion `calculateFermentationTrend(sgData)` som returnerar `{ rate6h: number | null, rate12h: number | null, trend: 'rising' | 'falling' | 'stable' | null }`.
+### 3. Gor TempStat dubbelhogt med PID-bar
 
-- Beräknar farten för senaste 6h separat och senaste 6-12h separat
-- Om senaste 6h-farten ar mer an 20% snabbare an foregaende period: `rising`
-- Om mer an 20% långsammare: `falling`
-- Annars: `stable`
+**Fil: `src/components/brew-card/TempStat.tsx`**
 
-### 2. Utoka BrewData-typen
+- Lagg till `rowSpan={2}` pa StatCard (precis som GravityStat)
+- Lagg till `labelSize` och `valueSize` for storre text (matchar GravityStat)
+- Flytta span-baren till nedre delen av kortet
+- Lagg till PID-kompensationsbar ovanfor span-baren:
 
-Lägg till `fermentationTrend` (optional) i `BrewData`-interfacet i `src/types/brew.ts`.
+**PID-baren:**
+- Berakna: `compensation = targetTemp - profileTarget`
+- Skala: -2.0 till +2.0 grader (fast)
+- Centerlinje vid 0
+- Fylld bar fran mitten till kompensationsvardet
+- Bla farg for negativ (kyler mer), orange for positiv (varmer mer)
+- Markordot pa aktuellt varde med glow
+- Visas BARA nar `showBothTargets` ar sant och `!isInactive`
+- Tooltip: "Kompensation: -0.6 grader"
+- Skaletiketter: `-2.0`, `0`, `+2.0`
 
-### 3. Populera trenden i `use-brew-data.ts`
+Layout inuti TempStat (dubbelhogt):
 
-Anropa `calculateFermentationTrend()` och sätt på BrewData-objektet, på samma ställen som `fermentationRate` beräknas.
+```text
+| TEMP (18.0°)     |
+| 17.7°            |  (stort varde)
+|                  |
+| [PID-bar -2..+2] |  (ny)
+| [span-bar ctrl↔pill] |  (befintlig)
+```
 
-### 4. Uppdatera `GravityStat.tsx`
+### 4. Uppdatera index-exports
 
-Ersätt text-raden (rad 99-111) med en visuell bar-komponent:
+**Fil: `src/components/brew-card/index.ts`**
 
-- **Skala**: 0 till `maxRate` (dynamiskt, t.ex. `Math.max(0.015, rate * 1.5)`)
-- **Stall-zon**: Röd gradient från 0 till stallThreshold (hårdkodat 0.002 som default, eller hämtat från settings)
-- **Fart-markör**: Vertikal linje/punkt på rätt position
-- **Trendindikator**: Liten pil (▲/▼/▶) bredvid värdet
-- **Labels**: "STALL" vänster, aktuellt värde höger
-- Samma stilspråk som befintliga progress-baren ovanför (mörk bakgrund, glöd-effekt)
+- Ta bort `BatteryStat` fran exports (valfritt, kan behallas for bakatkompat)
 
-### 5. Stall-tröskel
+## Tekniska detaljer
 
-Hårdkoda ett default-värde (0.002) i frontend. Tröskeln finns redan i backend-inställningar men behöver inte hämtas -- det visuella är ett ungefärligt mått.
+### PID-bar implementation (TempStat.tsx)
 
-### Filer som ändras
+```typescript
+// Redan beraknat:
+// profileTarget, targetTemp, showBothTargets
 
-| Fil | Ändring |
+const compensation = targetTemp - profileTarget; // positiv = varmer mer
+const clampedComp = Math.max(-2, Math.min(2, compensation));
+const compensationPct = ((clampedComp + 2) / 4) * 100; // 0-100%
+const centerPct = 50;
+const isNegative = compensation < 0;
+const barLeft = isNegative ? compensationPct : centerPct;
+const barWidth = Math.abs(compensationPct - centerPct);
+const barColor = isNegative ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
+```
+
+### Batteri i header (BrewCard.tsx)
+
+```typescript
+const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
+const isLowBattery = batteryValue !== null && batteryValue < 20;
+```
+
+Visas i subtitle-raden som: `· 🔋 72.3%`
+
+### Filer som andras
+
+| Fil | Andring |
 |-----|---------|
-| `src/lib/brew-utils.ts` | Ny funktion `calculateFermentationTrend()` |
-| `src/types/brew.ts` | Nytt fält `fermentationTrend` på `BrewData` |
-| `src/hooks/use-brew-data.ts` | Beräkna och populera `fermentationTrend` |
-| `src/pages/Brew.tsx` | Beräkna och populera `fermentationTrend` (delad vy) |
-| `src/components/brew-card/GravityStat.tsx` | Ersätt textrad med visuell fartmätare |
+| `src/components/brew-card/BrewCard.tsx` | Ta bort BatteryStat, lagg till batteri i header, ge TempStat devices-prop (redan gjort) |
+| `src/components/brew-card/TempStat.tsx` | rowSpan=2, storre text, PID-kompensationsbar |
 
