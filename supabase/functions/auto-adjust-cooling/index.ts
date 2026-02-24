@@ -1393,6 +1393,7 @@ serve(async (req) => {
                 const { data: lastRecovery, error: recoveryQueryError } = await supabase
                   .from('auto_cooling_adjustments')
                   .select('created_at')
+                  .eq('cooler_controller_id', coolerController.controller_id)
                   .like('reason', '%Cooling recovery%')
                   .order('created_at', { ascending: false })
                   .limit(1);
