@@ -137,6 +137,8 @@ export type Database = {
           pill_compensation_max_compensation: number
           pill_compensation_min_scale: number
           pill_compensation_rate_limit: number
+          stall_max_attenuation: number
+          stall_min_attenuation: number
           stall_rate_threshold: number
           temp_reduction_degrees: number
           updated_at: string
@@ -161,6 +163,8 @@ export type Database = {
           pill_compensation_max_compensation?: number
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
+          stall_max_attenuation?: number
+          stall_min_attenuation?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
@@ -185,6 +189,8 @@ export type Database = {
           pill_compensation_max_compensation?: number
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
+          stall_max_attenuation?: number
+          stall_min_attenuation?: number
           stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
