@@ -44,7 +44,8 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   rate12h?: number | null;
 }) {
   const displayRate = rate6h ?? rate;
-  const maxRate = Math.max(0.015, displayRate * 1.5);
+  const previousRate = rate12h ?? displayRate;
+  const maxRate = Math.max(0.015, displayRate * 1.5, previousRate * 1.5);
   const stallPct = (stallThreshold / maxRate) * 100;
   const ratePct = Math.min((displayRate / maxRate) * 100, 100);
   
@@ -57,21 +58,13 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
 
   const isStalled = rate <= stallThreshold;
 
-  // Trend bar: show magnitude of rate change as a bar from marker
+  // Trend bar: visualisera skillnaden mellan föregående 6h och senaste 6h
   let trendBarLeft = ratePct;
   let trendBarWidth = 0;
-  if (rate6h != null && rate12h != null && rate12h > 0.0005) {
-    const diff = rate6h - rate12h; // positive = speeding up, negative = slowing
-    const diffPct = Math.min(Math.abs(diff) / maxRate * 100, 30); // cap at 30% width
-    if (diff > 0) {
-      // Rising: bar extends right from marker
-      trendBarLeft = ratePct;
-      trendBarWidth = Math.min(diffPct, 100 - ratePct);
-    } else {
-      // Falling: bar extends left from marker
-      trendBarWidth = Math.min(diffPct, ratePct);
-      trendBarLeft = ratePct - trendBarWidth;
-    }
+  if (rate6h != null && rate12h != null && rate6h > 0 && rate12h > 0) {
+    const previousPct = Math.min((rate12h / maxRate) * 100, 100);
+    trendBarLeft = Math.min(ratePct, previousPct);
+    trendBarWidth = Math.abs(ratePct - previousPct);
   }
 
   const tooltipLines = [
