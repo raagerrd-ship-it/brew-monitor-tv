@@ -588,10 +588,10 @@ serve(async (req) => {
         // Sort by date descending
         const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
-        // Calculate SG rate over last 24h
+        // Calculate SG rate over last 12h
         const now = Date.now();
-        const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
-        const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twentyFourHoursAgo);
+        const twelveHoursAgo = now - 12 * 60 * 60 * 1000;
+        const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twelveHoursAgo);
         
         if (recentSg.length < 2) {
           // Still compute a rough rate from whatever data we have to show trend
@@ -608,7 +608,7 @@ serve(async (req) => {
               trendInfo = `, senaste rate=${pairRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)})`;
             }
           }
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt med SG-data senaste 24h (${recentSg.length}/${sgData.length} punkter, senaste ${latestAgeHours}h sedan, SG=${latestSg.value.toFixed(4)}${trendInfo})`);
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt med SG-data senaste 12h (${recentSg.length}/${sgData.length} punkter, senaste ${latestAgeHours}h sedan, SG=${latestSg.value.toFixed(4)}${trendInfo})`);
           continue;
         }
 
