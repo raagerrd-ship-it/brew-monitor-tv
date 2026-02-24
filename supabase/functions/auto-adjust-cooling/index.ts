@@ -560,12 +560,9 @@ serve(async (req) => {
         // Parse SG data and calculate rate
         const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number; temp: number }>;
         const brewName = (brewLink as any).name ?? brewLink.id;
-        const brewOg = parseFloat(String(brewLink.original_gravity ?? 0));
-        const brewFg = parseFloat(String(brewLink.final_gravity ?? 0));
 
         if (sgData.length < 3) {
-          const latestSgVal = sgData.length > 0 ? sgData[sgData.length - 1]?.value ?? sgData[0]?.value : null;
-          log('STALL_SKIP', 'info', `${fc.name}: För lite SG-data (${sgData.length} punkter) — Öl: ${brewName}, SG=${latestSgVal?.toFixed(4) ?? '?'}, OG=${brewOg.toFixed(3)}, FG=${brewFg.toFixed(3)}`);
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): För lite SG-data (${sgData.length} punkter)`);
           continue;
         }
 
@@ -578,9 +575,21 @@ serve(async (req) => {
         const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twentyFourHoursAgo);
         
         if (recentSg.length < 2) {
+          // Still compute a rough rate from whatever data we have to show trend
           const latestSg = sortedSg[0];
+          const secondLatest = sortedSg.length > 1 ? sortedSg[1] : null;
           const latestAgeHours = ((now - new Date(latestSg.date).getTime()) / (1000 * 60 * 60)).toFixed(1);
-          log('STALL_SKIP', 'info', `${fc.name}: Inte tillräckligt med SG-data senaste 24h (${recentSg.length} av ${sgData.length} punkter) — Öl: ${brewName}, senaste SG=${latestSg.value.toFixed(4)} (${latestAgeHours}h sedan), OG=${brewOg.toFixed(3)}, FG=${brewFg.toFixed(3)}`);
+          let trendInfo = '';
+          if (secondLatest) {
+            const pairHours = (new Date(latestSg.date).getTime() - new Date(secondLatest.date).getTime()) / (1000 * 60 * 60);
+            if (pairHours > 0) {
+              const pairRate = ((secondLatest.value - latestSg.value) / pairHours) * 24;
+              const threshold = stallSettings.sgRateThreshold * 1000;
+              const pct = threshold > 0 ? ((pairRate / threshold) * 100).toFixed(0) : '?';
+              trendInfo = `, senaste rate=${pairRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)})`;
+            }
+          }
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt med SG-data senaste 24h (${recentSg.length}/${sgData.length} punkter, senaste ${latestAgeHours}h sedan, SG=${latestSg.value.toFixed(4)}${trendInfo})`);
           continue;
         }
 
@@ -589,7 +598,12 @@ serve(async (req) => {
         const sgTimeDiffHours = (new Date(newestSg.date).getTime() - new Date(oldestRecentSg.date).getTime()) / (1000 * 60 * 60);
         
         if (sgTimeDiffHours < 6) {
-          log('STALL_SKIP', 'info', `${fc.name}: SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+)`);
+          // Compute rate even though span is short, for visibility
+          const shortDrop = oldestRecentSg.value - newestSg.value;
+          const shortRate = sgTimeDiffHours > 0 ? (shortDrop / sgTimeDiffHours) * 24 : 0;
+          const threshold = stallSettings.sgRateThreshold * 1000;
+          const pct = threshold > 0 ? ((shortRate / threshold) * 100).toFixed(0) : '?';
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+), rate=${shortRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)}), SG=${newestSg.value.toFixed(4)}→${oldestRecentSg.value.toFixed(4)}`);
           continue;
         }
 
@@ -632,20 +646,21 @@ serve(async (req) => {
         const fermentationComplete = fg > 0 && currentSg <= fg + 0.002;
 
         if (fermentationComplete) {
-          log('STALL_SKIP', 'info', `${fc.name}: Jäsningen ser klar ut (SG ${currentSg.toFixed(4)} ≤ FG ${fg.toFixed(4)}+0.002)`);
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Jäsningen ser klar ut (SG ${currentSg.toFixed(4)} ≤ FG ${fg.toFixed(4)}+0.002)`);
           continue;
         }
 
         // Stall = SG stalling AND (delta dropping OR delta too low to be useful)
         const stallDetected = sgIsStalling && (deltaIsDropping || deltaIsLow);
+        const stallThreshold = stallSettings.sgRateThreshold * 1000;
+        const ratePct = stallThreshold > 0 ? ((sgRatePerDay / stallThreshold) * 100).toFixed(0) : '?';
 
-        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name}: SG-rate=${sgRatePerDay.toFixed(4)}/dag (tröskel=${(stallSettings.sgRateThreshold * 1000).toFixed(4)}), delta: cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (dropping=${deltaIsDropping}, low=${deltaIsLow})`, {
+        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName}): SG-rate=${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)}), SG=${currentSg.toFixed(4)}, drop=${sgDrop.toFixed(4)}/${sgTimeDiffHours.toFixed(0)}h, delta: cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (dropping=${deltaIsDropping}, low=${deltaIsLow})`, {
           sg_stalling: sgIsStalling,
           delta_dropping: deltaIsDropping,
           delta_is_low: deltaIsLow,
           stall_detected: stallDetected,
-          current_sg: currentSg.toFixed(4),
-          sg_drop_24h: sgDrop.toFixed(4),
+          sg_rate_pct_of_threshold: ratePct,
         });
 
         if (!stallDetected) continue;
