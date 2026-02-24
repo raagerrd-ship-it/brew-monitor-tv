@@ -1158,11 +1158,238 @@ export default function Settings() {
           {/* SYNC TAB */}
           <TabsContent value="sync" className="space-y-6">
 
+            {/* ═══════════════ DATAKÄLLOR (först!) ═══════════════ */}
+            <SettingsSection
+              icon={Cpu}
+              title="Datakällor"
+              description="Anslutna API:er och integrationer"
+            >
+              <div className="space-y-3">
+                {/* Brewfather */}
+                <Collapsible>
+                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
+                            <Beer className="h-4 w-4 text-primary" />
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold">Brewfather</span>
+                        {apiSettings?.brewfather?.configured ? (
+                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                            <Check className="h-2.5 w-2.5 mr-0.5" /> OK
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
+                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4 space-y-3">
+                      {apiSettings?.brewfather && (
+                        <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">User ID:</span>
+                            <span className="font-mono">{apiSettings.brewfather.userId}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">API-nyckel:</span>
+                            <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
+                          </div>
+                        </div>
+                      )}
+                      <SettingsDivider />
+                      <div className="space-y-3">
+                        <span className="text-xs font-medium text-muted-foreground">Automatisk hantering</span>
+                        <div className="grid gap-2 grid-cols-2">
+                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
+                            <Checkbox id="auto-activate-fermenting" checked={autoActivateFermenting}
+                              onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)} />
+                            <label htmlFor="auto-activate-fermenting" className="text-[11px] cursor-pointer">Visa nya jäsande</label>
+                          </div>
+                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
+                            <Checkbox id="auto-hide-completed" checked={autoHideCompleted}
+                              onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_completed', !!checked)} />
+                            <label htmlFor="auto-hide-completed" className="text-[11px] cursor-pointer">Dölj klara</label>
+                          </div>
+                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
+                            <Checkbox id="auto-hide-conditioning" checked={autoHideConditioning}
+                              onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_conditioning', !!checked)} />
+                            <label htmlFor="auto-hide-conditioning" className="text-[11px] cursor-pointer">Dölj konditionerade</label>
+                          </div>
+                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
+                            <Checkbox id="auto-hide-archived" checked={autoHideArchived}
+                              onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_archived', !!checked)} />
+                            <label htmlFor="auto-hide-archived" className="text-[11px] cursor-pointer">Dölj arkiverade</label>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                        onClick={() => {
+                          toast({
+                            title: "⚠️ Varning",
+                            description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas. Be AI-assistenten att uppdatera dina Brewfather-uppgifter.",
+                            variant: "destructive",
+                          });
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" /> Ändra API-uppgifter
+                      </button>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
+                {/* RAPT */}
+                <Collapsible>
+                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
+                            <Cloud className="h-4 w-4 text-primary" />
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold">RAPT</span>
+                        {apiSettings?.rapt?.configured ? (
+                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                            <Check className="h-2.5 w-2.5 mr-0.5" /> OK
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
+                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4 space-y-3">
+                      {apiSettings?.rapt && (
+                        <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Användarnamn:</span>
+                            <span className="font-mono">{apiSettings.rapt.username}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">API-nyckel:</span>
+                            <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                        onClick={() => {
+                          toast({
+                            title: "⚠️ Varning",
+                            description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas. Be AI-assistenten att uppdatera dina RAPT-uppgifter.",
+                            variant: "destructive",
+                          });
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" /> Ändra API-uppgifter
+                      </button>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
+                {/* Brygg-timer */}
+                <Collapsible>
+                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
+                            <Timer className="h-4 w-4 text-primary" />
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold">Brygg-timer</span>
+                        {isExternalAuthenticated ? (
+                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                            <Check className="h-2.5 w-2.5 mr-0.5" /> Ansluten
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground px-1.5 py-0">
+                            Ej ansluten
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4 space-y-3">
+                      {externalLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <RefreshCw className="h-3 w-3 animate-spin" /> Laddar...
+                        </div>
+                      ) : isExternalAuthenticated ? (
+                        <>
+                          <div className="text-xs p-3 rounded-lg bg-muted/30 border border-border/40">
+                            <span className="text-muted-foreground">Ansluten som:</span>{' '}
+                            <span className="font-mono">{externalUser?.email}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/40">
+                            <div className="flex items-center gap-2">
+                              <Tv className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-xs">Bara i TV-läge</span>
+                            </div>
+                            <Switch checked={timerTvModeOnly} disabled={settingsLoading} onCheckedChange={setTimerTvModeOnly} />
+                          </div>
+                          <button
+                            className="text-[11px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+                            onClick={() => {
+                              if (confirm('Vill du koppla från timer-kontot?')) externalSignOut();
+                            }}
+                          >
+                            <LogOut className="h-3 w-3" /> Koppla från
+                          </button>
+                        </>
+                      ) : (
+                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setExternalLoginDialogOpen(true)}>
+                          Anslut timer-konto
+                        </Button>
+                      )}
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
+                {/* Sonos */}
+                <Collapsible>
+                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
+                            <Music className="h-4 w-4 text-primary" />
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold">Sonos</span>
+                        <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                          <Check className="h-2.5 w-2.5 mr-0.5" /> OK
+                        </Badge>
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4">
+                      <p className="text-xs text-muted-foreground">Ansluten. Se inställningar under <span className="font-medium text-foreground">Sonos</span>-sektionen nedan.</p>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              </div>
+            </SettingsSection>
+
             {/* ═══════════════ SYNK-FREKVENSER ═══════════════ */}
+            <CategorySeparator icon={RefreshCw} label="Synkronisering" />
+
             <SettingsSection
               icon={RefreshCw}
-              title="Synkronisering"
-              description="Frekvenser och manuell synk för alla datakällor"
+              title="Frekvenser"
+              description="Automatisk och manuell synk för alla datakällor"
             >
               <div className="space-y-1">
                 {/* Brewfather Quick */}
@@ -1268,228 +1495,6 @@ export default function Settings() {
                 {raptSyncing && raptSyncSteps.length > 0 && <SyncChecklist steps={raptSyncSteps} />}
               </div>
             </SettingsSection>
-
-            {/* ═══════════════ API-KOPPLINGAR ═══════════════ */}
-            <CategorySeparator icon={Cpu} label="Datakällor" />
-
-            {/* Brewfather */}
-            <Collapsible>
-              <div className="rounded-xl border bg-card/50 border-border p-4">
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                      <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                        <Beer className="h-4 w-4 text-primary" />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold">Brewfather</span>
-                    {apiSettings?.brewfather?.configured ? (
-                      <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
-                        <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
-                        <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
-                      </Badge>
-                    )}
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4 space-y-3">
-                  {apiSettings?.brewfather && (
-                    <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">User ID:</span>
-                        <span className="font-mono">{apiSettings.brewfather.userId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">API-nyckel:</span>
-                        <span className="font-mono">{apiSettings.brewfather.apiKey}</span>
-                      </div>
-                    </div>
-                  )}
-                  <SettingsDivider />
-                  <div className="space-y-3">
-                    <span className="text-xs font-medium text-muted-foreground">Automatisk hantering</span>
-                    <div className="grid gap-2 grid-cols-2">
-                      <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                        <Checkbox id="auto-activate-fermenting" checked={autoActivateFermenting}
-                          onCheckedChange={(checked) => handleAutoSettingChange('auto_activate_fermenting', !!checked)} />
-                        <label htmlFor="auto-activate-fermenting" className="text-[11px] cursor-pointer">Visa nya jäsande</label>
-                      </div>
-                      <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                        <Checkbox id="auto-hide-completed" checked={autoHideCompleted}
-                          onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_completed', !!checked)} />
-                        <label htmlFor="auto-hide-completed" className="text-[11px] cursor-pointer">Dölj klara</label>
-                      </div>
-                      <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                        <Checkbox id="auto-hide-conditioning" checked={autoHideConditioning}
-                          onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_conditioning', !!checked)} />
-                        <label htmlFor="auto-hide-conditioning" className="text-[11px] cursor-pointer">Dölj konditionerade</label>
-                      </div>
-                      <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                        <Checkbox id="auto-hide-archived" checked={autoHideArchived}
-                          onCheckedChange={(checked) => handleAutoSettingChange('auto_hide_archived', !!checked)} />
-                        <label htmlFor="auto-hide-archived" className="text-[11px] cursor-pointer">Dölj arkiverade</label>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                    onClick={() => {
-                      toast({
-                        title: "⚠️ Varning",
-                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas. Be AI-assistenten att uppdatera dina Brewfather-uppgifter.",
-                        variant: "destructive",
-                      });
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" /> Ändra API-uppgifter
-                  </button>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-
-            {/* RAPT */}
-            <Collapsible>
-              <div className="rounded-xl border bg-card/50 border-border p-4">
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                      <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                        <Cloud className="h-4 w-4 text-primary" />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold">RAPT</span>
-                    {apiSettings?.rapt?.configured ? (
-                      <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
-                        <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
-                        <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
-                      </Badge>
-                    )}
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4 space-y-3">
-                  {apiSettings?.rapt && (
-                    <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Användarnamn:</span>
-                        <span className="font-mono">{apiSettings.rapt.username}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">API-nyckel:</span>
-                        <span className="font-mono">{apiSettings.rapt.apiSecret}</span>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                    onClick={() => {
-                      toast({
-                        title: "⚠️ Varning",
-                        description: "Om du ändrar API-uppgifterna kommer synkroniseringen att brytas. Be AI-assistenten att uppdatera dina RAPT-uppgifter.",
-                        variant: "destructive",
-                      });
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" /> Ändra API-uppgifter
-                  </button>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-
-
-            {/* Brygg-timer */}
-
-            {/* Brygg-timer */}
-            <Collapsible>
-              <div className="rounded-xl border bg-card/50 border-border p-4">
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                      <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                        <Timer className="h-4 w-4 text-primary" />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold">Brygg-timer</span>
-                    {isExternalAuthenticated ? (
-                      <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
-                        <Check className="h-2.5 w-2.5 mr-0.5" /> Ansluten
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground px-1.5 py-0">
-                        Ej ansluten
-                      </Badge>
-                    )}
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4 space-y-3">
-                  {externalLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <RefreshCw className="h-3 w-3 animate-spin" /> Laddar...
-                    </div>
-                  ) : isExternalAuthenticated ? (
-                    <>
-                      <div className="text-xs p-3 rounded-lg bg-muted/30 border border-border/40">
-                        <span className="text-muted-foreground">Ansluten som:</span>{' '}
-                        <span className="font-mono">{externalUser?.email}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/40">
-                        <div className="flex items-center gap-2">
-                          <Tv className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs">Bara i TV-läge</span>
-                        </div>
-                        <Switch checked={timerTvModeOnly} disabled={settingsLoading} onCheckedChange={setTimerTvModeOnly} />
-                      </div>
-                      <button
-                        className="text-[11px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
-                        onClick={() => {
-                          if (confirm('Vill du koppla från timer-kontot?')) externalSignOut();
-                        }}
-                      >
-                        <LogOut className="h-3 w-3" /> Koppla från
-                      </button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" className="text-xs" onClick={() => setExternalLoginDialogOpen(true)}>
-                      Anslut timer-konto
-                    </Button>
-                  )}
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-
-            {/* Sonos - just connection status under Datakällor */}
-            <Collapsible>
-              <div className="rounded-xl border bg-card/50 border-border p-4">
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                      <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                        <Music className="h-4 w-4 text-primary" />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold">Sonos</span>
-                    <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
-                      <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                    </Badge>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4">
-                  <p className="text-xs text-muted-foreground">Ansluten. Se inställningar under <span className="font-medium text-foreground">Sonos</span>-sektionen nedan.</p>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
 
             {/* ═══════════════ SONOS INSTÄLLNINGAR ═══════════════ */}
             <CategorySeparator icon={Music} label="Sonos" />
