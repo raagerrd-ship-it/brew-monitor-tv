@@ -1249,11 +1249,13 @@ export type Database = {
           full_sync_interval: number | null
           id: string
           last_full_sync_at: string | null
+          last_rapt_full_sync_at: string | null
           last_rapt_quick_sync_at: string | null
           last_rapt_sync_at: string | null
           last_successful_rapt_sync_at: string | null
           last_sync_at: string | null
           last_sync_time: string | null
+          rapt_full_sync_interval: number
           rapt_sync_interval: number
           show_fps_counter: boolean
           splash_delay_ms: number
@@ -1270,11 +1272,13 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
+          last_rapt_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
+          rapt_full_sync_interval?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
@@ -1291,11 +1295,13 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
+          last_rapt_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
           last_sync_at?: string | null
           last_sync_time?: string | null
+          rapt_full_sync_interval?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
