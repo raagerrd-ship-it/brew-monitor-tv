@@ -1964,11 +1964,8 @@ export default function Settings() {
               </label>
             </div>
 
-            {pillCompEnabled && (
-              <div className="ml-6">
-                <LearnedCompensationBaselines />
-              </div>
-            )}
+
+
 
             <CategorySeparator icon={FlaskConical} label="Profiler" />
 
