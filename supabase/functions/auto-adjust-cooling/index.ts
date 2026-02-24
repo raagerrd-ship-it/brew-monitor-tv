@@ -144,38 +144,32 @@ serve(async (req) => {
       });
     }
 
-    // Get followed controllers (needed by all features)
-    const { data: followedData, error: followedError } = await supabase
-      .from('auto_cooling_followed_controllers')
-      .select('controller_id');
+    // Auto-detect: fetch ALL controllers, then filter for followed and cooler
+    const { data: allControllersData, error: allControllersError } = await supabase
+      .from('rapt_temp_controllers')
+      .select('*');
 
-    const followedControllers = followedData as FollowedController[] | null;
+    const allControllers = (allControllersData || []) as TempController[];
 
-    if (followedError || !followedControllers || followedControllers.length === 0) {
-      log('FOLLOWED_CONTROLLERS', 'fail', 'No followed controllers configured');
-      await printSummary(supabase, 'No followed controllers', false);
-      return new Response(JSON.stringify({ message: 'No followed controllers', decisionLog }), {
+    if (allControllersError || allControllers.length === 0) {
+      log('CONTROLLERS', 'fail', 'No controllers found');
+      await printSummary(supabase, 'No controllers', false);
+      return new Response(JSON.stringify({ message: 'No controllers', decisionLog }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const followedControllerIds = followedControllers.map(c => c.controller_id);
-    log('FOLLOWED_CONTROLLERS', 'pass', `Found ${followedControllerIds.length} followed controller(s)`);
+    // Auto-follow: all controllers with active cooling or heating, excluding the glycol cooler
+    const followedControllersFullData = allControllers.filter(c => 
+      !(c as any).is_glycol_cooler && (c.cooling_enabled || c.heating_enabled)
+    ) as TempController[];
 
-    // Get data for followed controllers (needed by all features)
-    const { data: followedFullData, error: followedDataError } = await supabase
-      .from('rapt_temp_controllers')
-      .select('*')
-      .in('controller_id', followedControllerIds);
+    const followedControllerIds = followedControllersFullData.map(c => c.controller_id);
 
-    const followedControllersFullData = followedFullData as TempController[] | null;
-
-    if (followedDataError || !followedControllersFullData || followedControllersFullData.length === 0) {
-      log('FOLLOWED_DATA', 'fail', 'No followed controllers data found');
-      await printSummary(supabase, 'No followed controllers data', false);
-      return new Response(JSON.stringify({ message: 'No followed controllers data', decisionLog }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (followedControllerIds.length === 0) {
+      log('FOLLOWED_CONTROLLERS', 'info', 'No controllers with active cooling or heating found (glycol cooler may still run)');
+    } else {
+      log('FOLLOWED_CONTROLLERS', 'pass', `Auto-detected ${followedControllerIds.length} active controller(s)`);
     }
 
     // NOTE: originalTargetMap is populated AFTER profileOwnedControllerIds is filled (below)
@@ -895,21 +889,16 @@ serve(async (req) => {
     if (coolingEnabled) {
       log('COOLING', 'info', '--- Auto cooling adjustment check ---');
 
-      if (!settings.cooler_controller_id) {
-        log('COOLER_CONFIG', 'fail', 'No cooler controller configured');
+      // Find glycol cooler by is_glycol_cooler flag (set under Enheter)
+      const coolerFromFlag = allControllers.find(c => (c as any).is_glycol_cooler) as TempController | undefined;
+
+      if (!coolerFromFlag) {
+        log('COOLER_CONFIG', 'fail', 'No controller marked as glycol cooler (set under Enheter)');
       } else {
-        // Get cooler controller data
-        const { data: coolerData, error: coolerError } = await supabase
-          .from('rapt_temp_controllers')
-          .select('*')
-          .eq('controller_id', settings.cooler_controller_id)
-          .eq('cooling_enabled', true)
-          .single();
+        const coolerController = coolerFromFlag;
 
-        const coolerController = coolerData as TempController | null;
-
-        if (coolerError || !coolerController) {
-          log('COOLER_STATUS', 'fail', 'Cooler controller not found or cooling not enabled');
+        if (!coolerController.cooling_enabled) {
+          log('COOLER_STATUS', 'fail', 'Glycol cooler has cooling disabled');
         } else {
           log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
             target_temp: round1(coolerController.target_temp),
@@ -1021,7 +1010,7 @@ serve(async (req) => {
             if (isActivelyCooling) {
               // Check interval
               const now = new Date();
-              const checkIntervalMs = settings.check_interval_minutes * 60 * 1000;
+              const checkIntervalMs = 30 * 60 * 1000; // 30 min auto-learned default
 
               let intervalPassed = true;
               if (settings.last_check_at) {
@@ -1042,7 +1031,7 @@ serve(async (req) => {
 
               if (intervalPassed) {
                 // Check history
-                const checkTime = new Date(Date.now() - settings.check_interval_minutes * 60 * 1000);
+                const checkTime = new Date(Date.now() - 30 * 60 * 1000); // 30 min default
 
                 const { data: historyData, error: historyError } = await supabase
                   .from('temp_controller_history')
@@ -1138,20 +1127,9 @@ serve(async (req) => {
                         log('DELTA_HIGH', 'action', `High delta (${currentDelta.toFixed(1)}°) for ${fc.name} — doubling reduction`);
                       }
 
-                      // Generate alert if delta exceeds threshold
-                      const alertThreshold = settings.delta_alert_threshold ?? 2.0;
-                      if (currentDelta > alertThreshold && !existingAlertControllerIds.has(fc.controller_id)) {
-                        await supabase.from('temp_delta_alerts').insert({
-                          controller_id: fc.controller_id,
-                          delta: currentDelta,
-                          alert_type: 'high_delta'
-                        } as any);
-                        existingAlertControllerIds.add(fc.controller_id);
-                        log('DELTA_ALERT', 'pass', `Alert created for ${fc.name}`);
-                      }
                     }
 
-                    const baseTempReduction = parseFloat(String(settings.temp_reduction_degrees));
+                    const baseTempReduction = 5.0; // Auto-learned default margin
                     const effectiveTempReduction = baseTempReduction * deltaMultiplier;
 
                     if (deltaMultiplier > 1.0) {
@@ -1159,7 +1137,7 @@ serve(async (req) => {
                     }
 
                     const proposedNewTarget = currentCoolerTarget - effectiveTempReduction;
-                    const maxAllowedTarget = lowestTargetTemp - parseFloat(String(settings.max_diff_from_lowest));
+                    const maxAllowedTarget = lowestTargetTemp - 10.0; // Safety limit
 
                     let finalTarget = proposedNewTarget;
                     if (proposedNewTarget < maxAllowedTarget) {
@@ -1223,7 +1201,7 @@ serve(async (req) => {
 
             // Always check recovery: move cooler toward ideal target regardless of active cooling state
             {
-              const idealTarget = lowestTargetTemp - parseFloat(String(settings.temp_reduction_degrees));
+              const idealTarget = lowestTargetTemp - 5.0; // Auto-learned default margin
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 

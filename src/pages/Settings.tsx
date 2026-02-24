@@ -90,8 +90,10 @@ export default function Settings() {
     pill_temp: number | null,
     target_temp: number | null,
     cooling_enabled: boolean | null,
+    heating_enabled: boolean | null,
     cooling_hysteresis: number | null,
-    linked_pill_id: string | null
+    linked_pill_id: string | null,
+    is_glycol_cooler: boolean
   }>>([]);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [lastAdjustment, setLastAdjustment] = useState<{
@@ -145,15 +147,9 @@ export default function Settings() {
   }, [apiSettings]);
 
   const automationTabStatus = useMemo(() => {
-    if (!autoCoolingEnabled) return null;
-    const issues: string[] = [];
-    if (!coolerControllerId) issues.push('no-cooler');
-    if (followedControllerIds.length === 0) issues.push('no-followed');
-    if (issues.length > 0) {
-      return { type: 'warning' as const, count: issues.length };
-    }
+    // No configuration warnings needed - system auto-detects cooler and followed controllers
     return null;
-  }, [autoCoolingEnabled, coolerControllerId, followedControllerIds]);
+  }, []);
 
   const devicesTabStatus = useMemo(() => {
     const total = visiblePillsCount + visibleControllersCount;
@@ -193,6 +189,16 @@ export default function Settings() {
   );
 
   const headerPills = headerPillsData;
+
+  // Auto-derive cooler and followed controllers from available controllers data
+  useEffect(() => {
+    const cooler = availableControllers.find(c => c.is_glycol_cooler);
+    setCoolerControllerId(cooler?.id || "");
+    const followed = availableControllers
+      .filter(c => !c.is_glycol_cooler && (c.cooling_enabled || c.heating_enabled))
+      .map(c => c.id);
+    setFollowedControllerIds(followed);
+  }, [availableControllers]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -354,18 +360,7 @@ export default function Settings() {
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'auto_cooling_followed_controllers'
-        },
-        (payload) => {
-          console.log('Followed controllers updated:', payload);
-          loadAutoCoolingSettings();
-        }
-      )
+      
       .subscribe();
     
     return () => {
@@ -435,23 +430,8 @@ export default function Settings() {
         setAutoCoolingInterval(data.check_interval_minutes.toString());
         setTempReduction(data.temp_reduction_degrees.toString());
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
-        setCoolerControllerId(data.cooler_controller_id || "");
+        // coolerControllerId and followedControllerIds are now derived from availableControllers
         setLastAutoCoolingCheck(data.last_check_at);
-        setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
-        setPillCompEmergencyThreshold(parseFloat(String((data as any).pill_compensation_emergency_threshold ?? 3.0)).toString());
-        setPillCompMaxCompensation(parseFloat(String((data as any).pill_compensation_max_compensation ?? 5.0)).toString());
-        setStallDetectionEnabled((data as any).auto_boost_enabled ?? false);
-        setStallBoostDegrees(parseFloat(String((data as any).auto_boost_degrees ?? 1.0)).toString());
-      }
-
-      // Load followed controllers
-      const { data: followedData, error: followedError } = await supabase
-        .from('auto_cooling_followed_controllers')
-        .select('controller_id');
-
-      if (!followedError && followedData) {
-        setFollowedControllerIds(followedData.map(f => f.controller_id));
-      }
 
       // Load last adjustment
       const { data: adjData } = await supabase
@@ -478,7 +458,7 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, cooling_hysteresis, linked_pill_id')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id')
           .in('controller_id', controllerIds);
 
         if (controllers) {
@@ -490,8 +470,10 @@ export default function Settings() {
             pill_temp: c.pill_temp,
             target_temp: c.target_temp,
             cooling_enabled: c.cooling_enabled,
+            heating_enabled: c.heating_enabled,
             cooling_hysteresis: c.cooling_hysteresis,
-            linked_pill_id: c.linked_pill_id
+            linked_pill_id: c.linked_pill_id,
+            is_glycol_cooler: (c as any).is_glycol_cooler ?? false
           })));
         }
       }
@@ -1939,11 +1921,11 @@ export default function Settings() {
               </SettingsSection>
             )}
 
-            {/* GLYCOL COOLER — Configuration (controllers + parameters in one card) */}
+            {/* GLYCOL COOLER — Simplified: just on/off */}
             <SettingsSection
               icon={Snowflake}
               title="Glykolkylare"
-              description="Välj vilken controller som är kylare och vilka jästankar den ska följa"
+              description="Reglerar glykolkylaren automatiskt baserat på jästankarnas behov"
             >
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -1955,158 +1937,40 @@ export default function Settings() {
                   htmlFor="auto-cooling-enabled"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Aktivera automatisk kylreglering (systemet lär sig optimala justeringar)
+                  Aktivera automatisk kylreglering
                 </label>
               </div>
 
               {autoCoolingEnabled && (
-                <div className="space-y-6">
-                  {/* CONTROLLERS */}
-                  <div className="space-y-3">
-                    <span className="settings-label">Hårdvara</span>
-                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Vilken controller styr kylaren?</label>
-                        <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Välj kylare..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            {availableControllers.map(controller => (
-                              <SelectItem key={controller.id} value={controller.id}>
-                                {controller.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Systemet hittar automatiskt vilken controller som är markerad som glykolkylare (under Enheter) 
+                    och följer alla jästankar med aktiv kyla eller värme. Kylmarginal och justeringshastighet 
+                    anpassas automatiskt baserat på hur systemet svarar.
+                  </p>
 
-                      {coolerControllerId && (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Vilka jästankar ska kylaren följa?</label>
-                          <div className="p-3 rounded-md bg-card border border-border space-y-2">
-                            {availableControllers
-                              .filter(c => c.id !== coolerControllerId)
-                              .map(controller => (
-                                <div key={controller.id} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`follow-${controller.id}`}
-                                    checked={followedControllerIds.includes(controller.id)}
-                                    onCheckedChange={(checked) => 
-                                      handleFollowedControllerToggle(controller.id, checked as boolean)
-                                    }
-                                  />
-                                  <label
-                                    htmlFor={`follow-${controller.id}`}
-                                    className="text-sm cursor-pointer"
-                                  >
-                                    {controller.name}
-                                  </label>
-                                </div>
-                              ))}
-                            {availableControllers.filter(c => c.id !== coolerControllerId).length === 0 && (
-                              <p className="text-xs text-muted-foreground italic">Inga andra controllers tillgängliga</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <SettingsDivider />
-
-                  {/* PARAMETERS */}
-                  <div className="space-y-3">
-                    <span className="settings-label">Begränsningar</span>
-                    <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Hur ofta ska systemet kontrollera?</label>
-                        <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="30">30 min</SelectItem>
-                            <SelectItem value="60">1 timme</SelectItem>
-                            <SelectItem value="90">1.5 tim</SelectItem>
-                            <SelectItem value="120">2 timmar</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Hur långt under lägsta tank ska kylaren ligga?</label>
-                        <Select value={tempReduction} onValueChange={handleTempReductionChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="1">1°</SelectItem>
-                            <SelectItem value="2">2°</SelectItem>
-                            <SelectItem value="3">3°</SelectItem>
-                            <SelectItem value="4">4°</SelectItem>
-                            <SelectItem value="5">5°</SelectItem>
-                            <SelectItem value="6">6°</SelectItem>
-                            <SelectItem value="8">8°</SelectItem>
-                            <SelectItem value="10">10°</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Hur kallt får kylvattnet bli?</label>
-                        <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="5">5°</SelectItem>
-                            <SelectItem value="7.5">7.5°</SelectItem>
-                            <SelectItem value="10">10°</SelectItem>
-                            <SelectItem value="12.5">12.5°</SelectItem>
-                            <SelectItem value="15">15°</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Varna om pill-delta överstiger</label>
-                        <Select value={deltaAlertThreshold} onValueChange={handleDeltaAlertThresholdChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="1">1°</SelectItem>
-                            <SelectItem value="1.5">1.5°</SelectItem>
-                            <SelectItem value="2">2°</SelectItem>
-                            <SelectItem value="2.5">2.5°</SelectItem>
-                            <SelectItem value="3">3°</SelectItem>
-                            <SelectItem value="5">5°</SelectItem>
-                          </SelectContent>
-                        </Select>
+                  {!coolerControllerId && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div className="text-muted-foreground">
+                        Ingen controller är markerad som glykolkylare. Gå till <span className="font-medium text-foreground">Enheter</span> och markera rätt controller.
                       </div>
                     </div>
+                  )}
 
-                     <p className="text-xs text-muted-foreground">
-                       Systemet justerar kylaren automatiskt baserat på jästankarnas behov. Du sätter bara begränsningarna för din hårdvara ovan.
-                     </p>
-                  </div>
-
-                  <SettingsDivider />
-
-                  {/* INFO - Glycol cooler */}
                   <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
                     <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
                       <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
                       <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
-                     <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                       <p>• Övervakar den tank med lägst måltemperatur bland dina valda jästankar</p>
-                       <p>• Om tanken inte når sitt mål inom kontrollintervallet sänks kylaren</p>
-                       <p>• Analyserar pill vs probe delta för att anpassa justeringshastigheten</p>
-                       <p>• Höjer kylaren automatiskt om den blivit onödigt kall</p>
-                       <p>• Sätter kylaren till viloläge (18°C) om ingen tank kyler aktivt</p>
-                     </CollapsibleContent>
+                    <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                      <p>• Följer automatiskt alla jästankar med aktiv kyla eller värme</p>
+                      <p>• Sätter kylarens mål baserat på den tank med lägst måltemperatur</p>
+                      <p>• Sänker kylaren om en tank kämpar med att nå sitt mål</p>
+                      <p>• Höjer kylaren automatiskt om den blivit onödigt kall</p>
+                      <p>• Sätter kylaren till viloläge (18°C) om ingen tank kyler aktivt</p>
+                      <p>• Respekterar alltid min/max-gränserna du satt under Enheter</p>
+                    </CollapsibleContent>
                   </Collapsible>
                 </div>
               )}

@@ -27,6 +27,7 @@ interface ControllerData {
   linked_pill_id: string | null;
   cooling_hysteresis: number | null;
   heating_hysteresis: number | null;
+  is_glycol_cooler: boolean;
 }
 
 interface SelectedController {
@@ -160,12 +161,15 @@ export function RaptControllersManagement() {
 
       if (controllersError) throw controllersError;
 
-      // Sort controllers by display_order
+      // Sort controllers by display_order and map is_glycol_cooler
       const sortedControllers = (controllersData || []).sort((a, b) => {
         const aIndex = selectedControllerIds.indexOf(a.controller_id);
         const bIndex = selectedControllerIds.indexOf(b.controller_id);
         return aIndex - bIndex;
-      });
+      }).map(c => ({
+        ...c,
+        is_glycol_cooler: (c as any).is_glycol_cooler ?? false,
+      })) as ControllerData[];
 
       setControllers(sortedControllers);
 
@@ -193,18 +197,9 @@ export function RaptControllersManagement() {
         setSyncInterval(syncData.rapt_sync_interval);
       }
 
-      // Load auto cooling settings to identify cooler controller
-      const { data: coolingData, error: coolingError } = await supabase
-        .from('auto_cooling_settings')
-        .select('cooler_controller_id')
-        .limit(1)
-        .maybeSingle();
-
-      if (coolingError) {
-        console.error('Error loading cooling settings:', coolingError);
-      } else if (coolingData?.cooler_controller_id) {
-        setCoolerControllerId(coolingData.cooler_controller_id);
-      }
+      // Identify cooler controller from is_glycol_cooler flag
+      const coolerCtrl = sortedControllers.find(c => c.is_glycol_cooler);
+      setCoolerControllerId(coolerCtrl?.controller_id || null);
 
       // Create a map of selected controllers
       const selectedMap: Record<string, boolean> = {};
@@ -452,6 +447,61 @@ export function RaptControllersManagement() {
     }
   };
 
+  const handleToggleCooler = async (controllerId: string) => {
+    const isCurrentlyCooler = coolerControllerId === controllerId;
+    const newValue = !isCurrentlyCooler;
+    
+    setUpdating(true);
+    try {
+      isLocalChange.current = true;
+      
+      // Clear any existing cooler flag
+      if (newValue) {
+        await supabase
+          .from('rapt_temp_controllers')
+          .update({ is_glycol_cooler: false } as any)
+          .neq('controller_id', controllerId);
+      }
+      
+      // Set the flag on this controller
+      await supabase
+        .from('rapt_temp_controllers')
+        .update({ is_glycol_cooler: newValue } as any)
+        .eq('controller_id', controllerId);
+      
+      // Also update auto_cooling_settings for backward compat
+      const { data: settings } = await supabase
+        .from('auto_cooling_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+      
+      if (settings) {
+        await supabase
+          .from('auto_cooling_settings')
+          .update({ cooler_controller_id: newValue ? controllerId : null })
+          .eq('id', settings.id);
+      }
+      
+      setCoolerControllerId(newValue ? controllerId : null);
+      loadData();
+      
+      toast({
+        title: newValue ? "Glykolkylare markerad" : "Glykolkylare avmarkerad",
+        description: `${controllers.find(c => c.controller_id === controllerId)?.name}`,
+      });
+    } catch (error) {
+      console.error('Error toggling cooler:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte uppdatera kylare-status",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // Get pills that are already linked to other controllers
   const getLinkedPillIds = (excludeControllerId: string): string[] => {
     return controllers
@@ -516,12 +566,18 @@ export function RaptControllersManagement() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-semibold break-words">{controller.name}</h4>
-                      {isCooler && (
-                        <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
-                          <Snowflake className="h-3 w-3 mr-1" />
-                          Glykolkylare
-                        </Badge>
-                      )}
+                      <Badge 
+                        variant="secondary" 
+                        className={`text-xs cursor-pointer transition-colors ${
+                          isCooler 
+                            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/30' 
+                            : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted'
+                        }`}
+                        onClick={() => handleToggleCooler(controller.controller_id)}
+                      >
+                        <Snowflake className="h-3 w-3 mr-1" />
+                        {isCooler ? 'Glykolkylare ✓' : 'Kylare?'}
+                      </Badge>
                     </div>
                     {controller.last_update && (
                       <p className="text-xs text-muted-foreground mt-0.5">

@@ -781,6 +781,7 @@ export type Database = {
           heating_starts: number | null
           heating_utilisation: number | null
           id: string
+          is_glycol_cooler: boolean
           last_update: string | null
           linked_pill_id: string | null
           max_target_temp: number | null
@@ -804,6 +805,7 @@ export type Database = {
           heating_starts?: number | null
           heating_utilisation?: number | null
           id?: string
+          is_glycol_cooler?: boolean
           last_update?: string | null
           linked_pill_id?: string | null
           max_target_temp?: number | null
@@ -827,6 +829,7 @@ export type Database = {
           heating_starts?: number | null
           heating_utilisation?: number | null
           id?: string
+          is_glycol_cooler?: boolean
           last_update?: string | null
           linked_pill_id?: string | null
           max_target_temp?: number | null
