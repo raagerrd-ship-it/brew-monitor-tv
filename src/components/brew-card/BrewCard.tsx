@@ -6,7 +6,8 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText } from "lucide-react";
+import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText } from "./utils";
@@ -214,6 +215,23 @@ function BrewCardComponent({
                       <Printer className="h-3.5 w-3.5" />
                       Skriv ut etikett
                     </button>
+                    {isCompletedOrConditioning && (
+                      <div onClick={() => setMenuOpen(false)}>
+                        <BatchReportButton
+                          brewId={brew.id}
+                          brewName={brew.name}
+                          style={brew.style}
+                          og={brew.originalGravity}
+                          fg={brew.finalGravity}
+                          abv={brew.abv}
+                          attenuation={brew.attenuation}
+                          batchNumber={brew.batchNumber}
+                          fermentationStart={brew.fermentationStart ?? null}
+                          status={brew.status}
+                          controllerId={brew.linked_controller_id ?? null}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

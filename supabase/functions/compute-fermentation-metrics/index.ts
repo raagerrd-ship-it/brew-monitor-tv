@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { insertNotification } from "../_shared/notifications.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
     // Get all actively fermenting brews
     const { data: brews } = await supabase
       .from('brew_readings')
-      .select('id, sg_data, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation')
+      .select('id, name, sg_data, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation, style')
       .in('status', ['Fermenting', 'Jäsning']);
 
     if (!brews || brews.length === 0) {
@@ -196,6 +197,39 @@ Deno.serve(async (req) => {
 
       const readyToCrash = sgStable48h && currentAtt > 70 && activityScore < 15 && phase === 'stationary';
 
+      // === Predicted SG curve ===
+      // Exponential decay model: SG(t) = FG + (OG - FG) * e^(-k*t)
+      const styleLower = (brew.style || '').toLowerCase();
+      let k = 0.015; // default
+      if (styleLower.includes('lager') || styleLower.includes('pilsner')) k = 0.01;
+      else if (styleLower.includes('saison') || styleLower.includes('belgian')) k = 0.025;
+      else if (styleLower.includes('ipa') || styleLower.includes('ale')) k = 0.02;
+
+      // Adapt k from actual data if enough points
+      if (sgData.length >= 6 && og > fg) {
+        const midIdx = Math.floor(sgData.length / 2);
+        const midPoint = [...sgData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[midIdx];
+        const midHours = (new Date(midPoint.date).getTime() - fermentationStartMs) / (1000 * 60 * 60);
+        const midSg = midPoint.value;
+        if (midHours > 6 && midSg < og && midSg > fg) {
+          const ratio = (midSg - fg) / (og - fg);
+          if (ratio > 0.01 && ratio < 1) {
+            const adaptedK = -Math.log(ratio) / midHours;
+            k = k * 0.3 + adaptedK * 0.7; // blend
+          }
+        }
+      }
+
+      // Generate 8 points from start to start + 30 days
+      const predictedSgCurve: { date: string; sg: number }[] = [];
+      const maxHours = 720; // 30 days
+      for (let i = 0; i < 8; i++) {
+        const t = (i / 7) * maxHours;
+        const predictedSg = fg + (og - fg) * Math.exp(-k * t);
+        const pointDate = new Date(fermentationStartMs + t * 60 * 60 * 1000).toISOString();
+        predictedSgCurve.push({ date: pointDate, sg: Math.round(predictedSg * 10000) / 10000 });
+      }
+
       upserts.push({
         brew_id: brew.id,
         fermentation_phase: phase,
@@ -205,6 +239,7 @@ Deno.serve(async (req) => {
         peak_delta: peakDelta,
         ready_to_crash: readyToCrash,
         ready_to_crash_at: readyToCrash ? new Date().toISOString() : null,
+        predicted_sg_curve: predictedSgCurve,
         updated_at: new Date().toISOString(),
       });
     }
@@ -245,7 +280,18 @@ Deno.serve(async (req) => {
                 message: 'Redo för cold crash - SG stabil, låg aktivitet',
               },
             });
+
+            // Find brew name for notification
+            const brew = brews!.find(b => b.id === rb.brew_id);
+            await insertNotification(supabase, {
+              type: 'ready_to_crash',
+              title: 'Redo för cold crash',
+              body: `${brew?.name ?? 'Bryggning'} — SG stabil, aktivitet ${rb.activity_score}%`,
+              brew_id: rb.brew_id,
+            });
+
             console.log(`🧊 READY_TO_CRASH logged for brew ${rb.brew_id}`);
+          }
           }
         }
       }

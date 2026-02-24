@@ -7,6 +7,7 @@ import {
   loadPillCompSettings,
   PillCompensationSettings,
 } from '../_shared/temp-utils.ts'
+import { insertNotification } from '../_shared/notifications.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -235,6 +236,15 @@ Deno.serve(async (req) => {
           step_index: session.current_step_index,
           action: 'completed',
           details: { message: 'Profile completed' },
+        })
+
+        // Notification for profile completion
+        await insertNotification(supabase, {
+          type: 'profile_completed',
+          title: 'Fermenteringsprofil klar',
+          body: `Controller ${session.controller_id} har slutfört sin profil`,
+          controller_id: session.controller_id,
+          brew_id: session.brew_id,
         })
 
         // === Learn from completed fermentation ===

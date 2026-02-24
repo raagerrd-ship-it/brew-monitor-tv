@@ -4,6 +4,7 @@ export const CHART_MARGINS = { top: 20, right: -10, left: -20, bottom: 5 };
 // Colors using CSS variables
 export const COLORS = {
   sg: "hsl(var(--beer-amber))",
+  predictedSg: "hsl(var(--beer-amber) / 0.35)",
   temp: "hsl(var(--temp-blue))",
   tempFaint: "hsl(var(--temp-blue) / 0.3)",
   tempFill: "hsl(var(--temp-blue) / 0.08)",
