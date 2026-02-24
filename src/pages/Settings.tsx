@@ -1849,17 +1849,22 @@ export default function Settings() {
               </SettingsSection>
             )}
 
-            <CategorySeparator icon={Brain} label="Inlärning" />
-
-            <SettingsSection
-              icon={Brain}
-              title="Inlärda värden"
-              description="Systemets inlärda parametrar per controller"
-            >
-              <LearnedStallBoostValues />
-              <SettingsDivider />
-              <LearnedCompensationBaselines />
-            </SettingsSection>
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="w-full cursor-pointer">
+                <CategorySeparator icon={Brain} label="Inlärning" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SettingsSection
+                  icon={Brain}
+                  title="Inlärda värden"
+                  description="Systemets inlärda parametrar per controller"
+                >
+                  <LearnedStallBoostValues />
+                  <SettingsDivider />
+                  <LearnedCompensationBaselines />
+                </SettingsSection>
+              </CollapsibleContent>
+            </Collapsible>
 
             <CategorySeparator icon={FlaskConical} label="Profiler" />
 
