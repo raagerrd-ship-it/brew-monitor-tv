@@ -1480,6 +1480,9 @@ export default function Settings() {
                       </div>
                     </div>
                     <span className="text-sm font-semibold">Sonos</span>
+                    <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                      <Check className="h-2.5 w-2.5 mr-0.5" /> OK
+                    </Badge>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
                 </CollapsibleTrigger>
