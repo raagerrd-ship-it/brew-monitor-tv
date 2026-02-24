@@ -250,7 +250,7 @@ export function calculateFermentationTrend(
     const first = data[0];
     const last = data[data.length - 1];
     const hours = (new Date(last.date).getTime() - new Date(first.date).getTime()) / (1000 * 60 * 60);
-    if (hours < 0.5) return null;
+    if (hours < 1) return null; // Need at least 1h of data for reliable rate
     return ((first.value - last.value) / hours) * 24;
   };
 
@@ -264,10 +264,10 @@ export function calculateFermentationTrend(
   const rate12h = calcRate(prev6h);
 
   let trend: 'rising' | 'falling' | 'stable' | null = null;
-  if (rate6h !== null && rate12h !== null && rate12h > 0.0005) {
+  if (rate6h !== null && rate12h !== null && rate12h > 0.001 && rate6h > 0.001) {
     const ratio = rate6h / rate12h;
-    if (ratio > 1.2) trend = 'rising';
-    else if (ratio < 0.8) trend = 'falling';
+    if (ratio > 1.3) trend = 'rising';
+    else if (ratio < 0.7) trend = 'falling';
     else trend = 'stable';
   } else if (rate6h !== null) {
     trend = 'stable';
