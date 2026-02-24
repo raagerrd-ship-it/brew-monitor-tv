@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_audit_log: {
+        Row: {
+          actions_taken: Json
+          analysis: string
+          anomalies_detected: Json
+          created_at: string
+          duration_ms: number
+          id: string
+          model: string
+          parameters_changed: Json
+          prompt_summary: string | null
+          recommendations: Json
+        }
+        Insert: {
+          actions_taken?: Json
+          analysis: string
+          anomalies_detected?: Json
+          created_at?: string
+          duration_ms?: number
+          id?: string
+          model?: string
+          parameters_changed?: Json
+          prompt_summary?: string | null
+          recommendations?: Json
+        }
+        Update: {
+          actions_taken?: Json
+          analysis?: string
+          anomalies_detected?: Json
+          created_at?: string
+          duration_ms?: number
+          id?: string
+          model?: string
+          parameters_changed?: Json
+          prompt_summary?: string | null
+          recommendations?: Json
+        }
+        Relationships: []
+      }
       auto_cooling_adjustments: {
         Row: {
           adjusted_against_timestamp: string | null
