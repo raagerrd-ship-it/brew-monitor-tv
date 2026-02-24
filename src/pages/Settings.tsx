@@ -1940,6 +1940,17 @@ export default function Settings() {
               )}
             </div>
 
+            <div className="flex items-center space-x-2 py-1">
+              <Checkbox 
+                id="stall-detection-enabled"
+                checked={stallDetectionEnabled}
+                onCheckedChange={handleStallDetectionEnabledChange}
+              />
+              <label htmlFor="stall-detection-enabled" className="text-sm cursor-pointer leading-none">
+                <AlertTriangle className="inline h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                Stall-detektering
+              </label>
+            </div>
 
             <div className="flex items-center space-x-2 py-1">
               <Checkbox 
@@ -1970,37 +1981,6 @@ export default function Settings() {
                   </Select>
                 </div>
                 <LearnedCompensationBaselines />
-              </div>
-            )}
-
-            <div className="flex items-center space-x-2 py-1">
-              <Checkbox 
-                id="stall-detection-enabled"
-                checked={stallDetectionEnabled}
-                onCheckedChange={handleStallDetectionEnabledChange}
-              />
-              <label htmlFor="stall-detection-enabled" className="text-sm cursor-pointer leading-none">
-                <AlertTriangle className="inline h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                Stall-detektering
-              </label>
-            </div>
-
-            {stallDetectionEnabled && (
-              <div className="ml-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Höjning vid stall:</span>
-                  <Select value={stallBoostDegrees} onValueChange={handleStallBoostDegreesChange}>
-                    <SelectTrigger className="w-32 h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0.5">+0.5°C</SelectItem>
-                      <SelectItem value="1">+1.0°C</SelectItem>
-                      <SelectItem value="1.5">+1.5°C</SelectItem>
-                      <SelectItem value="2">+2.0°C</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             )}
 
