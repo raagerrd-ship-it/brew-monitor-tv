@@ -546,7 +546,7 @@ serve(async (req) => {
         // Need a linked brew to get SG data
         const { data: brewLink } = await supabase
           .from('brew_readings')
-          .select('id, sg_data, original_gravity, final_gravity, status')
+          .select('id, name, sg_data, original_gravity, final_gravity, status')
           .eq('linked_controller_id', fc.controller_id)
           .in('status', ['Fermenting', 'Jäsning'])
           .limit(1)
@@ -559,8 +559,13 @@ serve(async (req) => {
 
         // Parse SG data and calculate rate
         const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number; temp: number }>;
+        const brewName = (brewLink as any).name ?? brewLink.id;
+        const brewOg = parseFloat(String(brewLink.original_gravity ?? 0));
+        const brewFg = parseFloat(String(brewLink.final_gravity ?? 0));
+
         if (sgData.length < 3) {
-          log('STALL_SKIP', 'info', `${fc.name}: För lite SG-data (${sgData.length} punkter)`);
+          const latestSgVal = sgData.length > 0 ? sgData[sgData.length - 1]?.value ?? sgData[0]?.value : null;
+          log('STALL_SKIP', 'info', `${fc.name}: För lite SG-data (${sgData.length} punkter) — Öl: ${brewName}, SG=${latestSgVal?.toFixed(4) ?? '?'}, OG=${brewOg.toFixed(3)}, FG=${brewFg.toFixed(3)}`);
           continue;
         }
 
@@ -573,7 +578,9 @@ serve(async (req) => {
         const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twentyFourHoursAgo);
         
         if (recentSg.length < 2) {
-          log('STALL_SKIP', 'info', `${fc.name}: Inte tillräckligt med SG-data senaste 24h (${recentSg.length} punkter)`);
+          const latestSg = sortedSg[0];
+          const latestAgeHours = ((now - new Date(latestSg.date).getTime()) / (1000 * 60 * 60)).toFixed(1);
+          log('STALL_SKIP', 'info', `${fc.name}: Inte tillräckligt med SG-data senaste 24h (${recentSg.length} av ${sgData.length} punkter) — Öl: ${brewName}, senaste SG=${latestSg.value.toFixed(4)} (${latestAgeHours}h sedan), OG=${brewOg.toFixed(3)}, FG=${brewFg.toFixed(3)}`);
           continue;
         }
 
