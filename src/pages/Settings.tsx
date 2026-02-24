@@ -77,14 +77,11 @@ export default function Settings() {
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
   const [pillCompEnabled, setPillCompEnabled] = useState(true);
-  const [pillCompDamping, setPillCompDamping] = useState<string>("0.4");
-  const [pillCompRateLimit, setPillCompRateLimit] = useState<string>("0.8");
   const [pillCompEmergencyThreshold, setPillCompEmergencyThreshold] = useState<string>("3.0");
-  const [pillCompMinScale, setPillCompMinScale] = useState<string>("0.15");
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   const [stallDetectionEnabled, setStallDetectionEnabled] = useState(false);
   const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
-  const [stallRateThreshold, setStallRateThreshold] = useState<string>("0.001");
+  
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
     controller_id: string,
@@ -441,15 +438,10 @@ export default function Settings() {
         setCoolerControllerId(data.cooler_controller_id || "");
         setLastAutoCoolingCheck(data.last_check_at);
         setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
-        setPillCompEnabled((data as any).pill_compensation_enabled ?? true);
-        setPillCompDamping(parseFloat(String((data as any).pill_compensation_damping ?? 0.4)).toString());
-        setPillCompRateLimit(parseFloat(String((data as any).pill_compensation_rate_limit ?? 0.8)).toString());
         setPillCompEmergencyThreshold(parseFloat(String((data as any).pill_compensation_emergency_threshold ?? 3.0)).toString());
-        setPillCompMinScale(parseFloat(String((data as any).pill_compensation_min_scale ?? 0.15)).toString());
         setPillCompMaxCompensation(parseFloat(String((data as any).pill_compensation_max_compensation ?? 5.0)).toString());
         setStallDetectionEnabled((data as any).auto_boost_enabled ?? false);
         setStallBoostDegrees(parseFloat(String((data as any).auto_boost_degrees ?? 1.0)).toString());
-        setStallRateThreshold(parseFloat(String((data as any).stall_rate_threshold ?? 0.001)).toString());
       }
 
       // Load followed controllers
@@ -979,53 +971,6 @@ export default function Settings() {
     }
   };
 
-  const handlePillCompDampingChange = async (value: string) => {
-    setPillCompDamping(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ pill_compensation_damping: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Anticipation-fönster uppdaterat" });
-    } catch (error) {
-      console.error('Error updating pill comp damping:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handlePillCompRateLimitChange = async (value: string) => {
-    setPillCompRateLimit(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ pill_compensation_rate_limit: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Rate-limit uppdaterad" });
-    } catch (error) {
-      console.error('Error updating pill comp rate limit:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
-
-  const handlePillCompMinScaleChange = async (value: string) => {
-    setPillCompMinScale(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ pill_compensation_min_scale: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "Min-skala uppdaterad" });
-    } catch (error) {
-      console.error('Error updating min scale:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
 
   const handlePillCompMaxCompensationChange = async (value: string) => {
     setPillCompMaxCompensation(value);
@@ -1075,21 +1020,6 @@ export default function Settings() {
     }
   };
 
-  const handleStallRateThresholdChange = async (value: string) => {
-    setStallRateThreshold(value);
-    try {
-      if (!autoCoolingSettingsId) return;
-      const { error } = await supabase
-        .from('auto_cooling_settings')
-        .update({ stall_rate_threshold: parseFloat(value) } as any)
-        .eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade", description: "SG-tröskelvärde uppdaterat" });
-    } catch (error) {
-      console.error('Error updating stall rate threshold:', error);
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  };
 
   const handleCoolerControllerChange = async (value: string) => {
     setCoolerControllerId(value);
@@ -2209,73 +2139,23 @@ export default function Settings() {
 
                 {pillCompEnabled && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Max ändring/cykel</label>
-                        <Select value={pillCompRateLimit} onValueChange={handlePillCompRateLimitChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.3">0.3°C (försiktig)</SelectItem>
-                            <SelectItem value="0.5">0.5°C</SelectItem>
-                            <SelectItem value="0.8">0.8°C (standard)</SelectItem>
-                            <SelectItem value="1.0">1.0°C (aggressiv)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Rate-limit min %</label>
-                        <Select value={pillCompMinScale} onValueChange={handlePillCompMinScaleChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.1">10% (mjuk)</SelectItem>
-                            <SelectItem value="0.15">15% (standard)</SelectItem>
-                            <SelectItem value="0.25">25% (snabbare)</SelectItem>
-                            <SelectItem value="0.5">50% (aggressiv)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Max kompensation</label>
-                        <Select value={pillCompMaxCompensation} onValueChange={handlePillCompMaxCompensationChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="3">3.0°C</SelectItem>
-                            <SelectItem value="5">5.0°C (standard)</SelectItem>
-                            <SelectItem value="7">7.0°C</SelectItem>
-                            <SelectItem value="10">10.0°C</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5 col-span-2">
-                        <label className="text-xs font-medium text-muted-foreground">D-term: Anticipation-fönster</label>
-                        <Select value={pillCompDamping} onValueChange={handlePillCompDampingChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.5">30 min (aggressiv dämpning)</SelectItem>
-                            <SelectItem value="1">60 min (standard)</SelectItem>
-                            <SelectItem value="1.5">90 min (försiktig)</SelectItem>
-                            <SelectItem value="2">120 min (mycket försiktig)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Max kompensation (säkerhetsgräns)</label>
+                      <Select value={pillCompMaxCompensation} onValueChange={handlePillCompMaxCompensationChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="3">3.0°C</SelectItem>
+                          <SelectItem value="5">5.0°C (standard)</SelectItem>
+                          <SelectItem value="7">7.0°C</SelectItem>
+                          <SelectItem value="10">10.0°C</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      PI(D)-loop: medelvärdet (pill+probe)/2 jämförs med profilmålet. P- och I-korrektion driver mot rätt temperatur, D-termen dämpar när ETA &lt; {parseFloat(pillCompDamping) * 60} min.
-                      Rate-limit: max {pillCompRateLimit}°C/cykel, min {parseFloat(pillCompMinScale) * 100}% nära mål. Max {pillCompMaxCompensation}°C under profilmål.
+                      PI(D)-loop som automatiskt lär sig rätt kompensation per controller, fas och stegtyp. Systemet konvergerar mot optimala värden över tid. Max {pillCompMaxCompensation}°C under profilmål.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2285,13 +2165,10 @@ export default function Settings() {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
                         <p>• <strong>Mål:</strong> medelvärdet (pill+probe)/2 ska matcha profilens måltemperatur</p>
-                        <p>• <strong>P-term:</strong> proportionell korrektion baserad på aktuellt fel (medel vs mål)</p>
-                        <p>• <strong>I-term:</strong> persistent integral med gain 0.15 och decay 0.95/cykel (anti-windup ±2°C)</p>
-                        <p>• <strong>D-term:</strong> beräknar pill-hastighet (°C/h) och ETA — dämpar kompensation när ETA &lt; {parseFloat(pillCompDamping) * 60} min</p>
+                        <p>• <strong>PI(D)-loop:</strong> P- och I-korrektion driver mot rätt temperatur, D-termen dämpar vid snabba ändringar</p>
                         <p>• <strong>Inlärning:</strong> vid konvergens (±0.5°C) sparas baseline per controller/fas/stegtyp</p>
-                        <p>• Rate-limit: max {pillCompRateLimit}°C/cykel, skalas ned till {parseFloat(pillCompMinScale) * 100}% nära mål</p>
-                        <p>• Asymmetrisk: uppåt-ändringar begränsas till 0.3°C/cykel (om inte medel är under mål)</p>
-                        <p>• Säkerhetsgolv: aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
+                        <p>• <strong>Asymmetrisk:</strong> uppåt-ändringar begränsas för att undvika överskjutning</p>
+                        <p>• <strong>Säkerhetsgolv:</strong> aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
                       </CollapsibleContent>
                     </Collapsible>
 
@@ -2325,39 +2202,23 @@ export default function Settings() {
 
                 {stallDetectionEnabled && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Temperaturhöjning</label>
-                        <Select value={stallBoostDegrees} onValueChange={handleStallBoostDegreesChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.5">+0.5°C (försiktig)</SelectItem>
-                            <SelectItem value="1">+1.0°C (standard)</SelectItem>
-                            <SelectItem value="1.5">+1.5°C</SelectItem>
-                            <SelectItem value="2">+2.0°C (aggressiv)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">SG-tröskel/dag</label>
-                        <Select value={stallRateThreshold} onValueChange={handleStallRateThresholdChange}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border z-50">
-                            <SelectItem value="0.0005">0.5 punkter (känslig)</SelectItem>
-                            <SelectItem value="0.001">1.0 punkt (standard)</SelectItem>
-                            <SelectItem value="0.002">2.0 punkter (tolerant)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Temperaturhöjning vid stall</label>
+                      <Select value={stallBoostDegrees} onValueChange={handleStallBoostDegreesChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border z-50">
+                          <SelectItem value="0.5">+0.5°C (försiktig)</SelectItem>
+                          <SelectItem value="1">+1.0°C (standard)</SelectItem>
+                          <SelectItem value="1.5">+1.5°C</SelectItem>
+                          <SelectItem value="2">+2.0°C (aggressiv)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Stall detekteras när SG-förändringen senaste 24h understiger tröskeln OCH temp-delta (jäsningsvärme) sjunker. Temperaturen höjs med {stallBoostDegrees}°C. Cooldown: 12h mellan boosts.
+                      Detekterar stall automatiskt via SG-hastighet och temp-delta. Aktiv mellan 10-90% utjäsning. Temperaturen höjs med {stallBoostDegrees}°C. Cooldown: 12h mellan boosts.
                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
@@ -2369,7 +2230,7 @@ export default function Settings() {
                         <p>• <strong>SG-analys:</strong> Beräknar SG-förändring per dygn baserat på senaste 24h</p>
                         <p>• <strong>Delta-analys:</strong> Jämför senaste 15 min temp-delta med 15-30 min sedan</p>
                         <p>• <strong>Kombination:</strong> Båda villkoren måste vara uppfyllda (SG stagnerat + delta sjunker/lågt)</p>
-                        <p>• <strong>Undantag:</strong> Skippar om jäsningen verkar klar (SG ≤ FG+0.002)</p>
+                        <p>• <strong>Utjäsning:</strong> Aktiv bara mellan 10-90% apparent attenuation</p>
                         <p>• <strong>Cooldown:</strong> Högst en boost per 12 timmar per controller</p>
                         <p>• <strong>Säkerhet:</strong> Respekterar alltid min/max-gränser på controllern</p>
                       </CollapsibleContent>
