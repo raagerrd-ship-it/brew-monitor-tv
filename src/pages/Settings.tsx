@@ -461,7 +461,7 @@ export default function Settings() {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler')
           .in('controller_id', controllerIds);
 
         if (controllers) {
