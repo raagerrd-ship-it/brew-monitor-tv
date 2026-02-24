@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -83,6 +83,7 @@ export default function Settings() {
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   const [stallDetectionEnabled, setStallDetectionEnabled] = useState(false);
   const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
+  const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
   
   const [availableControllers, setAvailableControllers] = useState<Array<{
     id: string, 
@@ -308,6 +309,9 @@ export default function Settings() {
             if (newData.delta_alert_threshold !== undefined) {
               setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
             }
+            if (newData.overshoot_prevention_enabled !== undefined) {
+              setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
+            }
           }
         }
       )
@@ -454,6 +458,7 @@ export default function Settings() {
         setPillCompEnabled((data as any).pill_compensation_enabled ?? false);
         setPillCompMaxCompensation(((data as any).pill_compensation_max_compensation ?? 5.0).toString());
         setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2.0).toString());
+        setOvershootPreventionEnabled((data as any).overshoot_prevention_enabled ?? true);
       }
 
       // Load last adjustment
@@ -1029,6 +1034,22 @@ export default function Settings() {
       toast({ title: "Inställningar sparade", description: checked ? "Stall-detektering aktiverad" : "Stall-detektering inaktiverad" });
     } catch (error) {
       console.error('Error updating stall detection:', error);
+      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
+    }
+  };
+
+  const handleOvershootPreventionChange = async (checked: boolean) => {
+    setOvershootPreventionEnabled(checked);
+    try {
+      if (!autoCoolingSettingsId) return;
+      const { error } = await supabase
+        .from('auto_cooling_settings')
+        .update({ overshoot_prevention_enabled: checked } as any)
+        .eq('id', autoCoolingSettingsId);
+      if (error) throw error;
+      toast({ title: "Inställningar sparade", description: checked ? "Overshoot-prevention aktiverad" : "Overshoot-prevention inaktiverad" });
+    } catch (error) {
+      console.error('Error updating overshoot prevention:', error);
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   };
@@ -1662,6 +1683,19 @@ export default function Settings() {
                   <Switch
                     checked={pillCompEnabled}
                     onCheckedChange={handlePillCompEnabledChange}
+                  />
+                </div>
+
+                <SettingsDivider />
+
+                <div className="flex items-center justify-between py-2.5 px-1">
+                  <div className="flex items-center gap-2.5">
+                    <Shield className="h-4 w-4 text-accent" />
+                    <p className="text-sm font-medium">Overshoot-prevention</p>
+                  </div>
+                  <Switch
+                    checked={overshootPreventionEnabled}
+                    onCheckedChange={handleOvershootPreventionChange}
                   />
                 </div>
               </div>
