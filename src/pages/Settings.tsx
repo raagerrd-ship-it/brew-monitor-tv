@@ -1965,21 +1965,7 @@ export default function Settings() {
             </div>
 
             {pillCompEnabled && (
-              <div className="ml-6 space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Max kompensation:</span>
-                  <Select value={pillCompMaxCompensation} onValueChange={handlePillCompMaxCompensationChange}>
-                    <SelectTrigger className="w-32 h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="3">3.0°C</SelectItem>
-                      <SelectItem value="5">5.0°C</SelectItem>
-                      <SelectItem value="7">7.0°C</SelectItem>
-                      <SelectItem value="10">10.0°C</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="ml-6">
                 <LearnedCompensationBaselines />
               </div>
             )}
