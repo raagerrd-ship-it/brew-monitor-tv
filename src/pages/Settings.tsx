@@ -1468,7 +1468,7 @@ export default function Settings() {
               </div>
             </Collapsible>
 
-            {/* Sonos */}
+            {/* Sonos - just connection status under Datakällor */}
             <Collapsible>
               <div className="rounded-xl border bg-card/50 border-border p-4">
                 <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
@@ -1487,10 +1487,17 @@ export default function Settings() {
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4">
-                  <SonosSettings />
+                  <p className="text-xs text-muted-foreground">Ansluten. Se inställningar under <span className="font-medium text-foreground">Sonos</span>-sektionen nedan.</p>
                 </CollapsibleContent>
               </div>
             </Collapsible>
+
+            {/* ═══════════════ SONOS INSTÄLLNINGAR ═══════════════ */}
+            <CategorySeparator icon={Music} label="Sonos" />
+
+            <SettingsSection icon={Music} title="Sonos-inställningar" description="Rum, widget och bakgrundsbildbehandling">
+              <SonosSettings />
+            </SettingsSection>
 
             {/* ═══════════════ DISPLAY ═══════════════ */}
             <CategorySeparator icon={Tv} label="Display" />
