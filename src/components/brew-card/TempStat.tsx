@@ -127,18 +127,25 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full cursor-help" style={{ height: '10px', display: 'flex', alignItems: 'center' }}>
-              {/* Track background – full ±3° range */}
-              <div className="relative w-full h-[6px] rounded-full" style={{ background: 'hsl(var(--muted) / 0.6)' }}>
-                {/* Colored span bar from ctrl to pill */}
-                <div 
-                  className="absolute h-full rounded-full"
-                  style={{ 
-                    left: `${leftPct}%`, 
-                    width: `${Math.max(rightPct - leftPct, 2)}%`,
-                    background: `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`,
-                  }} 
-                />
+            <div className="w-full flex flex-col gap-0.5 cursor-help">
+              {/* Bar */}
+              <div className="relative w-full" style={{ height: '6px' }}>
+                <div className="absolute inset-0 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted) / 0.6)' }}>
+                  {/* Colored span bar from ctrl to pill */}
+                  <div 
+                    className="absolute h-full rounded-full"
+                    style={{ 
+                      left: `${leftPct}%`, 
+                      width: `${Math.max(rightPct - leftPct, 2)}%`,
+                      background: `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`,
+                    }} 
+                  />
+                  {/* Glass highlight */}
+                  <div 
+                    className="absolute inset-0 rounded-full pointer-events-none"
+                    style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
+                  />
+                </div>
                 {/* Profile target marker (solid yellow) */}
                 <div 
                   className="absolute rounded-sm"
@@ -152,7 +159,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
                   }} 
                 />
-                {/* Compensated target marker (dashed yellow) - only if different from profile */}
+                {/* Compensated target marker (dashed yellow) */}
                 {showCompensatedMarker && (
                   <div 
                     className="absolute"
@@ -167,7 +174,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     }} 
                   />
                 )}
-                {/* Average temp dot – shows where the big displayed number sits on the scale */}
+                {/* Average temp dot */}
                 <div 
                   className="absolute rounded-full"
                   style={{ 
@@ -180,6 +187,12 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     boxShadow: '0 0 4px hsl(var(--foreground) / 0.5)',
                   }} 
                 />
+              </div>
+              {/* Scale labels */}
+              <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
+                <span>{cTemp.toFixed(1)}°</span>
+                <span className="text-muted-foreground/40">Δ {delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°` : '—'}</span>
+                <span>{pTemp.toFixed(1)}°</span>
               </div>
             </div>
           </TooltipTrigger>
