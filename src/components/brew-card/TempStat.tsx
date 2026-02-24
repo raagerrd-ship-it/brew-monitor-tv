@@ -201,25 +201,101 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
+  // PID compensation bar
+  const pidBar = showBothTargets && !isInactive && profileTarget !== null && targetTemp !== null && targetTemp !== undefined ? (() => {
+    const compensation = targetTemp - profileTarget;
+    const clampedComp = Math.max(-2, Math.min(2, compensation));
+    const compensationPct = ((clampedComp + 2) / 4) * 100;
+    const centerPct = 50;
+    const isNeg = compensation < 0;
+    const barLeft = isNeg ? compensationPct : centerPct;
+    const barWidth = Math.abs(compensationPct - centerPct);
+    const barColor = isNeg ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
+
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full flex flex-col gap-0.5 cursor-help">
+              <div className="relative w-full" style={{ height: '6px' }}>
+                <div 
+                  className="absolute inset-0 rounded-full overflow-hidden"
+                  style={{ 
+                    background: 'hsl(0 0% 0% / 0.5)',
+                    boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
+                  }}
+                >
+                  {/* Filled bar from center to compensation */}
+                  <div 
+                    className="absolute top-0 bottom-0 rounded-full"
+                    style={{ 
+                      left: `${barLeft}%`, 
+                      width: `${Math.max(barWidth, 1)}%`,
+                      background: barColor,
+                      boxShadow: `0 0 8px ${barColor}`,
+                    }} 
+                  />
+                  {/* Glass highlight */}
+                  <div 
+                    className="absolute inset-0 rounded-full pointer-events-none"
+                    style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
+                  />
+                </div>
+                {/* Center line */}
+                <div 
+                  className="absolute top-[-1px] bottom-[-1px] w-[1px]"
+                  style={{ left: '50%', background: 'hsl(0 0% 100% / 0.3)' }}
+                />
+                {/* Marker dot */}
+                <div 
+                  className="absolute rounded-full"
+                  style={{ 
+                    left: `${compensationPct}%`, 
+                    top: '50%',
+                    width: '6px',
+                    height: '6px',
+                    background: barColor,
+                    transform: 'translate(-3px, -50%)',
+                    boxShadow: `0 0 6px ${barColor}`,
+                  }} 
+                />
+              </div>
+              {/* Scale labels */}
+              <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
+                <span>-2.0</span>
+                <span>0</span>
+                <span>+2.0</span>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Kompensation: {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  })() : null;
+
   return (
     <StatCard
       label={label}
       value={<span style={{ marginTop: '-6px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
       
-      className="justify-start pt-0"
+      className="gap-0.5 !py-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
-      
+      rowSpan={2}
+      labelSize="18px"
+      valueSize="48px"
       onClick={handleClick}
       clickable={!!handleClick}
     >
-      {spanBar && (
-        <div className="absolute bottom-0 left-1.5 right-1.5 z-10" style={{ paddingBottom: '3px' }}>
-          {spanBar}
-        </div>
-      )}
+      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
+        {pidBar}
+        {spanBar}
+      </div>
     </StatCard>
   );
 }

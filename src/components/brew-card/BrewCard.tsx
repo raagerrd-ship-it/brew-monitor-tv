@@ -14,7 +14,7 @@ import { GravityStat } from "./GravityStat";
 import { AbvStat } from "./AbvStat";
 import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
-import { BatteryStat } from "./BatteryStat";
+
 
 import { SyncedDataDialog } from "./SyncedDataDialog";
 import { PrintLabelDialog } from "../PrintLabelDialog";
@@ -241,6 +241,19 @@ function BrewCardComponent({
                   </span>
                 </>
               )}
+              {(() => {
+                const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
+                if (batteryValue === null) return null;
+                const isLowBattery = batteryValue < 20;
+                return (
+                  <>
+                    <span className="opacity-40"> · </span>
+                    <span style={{ color: isLowBattery ? 'hsl(0 70% 55%)' : undefined }}>
+                      🔋 {batteryValue.toFixed(1)}%
+                    </span>
+                  </>
+                );
+              })()}
             </p>
           </div>
         </div>
@@ -309,7 +322,6 @@ function BrewCardComponent({
             onControllerClick={onControllerClick}
           />
           <AttenuationStat brew={brew} updatedFields={updatedFields} />
-          <BatteryStat brew={brew} devices={devices} updatedFields={updatedFields} />
         </div>
       </div>
       
