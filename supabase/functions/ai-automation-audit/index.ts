@@ -132,18 +132,20 @@ VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om 
         temp_reduction_degrees: settings.temp_reduction_degrees,
         overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
       } : null,
-      controllers: (controllers || []).map((c: any) => ({
-        id: c.controller_id,
-        name: c.name,
-        current_temp: c.current_temp,
-        target_temp: c.target_temp,
-        pill_temp: c.pill_temp,
-        delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
-        cooling: c.cooling_enabled,
-        heating: c.heating_enabled,
-        is_cooler: c.is_glycol_cooler,
-        last_update: c.last_update,
-      })),
+      controllers: (controllers || [])
+        .filter((c: any) => c.cooling_enabled || c.heating_enabled)
+        .map((c: any) => ({
+          id: c.controller_id,
+          name: c.name,
+          current_temp: c.current_temp,
+          target_temp: c.target_temp,
+          pill_temp: c.pill_temp,
+          delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
+          cooling: c.cooling_enabled,
+          heating: c.heating_enabled,
+          is_cooler: c.is_glycol_cooler,
+          last_update: c.last_update,
+        })),
       running_sessions: (runningSessions || []).length,
       learned_parameters: learnings || [],
       pid_baselines: (learnedComp || []).map((c: any) => ({
