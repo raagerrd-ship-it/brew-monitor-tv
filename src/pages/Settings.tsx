@@ -311,7 +311,7 @@ export default function Settings() {
             setAvailableControllers(prev => 
               prev.map(c => 
                 c.id === updatedController.controller_id 
-                  ? {
+                   ? {
                       id: updatedController.controller_id,
                       controller_id: updatedController.controller_id,
                       name: updatedController.name,
@@ -319,8 +319,10 @@ export default function Settings() {
                       pill_temp: updatedController.pill_temp,
                       target_temp: updatedController.target_temp,
                       cooling_enabled: updatedController.cooling_enabled,
+                      heating_enabled: updatedController.heating_enabled ?? c.heating_enabled,
                       cooling_hysteresis: updatedController.cooling_hysteresis,
-                      linked_pill_id: updatedController.linked_pill_id ?? c.linked_pill_id
+                      linked_pill_id: updatedController.linked_pill_id ?? c.linked_pill_id,
+                      is_glycol_cooler: updatedController.is_glycol_cooler ?? c.is_glycol_cooler
                     }
                   : c
               )
@@ -432,6 +434,7 @@ export default function Settings() {
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         // coolerControllerId and followedControllerIds are now derived from availableControllers
         setLastAutoCoolingCheck(data.last_check_at);
+      }
 
       // Load last adjustment
       const { data: adjData } = await supabase
