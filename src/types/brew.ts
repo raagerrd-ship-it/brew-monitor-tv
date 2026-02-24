@@ -66,6 +66,14 @@ export interface BrewData {
     rate12h: number | null;
     trend: 'rising' | 'falling' | 'stable' | null;
   };
+  fermentationMetrics?: {
+    fermentation_phase: string;
+    activity_score: number;
+    sg_rate_per_hour: number;
+    eta_to_fg_hours: number | null;
+    peak_delta: number;
+    ready_to_crash: boolean;
+  } | null;
 }
 
 export interface PillData {

@@ -97,6 +97,13 @@ Deno.serve(async (req) => {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
   }
 
+  // ============================================================
+  // STEP 3: Fermentation Metrics (15s timeout)
+  // Computes phase, activity score, ETA, cold crash readiness
+  // ============================================================
+  console.log("Step 3: Computing fermentation metrics...");
+  await runStep("fermentation-metrics", "compute-fermentation-metrics", {}, 15000);
+
   const totalDuration = Date.now() - startTime;
   console.log(`Automation complete in ${totalDuration}ms: ${results.map(r => `${r.step}=${r.status}`).join(", ")}`);
 

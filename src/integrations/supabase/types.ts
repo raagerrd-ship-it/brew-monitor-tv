@@ -318,6 +318,56 @@ export type Database = {
           },
         ]
       }
+      brew_fermentation_metrics: {
+        Row: {
+          activity_score: number
+          brew_id: string
+          created_at: string
+          eta_to_fg_hours: number | null
+          fermentation_phase: string
+          id: string
+          peak_delta: number
+          ready_to_crash: boolean
+          ready_to_crash_at: string | null
+          sg_rate_per_hour: number
+          updated_at: string
+        }
+        Insert: {
+          activity_score?: number
+          brew_id: string
+          created_at?: string
+          eta_to_fg_hours?: number | null
+          fermentation_phase?: string
+          id?: string
+          peak_delta?: number
+          ready_to_crash?: boolean
+          ready_to_crash_at?: string | null
+          sg_rate_per_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          activity_score?: number
+          brew_id?: string
+          created_at?: string
+          eta_to_fg_hours?: number | null
+          fermentation_phase?: string
+          id?: string
+          peak_delta?: number
+          ready_to_crash?: boolean
+          ready_to_crash_at?: string | null
+          sg_rate_per_hour?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brew_fermentation_metrics_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brew_readings: {
         Row: {
           abv: number
@@ -581,6 +631,7 @@ export type Database = {
       }
       fermentation_profile_steps: {
         Row: {
+          attenuation_trigger: number | null
           created_at: string
           duration_hours: number | null
           gravity_stable_days: number | null
@@ -594,9 +645,11 @@ export type Database = {
           step_type: string
           target_sg: number | null
           target_temp: number | null
+          temp_increase: number | null
           updated_at: string
         }
         Insert: {
+          attenuation_trigger?: number | null
           created_at?: string
           duration_hours?: number | null
           gravity_stable_days?: number | null
@@ -610,9 +663,11 @@ export type Database = {
           step_type: string
           target_sg?: number | null
           target_temp?: number | null
+          temp_increase?: number | null
           updated_at?: string
         }
         Update: {
+          attenuation_trigger?: number | null
           created_at?: string
           duration_hours?: number | null
           gravity_stable_days?: number | null
@@ -626,6 +681,7 @@ export type Database = {
           step_type?: string
           target_sg?: number | null
           target_temp?: number | null
+          temp_increase?: number | null
           updated_at?: string
         }
         Relationships: [

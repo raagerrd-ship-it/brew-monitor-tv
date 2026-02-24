@@ -251,6 +251,27 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
             Beräknar...
           </p>
         )}
+        {/* Fermentation metrics row */}
+        {!isInactive && brew.fermentationMetrics && (
+          <div className="flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums" style={{ fontSize: '9px' }}>
+            <span className="inline-flex items-center gap-0.5">
+              {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
+               brew.fermentationMetrics.fermentation_phase === 'declining' ? '📉' : 
+               brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏸' : 
+               brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
+              {brew.fermentationMetrics.fermentation_phase}
+            </span>
+            <span>⚡{brew.fermentationMetrics.activity_score}%</span>
+            {brew.fermentationMetrics.eta_to_fg_hours != null && (
+              <span>ETA {brew.fermentationMetrics.eta_to_fg_hours < 24 
+                ? `${brew.fermentationMetrics.eta_to_fg_hours}h` 
+                : `${Math.round(brew.fermentationMetrics.eta_to_fg_hours / 24)}d`}</span>
+            )}
+            {brew.fermentationMetrics.ready_to_crash && (
+              <span className="text-blue-400 font-semibold">🧊 Redo</span>
+            )}
+          </div>
+        )}
       </div>
     </StatCard>
   );

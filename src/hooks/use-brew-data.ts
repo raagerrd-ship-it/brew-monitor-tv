@@ -146,7 +146,7 @@ export function useBrewData(): UseBrewDataReturn {
 
     const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
 
-    const [brewReadingsRes, eventsRes, sessionsRes] = await Promise.all([
+    const [brewReadingsRes, eventsRes, sessionsRes, metricsRes] = await Promise.all([
       supabase
         .from('brew_readings')
         .select('*')
@@ -160,9 +160,18 @@ export function useBrewData(): UseBrewDataReturn {
         .from('fermentation_sessions')
         .select('*')
         .in('status', ['running', 'paused', 'completed']),
+      supabase
+        .from('brew_fermentation_metrics')
+        .select('*'),
     ]);
 
     if (brewReadingsRes.error) throw brewReadingsRes.error;
+
+    // Build metrics map by brew_id
+    const metricsMap = new Map<string, any>();
+    (metricsRes.data || []).forEach((m: any) => {
+      metricsMap.set(m.brew_id, m);
+    });
 
     const brewReadings = brewReadingsRes.data;
     if (!brewReadings || brewReadings.length === 0) {
@@ -365,6 +374,18 @@ export function useBrewData(): UseBrewDataReturn {
           ? overshootMap.get(reading.linked_controller_id)?.original_target ?? null 
           : null,
         fermentationTrend,
+        fermentationMetrics: (() => {
+          const m = metricsMap.get(reading.id);
+          if (!m) return null;
+          return {
+            fermentation_phase: m.fermentation_phase,
+            activity_score: Number(m.activity_score),
+            sg_rate_per_hour: Number(m.sg_rate_per_hour),
+            eta_to_fg_hours: m.eta_to_fg_hours != null ? Number(m.eta_to_fg_hours) : null,
+            peak_delta: Number(m.peak_delta),
+            ready_to_crash: m.ready_to_crash,
+          };
+        })(),
       };
     });
   }, []);
