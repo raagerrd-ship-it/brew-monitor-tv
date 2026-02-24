@@ -263,7 +263,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
                 <span>-2.0</span>
-                <span>0</span>
+                <span className="text-muted-foreground/40">PID {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°</span>
                 <span>+2.0</span>
               </div>
             </div>
