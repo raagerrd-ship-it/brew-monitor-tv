@@ -212,6 +212,48 @@ Deno.serve(async (req) => {
           details: { message: 'Profile completed' },
         })
 
+        // === Learn from completed fermentation ===
+        try {
+          const sessionDurationHours = (Date.now() - new Date(session.started_at).getTime()) / (1000 * 60 * 60);
+          
+          // Count PID adjustments during this session
+          const { count: pidAdjCount } = await supabase
+            .from('auto_cooling_adjustments')
+            .select('id', { count: 'exact', head: true })
+            .eq('cooler_controller_id', session.controller_id)
+            .gte('created_at', session.started_at);
+
+          // Count stall boosts during this session
+          const { count: stallBoostCount } = await supabase
+            .from('stall_boost_outcomes')
+            .select('id', { count: 'exact', head: true })
+            .eq('controller_id', session.controller_id)
+            .gte('created_at', session.started_at);
+
+          // Calculate avg convergence speed from learned compensation
+          const { data: learnedComps } = await supabase
+            .from('controller_learned_compensation')
+            .select('convergence_count, latest_avg_error')
+            .eq('controller_id', session.controller_id);
+          
+          const avgError = learnedComps && learnedComps.length > 0
+            ? learnedComps.reduce((sum, c) => sum + Math.abs(parseFloat(String(c.latest_avg_error))), 0) / learnedComps.length
+            : null;
+
+          // Store fermentation quality metrics
+          await supabase.from('fermentation_learnings').upsert({
+            controller_id: session.controller_id,
+            parameter_name: 'avg_convergence_error',
+            learned_value: avgError ?? 0,
+            sample_count: (await supabase.from('fermentation_learnings').select('sample_count').eq('controller_id', session.controller_id).eq('parameter_name', 'avg_convergence_error').maybeSingle()).data?.sample_count ?? 0 + 1,
+            last_updated_at: new Date().toISOString(),
+          }, { onConflict: 'controller_id,parameter_name' });
+
+          console.log(`🎓 Fermentation learning for ${session.controller_id}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}, avg_error=${avgError?.toFixed(2) ?? 'N/A'}`);
+        } catch (learnError) {
+          console.error('Error saving fermentation learnings:', learnError);
+        }
+
         results.push({ sessionId: session.id, action: 'completed', details: {} })
         continue
       }

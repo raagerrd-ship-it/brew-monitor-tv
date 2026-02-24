@@ -515,36 +515,129 @@ serve(async (req) => {
     }
 
     // ====================================================================
-    // FEATURE 2: STALL DETECTION (temp-delta + SG combined)
-    // Detects fermentation stalls and auto-boosts temperature
+    // FEATURE 2: STALL DETECTION (adaptive learning from SG outcomes)
+    // Detects fermentation stalls and auto-boosts temperature.
+    // Learns optimal boost size from outcomes of previous boosts.
     // ====================================================================
     const stallSettings = {
       enabled: (settings as any).auto_boost_enabled ?? false,
-      boostDegrees: parseFloat(String((settings as any).auto_boost_degrees ?? 1.0)),
       sgRateThreshold: parseFloat(String((settings as any).stall_rate_threshold ?? 0.001)),
       minAttenuation: parseFloat(String((settings as any).stall_min_attenuation ?? 10)),
       maxAttenuation: parseFloat(String((settings as any).stall_max_attenuation ?? 90)),
     };
 
     if (stallSettings.enabled) {
-      log('STALL', 'info', '--- Stall detection check ---', {
-        boost_degrees: stallSettings.boostDegrees,
-        sg_rate_threshold: stallSettings.sgRateThreshold,
-      });
+      // === STEP 2a: Evaluate pending boost outcomes (learn from past boosts) ===
+      {
+        const { data: pendingOutcomes } = await supabase
+          .from('stall_boost_outcomes')
+          .select('id, controller_id, brew_id, boost_degrees, sg_rate_before, created_at')
+          .eq('outcome', 'pending')
+          .lt('created_at', new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString());
 
-      // Only check controllers with running fermentation sessions
-      for (const session of (() => {
-        const { data } = { data: [] as any[] };
-        // Use runningSessions already fetched above (in profileOwnedControllerIds block)
-        return [...profileOwnedControllerIds].map(cId => ({
-          controller_id: cId,
-          profileTarget: profileTargetMap.get(cId),
-        }));
-      })()) {
+        if (pendingOutcomes && pendingOutcomes.length > 0) {
+          for (const outcome of pendingOutcomes) {
+            // Get current SG rate for this brew
+            let sgRateAfter: number | null = null;
+            if (outcome.brew_id) {
+              const { data: brew } = await supabase
+                .from('brew_readings')
+                .select('sg_data')
+                .eq('id', outcome.brew_id)
+                .maybeSingle();
+
+              if (brew?.sg_data) {
+                const sgData = (Array.isArray(brew.sg_data) ? brew.sg_data : []) as Array<{ date: string; value: number }>;
+                const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                const boostTime = new Date(outcome.created_at).getTime();
+                // Get SG data from 12-24h after boost
+                const postBoostSg = sortedSg.filter(p => {
+                  const t = new Date(p.date).getTime();
+                  return t > boostTime + 6 * 60 * 60 * 1000 && t < boostTime + 24 * 60 * 60 * 1000;
+                });
+                if (postBoostSg.length >= 2) {
+                  const newest = postBoostSg[0];
+                  const oldest = postBoostSg[postBoostSg.length - 1];
+                  const hours = (new Date(newest.date).getTime() - new Date(oldest.date).getTime()) / (1000 * 60 * 60);
+                  if (hours > 3) {
+                    sgRateAfter = ((oldest.value - newest.value) / hours) * 24;
+                  }
+                }
+              }
+            }
+
+            const isEffective = sgRateAfter !== null && sgRateAfter > stallSettings.sgRateThreshold;
+            await supabase.from('stall_boost_outcomes').update({
+              sg_rate_after: sgRateAfter,
+              outcome: sgRateAfter !== null ? (isEffective ? 'effective' : 'ineffective') : 'no_data',
+              evaluated_at: new Date().toISOString(),
+            }).eq('id', outcome.id);
+
+            // Update learned boost degrees based on outcome
+            if (sgRateAfter !== null) {
+              const { data: learned } = await supabase
+                .from('fermentation_learnings')
+                .select('learned_value, sample_count')
+                .eq('controller_id', outcome.controller_id)
+                .eq('parameter_name', 'stall_boost_degrees')
+                .maybeSingle();
+
+              const currentLearned = learned?.learned_value ?? 1.0;
+              const sampleCount = learned?.sample_count ?? 0;
+              let newValue = currentLearned;
+
+              if (isEffective && sgRateAfter > stallSettings.sgRateThreshold * 2) {
+                // Very effective — could reduce boost slightly
+                newValue = Math.max(0.3, currentLearned - 0.1);
+              } else if (!isEffective) {
+                // Ineffective — increase boost
+                newValue = Math.min(3.0, currentLearned + 0.2);
+              }
+              // If marginally effective, keep current value
+
+              await supabase.from('fermentation_learnings').upsert({
+                controller_id: outcome.controller_id,
+                parameter_name: 'stall_boost_degrees',
+                learned_value: newValue,
+                sample_count: sampleCount + 1,
+                last_updated_at: new Date().toISOString(),
+              }, { onConflict: 'controller_id,parameter_name' });
+
+              log('STALL_LEARN', 'info', `Evaluated boost outcome for ${outcome.controller_id}`, {
+                boost_degrees: outcome.boost_degrees,
+                sg_rate_before: outcome.sg_rate_before.toFixed(4),
+                sg_rate_after: sgRateAfter.toFixed(4),
+                outcome: isEffective ? 'effective' : 'ineffective',
+                learned_boost: `${currentLearned.toFixed(1)} → ${newValue.toFixed(1)}°C`,
+                samples: sampleCount + 1,
+              });
+            }
+          }
+        }
+      }
+
+      // === STEP 2b: Detect stalls and apply adaptive boost ===
+      log('STALL', 'info', '--- Stall detection check ---');
+
+      for (const session of [...profileOwnedControllerIds].map(cId => ({
+        controller_id: cId,
+        profileTarget: profileTargetMap.get(cId),
+      }))) {
         const fc = followedControllersFullData.find(c => c.controller_id === session.controller_id);
         if (!fc) continue;
 
-        // Need a linked brew to get SG data — prefer brew_id from session, fall back to linked_controller_id
+        // Get learned boost degrees for this controller (or default 1.0)
+        const { data: learnedBoost } = await supabase
+          .from('fermentation_learnings')
+          .select('learned_value, sample_count')
+          .eq('controller_id', fc.controller_id)
+          .eq('parameter_name', 'stall_boost_degrees')
+          .maybeSingle();
+
+        const boostDeg = learnedBoost?.learned_value ?? 1.0;
+        const boostSamples = learnedBoost?.sample_count ?? 0;
+
+        // Need a linked brew to get SG data
         const sessionBrewId = sessionBrewIdMap.get(fc.controller_id);
         let brewLink: any = null;
         if (sessionBrewId) {
@@ -572,7 +665,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Parse SG data and calculate rate
         const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number; temp: number }>;
         const brewName = (brewLink as any).name ?? brewLink.id;
 
@@ -581,117 +673,77 @@ serve(async (req) => {
           continue;
         }
 
-        // Sort by date descending
         const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        // Calculate SG rate over last 12h
         const now = Date.now();
         const twelveHoursAgo = now - 12 * 60 * 60 * 1000;
         const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twelveHoursAgo);
-        
+
         if (recentSg.length < 2) {
-          // Still compute a rough rate from whatever data we have to show trend
-          const latestSg = sortedSg[0];
-          const secondLatest = sortedSg.length > 1 ? sortedSg[1] : null;
-          const latestAgeHours = ((now - new Date(latestSg.date).getTime()) / (1000 * 60 * 60)).toFixed(1);
-          let trendInfo = '';
-          if (secondLatest) {
-            const pairHours = (new Date(latestSg.date).getTime() - new Date(secondLatest.date).getTime()) / (1000 * 60 * 60);
-            if (pairHours > 0) {
-              const pairRate = ((secondLatest.value - latestSg.value) / pairHours) * 24;
-              const threshold = stallSettings.sgRateThreshold;
-              const pct = threshold > 0 ? ((pairRate / threshold) * 100).toFixed(0) : '?';
-              trendInfo = `, senaste rate=${pairRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)})`;
-            }
-          }
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt med SG-data senaste 12h (${recentSg.length}/${sgData.length} punkter, senaste ${latestAgeHours}h sedan, SG=${latestSg.value.toFixed(4)}${trendInfo})`);
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt SG-data senaste 12h`);
           continue;
         }
 
         const newestSg = recentSg[0];
         const oldestRecentSg = recentSg[recentSg.length - 1];
         const sgTimeDiffHours = (new Date(newestSg.date).getTime() - new Date(oldestRecentSg.date).getTime()) / (1000 * 60 * 60);
-        
+
         if (sgTimeDiffHours < 6) {
-          // Compute rate even though span is short, for visibility
-          const shortDrop = oldestRecentSg.value - newestSg.value;
-          const shortRate = sgTimeDiffHours > 0 ? (shortDrop / sgTimeDiffHours) * 24 : 0;
-          const threshold = stallSettings.sgRateThreshold;
-          const pct = threshold > 0 ? ((shortRate / threshold) * 100).toFixed(0) : '?';
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+), rate=${shortRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)}), SG=${newestSg.value.toFixed(4)}→${oldestRecentSg.value.toFixed(4)}`);
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+)`);
           continue;
         }
 
-        const sgDrop = oldestRecentSg.value - newestSg.value; // positive = fermentation active
+        const sgDrop = oldestRecentSg.value - newestSg.value;
         const sgRatePerDay = (sgDrop / sgTimeDiffHours) * 24;
         const sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold;
 
-        // Check temp delta trend (is fermentation heat decreasing?)
+        // Check temp delta trend
         const deltaHistory = await supabase
           .from('temp_delta_history')
           .select('delta, recorded_at')
           .eq('controller_id', fc.controller_id)
           .order('recorded_at', { ascending: false })
-          .limit(12); // ~1 hour of data at 5min intervals
+          .limit(12);
 
         const deltas = (deltaHistory.data || []).map((d: any) => parseFloat(String(d.delta)));
-        
         let deltaIsDropping = false;
-        let deltaIsLow = false; // pill ≈ controller, delta gives no signal
+        let deltaIsLow = false;
         let currentAvgDelta = 0;
         let oldAvgDelta = 0;
-        
+
         if (deltas.length >= 6) {
-          // Compare recent 3 vs older 3 deltas
           currentAvgDelta = deltas.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
           oldAvgDelta = deltas.slice(3, 6).reduce((a, b) => a + b, 0) / 3;
-          // If delta has historically been meaningful (>0.5) and is now dropping → signal
           deltaIsDropping = oldAvgDelta > 0.5 && currentAvgDelta < oldAvgDelta - 0.1;
-          // If delta is consistently low (<0.5), it provides no fermentation heat info
-          // In this case we rely on SG-rate alone
           deltaIsLow = Math.max(currentAvgDelta, oldAvgDelta) < 0.5;
         } else {
-          // Not enough delta data → treat as low delta (SG-only mode)
           deltaIsLow = true;
         }
 
-        // Check attenuation range — only detect stalls between 10-90% apparent attenuation
+        // Check attenuation range
         const og = parseFloat(String(brewLink.original_gravity ?? 0));
         const fg = parseFloat(String(brewLink.final_gravity ?? 0));
         const currentSg = newestSg.value;
         const attenuationRange = og - fg;
         const currentAttenuation = attenuationRange > 0 ? ((og - currentSg) / attenuationRange) * 100 : 0;
 
-        if (currentAttenuation < stallSettings.minAttenuation) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för låg för stall-detektering (${currentAttenuation.toFixed(0)}% < ${stallSettings.minAttenuation}%)`);
+        if (currentAttenuation < stallSettings.minAttenuation || currentAttenuation > stallSettings.maxAttenuation) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning ${currentAttenuation.toFixed(0)}% utanför intervall ${stallSettings.minAttenuation}-${stallSettings.maxAttenuation}%`);
           continue;
         }
 
-        if (currentAttenuation > stallSettings.maxAttenuation) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för hög för stall-detektering (${currentAttenuation.toFixed(0)}% > ${stallSettings.maxAttenuation}%, SG ${currentSg.toFixed(4)} nära FG ${fg.toFixed(4)})`);
-          continue;
-        }
-
-        // Stall = SG stalling AND (delta dropping OR delta too low to be useful)
         const stallDetected = sgIsStalling && (deltaIsDropping || deltaIsLow);
-        const stallThreshold = stallSettings.sgRateThreshold;
-        const ratePct = stallThreshold > 0 ? ((sgRatePerDay / stallThreshold) * 100).toFixed(0) : '?';
+        const ratePct = stallSettings.sgRateThreshold > 0 ? ((sgRatePerDay / stallSettings.sgRateThreshold) * 100).toFixed(0) : '?';
 
         log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName})`, {
-          sg_rate: `${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)})`,
+          sg_rate: `${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel)`,
           sg_stalling: sgIsStalling,
-          current_sg: currentSg.toFixed(4),
-          attenuation: `${currentAttenuation.toFixed(0)}%`,
-          sg_drop: `${sgDrop.toFixed(4)} / ${sgTimeDiffHours.toFixed(0)}h`,
-          delta_current: currentAvgDelta.toFixed(2),
-          delta_old: oldAvgDelta.toFixed(2),
-          delta_dropping: deltaIsDropping,
           delta_is_low: deltaIsLow,
           stall_detected: stallDetected,
+          learned_boost: `${boostDeg.toFixed(1)}°C (${boostSamples} samples)`,
         });
 
         if (!stallDetected) {
-          // === UN-BOOST: If fermentation resumed and there's an active boost, reverse it ===
+          // === UN-BOOST: If fermentation resumed, reverse active boost ===
           const { data: recentBoost } = await supabase
             .from('auto_cooling_adjustments')
             .select('created_at, new_target_temp, old_target_temp')
@@ -702,7 +754,6 @@ serve(async (req) => {
 
           if (recentBoost && recentBoost.length > 0) {
             const boostAgeHours = (now - new Date(recentBoost[0].created_at).getTime()) / (1000 * 60 * 60);
-            // Only un-boost if the boost was recent (within 24h) and hasn't already been reversed
             const alreadyReversed = await supabase
               .from('auto_cooling_adjustments')
               .select('id')
@@ -712,9 +763,6 @@ serve(async (req) => {
               .limit(1);
 
             if (boostAgeHours < 24 && (!alreadyReversed.data || alreadyReversed.data.length === 0)) {
-              const boostDeg = stallSettings.boostDegrees;
-
-              // Remove boost from learned compensation
               const { data: existingComp } = await supabase
                 .from('controller_learned_compensation')
                 .select('id, learned_pi_correction, accumulated_integral')
@@ -735,16 +783,8 @@ serve(async (req) => {
                   })
                   .eq('id', existingComp.id);
 
-                log('STALL_UNBOOST', 'action', `${fc.name} (${brewName})`, {
-                  reason: 'Jäsning återupptagits',
-                  sg_rate: `${sgRatePerDay.toFixed(4)}/dag`,
-                  removed: `${boostDeg}°C`,
-                  new_correction: `${newCorrection.toFixed(2)}°C`,
-                  new_integral: `${newIntegral.toFixed(2)}`,
-                  boost_age: `${boostAgeHours.toFixed(1)}h`,
-                });
+                log('STALL_UNBOOST', 'action', `${fc.name} (${brewName}): Jäsning återupptagits, PID -${boostDeg.toFixed(1)}°C`);
 
-                // Log the reversal as an adjustment
                 const currentTarget = parseFloat(String(fc.target_temp ?? 20));
                 const profileTarget = session.profileTarget ?? currentTarget;
                 await supabase.from('auto_cooling_adjustments').insert({
@@ -758,7 +798,7 @@ serve(async (req) => {
                   followed_controller_name: fc.name,
                   followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
                   followed_target_temp: profileTarget,
-                  reason: `🔄 Un-boost: SG-rate ${sgRatePerDay.toFixed(4)}/dag (över tröskel), PID -${boostDeg}°C`,
+                  reason: `🔄 Un-boost: SG-rate ${sgRatePerDay.toFixed(4)}/dag, PID -${boostDeg.toFixed(1)}°C`,
                 } as any);
               }
             }
@@ -776,31 +816,26 @@ serve(async (req) => {
           .limit(1);
 
         if (lastBoost && lastBoost.length > 0) {
-          const lastBoostTime = new Date(lastBoost[0].created_at).getTime();
-          const hoursSinceBoost = (now - lastBoostTime) / (1000 * 60 * 60);
+          const hoursSinceBoost = (now - new Date(lastBoost[0].created_at).getTime()) / (1000 * 60 * 60);
           if (hoursSinceBoost < 6) {
             log('STALL_COOLDOWN', 'info', `${fc.name}: Senaste boost var ${hoursSinceBoost.toFixed(1)}h sedan (väntar 6h)`);
             continue;
           }
         }
 
-        // Apply boost via PID compensation (keeps profile target / Mål line unchanged)
+        // Apply adaptive boost
         const currentTarget = parseFloat(String(fc.target_temp ?? 20));
         const profileTarget = session.profileTarget ?? currentTarget;
-        const boostDeg = stallSettings.boostDegrees;
-
-        // Safety bounds check: would the boosted target exceed limits?
         const maxTemp = parseFloat(String(fc.max_target_temp ?? 25));
         const boostedTarget = currentTarget + boostDeg;
+
         if (boostedTarget > maxTemp) {
-          log('STALL_SKIP', 'info', `${fc.name}: Boost blocked by safety bounds (${boostedTarget}°C > max=${maxTemp}°C)`);
+          log('STALL_SKIP', 'info', `${fc.name}: Boost blocked by safety bounds (${boostedTarget.toFixed(1)}°C > max=${maxTemp}°C)`);
           continue;
         }
 
-        log('STALL_BOOST', 'action', `${fc.name}: Stall detekterad! Lägger till +${boostDeg}°C via PID-kompensation (profil-mål ${profileTarget}°C oförändrat)`);
+        log('STALL_BOOST', 'action', `${fc.name}: Stall! Adaptiv boost +${boostDeg.toFixed(1)}°C (lärd från ${boostSamples} tidigare boosts)`);
 
-        // Find or create the learned compensation record for this controller
-        // Use a special delta_bucket "stall_boost" to track the offset separately
         const { data: existingComp } = await supabase
           .from('controller_learned_compensation')
           .select('id, learned_pi_correction, accumulated_integral')
@@ -811,7 +846,6 @@ serve(async (req) => {
           .maybeSingle();
 
         if (existingComp) {
-          // Add boost to the accumulated integral so PID applies it
           const newCorrection = existingComp.learned_pi_correction + boostDeg;
           await supabase.from('controller_learned_compensation')
             .update({
@@ -820,16 +854,15 @@ serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq('id', existingComp.id);
-          log('STALL_BOOST', 'pass', `${fc.name}: PID-kompensation höjd med +${boostDeg}°C (total: ${newCorrection.toFixed(2)}°C)`);
+          log('STALL_BOOST', 'pass', `${fc.name}: PID +${boostDeg.toFixed(1)}°C (total: ${newCorrection.toFixed(2)}°C)`);
         } else {
-          // No existing compensation record — apply boost directly via RAPT API as fallback
           const safeTarget = Math.min(maxTemp, boostedTarget);
           const boostSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, safeTarget);
           if (boostSuccess) {
             await supabase.from('rapt_temp_controllers')
               .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
               .eq('controller_id', fc.controller_id);
-            log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost (ingen PID-post) ${currentTarget}°C → ${safeTarget}°C`);
+            log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost ${currentTarget}°C → ${safeTarget}°C`);
           } else {
             log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`);
             continue;
@@ -837,6 +870,15 @@ serve(async (req) => {
         }
 
         allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget: boostedTarget });
+
+        // Record outcome for learning (will be evaluated in 12h)
+        await supabase.from('stall_boost_outcomes').insert({
+          controller_id: fc.controller_id,
+          brew_id: brewLink.id,
+          boost_degrees: boostDeg,
+          sg_rate_before: sgRatePerDay,
+          outcome: 'pending',
+        });
 
         await supabase.from('auto_cooling_adjustments').insert({
           cooler_controller_id: fc.controller_id,
@@ -849,10 +891,10 @@ serve(async (req) => {
           followed_controller_name: fc.name,
           followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
           followed_target_temp: profileTarget,
-          reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, delta cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (low=${deltaIsLow}), PID +${boostDeg}°C`,
+          reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, adaptiv boost +${boostDeg.toFixed(1)}°C (lärd n=${boostSamples})`,
         } as any);
 
-        // Log in fermentation step log if session exists
+        // Log in fermentation step log
         const { data: activeSession } = await supabase
           .from('fermentation_sessions')
           .select('id, current_step_index')
@@ -868,12 +910,12 @@ serve(async (req) => {
             action: 'stall_boost',
             details: {
               boost_degrees: boostDeg,
+              learned_samples: boostSamples,
               via: existingComp ? 'pid_compensation' : 'direct',
               sg_rate_per_day: sgRatePerDay,
               current_sg: currentSg,
               profile_target: profileTarget,
               delta_current: currentAvgDelta,
-              delta_old: oldAvgDelta,
               delta_is_low: deltaIsLow,
             },
           });
