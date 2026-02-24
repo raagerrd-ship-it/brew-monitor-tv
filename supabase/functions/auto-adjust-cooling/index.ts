@@ -584,7 +584,7 @@ serve(async (req) => {
             const pairHours = (new Date(latestSg.date).getTime() - new Date(secondLatest.date).getTime()) / (1000 * 60 * 60);
             if (pairHours > 0) {
               const pairRate = ((secondLatest.value - latestSg.value) / pairHours) * 24;
-              const threshold = stallSettings.sgRateThreshold * 1000;
+              const threshold = stallSettings.sgRateThreshold;
               const pct = threshold > 0 ? ((pairRate / threshold) * 100).toFixed(0) : '?';
               trendInfo = `, senaste rate=${pairRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)})`;
             }
@@ -601,7 +601,7 @@ serve(async (req) => {
           // Compute rate even though span is short, for visibility
           const shortDrop = oldestRecentSg.value - newestSg.value;
           const shortRate = sgTimeDiffHours > 0 ? (shortDrop / sgTimeDiffHours) * 24 : 0;
-          const threshold = stallSettings.sgRateThreshold * 1000;
+          const threshold = stallSettings.sgRateThreshold;
           const pct = threshold > 0 ? ((shortRate / threshold) * 100).toFixed(0) : '?';
           log('STALL_SKIP', 'info', `${fc.name} (${brewName}): SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+), rate=${shortRate.toFixed(4)}/dag (${pct}% av tröskel ${threshold.toFixed(4)}), SG=${newestSg.value.toFixed(4)}→${oldestRecentSg.value.toFixed(4)}`);
           continue;
@@ -609,7 +609,7 @@ serve(async (req) => {
 
         const sgDrop = oldestRecentSg.value - newestSg.value; // positive = fermentation active
         const sgRatePerDay = (sgDrop / sgTimeDiffHours) * 24;
-        const sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold * 1000; // threshold is per point (e.g. 0.001), rate is per day
+        const sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold;
 
         // Check temp delta trend (is fermentation heat decreasing?)
         const deltaHistory = await supabase
@@ -652,7 +652,7 @@ serve(async (req) => {
 
         // Stall = SG stalling AND (delta dropping OR delta too low to be useful)
         const stallDetected = sgIsStalling && (deltaIsDropping || deltaIsLow);
-        const stallThreshold = stallSettings.sgRateThreshold * 1000;
+        const stallThreshold = stallSettings.sgRateThreshold;
         const ratePct = stallThreshold > 0 ? ((sgRatePerDay / stallThreshold) * 100).toFixed(0) : '?';
 
         log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName}): SG-rate=${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)}), SG=${currentSg.toFixed(4)}, drop=${sgDrop.toFixed(4)}/${sgTimeDiffHours.toFixed(0)}h, delta: cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (dropping=${deltaIsDropping}, low=${deltaIsLow})`, {
