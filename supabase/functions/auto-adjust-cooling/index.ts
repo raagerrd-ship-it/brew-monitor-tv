@@ -528,6 +528,8 @@ serve(async (req) => {
       enabled: (settings as any).auto_boost_enabled ?? false,
       boostDegrees: parseFloat(String((settings as any).auto_boost_degrees ?? 1.0)),
       sgRateThreshold: parseFloat(String((settings as any).stall_rate_threshold ?? 0.001)),
+      minAttenuation: parseFloat(String((settings as any).stall_min_attenuation ?? 10)),
+      maxAttenuation: parseFloat(String((settings as any).stall_max_attenuation ?? 90)),
     };
 
     if (stallSettings.enabled) {
@@ -666,13 +668,13 @@ serve(async (req) => {
         const attenuationRange = og - fg;
         const currentAttenuation = attenuationRange > 0 ? ((og - currentSg) / attenuationRange) * 100 : 0;
 
-        if (currentAttenuation < 10) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för låg för stall-detektering (${currentAttenuation.toFixed(0)}% < 10%)`);
+        if (currentAttenuation < stallSettings.minAttenuation) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för låg för stall-detektering (${currentAttenuation.toFixed(0)}% < ${stallSettings.minAttenuation}%)`);
           continue;
         }
 
-        if (currentAttenuation > 90) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för hög för stall-detektering (${currentAttenuation.toFixed(0)}% > 90%, SG ${currentSg.toFixed(4)} nära FG ${fg.toFixed(4)})`);
+        if (currentAttenuation > stallSettings.maxAttenuation) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för hög för stall-detektering (${currentAttenuation.toFixed(0)}% > ${stallSettings.maxAttenuation}%, SG ${currentSg.toFixed(4)} nära FG ${fg.toFixed(4)})`);
           continue;
         }
 
