@@ -110,13 +110,7 @@ function FermentationRateBar({ rate, trend, stallThreshold }: {
         style={{ fontSize: '9px' }}
       >
         <span>0.000</span>
-        <span 
-          className="font-medium flex items-center gap-0.5"
-          style={{ color: trendColor, fontSize: '9px' }}
-        >
-          <span style={{ fontSize: '8px' }}>{trendIcon}</span>
-          {rate > 0 ? '-' : '+'}{Math.abs(rate).toFixed(3)}/d
-        </span>
+        <span style={{ color: trendColor, fontSize: '10px' }}>{trendIcon}</span>
         <span>{maxRate.toFixed(3)}</span>
       </div>
     </div>
