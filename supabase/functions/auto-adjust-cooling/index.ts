@@ -1146,7 +1146,12 @@ serve(async (req) => {
               const needsLowering = currentCoolerTarget > idealTarget + 0.2;
               const needsRaising = currentCoolerTarget < idealTarget - 0.2;
 
-              log('COOLING_RECOVERY_CHECK', 'info', `Recovery check: cooler=${currentCoolerTarget}°C, ideal=${idealTarget.toFixed(1)}°C, needs_lowering=${needsLowering}, needs_raising=${needsRaising}`);
+              log('COOLING_RECOVERY_CHECK', 'info', `Glykolkylare`, {
+                cooler_current: `${currentCoolerTarget}°C`,
+                ideal_target: `${idealTarget.toFixed(1)}°C`,
+                needs_lowering: needsLowering,
+                needs_raising: needsRaising,
+              });
 
               if (needsLowering || needsRaising) {
                 try {
