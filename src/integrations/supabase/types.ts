@@ -510,6 +510,36 @@ export type Database = {
         }
         Relationships: []
       }
+      fermentation_learnings: {
+        Row: {
+          controller_id: string
+          created_at: string
+          id: string
+          last_updated_at: string
+          learned_value: number
+          parameter_name: string
+          sample_count: number
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          id?: string
+          last_updated_at?: string
+          learned_value?: number
+          parameter_name: string
+          sample_count?: number
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          id?: string
+          last_updated_at?: string
+          learned_value?: number
+          parameter_name?: string
+          sample_count?: number
+        }
+        Relationships: []
+      }
       fermentation_profile_steps: {
         Row: {
           created_at: string
@@ -1068,6 +1098,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      stall_boost_outcomes: {
+        Row: {
+          boost_degrees: number
+          brew_id: string | null
+          controller_id: string
+          created_at: string
+          evaluated_at: string | null
+          id: string
+          outcome: string | null
+          sg_rate_after: number | null
+          sg_rate_before: number
+        }
+        Insert: {
+          boost_degrees: number
+          brew_id?: string | null
+          controller_id: string
+          created_at?: string
+          evaluated_at?: string | null
+          id?: string
+          outcome?: string | null
+          sg_rate_after?: number | null
+          sg_rate_before: number
+        }
+        Update: {
+          boost_degrees?: number
+          brew_id?: string | null
+          controller_id?: string
+          created_at?: string
+          evaluated_at?: string | null
+          id?: string
+          outcome?: string | null
+          sg_rate_after?: number | null
+          sg_rate_before?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stall_boost_outcomes_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sync_settings: {
         Row: {
