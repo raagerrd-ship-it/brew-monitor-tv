@@ -292,7 +292,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={label}
-      value={<span style={{ marginTop: '-6px', display: 'block' }}>{`${displayTemp.toFixed(1)}°`}</span>}
+      value={`${displayTemp.toFixed(1)}°`}
       
       className="gap-0.5 !py-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
