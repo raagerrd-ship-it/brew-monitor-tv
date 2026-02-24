@@ -1,103 +1,81 @@
 
 
-# PID-kompensationsbar i TempStat + Batteri till header
+# Granskning av Automatik-instellningar
 
-## Oversikt
+## Sammanfattning
 
-Ta bort BatteryStat-kortet fran stats-griden, visa batteriinfo i headern istallet, och gor TempStat till ett dubbelhogt kort (som GravityStat) med plats for bade temp-span-baren och en ny PID-kompensationsbar.
+Jag har gatt igenom alla justerbara parametrar under Automatik-fliken och utvärderat varje inställning mot principen: *"Ska användaren behöva tänka på detta, eller kan systemet lära sig det själv?"*
 
-## Andringar
+## Nuvarande inställningar (per sektion)
 
-### 1. Ta bort BatteryStat fran griden
+### 1. Glykolkylare -- behåll alla
 
-**Fil: `src/components/brew-card/BrewCard.tsx`**
+| Inställning | Värde | Bedömning |
+|---|---|---|
+| Aktivera/avaktivera | on/off | **Behåll** -- grundläggande on/off |
+| Välj kylare-controller | dropdown | **Behåll** -- hårdvaru-mapping |
+| Följda jästankar | checkboxar | **Behåll** -- hårdvaru-mapping |
+| Kontrollintervall | 30-120 min | **Behåll** -- beror på fysisk setup |
+| Kylmarginal (under lägsta tank) | 1-10 grader | **Behåll** -- beror på glykolsystem |
+| Max differens | 5-15 grader | **Behåll** -- säkerhetsgräns |
+| Delta-varning | 1-5 grader | **Behåll** -- personlig preferens |
 
-- Ta bort `BatteryStat`-importen och komponenten fran stats-griden
-- Andra griden fran `grid-cols-3 grid-rows-2` till `grid-cols-3 grid-rows-2` (samma grid, men nu med 5 celler istallet for 6 -- GravityStat tar 2 rader, TempStat tar 2 rader, ABV och Attenuation tar varsin cell i mitten)
+Alla dessa är hårdvaru- eller setup-beroende. Inget att ändra.
 
-Layout blir:
+### 2. Pill-kompensation -- minska kraftigt
 
-```text
-|  Gravity  |   ABV   |   Temp   |
-|  (row 2)  |  Atten  |  (row 2) |
-```
+| Inställning | Värde | Bedömning |
+|---|---|---|
+| Aktivera/avaktivera | on/off | **Behåll** |
+| Max ändring/cykel | 0.3-1.0 grader | **Ta bort** -- systemet har redan rate-limiting inbyggd med asymmetrisk logik |
+| Rate-limit min % | 10-50% | **Ta bort** -- finjusteringsparameter som PI(D)-loopen hanterar automatiskt |
+| Max kompensation | 3-10 grader | **Behåll** -- säkerhetsgräns, viktigt att ha kvar |
+| D-term anticipation-fönster | 30-120 min | **Ta bort** -- teknisk PID-parameter som inte borde exponeras |
 
-### 2. Visa batteri i headern
+Motivering: PI(D)-loopen med inlärning konvergerar automatiskt. De tre parametrarna som tas bort är finjustering som bara skapar förvirring. "Max kompensation" behålls som säkerhetsgräns.
 
-**Fil: `src/components/brew-card/BrewCard.tsx`**
+### 3. Stall-detektering -- minska
 
-- Berakna batterivardet (samma logik som BatteryStat: `brew.battery ?? pill?.battery_level`)
-- Visa som en liten text/ikon bredvid senaste uppdateringen i subtitle-raden
-- Format: `🔋 72.3%` med rod farg om under 20%
-- Behover `devices` (redan beraknat i BrewCard) for att komma at pill-data
+| Inställning | Värde | Bedömning |
+|---|---|---|
+| Aktivera/avaktivera | on/off | **Behåll** |
+| Temperaturhöjning | 0.5-2.0 grader | **Behåll** -- påverkar hur aggressivt systemet reagerar, bra att kontrollera |
+| SG-tröskel/dag | 0.5-2.0 punkter | **Ta bort** -- teknisk parameter, bra default (1.0) räcker |
+| Min/max utjäsning | (ej i UI ännu) | **Lägg inte till** -- de nya databaskolumnerna behöver inget UI, defaults (10/90%) fungerar |
 
-### 3. Gor TempStat dubbelhogt med PID-bar
+## Plan
 
-**Fil: `src/components/brew-card/TempStat.tsx`**
+### Steg 1: Ta bort 4 inställningar från UI
 
-- Lagg till `rowSpan={2}` pa StatCard (precis som GravityStat)
-- Lagg till `labelSize` och `valueSize` for storre text (matchar GravityStat)
-- Flytta span-baren till nedre delen av kortet
-- Lagg till PID-kompensationsbar ovanfor span-baren:
+Följande tas bort från Settings.tsx (och tillhörande state/handlers):
 
-**PID-baren:**
-- Berakna: `compensation = targetTemp - profileTarget`
-- Skala: -2.0 till +2.0 grader (fast)
-- Centerlinje vid 0
-- Fylld bar fran mitten till kompensationsvardet
-- Bla farg for negativ (kyler mer), orange for positiv (varmer mer)
-- Markordot pa aktuellt varde med glow
-- Visas BARA nar `showBothTargets` ar sant och `!isInactive`
-- Tooltip: "Kompensation: -0.6 grader"
-- Skaletiketter: `-2.0`, `0`, `+2.0`
+1. **Max ändring/cykel** (`pillCompRateLimit`) -- behåll standardvärdet 0.8 i backend
+2. **Rate-limit min %** (`pillCompMinScale`) -- behåll standardvärdet 0.15 i backend
+3. **D-term anticipation-fönster** (`pillCompDamping`) -- behåll standardvärdet 1.0 i backend
+4. **SG-tröskel/dag** (`stallRateThreshold`) -- behåll standardvärdet 0.001 i backend
 
-Layout inuti TempStat (dubbelhogt):
+### Steg 2: Förenkla Pill-kompensation UI
 
-```text
-| TEMP (18.0°)     |
-| 17.7°            |  (stort varde)
-|                  |
-| [PID-bar -2..+2] |  (ny)
-| [span-bar ctrl↔pill] |  (befintlig)
-```
+Pill-kompensation-sektionen reduceras till:
+- On/off switch
+- Max kompensation (säkerhetsgräns)
+- Inlärda baselines (redan finns)
+- Info-collapsible (uppdateras)
 
-### 4. Uppdatera index-exports
+### Steg 3: Förenkla Stall-detektering UI
 
-**Fil: `src/components/brew-card/index.ts`**
+Stall-detektering-sektionen reduceras till:
+- On/off switch
+- Temperaturhöjning vid stall
+- Info-collapsible (uppdateras)
 
-- Ta bort `BatteryStat` fran exports (valfritt, kan behallas for bakatkompat)
+### Steg 4: Rensa bort oanvänd state och handlers
+
+Ta bort state-variabler och handlers för de 4 borttagna inställningarna från Settings.tsx.
 
 ## Tekniska detaljer
 
-### PID-bar implementation (TempStat.tsx)
+Inga databasändringar behövs -- kolumnerna behålls med sina defaults. Bara UI-kod i `src/pages/Settings.tsx` ändras. Beskrivningstexterna uppdateras för att reflektera att systemet lär sig automatiskt.
 
-```typescript
-// Redan beraknat:
-// profileTarget, targetTemp, showBothTargets
-
-const compensation = targetTemp - profileTarget; // positiv = varmer mer
-const clampedComp = Math.max(-2, Math.min(2, compensation));
-const compensationPct = ((clampedComp + 2) / 4) * 100; // 0-100%
-const centerPct = 50;
-const isNegative = compensation < 0;
-const barLeft = isNegative ? compensationPct : centerPct;
-const barWidth = Math.abs(compensationPct - centerPct);
-const barColor = isNegative ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
-```
-
-### Batteri i header (BrewCard.tsx)
-
-```typescript
-const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
-const isLowBattery = batteryValue !== null && batteryValue < 20;
-```
-
-Visas i subtitle-raden som: `· 🔋 72.3%`
-
-### Filer som andras
-
-| Fil | Andring |
-|-----|---------|
-| `src/components/brew-card/BrewCard.tsx` | Ta bort BatteryStat, lagg till batteri i header, ge TempStat devices-prop (redan gjort) |
-| `src/components/brew-card/TempStat.tsx` | rowSpan=2, storre text, PID-kompensationsbar |
+Resultatet: **Pill-kompensation** går från 5 inställningar till 2. **Stall-detektering** går från 3 inställningar till 2. Totalt 10 inställningar istället för 14 under Automatik.
 
