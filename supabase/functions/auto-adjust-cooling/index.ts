@@ -601,6 +601,7 @@ serve(async (req) => {
         const deltas = (deltaHistory.data || []).map((d: any) => parseFloat(String(d.delta)));
         
         let deltaIsDropping = false;
+        let deltaIsLow = false; // pill ≈ controller, delta gives no signal
         let currentAvgDelta = 0;
         let oldAvgDelta = 0;
         
@@ -608,8 +609,14 @@ serve(async (req) => {
           // Compare recent 3 vs older 3 deltas
           currentAvgDelta = deltas.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
           oldAvgDelta = deltas.slice(3, 6).reduce((a, b) => a + b, 0) / 3;
-          // Delta dropping = fermentation heat decreasing
-          deltaIsDropping = currentAvgDelta < oldAvgDelta - 0.1 || currentAvgDelta < 0.3;
+          // If delta has historically been meaningful (>0.5) and is now dropping → signal
+          deltaIsDropping = oldAvgDelta > 0.5 && currentAvgDelta < oldAvgDelta - 0.1;
+          // If delta is consistently low (<0.5), it provides no fermentation heat info
+          // In this case we rely on SG-rate alone
+          deltaIsLow = Math.max(currentAvgDelta, oldAvgDelta) < 0.5;
+        } else {
+          // Not enough delta data → treat as low delta (SG-only mode)
+          deltaIsLow = true;
         }
 
         // Check if target SG has been reached (no stall if fermentation is done)
@@ -622,11 +629,13 @@ serve(async (req) => {
           continue;
         }
 
-        const stallDetected = sgIsStalling && deltaIsDropping;
+        // Stall = SG stalling AND (delta dropping OR delta too low to be useful)
+        const stallDetected = sgIsStalling && (deltaIsDropping || deltaIsLow);
 
-        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name}: SG-rate=${sgRatePerDay.toFixed(4)}/dag (tröskel=${(stallSettings.sgRateThreshold * 1000).toFixed(4)}), delta-trend: ${currentAvgDelta.toFixed(2)}→${oldAvgDelta.toFixed(2)} (sjunker=${deltaIsDropping})`, {
+        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name}: SG-rate=${sgRatePerDay.toFixed(4)}/dag (tröskel=${(stallSettings.sgRateThreshold * 1000).toFixed(4)}), delta: cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (dropping=${deltaIsDropping}, low=${deltaIsLow})`, {
           sg_stalling: sgIsStalling,
           delta_dropping: deltaIsDropping,
+          delta_is_low: deltaIsLow,
           stall_detected: stallDetected,
           current_sg: currentSg.toFixed(4),
           sg_drop_24h: sgDrop.toFixed(4),
@@ -652,73 +661,99 @@ serve(async (req) => {
           }
         }
 
-        // Apply boost
+        // Apply boost via PID compensation (keeps profile target / Mål line unchanged)
         const currentTarget = parseFloat(String(fc.target_temp ?? 20));
-        const newTarget = currentTarget + stallSettings.boostDegrees;
-        
-        // Safety bounds
-        const maxTemp = parseFloat(String(fc.max_target_temp ?? 25));
-        const minTemp = parseFloat(String(fc.min_target_temp ?? -5));
-        const safeTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
+        const profileTarget = session.profileTarget ?? currentTarget;
+        const boostDeg = stallSettings.boostDegrees;
 
-        if (Math.abs(safeTarget - currentTarget) < 0.1) {
-          log('STALL_SKIP', 'info', `${fc.name}: Boost blocked by safety bounds (max=${maxTemp}°C)`);
+        // Safety bounds check: would the boosted target exceed limits?
+        const maxTemp = parseFloat(String(fc.max_target_temp ?? 25));
+        const boostedTarget = currentTarget + boostDeg;
+        if (boostedTarget > maxTemp) {
+          log('STALL_SKIP', 'info', `${fc.name}: Boost blocked by safety bounds (${boostedTarget}°C > max=${maxTemp}°C)`);
           continue;
         }
 
-        log('STALL_BOOST', 'action', `${fc.name}: Stall detekterad! Höjer ${currentTarget}°C → ${safeTarget}°C (+${stallSettings.boostDegrees}°C)`);
+        log('STALL_BOOST', 'action', `${fc.name}: Stall detekterad! Lägger till +${boostDeg}°C via PID-kompensation (profil-mål ${profileTarget}°C oförändrat)`);
 
-        const boostSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, safeTarget);
+        // Find or create the learned compensation record for this controller
+        // Use a special delta_bucket "stall_boost" to track the offset separately
+        const { data: existingComp } = await supabase
+          .from('controller_learned_compensation')
+          .select('id, learned_pi_correction, accumulated_integral')
+          .eq('controller_id', fc.controller_id)
+          .eq('delta_bucket', 'active')
+          .eq('mode', fc.cooling_enabled ? 'cooling' : 'heating')
+          .limit(1)
+          .maybeSingle();
 
-        if (boostSuccess) {
-          log('STALL_BOOST', 'pass', `${fc.name}: Temperatur höjd till ${safeTarget}°C`);
-          allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget: safeTarget });
-
-          await supabase.from('rapt_temp_controllers')
-            .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
-            .eq('controller_id', fc.controller_id);
-
-          await supabase.from('auto_cooling_adjustments').insert({
-            cooler_controller_id: fc.controller_id,
-            cooler_controller_name: fc.name,
-            old_target_temp: currentTarget,
-            new_target_temp: safeTarget,
-            original_target_temp: session.profileTarget ?? currentTarget,
-            lowest_followed_temp: currentTarget,
-            followed_controller_id: fc.controller_id,
-            followed_controller_name: fc.name,
-            followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
-            followed_target_temp: currentTarget,
-            reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, delta ${currentAvgDelta.toFixed(2)}→${oldAvgDelta.toFixed(2)}, höjde +${stallSettings.boostDegrees}°C`,
-          } as any);
-
-          // Log in fermentation step log if session exists
-          const { data: activeSession } = await supabase
-            .from('fermentation_sessions')
-            .select('id, current_step_index')
-            .eq('controller_id', fc.controller_id)
-            .eq('status', 'running')
-            .limit(1)
-            .maybeSingle();
-
-          if (activeSession) {
-            await supabase.from('fermentation_step_log').insert({
-              session_id: activeSession.id,
-              step_index: activeSession.current_step_index,
-              action: 'stall_boost',
-              details: {
-                old_target: currentTarget,
-                new_target: safeTarget,
-                boost_degrees: stallSettings.boostDegrees,
-                sg_rate_per_day: sgRatePerDay,
-                current_sg: currentSg,
-                delta_current: currentAvgDelta,
-                delta_old: oldAvgDelta,
-              },
-            });
-          }
+        if (existingComp) {
+          // Add boost to the accumulated integral so PID applies it
+          const newCorrection = existingComp.learned_pi_correction + boostDeg;
+          await supabase.from('controller_learned_compensation')
+            .update({
+              learned_pi_correction: newCorrection,
+              accumulated_integral: existingComp.accumulated_integral + boostDeg,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingComp.id);
+          log('STALL_BOOST', 'pass', `${fc.name}: PID-kompensation höjd med +${boostDeg}°C (total: ${newCorrection.toFixed(2)}°C)`);
         } else {
-          log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`);
+          // No existing compensation record — apply boost directly via RAPT API as fallback
+          const safeTarget = Math.min(maxTemp, boostedTarget);
+          const boostSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, safeTarget);
+          if (boostSuccess) {
+            await supabase.from('rapt_temp_controllers')
+              .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
+              .eq('controller_id', fc.controller_id);
+            log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost (ingen PID-post) ${currentTarget}°C → ${safeTarget}°C`);
+          } else {
+            log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`);
+            continue;
+          }
+        }
+
+        allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget: boostedTarget });
+
+        await supabase.from('auto_cooling_adjustments').insert({
+          cooler_controller_id: fc.controller_id,
+          cooler_controller_name: fc.name,
+          old_target_temp: currentTarget,
+          new_target_temp: Math.min(maxTemp, boostedTarget),
+          original_target_temp: profileTarget,
+          lowest_followed_temp: currentTarget,
+          followed_controller_id: fc.controller_id,
+          followed_controller_name: fc.name,
+          followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
+          followed_target_temp: profileTarget,
+          reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, delta cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (low=${deltaIsLow}), PID +${boostDeg}°C`,
+        } as any);
+
+        // Log in fermentation step log if session exists
+        const { data: activeSession } = await supabase
+          .from('fermentation_sessions')
+          .select('id, current_step_index')
+          .eq('controller_id', fc.controller_id)
+          .eq('status', 'running')
+          .limit(1)
+          .maybeSingle();
+
+        if (activeSession) {
+          await supabase.from('fermentation_step_log').insert({
+            session_id: activeSession.id,
+            step_index: activeSession.current_step_index,
+            action: 'stall_boost',
+            details: {
+              boost_degrees: boostDeg,
+              via: existingComp ? 'pid_compensation' : 'direct',
+              sg_rate_per_day: sgRatePerDay,
+              current_sg: currentSg,
+              profile_target: profileTarget,
+              delta_current: currentAvgDelta,
+              delta_old: oldAvgDelta,
+              delta_is_low: deltaIsLow,
+            },
+          });
         }
       }
     } else {
