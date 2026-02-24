@@ -1405,8 +1405,8 @@ export default function Settings() {
               </div>
             </Collapsible>
 
-            {/* ═══════════════ INTEGRATIONER ═══════════════ */}
-            <CategorySeparator icon={Timer} label="Integrationer" />
+
+            {/* Brygg-timer */}
 
             {/* Brygg-timer */}
             <Collapsible>
