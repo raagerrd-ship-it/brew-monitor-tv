@@ -202,7 +202,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   })() : null;
 
   // PID compensation bar
-  const pidBar = showBothTargets && !isInactive && profileTarget !== null && targetTemp !== null && targetTemp !== undefined ? (() => {
+  const pidBar = !isInactive && profileTarget !== null && targetTemp !== null && targetTemp !== undefined ? (() => {
     const compensation = targetTemp - profileTarget;
     const clampedComp = Math.max(-2, Math.min(2, compensation));
     const compensationPct = ((clampedComp + 2) / 4) * 100;
