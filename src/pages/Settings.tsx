@@ -1165,106 +1165,106 @@ export default function Settings() {
               title="Synkronisering"
               description="Frekvenser och manuell synk för alla datakällor"
             >
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {/* Brewfather Quick */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 w-28 shrink-0">
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="flex items-center gap-2 w-24 shrink-0">
                     <Beer className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-xs font-medium">BF Snabb</span>
                   </div>
-                  <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
-                    <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="60">1 min</SelectItem>
-                      <SelectItem value="300">5 min</SelectItem>
-                      <SelectItem value="600">10 min</SelectItem>
-                      <SelectItem value="900">15 min</SelectItem>
-                      <SelectItem value="3600">1 tim</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleQuickSync} disabled={quickSyncing} variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary">
-                    <RefreshCw className={`h-3.5 w-3.5 ${quickSyncing ? 'animate-spin' : ''}`} />
+                  <div className="flex-1 max-w-[140px]">
+                    <Select value={syncInterval} onValueChange={handleSyncIntervalChange}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="60">1 min</SelectItem>
+                        <SelectItem value="300">5 min</SelectItem>
+                        <SelectItem value="600">10 min</SelectItem>
+                        <SelectItem value="900">15 min</SelectItem>
+                        <SelectItem value="3600">1 tim</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleQuickSync} disabled={quickSyncing} variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary">
+                    <RefreshCw className={`h-3 w-3 ${quickSyncing ? 'animate-spin' : ''}`} />
                   </Button>
-                  {lastBrewfatherQuickSync && (
-                    <span className="text-[10px] text-muted-foreground truncate shrink-0 w-24 text-right hidden sm:inline">
-                      {formatDistanceToNow(new Date(lastBrewfatherQuickSync), { addSuffix: true, locale: sv })}
-                    </span>
-                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0 w-20 text-right truncate">
+                    {lastBrewfatherQuickSync ? formatDistanceToNow(new Date(lastBrewfatherQuickSync), { addSuffix: true, locale: sv }) : '–'}
+                  </span>
                 </div>
 
                 {/* Brewfather Full */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 w-28 shrink-0">
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="flex items-center gap-2 w-24 shrink-0">
                     <Beer className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-xs font-medium">BF Full</span>
                   </div>
-                  <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
-                    <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="3600">1 tim</SelectItem>
-                      <SelectItem value="21600">6 tim</SelectItem>
-                      <SelectItem value="43200">12 tim</SelectItem>
-                      <SelectItem value="86400">24 tim</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleFullSync} disabled={syncing} variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary">
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                  <div className="flex-1 max-w-[140px]">
+                    <Select value={fullSyncInterval} onValueChange={handleFullSyncIntervalChange}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="3600">1 tim</SelectItem>
+                        <SelectItem value="21600">6 tim</SelectItem>
+                        <SelectItem value="43200">12 tim</SelectItem>
+                        <SelectItem value="86400">24 tim</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleFullSync} disabled={syncing} variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary">
+                    <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
                   </Button>
-                  {lastFullSync && (
-                    <span className="text-[10px] text-muted-foreground truncate shrink-0 w-24 text-right hidden sm:inline">
-                      {formatDistanceToNow(new Date(lastFullSync), { addSuffix: true, locale: sv })}
-                    </span>
-                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0 w-20 text-right truncate">
+                    {lastFullSync ? formatDistanceToNow(new Date(lastFullSync), { addSuffix: true, locale: sv }) : '–'}
+                  </span>
                 </div>
                 {syncing && syncSteps.length > 0 && <SyncChecklist steps={syncSteps} />}
 
-                <div className="border-t border-border/30 my-1" />
+                <div className="border-t border-border/20 !my-2" />
 
                 {/* RAPT Quick */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 w-28 shrink-0">
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="flex items-center gap-2 w-24 shrink-0">
                     <Cloud className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-xs font-medium">RAPT Snabb</span>
                   </div>
-                  <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
-                    <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
-                      <SelectItem value="0">Aldrig</SelectItem>
-                      <SelectItem value="60">1 min</SelectItem>
-                      <SelectItem value="300">5 min</SelectItem>
-                      <SelectItem value="600">10 min</SelectItem>
-                      <SelectItem value="900">15 min</SelectItem>
-                      <SelectItem value="1800">30 min</SelectItem>
-                      <SelectItem value="3600">1 tim</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleRaptQuickSync} disabled={raptQuickSyncing} variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary">
-                    <RefreshCw className={`h-3.5 w-3.5 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
+                  <div className="flex-1 max-w-[140px]">
+                    <Select value={raptSyncInterval} onValueChange={handleRaptSyncIntervalChange}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="60">1 min</SelectItem>
+                        <SelectItem value="300">5 min</SelectItem>
+                        <SelectItem value="600">10 min</SelectItem>
+                        <SelectItem value="900">15 min</SelectItem>
+                        <SelectItem value="1800">30 min</SelectItem>
+                        <SelectItem value="3600">1 tim</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleRaptQuickSync} disabled={raptQuickSyncing} variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary">
+                    <RefreshCw className={`h-3 w-3 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
                   </Button>
-                  {lastRaptQuickSync && (
-                    <span className="text-[10px] text-muted-foreground truncate shrink-0 w-24 text-right hidden sm:inline">
-                      {formatDistanceToNow(new Date(lastRaptQuickSync), { addSuffix: true, locale: sv })}
-                    </span>
-                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0 w-20 text-right truncate">
+                    {lastRaptQuickSync ? formatDistanceToNow(new Date(lastRaptQuickSync), { addSuffix: true, locale: sv }) : '–'}
+                  </span>
                 </div>
 
                 {/* RAPT Full */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 w-28 shrink-0">
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="flex items-center gap-2 w-24 shrink-0">
                     <Cloud className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-xs font-medium">RAPT Full</span>
                   </div>
-                  <div className="flex-1" />
-                  <Button onClick={handleRaptFullSync} disabled={raptSyncing} variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary">
-                    <RefreshCw className={`h-3.5 w-3.5 ${raptSyncing ? 'animate-spin' : ''}`} />
+                  <div className="flex-1 max-w-[140px]">
+                    <span className="text-[10px] text-muted-foreground italic">Manuell</span>
+                  </div>
+                  <Button onClick={handleRaptFullSync} disabled={raptSyncing} variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary">
+                    <RefreshCw className={`h-3 w-3 ${raptSyncing ? 'animate-spin' : ''}`} />
                   </Button>
-                  {lastRaptSync && (
-                    <span className="text-[10px] text-muted-foreground truncate shrink-0 w-24 text-right hidden sm:inline">
-                      {formatDistanceToNow(new Date(lastRaptSync), { addSuffix: true, locale: sv })}
-                    </span>
-                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0 w-20 text-right truncate">
+                    {lastRaptSync ? formatDistanceToNow(new Date(lastRaptSync), { addSuffix: true, locale: sv }) : '–'}
+                  </span>
                 </div>
                 {raptSyncing && raptSyncSteps.length > 0 && <SyncChecklist steps={raptSyncSteps} />}
               </div>
