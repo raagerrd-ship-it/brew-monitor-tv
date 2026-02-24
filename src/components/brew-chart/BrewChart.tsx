@@ -196,11 +196,14 @@ function BrewChartComponent({
              labelStyle={{ color: COLORS.mutedForeground, marginBottom: "1px" }}
              itemStyle={{ lineHeight: "1.1", padding: "1px 0" }}
              labelFormatter={formatTooltipLabel}
-               formatter={(value: number, name: string, payload: any) => {
+                formatter={(value: number, name: string, payload: any) => {
                  const rawPayload = payload?.payload;
                  if (name === "value") {
                    const dv = rawPayload?.rawValue ?? value;
                    return [<span key="v" style={{ color: COLORS.sg }}>SG: {dv.toFixed(3)}</span>, null];
+                 }
+                 if (name === "predictedSg") {
+                   return [<span key="v" style={{ color: COLORS.predictedSg }}>Pred: {value.toFixed(3)}</span>, null];
                  }
                  if (name === "avgTemp") {
                    const dv = rawPayload?.rawAvgTemp ?? value;
@@ -232,6 +235,21 @@ function BrewChartComponent({
             name="value"
             isAnimationActive={isAnimationActive}
             style={{ filter: DATA_SERIES_CONFIG.sg.filter }}
+          />
+
+          {/* Predicted SG Line (dashed) */}
+          <Line
+            yAxisId="sg"
+            type={lineType}
+            dataKey="predictedSg"
+            stroke={COLORS.predictedSg}
+            strokeWidth={1.5}
+            strokeDasharray="6 4"
+            dot={false}
+            activeDot={{ r: 3, fill: COLORS.predictedSg }}
+            name="predictedSg"
+            isAnimationActive={isAnimationActive}
+            connectNulls={false}
           />
 
           {/* Average temp - main temperature with gradient that fades downward */}

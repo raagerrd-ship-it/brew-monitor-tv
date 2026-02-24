@@ -147,14 +147,57 @@ export async function calculateCompensatedTarget(
   const deltaBucket = avgDelta > 3 ? 'high' : avgDelta > 1.5 ? 'medium' : 'low'
 
   // Query learned baseline for this controller + phase + mode + step_type
-  const { data: learnedRow } = await supabase
-    .from('controller_learned_compensation')
-    .select('learned_pi_correction, convergence_count, accumulated_integral')
-    .eq('controller_id', controllerId)
-    .eq('delta_bucket', deltaBucket)
-    .eq('mode', mode)
-    .eq('step_type', stepType)
-    .maybeSingle()
+  // Fallback: if no per-controller data, try style_key-based cross-batch learning
+  let learnedRow: any = null;
+  {
+    const { data } = await supabase
+      .from('controller_learned_compensation')
+      .select('learned_pi_correction, convergence_count, accumulated_integral, style_key')
+      .eq('controller_id', controllerId)
+      .eq('delta_bucket', deltaBucket)
+      .eq('mode', mode)
+      .eq('step_type', stepType)
+      .maybeSingle();
+    learnedRow = data;
+  }
+
+  // Style-key fallback: if no learned data for this controller, look for same style across all controllers
+  if (!learnedRow) {
+    // Try to find the style from the active fermentation session's brew
+    const { data: sessionData } = await supabase
+      .from('fermentation_sessions')
+      .select('brew_id')
+      .eq('controller_id', controllerId)
+      .eq('status', 'running')
+      .limit(1)
+      .maybeSingle();
+
+    if (sessionData?.brew_id) {
+      const { data: brewData } = await supabase
+        .from('brew_readings')
+        .select('style')
+        .eq('id', sessionData.brew_id)
+        .maybeSingle();
+
+      if (brewData?.style) {
+        const { data: styleRow } = await supabase
+          .from('controller_learned_compensation')
+          .select('learned_pi_correction, convergence_count, accumulated_integral, style_key')
+          .eq('style_key', brewData.style)
+          .eq('delta_bucket', deltaBucket)
+          .eq('mode', mode)
+          .eq('step_type', stepType)
+          .order('convergence_count', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (styleRow && (styleRow.convergence_count ?? 0) >= 3) {
+          learnedRow = styleRow;
+          console.log(`🧬 Style fallback: using learned data from style "${brewData.style}" (n=${styleRow.convergence_count})`);
+        }
+      }
+    }
+  }
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0

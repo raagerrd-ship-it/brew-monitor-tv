@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
+import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
 import { memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -100,6 +101,7 @@ export function DashboardHeader({
           <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
             <Clock />
 
+            {!isTvMode && <NotificationBell />}
 
             {!isTvMode && (
               <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>

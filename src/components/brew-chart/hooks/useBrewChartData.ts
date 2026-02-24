@@ -37,6 +37,11 @@ interface SnapshotTarget {
   target: number;
 }
 
+interface PredictedSgPoint {
+  timestamp: number;
+  sg: number;
+}
+
 export function useBrewChartData({
   data,
   controllerId,
@@ -46,6 +51,7 @@ export function useBrewChartData({
   const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotTargets, setSnapshotTargets] = useState<SnapshotTarget[]>([]);
+  const [predictedSgCurve, setPredictedSgCurve] = useState<PredictedSgPoint[]>([]);
   const { isTvMode } = useTvMode();
   
   const lastFetchKey = useRef<string>("");
@@ -60,6 +66,7 @@ export function useBrewChartData({
         setControllerTempData([]);
       }
       setSnapshotTargets([]);
+      setPredictedSgCurve([]);
       return;
     }
 
@@ -122,6 +129,26 @@ export function useBrewChartData({
           : Promise.resolve([] as any[]);
 
         const [ctrlRows, snapshotsResult] = await Promise.all([controllerPromise, snapshotsPromise]);
+
+        // Fetch predicted SG curve from fermentation metrics
+        if (brewId) {
+          const { data: metricsData } = await supabase
+            .from("brew_fermentation_metrics")
+            .select("predicted_sg_curve")
+            .eq("brew_id", brewId)
+            .maybeSingle();
+          
+          if (metricsData && Array.isArray((metricsData as any).predicted_sg_curve)) {
+            setPredictedSgCurve(
+              ((metricsData as any).predicted_sg_curve as any[]).map((p: any) => ({
+                timestamp: new Date(p.date).getTime(),
+                sg: p.sg,
+              }))
+            );
+          } else {
+            setPredictedSgCurve([]);
+          }
+        }
 
         if (ctrlRows.length > 0) setControllerTempData(ctrlRows);
 
@@ -188,8 +215,24 @@ export function useBrewChartData({
       });
     }
 
+    // Apply predicted SG curve
+    if (predictedSgCurve.length >= 2) {
+      mappedData = mappedData.map(point => {
+        // Linear interpolation between predicted points
+        let predictedSg: number | null = null;
+        for (let i = 0; i < predictedSgCurve.length - 1; i++) {
+          if (point.timestamp >= predictedSgCurve[i].timestamp && point.timestamp <= predictedSgCurve[i + 1].timestamp) {
+            const t = (point.timestamp - predictedSgCurve[i].timestamp) / (predictedSgCurve[i + 1].timestamp - predictedSgCurve[i].timestamp);
+            predictedSg = predictedSgCurve[i].sg + t * (predictedSgCurve[i + 1].sg - predictedSgCurve[i].sg);
+            break;
+          }
+        }
+        return predictedSg !== null ? { ...point, predictedSg } : point;
+      });
+    }
+
     return mappedData;
-  }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets]);
+  }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets, predictedSgCurve]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);

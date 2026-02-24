@@ -8,6 +8,8 @@ export interface ChartDataPoint {
   avgTemp?: number | null;
   /** Delta between pill and controller for stacked area span rendering */
   tempSpan?: number | null;
+  /** Predicted SG value from exponential decay model */
+  predictedSg?: number | null;
   // Raw (unsmoothed) values for tooltip display
   rawValue?: number;
   rawPillTemp?: number;

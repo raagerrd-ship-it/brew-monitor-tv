@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget } from '../_shared/temp-utils.ts';
+import { insertNotification } from '../_shared/notifications.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -950,6 +951,15 @@ serve(async (req) => {
           boost_degrees: boostDeg,
           sg_rate_before: sgRatePerDay,
           outcome: 'pending',
+        });
+
+        // Notification for stall boost
+        await insertNotification(supabase, {
+          type: 'stall_boost',
+          title: 'Stall detekterad',
+          body: `${fc.name} (${brewName}): +${boostDeg.toFixed(1)}°C boost, SG-rate ${sgRatePerDay.toFixed(4)}/dag`,
+          brew_id: brewLink.id,
+          controller_id: fc.controller_id,
         });
 
         await supabase.from('auto_cooling_adjustments').insert({

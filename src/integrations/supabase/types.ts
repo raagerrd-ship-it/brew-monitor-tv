@@ -327,6 +327,7 @@ export type Database = {
           fermentation_phase: string
           id: string
           peak_delta: number
+          predicted_sg_curve: Json | null
           ready_to_crash: boolean
           ready_to_crash_at: string | null
           sg_rate_per_hour: number
@@ -340,6 +341,7 @@ export type Database = {
           fermentation_phase?: string
           id?: string
           peak_delta?: number
+          predicted_sg_curve?: Json | null
           ready_to_crash?: boolean
           ready_to_crash_at?: string | null
           sg_rate_per_hour?: number
@@ -353,6 +355,7 @@ export type Database = {
           fermentation_phase?: string
           id?: string
           peak_delta?: number
+          predicted_sg_curve?: Json | null
           ready_to_crash?: boolean
           ready_to_crash_at?: string | null
           sg_rate_per_hour?: number
@@ -537,6 +540,7 @@ export type Database = {
           learned_pi_correction: number
           mode: string
           step_type: string
+          style_key: string | null
           updated_at: string
         }
         Insert: {
@@ -554,6 +558,7 @@ export type Database = {
           learned_pi_correction?: number
           mode?: string
           step_type?: string
+          style_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -571,6 +576,7 @@ export type Database = {
           learned_pi_correction?: number
           mode?: string
           step_type?: string
+          style_key?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -809,6 +815,47 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "fermentation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pending_notifications: {
+        Row: {
+          body: string
+          brew_id: string | null
+          controller_id: string | null
+          created_at: string
+          id: string
+          read_at: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          body: string
+          brew_id?: string | null
+          controller_id?: string | null
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string
+          brew_id?: string | null
+          controller_id?: string | null
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_notifications_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_readings"
             referencedColumns: ["id"]
           },
         ]
