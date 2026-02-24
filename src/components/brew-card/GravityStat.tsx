@@ -35,10 +35,12 @@ interface GravityStatProps {
   onSyncedDataClick?: () => void;
 }
 
-function FermentationRateBar({ rate, trend, stallThreshold }: { 
+function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: { 
   rate: number; 
   trend?: 'rising' | 'falling' | 'stable' | null;
   stallThreshold: number;
+  rate6h?: number | null;
+  rate12h?: number | null;
 }) {
   const maxRate = Math.max(0.015, rate * 1.5);
   const stallPct = (stallThreshold / maxRate) * 100;
@@ -52,6 +54,23 @@ function FermentationRateBar({ rate, trend, stallThreshold }: {
       : 'hsl(38 70% 50%)';
 
   const isStalled = rate <= stallThreshold;
+
+  // Trend bar: show magnitude of rate change as a bar from marker
+  let trendBarLeft = ratePct;
+  let trendBarWidth = 0;
+  if (rate6h != null && rate12h != null && rate12h > 0.0005) {
+    const diff = rate6h - rate12h; // positive = speeding up, negative = slowing
+    const diffPct = Math.min(Math.abs(diff) / maxRate * 100, 30); // cap at 30% width
+    if (diff > 0) {
+      // Rising: bar extends right from marker
+      trendBarLeft = ratePct;
+      trendBarWidth = Math.min(diffPct, 100 - ratePct);
+    } else {
+      // Falling: bar extends left from marker
+      trendBarWidth = Math.min(diffPct, ratePct);
+      trendBarLeft = ratePct - trendBarWidth;
+    }
+  }
 
   return (
     <div className="w-full px-1 flex flex-col gap-0.5">
@@ -74,15 +93,16 @@ function FermentationRateBar({ rate, trend, stallThreshold }: {
               opacity: 0.7,
             }}
           />
-          {/* Active zone fill */}
-          {!isStalled && (
+          {/* Trend bar */}
+          {trendBarWidth > 0.5 && (
             <div 
               className="absolute top-0 bottom-0"
               style={{ 
-                left: `${stallPct}%`,
-                width: `${Math.max(0, ratePct - stallPct)}%`,
-                background: 'hsl(38 90% 50%)',
-                boxShadow: '0 0 8px hsl(38 90% 50% / 0.5)',
+                left: `${trendBarLeft}%`,
+                width: `${trendBarWidth}%`,
+                background: trendColor,
+                opacity: 0.6,
+                boxShadow: `0 0 6px ${trendColor}`,
               }}
             />
           )}
@@ -212,6 +232,8 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
             rate={brew.fermentationRate} 
             trend={brew.fermentationTrend?.trend}
             stallThreshold={stallThreshold}
+            rate6h={brew.fermentationTrend?.rate6h}
+            rate12h={brew.fermentationTrend?.rate12h}
           />
         )}
         {!isInactive && brew.fermentationRate === null && (
