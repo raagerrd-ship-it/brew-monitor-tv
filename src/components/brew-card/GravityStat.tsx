@@ -207,7 +207,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
             }}
           >
             <div 
-              className="h-full rounded-full"
+              className="absolute top-0 bottom-0 left-0 rounded-full"
               style={{ 
                 width: `${progress}%`,
                 background: progressColor,
