@@ -1943,7 +1943,7 @@ export default function Settings() {
             <SettingsSection
               icon={Snowflake}
               title="Glykolkylare"
-              description="Konfiguration av kylare, följda jästankar och justeringsparametrar"
+              description="Välj vilken controller som är kylare och vilka jästankar den ska följa"
             >
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -1955,7 +1955,7 @@ export default function Settings() {
                   htmlFor="auto-cooling-enabled"
                   className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  Aktivera automatisk temperaturjustering
+                  Aktivera automatisk kylreglering (systemet lär sig optimala justeringar)
                 </label>
               </div>
 
@@ -1963,10 +1963,10 @@ export default function Settings() {
                 <div className="space-y-6">
                   {/* CONTROLLERS */}
                   <div className="space-y-3">
-                    <span className="settings-label">Controllers</span>
+                    <span className="settings-label">Hårdvara</span>
                     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Kylare (justeras automatiskt)</label>
+                        <label className="text-xs font-medium text-muted-foreground">Vilken controller styr kylaren?</label>
                         <Select value={coolerControllerId} onValueChange={handleCoolerControllerChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Välj kylare..." />
@@ -1983,7 +1983,7 @@ export default function Settings() {
 
                       {coolerControllerId && (
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Följ dessa jästankar</label>
+                          <label className="text-xs font-medium text-muted-foreground">Vilka jästankar ska kylaren följa?</label>
                           <div className="p-3 rounded-md bg-card border border-border space-y-2">
                             {availableControllers
                               .filter(c => c.id !== coolerControllerId)
@@ -2017,10 +2017,10 @@ export default function Settings() {
 
                   {/* PARAMETERS */}
                   <div className="space-y-3">
-                    <span className="settings-label">Justeringsparametrar</span>
+                    <span className="settings-label">Begränsningar</span>
                     <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Kontrollintervall</label>
+                        <label className="text-xs font-medium text-muted-foreground">Hur ofta ska systemet kontrollera?</label>
                         <Select value={autoCoolingInterval} onValueChange={handleAutoCoolingIntervalChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -2035,7 +2035,7 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Kylmarginal (under lägsta tank)</label>
+                        <label className="text-xs font-medium text-muted-foreground">Hur långt under lägsta tank ska kylaren ligga?</label>
                         <Select value={tempReduction} onValueChange={handleTempReductionChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -2054,7 +2054,7 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Max differens</label>
+                        <label className="text-xs font-medium text-muted-foreground">Hur kallt får kylvattnet bli?</label>
                         <Select value={maxDiffFromLowest} onValueChange={handleMaxDiffChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -2070,7 +2070,7 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Delta-varning</label>
+                        <label className="text-xs font-medium text-muted-foreground">Varna om pill-delta överstiger</label>
                         <Select value={deltaAlertThreshold} onValueChange={handleDeltaAlertThresholdChange}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -2087,9 +2087,9 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
-                      Kylaren ligger {tempReduction}°C under lägsta tankens mål. Kontrollerar var {autoCoolingInterval} min. Max {maxDiffFromLowest}°C differens. Varnar vid pill-delta &gt; {deltaAlertThreshold}°C.
-                    </p>
+                     <p className="text-xs text-muted-foreground">
+                       Systemet justerar kylaren automatiskt baserat på jästankarnas behov. Du sätter bara begränsningarna för din hårdvara ovan.
+                     </p>
                   </div>
 
                   <SettingsDivider />
@@ -2100,29 +2100,25 @@ export default function Settings() {
                       <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
                       <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                      <p>• Övervakar controller med lägst måltemperatur bland följda tankar</p>
-                      <p>• Startar nedräkning när temperaturen är över mål + tolerans</p>
-                      <p>• Sänker kylarens mål efter {autoCoolingInterval} min med {tempReduction}°C</p>
-                      <p>• Analyserar pill vs controller delta (yttemp vs kärntemp)</p>
-                      <p>• Stigande delta → 1.5x sänkning, delta &gt;1.5° → 2x sänkning</p>
-                      <p>• Varnar vid pill-delta över {deltaAlertThreshold}°C</p>
-                      <p>• Höjer automatiskt om kylaren blir &gt;10°C kallare</p>
-                      <p>• Sätter kylaren till 18°C om ingen controller kyler aktivt</p>
-                    </CollapsibleContent>
+                     <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                       <p>• Övervakar den tank med lägst måltemperatur bland dina valda jästankar</p>
+                       <p>• Om tanken inte når sitt mål inom kontrollintervallet sänks kylaren</p>
+                       <p>• Analyserar pill vs probe delta för att anpassa justeringshastigheten</p>
+                       <p>• Höjer kylaren automatiskt om den blivit onödigt kall</p>
+                       <p>• Sätter kylaren till viloläge (18°C) om ingen tank kyler aktivt</p>
+                     </CollapsibleContent>
                   </Collapsible>
                 </div>
               )}
             </SettingsSection>
 
 
-            {/* PILL COMPENSATION (was below Jästanksjustering, now directly follows) */}
-            <SettingsSection
-              icon={Pill}
-              title="Pill-kompensation"
-              description="Kompenserar för temperaturskillnaden mellan pill (yta) och probe (kärna) när värme eller kyla är aktivt"
-            >
-              <div className="space-y-4">
+             <SettingsSection
+               icon={Pill}
+               title="Pill-kompensation"
+               description="Justerar automatiskt för temperaturskillnaden mellan pill och probe — systemet lär sig optimala värden"
+             >
+               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="pill-comp-enabled"
@@ -2133,14 +2129,14 @@ export default function Settings() {
                     htmlFor="pill-comp-enabled"
                     className="text-sm cursor-pointer leading-none"
                   >
-                    Aktivera pill-kompensation
+                    Aktivera (systemet lär sig rätt kompensation automatiskt)
                   </label>
                 </div>
 
                 {pillCompEnabled && (
                   <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Max kompensation (säkerhetsgräns)</label>
+                      <label className="text-xs font-medium text-muted-foreground">Hur mycket får systemet max kompensera?</label>
                       <Select value={pillCompMaxCompensation} onValueChange={handlePillCompMaxCompensationChange}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
@@ -2154,22 +2150,22 @@ export default function Settings() {
                       </Select>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
-                      PI(D)-loop som automatiskt lär sig rätt kompensation per controller, fas och stegtyp. Systemet konvergerar mot optimala värden över tid. Max {pillCompMaxCompensation}°C under profilmål.
-                    </p>
+                     <p className="text-xs text-muted-foreground">
+                       Systemet lär sig automatiskt rätt kompensation per controller, uppvärmnings-/kylningsläge och stegtyp. Inlärda värden återanvänds och förbättras varje cykel. Säkerhetsgränsen ovan förhindrar att systemet kompenserar mer än din utrustning klarar.
+                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
                       <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
                         <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
                         <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                        <p>• <strong>Mål:</strong> medelvärdet (pill+probe)/2 ska matcha profilens måltemperatur</p>
-                        <p>• <strong>PI(D)-loop:</strong> P- och I-korrektion driver mot rätt temperatur, D-termen dämpar vid snabba ändringar</p>
-                        <p>• <strong>Inlärning:</strong> vid konvergens (±0.5°C) sparas baseline per controller/fas/stegtyp</p>
-                        <p>• <strong>Asymmetrisk:</strong> uppåt-ändringar begränsas för att undvika överskjutning</p>
-                        <p>• <strong>Säkerhetsgolv:</strong> aldrig mer än {pillCompMaxCompensation}°C under profilens mål</p>
-                      </CollapsibleContent>
+                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                         <p>• Jämför medelvärdet (pill+probe)/2 med profilens måltemperatur</p>
+                         <p>• Använder kontrollalgoritm (PI(D)) som konvergerar mot optimal kompensation</p>
+                         <p>• Sparar inlärda baselines per controller, uppvärmning/kylning och stegtyp</p>
+                         <p>• Begränsar uppåt-ändringar för att undvika överskjutning</p>
+                         <p>• Aldrig mer än {pillCompMaxCompensation}°C under profilens mål (din säkerhetsgräns)</p>
+                       </CollapsibleContent>
                     </Collapsible>
 
                     <SettingsDivider />
@@ -2179,11 +2175,10 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
-            {/* STALL DETECTION */}
-            <SettingsSection
-              icon={AlertTriangle}
-              title="Stall-detektering"
-              description="Detekterar jäsningsstall via SG-hastighet + temp-delta och höjer temperaturen automatiskt"
+             <SettingsSection
+               icon={AlertTriangle}
+               title="Stall-detektering"
+               description="Upptäcker automatiskt om jäsningen stannar av och höjer temperaturen för att starta om den"
             >
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
@@ -2196,14 +2191,14 @@ export default function Settings() {
                     htmlFor="stall-detection-enabled"
                     className="text-sm cursor-pointer leading-none"
                   >
-                    Aktivera stall-detektering
+                    Aktivera (övervakar SG-hastighet och jäsningsvärme automatiskt)
                   </label>
                 </div>
 
                 {stallDetectionEnabled && (
                   <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Temperaturhöjning vid stall</label>
+                      <label className="text-xs font-medium text-muted-foreground">Hur mycket ska temperaturen höjas vid stall?</label>
                       <Select value={stallBoostDegrees} onValueChange={handleStallBoostDegreesChange}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
@@ -2217,23 +2212,22 @@ export default function Settings() {
                       </Select>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
-                      Detekterar stall automatiskt via SG-hastighet och temp-delta. Aktiv mellan 10-90% utjäsning. Temperaturen höjs med {stallBoostDegrees}°C. Cooldown: 12h mellan boosts.
-                    </p>
+                     <p className="text-xs text-muted-foreground">
+                       Systemet analyserar automatiskt SG-hastighet och jäsningsvärme (temp-delta). Aktiv när jäsningen är mellan 10-90% klar. Maximal en höjning per 12 timmar.
+                     </p>
 
                     <Collapsible className="bg-muted/30 rounded-lg border border-border/50">
                       <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors text-left group">
                         <span className="text-xs font-medium text-muted-foreground">Hur fungerar det?</span>
                         <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-                        <p>• <strong>SG-analys:</strong> Beräknar SG-förändring per dygn baserat på senaste 24h</p>
-                        <p>• <strong>Delta-analys:</strong> Jämför senaste 15 min temp-delta med 15-30 min sedan</p>
-                        <p>• <strong>Kombination:</strong> Båda villkoren måste vara uppfyllda (SG stagnerat + delta sjunker/lågt)</p>
-                        <p>• <strong>Utjäsning:</strong> Aktiv bara mellan 10-90% apparent attenuation</p>
-                        <p>• <strong>Cooldown:</strong> Högst en boost per 12 timmar per controller</p>
-                        <p>• <strong>Säkerhet:</strong> Respekterar alltid min/max-gränser på controllern</p>
-                      </CollapsibleContent>
+                       <CollapsibleContent className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
+                         <p>• Beräknar SG-förändring per dygn baserat på senaste 24 timmarna</p>
+                         <p>• Analyserar om jäsningsvärmen (pill vs probe delta) sjunker</p>
+                         <p>• Kräver att båda indikatorerna pekar på stall innan åtgärd</p>
+                         <p>• Aktiv bara när jäsningen är 10-90% klar (hoppar över start och slut)</p>
+                         <p>• Max en höjning per 12 timmar — respekterar alltid controllerns min/max</p>
+                       </CollapsibleContent>
                     </Collapsible>
                   </div>
                 )}
