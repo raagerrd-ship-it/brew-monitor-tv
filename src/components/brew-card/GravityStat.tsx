@@ -43,9 +43,10 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   rate6h?: number | null;
   rate12h?: number | null;
 }) {
-  const maxRate = Math.max(0.015, rate * 1.5);
+  const displayRate = rate6h ?? rate;
+  const maxRate = Math.max(0.015, displayRate * 1.5);
   const stallPct = (stallThreshold / maxRate) * 100;
-  const ratePct = Math.min((rate / maxRate) * 100, 100);
+  const ratePct = Math.min((displayRate / maxRate) * 100, 100);
   
   const trendIcon = trend === 'rising' ? '▶' : trend === 'falling' ? '◀' : '•';
   const trendColor = trend === 'rising' 
