@@ -674,12 +674,16 @@ serve(async (req) => {
         const stallThreshold = stallSettings.sgRateThreshold;
         const ratePct = stallThreshold > 0 ? ((sgRatePerDay / stallThreshold) * 100).toFixed(0) : '?';
 
-        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName}): SG-rate=${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)}), SG=${currentSg.toFixed(4)}, drop=${sgDrop.toFixed(4)}/${sgTimeDiffHours.toFixed(0)}h, delta: cur=${currentAvgDelta.toFixed(2)} old=${oldAvgDelta.toFixed(2)} (dropping=${deltaIsDropping}, low=${deltaIsLow})`, {
+        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName})`, {
+          sg_rate: `${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)})`,
           sg_stalling: sgIsStalling,
+          current_sg: currentSg.toFixed(4),
+          sg_drop: `${sgDrop.toFixed(4)} / ${sgTimeDiffHours.toFixed(0)}h`,
+          delta_current: currentAvgDelta.toFixed(2),
+          delta_old: oldAvgDelta.toFixed(2),
           delta_dropping: deltaIsDropping,
           delta_is_low: deltaIsLow,
           stall_detected: stallDetected,
-          sg_rate_pct_of_threshold: ratePct,
         });
 
         if (!stallDetected) continue;
