@@ -688,7 +688,7 @@ serve(async (req) => {
 
         if (!stallDetected) continue;
 
-        // Cooldown: don't boost same controller within 12 hours
+        // Cooldown: don't boost same controller within 6 hours
         const { data: lastBoost } = await supabase
           .from('auto_cooling_adjustments')
           .select('created_at')
@@ -700,8 +700,8 @@ serve(async (req) => {
         if (lastBoost && lastBoost.length > 0) {
           const lastBoostTime = new Date(lastBoost[0].created_at).getTime();
           const hoursSinceBoost = (now - lastBoostTime) / (1000 * 60 * 60);
-          if (hoursSinceBoost < 12) {
-            log('STALL_COOLDOWN', 'info', `${fc.name}: Senaste boost var ${hoursSinceBoost.toFixed(1)}h sedan (väntar 12h)`);
+          if (hoursSinceBoost < 6) {
+            log('STALL_COOLDOWN', 'info', `${fc.name}: Senaste boost var ${hoursSinceBoost.toFixed(1)}h sedan (väntar 6h)`);
             continue;
           }
         }
