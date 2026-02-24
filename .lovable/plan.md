@@ -1,93 +1,139 @@
 
 
-# Förbättringar av jäsningsautomatiken -- inspirerat av professionella bryggerier
+# Professionella bryggeri-funktioner -- Implementationsplan
 
 ## Sammanfattning
 
-Efter att ha jämfört ditt system med vad professionella bryggerier och moderna övervakningsplattformar (PLAATO, BrewOps, Precision Fermentation) använder, har jag identifierat flera förbättringsområden som kan implementeras med din befintliga hårdvara (RAPT Pill + temperaturstyrenheter).
+Fyra funktioner som identifierades som luckor mot professionella SCADA-system, alla genomforbara med befintlig hardvara (RAPT Pills, RAPT Controllers, Brewfather-data).
 
 ---
 
-## Vad ditt system redan gör bra
+## 1. Push-notifikationer for kritiska handelser
 
-Ditt system är redan avancerat jämfört med de flesta hembryggerier:
+Webblasar-notifikationer (PWA) for:
+- Stall detekterad (temperatur-boost applicerad)
+- Ready to cold crash
+- Temperaturavvikelse (delta over troskel)
+- Fermenteringsprofil klar
 
-- PI(D)-reglering med adaptiv inlärning per styrenhet, läge och delta-bucket
-- Stall-detektion med automatisk temperatur-boost och inlärning av boost-storlek
-- Fermenteringsprofiler med linjära ramper, SG-villkor och stabilitetskontroll
-- Glykolkylare-automatik som följer lägsta aktiva fermenteringstemperatur
-- AI-audit som övervakar och finjusterar parametrar automatiskt
-- Overshoot-prevention baserat på Pill-temperatur som tidig indikator
+### Teknisk implementation
 
----
+**Steg 1: Aktivera PWA i vite.config.ts**
+- Konfigurera `vite-plugin-pwa` (redan installerat men ej aktiverat)
+- Generera service worker med push-stod
 
-## Föreslagna förbättringar
+**Steg 2: Skapa notifikationstabell**
+```text
+pending_notifications
+  id, type, title, body, created_at, read_at, brew_id?, controller_id?
+```
 
-### 1. Automatisk diacetylvila-detektion (Diacetyl Rest)
+**Steg 3: Backend-logik**
+- `compute-fermentation-metrics`: skriver notification vid `ready_to_crash`
+- `auto-adjust-cooling`: skriver notification vid stall-boost och delta-alert
+- `process-fermentation-profiles`: skriver notification vid profil klar
 
-**Vad bryggerier gör:** Professionella bryggerier övervakar när primärjäsningen bromsar in (~75-80% apparent attenuation) och höjer automatiskt temperaturen 2-4 grader för en diacetylvila innan cold crash. Detta är särskilt kritiskt för lager.
-
-**Vad som saknas:** Ditt system har stall-detektion men ingen specifik logik för att identifiera "nära slutjäst" och trigga en planerad diacetylvila vs. en nöd-boost.
-
-**Förslag:** Lägg till ett nytt stegtyp `diacetyl_rest` i fermenteringsprofiler som automatiskt aktiveras vid en konfigurerbar attenuationsnivå (t.ex. 70-80%) istället för att vara tidsbaserat. Steget höjer temperaturen 2-4 grader och väntar tills SG är stabilt.
-
-### 2. Jäsningshastighets-trendanalys (Fermentation Velocity)
-
-**Vad bryggerier gör:** Professionella system beräknar SG-drop per timme och visualiserar jäsningskurvan i realtid. De identifierar peak fermentation, avtagande fas och slutjäsning som distinkta faser.
-
-**Vad som saknas:** Ditt system beräknar SG-rate men bara för stall-detektion. Ingen fasidentifiering eller trendvisualisering.
-
-**Förslag:** Beräkna och spara jäsningsfas (lag, exponential, stationary, declining) per bryggning som metadata. Visa detta som en badge på BrewCard och använd fasen för smartare profilbeslut -- t.ex. "vänta med cold crash tills declining-fas bekräftats".
-
-### 3. CO2-aktivitetsindikator via temperatur-delta-trend
-
-**Vad bryggerier gör:** Professionella bryggerier övervakar CO2-produktion med tryckgivare eller flödesräknare som en direkt indikator på jäsningsaktivitet.
-
-**Vad du redan har:** Temperatur-delta (Pill vs. probe) fungerar som en proxy för jäsningsvärme och därmed CO2-produktion. Du loggar detta redan i `temp_delta_history`.
-
-**Förslag:** Beräkna en "jäsningsaktivitets-score" (0-100%) baserat på normaliserat delta relativt peak-delta för den aktuella bryggningen. Spara som metadata och visa i UI. Detta ger en mer intuitiv indikator än rå delta-värden.
-
-### 4. Prediktiv slutpunktsberäkning (ETA to Terminal Gravity)
-
-**Vad bryggerier gör:** Avancerade system (BrewOps, Precision Fermentation) beräknar estimerad tid till slutjäst baserat på nuvarande SG-trend och jästens historiska beteende.
-
-**Vad som saknas:** Ingen prediktionslogik finns.
-
-**Förslag:** Baserat på nuvarande SG-drop-rate och final gravity (FG) från receptet, beräkna en ETA i timmar/dagar. Spara som fält i bryggdata och visa på BrewCard. Uppdatera varje synk-cykel. Formel: `ETA = (current_SG - target_FG) / sg_rate_per_hour`.
-
-### 5. Smart cold crash-timing
-
-**Vad bryggerier gör:** Cold crash startas aldrig bara baserat på tid utan på bekräftad SG-stabilitet PLUS diacetylvila slutförd.
-
-**Vad som redan finns:** Ditt system stödjer `gravity_stable_days` i profilsteg.
-
-**Förslag:** Lägg till en automatisk cold crash-rekommendation i justeringshistoriken när alla villkor är uppfyllda: SG stabil i X dagar + attenuering inom förväntat intervall + delta-trend visar minimal jäsningsaktivitet. Logga detta som en `READY_TO_CRASH`-händelse.
+**Steg 4: Frontend**
+- Klocka/bell-ikon i DashboardHeader med olaesta notifikationer
+- Realtime-prenumeration pa `pending_notifications`
+- Browser Notification API (`Notification.requestPermission()`) for push nar appen ar oppen
+- Notifikationshistorik i en dropdown/dialog
 
 ---
 
-## Teknisk plan
+## 2. Predikterad vs faktisk jasningskurva
 
-### Steg 1: Ny tabell `brew_fermentation_metrics`
-Spara beräknade mätvärden per bryggning per synk-cykel:
-- `fermentation_phase` (lag/exponential/stationary/declining)
-- `activity_score` (0-100)
-- `sg_rate_per_hour`
-- `eta_to_fg_hours`
-- `peak_delta` (max observerad delta under jäsningen)
+Overlay i brew-chartet som visar en forventad SG-kurva baserad pa OG, FG och stil/jast-historik.
 
-### Steg 2: Uppdatera `run-automation` / `auto-adjust-cooling`
-- Beräkna fermentation_phase och activity_score varje cykel
-- Beräkna ETA baserat på SG-trend och FG från recept
-- Logga `READY_TO_CRASH` när villkor uppfylls
+### Teknisk implementation
 
-### Steg 3: Nytt profilsteg `diacetyl_rest`
-- Triggas vid konfigurerbar attenuationsnivå
-- Höjer temp med konfigurerbara grader
-- Väntar på SG-stabilitet innan vidare
+**Steg 1: Berakningsmodell**
+- Enkel exponentiell avtagande-modell: `SG(t) = FG + (OG - FG) * e^(-k*t)`
+- Koefficient `k` baseras initialt pa stil (ale ~0.02/h, lager ~0.01/h)
+- Uppdateras adaptivt fran faktiska data nar tillracklig historik finns
 
-### Steg 4: UI-uppdateringar
-- Visa jäsningsfas-badge på BrewCard
-- Visa aktivitets-score som en mini-indikator
-- Visa ETA till slutjäst
-- Visa "Redo för cold crash"-notifikation
+**Steg 2: Edge function `compute-fermentation-metrics`**
+- Utoka med berakning av predikterad kurva (6-8 punkter)
+- Spara i `brew_fermentation_metrics` som ny JSON-kolumn `predicted_sg_curve`
+- Jemfor predikterad vs faktisk och flagga avvikelse (>10% fran forvantat)
+
+**Steg 3: Frontend -- BrewChart**
+- Ny streckad linje i chartet for predikterad SG
+- Markera avvikelsezoner med rott/gult band
+- Tooltip visar bade predikterad och faktisk
+
+**Steg 4: SVG-chart (render-brew-chart)**
+- Lagg till predikterad kurva som streckad linje i server-renderade charts
+
+---
+
+## 3. Multi-batch-inlarning per jaststam/stil
+
+Utoka inlarningssystemet sa att kompensationsbaslinjer delas mellan batchar med samma stil/jast istallet for att borja om fran noll varje gang.
+
+### Teknisk implementation
+
+**Steg 1: Databasandring**
+- Lagg till `style_key` (TEXT) i `controller_learned_compensation`
+- Lagg till index pa `style_key`
+- Populera fran `brew_readings.style` via `fermentation_sessions.brew_id`
+
+**Steg 2: Backend-logik (`_shared/temp-utils.ts`)**
+- Vid ny session: fallback-sokning -- leta forst per `controller_id + delta_bucket + mode + step_type`, sedan per `style_key + delta_bucket + mode + step_type` om ingen per-controller-data finns
+- Sparar resultatet per controller som idag men taggar med `style_key`
+- Ny session far en "warm start" fran tidigare batchar med samma stil
+
+**Steg 3: AI-audit**
+- `ai-automation-audit` far tillgang till stil-aggregerad data
+- Kan identifiera stil-specifika monster (t.ex. "Saison ar alltid 2x mer aktiv an IPA")
+
+---
+
+## 4. Automatisk batchrapport (PDF)
+
+Generera en sammanfattande PDF for varje avslutad batch med all relevant data.
+
+### Teknisk implementation
+
+**Steg 1: Edge function `generate-batch-report`**
+- Hamtar all data for en batch: brew_readings, brew_data_snapshots, temp_controller_history, fermentation_step_log, auto_cooling_adjustments, stall_boost_outcomes
+- Anropar `render-brew-chart` for att fa chart-bild
+- Bygger PDF server-side (via Deno-kompatibelt PDF-bibliotek) eller returnerar strukturerad data for klient-rendering
+
+**Steg 2: Frontend -- jsPDF-baserad rapport**
+- Anvander redan installerade `jspdf`
+- Sida 1: Batch-overblick (namn, stil, OG/FG, ABV, attenuation, start/slut-datum)
+- Sida 2: Temperaturkurva + SG-kurva (fran chart-bild)
+- Sida 3: Automationslogg (PID-justeringar, boosts, fasoverganger)
+- Sida 4: Sammanfattning (peak delta, aktivitetstopp, tid per fas)
+
+**Steg 3: UI -- Ny knapp pa brew-kortet**
+- "Ladda ner rapport"-knapp synlig for avslutade batchar
+- Genererar PDF direkt i webblasaren med data fran Supabase
+
+---
+
+## Prioriteringsordning
+
+1. **Push-notifikationer** -- storst operativ nytta, varnar direkt vid problem
+2. **Multi-batch-inlarning** -- forbattrar PID fran dag 1 for nya batchar
+3. **Predikterad SG-kurva** -- ger tidig insikt om jasningen avviker
+4. **Batchrapport (PDF)** -- dokumentation, inte kritisk for realtidsdrift
+
+---
+
+## Paverkade filer
+
+| Fil | Andring |
+|-----|---------|
+| `vite.config.ts` | Aktivera VitePWA |
+| `src/components/DashboardHeader.tsx` | Notifikations-ikon + dropdown |
+| `src/components/brew-chart/BrewChart.tsx` | Predikterad SG-linje |
+| `supabase/functions/compute-fermentation-metrics/index.ts` | Predikterad kurva + notifikationer |
+| `supabase/functions/auto-adjust-cooling/index.ts` | Notifikationer vid stall/delta |
+| `supabase/functions/_shared/temp-utils.ts` | Multi-batch fallback-logik |
+| `supabase/functions/render-brew-chart/index.ts` | Streckad predikterad linje |
+| Ny: `src/components/NotificationBell.tsx` | Notifikationskomponent |
+| Ny: `src/components/BatchReportButton.tsx` | PDF-generering |
+| Ny migration | `pending_notifications` tabell + `predicted_sg_curve` kolumn + `style_key` kolumn |
 
