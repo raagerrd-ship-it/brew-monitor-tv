@@ -61,14 +61,20 @@ Deno.serve(async (req) => {
   }
 
   // Check what needs to run
-  const [{ data: runningSessions }, { data: coolingSettings }] = await Promise.all([
+  const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }] = await Promise.all([
     supabase.from("fermentation_sessions").select("id, controller_id").eq("status", "running").limit(100),
     supabase.from("auto_cooling_settings").select("enabled, pill_compensation_enabled").limit(1),
+    supabase.from("rapt_temp_controllers")
+      .select("controller_id")
+      .or("cooling_enabled.eq.true,heating_enabled.eq.true")
+      .not("is_glycol_cooler", "eq", true)
+      .limit(1),
   ]);
 
   const settings = coolingSettings?.[0];
   const hasPillComp = (settings as any)?.pill_compensation_enabled;
   const hasCooling = settings?.enabled;
+  const hasActiveControllers = activeControllers && activeControllers.length > 0;
 
   // ============================================================
   // STEP 1: Fermentation Profiles (15s timeout)
@@ -84,11 +90,11 @@ Deno.serve(async (req) => {
   // STEP 2: PID Pill Compensation + Glycol Cooler (20s timeout)
   // Both handled by auto-adjust-cooling in a single call
   // ============================================================
-  if (hasPillComp || hasCooling) {
+  if ((hasPillComp || hasCooling) && hasActiveControllers) {
     console.log("Step 2: Running PID compensation + glycol cooler...");
     await runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000);
   } else {
-    results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0 });
+    results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
   }
 
   const totalDuration = Date.now() - startTime;

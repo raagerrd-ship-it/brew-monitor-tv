@@ -66,3 +66,9 @@ verify_jwt = false
 
 [functions.render-brew-chart]
 verify_jwt = false
+
+[functions.run-automation]
+verify_jwt = false
+
+[functions.ai-automation-audit]
+verify_jwt = false
