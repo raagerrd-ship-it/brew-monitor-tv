@@ -221,6 +221,8 @@ serve(async (req) => {
     const profileOwnedControllerIds = new Set<string>();
     // Map controller_id → profile target temp (the REAL goal, not the compensated controller target)
     const profileTargetMap = new Map<string, number>();
+    // Map controller_id → brew_id from running fermentation session
+    const sessionBrewIdMap = new Map<string, string>();
     // Check for 30-min cooloff after fermentation profile adjustments
     const cooloffControllerIds = new Set<string>();
     // Collect profile status per controller for consolidated logging
@@ -229,7 +231,7 @@ serve(async (req) => {
     {
       const { data: runningSessions } = await supabase
         .from('fermentation_sessions')
-        .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
+        .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp, brew_id')
         .eq('status', 'running')
         .in('controller_id', followedControllerIds);
 
@@ -278,6 +280,9 @@ serve(async (req) => {
         // ALL controllers with running sessions are profile-owned
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
+          if (session.brew_id) {
+            sessionBrewIdMap.set(session.controller_id, session.brew_id);
+          }
           
           let effectiveTarget: number | null = null;
           const profileSteps = profileStepsMap.get(session.profile_id);
@@ -543,14 +548,28 @@ serve(async (req) => {
         const fc = followedControllersFullData.find(c => c.controller_id === session.controller_id);
         if (!fc) continue;
 
-        // Need a linked brew to get SG data
-        const { data: brewLink } = await supabase
-          .from('brew_readings')
-          .select('id, name, sg_data, original_gravity, final_gravity, status')
-          .eq('linked_controller_id', fc.controller_id)
-          .in('status', ['Fermenting', 'Jäsning'])
-          .limit(1)
-          .maybeSingle();
+        // Need a linked brew to get SG data — prefer brew_id from session, fall back to linked_controller_id
+        const sessionBrewId = sessionBrewIdMap.get(fc.controller_id);
+        let brewLink: any = null;
+        if (sessionBrewId) {
+          const { data } = await supabase
+            .from('brew_readings')
+            .select('id, name, sg_data, original_gravity, final_gravity, status')
+            .eq('id', sessionBrewId)
+            .maybeSingle();
+          brewLink = data;
+        }
+        if (!brewLink) {
+          const { data } = await supabase
+            .from('brew_readings')
+            .select('id, name, sg_data, original_gravity, final_gravity, status')
+            .eq('linked_controller_id', fc.controller_id)
+            .in('status', ['Fermenting', 'Jäsning'])
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          brewLink = data;
+        }
 
         if (!brewLink || !brewLink.sg_data) {
           log('STALL_SKIP', 'info', `${fc.name}: Ingen aktiv bryggning kopplad`);
