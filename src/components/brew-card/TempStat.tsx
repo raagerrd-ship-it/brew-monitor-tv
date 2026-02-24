@@ -293,8 +293,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       clickable={!!handleClick}
     >
       <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
-        {pidBar}
         {spanBar}
+        {pidBar}
       </div>
     </StatCard>
   );
