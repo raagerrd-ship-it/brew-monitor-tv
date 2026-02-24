@@ -40,6 +40,65 @@ interface DecisionLogEntry {
   details?: Record<string, unknown>;
 }
 
+// Temperature bucket for context-aware learning
+function getTempBucket(targetTemp: number): string {
+  if (targetTemp < 8) return 'cold';      // Cold crash / lagering
+  if (targetTemp < 14) return 'cool';     // Lager fermentation
+  if (targetTemp < 20) return 'warm';     // Ale fermentation
+  return 'hot';                           // Saison / high-temp
+}
+
+// Load a learned parameter, returning the learned value or a default
+async function getLearnedParam(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  paramName: string,
+  defaultValue: number
+): Promise<{ value: number; sampleCount: number }> {
+  const { data } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value, sample_count')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', paramName)
+    .maybeSingle();
+  return {
+    value: data ? parseFloat(String(data.learned_value)) : defaultValue,
+    sampleCount: data?.sample_count ?? 0,
+  };
+}
+
+// Update a learned parameter with EMA (exponential moving average)
+async function updateLearnedParam(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  paramName: string,
+  newObservation: number,
+  clampMin: number,
+  clampMax: number
+) {
+  const { data: existing } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value, sample_count')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', paramName)
+    .maybeSingle();
+
+  const sampleCount = existing?.sample_count ?? 0;
+  const alpha = sampleCount < 5 ? 0.5 : 0.2; // Learn faster initially
+  const currentValue = existing ? parseFloat(String(existing.learned_value)) : newObservation;
+  const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha));
+
+  await supabase.from('fermentation_learnings').upsert({
+    controller_id: controllerId,
+    parameter_name: paramName,
+    learned_value: Math.round(newValue * 100) / 100,
+    sample_count: sampleCount + 1,
+    last_updated_at: new Date().toISOString(),
+  }, { onConflict: 'controller_id,parameter_name' });
+
+  return { oldValue: currentValue, newValue, sampleCount: sampleCount + 1 };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -931,6 +990,57 @@ serve(async (req) => {
     if (coolingEnabled) {
       log('COOLING', 'info', '--- Auto cooling adjustment check ---');
 
+      // === OUTCOME EVALUATION: Learn from past cooling adjustments ===
+      {
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        
+        // Find adjustments made 30min-2h ago that haven't been evaluated yet
+        const { data: pastAdjustments } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('id, cooler_controller_id, new_target_temp, followed_controller_id, followed_current_temp, followed_target_temp, reason')
+          .like('reason', '%struggling to cool%')
+          .lt('created_at', thirtyMinAgo)
+          .gt('created_at', twoHoursAgo);
+
+        if (pastAdjustments && pastAdjustments.length > 0) {
+          for (const adj of pastAdjustments) {
+            if (!adj.followed_controller_id || !adj.followed_target_temp) continue;
+
+            // Check current state of the followed controller
+            const fc = followedControllersFullData.find(c => c.controller_id === adj.followed_controller_id);
+            if (!fc) continue;
+
+            const currentTemp = parseFloat(String(fc.current_temp ?? fc.pill_temp ?? 999));
+            const targetTemp = parseFloat(String(fc.target_temp ?? adj.followed_target_temp));
+            const tempBucket = getTempBucket(targetTemp);
+            const hysteresis = parseFloat(String(fc.cooling_hysteresis ?? 0.2));
+
+            const reachedTarget = currentTemp <= targetTemp + hysteresis;
+            const overshot = currentTemp < targetTemp - 1.0; // Cooled too much
+
+            if (reachedTarget && !overshot) {
+              // Perfect — current margin works, slightly reduce it for efficiency
+              const currentMargin = targetTemp - adj.new_target_temp;
+              const result = await updateLearnedParam(supabase!, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, currentMargin, 2.0, 15.0);
+              log('COOLING_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`);
+            } else if (overshot) {
+              // Margin was too large — learn a smaller value
+              const currentMargin = targetTemp - adj.new_target_temp;
+              const reducedMargin = currentMargin * 0.75; // Reduce by 25%
+              const result = await updateLearnedParam(supabase!, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0);
+              log('COOLING_LEARN', 'action', `[${tempBucket}] Overshoot! Reducing margin: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`);
+            } else {
+              // Still too warm — margin was too small, learn a larger value
+              const currentMargin = targetTemp - adj.new_target_temp;
+              const increasedMargin = currentMargin * 1.25; // Increase by 25%
+              const result = await updateLearnedParam(supabase!, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, increasedMargin, 2.0, 15.0);
+              log('COOLING_LEARN', 'action', `[${tempBucket}] Insufficient cooling! Increasing margin: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`);
+            }
+          }
+        }
+      }
+
       // Find glycol cooler by is_glycol_cooler flag (set under Enheter)
       const coolerFromFlag = allControllers.find(c => (c as any).is_glycol_cooler) as TempController | undefined;
 
@@ -1171,7 +1281,11 @@ serve(async (req) => {
 
                     }
 
-                    const baseTempReduction = 5.0; // Auto-learned default margin
+                    // Context-aware cooler margin: learned per temperature bucket
+                    const tempBucket = getTempBucket(lowestTargetTemp);
+                    const learnedMargin = await getLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0);
+                    const baseTempReduction = learnedMargin.value;
+                    log('LEARNED_MARGIN', 'info', `Cooler margin [${tempBucket}]: ${baseTempReduction.toFixed(1)}°C (${learnedMargin.sampleCount} samples)`);
                     const effectiveTempReduction = baseTempReduction * deltaMultiplier;
 
                     if (deltaMultiplier > 1.0) {
@@ -1243,7 +1357,9 @@ serve(async (req) => {
 
             // Always check recovery: move cooler toward ideal target regardless of active cooling state
             {
-              const idealTarget = lowestTargetTemp - 5.0; // Auto-learned default margin
+              const tempBucketRecovery = getTempBucket(lowestTargetTemp);
+              const recoveryMargin = await getLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}`, 5.0);
+              const idealTarget = lowestTargetTemp - recoveryMargin.value;
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
