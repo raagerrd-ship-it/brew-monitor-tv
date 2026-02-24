@@ -17,6 +17,9 @@ interface AutoCoolingSettings {
   cooler_controller_id: string | null;
   last_check_at: string | null;
   delta_alert_threshold: number;
+  auto_boost_enabled: boolean;
+  auto_boost_degrees: number;
+  stall_rate_threshold: number;
 }
 
 interface FollowedController {
@@ -510,6 +513,216 @@ serve(async (req) => {
       }
     } else if (!pillCompSettings.enabled) {
       log('PILL_COMP', 'info', 'Pill compensation disabled');
+    }
+
+    // ====================================================================
+    // FEATURE 2: STALL DETECTION (temp-delta + SG combined)
+    // Detects fermentation stalls and auto-boosts temperature
+    // ====================================================================
+    const stallSettings = {
+      enabled: (settings as any).auto_boost_enabled ?? false,
+      boostDegrees: parseFloat(String((settings as any).auto_boost_degrees ?? 1.0)),
+      sgRateThreshold: parseFloat(String((settings as any).stall_rate_threshold ?? 0.001)),
+    };
+
+    if (stallSettings.enabled) {
+      log('STALL', 'info', '--- Stall detection check ---', {
+        boost_degrees: stallSettings.boostDegrees,
+        sg_rate_threshold: stallSettings.sgRateThreshold,
+      });
+
+      // Only check controllers with running fermentation sessions
+      for (const session of (() => {
+        const { data } = { data: [] as any[] };
+        // Use runningSessions already fetched above (in profileOwnedControllerIds block)
+        return [...profileOwnedControllerIds].map(cId => ({
+          controller_id: cId,
+          profileTarget: profileTargetMap.get(cId),
+        }));
+      })()) {
+        const fc = followedControllersFullData.find(c => c.controller_id === session.controller_id);
+        if (!fc) continue;
+
+        // Need a linked brew to get SG data
+        const { data: brewLink } = await supabase
+          .from('brew_readings')
+          .select('id, sg_data, original_gravity, final_gravity, status')
+          .eq('linked_controller_id', fc.controller_id)
+          .in('status', ['Fermenting', 'Jäsning'])
+          .limit(1)
+          .maybeSingle();
+
+        if (!brewLink || !brewLink.sg_data) {
+          log('STALL_SKIP', 'info', `${fc.name}: Ingen aktiv bryggning kopplad`);
+          continue;
+        }
+
+        // Parse SG data and calculate rate
+        const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number; temp: number }>;
+        if (sgData.length < 3) {
+          log('STALL_SKIP', 'info', `${fc.name}: För lite SG-data (${sgData.length} punkter)`);
+          continue;
+        }
+
+        // Sort by date descending
+        const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        // Calculate SG rate over last 24h
+        const now = Date.now();
+        const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+        const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twentyFourHoursAgo);
+        
+        if (recentSg.length < 2) {
+          log('STALL_SKIP', 'info', `${fc.name}: Inte tillräckligt med SG-data senaste 24h (${recentSg.length} punkter)`);
+          continue;
+        }
+
+        const newestSg = recentSg[0];
+        const oldestRecentSg = recentSg[recentSg.length - 1];
+        const sgTimeDiffHours = (new Date(newestSg.date).getTime() - new Date(oldestRecentSg.date).getTime()) / (1000 * 60 * 60);
+        
+        if (sgTimeDiffHours < 6) {
+          log('STALL_SKIP', 'info', `${fc.name}: SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+)`);
+          continue;
+        }
+
+        const sgDrop = oldestRecentSg.value - newestSg.value; // positive = fermentation active
+        const sgRatePerDay = (sgDrop / sgTimeDiffHours) * 24;
+        const sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold * 1000; // threshold is per point (e.g. 0.001), rate is per day
+
+        // Check temp delta trend (is fermentation heat decreasing?)
+        const deltaHistory = await supabase
+          .from('temp_delta_history')
+          .select('delta, recorded_at')
+          .eq('controller_id', fc.controller_id)
+          .order('recorded_at', { ascending: false })
+          .limit(12); // ~1 hour of data at 5min intervals
+
+        const deltas = (deltaHistory.data || []).map((d: any) => parseFloat(String(d.delta)));
+        
+        let deltaIsDropping = false;
+        let currentAvgDelta = 0;
+        let oldAvgDelta = 0;
+        
+        if (deltas.length >= 6) {
+          // Compare recent 3 vs older 3 deltas
+          currentAvgDelta = deltas.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+          oldAvgDelta = deltas.slice(3, 6).reduce((a, b) => a + b, 0) / 3;
+          // Delta dropping = fermentation heat decreasing
+          deltaIsDropping = currentAvgDelta < oldAvgDelta - 0.1 || currentAvgDelta < 0.3;
+        }
+
+        // Check if target SG has been reached (no stall if fermentation is done)
+        const fg = parseFloat(String(brewLink.final_gravity ?? 0));
+        const currentSg = newestSg.value;
+        const fermentationComplete = fg > 0 && currentSg <= fg + 0.002;
+
+        if (fermentationComplete) {
+          log('STALL_SKIP', 'info', `${fc.name}: Jäsningen ser klar ut (SG ${currentSg.toFixed(4)} ≤ FG ${fg.toFixed(4)}+0.002)`);
+          continue;
+        }
+
+        const stallDetected = sgIsStalling && deltaIsDropping;
+
+        log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name}: SG-rate=${sgRatePerDay.toFixed(4)}/dag (tröskel=${(stallSettings.sgRateThreshold * 1000).toFixed(4)}), delta-trend: ${currentAvgDelta.toFixed(2)}→${oldAvgDelta.toFixed(2)} (sjunker=${deltaIsDropping})`, {
+          sg_stalling: sgIsStalling,
+          delta_dropping: deltaIsDropping,
+          stall_detected: stallDetected,
+          current_sg: currentSg.toFixed(4),
+          sg_drop_24h: sgDrop.toFixed(4),
+        });
+
+        if (!stallDetected) continue;
+
+        // Cooldown: don't boost same controller within 12 hours
+        const { data: lastBoost } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('created_at')
+          .eq('cooler_controller_id', fc.controller_id)
+          .like('reason', '🔥%')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (lastBoost && lastBoost.length > 0) {
+          const lastBoostTime = new Date(lastBoost[0].created_at).getTime();
+          const hoursSinceBoost = (now - lastBoostTime) / (1000 * 60 * 60);
+          if (hoursSinceBoost < 12) {
+            log('STALL_COOLDOWN', 'info', `${fc.name}: Senaste boost var ${hoursSinceBoost.toFixed(1)}h sedan (väntar 12h)`);
+            continue;
+          }
+        }
+
+        // Apply boost
+        const currentTarget = parseFloat(String(fc.target_temp ?? 20));
+        const newTarget = currentTarget + stallSettings.boostDegrees;
+        
+        // Safety bounds
+        const maxTemp = parseFloat(String(fc.max_target_temp ?? 25));
+        const minTemp = parseFloat(String(fc.min_target_temp ?? -5));
+        const safeTarget = Math.max(minTemp, Math.min(maxTemp, newTarget));
+
+        if (Math.abs(safeTarget - currentTarget) < 0.1) {
+          log('STALL_SKIP', 'info', `${fc.name}: Boost blocked by safety bounds (max=${maxTemp}°C)`);
+          continue;
+        }
+
+        log('STALL_BOOST', 'action', `${fc.name}: Stall detekterad! Höjer ${currentTarget}°C → ${safeTarget}°C (+${stallSettings.boostDegrees}°C)`);
+
+        const boostSuccess = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, safeTarget);
+
+        if (boostSuccess) {
+          log('STALL_BOOST', 'pass', `${fc.name}: Temperatur höjd till ${safeTarget}°C`);
+          allAdjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget: safeTarget });
+
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id);
+
+          await supabase.from('auto_cooling_adjustments').insert({
+            cooler_controller_id: fc.controller_id,
+            cooler_controller_name: fc.name,
+            old_target_temp: currentTarget,
+            new_target_temp: safeTarget,
+            original_target_temp: session.profileTarget ?? currentTarget,
+            lowest_followed_temp: currentTarget,
+            followed_controller_id: fc.controller_id,
+            followed_controller_name: fc.name,
+            followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
+            followed_target_temp: currentTarget,
+            reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, delta ${currentAvgDelta.toFixed(2)}→${oldAvgDelta.toFixed(2)}, höjde +${stallSettings.boostDegrees}°C`,
+          } as any);
+
+          // Log in fermentation step log if session exists
+          const { data: activeSession } = await supabase
+            .from('fermentation_sessions')
+            .select('id, current_step_index')
+            .eq('controller_id', fc.controller_id)
+            .eq('status', 'running')
+            .limit(1)
+            .maybeSingle();
+
+          if (activeSession) {
+            await supabase.from('fermentation_step_log').insert({
+              session_id: activeSession.id,
+              step_index: activeSession.current_step_index,
+              action: 'stall_boost',
+              details: {
+                old_target: currentTarget,
+                new_target: safeTarget,
+                boost_degrees: stallSettings.boostDegrees,
+                sg_rate_per_day: sgRatePerDay,
+                current_sg: currentSg,
+                delta_current: currentAvgDelta,
+                delta_old: oldAvgDelta,
+              },
+            });
+          }
+        } else {
+          log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`);
+        }
+      }
+    } else {
+      log('STALL', 'info', 'Stall detection disabled');
     }
 
     // ====================================================================

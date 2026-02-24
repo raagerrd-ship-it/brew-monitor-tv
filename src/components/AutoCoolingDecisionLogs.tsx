@@ -49,6 +49,7 @@ type HistoryEntry =
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('🎯')) return 'pill-comp';
+  if (reason.startsWith('🔥')) return 'pill-comp'; // Stall boost
   if (reason.startsWith('🔧')) return 'profil';
   if (reason.startsWith('📈')) return 'profil';
   // Legacy overshoot/stall entries still categorize to pill-comp
