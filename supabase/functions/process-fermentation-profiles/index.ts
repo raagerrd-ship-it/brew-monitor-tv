@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
       { data: allControllers },
       { data: allPillCompAdj },
       { data: allBrewData },
+      { data: allMetrics },
     ] = await Promise.all([
       supabase
         .from('fermentation_profile_steps')
@@ -146,8 +147,14 @@ Deno.serve(async (req) => {
       brewIds.length > 0
         ? supabase
             .from('brew_readings')
-            .select('id, sg_data')
+            .select('id, sg_data, original_gravity, final_gravity')
             .in('id', brewIds)
+        : Promise.resolve({ data: null } as { data: null }),
+      brewIds.length > 0
+        ? supabase
+            .from('brew_fermentation_metrics')
+            .select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash')
+            .in('brew_id', brewIds)
         : Promise.resolve({ data: null } as { data: null }),
     ])
 
@@ -180,10 +187,28 @@ Deno.serve(async (req) => {
     }
 
     // Map brew data by brew id
-    const batchBrewDataMap = new Map<string, { sg_data: SgDataPoint[] }>()
+    const batchBrewDataMap = new Map<string, { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number }>()
     if (allBrewData) {
       for (const b of allBrewData as any[]) {
-        batchBrewDataMap.set(b.id, { sg_data: b.sg_data as SgDataPoint[] })
+        batchBrewDataMap.set(b.id, {
+          sg_data: b.sg_data as SgDataPoint[],
+          original_gravity: parseFloat(String(b.original_gravity ?? 0)),
+          final_gravity: parseFloat(String(b.final_gravity ?? 0)),
+        })
+      }
+    }
+
+    // Map fermentation metrics by brew id
+    const batchMetricsMap = new Map<string, { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean }>()
+    if (allMetrics) {
+      for (const m of allMetrics as any[]) {
+        batchMetricsMap.set(m.brew_id, {
+          fermentation_phase: m.fermentation_phase,
+          activity_score: parseFloat(String(m.activity_score)),
+          sg_rate_per_hour: parseFloat(String(m.sg_rate_per_hour)),
+          eta_to_fg_hours: m.eta_to_fg_hours ? parseFloat(String(m.eta_to_fg_hours)) : null,
+          ready_to_crash: m.ready_to_crash,
+        })
       }
     }
 
@@ -644,15 +669,22 @@ Deno.serve(async (req) => {
 
         case 'wait_for_gravity_stable': {
           if (brewData && currentStep.gravity_stable_days && currentStep.gravity_threshold) {
+            const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
             const stable = isGravityStable(
               brewData.sg_data,
               currentStep.gravity_stable_days,
               currentStep.gravity_threshold
             )
-            if (stable) {
+            // Also require low activity to confirm true stability (not just a temporary plateau)
+            const activityConfirms = !metrics || metrics.activity_score < 25
+            if (stable && activityConfirms) {
               stepCompleted = true
               actionTaken = 'condition_met'
-              actionDetails = { condition: 'gravity_stable', days: currentStep.gravity_stable_days }
+              actionDetails = { condition: 'gravity_stable', days: currentStep.gravity_stable_days, activity_score: metrics?.activity_score ?? null, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
+              console.log(`✅ Gravity stable: ${currentStep.gravity_stable_days}d, activity=${metrics?.activity_score ?? '?'}%, phase=${metrics?.fermentation_phase ?? '?'}`)
+            } else if (stable && !activityConfirms) {
+              console.log(`⚠️ Gravity stable but activity still ${metrics?.activity_score}% - waiting for confirmation`)
+              actionDetails = { condition: 'gravity_stable_waiting_activity', activity_score: metrics?.activity_score, phase: metrics?.fermentation_phase }
             }
           }
           break
@@ -682,34 +714,52 @@ Deno.serve(async (req) => {
         }
 
         case 'diacetyl_rest': {
-          // Diacetyl rest: triggered by attenuation level, raises temp, waits for SG stability
+          // Diacetyl rest: triggered by attenuation level + phase, raises temp, waits for SG stability
           const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
           const tempIncrease = (currentStep as any).temp_increase ?? 3
+          const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
 
           if (brewData) {
             const sortedSgData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             const latestSg = sortedSgData[0]?.value
-            const og = parseFloat(String((await supabase.from('brew_readings').select('original_gravity, final_gravity').eq('id', session.brew_id).maybeSingle()).data?.original_gravity ?? 0))
-            const fg = parseFloat(String((await supabase.from('brew_readings').select('final_gravity').eq('id', session.brew_id).maybeSingle()).data?.final_gravity ?? 0))
+            const og = brewData.original_gravity
+            const fg = brewData.final_gravity
             const attRange = og - fg
             const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
 
-            // Phase 1: waiting for attenuation trigger
-            if (currentAtt < attenuationTrigger) {
+            // Phase 1: waiting for attenuation trigger AND fermentation phase to be at least declining
+            // This prevents triggering diacetyl rest during peak fermentation even if attenuation is numerically met
+            const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
+            const attenuationReady = currentAtt >= attenuationTrigger
+
+            if (!attenuationReady || !phaseReady) {
               // Enforce current temperature (effective target from previous steps)
               const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
               if (effectiveTarget !== null) {
-                const result = await applyPillCompensation(effectiveTarget, 'Diacetyl rest (waiting for attenuation)')
+                const result = await applyPillCompensation(effectiveTarget, 'Diacetyl rest (waiting for trigger)')
                 if (result) {
                   actionTaken = result.actionTaken
                   actionDetails = result.actionDetails
                 }
               }
-              actionDetails = { ...actionDetails, phase: 'waiting_for_attenuation', current_attenuation: Math.round(currentAtt), trigger: attenuationTrigger }
+              const waitReason = !attenuationReady
+                ? `attenuation ${Math.round(currentAtt)}% < ${attenuationTrigger}%`
+                : `phase=${metrics?.fermentation_phase ?? 'unknown'} (need declining/stationary)`
+              actionDetails = {
+                ...actionDetails,
+                phase: 'waiting_for_trigger',
+                current_attenuation: Math.round(currentAtt),
+                trigger: attenuationTrigger,
+                fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
+                activity_score: metrics?.activity_score ?? null,
+                wait_reason: waitReason,
+              }
+              console.log(`Diacetyl rest: waiting - ${waitReason}`)
               break
             }
 
-            // Phase 2: attenuation reached, raise temp
+            // Phase 2: attenuation + phase ready, raise temp
+            console.log(`🍺 Diacetyl rest triggered: att=${Math.round(currentAtt)}%, phase=${metrics?.fermentation_phase ?? 'unknown'}, activity=${metrics?.activity_score ?? '?'}%`)
             const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
             const diacetylTarget = (effectiveTarget ?? 18) + tempIncrease
 
@@ -717,12 +767,12 @@ Deno.serve(async (req) => {
               const result = await applyPillCompensation(diacetylTarget, 'Diacetyl rest (temp raised)')
               if (result) {
                 actionTaken = result.actionTaken
-                actionDetails = { ...result.actionDetails, phase: 'diacetyl_active', temp_increase: tempIncrease, diacetyl_target: diacetylTarget }
+                actionDetails = { ...result.actionDetails, phase: 'diacetyl_active', temp_increase: tempIncrease, diacetyl_target: diacetylTarget, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
               } else if (Math.abs((controller.target_temp ?? 0) - diacetylTarget) > 0.1) {
                 const success = await setTemp(session.controller_id, diacetylTarget)
                 if (success) {
                   actionTaken = 'temp_adjusted'
-                  actionDetails = { target_temp: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease }
+                  actionDetails = { target_temp: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
                   await supabase.from('rapt_temp_controllers')
                     .update({ target_temp: diacetylTarget, updated_at: new Date().toISOString() })
                     .eq('controller_id', session.controller_id)
@@ -730,13 +780,20 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Phase 3: check if SG is now stable (same logic as wait_for_gravity_stable)
+            // Phase 3: check if SG is now stable AND activity is low (truly done, not just a pause)
             const stableDays = currentStep.gravity_stable_days ?? 2
             const threshold = currentStep.gravity_threshold ?? 0.001
-            if (isGravityStable(brewData.sg_data, stableDays, threshold)) {
+            const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)
+            const activityLow = !metrics || metrics.activity_score < 20
+
+            if (sgStable && activityLow) {
               stepCompleted = true
               actionTaken = 'condition_met'
-              actionDetails = { ...actionDetails, condition: 'diacetyl_rest_complete', stable_days: stableDays }
+              actionDetails = { ...actionDetails, condition: 'diacetyl_rest_complete', stable_days: stableDays, activity_score: metrics?.activity_score ?? null }
+              console.log(`✅ Diacetyl rest complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
+            } else if (sgStable && !activityLow) {
+              console.log(`Diacetyl rest: SG stable but activity still high (${metrics?.activity_score}%) - waiting`)
+              actionDetails = { ...actionDetails, phase: 'diacetyl_active_waiting', sg_stable: true, activity_score: metrics?.activity_score }
             }
           }
           break
