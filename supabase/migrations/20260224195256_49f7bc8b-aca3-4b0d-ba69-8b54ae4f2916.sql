@@ -1,0 +1,2 @@
+ALTER TABLE public.sync_settings ADD COLUMN rapt_full_sync_interval integer NOT NULL DEFAULT 86400;
+ALTER TABLE public.sync_settings ADD COLUMN last_rapt_full_sync_at timestamp with time zone DEFAULT NULL;

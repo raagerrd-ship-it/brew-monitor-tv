@@ -62,6 +62,7 @@ export default function Settings() {
   const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
   const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
   const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
+  const [raptFullSyncInterval, setRaptFullSyncInterval] = useState<string>("86400");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [lastBrewfatherQuickSync, setLastBrewfatherQuickSync] = useState<string | null>(null);
@@ -418,6 +419,7 @@ export default function Settings() {
         setLastRaptSync(data.last_rapt_sync_at);
         setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
+        setRaptFullSyncInterval((data as any).rapt_full_sync_interval?.toString() ?? "86400");
         setSplashDelayMs((data as any).splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
         setLastBrewfatherQuickSync(data.last_sync_time);
@@ -741,6 +743,30 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error updating RAPT sync interval:', error);
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara inställningar",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRaptFullSyncIntervalChange = async (value: string) => {
+    setRaptFullSyncInterval(value);
+    try {
+      if (settingsId) {
+        const { error } = await supabase
+          .from('sync_settings')
+          .update({ rapt_full_sync_interval: parseInt(value) } as any)
+          .eq('id', settingsId);
+        if (error) throw error;
+        toast({
+          title: "Inställningar sparade",
+          description: "RAPT full synkroniseringsfrekvens har uppdaterats",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating RAPT full sync interval:', error);
       toast({
         title: "Fel",
         description: "Kunde inte spara inställningar",
@@ -1491,7 +1517,15 @@ export default function Settings() {
                       <p className="text-xs font-medium text-foreground">Full synk</p>
                       <p className="text-[10px] text-muted-foreground">Alla enheter och konfiguration</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground italic text-center">Manuell</span>
+                    <Select value={raptFullSyncInterval} onValueChange={handleRaptFullSyncIntervalChange}>
+                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border z-50">
+                        <SelectItem value="0">Aldrig</SelectItem>
+                        <SelectItem value="21600">6 tim</SelectItem>
+                        <SelectItem value="43200">12 tim</SelectItem>
+                        <SelectItem value="86400">24 tim</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <div className="flex items-center gap-1.5">
                       <Button onClick={handleRaptFullSync} disabled={raptSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                         <RefreshCw className={`h-3 w-3 ${raptSyncing ? 'animate-spin' : ''}`} />
