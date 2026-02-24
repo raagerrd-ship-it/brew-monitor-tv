@@ -84,9 +84,9 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="w-full px-1 flex flex-col gap-0.5 cursor-help">
+          <div className="w-full flex flex-col gap-0.5 cursor-help">
             {/* Bar */}
-            <div className="relative w-full" style={{ height: '6px' }}>
+            <div className="relative w-full px-1" style={{ height: '6px' }}>
               <div 
                 className="absolute inset-0 rounded-full overflow-hidden"
                 style={{ 
