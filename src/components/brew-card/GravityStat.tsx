@@ -44,7 +44,7 @@ function FermentationRateBar({ rate, trend, stallThreshold }: {
   const stallPct = (stallThreshold / maxRate) * 100;
   const ratePct = Math.min((rate / maxRate) * 100, 100);
   
-  const trendIcon = trend === 'rising' ? '▲' : trend === 'falling' ? '▼' : '▶';
+  const trendIcon = trend === 'rising' ? '→' : trend === 'falling' ? '←' : '•';
   const trendColor = trend === 'rising' 
     ? 'hsl(142 70% 50%)' 
     : trend === 'falling' 
@@ -104,21 +104,20 @@ function FermentationRateBar({ rate, trend, stallThreshold }: {
           }}
         />
       </div>
-      {/* Labels */}
+      {/* Scale labels */}
       <div 
         className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
         style={{ fontSize: '9px' }}
       >
-        <span style={{ color: isStalled ? 'hsl(0 70% 55%)' : undefined }}>
-          {isStalled ? 'STALL' : 'STALL'}
-        </span>
+        <span>0.000</span>
         <span 
           className="font-medium flex items-center gap-0.5"
           style={{ color: trendColor, fontSize: '9px' }}
         >
-          <span style={{ fontSize: '7px' }}>{trendIcon}</span>
+          <span style={{ fontSize: '8px' }}>{trendIcon}</span>
           {rate > 0 ? '-' : '+'}{Math.abs(rate).toFixed(3)}/d
         </span>
+        <span>{maxRate.toFixed(3)}</span>
       </div>
     </div>
   );
