@@ -226,7 +226,7 @@ function BrewCardComponent({
                           abv={brew.abv}
                           attenuation={brew.attenuation}
                           batchNumber={brew.batchNumber}
-                          fermentationStart={brew.fermentationStart ?? null}
+                          fermentationStart={brew.sgData?.[0]?.date ?? null}
                           status={brew.status}
                           controllerId={brew.linked_controller_id ?? null}
                         />
