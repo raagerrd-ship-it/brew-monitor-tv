@@ -129,8 +129,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
           <TooltipTrigger asChild>
             <div className="w-full flex flex-col gap-0.5 cursor-help">
               {/* Bar */}
-              <div className="relative w-full" style={{ height: '6px' }}>
-                <div className="absolute inset-0 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted) / 0.6)' }}>
+              <div className="relative w-full px-1" style={{ height: '6px' }}>
+                <div className="absolute inset-0 rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 0% / 0.5)', boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)' }}>
                   {/* Colored span bar from ctrl to pill */}
                   <div 
                     className="absolute h-full rounded-full"
@@ -230,7 +230,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="w-full flex flex-col gap-0.5 cursor-help">
-              <div className="relative w-full" style={{ height: '6px' }}>
+              <div className="relative w-full px-1" style={{ height: '6px' }}>
                 <div 
                   className="absolute inset-0 rounded-full overflow-hidden"
                   style={{ 
