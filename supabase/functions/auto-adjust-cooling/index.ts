@@ -659,13 +659,20 @@ serve(async (req) => {
           deltaIsLow = true;
         }
 
-        // Check if target SG has been reached (no stall if fermentation is done)
+        // Check attenuation range — only detect stalls between 10-90% apparent attenuation
+        const og = parseFloat(String(brewLink.original_gravity ?? 0));
         const fg = parseFloat(String(brewLink.final_gravity ?? 0));
         const currentSg = newestSg.value;
-        const fermentationComplete = fg > 0 && currentSg <= fg + 0.002;
+        const attenuationRange = og - fg;
+        const currentAttenuation = attenuationRange > 0 ? ((og - currentSg) / attenuationRange) * 100 : 0;
 
-        if (fermentationComplete) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Jäsningen ser klar ut (SG ${currentSg.toFixed(4)} ≤ FG ${fg.toFixed(4)}+0.002)`);
+        if (currentAttenuation < 10) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för låg för stall-detektering (${currentAttenuation.toFixed(0)}% < 10%)`);
+          continue;
+        }
+
+        if (currentAttenuation > 90) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Utjäsning för hög för stall-detektering (${currentAttenuation.toFixed(0)}% > 90%, SG ${currentSg.toFixed(4)} nära FG ${fg.toFixed(4)})`);
           continue;
         }
 
@@ -678,6 +685,7 @@ serve(async (req) => {
           sg_rate: `${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel ${stallThreshold.toFixed(4)})`,
           sg_stalling: sgIsStalling,
           current_sg: currentSg.toFixed(4),
+          attenuation: `${currentAttenuation.toFixed(0)}%`,
           sg_drop: `${sgDrop.toFixed(4)} / ${sgTimeDiffHours.toFixed(0)}h`,
           delta_current: currentAvgDelta.toFixed(2),
           delta_old: oldAvgDelta.toFixed(2),
