@@ -680,6 +680,67 @@ Deno.serve(async (req) => {
           actionTaken = 'checked'
           break
         }
+
+        case 'diacetyl_rest': {
+          // Diacetyl rest: triggered by attenuation level, raises temp, waits for SG stability
+          const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
+          const tempIncrease = (currentStep as any).temp_increase ?? 3
+
+          if (brewData) {
+            const sortedSgData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            const latestSg = sortedSgData[0]?.value
+            const og = parseFloat(String((await supabase.from('brew_readings').select('original_gravity, final_gravity').eq('id', session.brew_id).maybeSingle()).data?.original_gravity ?? 0))
+            const fg = parseFloat(String((await supabase.from('brew_readings').select('final_gravity').eq('id', session.brew_id).maybeSingle()).data?.final_gravity ?? 0))
+            const attRange = og - fg
+            const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
+
+            // Phase 1: waiting for attenuation trigger
+            if (currentAtt < attenuationTrigger) {
+              // Enforce current temperature (effective target from previous steps)
+              const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+              if (effectiveTarget !== null) {
+                const result = await applyPillCompensation(effectiveTarget, 'Diacetyl rest (waiting for attenuation)')
+                if (result) {
+                  actionTaken = result.actionTaken
+                  actionDetails = result.actionDetails
+                }
+              }
+              actionDetails = { ...actionDetails, phase: 'waiting_for_attenuation', current_attenuation: Math.round(currentAtt), trigger: attenuationTrigger }
+              break
+            }
+
+            // Phase 2: attenuation reached, raise temp
+            const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+            const diacetylTarget = (effectiveTarget ?? 18) + tempIncrease
+
+            if (controller) {
+              const result = await applyPillCompensation(diacetylTarget, 'Diacetyl rest (temp raised)')
+              if (result) {
+                actionTaken = result.actionTaken
+                actionDetails = { ...result.actionDetails, phase: 'diacetyl_active', temp_increase: tempIncrease, diacetyl_target: diacetylTarget }
+              } else if (Math.abs((controller.target_temp ?? 0) - diacetylTarget) > 0.1) {
+                const success = await setTemp(session.controller_id, diacetylTarget)
+                if (success) {
+                  actionTaken = 'temp_adjusted'
+                  actionDetails = { target_temp: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease }
+                  await supabase.from('rapt_temp_controllers')
+                    .update({ target_temp: diacetylTarget, updated_at: new Date().toISOString() })
+                    .eq('controller_id', session.controller_id)
+                }
+              }
+            }
+
+            // Phase 3: check if SG is now stable (same logic as wait_for_gravity_stable)
+            const stableDays = currentStep.gravity_stable_days ?? 2
+            const threshold = currentStep.gravity_threshold ?? 0.001
+            if (isGravityStable(brewData.sg_data, stableDays, threshold)) {
+              stepCompleted = true
+              actionTaken = 'condition_met'
+              actionDetails = { ...actionDetails, condition: 'diacetyl_rest_complete', stable_days: stableDays }
+            }
+          }
+          break
+        }
       }
 
       // Log action if something happened

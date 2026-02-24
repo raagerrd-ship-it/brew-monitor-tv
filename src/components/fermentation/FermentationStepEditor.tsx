@@ -50,6 +50,8 @@ export function FermentationStepEditor({
   const [sgComparison, setSgComparison] = useState<SgComparison>("at_or_below");
   const [notes, setNotes] = useState<string>("");
   const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg">("time");
+  const [attenuationTrigger, setAttenuationTrigger] = useState<string>("75");
+  const [tempIncrease, setTempIncrease] = useState<string>("3");
 
   useEffect(() => {
     if (step) {
@@ -62,6 +64,8 @@ export function FermentationStepEditor({
       setTargetSg(step.target_sg?.toString() || "");
       setSgComparison(step.sg_comparison || "at_or_below");
       setNotes(step.notes || "");
+      setAttenuationTrigger(step.attenuation_trigger?.toString() || "75");
+      setTempIncrease(step.temp_increase?.toString() || "3");
       // Determine hold end condition based on existing data
       if (step.step_type === "hold" && step.target_sg !== null) {
         setHoldEndCondition("sg");
@@ -84,6 +88,8 @@ export function FermentationStepEditor({
     setSgComparison("at_or_below");
     setNotes("");
     setHoldEndCondition("time");
+    setAttenuationTrigger("75");
+    setTempIncrease("3");
   };
 
   const handleSave = () => {
@@ -128,6 +134,12 @@ export function FermentationStepEditor({
         break;
       case "wait_for_acknowledgement":
         // No additional fields needed - just waits for manual acknowledgement
+        break;
+      case "diacetyl_rest":
+        stepData.attenuation_trigger = attenuationTrigger ? parseFloat(attenuationTrigger) : 75;
+        stepData.temp_increase = tempIncrease ? parseFloat(tempIncrease) : 3;
+        stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
+        stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
         break;
     }
 
@@ -349,7 +361,58 @@ export function FermentationStepEditor({
           </div>
         );
 
-      default:
+      case "diacetyl_rest":
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Utjäsningsnivå (%)</Label>
+                <Input
+                  type="number"
+                  step="5"
+                  value={attenuationTrigger}
+                  onChange={(e) => setAttenuationTrigger(e.target.value)}
+                  placeholder="75"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Temperaturhöjning (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={tempIncrease}
+                  onChange={(e) => setTempIncrease(e.target.value)}
+                  placeholder="3"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Stabila dagar efter vila</Label>
+                <Input
+                  type="number"
+                  value={gravityStableDays}
+                  onChange={(e) => setGravityStableDays(e.target.value)}
+                  placeholder="2"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>SG-tröskel</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={gravityThreshold}
+                  onChange={(e) => setGravityThreshold(e.target.value)}
+                  placeholder="0.001"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Höjer temperaturen automatiskt när utjäsningen når angiven nivå. Väntar sedan på stabil SG innan nästa steg.
+              Särskilt viktigt för lager för att bryta ned diacetyl.
+            </p>
+          </>
+        );
         return null;
     }
   };
