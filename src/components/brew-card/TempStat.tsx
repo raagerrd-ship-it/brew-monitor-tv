@@ -129,8 +129,15 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
           <TooltipTrigger asChild>
             <div className="w-full flex flex-col gap-0.5 cursor-help">
               {/* Bar */}
-              <div className="relative w-full px-1" style={{ height: '6px' }}>
-                <div className="absolute inset-0 rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 0% / 0.5)', boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)' }}>
+              <div className="w-full px-1">
+                <div 
+                  className="w-full rounded-full overflow-hidden relative"
+                  style={{ 
+                    height: '6px',
+                    background: 'hsl(0 0% 0% / 0.5)',
+                    boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
+                  }}
+                >
                   {/* Colored span bar from ctrl to pill */}
                   <div 
                     className="absolute h-full rounded-full"
@@ -145,48 +152,48 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     className="absolute inset-0 rounded-full pointer-events-none"
                     style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
                   />
-                </div>
-                {/* Profile target marker (solid yellow) */}
-                <div 
-                  className="absolute rounded-sm"
-                  style={{ 
-                    left: `${profilePct}%`, 
-                    top: '-3px',
-                    width: '2px',
-                    height: '12px',
-                    background: 'hsl(38 92% 50%)',
-                    transform: 'translateX(-1px)',
-                    boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
-                  }} 
-                />
-                {/* Compensated target marker (dashed yellow) */}
-                {showCompensatedMarker && (
+                  {/* Profile target marker (solid yellow) */}
                   <div 
-                    className="absolute"
+                    className="absolute rounded-sm"
                     style={{ 
-                      left: `${compensatedPct}%`, 
-                      top: '-4px',
+                      left: `${profilePct}%`, 
+                      top: '-3px',
                       width: '2px',
-                      height: '14px',
-                      backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50% / 0.9), hsl(38 92% 50% / 0.9) 2px, transparent 2px, transparent 4px)',
+                      height: '12px',
+                      background: 'hsl(38 92% 50%)',
                       transform: 'translateX(-1px)',
-                      boxShadow: '0 0 4px hsl(38 92% 50% / 0.4)',
+                      boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
                     }} 
                   />
-                )}
-                {/* Average temp dot */}
-                <div 
-                  className="absolute rounded-full"
-                  style={{ 
-                    left: `${pct(displayTemp)}%`, 
-                    top: '50%',
-                    width: '6px',
-                    height: '6px',
-                    background: 'hsl(var(--foreground))',
-                    transform: 'translate(-3px, -50%)',
-                    boxShadow: '0 0 4px hsl(var(--foreground) / 0.5)',
-                  }} 
-                />
+                  {/* Compensated target marker (dashed yellow) */}
+                  {showCompensatedMarker && (
+                    <div 
+                      className="absolute"
+                      style={{ 
+                        left: `${compensatedPct}%`, 
+                        top: '-4px',
+                        width: '2px',
+                        height: '14px',
+                        backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50% / 0.9), hsl(38 92% 50% / 0.9) 2px, transparent 2px, transparent 4px)',
+                        transform: 'translateX(-1px)',
+                        boxShadow: '0 0 4px hsl(38 92% 50% / 0.4)',
+                      }} 
+                    />
+                  )}
+                  {/* Average temp dot */}
+                  <div 
+                    className="absolute rounded-full"
+                    style={{ 
+                      left: `${pct(displayTemp)}%`, 
+                      top: '50%',
+                      width: '6px',
+                      height: '6px',
+                      background: 'hsl(var(--foreground))',
+                      transform: 'translate(-3px, -50%)',
+                      boxShadow: '0 0 4px hsl(var(--foreground) / 0.5)',
+                    }} 
+                  />
+                </div>
               </div>
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
@@ -230,10 +237,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="w-full flex flex-col gap-0.5 cursor-help">
-              <div className="relative w-full px-1" style={{ height: '6px' }}>
+              <div className="w-full px-1">
                 <div 
-                  className="absolute inset-0 rounded-full overflow-hidden"
+                  className="w-full rounded-full overflow-hidden relative"
                   style={{ 
+                    height: '6px',
                     background: 'hsl(0 0% 0% / 0.5)',
                     boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
                   }}
@@ -253,25 +261,25 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                     className="absolute inset-0 rounded-full pointer-events-none"
                     style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
                   />
+                  {/* Center line */}
+                  <div 
+                    className="absolute top-[-1px] bottom-[-1px] w-[1px]"
+                    style={{ left: '50%', background: 'hsl(0 0% 100% / 0.3)' }}
+                  />
+                  {/* Marker dot */}
+                  <div 
+                    className="absolute rounded-full"
+                    style={{ 
+                      left: `${compensationPct}%`, 
+                      top: '50%',
+                      width: '6px',
+                      height: '6px',
+                      background: barColor,
+                      transform: 'translate(-3px, -50%)',
+                      boxShadow: `0 0 6px ${barColor}`,
+                    }} 
+                  />
                 </div>
-                {/* Center line */}
-                <div 
-                  className="absolute top-[-1px] bottom-[-1px] w-[1px]"
-                  style={{ left: '50%', background: 'hsl(0 0% 100% / 0.3)' }}
-                />
-                {/* Marker dot */}
-                <div 
-                  className="absolute rounded-full"
-                  style={{ 
-                    left: `${compensationPct}%`, 
-                    top: '50%',
-                    width: '6px',
-                    height: '6px',
-                    background: barColor,
-                    transform: 'translate(-3px, -50%)',
-                    boxShadow: `0 0 6px ${barColor}`,
-                  }} 
-                />
               </div>
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
