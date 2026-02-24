@@ -276,18 +276,20 @@ export function SonosSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Connection Status */}
-      <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
-        <div className={`p-2 rounded-full ${isConnected ? 'bg-primary/10' : 'bg-muted'}`}>
-          <Music className={`h-5 w-5 ${isConnected ? 'text-primary' : 'text-muted-foreground'}`} />
+      {/* Connection Status (only show when NOT connected) */}
+      {!isConnected && (
+        <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
+          <div className="p-2 rounded-full bg-muted">
+            <Music className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-medium">Sonos</p>
+            <p className="text-sm text-muted-foreground">
+              Inte kopplat — tryck på penn-ikonen för att ansluta
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium">Sonos</p>
-          <p className="text-sm text-muted-foreground">
-            {isConnected ? 'Kopplat' : 'Inte kopplat — tryck på penn-ikonen för att ansluta'}
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* Settings (only show when connected) */}
       {isConnected && (
