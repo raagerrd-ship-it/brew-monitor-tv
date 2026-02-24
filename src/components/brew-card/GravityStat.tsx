@@ -80,10 +80,11 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
         <TooltipTrigger asChild>
           <div className="w-full flex flex-col gap-0.5 cursor-help">
             {/* Bar */}
-            <div className="relative w-full px-1" style={{ height: '6px' }}>
+            <div className="w-full px-1">
               <div 
-                className="absolute inset-0 rounded-full overflow-hidden"
+                className="w-full rounded-full overflow-hidden relative"
                 style={{ 
+                  height: '6px',
                   background: 'hsl(0 0% 0% / 0.5)',
                   boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
                 }}
@@ -114,15 +115,15 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
                     background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
                   }}
                 />
+                <div 
+                  className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
+                  style={{ 
+                    left: `${ratePct}%`,
+                    background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
+                    boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
+                  }}
+                />
               </div>
-              <div 
-                className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
-                style={{ 
-                  left: `${ratePct}%`,
-                  background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
-                  boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
-                }}
-              />
             </div>
             {/* Scale labels */}
             <div 
