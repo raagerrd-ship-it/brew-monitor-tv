@@ -633,6 +633,8 @@ serve(async (req) => {
             }).eq('id', outcome.id);
 
             // Update learned boost degrees based on outcome
+            // AGGRESSIVE LEARNING: If ineffective, double the boost next time.
+            // If effective, lock in the successful size (with slight EMA smoothing).
             if (sgRateAfter !== null) {
               const { data: learned } = await supabase
                 .from('fermentation_learnings')
@@ -643,16 +645,27 @@ serve(async (req) => {
 
               const currentLearned = learned?.learned_value ?? 1.0;
               const sampleCount = learned?.sample_count ?? 0;
+              const boostUsed = parseFloat(String(outcome.boost_degrees));
               let newValue = currentLearned;
 
-              if (isEffective && sgRateAfter > stallSettings.sgRateThreshold * 2) {
-                // Very effective — could reduce boost slightly
-                newValue = Math.max(0.3, currentLearned - 0.1);
-              } else if (!isEffective) {
-                // Ineffective — increase boost
-                newValue = Math.min(3.0, currentLearned + 0.2);
+              if (!isEffective) {
+                // Ineffective — aggressively increase: double the boost that failed
+                // If 2°C didn't work, try 4°C next time
+                newValue = Math.min(6.0, boostUsed * 2);
+                log('STALL_LEARN', 'action', `Boost ${boostUsed.toFixed(1)}°C ineffektiv → dubblerar till ${newValue.toFixed(1)}°C`);
+              } else if (sgRateAfter > stallSettings.sgRateThreshold * 3) {
+                // Very effective — the boost was more than needed, try reducing by 25%
+                newValue = Math.max(0.5, boostUsed * 0.75);
+                log('STALL_LEARN', 'info', `Boost ${boostUsed.toFixed(1)}°C väldigt effektiv → minskar till ${newValue.toFixed(1)}°C`);
+              } else {
+                // Effective but not overkill — lock in this size as the baseline
+                // Use EMA to smooth: weight the successful boost heavily
+                const alpha = sampleCount < 3 ? 0.8 : 0.5;
+                newValue = currentLearned * (1 - alpha) + boostUsed * alpha;
+                log('STALL_LEARN', 'info', `Boost ${boostUsed.toFixed(1)}°C effektiv → låser in ${newValue.toFixed(1)}°C`);
               }
-              // If marginally effective, keep current value
+
+              newValue = Math.max(0.5, Math.min(6.0, Math.round(newValue * 10) / 10));
 
               await supabase.from('fermentation_learnings').upsert({
                 controller_id: outcome.controller_id,
@@ -662,8 +675,8 @@ serve(async (req) => {
                 last_updated_at: new Date().toISOString(),
               }, { onConflict: 'controller_id,parameter_name' });
 
-              log('STALL_LEARN', 'info', `Evaluated boost outcome for ${outcome.controller_id}`, {
-                boost_degrees: outcome.boost_degrees,
+              log('STALL_LEARN', 'info', `Utvärderade boost-utfall för ${outcome.controller_id}`, {
+                boost_degrees: boostUsed,
                 sg_rate_before: outcome.sg_rate_before.toFixed(4),
                 sg_rate_after: sgRateAfter.toFixed(4),
                 outcome: isEffective ? 'effective' : 'ineffective',
