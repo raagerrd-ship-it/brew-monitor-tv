@@ -277,11 +277,13 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
               <TooltipTrigger asChild>
                 <div className="hidden sm:flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums cursor-help" style={{ fontSize: '9px' }}>
                   <span className="inline-flex items-center gap-1">
-                    {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
-                     brew.fermentationMetrics.fermentation_phase === 'declining' ? '↘' : 
-                     brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏳' : 
-                     brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
-                    {phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}
+                    <span>
+                      {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
+                       brew.fermentationMetrics.fermentation_phase === 'declining' ? '↘' : 
+                       brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏳' : 
+                       brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
+                    </span>
+                    <span>{phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}</span>
                   </span>
                   <span>⚡{brew.fermentationMetrics.activity_score}%</span>
                   {brew.fermentationMetrics.ready_to_crash && (
