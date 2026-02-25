@@ -153,18 +153,21 @@ export async function createBrewSnapshots(
     );
     if (newPoints.length === 0) return 0;
 
-    // Fetch controller data (paginated) and profile timeline in parallel
+    // Fetch controller data and profile timeline
     let controllerData: any[] = [];
     let profileTimeline: ProfileTargetPoint[] = [];
 
-    if (controllerId) {
-      const sorted = [...sgData].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-      const startTime = sorted[0].date;
-      const endTime = sorted[sorted.length - 1].date;
+    const sorted = [...sgData].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const startTime = sorted[0].date;
+    const endTime = sorted[sorted.length - 1].date;
 
-      const [ctrlData, timeline] = await Promise.all([
+    // Always fetch profile timeline; fetch controller data only if controllerId exists
+    const promises: Promise<any>[] = [];
+
+    if (controllerId) {
+      promises.push(
         (async () => {
           const allRows: any[] = [];
           let offset = 0;
@@ -184,13 +187,18 @@ export async function createBrewSnapshots(
               hasMore = data.length === batchSize;
             }
           }
-          return allRows;
-        })(),
-        getProfileTargetTimeline(supabase, brewId, controllerId),
-      ]);
-      controllerData = ctrlData;
-      profileTimeline = timeline;
+          controllerData = allRows;
+        })()
+      );
     }
+
+    promises.push(
+      (async () => {
+        profileTimeline = await getProfileTargetTimeline(supabase, brewId, controllerId ?? '');
+      })()
+    );
+
+    await Promise.all(promises);
 
     // Build sorted controller data for nearest-neighbor lookup
     const sortedCtrl = controllerData
