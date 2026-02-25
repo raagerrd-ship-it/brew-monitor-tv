@@ -260,6 +260,49 @@ export async function createBrewSnapshots(
       console.log(`Created ${snapshots.length} data snapshots for brew ${brewId}`);
     }
 
+    // Backfill existing snapshots missing profile_target_temp
+    if (profileTimeline.length > 0) {
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      const toUpdate: { id: string; profile_target_temp: number }[] = [];
+
+      while (hasMore) {
+        const { data: missing } = await supabase
+          .from('brew_data_snapshots')
+          .select('id, recorded_at')
+          .eq('brew_id', brewId)
+          .is('profile_target_temp', null)
+          .range(offset, offset + batchSize - 1);
+
+        if (!missing || missing.length === 0) { hasMore = false; }
+        else {
+          for (const row of missing) {
+            const target = getProfileTargetAt(profileTimeline, new Date(row.recorded_at).getTime());
+            if (target !== null) {
+              toUpdate.push({ id: row.id, profile_target_temp: target });
+            }
+          }
+          offset += batchSize;
+          hasMore = missing.length === batchSize;
+        }
+      }
+
+      if (toUpdate.length > 0) {
+        // Update in batches
+        for (let i = 0; i < toUpdate.length; i += 100) {
+          const batch = toUpdate.slice(i, i + 100);
+          for (const item of batch) {
+            await supabase
+              .from('brew_data_snapshots')
+              .update({ profile_target_temp: item.profile_target_temp })
+              .eq('id', item.id);
+          }
+        }
+        console.log(`Backfilled profile_target_temp for ${toUpdate.length} existing snapshots (brew ${brewId})`);
+      }
+    }
+
     return snapshots.length;
   } catch (err) {
     console.error('Error in createBrewSnapshots:', err);
