@@ -284,6 +284,15 @@ export async function calculateCompensatedTarget(
     const calculatedPI = pCorrection + iCorrection
     errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), mp.errorCorrectionCap)
     
+    // D-term damping: when temperature is converging toward target, scale down PI
+    // This prevents overshoot by reducing the "push" as we approach the goal
+    if (dampingFactor < 1.0) {
+      const dampedCorrection = errorCorrection * dampingFactor
+      // Never go below learned baseline — that's the steady-state we know works
+      errorCorrection = Math.max(dampedCorrection, learnedBaseline)
+      console.log(`🎛️ PI damped by D-term: ${calculatedPI.toFixed(2)} × ${dampingFactor.toFixed(2)} = ${errorCorrection.toFixed(2)}°C (baseline=${learnedBaseline.toFixed(2)})`)
+    }
+    
     // Saturation cap: if hardware is at max rate, freeze the error correction at current level
     // (don't push higher — it won't go faster, and will only cause overshoot later)
     if (isSaturated && errorCorrection > learnedBaseline && learnedBaseline > 0) {
@@ -316,6 +325,13 @@ export async function calculateCompensatedTarget(
     console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
 
     errorCorrection = Math.max(pCorrection + iCorrection, -mp.errorCorrectionCap)
+    
+    // D-term damping for overshoot correction too
+    if (dampingFactor < 1.0) {
+      const dampedCorrection = errorCorrection * dampingFactor
+      errorCorrection = Math.min(dampedCorrection, 0) // keep it negative (correcting down)
+      console.log(`🎛️ PI overshoot damped by D-term: ${(pCorrection + iCorrection).toFixed(2)} × ${dampingFactor.toFixed(2)} = ${errorCorrection.toFixed(2)}°C`)
+    }
     
     // Saturation cap for overshoot correction too
     if (isSaturated && errorCorrection < 0) {
