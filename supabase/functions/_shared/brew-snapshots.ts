@@ -1,121 +1,13 @@
 /**
  * Creates complete data snapshots for brew SG data points.
  * Each snapshot locks: date, SG, pill temp, controller temp, profile target (Mål), and auto target (PID).
+ * All values come directly from existing database records — no post-hoc calculation.
  */
 
 interface SgDataPoint {
   date: string;
   value: number;
   temp: number;
-}
-
-interface ProfileTargetPoint {
-  timestamp: number;
-  target: number;
-}
-
-/** Reconstruct profile target timeline from fermentation session + step logs */
-async function getProfileTargetTimeline(
-  supabase: any,
-  brewId: string,
-  controllerId: string
-): Promise<ProfileTargetPoint[]> {
-  try {
-    // Find session by brew_id first, then controller_id
-    let sessions: any[] | null = null;
-    const { data: byBrew } = await supabase
-      .from('fermentation_sessions')
-      .select('id, profile_id, started_at')
-      .eq('brew_id', brewId)
-      .in('status', ['running', 'completed', 'paused', 'cancelled'])
-      .order('started_at', { ascending: false })
-      .limit(1);
-    sessions = byBrew;
-
-    if (!sessions?.length) {
-      const { data: byCtrl } = await supabase
-        .from('fermentation_sessions')
-        .select('id, profile_id, started_at')
-        .eq('controller_id', controllerId)
-        .in('status', ['running', 'completed', 'paused', 'cancelled'])
-        .order('started_at', { ascending: false })
-        .limit(1);
-      sessions = byCtrl;
-    }
-
-    if (!sessions?.[0]) return [];
-    const session = sessions[0];
-
-    const [stepsResult, stepLogsResult] = await Promise.all([
-      supabase
-        .from('fermentation_profile_steps')
-        .select('step_order, step_type, target_temp, duration_hours')
-        .eq('profile_id', session.profile_id)
-        .order('step_order', { ascending: true }),
-      supabase
-        .from('fermentation_step_log')
-        .select('step_index, created_at')
-        .eq('session_id', session.id)
-        .order('created_at', { ascending: true }),
-    ]);
-
-    const steps = stepsResult.data;
-    const stepLogs = stepLogsResult.data;
-    if (!steps || steps.length === 0) return [];
-
-    const stepStartMap: Record<number, number> = {};
-    stepStartMap[0] = new Date(session.started_at).getTime();
-    if (stepLogs) {
-      for (const log of stepLogs) {
-        if (!(log.step_index in stepStartMap)) {
-          stepStartMap[log.step_index] = new Date(log.created_at).getTime();
-        }
-      }
-    }
-
-    const timeline: ProfileTargetPoint[] = [];
-    let lastTarget: number | null = null;
-
-    for (const step of steps) {
-      const startTime = stepStartMap[step.step_order];
-      if (!startTime) continue;
-
-      const stepTarget = step.target_temp ?? lastTarget;
-
-      if (step.step_type === 'ramp' && step.duration_hours && stepTarget !== null && lastTarget !== null) {
-        const durationMs = step.duration_hours * 3600 * 1000;
-        const numPoints = Math.max(2, Math.ceil(step.duration_hours * 2));
-        for (let i = 0; i <= numPoints; i++) {
-          const t = i / numPoints;
-          const ts = startTime + t * durationMs;
-          const target = Math.round((lastTarget + (stepTarget - lastTarget) * Math.min(t, 1)) * 10) / 10;
-          timeline.push({ timestamp: ts, target });
-        }
-      } else if (stepTarget !== null) {
-        timeline.push({ timestamp: startTime, target: stepTarget });
-      }
-
-      if (stepTarget !== null) lastTarget = stepTarget;
-    }
-
-    return timeline;
-  } catch (err) {
-    console.error('Error reconstructing profile target timeline:', err);
-    return [];
-  }
-}
-
-/** Find profile target at a given timestamp from the timeline */
-function getProfileTargetAt(timeline: ProfileTargetPoint[], ts: number): number | null {
-  if (timeline.length === 0) return null;
-  let result: number | null = null;
-  for (let i = timeline.length - 1; i >= 0; i--) {
-    if (timeline[i].timestamp <= ts) {
-      result = timeline[i].target;
-      break;
-    }
-  }
-  return result;
 }
 
 export async function createBrewSnapshots(
@@ -153,9 +45,8 @@ export async function createBrewSnapshots(
     );
     if (newPoints.length === 0) return 0;
 
-    // Fetch controller data and profile timeline
+    // Fetch controller data if controllerId exists
     let controllerData: any[] = [];
-    let profileTimeline: ProfileTargetPoint[] = [];
 
     const sorted = [...sgData].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -163,42 +54,27 @@ export async function createBrewSnapshots(
     const startTime = sorted[0].date;
     const endTime = sorted[sorted.length - 1].date;
 
-    // Always fetch profile timeline; fetch controller data only if controllerId exists
-    const promises: Promise<any>[] = [];
-
     if (controllerId) {
-      promises.push(
-        (async () => {
-          const allRows: any[] = [];
-          let offset = 0;
-          const batchSize = 1000;
-          let hasMore = true;
-          while (hasMore) {
-            const { data, error } = await supabase.rpc('get_temp_history_sampled', {
-              p_controller_id: controllerId,
-              p_start_time: startTime,
-              p_end_time: endTime,
-              p_sample_interval_minutes: 15,
-            }).range(offset, offset + batchSize - 1);
-            if (error || !data || data.length === 0) { hasMore = false; }
-            else {
-              allRows.push(...data);
-              offset += batchSize;
-              hasMore = data.length === batchSize;
-            }
-          }
-          controllerData = allRows;
-        })()
-      );
+      const allRows: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase.rpc('get_temp_history_sampled', {
+          p_controller_id: controllerId,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_sample_interval_minutes: 15,
+        }).range(offset, offset + batchSize - 1);
+        if (error || !data || data.length === 0) { hasMore = false; }
+        else {
+          allRows.push(...data);
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        }
+      }
+      controllerData = allRows;
     }
-
-    promises.push(
-      (async () => {
-        profileTimeline = await getProfileTargetTimeline(supabase, brewId, controllerId ?? '');
-      })()
-    );
-
-    await Promise.all(promises);
 
     // Build sorted controller data for nearest-neighbor lookup
     const sortedCtrl = controllerData
@@ -227,15 +103,10 @@ export async function createBrewSnapshots(
       return Math.abs(best.ts - targetMs) <= MAX_GAP_MS ? best : null;
     };
 
-    // Create snapshot records
+    // Create snapshot records — all values taken directly from stored data
     const snapshots = newPoints.map((point) => {
       const pointMs = new Date(point.date).getTime();
       const closest = findClosest(pointMs);
-
-      // Profile target: prefer reconstructed timeline, fall back to stored value
-      const profileTarget = getProfileTargetAt(profileTimeline, pointMs)
-        ?? closest?.profile_target_temp
-        ?? null;
 
       return {
         brew_id: brewId,
@@ -243,7 +114,7 @@ export async function createBrewSnapshots(
         sg: point.value,
         pill_temp: point.temp,
         controller_temp: closest?.current_temp ?? null,
-        profile_target_temp: profileTarget,
+        profile_target_temp: closest?.profile_target_temp ?? null,
         auto_target_temp: closest?.target_temp ?? null,
       };
     });
@@ -258,49 +129,6 @@ export async function createBrewSnapshots(
         return 0;
       }
       console.log(`Created ${snapshots.length} data snapshots for brew ${brewId}`);
-    }
-
-    // Backfill existing snapshots missing profile_target_temp
-    if (profileTimeline.length > 0) {
-      let offset = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-      const toUpdate: { id: string; profile_target_temp: number }[] = [];
-
-      while (hasMore) {
-        const { data: missing } = await supabase
-          .from('brew_data_snapshots')
-          .select('id, recorded_at')
-          .eq('brew_id', brewId)
-          .is('profile_target_temp', null)
-          .range(offset, offset + batchSize - 1);
-
-        if (!missing || missing.length === 0) { hasMore = false; }
-        else {
-          for (const row of missing) {
-            const target = getProfileTargetAt(profileTimeline, new Date(row.recorded_at).getTime());
-            if (target !== null) {
-              toUpdate.push({ id: row.id, profile_target_temp: target });
-            }
-          }
-          offset += batchSize;
-          hasMore = missing.length === batchSize;
-        }
-      }
-
-      if (toUpdate.length > 0) {
-        // Update in batches
-        for (let i = 0; i < toUpdate.length; i += 100) {
-          const batch = toUpdate.slice(i, i + 100);
-          for (const item of batch) {
-            await supabase
-              .from('brew_data_snapshots')
-              .update({ profile_target_temp: item.profile_target_temp })
-              .eq('id', item.id);
-          }
-        }
-        console.log(`Backfilled profile_target_temp for ${toUpdate.length} existing snapshots (brew ${brewId})`);
-      }
     }
 
     return snapshots.length;
