@@ -1,46 +1,89 @@
 
 
-## Plan: Använd förberäknad Activity Score i stalldetekteringen
+## Plan: Direktutskrift till Phomemo M110 via Web Bluetooth
 
-### Bakgrund
+### Bakgrund & Analys
 
-Idag beräknar stalldetekteringen i `auto-adjust-cooling/index.ts` (rad 749-807) sin egen SG-hastighet och temperatur-delta-analys, parallellt med att `compute-fermentation-metrics` redan beräknar `activity_score` (0-100%) och `sg_rate_per_hour` och lagrar dessa i `brew_fermentation_metrics`.
+Det finns ett aktivt open source-projekt, **Phomymo** (github.com/transcriptionstream/phomymo), som framgångsrikt skriver ut till Phomemo M110 via Web Bluetooth i Chrome. Deras kod visar att:
 
-Genom att läsa de förberäknade metriken istället elimineras duplicerad logik och säkerställer att stall-beslut baseras på samma data som visas i UI:t.
+1. M110 **stödjer BLE** (Bluetooth Low Energy) -- inte bara Classic Bluetooth
+2. Vår tidigare implementation misslyckades pga **felaktiga BLE-UUIDer** och saknade M110-specifika protokollkommandon
+
+**Nyckelfynd från Phomymo-projektet:**
+- BLE Service UUID: `0xff00` (16-bit, inte de långa 128-bit UUIDer vi använde)
+- Write Characteristic: `0xff02`
+- Notify Characteristic: `0xff03`
+- M110 kräver specifika init-kommandon: Speed (`ESC N 0x0D`), Density (`ESC N 0x04`), Media Type (`1F 11 10`), och en Footer-sekvens (`1F F0 05 00 1F F0 03 00`)
+- Chunk size: 128 bytes med 20ms delay
+- Fallback-service-UUIDer: `0xffe0`, `0xae30`, `49535343-fe7d-4ae5-8fa9-9fafd205e455`, `0000ff00-0000-1000-8000-00805f9b34fb`
 
 ### Ändringar
 
-**`supabase/functions/auto-adjust-cooling/index.ts`**
+**1. Skriv om `src/lib/thermal-printer.ts`**
 
-Redan i steg 2b (rad 692-807) hämtas brew-data och beräknas SG-hastighet + delta-trend manuellt. Ersätt detta med:
+Baserat på den bevisade Phomymo-implementationen:
 
-1. **Hämta `brew_fermentation_metrics`** för bryggningen (brew_id) -- `activity_score`, `sg_rate_per_hour`, `fermentation_phase`.
+- **BLE-konstanter**: Uppdatera service UUIDs till `[0xff00, 0xffe0, 0xae30, '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000ff00-0000-1000-8000-00805f9b34fb']`
+- **Write characteristic**: `0xff02`
+- **Notify characteristic**: `0xff03` (lägg till stöd för notifications/svar)
+- **Chunk size**: 128 bytes, 20ms delay
+- **connectPrinter()**: Uppdatera med:
+  - Bredare namnfilter: `M`, `D`, `P`, `Q`, `T`, `A`, `Mr.in`, `Phomemo`
+  - Retry med exponential backoff (max 1 retry, 300ms initial delay)
+  - `watchAdvertisements()` för att vänta tills enheten är redo
+  - Fallback till `writeValue` om `writeValueWithoutResponse` misslyckas
+- **printBitmap()**: Ny M110-specifik sekvens:
+  1. Sätt hastighet: `[0x1b, 0x4e, 0x0d, 5]`
+  2. Sätt densitet: `[0x1b, 0x4e, 0x04, densityValue]` (1-15)
+  3. Sätt mediatyp: `[0x1f, 0x11, 10]` (etiketter med gap)
+  4. Raster header: `[0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, heightL, heightH]`
+  5. Skicka bitmap-data i 128-byte chunks
+  6. Footer: `[0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]`
+- **Behåll**: Floyd-Steinberg dithering (redan korrekt implementerad)
 
-2. **Ersätt stalldetekteringslogiken** (rad 749-807):
-   - Bort: Manuell SG-rate-beräkning (12h-fönster, sgDrop, sgRatePerDay)
-   - Bort: Manuell delta-trend-analys (temp_delta_history-query, deltaIsDropping, deltaIsLow)
-   - Kvar: Attenuationsintervall-check (behöver fortfarande brew OG/FG/current SG)
-   - Ny logik: `sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold` baserat på `metrics.sg_rate_per_hour * 24`
-   - Ny logik: `activityIsLow = metrics.activity_score < 20` (ersätter deltaIsDropping/deltaIsLow)
-   - Ny stall-condition: `stallDetected = sgIsStalling && activityIsLow`
+**2. Uppdatera `src/components/PrintLabelDialog.tsx`**
 
-3. **Behåll SG-data-hämtning** för attenuationsberäkning (OG/FG/current SG behövs fortfarande), men ta bort den manuella 12h-filtreringen och rate-beräkningen.
+Lägg till en "Skriv ut direkt"-knapp som:
+- Visar en Bluetooth-ikon + "Skriv ut via Bluetooth"
+- Kontrollerar `isBluetoothSupported()` -- döljer knappen om ej stödd
+- Vid klick: ansluter till skrivaren (visar BLE-picker), skriver ut canvas-innehållet
+- Visar framsteg under utskrift (progress-bar eller text)
+- Sparar anslutningen i state så man kan skriva ut flera etiketter utan att para om
+- "Koppla från"-knapp visas när ansluten
+- Antal kopior-väljare (1-5)
+- Felhantering med toast-meddelanden på svenska
 
-4. **Ta bort `temp_delta_history`-queryn** (rad 773-778) som nu är onödig -- activity score inkluderar redan denna information.
+**Layout i dialogen:**
 
-5. **Uppdatera loggningen** så den visar `activity_score` och `fermentation_phase` från metriken istället för råa delta-värden.
-
-### Vad som bevaras oförändrat
-
-- Steg 2a: Outcome-utvärdering av tidigare boosts (rad 591-690) -- oförändrad
-- Un-boost-logik (rad 818+) -- oförändrad, men använder `activity_score > 40` istället för manuell SG-rate-check för att avgöra om jäsning återupptagits
-- Boost-applicering och PID-justering -- oförändrad
-- Cooldown-period (6h) -- oförändrad
-- Inlärningslogik (`stall_boost_degrees`) -- oförändrad
+```text
+┌─────────────────────────────────┐
+│ 🖨️ Skriv ut etikett            │
+│                                 │
+│ [🧪 Jästank] [🛢️ Fat]          │
+│                                 │
+│ ┌─────────────────────────────┐ │
+│ │     (Canvas preview)        │ │
+│ └─────────────────────────────┘ │
+│                                 │
+│ Kopior: [1] [2] [3]            │
+│                                 │
+│ [📶 Bluetooth: Ej ansluten]    │
+│ [🔵 Skriv ut via Bluetooth  ]  │  ← Ny primär knapp
+│                                 │
+│ [📄 Spara PDF] [🖨️ Systemprint]│  ← Sekundära
+│                                 │
+│ Öppna PDF:en i PrintMaster...  │
+└─────────────────────────────────┘
+```
 
 ### Teknisk detalj
 
-Metriken hämtas redan batchat i `process-fermentation-profiles` via `.in('brew_id', brewIds)`. Samma mönster används här, men per controller-iteration (enstaka `.eq('brew_id', brewLink.id).maybeSingle()`).
+M110 har printbredd 48 bytes = 384 pixlar. Våra etiketter är 399px breda (50mm vid 203 DPI). Bilddata behöver skalas ner till 384px bredd innan utskrift, eller centreras med padding. Phomymo-projektet löser detta genom att skala canvas till skrivarens bredd. Vi gör samma sak: skala etikettens canvas till 384px bredd, beräkna ny höjd proportionellt.
 
-Fallback: Om metriken saknas (brew utan metrics-rad), skippa stall-check för den controllern med logg "Inga förberäknade metrics".
+### Krav
+
+- Chrome, Edge, eller annan Chromium-baserad webbläsare
+- Web Bluetooth API (ej Firefox/Safari)
+- HTTPS eller localhost
+- Android Chrome stöds, iOS stöds ej
 
