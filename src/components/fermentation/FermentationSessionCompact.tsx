@@ -13,6 +13,7 @@ import {
   formatRemainingTime,
   type VisualState 
 } from "./sessionStyles";
+import { getInterpolatedProfileTarget } from "@/lib/fermentation-target";
 
 interface SgDataPoint {
   date: string;
@@ -68,21 +69,15 @@ export function FermentationSessionCompact({
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
 
-  // Calculate the effective profile target (interpolated during ramps)
-  const effectiveStepTarget = (() => {
-    if (!currentStep) return null;
-    const stepTarget = currentStep.target_temp;
-
-    // During a ramp with duration, interpolate between start temp and target
-    if (currentStep.step_type === 'ramp' && currentStep.duration_hours && stepStartTemp != null && stepTarget != null) {
-      const elapsed = (Date.now() - new Date(stepStartedAt).getTime()) / (1000 * 60 * 60);
-      const progress = Math.min(elapsed / currentStep.duration_hours, 1);
-      return Math.round((stepStartTemp + (stepTarget - stepStartTemp) * progress) * 10) / 10;
-    }
-
-    if (stepTarget != null) return stepTarget;
-    return null;
-  })();
+  // Single source of truth for current interpolated profile target
+  const effectiveStepTarget = getInterpolatedProfileTarget(
+    currentStep ? {
+      current_step_index: 0,
+      step_started_at: stepStartedAt,
+      step_start_temp: stepStartTemp ?? null,
+      steps: [currentStep],
+    } : null
+  );
 
   // Align with TempStat: profile target first, controller target only as final fallback
   const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? targetTemp;
