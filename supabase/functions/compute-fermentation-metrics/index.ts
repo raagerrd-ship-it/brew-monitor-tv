@@ -292,7 +292,6 @@ Deno.serve(async (req) => {
 
             console.log(`🧊 READY_TO_CRASH logged for brew ${rb.brew_id}`);
           }
-          }
         }
       }
     }
