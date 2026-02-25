@@ -1,15 +1,16 @@
 /**
- * Canvas label renderer for 70x50mm thermal labels (559x399px at 203 DPI).
- * Two label types: Tank (fermentation) and Keg (packaging).
+ * Canvas label renderer for 70x50mm thermal labels.
+ * Printer width: 384px (48 bytes at 203 DPI).
+ * Height scaled proportionally: 384/399 * 559 ≈ 538px.
  */
 import { BrewData } from "@/types/brew";
 import QRCode from 'qrcode';
 
-const LABEL_WIDTH = 399;
-const LABEL_HEIGHT = 559;
-const PADDING = 24;
-const LABEL_IMG_SIZE = 150;
-const QR_SIZE = 150;
+export const LABEL_WIDTH = 384;
+export const LABEL_HEIGHT = 538;
+const PADDING = 23;
+const LABEL_IMG_SIZE = 144;
+const QR_SIZE = 144;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
 function getLogoUrl(): string {
   return `${window.location.origin}/brew-icon.png`;
