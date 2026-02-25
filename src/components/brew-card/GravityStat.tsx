@@ -130,7 +130,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
               className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
               style={{ fontSize: '9px' }}
             >
-              <span>0.000</span>
+              <span>0</span>
               <span className="text-muted-foreground/40">{displayRate > 0 ? '-' : '+'}{Math.abs(displayRate).toFixed(3)}/d</span>
               <span>{maxRate.toFixed(3)}</span>
             </div>
@@ -251,9 +251,9 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
             Beräknar...
           </p>
         )}
-        {/* Fermentation metrics row */}
+        {/* Fermentation metrics row - hidden on mobile */}
         {!isInactive && brew.fermentationMetrics && (
-          <div className="flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums" style={{ fontSize: '9px' }}>
+          <div className="hidden sm:flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums" style={{ fontSize: '9px' }}>
             <span className="inline-flex items-center gap-0.5">
               {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
                brew.fermentationMetrics.fermentation_phase === 'declining' ? '📉' : 
