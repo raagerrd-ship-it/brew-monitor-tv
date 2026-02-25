@@ -1,26 +1,59 @@
 
 
-## Problem
+## Analys: Kvarvarande felkällor med duplicerad ramp-interpolering
 
-The snapshot system (`createBrewSnapshots`) uses complex timeline reconstruction (`getProfileTargetTimeline`) to calculate `profile_target_temp` retroactively. This reconstruction is fragile -- it depends on step logs having exact timestamps, and often produces slightly wrong values (e.g. 16.0 instead of 16.3 during a ramp). Meanwhile, `temp_controller_history` already stores the correct `profile_target_temp` at each recording interval (calculated live by `record-temp-history` with proper ramp interpolation).
+### Problem identifierat
 
-## Solution
+Det finns **4 separata implementationer** av ramp-interpolering i kodbasen. Varje implementation beräknar "live Mål" på sitt eget sätt, med subtila skillnader som ger ±0.1-0.2° avvikelser:
 
-Simplify `brew-snapshots.ts` to only use values already stored in `temp_controller_history`:
+```text
+┌──────────────────────────────────────────┬────────────────────────────┬──────────────────────┐
+│ Plats                                    │ Starttid hämtas från       │ Start-temp hämtas    │
+├──────────────────────────────────────────┼────────────────────────────┼──────────────────────┤
+│ 1. src/lib/fermentation-target.ts        │ session.step_started_at    │ session.step_start_  │
+│    (Frontend — TempStat, Compact)        │                            │ temp                 │
+├──────────────────────────────────────────┼────────────────────────────┼──────────────────────┤
+│ 2. record-temp-history (Backend)         │ fermentation_step_log      │ föregående stegs     │
+│    → sparar profile_target_temp          │ .created_at                │ target_temp          │
+├──────────────────────────────────────────┼────────────────────────────┼──────────────────────┤
+│ 3. auto-adjust-cooling (Backend)         │ session.step_started_at    │ session.step_start_  │
+│    → bestämmer kompenserat mål           │                            │ temp                 │
+├──────────────────────────────────────────┼────────────────────────────┼──────────────────────┤
+│ 4. process-fermentation-profiles         │ session.step_started_at    │ session.step_start_  │
+│    → calculateRampTemp() rad 80-84       │                            │ temp (implicit)      │
+└──────────────────────────────────────────┴────────────────────────────┴──────────────────────┘
+```
 
-### Changes to `supabase/functions/_shared/brew-snapshots.ts`
+### Felkälla: `record-temp-history` (nr 2) avviker
 
-1. **Remove** the entire `getProfileTargetTimeline` function (lines 17-106) and `getProfileTargetAt` helper (lines 108-119) -- no more retroactive reconstruction.
+`record-temp-history` (som sparar det värde snapshots sedan läser) använder **annan logik** än alla andra:
 
-2. **Remove** the backfill logic (lines 263-304) -- no longer needed since we don't reconstruct.
+1. **Start-tid**: Hämtar från `fermentation_step_log.created_at` istället för `session.step_started_at`. Det var exakt detta som orsakade problemet du såg (30 min skillnad → fel interpolering).
 
-3. **Simplify snapshot creation** (line 236-238): Instead of `getProfileTargetAt(profileTimeline, pointMs) ?? closest?.profile_target_temp`, just use `closest?.profile_target_temp ?? null` directly. This takes the value that was already saved live by `record-temp-history` at that point in time.
+2. **Start-temp**: Letar bakåt genom föregående stegs `target_temp` istället för att använda `session.step_start_temp` (som lagrar den faktiska controllerns temp vid stegets start).
 
-4. **Remove** the `profileTimeline` variable and the promise that fetches it (lines 158, 195-199).
+Det betyder att **det värde som sparas i historiken (och sedan hamnar i snapshots) kan skilja sig från vad frontend, auto-cooling och process-fermentation-profiles beräknar**.
 
-The result: each snapshot captures exactly the static values that existed in the database at sync time -- SG and Pill from the RAPT pill, Controller temp / Mål / PID from the nearest `temp_controller_history` row. No post-hoc calculation.
+### Lösning
 
-### No frontend changes needed
+Uppdatera `record-temp-history/index.ts` → `getRampInterpolatedTarget()` att använda samma källa som de andra tre:
 
-The chart (`useBrewChartData`) already reads `profile_target_temp` from `brew_data_snapshots` -- it will continue to work, now with more accurate values.
+1. **Använd `session.step_started_at`** istället för att slå upp `fermentation_step_log.created_at` (eliminerar DB-query + timing-avvikelse)
+2. **Använd `session.step_start_temp`** istället för att leta bakåt genom föregående steg (samma faktiska startpunkt)
+
+### Konkreta ändringar
+
+**`supabase/functions/record-temp-history/index.ts`** — funktion `getRampInterpolatedTarget`:
+- Ta bort hela DB-queryn mot `fermentation_step_log` (rad 211-217)
+- Använd `session.step_started_at` som starttid direkt
+- Använd `session.step_start_temp` som start-temp istället för att iterera bakåt genom `steps`
+- Resultatet: ~15 rader kod försvinner, en DB-query per ramp-controller elimineras, och värdet matchar exakt det som frontend och andra backend-funktioner beräknar
+
+### Sekundär observation: `FermentationStepDisplay.tsx`
+
+Denna komponent tar emot `targetTemp` som prop och visar det direkt — den gör ingen egen interpolering. Den anropas från `ActiveFermentationSession` som redan bör skicka in rätt interpolerat värde. Ingen ändring behövs här.
+
+### Sammanfattning
+
+En enda fil behöver ändras (`record-temp-history/index.ts`) för att eliminera den sista duplicerade interpoleringslogiken. Efter det använder alla 4 ställen samma beräkning: `step_started_at` + `step_start_temp` + linjär interpolering.
 
