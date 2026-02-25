@@ -44,10 +44,64 @@ interface SnapshotPoint {
   profile_target_temp: number | null;
 }
 
-// Build straight-line SVG path from raw points (no interpolation/smoothing)
+// Build straight-line SVG path from raw points
 function buildPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+}
+
+// Build smooth SVG path (monotone cubic interpolation)
+function buildSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  if (points.length === 2) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
+
+  const n = points.length;
+  const dx: number[] = [];
+  const dy: number[] = [];
+  const m: number[] = [];
+
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(points[i + 1].x - points[i].x);
+    dy.push(points[i + 1].y - points[i].y);
+    m.push(dx[i] === 0 ? 0 : dy[i] / dx[i]);
+  }
+
+  const tangents: number[] = new Array(n);
+  tangents[0] = m[0];
+  tangents[n - 1] = m[n - 2];
+
+  for (let i = 1; i < n - 1; i++) {
+    tangents[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    if (Math.abs(m[i]) < 1e-10) {
+      tangents[i] = 0;
+      tangents[i + 1] = 0;
+    } else {
+      const alpha = tangents[i] / m[i];
+      const beta = tangents[i + 1] / m[i];
+      const s = alpha * alpha + beta * beta;
+      if (s > 9) {
+        const tau = 3 / Math.sqrt(s);
+        tangents[i] = tau * alpha * m[i];
+        tangents[i + 1] = tau * beta * m[i];
+      }
+    }
+  }
+
+  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const seg = dx[i] / 3;
+    const cp1x = points[i].x + seg;
+    const cp1y = points[i].y + tangents[i] * seg;
+    const cp2x = points[i + 1].x - seg;
+    const cp2y = points[i + 1].y - tangents[i + 1] * seg;
+    d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${points[i + 1].x.toFixed(1)},${points[i + 1].y.toFixed(1)}`;
+  }
+
+  return d;
 }
 
 // Format day label
@@ -102,14 +156,15 @@ function generateChartSvg(
   const sgMin = Math.min(...sgValues, fg) - 0.001;
   const sgMax = Math.max(...sgValues, og) + 0.001;
 
-  const tempValues = parsed.flatMap((p) => [p.pill, p.controller, p.target])
+  const tempValues = parsed
+    .flatMap((p) => [p.pill, p.controller, p.target])
     .filter((v): v is number => v !== null && Number.isFinite(v));
+
   const hasTempData = tempValues.length > 0;
   const tempMin = hasTempData ? Math.min(...tempValues) - 1 : 0;
   const tempMax = hasTempData ? Math.max(...tempValues) + 1 : 1;
   const tempScaleY = (v: number) => scaleY(v, tempMin, tempMax);
 
-  // Grid lines
   let gridSvg = '';
   const gridLines = 4;
   for (let i = 0; i <= gridLines; i++) {
@@ -117,7 +172,6 @@ function generateChartSvg(
     gridSvg += `<line x1="${MARGIN.left}" y1="${y}" x2="${WIDTH - MARGIN.right}" y2="${y}" stroke="${COLORS.grid}" stroke-width="0.5"/>`;
   }
 
-  // X-axis day markers + labels
   let xAxisSvg = '';
   const dayMs = 86400000;
   const firstDay = new Date(tMin);
@@ -138,7 +192,6 @@ function generateChartSvg(
     dayT += dayMs;
   }
 
-  // Left SG-axis labels
   let yAxisSvg = '';
   const sgTicks = 4;
   for (let i = 0; i <= sgTicks; i++) {
@@ -147,7 +200,6 @@ function generateChartSvg(
     yAxisSvg += `<text x="${MARGIN.left - 5}" y="${y + 3}" fill="${COLORS.axisText}" font-size="9" font-family="sans-serif" text-anchor="end">${v.toFixed(3)}</text>`;
   }
 
-  // Right temp-axis labels (only if temp data exists)
   let tempAxisSvg = '';
   if (hasTempData) {
     const tempTicks = 4;
@@ -158,21 +210,21 @@ function generateChartSvg(
     }
   }
 
-  // Raw data lines only (no smoothing/interpolation/downsampling)
-  const sgLineSvg = `<path d="${buildPath(parsed.map((p) => ({ x: scaleX(p.t, tMin, tMax), y: scaleY(p.sg, sgMin, sgMax) })))}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const sgPoints = parsed.map((p) => ({ x: scaleX(p.t, tMin, tMax), y: scaleY(p.sg, sgMin, sgMax) }));
+  const sgLineSvg = `<path d="${buildSmoothPath(sgPoints)}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
   const controllerPoints = parsed
     .filter((p) => p.controller !== null)
     .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
   const controllerSvg = controllerPoints.length > 0
-    ? `<path d="${buildPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
+    ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
     : '';
 
   const pillPoints = parsed
     .filter((p) => p.pill !== null)
     .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }));
   const pillSvg = pillPoints.length > 0
-    ? `<path d="${buildPath(pillPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`
+    ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`
     : '';
 
   const targetPoints = parsed
@@ -182,17 +234,47 @@ function generateChartSvg(
     ? `<path d="${buildPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`
     : '';
 
+  const spanPoints = parsed
+    .filter((p) => p.pill !== null && p.controller !== null)
+    .map((p) => ({
+      x: scaleX(p.t, tMin, tMax),
+      pillY: tempScaleY(p.pill as number),
+      ctrlY: tempScaleY(p.controller as number),
+      avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
+    }));
+
+  let tempSpanSvg = '';
+  let avgTempSvg = '';
+  if (spanPoints.length > 1) {
+    const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
+    const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
+    const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
+    tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
+
+    const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
+    avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
+  }
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
+    <defs>
+      <linearGradient id="tempSpanGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#268bd2" stop-opacity="0.15"/>
+        <stop offset="100%" stop-color="#268bd2" stop-opacity="0.08"/>
+      </linearGradient>
+    </defs>
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
     ${tempAxisSvg}
+    ${tempSpanSvg}
+    ${avgTempSvg}
     ${targetSvg}
     ${controllerSvg}
     ${pillSvg}
     ${sgLineSvg}
   </svg>`;
 }
+
 
 
 
