@@ -262,11 +262,6 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
               {brew.fermentationMetrics.fermentation_phase}
             </span>
             <span>⚡{brew.fermentationMetrics.activity_score}%</span>
-            {brew.fermentationMetrics.eta_to_fg_hours != null && (
-              <span>ETA {brew.fermentationMetrics.eta_to_fg_hours < 24 
-                ? `${brew.fermentationMetrics.eta_to_fg_hours}h` 
-                : `${Math.round(brew.fermentationMetrics.eta_to_fg_hours / 24)}d`}</span>
-            )}
             {brew.fermentationMetrics.ready_to_crash && (
               <span className="text-blue-400 font-semibold">🧊 Redo</span>
             )}
