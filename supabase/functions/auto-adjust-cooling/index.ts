@@ -479,10 +479,9 @@ serve(async (req) => {
       }
 
       for (const fc of followedControllersFullData) {
-        // Skip profile-owned controllers — handled by process-fermentation-profiles
-        if (profileOwnedControllerIds.has(fc.controller_id)) {
-          continue;
-        }
+        // Profile-owned controllers: use profile_target_temp as the base target
+        // (PID is the sole owner of setControllerTargetTemp)
+        const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id);
 
         // Skip cooloff controllers
         if (cooloffControllerIds.has(fc.controller_id)) {
@@ -510,17 +509,58 @@ serve(async (req) => {
         const targetTemp = parseFloat(String(fc.target_temp ?? '20'));
 
         // Determine the "base target" — the intended goal before any pill-comp
-        const baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
+        // Profile-owned: use profile_target_temp (set by process-fermentation-profiles)
+        // Standalone: use original target from historical adjustments
+        let baseTarget: number;
+        if (isProfileOwned) {
+          const profileTarget = (fc as any).profile_target_temp;
+          if (profileTarget === null || profileTarget === undefined) {
+            log('PILL_COMP_SKIP', 'info', `${fc.name}: profile-owned but no profile_target_temp set yet`);
+            continue;
+          }
+          baseTarget = parseFloat(String(profileTarget));
+        } else {
+          baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
+        }
 
         // Determine mode based on which system is active
         const pidMode: 'heating' | 'cooling' = fc.cooling_enabled ? 'cooling' : 'heating';
+        const stepType = isProfileOwned ? (profileStatusMap.get(fc.controller_id) ? 'profile' : 'unknown') : 'standalone';
 
         const compensation = await calculateCompensatedTarget(
           supabase, fc.controller_id, baseTarget, targetTemp,
-          fc.name || fc.controller_id, pillCompSettings, pidMode, 'standalone'
+          fc.name || fc.controller_id, pillCompSettings, pidMode, stepType
         );
 
         if (!compensation) {
+          // For profile-owned controllers without pill compensation,
+          // still enforce the profile target directly
+          if (isProfileOwned) {
+            const diff = Math.abs(targetTemp - baseTarget);
+            if (diff >= 0.15) {
+              log('PROFILE_ENFORCE', 'action', `${fc.name}: enforcing profile target ${baseTarget}°C (current controller=${targetTemp}°C, no pill-comp needed)`);
+              const success = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, baseTarget);
+              if (success) {
+                allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: baseTarget });
+                await supabase.from('rapt_temp_controllers')
+                  .update({ target_temp: baseTarget, updated_at: new Date().toISOString() })
+                  .eq('controller_id', fc.controller_id);
+                
+                await supabase.from('auto_cooling_adjustments').insert({
+                  cooler_controller_id: fc.controller_id,
+                  cooler_controller_name: fc.name,
+                  old_target_temp: targetTemp,
+                  new_target_temp: baseTarget,
+                  original_target_temp: baseTarget,
+                  lowest_followed_temp: baseTarget,
+                  followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
+                  followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
+                  reason: `🔧 Profil-enforce: ${baseTarget.toFixed(1)}°C (ingen pill-komp behövs)`,
+                  adjusted_against_timestamp: fc.last_update,
+                } as any);
+              }
+            }
+          }
           continue;
         }
 
