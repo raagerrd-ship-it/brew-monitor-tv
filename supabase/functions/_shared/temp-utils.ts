@@ -67,6 +67,36 @@ export function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: n
  * Targets the AVERAGE of pill (surface) and probe (core) to equal the profile goal.
  * Formula: compensatedTarget = profileTarget - avgDelta/2
  */
+// Mode-specific PID tuning constants
+// Heating elements: fast response, risk of overshoot → conservative gains
+// Glycol cooling: slow, high inertia → more aggressive gains needed
+const MODE_PARAMS = {
+  cooling: {
+    pGain: 0.6,           // proportional gain
+    iGain: 0.15,          // integral gain per cycle
+    iDecay: 0.95,         // integral decay per cycle
+    iClamp: 2.0,          // max integral magnitude
+    maxRatePerCycle: null, // use settings value (overridden below)
+    maxComp: null,         // use settings value
+    upwardRelease: 0.3,   // max upward change when releasing comp (°C/cycle)
+    convergenceAlpha0: 0.5,// EMA alpha for few samples
+    convergenceAlphaN: 0.2,// EMA alpha for many samples
+    errorCorrectionCap: 2.5,
+  },
+  heating: {
+    pGain: 0.35,          // lower: heating element reacts fast
+    iGain: 0.10,          // lower: avoid integral windup from fast response
+    iDecay: 0.90,         // faster decay: element cools quickly when off
+    iClamp: 1.5,          // tighter clamp
+    maxRatePerCycle: null, // overridden below
+    maxComp: null,         // overridden below
+    upwardRelease: 0.2,   // tighter release for heating (avoid triggering cooler)
+    convergenceAlpha0: 0.4,
+    convergenceAlphaN: 0.15,
+    errorCorrectionCap: 1.8, // lower cap: heating overshoots are harder to reverse
+  },
+}
+
 export async function calculateCompensatedTarget(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
@@ -78,6 +108,10 @@ export async function calculateCompensatedTarget(
   stepType: string = 'unknown'
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number } | null> {
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
+  const mp = MODE_PARAMS[mode]
+  // Mode-specific overrides: heating uses tighter limits
+  const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
+  const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
 
   // Fetch last 8 delta measurements (≈40 min at 5-min intervals) including pill_temp and timestamp
   const { data: deltaHistory } = await supabase
@@ -222,27 +256,20 @@ export async function calculateCompensatedTarget(
 
   if (avgError > 0.5) {
     // === UNDERSHOOT: avg below target — push controller target down less (= warm up) ===
-    // P-term: proportional to current error
-    pCorrection = avgError * 0.6
+    pCorrection = avgError * mp.pGain
 
-    // Persistent I-term with anti-windup: accumulate error over time, decay toward zero
-    const INTEGRAL_GAIN = 0.15        // how fast integral grows per cycle
-    const INTEGRAL_DECAY = 0.95       // decay factor per cycle (prevents windup)
-    const INTEGRAL_CLAMP = 2.0        // max absolute integral value (anti-windup)
+    const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
+    iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
     
-    const newIntegral = persistedIntegral * INTEGRAL_DECAY + avgError * INTEGRAL_GAIN
-    iCorrection = Math.max(-INTEGRAL_CLAMP, Math.min(INTEGRAL_CLAMP, newIntegral))
-    
-    console.log(`📊 I-term ${controllerName}: persistent integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${INTEGRAL_GAIN}, decay=${INTEGRAL_DECAY})`)
+    console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
 
-    // Use the greater of calculated PI or learned baseline (learned = what historically worked)
     const calculatedPI = pCorrection + iCorrection
-    errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), 2.5) // cap at 2.5°C
+    errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), mp.errorCorrectionCap)
     
     if (learnedBaseline > 0) {
-      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}]: ${learnedBaseline.toFixed(2)}°C (${convergenceCount} konvergeringar), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
+      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
-    console.log(`📈 PI-term ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
+    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -252,22 +279,16 @@ export async function calculateCompensatedTarget(
       updated_at: new Date().toISOString(),
     }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
   } else if (avgError < -0.3) {
-    // === OVERSHOOT: avg above target — push controller target down more (= cool down) ===
-    // Symmetric P-term for overshoot (avgError is negative, so pCorrection becomes negative)
-    pCorrection = avgError * 0.6 // negative value
+    // === OVERSHOOT: avg above target — push controller target down more ===
+    pCorrection = avgError * mp.pGain // negative value
 
-    // Persistent I-term for overshoot (symmetric)
-    const INTEGRAL_GAIN = 0.15
-    const INTEGRAL_DECAY = 0.95
-    const INTEGRAL_CLAMP = 2.0
+    const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
+    iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
     
-    const newIntegral = persistedIntegral * INTEGRAL_DECAY + avgError * INTEGRAL_GAIN
-    iCorrection = Math.max(-INTEGRAL_CLAMP, Math.min(INTEGRAL_CLAMP, newIntegral))
-    
-    console.log(`📊 I-term overshoot ${controllerName}: persistent integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
+    console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
 
-    errorCorrection = Math.max(pCorrection + iCorrection, -2.5) // cap at -2.5°C (negative = lower target further)
-    console.log(`📉 PI-term overshoot ${controllerName}: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
+    errorCorrection = Math.max(pCorrection + iCorrection, -mp.errorCorrectionCap)
+    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -287,12 +308,12 @@ export async function calculateCompensatedTarget(
     const totalCompApplied = Math.abs(profileTarget - currentControllerTarget)
     if (totalCompApplied > 0.1) {
       // Exponential moving average: weight new data more when we have few samples
-      const alpha = convergenceCount < 5 ? 0.5 : 0.2 // learn faster initially
+      const alpha = convergenceCount < 5 ? mp.convergenceAlpha0 : mp.convergenceAlphaN
       const absRawComp = Math.abs(rawCompensation * dampingFactor)
       const newLearned = learnedBaseline > 0
         ? learnedBaseline * (1 - alpha) + (absRawComp > 0 ? totalCompApplied - absRawComp : 0) * alpha
         : Math.max(0, totalCompApplied - absRawComp)
-      const clampedLearned = Math.max(0, Math.min(newLearned, 2.5))
+      const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
       
       await supabase.from('controller_learned_compensation').upsert({
         controller_id: controllerId,
@@ -316,8 +337,8 @@ export async function calculateCompensatedTarget(
 
   let compensatedTarget = profileTarget - compensation + errorCorrection
 
-  // Safety bounds: never more than maxCompensation away from profile target (both directions)
-  compensatedTarget = Math.max(profileTarget - maxCompensation, Math.min(profileTarget + maxCompensation, compensatedTarget))
+  // Safety bounds: never more than effectiveMaxComp away from profile target
+  compensatedTarget = Math.max(profileTarget - effectiveMaxComp, Math.min(profileTarget + effectiveMaxComp, compensatedTarget))
 
   // Asymmetric rate limit
   const diff = compensatedTarget - currentControllerTarget
@@ -335,16 +356,16 @@ export async function calculateCompensatedTarget(
     let baseLimit: number
     if (mode === 'cooling') {
       const avgBelowTarget = currentAvg < profileTarget - 0.2
-      const upwardLimit = avgBelowTarget ? maxChangePerCycle : 0.3
-      baseLimit = isIncreasing ? Math.min(maxChangePerCycle * scaleFactor, upwardLimit) : maxChangePerCycle * scaleFactor
+      const upwardLimit = avgBelowTarget ? effectiveMaxRate : mp.upwardRelease
+      baseLimit = isIncreasing ? Math.min(effectiveMaxRate * scaleFactor, upwardLimit) : effectiveMaxRate * scaleFactor
       if (avgBelowTarget && isIncreasing) {
         console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
       }
     } else {
       // Heating mode: strict downward (releasing heat compensation), normal upward
       const avgAboveTarget = currentAvg > profileTarget + 0.2
-      const downwardLimit = avgAboveTarget ? maxChangePerCycle : 0.3
-      baseLimit = isIncreasing ? maxChangePerCycle * scaleFactor : Math.min(maxChangePerCycle * scaleFactor, downwardLimit)
+      const downwardLimit = avgAboveTarget ? effectiveMaxRate : mp.upwardRelease
+      baseLimit = isIncreasing ? effectiveMaxRate * scaleFactor : Math.min(effectiveMaxRate * scaleFactor, downwardLimit)
       if (avgAboveTarget && !isIncreasing) {
         console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${profileTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
       }
@@ -352,7 +373,7 @@ export async function calculateCompensatedTarget(
     
     if (distanceFromIdeal > baseLimit) {
       compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
-      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle}, mode=${mode})`)
+      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
   }
 
