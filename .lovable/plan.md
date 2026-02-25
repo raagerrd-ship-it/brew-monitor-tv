@@ -1,89 +1,26 @@
 
 
-## Plan: Direktutskrift till Phomemo M110 via Web Bluetooth
+## Problem
 
-### Bakgrund & Analys
+The snapshot system (`createBrewSnapshots`) uses complex timeline reconstruction (`getProfileTargetTimeline`) to calculate `profile_target_temp` retroactively. This reconstruction is fragile -- it depends on step logs having exact timestamps, and often produces slightly wrong values (e.g. 16.0 instead of 16.3 during a ramp). Meanwhile, `temp_controller_history` already stores the correct `profile_target_temp` at each recording interval (calculated live by `record-temp-history` with proper ramp interpolation).
 
-Det finns ett aktivt open source-projekt, **Phomymo** (github.com/transcriptionstream/phomymo), som framgångsrikt skriver ut till Phomemo M110 via Web Bluetooth i Chrome. Deras kod visar att:
+## Solution
 
-1. M110 **stödjer BLE** (Bluetooth Low Energy) -- inte bara Classic Bluetooth
-2. Vår tidigare implementation misslyckades pga **felaktiga BLE-UUIDer** och saknade M110-specifika protokollkommandon
+Simplify `brew-snapshots.ts` to only use values already stored in `temp_controller_history`:
 
-**Nyckelfynd från Phomymo-projektet:**
-- BLE Service UUID: `0xff00` (16-bit, inte de långa 128-bit UUIDer vi använde)
-- Write Characteristic: `0xff02`
-- Notify Characteristic: `0xff03`
-- M110 kräver specifika init-kommandon: Speed (`ESC N 0x0D`), Density (`ESC N 0x04`), Media Type (`1F 11 10`), och en Footer-sekvens (`1F F0 05 00 1F F0 03 00`)
-- Chunk size: 128 bytes med 20ms delay
-- Fallback-service-UUIDer: `0xffe0`, `0xae30`, `49535343-fe7d-4ae5-8fa9-9fafd205e455`, `0000ff00-0000-1000-8000-00805f9b34fb`
+### Changes to `supabase/functions/_shared/brew-snapshots.ts`
 
-### Ändringar
+1. **Remove** the entire `getProfileTargetTimeline` function (lines 17-106) and `getProfileTargetAt` helper (lines 108-119) -- no more retroactive reconstruction.
 
-**1. Skriv om `src/lib/thermal-printer.ts`**
+2. **Remove** the backfill logic (lines 263-304) -- no longer needed since we don't reconstruct.
 
-Baserat på den bevisade Phomymo-implementationen:
+3. **Simplify snapshot creation** (line 236-238): Instead of `getProfileTargetAt(profileTimeline, pointMs) ?? closest?.profile_target_temp`, just use `closest?.profile_target_temp ?? null` directly. This takes the value that was already saved live by `record-temp-history` at that point in time.
 
-- **BLE-konstanter**: Uppdatera service UUIDs till `[0xff00, 0xffe0, 0xae30, '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000ff00-0000-1000-8000-00805f9b34fb']`
-- **Write characteristic**: `0xff02`
-- **Notify characteristic**: `0xff03` (lägg till stöd för notifications/svar)
-- **Chunk size**: 128 bytes, 20ms delay
-- **connectPrinter()**: Uppdatera med:
-  - Bredare namnfilter: `M`, `D`, `P`, `Q`, `T`, `A`, `Mr.in`, `Phomemo`
-  - Retry med exponential backoff (max 1 retry, 300ms initial delay)
-  - `watchAdvertisements()` för att vänta tills enheten är redo
-  - Fallback till `writeValue` om `writeValueWithoutResponse` misslyckas
-- **printBitmap()**: Ny M110-specifik sekvens:
-  1. Sätt hastighet: `[0x1b, 0x4e, 0x0d, 5]`
-  2. Sätt densitet: `[0x1b, 0x4e, 0x04, densityValue]` (1-15)
-  3. Sätt mediatyp: `[0x1f, 0x11, 10]` (etiketter med gap)
-  4. Raster header: `[0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, heightL, heightH]`
-  5. Skicka bitmap-data i 128-byte chunks
-  6. Footer: `[0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]`
-- **Behåll**: Floyd-Steinberg dithering (redan korrekt implementerad)
+4. **Remove** the `profileTimeline` variable and the promise that fetches it (lines 158, 195-199).
 
-**2. Uppdatera `src/components/PrintLabelDialog.tsx`**
+The result: each snapshot captures exactly the static values that existed in the database at sync time -- SG and Pill from the RAPT pill, Controller temp / Mål / PID from the nearest `temp_controller_history` row. No post-hoc calculation.
 
-Lägg till en "Skriv ut direkt"-knapp som:
-- Visar en Bluetooth-ikon + "Skriv ut via Bluetooth"
-- Kontrollerar `isBluetoothSupported()` -- döljer knappen om ej stödd
-- Vid klick: ansluter till skrivaren (visar BLE-picker), skriver ut canvas-innehållet
-- Visar framsteg under utskrift (progress-bar eller text)
-- Sparar anslutningen i state så man kan skriva ut flera etiketter utan att para om
-- "Koppla från"-knapp visas när ansluten
-- Antal kopior-väljare (1-5)
-- Felhantering med toast-meddelanden på svenska
+### No frontend changes needed
 
-**Layout i dialogen:**
-
-```text
-┌─────────────────────────────────┐
-│ 🖨️ Skriv ut etikett            │
-│                                 │
-│ [🧪 Jästank] [🛢️ Fat]          │
-│                                 │
-│ ┌─────────────────────────────┐ │
-│ │     (Canvas preview)        │ │
-│ └─────────────────────────────┘ │
-│                                 │
-│ Kopior: [1] [2] [3]            │
-│                                 │
-│ [📶 Bluetooth: Ej ansluten]    │
-│ [🔵 Skriv ut via Bluetooth  ]  │  ← Ny primär knapp
-│                                 │
-│ [📄 Spara PDF] [🖨️ Systemprint]│  ← Sekundära
-│                                 │
-│ Öppna PDF:en i PrintMaster...  │
-└─────────────────────────────────┘
-```
-
-### Teknisk detalj
-
-M110 har printbredd 48 bytes = 384 pixlar. Våra etiketter är 399px breda (50mm vid 203 DPI). Bilddata behöver skalas ner till 384px bredd innan utskrift, eller centreras med padding. Phomymo-projektet löser detta genom att skala canvas till skrivarens bredd. Vi gör samma sak: skala etikettens canvas till 384px bredd, beräkna ny höjd proportionellt.
-
-### Krav
-
-- Chrome, Edge, eller annan Chromium-baserad webbläsare
-- Web Bluetooth API (ej Firefox/Safari)
-- HTTPS eller localhost
-- Android Chrome stöds, iOS stöds ej
+The chart (`useBrewChartData`) already reads `profile_target_temp` from `brew_data_snapshots` -- it will continue to work, now with more accurate values.
 
