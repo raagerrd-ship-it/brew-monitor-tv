@@ -1224,6 +1224,65 @@ serve(async (req) => {
                     allActivelyCooling ? 'Controller has been trying to cool for entire interval' : 'Controller was NOT actively cooling for entire interval');
 
                   if (allActivelyCooling) {
+                    // === SMART CHECK: Is the cooler actually underperforming, or just needs more time? ===
+                    // Measure actual cooler cooling rate over the last 30 minutes
+                    let skipReduction = false;
+                    if (glycolRate && glycolRate.sampleCount >= 3) {
+                      // Measure actual glycol temp change over the history window
+                      const { data: coolerHistory } = await supabase
+                        .from('temp_controller_history')
+                        .select('current_temp, recorded_at')
+                        .eq('controller_id', coolerController.controller_id)
+                        .gte('recorded_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+                        .order('recorded_at', { ascending: true })
+                        .limit(50);
+
+                      if (coolerHistory && coolerHistory.length >= 3) {
+                        const oldest = coolerHistory[0];
+                        const newest = coolerHistory[coolerHistory.length - 1];
+                        const tempChange = parseFloat(String(newest.current_temp)) - parseFloat(String(oldest.current_temp));
+                        const timeDiffHours = (new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()) / (1000 * 60 * 60);
+
+                        if (timeDiffHours > 0.1) {
+                          const actualRate = Math.abs(tempChange) / timeDiffHours; // °C/h (absolute)
+                          const isCoolingDown = tempChange < 0;
+                          const expectedRate = glycolRate.rate;
+                          // If the cooler is actually cooling and at ≥60% of expected rate, it's working fine
+                          const performanceRatio = isCoolingDown ? actualRate / expectedRate : 0;
+
+                          log('GLYCOL_PERFORMANCE', 'info', `Cooler performance check`, {
+                            actual_rate: `${(isCoolingDown ? '-' : '+')}${actualRate.toFixed(2)}°C/h`,
+                            expected_rate: `${expectedRate.toFixed(2)}°C/h`,
+                            performance: `${(performanceRatio * 100).toFixed(0)}%`,
+                            load: coolingLoadCount,
+                          });
+
+                          if (isCoolingDown && performanceRatio >= 0.6) {
+                            // Cooler IS cooling at a reasonable pace — the tank just needs more time
+                            // Calculate ETA to reach the lowest tank's target
+                            const coolerTemp = parseFloat(String(coolerController.current_temp ?? '0'));
+                            const etaHours = actualRate > 0.1 ? Math.abs(lowestCurrentTemp - lowestTargetTemp) / (actualRate * 0.3) : 99;
+                            const etaMinutes = Math.round(etaHours * 60);
+
+                            log('GLYCOL_PERFORMANCE', 'pass', `Cooler performing at ${(performanceRatio * 100).toFixed(0)}% of expected — tank needs ~${etaMinutes}min more, skipping reduction`, {
+                              cooler_temp: `${coolerTemp.toFixed(1)}°C`,
+                              tank_temp: `${lowestCurrentTemp.toFixed(1)}°C → ${lowestTargetTemp.toFixed(1)}°C`,
+                              eta_minutes: etaMinutes,
+                            });
+                            skipReduction = true;
+                          } else if (!isCoolingDown) {
+                            log('GLYCOL_PERFORMANCE', 'fail', `Cooler temp is RISING (${tempChange.toFixed(2)}°C) despite cooling demand — needs lower target`);
+                          } else {
+                            log('GLYCOL_PERFORMANCE', 'info', `Cooler underperforming (${(performanceRatio * 100).toFixed(0)}% of expected) — proceeding with reduction`);
+                          }
+                        }
+                      }
+                    }
+
+                    if (skipReduction) {
+                      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
+                      log('DECISION', 'info', `${lowestTempController.name} is cooling — glycol performing normally, keeping current target`);
+                    } else {
                     log('DECISION', 'action', `${lowestTempController.name} has been struggling to cool`, {
                       current_temp: lowestCurrentTemp,
                       target_temp: lowestTargetTemp
@@ -1374,6 +1433,7 @@ serve(async (req) => {
                     } else {
                       log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
                     }
+                    } // end skipReduction else
                   } else {
                     await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
                     // Sustained cooling check failed but controller IS actively cooling
