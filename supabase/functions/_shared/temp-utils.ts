@@ -248,6 +248,17 @@ export async function calculateCompensatedTarget(
   const convergenceCount = learnedRow?.convergence_count ?? 0
   const persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
 
+  // === Stale-data detection ===
+  // RAPT data only refreshes every ~15 min, but PID runs every ~5 min.
+  // If the newest delta reading is the same as last PID run, don't accumulate I-term
+  // (otherwise I winds up 3x on identical data before seeing any result).
+  const newestDataTime = new Date(deltaHistory[0].recorded_at).getTime()
+  const lastPidRunTime = learnedRow?.updated_at ? new Date(learnedRow.updated_at).getTime() : 0
+  const isStaleData = lastPidRunTime > 0 && newestDataTime <= lastPidRunTime
+  if (isStaleData) {
+    console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
+  }
+
   const historicalAvgs = deltaHistory.map((d: any) => {
     const p = parseFloat(String(d.pill_temp))
     const c = parseFloat(String(d.controller_temp))
@@ -276,10 +287,15 @@ export async function calculateCompensatedTarget(
     // === UNDERSHOOT: avg below target — push controller target down less (= warm up) ===
     pCorrection = avgError * mp.pGain
 
-    const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
-    iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
-    
-    console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
+    // Only accumulate I-term when we have FRESH data (not stale from previous cycle)
+    if (isStaleData) {
+      iCorrection = persistedIntegral // keep existing, don't grow
+      console.log(`📊 I-term ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)} (ingen ny data)`)
+    } else {
+      const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
+      iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
+      console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
+    }
 
     const calculatedPI = pCorrection + iCorrection
     errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), mp.errorCorrectionCap)
@@ -319,10 +335,14 @@ export async function calculateCompensatedTarget(
     // === OVERSHOOT: avg above target — push controller target down more ===
     pCorrection = avgError * mp.pGain // negative value
 
-    const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
-    iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
-    
-    console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
+    if (isStaleData) {
+      iCorrection = persistedIntegral
+      console.log(`📊 I-term overshoot ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)}`)
+    } else {
+      const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
+      iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
+      console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
+    }
 
     errorCorrection = Math.max(pCorrection + iCorrection, -mp.errorCorrectionCap)
     
