@@ -198,9 +198,6 @@ async function getProfileTargets(
 }
 
 /**
- * For a ramp step, interpolate the target based on elapsed time.
- */
-/**
  * For a ramp step, interpolate the target using session.step_started_at and session.step_start_temp.
  * Matches the logic in fermentation-target.ts, auto-adjust-cooling, and process-fermentation-profiles.
  */
