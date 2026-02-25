@@ -67,20 +67,31 @@ export function FermentationSessionCompact({
   acknowledgeLoading,
 }: FermentationSessionCompactProps) {
 
-  // Calculate the effective profile target by looking back through steps
+  // Calculate the effective profile target (interpolated during ramps)
   const effectiveStepTarget = (() => {
-    if (currentStep?.target_temp != null) return currentStep.target_temp;
-    // No target on current step - look back through previous steps
-    // We need step data from the parent, but we only have currentStep
-    // Use targetTemp as fallback if no step target
+    if (!currentStep) return null;
+    const stepTarget = currentStep.target_temp;
+    
+    // During a ramp with duration, interpolate between start temp and target
+    if (currentStep.step_type === 'ramp' && currentStep.duration_hours && stepStartTemp != null && stepTarget != null) {
+      const elapsed = (Date.now() - new Date(stepStartedAt).getTime()) / (1000 * 60 * 60);
+      const progress = Math.min(elapsed / currentStep.duration_hours, 1);
+      return Math.round((stepStartTemp + (stepTarget - stepStartTemp) * progress) * 10) / 10;
+    }
+    
+    if (stepTarget != null) return stepTarget;
+    // No target on current step - use controller target as fallback
     return null;
   })();
+  
+  // Profile target to display: interpolated step target, falling back to controller target
+  const displayTargetTemp = effectiveStepTarget ?? targetTemp;
 
   const progress = useFermentationProgress({
     currentStep,
     stepStartedAt,
     stepStartTemp,
-    targetTemp,
+    targetTemp: displayTargetTemp,
     currentTemp,
     currentSg,
     targetSg,
@@ -392,7 +403,7 @@ export function FermentationSessionCompact({
               currentStep={currentStep}
               isRamping={isRamping}
               stepStartTemp={stepStartTemp}
-              targetTemp={targetTemp}
+              targetTemp={displayTargetTemp}
               waitingForTemp={waitingForTemp}
             />
             
