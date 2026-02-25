@@ -260,6 +260,18 @@ export async function calculateCompensatedTarget(
   let iCorrection = 0
   let errorCorrection = 0
 
+  // === Saturation detection: is the hardware already at max capacity? ===
+  // If pill rate is ≥80% of learned max rate, don't increase compensation further.
+  let isSaturated = false
+  if (learnedThermalRate && _pillRate !== null) {
+    const absRate = Math.abs(_pillRate)
+    const saturationRatio = absRate / learnedThermalRate
+    if (saturationRatio >= 0.8) {
+      isSaturated = true
+      console.log(`⚡ Saturation ${controllerName} [${mode}]: rate=${absRate.toFixed(2)}°C/h ≈ ${(saturationRatio * 100).toFixed(0)}% av max ${learnedThermalRate.toFixed(2)}°C/h — begränsar kompensation`)
+    }
+  }
+
   if (avgError > 0.5) {
     // === UNDERSHOOT: avg below target — push controller target down less (= warm up) ===
     pCorrection = avgError * mp.pGain
@@ -272,10 +284,20 @@ export async function calculateCompensatedTarget(
     const calculatedPI = pCorrection + iCorrection
     errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), mp.errorCorrectionCap)
     
+    // Saturation cap: if hardware is at max rate, freeze the error correction at current level
+    // (don't push higher — it won't go faster, and will only cause overshoot later)
+    if (isSaturated && errorCorrection > learnedBaseline && learnedBaseline > 0) {
+      const prevComp = Math.abs(profileTarget - currentControllerTarget)
+      if (errorCorrection > prevComp) {
+        errorCorrection = prevComp
+        console.log(`⚡ Saturation cap: begränsar PI till ${errorCorrection.toFixed(2)}°C (hårdvaran redan vid max)`)
+      }
+    }
+    
     if (learnedBaseline > 0) {
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
-    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C`)
+    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -294,7 +316,17 @@ export async function calculateCompensatedTarget(
     console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
 
     errorCorrection = Math.max(pCorrection + iCorrection, -mp.errorCorrectionCap)
-    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C`)
+    
+    // Saturation cap for overshoot correction too
+    if (isSaturated && errorCorrection < 0) {
+      const prevComp = profileTarget - currentControllerTarget  // negative when correcting down
+      if (errorCorrection < prevComp && prevComp < 0) {
+        errorCorrection = prevComp
+        console.log(`⚡ Saturation cap (overshoot): begränsar PI till ${errorCorrection.toFixed(2)}°C`)
+      }
+    }
+    
+    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
     // Persist latest PID state for UI visibility
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
