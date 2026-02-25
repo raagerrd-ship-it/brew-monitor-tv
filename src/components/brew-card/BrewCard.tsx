@@ -10,7 +10,7 @@ import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckC
 import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
-import { getStatusDisplayText } from "./utils";
+import { getStatusDisplayText, isBrewInactive } from "./utils";
 import { GravityStat } from "./GravityStat";
 import { AbvStat } from "./AbvStat";
 import { TempStat } from "./TempStat";
@@ -260,6 +260,7 @@ function BrewCardComponent({
                 </>
               )}
               {(() => {
+                if (isBrewInactive(brew.status)) return null;
                 const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
                 if (batteryValue === null) return null;
                 const isLowBattery = batteryValue < 20;
