@@ -81,6 +81,45 @@ function BrewCardComponent({
     [brew.linked_controller_id, brew.linked_pill_id, pills, controllers]
   );
   
+  const profileTargetNow = useMemo(() => {
+    const session = brew.fermentationSession;
+    if (!session?.steps?.length) return null;
+
+    const step = session.steps[session.current_step_index];
+    if (!step) return null;
+
+    const stepTarget = step.target_temp;
+
+    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null && stepTarget != null) {
+      const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
+      const progress = Math.min(elapsed / step.duration_hours, 1);
+      return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
+    }
+
+    if (stepTarget != null) return stepTarget;
+
+    for (let i = session.current_step_index - 1; i >= 0; i--) {
+      if (session.steps[i]?.target_temp != null) return session.steps[i].target_temp;
+    }
+
+    return null;
+  }, [brew.fermentationSession]);
+
+  const liveSnapshot = useMemo(() => ({
+    recorded_at: new Date().toISOString(),
+    sg: Number.isFinite(brew.currentSG) ? brew.currentSG : null,
+    pill_temp: Number.isFinite(brew.currentTemp) ? brew.currentTemp : null,
+    controller_temp: devices.controller?.current_temp ?? null,
+    profile_target_temp: profileTargetNow,
+    auto_target_temp: devices.controller?.target_temp ?? null,
+  }), [
+    brew.currentSG,
+    brew.currentTemp,
+    devices.controller?.current_temp,
+    devices.controller?.target_temp,
+    profileTargetNow,
+  ]);
+
   const statusText = useMemo(() => 
     getStatusDisplayText(brew), 
     [brew.status, brew.fermentationRate]
@@ -352,6 +391,7 @@ function BrewCardComponent({
           brewName={brew.name}
           brewId={brew.id}
           controllerId={brew.linked_controller_id}
+          liveSnapshot={liveSnapshot}
         />
       )}
       

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface SnapshotRow {
   recorded_at: string;
-  sg: number;
-  pill_temp: number;
+  sg: number | null;
+  pill_temp: number | null;
   controller_temp: number | null;
   profile_target_temp: number | null;
   auto_target_temp: number | null;
+  isLive?: boolean;
 }
 
 interface SyncedDataDialogProps {
@@ -25,6 +26,13 @@ interface SyncedDataDialogProps {
   brewName: string;
   brewId: string;
   controllerId?: string | null;
+  liveSnapshot?: SnapshotRow | null;
+}
+
+function differs(a: number | null, b: number | null): boolean {
+  if (a == null && b == null) return false;
+  if (a == null || b == null) return true;
+  return Math.abs(a - b) > 0.05;
 }
 
 export function SyncedDataDialog({
@@ -33,18 +41,17 @@ export function SyncedDataDialog({
   brewName,
   brewId,
   controllerId,
+  liveSnapshot,
 }: SyncedDataDialogProps) {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open || !brewId) {
-      setSnapshots([]);
-      return;
-    }
+  const fetchSnapshots = useCallback(async (silent = false) => {
+    if (!brewId) return;
 
-    const fetchSnapshots = async () => {
-      setLoading(true);
+    if (!silent) setLoading(true);
+
+    try {
       const allSnapshots: SnapshotRow[] = [];
       let offset = 0;
       const batchSize = 1000;
@@ -68,16 +75,52 @@ export function SyncedDataDialog({
       }
 
       setSnapshots(allSnapshots);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [brewId]);
+
+  useEffect(() => {
+    if (!open || !brewId) {
+      setSnapshots([]);
       setLoading(false);
-    };
+      return;
+    }
 
-    fetchSnapshots();
-  }, [open, brewId]);
+    fetchSnapshots(false);
 
-  const hasControllerData = controllerId && snapshots.some(s => s.controller_temp != null);
-  const hasAutoAdjustments = hasControllerData && snapshots.some(s => 
-    s.auto_target_temp != null && s.profile_target_temp != null && 
-    Math.abs((s.auto_target_temp ?? 0) - (s.profile_target_temp ?? 0)) > 0.05
+    // Keep dialog fresh while open
+    const intervalId = window.setInterval(() => {
+      fetchSnapshots(true);
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [open, brewId, fetchSnapshots]);
+
+  const displayedRows = useMemo(() => {
+    if (!liveSnapshot) return snapshots;
+
+    const first = snapshots[0];
+    if (!first) {
+      return [{ ...liveSnapshot, isLive: true }];
+    }
+
+    const timeGapMs = Math.abs(
+      new Date(liveSnapshot.recorded_at).getTime() - new Date(first.recorded_at).getTime(),
+    );
+
+    const shouldPrependLive =
+      timeGapMs > 60 * 1000 ||
+      differs(first.profile_target_temp, liveSnapshot.profile_target_temp) ||
+      differs(first.auto_target_temp, liveSnapshot.auto_target_temp);
+
+    return shouldPrependLive ? [{ ...liveSnapshot, isLive: true }, ...snapshots] : snapshots;
+  }, [snapshots, liveSnapshot]);
+
+  const hasControllerData = !!controllerId && displayedRows.some((s) => s.controller_temp != null);
+  const hasAutoAdjustments = hasControllerData && displayedRows.some(
+    (s) => s.auto_target_temp != null && s.profile_target_temp != null &&
+      Math.abs((s.auto_target_temp ?? 0) - (s.profile_target_temp ?? 0)) > 0.05,
   );
 
   return (
@@ -93,7 +136,7 @@ export function SyncedDataDialog({
           <div className="space-y-1">
             {loading ? (
               <p className="text-muted-foreground text-center py-8">Laddar...</p>
-            ) : snapshots.length === 0 ? (
+            ) : displayedRows.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
                 Ingen synkad data ännu
               </p>
@@ -116,41 +159,41 @@ export function SyncedDataDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshots.map((point, index) => (
+                  {displayedRows.map((point, index) => (
                     <tr
-                      key={point.recorded_at}
+                      key={`${point.recorded_at}-${point.isLive ? 'live' : 'snap'}`}
                       className={`border-b border-border/50 ${
                         index === 0 ? "bg-primary/5" : ""
                       }`}
                     >
                       <td className="py-1.5 text-muted-foreground">
-                        {format(new Date(point.recorded_at), "d MMM HH:mm", {
-                          locale: sv,
-                        })}
+                        {point.isLive
+                          ? `Nu ${format(new Date(point.recorded_at), "HH:mm:ss", { locale: sv })}`
+                          : format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
                       </td>
                       <td className="py-1.5 text-right font-mono text-beer-amber">
-                        {point.sg.toFixed(4)}
+                        {point.sg != null ? point.sg.toFixed(4) : "-"}
                       </td>
                       <td className="py-1.5 text-right font-mono text-temp-blue">
-                        {point.pill_temp.toFixed(1)}°
+                        {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
                       </td>
                       {hasControllerData && (
-                        <td className="py-1.5 text-right font-mono text-orange-400">
-                          {point.controller_temp !== null
+                        <td className="py-1.5 text-right font-mono text-foreground">
+                          {point.controller_temp != null
                             ? `${point.controller_temp.toFixed(1)}°`
                             : "-"}
                         </td>
                       )}
                       {hasControllerData && (
                         <td className="py-1.5 text-right font-mono text-muted-foreground">
-                          {point.profile_target_temp !== null
+                          {point.profile_target_temp != null
                             ? `${point.profile_target_temp.toFixed(1)}°`
                             : "-"}
                         </td>
                       )}
                       {hasAutoAdjustments && (
                         <td className="py-1.5 text-right font-mono text-muted-foreground/60">
-                          {point.auto_target_temp !== null
+                          {point.auto_target_temp != null
                             ? `${point.auto_target_temp.toFixed(1)}°`
                             : "-"}
                         </td>
