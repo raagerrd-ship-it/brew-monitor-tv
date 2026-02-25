@@ -1281,7 +1281,27 @@ serve(async (req) => {
 
                     if (skipReduction) {
                       await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id);
-                      log('DECISION', 'info', `${lowestTempController.name} is cooling — glycol performing normally, keeping current target`);
+
+                      // Glycol is performing normally but tank STILL can't cool fast enough
+                      // → The margin (delta) between glycol target and tank target is too small
+                      // → Learn to increase it for this temp bucket + load combo
+                      const tempBucketLearn = getTempBucket(lowestTargetTemp);
+                      const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount);
+                      const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`;
+                      const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp);
+                      // The tank needs more cooling → suggest a 20% bigger margin
+                      const suggestedMargin = currentMargin * 1.2;
+                      const marginUpdate = await updateLearnedParam(supabase!, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0);
+                      log('MARGIN_LEARNING', 'action', `Tank slow despite good glycol → learning bigger margin [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}°C → ${marginUpdate.newValue.toFixed(1)}°C (n=${marginUpdate.sampleCount})`, {
+                        current_margin: `${currentMargin.toFixed(1)}°C`,
+                        suggested: `${suggestedMargin.toFixed(1)}°C`,
+                      });
+
+                      // Also update the base margin (without load) so recovery uses a better default
+                      const baseMarginUpdate = await updateLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0);
+                      log('MARGIN_LEARNING', 'info', `Base margin [${tempBucketLearn}]: ${baseMarginUpdate.oldValue.toFixed(1)}°C → ${baseMarginUpdate.newValue.toFixed(1)}°C`);
+
+                      log('DECISION', 'info', `${lowestTempController.name} is cooling — glycol performing normally, keeping current target (learned bigger margin for next time)`);
                     } else {
                     log('DECISION', 'action', `${lowestTempController.name} has been struggling to cool`, {
                       current_temp: lowestCurrentTemp,
@@ -1442,16 +1462,35 @@ serve(async (req) => {
                 }
               }
             } else {
-              // Not actively cooling - reset timer
+              // Not actively cooling — tank has reached target = margin is adequate or too large
               await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id);
+
+              // Learn that the current margin was sufficient (or could be slightly tighter)
+              const tempBucketLearn = getTempBucket(lowestTargetTemp);
+              const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount);
+              const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp);
+              if (currentMargin > 2.0) {
+                // Suggest slightly tighter margin (5% reduction) since we have headroom
+                const suggestedMargin = currentMargin * 0.95;
+                const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`;
+                const marginUpdate = await updateLearnedParam(supabase!, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0);
+                const baseUpdate = await updateLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0);
+                log('MARGIN_LEARNING', 'info', `Tank at target → margin adequate [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}→${marginUpdate.newValue.toFixed(1)}°C (base: ${baseUpdate.oldValue.toFixed(1)}→${baseUpdate.newValue.toFixed(1)}°C)`);
+              }
+
               log('TIMER', 'info', 'Reset timer - not actively cooling');
             }
 
             // Always check recovery: move cooler toward ideal target regardless of active cooling state
             {
               const tempBucketRecovery = getTempBucket(lowestTargetTemp);
-              const recoveryMargin = await getLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}`, 5.0);
-              const idealTarget = lowestTargetTemp - recoveryMargin.value;
+              const loadBucketRecovery = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount);
+              // Prefer load-specific margin, fall back to base margin
+              const loadSpecificMargin = await getLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}:load_${loadBucketRecovery}`, 0);
+              const baseMargin = await getLearnedParam(supabase!, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}`, 5.0);
+              const recoveryMarginValue = loadSpecificMargin.sampleCount >= 3 ? loadSpecificMargin.value : baseMargin.value;
+              const idealTarget = lowestTargetTemp - recoveryMarginValue;
+              log('RECOVERY_MARGIN', 'info', `Using margin: ${recoveryMarginValue.toFixed(1)}°C (load_${loadBucketRecovery}: ${loadSpecificMargin.value.toFixed(1)}°C n=${loadSpecificMargin.sampleCount}, base: ${baseMargin.value.toFixed(1)}°C n=${baseMargin.sampleCount})`);
               const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
               const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
