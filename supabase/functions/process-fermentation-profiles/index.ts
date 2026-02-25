@@ -580,7 +580,10 @@ Deno.serve(async (req) => {
                 let finalTarget = Math.round(newTarget * 10) / 10
                 let pillCompensation: { compensatedTarget: number; compensation: number; avgDelta: number } | null = null
                 
-                if (pillCompSettings.enabled && !pillCompSkipSameData) {
+                // During ramps, ALWAYS apply PID even if sensor data hasn't changed,
+                // because the base target (ramp intermediate) changes every cycle.
+                // Skipping PID here would strip the previous compensation, causing oscillation.
+                if (pillCompSettings.enabled) {
                   const rampPidMode: 'heating' | 'cooling' = controller.cooling_enabled ? 'cooling' : 'heating'
                   const rampStepType = currentStep?.step_type ?? 'unknown'
                   pillCompensation = await calculateCompensatedTarget(
