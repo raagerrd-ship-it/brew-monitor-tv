@@ -1298,6 +1298,20 @@ serve(async (req) => {
                     }
 
                     if (finalTarget < currentCoolerTarget) {
+                      // Rate-limit: don't adjust cooler more often than every 5 minutes
+                      const COOLER_MIN_INTERVAL_MS = 5 * 60 * 1000;
+                      const { data: lastAdjust } = await supabase
+                        .from('auto_cooling_adjustments')
+                        .select('created_at')
+                        .eq('cooler_controller_id', coolerController.controller_id)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                      const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0;
+                      const timeSinceLastAdjust = Date.now() - lastAdjustTime;
+
+                      if (timeSinceLastAdjust < COOLER_MIN_INTERVAL_MS) {
+                        log('ADJUSTMENT', 'info', `Skipping - only ${Math.round(timeSinceLastAdjust / 60000)}min since last adjust (need 5min)`);
+                      } else {
                       const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'));
                       const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'));
 
@@ -1335,6 +1349,7 @@ serve(async (req) => {
                           log('ADJUSTMENT', 'fail', 'Failed to update cooler controller');
                         }
                       }
+                      } // end rate-limit else
                     } else {
                       log('ADJUSTMENT', 'info', 'Cooler target would not be lowered');
                     }
