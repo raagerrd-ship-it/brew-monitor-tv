@@ -136,11 +136,14 @@ export async function calculateCompensatedTarget(
     return null
   }
 
-  // === D-term: calculate pill rate and damping factor ===
+  // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
   let dampingFactor = 1.0
   let _pillRate: number | null = null
   let _etaMinutes: number | null = null
-  const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours // configurable via settings
+  const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours
+
+  // Fetch learned hardware thermal rate for this mode (non-blocking, cached)
+  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode)
 
   if (deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
@@ -164,12 +167,15 @@ export async function calculateCompensatedTarget(
       // Heating: avg below target and pill rising
       const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
       if (Math.abs(avgDistance) > 0.1 && isConverging) {
-        // ETA based on how fast the average is converging
-        const avgRate = Math.abs(pillRate) / 2
-        const etaHours = Math.abs(avgDistance) / avgRate
+        // Use learned thermal rate for better ETA if available, otherwise fall back to measured pill rate
+        const observedAvgRate = Math.abs(pillRate) / 2
+        const hwRate = learnedThermalRate ? learnedThermalRate / 2 : null // hardware rate also affects avg
+        // Use the more conservative (slower) of observed vs learned rate for ETA
+        const avgRate = hwRate ? Math.min(observedAvgRate, hwRate) : observedAvgRate
+        const etaHours = avgRate > 0.01 ? Math.abs(avgDistance) / avgRate : 99
         _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C (dist=${avgDistance.toFixed(1)}), avgRate=${avgRate.toFixed(2)}°C/h, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
         _etaMinutes = null
         console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${profileTarget}°C (ej mot mål eller för långsam), damping=1.0`)
@@ -430,6 +436,101 @@ export async function setControllerTargetTemp(
     console.error(`Error setting temperature for ${controllerId}: ${isTimeout ? `Timeout after ${timeoutMs}ms` : String(error)}`)
     return false
   }
+}
+
+/**
+ * Learn and retrieve the hardware thermal rate (°C/hour) for a controller.
+ * Measures how fast the hardware can heat or cool by analyzing periods of
+ * active temperature change from temp_controller_history.
+ * Persists learned rates in fermentation_learnings for cross-batch use.
+ */
+export async function learnThermalRate(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  mode: 'heating' | 'cooling'
+): Promise<number | null> {
+  const paramName = `thermal_rate_${mode}`
+
+  // Check existing learned value first
+  const { data: existing } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value, sample_count, last_updated_at')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', paramName)
+    .maybeSingle()
+
+  // Only re-learn every 2 hours to avoid excessive queries
+  if (existing && existing.last_updated_at) {
+    const hoursSinceUpdate = (Date.now() - new Date(existing.last_updated_at).getTime()) / (1000 * 60 * 60)
+    if (hoursSinceUpdate < 2 && existing.sample_count >= 3) {
+      return parseFloat(String(existing.learned_value))
+    }
+  }
+
+  // Fetch last 6 hours of temp history to find active heating/cooling periods
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+  const { data: history } = await supabase
+    .from('temp_controller_history')
+    .select('current_temp, target_temp, cooling_enabled, recorded_at')
+    .eq('controller_id', controllerId)
+    .gte('recorded_at', sixHoursAgo)
+    .order('recorded_at', { ascending: true })
+    .limit(200)
+
+  if (!history || history.length < 5) {
+    return existing ? parseFloat(String(existing.learned_value)) : null
+  }
+
+  // Find segments where temp is actively moving toward target
+  const rates: number[] = []
+  for (let i = 1; i < history.length; i++) {
+    const prev = history[i - 1]
+    const curr = history[i]
+    const tempDiff = parseFloat(String(curr.current_temp)) - parseFloat(String(prev.current_temp))
+    const timeDiffMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()
+    const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+
+    if (timeDiffHours < 0.01 || timeDiffHours > 0.5) continue // skip bad intervals
+
+    const ratePerHour = tempDiff / timeDiffHours
+    const target = parseFloat(String(curr.target_temp))
+    const temp = parseFloat(String(curr.current_temp))
+
+    // Only count when actively moving in the right direction toward target
+    if (mode === 'heating' && ratePerHour > 0.3 && temp < target) {
+      rates.push(ratePerHour)
+    } else if (mode === 'cooling' && ratePerHour < -0.3 && temp > target) {
+      rates.push(Math.abs(ratePerHour))
+    }
+  }
+
+  if (rates.length < 2) {
+    return existing ? parseFloat(String(existing.learned_value)) : null
+  }
+
+  // Use 80th percentile as "effective max rate" (filters out noise)
+  rates.sort((a, b) => a - b)
+  const p80Index = Math.floor(rates.length * 0.8)
+  const measuredRate = rates[p80Index]
+
+  // EMA update with existing learned value
+  const oldValue = existing ? parseFloat(String(existing.learned_value)) : 0
+  const oldCount = existing?.sample_count ?? 0
+  const alpha = oldCount < 5 ? 0.5 : 0.2
+  const newValue = oldValue > 0 ? oldValue * (1 - alpha) + measuredRate * alpha : measuredRate
+  const roundedValue = Math.round(newValue * 100) / 100
+
+  await supabase.from('fermentation_learnings').upsert({
+    controller_id: controllerId,
+    parameter_name: paramName,
+    learned_value: roundedValue,
+    sample_count: oldCount + rates.length,
+    last_updated_at: new Date().toISOString(),
+  }, { onConflict: 'controller_id,parameter_name' })
+
+  console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: ${roundedValue.toFixed(2)}°C/h (${rates.length} samples, p80=${measuredRate.toFixed(2)}, prev=${oldValue.toFixed(2)})`)
+
+  return roundedValue
 }
 
 /**
