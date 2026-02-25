@@ -1,9 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, FileText } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Download, Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
+import { toast } from "@/hooks/use-toast";
+import {
+  isBluetoothSupported,
+  connectPrinter,
+  disconnectPrinter,
+  printBitmap,
+  type PrinterConnection,
+  type PrintProgress,
+} from "@/lib/thermal-printer";
 
 /** Trim white pixels from canvas edges, keeping a small margin */
 function trimCanvas(source: HTMLCanvasElement, margin = 4): HTMLCanvasElement {
@@ -38,6 +48,12 @@ interface PrintLabelDialogProps {
 export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogProps) {
   const [labelType, setLabelType] = useState<LabelType>('tank');
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [copies, setCopies] = useState(1);
+  const [bleConn, setBleConn] = useState<PrinterConnection | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printProgress, setPrintProgress] = useState<PrintProgress | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const hasBle = isBluetoothSupported();
 
   // Render label preview whenever type or brew changes
   const renderPreview = useCallback(async () => {
@@ -57,6 +73,52 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     }
   }, [open, renderPreview]);
 
+  // Clean up BLE connection on unmount
+  useEffect(() => {
+    return () => {
+      if (bleConn) disconnectPrinter(bleConn);
+    };
+  }, [bleConn]);
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    try {
+      const conn = await connectPrinter();
+      setBleConn(conn);
+      toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+    } catch (e: any) {
+      if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') return;
+      toast({ title: "Anslutningsfel", description: e.message, variant: "destructive" });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    if (bleConn) {
+      disconnectPrinter(bleConn);
+      setBleConn(null);
+      toast({ title: "Frånkopplad", description: "Skrivaren har kopplats från." });
+    }
+  };
+
+  const handleBlePrint = async () => {
+    if (!bleConn || !canvasRef.current) return;
+    setIsPrinting(true);
+    setPrintProgress({ phase: 'Startar...', percent: 0 });
+    try {
+      await printBitmap(bleConn, canvasRef.current, copies, 8, setPrintProgress);
+      toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
+    } catch (e: any) {
+      toast({ title: "Utskriftsfel", description: e.message, variant: "destructive" });
+      // Connection may be broken
+      setBleConn(null);
+    } finally {
+      setIsPrinting(false);
+      setTimeout(() => setPrintProgress(null), 2000);
+    }
+  };
+
   const handlePrint = () => {
     if (!canvasRef.current) return;
     const trimmed = trimCanvas(canvasRef.current, 4);
@@ -75,7 +137,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     if (!canvasRef.current) return;
     const { default: jsPDF } = await import('jspdf');
     const trimmed = trimCanvas(canvasRef.current, 4);
-    // Label: 70x50mm portrait (height 70, width 50)
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [50, 70] });
     pdf.addImage(trimmed.toDataURL('image/png'), 'PNG', 0, 0, 50, 70);
     const safeName = (brew.name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
@@ -121,9 +182,86 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           />
         </div>
 
-        {/* Primary actions */}
+        {/* Copies selector */}
+        {hasBle && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Kopior:</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setCopies(n)}
+                  className={`h-8 w-8 rounded-md text-sm font-medium transition-colors ${
+                    copies === n
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bluetooth section */}
+        {hasBle && (
+          <div className="space-y-2">
+            {/* Connection status */}
+            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+              <div className="flex items-center gap-2 text-sm">
+                {bleConn ? (
+                  <>
+                    <Bluetooth className="h-4 w-4 text-primary" />
+                    <span className="text-foreground">{bleConn.device.name || 'Skrivare'}</span>
+                  </>
+                ) : (
+                  <>
+                    <BluetoothOff className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Ej ansluten</span>
+                  </>
+                )}
+              </div>
+              {bleConn ? (
+                <Button variant="ghost" size="sm" onClick={handleDisconnect} className="h-7 text-xs">
+                  Koppla från
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={handleConnect} disabled={isConnecting} className="h-7 text-xs">
+                  {isConnecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Anslut
+                </Button>
+              )}
+            </div>
+
+            {/* Print progress */}
+            {printProgress && (
+              <div className="space-y-1">
+                <Progress value={printProgress.percent} className="h-2" />
+                <p className="text-xs text-muted-foreground text-center">{printProgress.phase}</p>
+              </div>
+            )}
+
+            {/* BLE Print button */}
+            <Button
+              onClick={bleConn ? handleBlePrint : handleConnect}
+              className="w-full gap-2"
+              size="lg"
+              disabled={isPrinting || isConnecting}
+            >
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bluetooth className="h-4 w-4" />
+              )}
+              {isPrinting ? 'Skriver ut...' : bleConn ? 'Skriv ut via Bluetooth' : 'Anslut & skriv ut'}
+            </Button>
+          </div>
+        )}
+
+        {/* Secondary actions */}
         <div className="flex gap-2">
-          <Button onClick={handleDownloadPdf} className="flex-1 gap-2" size="lg">
+          <Button onClick={handleDownloadPdf} variant="outline" className="flex-1 gap-2" size="lg">
             <FileText className="h-4 w-4" />
             Spara som PDF
           </Button>
