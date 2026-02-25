@@ -6,6 +6,8 @@ import {
   addTimestamps,
   generateDayBoundaries,
   generateDayTicks,
+  calculateMovingAverage,
+  getOptimalWindowSize,
 } from "../utils";
 
 interface SGDataPoint {
@@ -40,7 +42,7 @@ export function useBrewChartData({
   data,
   controllerId: _controllerId,
   brewId,
-  smoothLines: _smoothLines,
+  smoothLines,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -107,42 +109,47 @@ export function useBrewChartData({
   }, [brewId, firstDataDate, lastDataDate, isTvMode]);
 
   const chartData = useMemo(() => {
+    let basePoints;
+
     if (snapshotRows.length > 0) {
-      return addTimestamps(
-        snapshotRows.map((row) => ({
+      basePoints = snapshotRows.map((row) => {
+        const avgTemp =
+          row.controller_temp != null && row.pill_temp != null
+            ? (row.controller_temp + row.pill_temp) / 2
+            : null;
+        const tempSpan =
+          row.controller_temp != null && row.pill_temp != null
+            ? Math.abs(row.pill_temp - row.controller_temp)
+            : null;
+        return {
           date: row.recorded_at,
           value: row.sg,
           temp: row.pill_temp,
           pillTemp: row.pill_temp,
           controllerTemp: row.controller_temp,
           targetTemp: row.profile_target_temp,
-          avgTemp: null,
-          tempSpan: null,
-          rawValue: row.sg,
-          rawPillTemp: row.pill_temp,
-          rawControllerTemp: row.controller_temp,
-          rawAvgTemp: null,
-        }))
-      );
-    }
-
-    if (!data || data.length === 0) return [];
-
-    return addTimestamps(
-      data.map((point) => ({
+          avgTemp,
+          tempSpan,
+        };
+      });
+    } else if (data && data.length > 0) {
+      basePoints = data.map((point) => ({
         ...point,
         pillTemp: point.temp,
-        controllerTemp: null,
-        targetTemp: null,
-        avgTemp: null,
-        tempSpan: null,
-        rawValue: point.value,
-        rawPillTemp: point.temp,
-        rawControllerTemp: null,
-        rawAvgTemp: null,
-      }))
-    );
-  }, [data, snapshotRows]);
+        controllerTemp: null as number | null,
+        targetTemp: null as number | null,
+        avgTemp: null as number | null,
+        tempSpan: null as number | null,
+      }));
+    } else {
+      return [];
+    }
+
+    // Apply smoothing for visual presentation (raw values preserved for tooltips)
+    const windowSize = getOptimalWindowSize(basePoints.length);
+    const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
+    return addTimestamps(smoothed);
+  }, [data, snapshotRows, smoothLines]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
