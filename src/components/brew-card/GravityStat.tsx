@@ -6,6 +6,20 @@ import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_STALL_THRESHOLD = 0.002;
 
+const phaseLabels: Record<string, string> = {
+  lag: 'Lagfas',
+  exponential: 'Exponentiell',
+  declining: 'Avtagande',
+  stationary: 'Stationär',
+};
+
+const phaseDescriptions: Record<string, string> = {
+  lag: '⏳ Lagfas — jästen anpassar sig, ingen märkbar SG-förändring ännu',
+  exponential: '🚀 Exponentiell — jäsningen är som mest aktiv',
+  declining: '📉 Avtagande — jäsningen saktar ner, närmar sig slutet',
+  stationary: '⏸ Stationär — minimal aktivitet, SG stabil',
+};
+
 // Cached module-level value to avoid re-fetching on every render
 let cachedStallThreshold: number | null = null;
 
@@ -258,19 +272,34 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
         )}
         {/* Fermentation metrics row - hidden on mobile */}
         {!isInactive && brew.fermentationMetrics && (
-          <div className="hidden sm:flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums" style={{ fontSize: '9px' }}>
-            <span className="inline-flex items-center gap-0.5">
-              {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
-               brew.fermentationMetrics.fermentation_phase === 'declining' ? '📉' : 
-               brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏸' : 
-               brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
-              {brew.fermentationMetrics.fermentation_phase}
-            </span>
-            <span>⚡{brew.fermentationMetrics.activity_score}%</span>
-            {brew.fermentationMetrics.ready_to_crash && (
-              <span className="text-blue-400 font-semibold">🧊 Redo</span>
-            )}
-          </div>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="hidden sm:flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums cursor-help" style={{ fontSize: '9px' }}>
+                  <span className="inline-flex items-center gap-0.5">
+                    {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
+                     brew.fermentationMetrics.fermentation_phase === 'declining' ? '📉' : 
+                     brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏸' : 
+                     brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
+                    {phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}
+                  </span>
+                  <span>⚡{brew.fermentationMetrics.activity_score}%</span>
+                  {brew.fermentationMetrics.ready_to_crash && (
+                    <span className="text-blue-400 font-semibold">🧊 Redo</span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
+                <p className="font-semibold mb-1">
+                  {phaseDescriptions[brew.fermentationMetrics.fermentation_phase] ?? 'Okänd fas'}
+                </p>
+                <p>⚡ Aktivitet: {brew.fermentationMetrics.activity_score}% — mått på hur aktiv jäsningen är just nu (0–100%)</p>
+                {brew.fermentationMetrics.ready_to_crash && (
+                  <p className="mt-1">🧊 SG stabil + hög utjäsningsgrad → redo för coldcrash</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </StatCard>
