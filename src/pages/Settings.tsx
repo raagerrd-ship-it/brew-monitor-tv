@@ -5,6 +5,7 @@ import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
+import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -1839,6 +1840,8 @@ export default function Settings() {
                   <LearnedStallBoostValues />
                   <SettingsDivider />
                   <LearnedCompensationBaselines />
+                  <SettingsDivider />
+                  <LearnedCoolerMarginValues />
                 </SettingsSection>
               </CollapsibleContent>
             </Collapsible>
