@@ -4,6 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getInterpolatedProfileTarget } from "@/lib/fermentation-target";
 
 interface TempStatProps {
   brew: BrewData;
@@ -41,36 +42,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const originalTarget = brew.originalTarget;
 
 
-  // Calculate the current profile target (interpolated during ramps)
-  // Falls back through previous steps to find the most recent target_temp
-  const currentProfileTarget = (() => {
-    const session = brew.fermentationSession;
-    if (!session?.steps?.length) return null;
-    
-    const stepIdx = session.current_step_index;
-    const step = session.steps[stepIdx];
-    if (!step) return null;
-    
-    const stepTarget = step.target_temp;
-    
-    // During a ramp with duration, interpolate between start temp and target
-    if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null && stepTarget != null) {
-      const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60);
-      const progress = Math.min(elapsed / step.duration_hours, 1);
-      return Math.round((session.step_start_temp + (stepTarget - session.step_start_temp) * progress) * 10) / 10;
-    }
-    
-    if (stepTarget != null) return stepTarget;
-    
-    // Current step has no target_temp (e.g. wait steps) — look back through previous steps
-    for (let i = stepIdx - 1; i >= 0; i--) {
-      if (session.steps[i]?.target_temp != null) {
-        return session.steps[i].target_temp;
-      }
-    }
-    
-    return null;
-  })();
+  // Single source of truth for current interpolated profile target
+  const currentProfileTarget = getInterpolatedProfileTarget(brew.fermentationSession);
 
   // Show both targets if profile target differs from current (auto-adjusted)
   const profileTarget = currentProfileTarget ?? originalTarget;
