@@ -733,69 +733,40 @@ serve(async (req) => {
           brewLink = data;
         }
 
-        if (!brewLink || !brewLink.sg_data) {
+        if (!brewLink) {
           log('STALL_SKIP', 'info', `${fc.name}: Ingen aktiv bryggning kopplad`);
           continue;
         }
 
-        const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number; temp: number }>;
         const brewName = (brewLink as any).name ?? brewLink.id;
-
-        if (sgData.length < 3) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): För lite SG-data (${sgData.length} punkter)`);
-          continue;
-        }
-
-        const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         const now = Date.now();
-        const twelveHoursAgo = now - 12 * 60 * 60 * 1000;
-        const recentSg = sortedSg.filter(p => new Date(p.date).getTime() > twelveHoursAgo);
 
-        if (recentSg.length < 2) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inte tillräckligt SG-data senaste 12h`);
+        // Fetch pre-computed fermentation metrics instead of manual calculations
+        const { data: metrics } = await supabase
+          .from('brew_fermentation_metrics')
+          .select('activity_score, sg_rate_per_hour, fermentation_phase')
+          .eq('brew_id', brewLink.id)
+          .maybeSingle();
+
+        if (!metrics) {
+          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): Inga förberäknade metrics`);
           continue;
         }
 
-        const newestSg = recentSg[0];
-        const oldestRecentSg = recentSg[recentSg.length - 1];
-        const sgTimeDiffHours = (new Date(newestSg.date).getTime() - new Date(oldestRecentSg.date).getTime()) / (1000 * 60 * 60);
+        const sgRatePerHour = parseFloat(String(metrics.sg_rate_per_hour));
+        const sgRatePerDay = sgRatePerHour * 24;
+        const activityScore = parseFloat(String(metrics.activity_score));
+        const phase = metrics.fermentation_phase;
 
-        if (sgTimeDiffHours < 6) {
-          log('STALL_SKIP', 'info', `${fc.name} (${brewName}): SG-data spänner bara ${sgTimeDiffHours.toFixed(1)}h (behöver 6h+)`);
-          continue;
-        }
-
-        const sgDrop = oldestRecentSg.value - newestSg.value;
-        const sgRatePerDay = (sgDrop / sgTimeDiffHours) * 24;
         const sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold;
+        const activityIsLow = activityScore < 20;
 
-        // Check temp delta trend
-        const deltaHistory = await supabase
-          .from('temp_delta_history')
-          .select('delta, recorded_at')
-          .eq('controller_id', fc.controller_id)
-          .order('recorded_at', { ascending: false })
-          .limit(12);
-
-        const deltas = (deltaHistory.data || []).map((d: any) => parseFloat(String(d.delta)));
-        let deltaIsDropping = false;
-        let deltaIsLow = false;
-        let currentAvgDelta = 0;
-        let oldAvgDelta = 0;
-
-        if (deltas.length >= 6) {
-          currentAvgDelta = deltas.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
-          oldAvgDelta = deltas.slice(3, 6).reduce((a, b) => a + b, 0) / 3;
-          deltaIsDropping = oldAvgDelta > 0.5 && currentAvgDelta < oldAvgDelta - 0.1;
-          deltaIsLow = Math.max(currentAvgDelta, oldAvgDelta) < 0.5;
-        } else {
-          deltaIsLow = true;
-        }
-
-        // Check attenuation range
+        // Check attenuation range (still needs brew OG/FG/current SG)
         const og = parseFloat(String(brewLink.original_gravity ?? 0));
         const fg = parseFloat(String(brewLink.final_gravity ?? 0));
-        const currentSg = newestSg.value;
+        const sgData = (Array.isArray(brewLink.sg_data) ? brewLink.sg_data : []) as Array<{ date: string; value: number }>;
+        const sortedSg = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const currentSg = sortedSg.length > 0 ? sortedSg[0].value : parseFloat(String(brewLink.original_gravity ?? 0));
         const attenuationRange = og - fg;
         const currentAttenuation = attenuationRange > 0 ? ((og - currentSg) / attenuationRange) * 100 : 0;
 
@@ -804,13 +775,15 @@ serve(async (req) => {
           continue;
         }
 
-        const stallDetected = sgIsStalling && (deltaIsDropping || deltaIsLow);
+        const stallDetected = sgIsStalling && activityIsLow;
         const ratePct = stallSettings.sgRateThreshold > 0 ? ((sgRatePerDay / stallSettings.sgRateThreshold) * 100).toFixed(0) : '?';
 
         log('STALL_ANALYSIS', stallDetected ? 'action' : 'info', `${fc.name} (${brewName})`, {
           sg_rate: `${sgRatePerDay.toFixed(4)}/dag (${ratePct}% av tröskel)`,
           sg_stalling: sgIsStalling,
-          delta_is_low: deltaIsLow,
+          activity_score: activityScore,
+          activity_low: activityIsLow,
+          phase,
           stall_detected: stallDetected,
           learned_boost: `${boostDeg.toFixed(1)}°C (${boostSamples} samples)`,
         });
@@ -871,7 +844,7 @@ serve(async (req) => {
                   followed_controller_name: fc.name,
                   followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
                   followed_target_temp: profileTarget,
-                  reason: `🔄 Un-boost: SG-rate ${sgRatePerDay.toFixed(4)}/dag, PID -${boostDeg.toFixed(1)}°C`,
+                  reason: `🔄 Un-boost: aktivitet ${activityScore}%, fas ${phase}, PID -${boostDeg.toFixed(1)}°C`,
                 } as any);
               }
             }
@@ -957,7 +930,7 @@ serve(async (req) => {
         await insertNotification(supabase, {
           type: 'stall_boost',
           title: 'Stall detekterad',
-          body: `${fc.name} (${brewName}): +${boostDeg.toFixed(1)}°C boost, SG-rate ${sgRatePerDay.toFixed(4)}/dag`,
+          body: `${fc.name} (${brewName}): +${boostDeg.toFixed(1)}°C boost, aktivitet ${activityScore}%, SG-rate ${sgRatePerDay.toFixed(4)}/dag`,
           brew_id: brewLink.id,
           controller_id: fc.controller_id,
         });
@@ -973,7 +946,7 @@ serve(async (req) => {
           followed_controller_name: fc.name,
           followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
           followed_target_temp: profileTarget,
-          reason: `🔥 Stall: SG-rate ${sgRatePerDay.toFixed(4)}/dag, adaptiv boost +${boostDeg.toFixed(1)}°C (lärd n=${boostSamples})`,
+          reason: `🔥 Stall: aktivitet ${activityScore}%, fas ${phase}, SG-rate ${sgRatePerDay.toFixed(4)}/dag, boost +${boostDeg.toFixed(1)}°C (lärd n=${boostSamples})`,
         } as any);
 
         // Log in fermentation step log

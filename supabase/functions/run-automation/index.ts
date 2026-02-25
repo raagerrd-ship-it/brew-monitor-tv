@@ -87,22 +87,23 @@ Deno.serve(async (req) => {
   }
 
   // ============================================================
-  // STEP 2: PID Pill Compensation + Glycol Cooler (20s timeout)
+  // STEP 2: Fermentation Metrics (15s timeout)
+  // Must run BEFORE auto-adjust-cooling since stall detection
+  // depends on pre-computed activity_score and sg_rate_per_hour
+  // ============================================================
+  console.log("Step 2: Computing fermentation metrics...");
+  await runStep("fermentation-metrics", "compute-fermentation-metrics", {}, 15000);
+
+  // ============================================================
+  // STEP 3: PID Pill Compensation + Glycol Cooler (20s timeout)
   // Both handled by auto-adjust-cooling in a single call
   // ============================================================
   if ((hasPillComp || hasCooling) && hasActiveControllers) {
-    console.log("Step 2: Running PID compensation + glycol cooler...");
+    console.log("Step 3: Running PID compensation + glycol cooler...");
     await runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000);
   } else {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
   }
-
-  // ============================================================
-  // STEP 3: Fermentation Metrics (15s timeout)
-  // Computes phase, activity score, ETA, cold crash readiness
-  // ============================================================
-  console.log("Step 3: Computing fermentation metrics...");
-  await runStep("fermentation-metrics", "compute-fermentation-metrics", {}, 15000);
 
   const totalDuration = Date.now() - startTime;
   console.log(`Automation complete in ${totalDuration}ms: ${results.map(r => `${r.step}=${r.status}`).join(", ")}`);
