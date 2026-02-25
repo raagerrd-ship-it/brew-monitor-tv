@@ -523,8 +523,10 @@ serve(async (req) => {
           baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp;
         }
 
-        // Determine mode based on which system is active
-        const pidMode: 'heating' | 'cooling' = fc.cooling_enabled ? 'cooling' : 'heating';
+        // Determine mode based on actual temperature vs target (not just enabled flags)
+        // Both heating and cooling can be enabled simultaneously on RAPT controllers
+        const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp;
+        const pidMode: 'heating' | 'cooling' = actualTemp < baseTarget ? 'heating' : 'cooling';
         const stepType = isProfileOwned ? (profileStatusMap.get(fc.controller_id) ? 'profile' : 'unknown') : 'standalone';
 
         const compensation = await calculateCompensatedTarget(

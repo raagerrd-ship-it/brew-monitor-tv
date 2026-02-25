@@ -1,0 +1,1 @@
+DELETE FROM fermentation_learnings WHERE controller_id = '618b29b0-fa02-4f27-a8f1-a215f44235b3' AND parameter_name = 'thermal_rate_cooling';
