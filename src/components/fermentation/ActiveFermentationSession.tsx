@@ -292,11 +292,16 @@ export function ActiveFermentationSession({
           ? "Fermenteringsprofilen har pausats" 
           : "Fermenteringsprofilen fortsätter"
       });
-      loadSession();
+      
+      if (preloadedSession && compact) {
+        setSession(prev => prev ? { ...prev, status: newStatus as any } : null);
+      } else {
+        loadSession();
+      }
     }
     
     setActionLoading(false);
-  }, [session, toast, loadSession]);
+  }, [session, toast, loadSession, preloadedSession, compact]);
 
   const handleCancel = useCallback(async () => {
     if (!session) return;
@@ -361,12 +366,14 @@ export function ActiveFermentationSession({
       }
     } else {
       // Move to next step
+      const newStepStartedAt = new Date().toISOString();
+      const newStepStartTemp = controllerData?.target_temp ?? null;
       const { error } = await supabase
         .from('fermentation_sessions')
         .update({ 
           current_step_index: nextStepIndex,
-          step_started_at: new Date().toISOString(),
-          step_start_temp: controllerData?.target_temp ?? null
+          step_started_at: newStepStartedAt,
+          step_start_temp: newStepStartTemp
         })
         .eq('id', session.id);
 
@@ -384,7 +391,19 @@ export function ActiveFermentationSession({
           title: "Steg hoppat", 
           description: `Gått vidare till steg ${nextStepIndex + 1}` 
         });
-        loadSession();
+        
+        // In compact/preloaded mode, update local state immediately
+        // since loadSession() is a no-op. Realtime will trigger full reload later.
+        if (preloadedSession && compact) {
+          setSession(prev => prev ? {
+            ...prev,
+            current_step_index: nextStepIndex,
+            step_started_at: newStepStartedAt,
+            step_start_temp: newStepStartTemp !== null ? Number(newStepStartTemp) : null,
+          } : null);
+        } else {
+          loadSession();
+        }
       }
     }
     
@@ -440,12 +459,14 @@ export function ActiveFermentationSession({
         loadSession();
       }
     } else {
+      const newStepStartedAt = new Date().toISOString();
+      const newStepStartTemp = controllerData?.target_temp ?? null;
       const { error } = await supabase
         .from('fermentation_sessions')
         .update({ 
           current_step_index: nextStepIndex,
-          step_started_at: new Date().toISOString(),
-          step_start_temp: controllerData?.target_temp ?? null
+          step_started_at: newStepStartedAt,
+          step_start_temp: newStepStartTemp
         })
         .eq('id', session.id);
 
@@ -457,7 +478,17 @@ export function ActiveFermentationSession({
           details: { message: 'Torrhumla kvitterad' }
         });
         toast({ title: "Kvitterad", description: `Gått vidare till steg ${nextStepIndex + 1}` });
-        loadSession();
+        
+        if (preloadedSession && compact) {
+          setSession(prev => prev ? {
+            ...prev,
+            current_step_index: nextStepIndex,
+            step_started_at: newStepStartedAt,
+            step_start_temp: newStepStartTemp !== null ? Number(newStepStartTemp) : null,
+          } : null);
+        } else {
+          loadSession();
+        }
       }
     }
     
