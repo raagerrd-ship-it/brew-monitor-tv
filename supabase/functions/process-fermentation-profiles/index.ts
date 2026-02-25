@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
 
         await supabase
           .from('rapt_temp_controllers')
-          .update({ target_temp: targetToEnforce, updated_at: new Date().toISOString() })
+          .update({ target_temp: targetToEnforce, profile_target_temp: profileTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', session.controller_id)
 
         const learnedInfo = compensation?.learnedBaseline && compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
@@ -495,7 +495,7 @@ Deno.serve(async (req) => {
                 
                 await supabase
                   .from('rapt_temp_controllers')
-                  .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                  .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
                   .eq('controller_id', session.controller_id)
               }
             }
@@ -547,7 +547,7 @@ Deno.serve(async (req) => {
                   if (success) {
                     await supabase
                       .from('rapt_temp_controllers')
-                      .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                      .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
                       .eq('controller_id', session.controller_id)
                     console.log(`Ramp: temp reached, set controller to final target ${currentStep.target_temp}°C`)
                   }
@@ -610,7 +610,7 @@ Deno.serve(async (req) => {
                     
                     await supabase
                       .from('rapt_temp_controllers')
-                      .update({ target_temp: finalTarget, updated_at: new Date().toISOString() })
+                      .update({ target_temp: finalTarget, profile_target_temp: Math.round(newTarget * 10) / 10, updated_at: new Date().toISOString() })
                       .eq('controller_id', session.controller_id)
                     
                     const rampLearnedInfo = pillCompensation?.learnedBaseline && pillCompensation.learnedBaseline > 0 ? `, learned=${pillCompensation.learnedBaseline.toFixed(2)}[${pillCompensation.deltaBucket}]n=${pillCompensation.convergenceCount}` : ''
@@ -663,7 +663,7 @@ Deno.serve(async (req) => {
                 actionDetails = { target_temp: currentStep.target_temp, step_type: 'wait_for_temp' }
                 await supabase
                   .from('rapt_temp_controllers')
-                  .update({ target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
+                  .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
                   .eq('controller_id', session.controller_id)
               }
             }
@@ -784,7 +784,7 @@ Deno.serve(async (req) => {
                   actionTaken = 'temp_adjusted'
                   actionDetails = { target_temp: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
                   await supabase.from('rapt_temp_controllers')
-                    .update({ target_temp: diacetylTarget, updated_at: new Date().toISOString() })
+                    .update({ target_temp: diacetylTarget, profile_target_temp: diacetylTarget, updated_at: new Date().toISOString() })
                     .eq('controller_id', session.controller_id)
                 }
               }
