@@ -43,8 +43,8 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   rate6h?: number | null;
   rate12h?: number | null;
 }) {
-  const displayRate = rate6h ?? rate;
-  const previousRate = rate12h ?? displayRate;
+  const displayRate = Math.abs(rate6h ?? rate);
+  const previousRate = Math.abs(rate12h ?? (rate6h ?? rate));
   const maxRate = Math.max(0.015, displayRate * 1.5, previousRate * 1.5);
   const stallPct = (stallThreshold / maxRate) * 100;
   const ratePct = Math.min((displayRate / maxRate) * 100, 100);
@@ -61,8 +61,8 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   // Trend bar: visualisera skillnaden mellan föregående 6h och senaste 6h
   let trendBarLeft = ratePct;
   let trendBarWidth = 0;
-  if (rate6h != null && rate12h != null && rate6h > 0 && rate12h > 0) {
-    const previousPct = Math.min((rate12h / maxRate) * 100, 100);
+  if (rate6h != null && rate12h != null && Math.abs(rate6h) > 0 && Math.abs(rate12h) > 0) {
+    const previousPct = Math.min((Math.abs(rate12h) / maxRate) * 100, 100);
     trendBarLeft = Math.min(ratePct, previousPct);
     trendBarWidth = Math.abs(ratePct - previousPct);
   }
