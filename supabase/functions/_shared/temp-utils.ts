@@ -534,6 +534,121 @@ export async function learnThermalRate(
 }
 
 /**
+ * Learn glycol cooler thermal rate under different load conditions.
+ * Load = number of tanks actively requesting cooling at the same time.
+ * Stores separate rates for load 0, 1, 2+ to understand capacity.
+ * Returns the learned rate for the given load, or null if insufficient data.
+ */
+export async function learnGlycolCoolerRate(
+  supabase: ReturnType<typeof createClient>,
+  coolerId: string,
+  currentLoad: number
+): Promise<{ rate: number; sampleCount: number } | null> {
+  const loadBucket = currentLoad >= 2 ? '2plus' : String(currentLoad)
+  const paramName = `glycol_rate:load_${loadBucket}`
+
+  // Check existing learned value
+  const { data: existing } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value, sample_count, last_updated_at')
+    .eq('controller_id', coolerId)
+    .eq('parameter_name', paramName)
+    .maybeSingle()
+
+  // Only re-learn every 2 hours
+  if (existing && existing.last_updated_at) {
+    const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / (1000 * 60 * 60)
+    if (hoursSince < 2 && existing.sample_count >= 3) {
+      return { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count }
+    }
+  }
+
+  // Fetch last 6 hours of cooler history
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+  const { data: history } = await supabase
+    .from('temp_controller_history')
+    .select('current_temp, target_temp, cooling_enabled, recorded_at')
+    .eq('controller_id', coolerId)
+    .gte('recorded_at', sixHoursAgo)
+    .order('recorded_at', { ascending: true })
+    .limit(200)
+
+  if (!history || history.length < 5) {
+    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
+  }
+
+  // Find segments where glycol temp is actively dropping (cooling)
+  const rates: number[] = []
+  for (let i = 1; i < history.length; i++) {
+    const prev = history[i - 1]
+    const curr = history[i]
+    const tempDiff = parseFloat(String(curr.current_temp)) - parseFloat(String(prev.current_temp))
+    const timeDiffMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()
+    const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+
+    if (timeDiffHours < 0.01 || timeDiffHours > 0.5) continue
+
+    const ratePerHour = tempDiff / timeDiffHours
+    const temp = parseFloat(String(curr.current_temp))
+    const target = parseFloat(String(curr.target_temp))
+
+    // Cooling: temp dropping and above target
+    if (ratePerHour < -0.3 && temp > target) {
+      rates.push(Math.abs(ratePerHour))
+    }
+  }
+
+  if (rates.length < 2) {
+    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
+  }
+
+  // 80th percentile for effective rate
+  rates.sort((a, b) => a - b)
+  const p80 = rates[Math.floor(rates.length * 0.8)]
+
+  const oldValue = existing ? parseFloat(String(existing.learned_value)) : 0
+  const oldCount = existing?.sample_count ?? 0
+  const alpha = oldCount < 5 ? 0.5 : 0.2
+  const newValue = oldValue > 0 ? oldValue * (1 - alpha) + p80 * alpha : p80
+  const rounded = Math.round(newValue * 100) / 100
+
+  await supabase.from('fermentation_learnings').upsert({
+    controller_id: coolerId,
+    parameter_name: paramName,
+    learned_value: rounded,
+    sample_count: oldCount + rates.length,
+    last_updated_at: new Date().toISOString(),
+  }, { onConflict: 'controller_id,parameter_name' })
+
+  console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: ${rounded.toFixed(2)}°C/h (${rates.length} samples, p80=${p80.toFixed(2)}, prev=${oldValue.toFixed(2)})`)
+
+  return { rate: rounded, sampleCount: oldCount + rates.length }
+}
+
+/**
+ * Get all learned glycol rates for a cooler (all load buckets).
+ */
+export async function getGlycolRatesSummary(
+  supabase: ReturnType<typeof createClient>,
+  coolerId: string
+): Promise<Record<string, { rate: number; sampleCount: number }>> {
+  const { data } = await supabase
+    .from('fermentation_learnings')
+    .select('parameter_name, learned_value, sample_count')
+    .eq('controller_id', coolerId)
+    .like('parameter_name', 'glycol_rate:%')
+
+  const result: Record<string, { rate: number; sampleCount: number }> = {}
+  if (data) {
+    for (const row of data) {
+      const bucket = row.parameter_name.replace('glycol_rate:', '')
+      result[bucket] = { rate: parseFloat(String(row.learned_value)), sampleCount: row.sample_count }
+    }
+  }
+  return result
+}
+
+/**
  * Load pill compensation settings from auto_cooling_settings.
  */
 export async function loadPillCompSettings(
