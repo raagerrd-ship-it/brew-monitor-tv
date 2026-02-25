@@ -80,7 +80,7 @@ function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: s
 function calculateRampTemp(startTemp: number, endTemp: number, durationHours: number, elapsedHours: number): number {
   if (elapsedHours >= durationHours) return endTemp
   const progress = elapsedHours / durationHours
-  return startTemp + (endTemp - startTemp) * progress
+  return Math.round((startTemp + (endTemp - startTemp) * progress) * 10) / 10
 }
 
 Deno.serve(async (req) => {
