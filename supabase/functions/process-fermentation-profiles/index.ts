@@ -2,10 +2,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   ProfileStep,
   getEffectiveTargetTemp,
-  calculateCompensatedTarget,
-  setControllerTargetTemp,
-  loadPillCompSettings,
-  PillCompensationSettings,
 } from '../_shared/temp-utils.ts'
 import { insertNotification } from '../_shared/notifications.ts'
 
@@ -83,6 +79,22 @@ function calculateRampTemp(startTemp: number, endTemp: number, durationHours: nu
   return Math.round((startTemp + (endTemp - startTemp) * progress) * 10) / 10
 }
 
+/**
+ * Set the profile target temperature in the database.
+ * This does NOT write to the RAPT controller — PID owns that.
+ */
+async function setProfileTarget(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  profileTarget: number,
+) {
+  await supabase
+    .from('rapt_temp_controllers')
+    .update({ profile_target_temp: profileTarget, updated_at: new Date().toISOString() })
+    .eq('controller_id', controllerId)
+  console.log(`📋 Profile target set: ${profileTarget}°C for ${controllerId} (PID will enforce)`)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -93,9 +105,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Load pill compensation settings via shared helper
-    const pillCompSettings = await loadPillCompSettings(supabase)
 
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
@@ -116,7 +125,7 @@ Deno.serve(async (req) => {
     const results: { sessionId: string; action: string; details: any }[] = []
     const typedSessions = sessions as Session[]
 
-    // ---- Batch pre-fetch: profile steps, controllers, pill-comp adjustments, brew data ----
+    // ---- Batch pre-fetch: profile steps, controllers, brew data ----
     const uniqueProfileIds = [...new Set(typedSessions.map(s => s.profile_id))]
     const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
     const brewIds = typedSessions.map(s => s.brew_id).filter((id): id is string => id !== null)
@@ -124,7 +133,6 @@ Deno.serve(async (req) => {
     const [
       { data: allSteps },
       { data: allControllers },
-      { data: allPillCompAdj },
       { data: allBrewData },
       { data: allMetrics },
     ] = await Promise.all([
@@ -137,14 +145,6 @@ Deno.serve(async (req) => {
         .from('rapt_temp_controllers')
         .select('*')
         .in('controller_id', uniqueControllerIds),
-      pillCompSettings.enabled
-        ? supabase
-            .from('auto_cooling_adjustments')
-            .select('cooler_controller_id, adjusted_against_timestamp, created_at')
-            .in('cooler_controller_id', uniqueControllerIds)
-            .like('reason', '🎯%')
-            .order('created_at', { ascending: false })
-        : Promise.resolve({ data: null } as { data: null }),
       brewIds.length > 0
         ? supabase
             .from('brew_readings')
@@ -174,16 +174,6 @@ Deno.serve(async (req) => {
     if (allControllers) {
       for (const c of allControllers) {
         batchControllerMap.set(c.controller_id, c)
-      }
-    }
-
-    // Map latest pill-comp adjustment timestamp per controller
-    const batchPillCompAdjMap = new Map<string, string>()
-    if (allPillCompAdj) {
-      for (const adj of allPillCompAdj) {
-        if (!batchPillCompAdjMap.has(adj.cooler_controller_id)) {
-          batchPillCompAdjMap.set(adj.cooler_controller_id, adj.adjusted_against_timestamp)
-        }
       }
     }
 
@@ -238,6 +228,12 @@ Deno.serve(async (req) => {
           details: { message: 'Profile completed' },
         })
 
+        // Clear profile_target_temp when profile completes
+        await supabase
+          .from('rapt_temp_controllers')
+          .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
+          .eq('controller_id', session.controller_id)
+
         // Notification for profile completion
         await insertNotification(supabase, {
           type: 'profile_completed',
@@ -251,21 +247,18 @@ Deno.serve(async (req) => {
         try {
           const sessionDurationHours = (Date.now() - new Date(session.started_at).getTime()) / (1000 * 60 * 60);
           
-          // Count PID adjustments during this session
           const { count: pidAdjCount } = await supabase
             .from('auto_cooling_adjustments')
             .select('id', { count: 'exact', head: true })
             .eq('cooler_controller_id', session.controller_id)
             .gte('created_at', session.started_at);
 
-          // Count stall boosts during this session
           const { count: stallBoostCount } = await supabase
             .from('stall_boost_outcomes')
             .select('id', { count: 'exact', head: true })
             .eq('controller_id', session.controller_id)
             .gte('created_at', session.started_at);
 
-          // Calculate avg convergence speed from learned compensation
           const { data: learnedComps } = await supabase
             .from('controller_learned_compensation')
             .select('convergence_count, latest_avg_error')
@@ -275,7 +268,6 @@ Deno.serve(async (req) => {
             ? learnedComps.reduce((sum, c) => sum + Math.abs(parseFloat(String(c.latest_avg_error))), 0) / learnedComps.length
             : null;
 
-          // Store fermentation quality metrics
           await supabase.from('fermentation_learnings').upsert({
             controller_id: session.controller_id,
             parameter_name: 'avg_convergence_error',
@@ -296,16 +288,6 @@ Deno.serve(async (req) => {
       // Get controller data from batched data
       const controller = batchControllerMap.get(session.controller_id) ?? null
 
-      // Check if pill-comp already adjusted against this exact data snapshot
-      let pillCompSkipSameData = false
-      if (pillCompSettings.enabled && controller?.last_update) {
-        const lastAdjTs = batchPillCompAdjMap.get(session.controller_id)
-        if (lastAdjTs === controller.last_update) {
-          pillCompSkipSameData = true
-          console.log(`Pill-komp: samma data som senaste justering (${controller.last_update}), hoppar över för ${controller.name || session.controller_id}`)
-        }
-      }
-
       // Get brew data from batched data
       const brewData = session.brew_id ? (batchBrewDataMap.get(session.brew_id) ?? null) : null
 
@@ -317,123 +299,29 @@ Deno.serve(async (req) => {
       let actionTaken = 'checked'
       let actionDetails: any = {}
 
-      // Helper to call shared setControllerTargetTemp
-      const setTemp = (controllerId: string, targetTemp: number) =>
-        setControllerTargetTemp(supabaseUrl, supabaseServiceKey, controllerId, targetTemp)
-
-      // ---- Shared pill-compensation helper (deduplicates no-target & hold blocks) ----
-      async function applyPillCompensation(
-        profileTarget: number,
-        stepLabel: string,
-      ): Promise<{ actionTaken: string; actionDetails: any } | null> {
-        if (!controller) return null
-
-        const pidMode: 'heating' | 'cooling' = controller.cooling_enabled ? 'cooling' : 'heating'
-        const currentStepType = currentStep?.step_type ?? 'unknown'
-
-        const compensation = (pillCompSettings.enabled && !pillCompSkipSameData)
-          ? await calculateCompensatedTarget(
-              supabase, session.controller_id, profileTarget, controller.target_temp,
-              controller.name || session.controller_id, pillCompSettings, pidMode, currentStepType
-            )
-          : null
-
-        if (pillCompSettings.enabled && !compensation) {
-          console.log(`${stepLabel}: pill-komp aktiv men redan nära mål (${controller.target_temp}°C vs profil ${profileTarget}°C), skippar enforce`)
-          return null
-        }
-
-        const targetToEnforce = compensation ? compensation.compensatedTarget : profileTarget
-        const diff = controller.target_temp - targetToEnforce
-
-        // Skip if already within tolerance (must be < not <= to avoid filtering rate-limited steps)
-        if (Math.abs(diff) < 0.15) return null
-
-        // Overshoot guard: if controller target is BELOW desired, check for recent overshoot
-        if (diff < -0.2) {
-          const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-          const { data: recentOvershoot } = await supabase
-            .from('auto_cooling_adjustments')
-            .select('id, reason, new_target_temp, created_at')
-            .eq('cooler_controller_id', session.controller_id)
-            .gte('created_at', fifteenMinAgo)
-            .or('reason.like.🌡️%,reason.like.🔄%')
-            .order('created_at', { ascending: false })
-            .limit(1)
-
-          if (recentOvershoot && recentOvershoot.length > 0) {
-            console.log(`${stepLabel}: Overshoot aktiv (${recentOvershoot[0].reason.substring(0, 50)}), låter den verka istället för att enforce:a ${targetToEnforce}°C`)
-            return null
-          }
-        }
-
-        console.log(`${stepLabel}: enforcing target ${targetToEnforce}°C (profile=${profileTarget}°C, current=${controller.target_temp}°C${compensation ? `, komp=${compensation.compensation.toFixed(2)}°C` : ''})`)
-        const success = await setTemp(session.controller_id, targetToEnforce)
-        if (!success) return null
-
-        await supabase
-          .from('rapt_temp_controllers')
-          .update({ target_temp: targetToEnforce, profile_target_temp: profileTarget, updated_at: new Date().toISOString() })
-          .eq('controller_id', session.controller_id)
-
-        const learnedInfo = compensation?.learnedBaseline && compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
-        const piTermInfo = compensation?.errorCorrection && compensation.errorCorrection > 0 ? `, PI=+${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
-        const dTermInfo = compensation
-          ? (compensation.dampingFactor < 1.0
-            ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
-            : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${piTermInfo}`)
-          : ''
-        const reason = compensation
-          ? `🎯 Pill-kompensation: ${profileTarget.toFixed(1)}°C -> ${targetToEnforce.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`
-          : `🔧 Fermenteringsprofil enforce: ${profileTarget}°C`
-
-        await supabase
-          .from('auto_cooling_adjustments')
-          .insert({
-            cooler_controller_id: session.controller_id,
-            cooler_controller_name: controller.name || session.controller_id,
-            old_target_temp: controller.target_temp,
-            new_target_temp: targetToEnforce,
-            original_target_temp: profileTarget,
-            lowest_followed_temp: profileTarget,
-            followed_current_temp: controller.pill_temp ?? controller.current_temp,
-            followed_target_temp: controller.current_temp,
-            followed_hysteresis: compensation?.avgDelta ?? null,
-            reason,
-            adjusted_against_timestamp: controller.last_update,
-          })
-
-        return {
-          actionTaken: 'temp_enforced',
-          actionDetails: {
-            effective_target: targetToEnforce,
-            profile_target: profileTarget,
-            previous_target: controller.target_temp,
-            step_type: currentStep.step_type,
-            pill_compensation: compensation?.compensation ?? 0,
-          },
-        }
-      }
-
-      // For steps without explicit target_temp, enforce the effective target from previous steps
+      // For steps without explicit target_temp, set profile target from previous steps
       if (currentStep.target_temp === null && controller) {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
-          const result = await applyPillCompensation(effectiveTarget, `Step ${session.current_step_index} (${currentStep.step_type})`)
-          if (result) {
-            actionTaken = result.actionTaken
-            actionDetails = result.actionDetails
+          // Only update if changed
+          const currentProfileTarget = controller.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+          if (currentProfileTarget === null || Math.abs(currentProfileTarget - effectiveTarget) > 0.05) {
+            await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+            actionTaken = 'profile_target_set'
+            actionDetails = { profile_target: effectiveTarget, step_type: currentStep.step_type }
           }
         }
       }
 
       switch (currentStep.step_type) {
         case 'hold': {
-          if (currentStep.target_temp !== null && controller) {
-            const holdResult = await applyPillCompensation(currentStep.target_temp, 'Hold step')
-            if (holdResult) {
-              actionTaken = holdResult.actionTaken
-              actionDetails = holdResult.actionDetails
+          if (currentStep.target_temp !== null) {
+            // Set profile target — PID will handle the actual controller temperature
+            const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+            if (currentProfileTarget === null || Math.abs(currentProfileTarget - currentStep.target_temp) > 0.05) {
+              await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
+              actionTaken = 'profile_target_set'
+              actionDetails = { profile_target: currentStep.target_temp, step_type: 'hold' }
             }
           }
           
@@ -487,18 +375,9 @@ Deno.serve(async (req) => {
           if (currentStep.target_temp === null) break
 
           if (currentStep.ramp_type === 'immediate') {
-            if (controller && Math.abs(controller.target_temp - currentStep.target_temp) > 0.1) {
-              const success = await setTemp(session.controller_id, currentStep.target_temp)
-              if (success) {
-                actionTaken = 'temp_adjusted'
-                actionDetails = { target_temp: currentStep.target_temp }
-                
-                await supabase
-                  .from('rapt_temp_controllers')
-                  .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
-                  .eq('controller_id', session.controller_id)
-              }
-            }
+            // Set profile target to final ramp temp — PID will handle the actual controller
+            await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
+            
             const immStartTemp = session.step_start_temp ?? controller?.target_temp ?? currentStep.target_temp
             const immRampingUp = currentStep.target_temp > immStartTemp
             const immRampCheckTemp = immRampingUp
@@ -507,17 +386,16 @@ Deno.serve(async (req) => {
             if (controller && immRampCheckTemp !== null &&
                 Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
-              console.log(`Immediate ramp complete: temp ${controller.current_temp}°C reached target ${currentStep.target_temp}°C`)
-              // Apply pill compensation now that target is reached
-              const pillResult = await applyPillCompensation(currentStep.target_temp, 'Immediate ramp (target reached)')
-              if (pillResult) {
-                actionTaken = pillResult.actionTaken
-                actionDetails = { ...actionDetails, ...pillResult.actionDetails }
-              }
+              actionTaken = 'temp_reached'
+              actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp }
+              console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C reached target ${currentStep.target_temp}°C`)
             } else {
+              actionTaken = 'profile_target_set'
+              actionDetails = { profile_target: currentStep.target_temp, step_type: 'immediate_ramp' }
               console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
             }
           } else {
+            // Linear ramp
             if (controller && currentStep.duration_hours) {
               let startTemp: number = session.step_start_temp ?? controller.target_temp ?? currentStep.target_temp
               
@@ -540,25 +418,10 @@ Deno.serve(async (req) => {
               console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, rampingUp: ${rampingUp}, sensor: ${rampingUp ? 'pill' : 'probe'}, sensorTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
               
               if (tempReached) {
-                // Temperature has reached the final target - stop ramping, use pill compensation only
-                // Ensure controller is set to the final target (not an intermediate)
-                if (Math.abs((controller.target_temp ?? 0) - currentStep.target_temp) > 0.1) {
-                  const success = await setTemp(session.controller_id, Math.round(currentStep.target_temp * 10) / 10)
-                  if (success) {
-                    await supabase
-                      .from('rapt_temp_controllers')
-                      .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
-                      .eq('controller_id', session.controller_id)
-                    console.log(`Ramp: temp reached, set controller to final target ${currentStep.target_temp}°C`)
-                  }
-                }
-                
-                // Apply pill compensation against the FINAL target (correct, since we're at the target)
-                const pillResult = await applyPillCompensation(currentStep.target_temp, 'Linear ramp (target reached)')
-                if (pillResult) {
-                  actionTaken = pillResult.actionTaken
-                  actionDetails = { ...actionDetails, ...pillResult.actionDetails }
-                }
+                // Temperature has reached the final target — set profile target to final
+                await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
+                actionTaken = 'temp_reached'
+                actionDetails = { target_temp: currentStep.target_temp, current_temp: rampCheckTemp }
                 
                 if (timeComplete) {
                   stepCompleted = true
@@ -566,89 +429,45 @@ Deno.serve(async (req) => {
                     ...actionDetails, 
                     time_complete: true, 
                     temp_reached: true,
-                    current_temp: controller.current_temp,
-                    target_temp: currentStep.target_temp
                   }
                   console.log(`Ramp complete: time elapsed and temp reached ${currentStep.target_temp}°C`)
                 }
               } else {
-                // Still ramping - calculate intermediate target and pill compensation LOCALLY,
-                // then send a SINGLE setTemp call with the final value
+                // Still ramping — calculate intermediate target and set as profile target
                 const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
+                const roundedTarget = Math.round(newTarget * 10) / 10
                 
-                // Calculate pill compensation against the intermediate target BEFORE any API call
-                let finalTarget = Math.round(newTarget * 10) / 10
-                let pillCompensation: { compensatedTarget: number; compensation: number; avgDelta: number } | null = null
-                
-                // During ramps, ALWAYS apply PID even if sensor data hasn't changed,
-                // because the base target (ramp intermediate) changes every cycle.
-                // Skipping PID here would strip the previous compensation, causing oscillation.
-                if (pillCompSettings.enabled) {
-                  const rampPidMode: 'heating' | 'cooling' = controller.cooling_enabled ? 'cooling' : 'heating'
-                  const rampStepType = currentStep?.step_type ?? 'unknown'
-                  pillCompensation = await calculateCompensatedTarget(
-                    supabase, session.controller_id, newTarget, controller.target_temp,
-                    controller.name || session.controller_id, pillCompSettings, rampPidMode, rampStepType
-                  )
-                  if (pillCompensation) {
-                    finalTarget = pillCompensation.compensatedTarget
+                // Only update if meaningful change
+                const currentProfileTarget = controller.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+                if (currentProfileTarget === null || Math.abs(currentProfileTarget - roundedTarget) > 0.05) {
+                  await setProfileTarget(supabase, session.controller_id, roundedTarget)
+                  actionTaken = 'profile_target_set'
+                  actionDetails = {
+                    start_temp: startTemp,
+                    intermediate_target: roundedTarget,
+                    final_temp: currentStep.target_temp,
+                    progress: Math.min(1, elapsedHours / currentStep.duration_hours),
                   }
-                }
-                
-                console.log(`Ramp intermediate: newTarget=${newTarget.toFixed(1)}°C, pillComp=${pillCompensation ? pillCompensation.compensation.toFixed(2) : 'none'}°C, finalTarget=${finalTarget}°C, controllerTarget=${controller.target_temp}°C`)
-                
-                // ONE single API call with the final adjusted value
-                if (Math.abs((controller.target_temp ?? 0) - finalTarget) > 0.1) {
-                  const success = await setTemp(session.controller_id, finalTarget)
-                  if (success) {
-                    actionTaken = 'temp_adjusted'
-                    actionDetails = {
-                      start_temp: startTemp,
-                      target_temp: newTarget,
-                      effective_target: finalTarget,
-                      final_temp: currentStep.target_temp,
-                      progress: elapsedHours / currentStep.duration_hours,
-                      pill_compensation: pillCompensation?.compensation ?? 0,
-                    }
-                    
-                    await supabase
-                      .from('rapt_temp_controllers')
-                      .update({ target_temp: finalTarget, profile_target_temp: Math.round(newTarget * 10) / 10, updated_at: new Date().toISOString() })
-                      .eq('controller_id', session.controller_id)
-                    
-                    const rampLearnedInfo = pillCompensation?.learnedBaseline && pillCompensation.learnedBaseline > 0 ? `, learned=${pillCompensation.learnedBaseline.toFixed(2)}[${pillCompensation.deltaBucket}]n=${pillCompensation.convergenceCount}` : ''
-                    const rampPIInfo = pillCompensation?.errorCorrection && pillCompensation.errorCorrection > 0 ? `, PI=+${pillCompensation.errorCorrection.toFixed(2)}°C(P=${pillCompensation.pCorrection?.toFixed(2) ?? '0'},I=${pillCompensation.iCorrection?.toFixed(2) ?? '0'}${rampLearnedInfo})` : ''
-                    const rampDTermInfo = pillCompensation
-                      ? (pillCompensation.dampingFactor < 1.0
-                        ? `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, ETA=${pillCompensation.etaMinutes ?? '?'}min, damp=${pillCompensation.dampingFactor.toFixed(2)}${rampPIInfo}`
-                        : `, D: rate=${pillCompensation.pillRate?.toFixed(2) ?? '?'}°/h, damp=1.0${rampPIInfo}`)
-                      : ''
-                    const reason = pillCompensation
-                      ? `🎯 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C, pill-komp=${pillCompensation.compensation.toFixed(2)}°C → ${finalTarget}°C${rampDTermInfo}`
-                      : `📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${newTarget.toFixed(1)}°C`
-                    
-                    await supabase
-                      .from('auto_cooling_adjustments')
-                      .insert({
-                        cooler_controller_id: session.controller_id,
-                        cooler_controller_name: controller.name || session.controller_id,
-                        old_target_temp: controller.target_temp,
-                        new_target_temp: finalTarget,
-                        original_target_temp: newTarget,
-                        lowest_followed_temp: newTarget,
-                        followed_controller_id: session.controller_id,
-                        followed_controller_name: controller.name || session.controller_id,
-                        followed_current_temp: controller.pill_temp ?? controller.current_temp,
-                        followed_target_temp: controller.current_temp,
-                        followed_hysteresis: pillCompensation?.avgDelta ?? null,
-                        reason,
-                        adjusted_against_timestamp: controller.last_update,
-                      })
-                  }
+                  
+                  // Log ramp progress to adjustment history
+                  await supabase
+                    .from('auto_cooling_adjustments')
+                    .insert({
+                      cooler_controller_id: session.controller_id,
+                      cooler_controller_name: controller.name || session.controller_id,
+                      old_target_temp: currentProfileTarget ?? startTemp,
+                      new_target_temp: roundedTarget,
+                      original_target_temp: currentStep.target_temp,
+                      lowest_followed_temp: roundedTarget,
+                      followed_current_temp: controller.pill_temp ?? controller.current_temp,
+                      followed_target_temp: controller.current_temp,
+                      reason: `📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${roundedTarget.toFixed(1)}°C (${Math.round(Math.min(1, elapsedHours / currentStep.duration_hours) * 100)}%)`,
+                      adjusted_against_timestamp: controller.last_update,
+                    })
                 }
                 
                 if (timeComplete) {
-                  console.log(`Ramp time complete but temp not reached: sensor=${rampCheckTemp}°C, target=${currentStep.target_temp}°C (need within 0.3°C) - waiting`)
+                  console.log(`Ramp time complete but temp not reached: sensor=${rampCheckTemp}°C, target=${currentStep.target_temp}°C - waiting`)
                 }
               }
             }
@@ -658,29 +477,29 @@ Deno.serve(async (req) => {
 
         case 'wait_for_temp': {
           if (currentStep.target_temp !== null && controller) {
-            if (Math.abs((controller.target_temp ?? 0) - currentStep.target_temp) > 0.1) {
-              console.log(`wait_for_temp: setting target to ${currentStep.target_temp}°C (was ${controller.target_temp}°C)`)
-              const success = await setTemp(session.controller_id, currentStep.target_temp)
-              if (success) {
-                actionTaken = 'temp_adjusted'
-                actionDetails = { target_temp: currentStep.target_temp, step_type: 'wait_for_temp' }
-                await supabase
-                  .from('rapt_temp_controllers')
-                  .update({ target_temp: currentStep.target_temp, profile_target_temp: currentStep.target_temp, updated_at: new Date().toISOString() })
-                  .eq('controller_id', session.controller_id)
-              }
-            }
+            // Set profile target — PID will handle the actual controller
+            await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
             const waitCheckTemp = controller.pill_temp ?? controller.current_temp ?? null
             if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
               stepCompleted = true
+              actionTaken = 'temp_reached'
               actionDetails = { current_temp: waitCheckTemp, target_temp: currentStep.target_temp }
+            } else {
+              actionTaken = 'profile_target_set'
+              actionDetails = { profile_target: currentStep.target_temp, step_type: 'wait_for_temp' }
             }
           }
           break
         }
 
         case 'wait_for_gravity_stable': {
+          // Enforce effective target from previous steps
+          const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+          if (effectiveTarget !== null) {
+            await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+          }
+          
           if (brewData && currentStep.gravity_stable_days && currentStep.gravity_threshold) {
             const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
             const stable = isGravityStable(
@@ -688,7 +507,6 @@ Deno.serve(async (req) => {
               currentStep.gravity_stable_days,
               currentStep.gravity_threshold
             )
-            // Also require low activity to confirm true stability (not just a temporary plateau)
             const activityConfirms = !metrics || metrics.activity_score < 25
             if (stable && activityConfirms) {
               stepCompleted = true
@@ -704,6 +522,12 @@ Deno.serve(async (req) => {
         }
 
         case 'wait_for_sg': {
+          // Enforce effective target from previous steps
+          const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+          if (effectiveTarget !== null) {
+            await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+          }
+          
           if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
             const met = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
             if (met) {
@@ -722,12 +546,16 @@ Deno.serve(async (req) => {
         }
 
         case 'wait_for_acknowledgement': {
+          // Enforce effective target from previous steps
+          const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+          if (effectiveTarget !== null) {
+            await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+          }
           actionTaken = 'checked'
           break
         }
 
         case 'diacetyl_rest': {
-          // Diacetyl rest: triggered by attenuation level + phase, raises temp, waits for SG stability
           const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
           const tempIncrease = (currentStep as any).temp_increase ?? 3
           const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
@@ -740,26 +568,19 @@ Deno.serve(async (req) => {
             const attRange = og - fg
             const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
 
-            // Phase 1: waiting for attenuation trigger AND fermentation phase to be at least declining
-            // This prevents triggering diacetyl rest during peak fermentation even if attenuation is numerically met
             const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
             const attenuationReady = currentAtt >= attenuationTrigger
 
             if (!attenuationReady || !phaseReady) {
-              // Enforce current temperature (effective target from previous steps)
+              // Keep current temperature during wait
               const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
               if (effectiveTarget !== null) {
-                const result = await applyPillCompensation(effectiveTarget, 'Diacetyl rest (waiting for trigger)')
-                if (result) {
-                  actionTaken = result.actionTaken
-                  actionDetails = result.actionDetails
-                }
+                await setProfileTarget(supabase, session.controller_id, effectiveTarget)
               }
               const waitReason = !attenuationReady
                 ? `attenuation ${Math.round(currentAtt)}% < ${attenuationTrigger}%`
                 : `phase=${metrics?.fermentation_phase ?? 'unknown'} (need declining/stationary)`
               actionDetails = {
-                ...actionDetails,
                 phase: 'waiting_for_trigger',
                 current_attenuation: Math.round(currentAtt),
                 trigger: attenuationTrigger,
@@ -771,29 +592,17 @@ Deno.serve(async (req) => {
               break
             }
 
-            // Phase 2: attenuation + phase ready, raise temp
+            // Attenuation + phase ready — raise temp
             console.log(`🍺 Diacetyl rest triggered: att=${Math.round(currentAtt)}%, phase=${metrics?.fermentation_phase ?? 'unknown'}, activity=${metrics?.activity_score ?? '?'}%`)
             const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
             const diacetylTarget = (effectiveTarget ?? 18) + tempIncrease
 
-            if (controller) {
-              const result = await applyPillCompensation(diacetylTarget, 'Diacetyl rest (temp raised)')
-              if (result) {
-                actionTaken = result.actionTaken
-                actionDetails = { ...result.actionDetails, phase: 'diacetyl_active', temp_increase: tempIncrease, diacetyl_target: diacetylTarget, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
-              } else if (Math.abs((controller.target_temp ?? 0) - diacetylTarget) > 0.1) {
-                const success = await setTemp(session.controller_id, diacetylTarget)
-                if (success) {
-                  actionTaken = 'temp_adjusted'
-                  actionDetails = { target_temp: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
-                  await supabase.from('rapt_temp_controllers')
-                    .update({ target_temp: diacetylTarget, profile_target_temp: diacetylTarget, updated_at: new Date().toISOString() })
-                    .eq('controller_id', session.controller_id)
-                }
-              }
-            }
+            // Set profile target — PID will handle actual controller
+            await setProfileTarget(supabase, session.controller_id, diacetylTarget)
+            actionTaken = 'profile_target_set'
+            actionDetails = { profile_target: diacetylTarget, phase: 'diacetyl_active', temp_increase: tempIncrease, fermentation_phase: metrics?.fermentation_phase ?? 'unknown' }
 
-            // Phase 3: check if SG is now stable AND activity is low (truly done, not just a pause)
+            // Check if SG is now stable AND activity is low
             const stableDays = currentStep.gravity_stable_days ?? 2
             const threshold = currentStep.gravity_threshold ?? 0.001
             const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)
@@ -832,6 +641,12 @@ Deno.serve(async (req) => {
             .from('fermentation_sessions')
             .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', session.id)
+
+          // Clear profile_target_temp when profile completes
+          await supabase
+            .from('rapt_temp_controllers')
+            .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
+            .eq('controller_id', session.controller_id)
 
           await supabase.from('fermentation_step_log').insert({
             session_id: session.id,
