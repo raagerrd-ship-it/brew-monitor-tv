@@ -317,7 +317,7 @@ function generateChartSvg(
       const ctrlSmoothD = buildSmoothPath(ctrlPoints);
       tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`;
 
-      // Target temp from snapshots (step-after) — authoritative profile targets only
+      // Target temp from snapshots — linear path (supports ramps)
       if (snapshotTargets && snapshotTargets.length > 0) {
         const validTargets = snapshotTargets
           .filter(s => s.profile_target_temp !== null)
@@ -328,24 +328,16 @@ function generateChartSvg(
           .filter(s => s.t >= tMin && s.t <= tMax);
 
         if (validTargets.length > 0) {
-          // Deduplicate: only keep points where target changes (step function)
-          const deduped = [validTargets[0]];
-          for (let i = 1; i < validTargets.length; i++) {
-            if (Math.abs(validTargets[i].target - deduped[deduped.length - 1].target) > 0.05) {
-              deduped.push(validTargets[i]);
-            }
-          }
-          // Add last point to extend line to end
-          const lastValid = validTargets[validTargets.length - 1];
-          if (deduped[deduped.length - 1].t !== lastValid.t) {
-            deduped.push(lastValid);
-          }
-
-          const targetPoints = deduped.map(p => ({
+          const targetPoints = validTargets.map(p => ({
             x: scaleX(p.t, tMin, tMax),
             y: tempScaleY(p.target),
           }));
-          tempSvgParts += `<path d="${buildStepPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+          // Use linear path to correctly render ramps as diagonals
+          let targetD = `M${targetPoints[0].x.toFixed(1)},${targetPoints[0].y.toFixed(1)}`;
+          for (let i = 1; i < targetPoints.length; i++) {
+            targetD += ` L${targetPoints[i].x.toFixed(1)},${targetPoints[i].y.toFixed(1)}`;
+          }
+          tempSvgParts += `<path d="${targetD}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
         }
       }
       // Right axis labels (temp)
