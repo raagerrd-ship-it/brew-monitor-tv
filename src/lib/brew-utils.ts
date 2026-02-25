@@ -264,7 +264,7 @@ export function calculateFermentationTrend(
   const rate12h = calcRate(prev6h);
 
   let trend: 'rising' | 'falling' | 'stable' | null = null;
-  if (rate6h !== null && rate12h !== null && rate12h > 0.001 && rate6h > 0.001) {
+  if (rate6h !== null && rate12h !== null && rate12h > 0.0005 && rate6h > 0.0005) {
     const ratio = rate6h / rate12h;
     if (ratio > 1.3) trend = 'rising';
     else if (ratio < 0.7) trend = 'falling';

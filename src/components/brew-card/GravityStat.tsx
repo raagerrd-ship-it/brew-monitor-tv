@@ -65,6 +65,11 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
     const previousPct = Math.min((Math.abs(rate12h) / maxRate) * 100, 100);
     trendBarLeft = Math.min(ratePct, previousPct);
     trendBarWidth = Math.abs(ratePct - previousPct);
+  } else if (rate6h != null && rate12h == null && Math.abs(rate) > 0) {
+    // Fallback: jämför 6h-raten mot 24h-raten när 12h-data saknas
+    const fallbackPct = Math.min((Math.abs(rate) / maxRate) * 100, 100);
+    trendBarLeft = Math.min(ratePct, fallbackPct);
+    trendBarWidth = Math.abs(ratePct - fallbackPct);
   }
 
   const tooltipLines = [
