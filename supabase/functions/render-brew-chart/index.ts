@@ -104,6 +104,29 @@ function buildSmoothPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
+// Moving average smoothing (like frontend's calculateMovingAverage)
+function smoothValues(values: (number | null)[], windowSize: number): (number | null)[] {
+  return values.map((val, i) => {
+    if (val === null) return null;
+    const half = Math.floor(windowSize / 2);
+    const start = Math.max(0, i - half);
+    const end = Math.min(values.length - 1, i + half);
+    let sum = 0, count = 0;
+    for (let j = start; j <= end; j++) {
+      if (values[j] !== null) { sum += values[j]!; count++; }
+    }
+    return count > 0 ? sum / count : val;
+  });
+}
+
+// Determine optimal window size based on data length
+function getWindowSize(dataLength: number): number {
+  if (dataLength > 200) return 9;
+  if (dataLength > 100) return 7;
+  if (dataLength > 50) return 5;
+  return 3;
+}
+
 // Format day label
 function formatDay(dateStr: string): string {
   const d = new Date(dateStr);
@@ -132,7 +155,7 @@ function generateChartSvg(
     return MARGIN.top + PLOT_H - ((val - min) / (max - min)) * PLOT_H;
   };
 
-  const parsed = snapshotData
+  const rawParsed = snapshotData
     .map((p) => ({
       t: new Date(p.recorded_at).getTime(),
       sg: p.sg,
@@ -142,6 +165,20 @@ function generateChartSvg(
     }))
     .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.sg))
     .sort((a, b) => a.t - b.t);
+
+  // Apply moving average smoothing to all value series
+  const w = getWindowSize(rawParsed.length);
+  const smoothedSg = smoothValues(rawParsed.map(p => p.sg), w);
+  const smoothedPill = smoothValues(rawParsed.map(p => p.pill), w);
+  const smoothedCtrl = smoothValues(rawParsed.map(p => p.controller), w);
+
+  const parsed = rawParsed.map((p, i) => ({
+    ...p,
+    sg: smoothedSg[i] ?? p.sg,
+    pill: smoothedPill[i],
+    controller: smoothedCtrl[i],
+    // target is NOT smoothed — it should stay as step/ramp values
+  }));
 
   if (parsed.length === 0) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%" height="100%">
