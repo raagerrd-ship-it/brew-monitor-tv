@@ -17,7 +17,7 @@ const phaseDescriptions: Record<string, string> = {
   lag: '⏳ Lagfas — jästen anpassar sig, ingen märkbar SG-förändring ännu',
   exponential: '🚀 Exponentiell — jäsningen är som mest aktiv',
   declining: '📉 Avtagande — jäsningen saktar ner, närmar sig slutet',
-  stationary: '⏸ Stationär — minimal aktivitet, SG stabil',
+  stationary: '⏳ Stationär — minimal aktivitet, SG stabil',
 };
 
 // Cached module-level value to avoid re-fetching on every render
@@ -279,7 +279,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
                   <span className="inline-flex items-center gap-0.5">
                     {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
                      brew.fermentationMetrics.fermentation_phase === 'declining' ? '📉' : 
-                     brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏸' : 
+                     brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏳' : 
                      brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
                     {phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}
                   </span>
