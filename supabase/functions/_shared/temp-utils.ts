@@ -93,9 +93,12 @@ export async function calculateCompensatedTarget(
 
   const deltas = deltaHistory.map((d: any) => parseFloat(String(d.delta)))
   const avgDelta = deltas.reduce((sum: number, d: number) => sum + d, 0) / deltas.length
+  const absDelta = Math.abs(avgDelta)
 
-  // Only compensate when pill is warmer than probe (positive delta)
-  if (avgDelta <= 0) {
+  // Only compensate when there IS a meaningful delta between pill and probe
+  // Positive delta = pill warmer (cooling scenario)
+  // Negative delta = probe warmer (heating scenario — probe closer to heating element)
+  if (absDelta < 0.1) {
     return null
   }
 
@@ -122,12 +125,14 @@ export async function calculateCompensatedTarget(
       const currentAvg = (pillNow + ctrlNow) / 2
       const avgDistance = currentAvg - profileTarget
 
-      // Only apply damping when average is above target and pill is moving toward it
-      if (avgDistance > 0 && pillRate < -0.1) {
+      // Apply damping when average is moving TOWARD target (bidirectional)
+      // Cooling: avg above target and pill dropping
+      // Heating: avg below target and pill rising
+      const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
+      if (Math.abs(avgDistance) > 0.1 && isConverging) {
         // ETA based on how fast the average is converging
-        // When pill drops, probe rises (controller compensates), so average moves at ~pillRate/2
         const avgRate = Math.abs(pillRate) / 2
-        const etaHours = avgDistance / avgRate
+        const etaHours = Math.abs(avgDistance) / avgRate
         _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
         console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C (dist=${avgDistance.toFixed(1)}), avgRate=${avgRate.toFixed(2)}°C/h, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
@@ -144,7 +149,7 @@ export async function calculateCompensatedTarget(
 
   // === Adaptive PI-term: Proportional + Integral + Learned baseline ===
   // Categorize current fermentation phase by delta magnitude
-  const deltaBucket = avgDelta > 3 ? 'high' : avgDelta > 1.5 ? 'medium' : 'low'
+  const deltaBucket = absDelta > 3 ? 'high' : absDelta > 1.5 ? 'medium' : 'low'
 
   // Query learned baseline for this controller + phase + mode + step_type
   // Fallback: if no per-controller data, try style_key-based cross-batch learning
@@ -277,13 +282,16 @@ export async function calculateCompensatedTarget(
     const decayedIntegral = persistedIntegral * 0.8
     
     // Use the current total compensation as the "what worked" value
-    const totalCompApplied = profileTarget - currentControllerTarget // how far below profile the controller is set
+    // For cooling: target is BELOW profile (positive totalComp)
+    // For heating: target is ABOVE profile (negative totalComp → use abs)
+    const totalCompApplied = Math.abs(profileTarget - currentControllerTarget)
     if (totalCompApplied > 0.1) {
       // Exponential moving average: weight new data more when we have few samples
       const alpha = convergenceCount < 5 ? 0.5 : 0.2 // learn faster initially
+      const absRawComp = Math.abs(rawCompensation * dampingFactor)
       const newLearned = learnedBaseline > 0
-        ? learnedBaseline * (1 - alpha) + (rawCompensation * dampingFactor > 0 ? totalCompApplied - rawCompensation * dampingFactor : 0) * alpha
-        : Math.max(0, totalCompApplied - rawCompensation * dampingFactor)
+        ? learnedBaseline * (1 - alpha) + (absRawComp > 0 ? totalCompApplied - absRawComp : 0) * alpha
+        : Math.max(0, totalCompApplied - absRawComp)
       const clampedLearned = Math.max(0, Math.min(newLearned, 2.5))
       
       await supabase.from('controller_learned_compensation').upsert({
@@ -308,30 +316,43 @@ export async function calculateCompensatedTarget(
 
   let compensatedTarget = profileTarget - compensation + errorCorrection
 
-  // Safety floor: never more than maxCompensation below profile target
-  compensatedTarget = Math.max(profileTarget - maxCompensation, compensatedTarget)
+  // Safety bounds: never more than maxCompensation away from profile target (both directions)
+  compensatedTarget = Math.max(profileTarget - maxCompensation, Math.min(profileTarget + maxCompensation, compensatedTarget))
 
-  // Asymmetric rate limit: strict upward (to avoid triggering heater), normal downward
+  // Asymmetric rate limit
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
-  const isIncreasing = diff > 0 // target going UP = releasing compensation
+  const isIncreasing = diff > 0
 
   {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    // Upward changes (releasing compensation) use a tighter limit to avoid triggering heater
-    // BUT: if the average temp is BELOW the profile target, we WANT more heating — use normal limit
     const latestPill = parseFloat(String(deltaHistory[0].pill_temp))
     const latestCtrl = parseFloat(String(deltaHistory[0].controller_temp))
     const currentAvg = (latestPill + latestCtrl) / 2
-    const avgBelowTarget = currentAvg < profileTarget - 0.2
-    const upwardLimit = avgBelowTarget ? maxChangePerCycle : 0.3
-    const baseLimit = isIncreasing ? Math.min(maxChangePerCycle * scaleFactor, upwardLimit) : maxChangePerCycle * scaleFactor
-    if (avgBelowTarget && isIncreasing) {
-      console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
+    
+    // For cooling mode: strict upward limit (avoid triggering heater), unless avg is below target
+    // For heating mode: strict downward limit (avoid triggering cooler), unless avg is above target
+    let baseLimit: number
+    if (mode === 'cooling') {
+      const avgBelowTarget = currentAvg < profileTarget - 0.2
+      const upwardLimit = avgBelowTarget ? maxChangePerCycle : 0.3
+      baseLimit = isIncreasing ? Math.min(maxChangePerCycle * scaleFactor, upwardLimit) : maxChangePerCycle * scaleFactor
+      if (avgBelowTarget && isIncreasing) {
+        console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
+      }
+    } else {
+      // Heating mode: strict downward (releasing heat compensation), normal upward
+      const avgAboveTarget = currentAvg > profileTarget + 0.2
+      const downwardLimit = avgAboveTarget ? maxChangePerCycle : 0.3
+      baseLimit = isIncreasing ? maxChangePerCycle * scaleFactor : Math.min(maxChangePerCycle * scaleFactor, downwardLimit)
+      if (avgAboveTarget && !isIncreasing) {
+        console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${profileTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
+      }
     }
+    
     if (distanceFromIdeal > baseLimit) {
       compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
-      console.log(`🎯 Rate-limit (${isIncreasing ? '↑ strikt' : '↓ normal'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle})`)
+      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${maxChangePerCycle}, mode=${mode})`)
     }
   }
 
