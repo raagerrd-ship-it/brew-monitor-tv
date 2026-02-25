@@ -1,26 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Snowflake, RefreshCw } from "lucide-react";
+import { Gauge, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 
-interface LearnedMargin {
+interface LearnedRate {
   controller_id: string;
   controller_name: string;
-  bucket: string;
-  learned_value: number;
+  load_bucket: string;
+  rate: number;
   sample_count: number;
   last_updated_at: string;
 }
-
-const BUCKET_LABELS: Record<string, string> = {
-  cold: "Kall (<5°)",
-  cool: "Sval (5–12°)",
-  warm: "Varm (12–18°)",
-  hot: "Het (>18°)",
-};
 
 const LOAD_LABELS: Record<string, string> = {
   load_0: "0 tankar",
@@ -28,21 +21,10 @@ const LOAD_LABELS: Record<string, string> = {
   load_2plus: "2+ tankar",
 };
 
-const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
+const LOAD_ORDER = ["load_0", "load_1", "load_2plus"];
 
-function formatBucketLabel(bucket: string): string {
-  // e.g. "warm:load_1" → "Varm (12–18°) · 1 tank"
-  const parts = bucket.split(":");
-  const base = BUCKET_LABELS[parts[0]] ?? parts[0];
-  if (parts.length > 1) {
-    const loadLabel = LOAD_LABELS[parts[1]] ?? parts[1];
-    return `${base} · ${loadLabel}`;
-  }
-  return base;
-}
-
-export function LearnedCoolerMarginValues() {
-  const [entries, setEntries] = useState<LearnedMargin[]>([]);
+export function LearnedGlycolRates() {
+  const [entries, setEntries] = useState<LearnedRate[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -50,7 +32,7 @@ export function LearnedCoolerMarginValues() {
       const { data: learnings } = await supabase
         .from("fermentation_learnings")
         .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-        .like("parameter_name", "cooler_margin:%")
+        .like("parameter_name", "glycol_rate:%")
         .order("last_updated_at", { ascending: false });
 
       if (!learnings || learnings.length === 0) {
@@ -68,20 +50,17 @@ export function LearnedCoolerMarginValues() {
       const nameMap = new Map(controllers?.map((c) => [c.controller_id, c.name]) ?? []);
 
       setEntries(
-        learnings.map((l) => {
-          const raw = l.parameter_name.replace("cooler_margin:", "");
-          return {
-            controller_id: l.controller_id,
-            controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
-            bucket: raw,
-            learned_value: l.learned_value,
-            sample_count: l.sample_count,
-            last_updated_at: l.last_updated_at,
-          };
-        })
+        learnings.map((l) => ({
+          controller_id: l.controller_id,
+          controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
+          load_bucket: l.parameter_name.replace("glycol_rate:", ""),
+          rate: l.learned_value,
+          sample_count: l.sample_count,
+          last_updated_at: l.last_updated_at,
+        }))
       );
     } catch (e) {
-      console.error("Error loading cooler margin learnings:", e);
+      console.error("Error loading glycol rate learnings:", e);
     } finally {
       setLoading(false);
     }
@@ -92,46 +71,34 @@ export function LearnedCoolerMarginValues() {
   }, [loadData]);
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Laddar inlärda kylarmarginaler…</p>;
+    return <p className="text-xs text-muted-foreground">Laddar inlärda glykolhastigheter…</p>;
   }
 
   if (entries.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Snowflake className="h-3.5 w-3.5" />
-        <span>Inga inlärda kylarmarginaler ännu. Systemet lär sig automatiskt under drift.</span>
+        <Gauge className="h-3.5 w-3.5" />
+        <span>Inga inlärda kylhastigheter ännu. Systemet lär sig automatiskt under drift.</span>
       </div>
     );
   }
 
   // Group by controller
-  const grouped = entries.reduce<Record<string, LearnedMargin[]>>((acc, e) => {
+  const grouped = entries.reduce<Record<string, LearnedRate[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
   }, {});
 
-  // Sort: base buckets first, then load-specific
   for (const items of Object.values(grouped)) {
-    items.sort((a, b) => {
-      const aBase = a.bucket.split(":")[0];
-      const bBase = b.bucket.split(":")[0];
-      const aIdx = BUCKET_ORDER.indexOf(aBase);
-      const bIdx = BUCKET_ORDER.indexOf(bBase);
-      if (aIdx !== bIdx) return aIdx - bIdx;
-      // base before load-specific
-      const aHasLoad = a.bucket.includes(":");
-      const bHasLoad = b.bucket.includes(":");
-      if (aHasLoad !== bHasLoad) return aHasLoad ? 1 : -1;
-      return a.bucket.localeCompare(b.bucket);
-    });
+    items.sort((a, b) => LOAD_ORDER.indexOf(a.load_bucket) - LOAD_ORDER.indexOf(b.load_bucket));
   }
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Snowflake className="h-4 w-4 text-blue-400" />
-          <span className="text-sm font-medium">Inlärda kylarmarginaler</span>
+          <Gauge className="h-4 w-4 text-cyan-400" />
+          <span className="text-sm font-medium">Inlärda kylhastigheter (glykol)</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
@@ -143,13 +110,13 @@ export function LearnedCoolerMarginValues() {
           <span className="text-xs font-medium">{name}</span>
           {items.map((item) => (
             <div
-              key={`${item.controller_id}-${item.bucket}`}
+              key={`${item.controller_id}-${item.load_bucket}`}
               className="flex items-center justify-between gap-2"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground">{formatBucketLabel(item.bucket)}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-400 border-blue-500/30">
-                  {item.learned_value.toFixed(1)}°C
+                <span className="text-xs text-muted-foreground">{LOAD_LABELS[item.load_bucket] ?? item.load_bucket}</span>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
+                  {item.rate.toFixed(2)}°C/h
                 </Badge>
               </div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
