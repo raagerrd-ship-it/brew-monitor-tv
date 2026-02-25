@@ -17,7 +17,6 @@ interface SnapshotRow {
   controller_temp: number | null;
   profile_target_temp: number | null;
   auto_target_temp: number | null;
-  isLive?: boolean;
 }
 
 interface SyncedDataDialogProps {
@@ -26,14 +25,8 @@ interface SyncedDataDialogProps {
   brewName: string;
   brewId: string;
   controllerId?: string | null;
-  liveSnapshot?: SnapshotRow | null;
 }
 
-function differs(a: number | null, b: number | null): boolean {
-  if (a == null && b == null) return false;
-  if (a == null || b == null) return true;
-  return Math.abs(a - b) > 0.05;
-}
 
 export function SyncedDataDialog({
   open,
@@ -41,7 +34,6 @@ export function SyncedDataDialog({
   brewName,
   brewId,
   controllerId,
-  liveSnapshot,
 }: SyncedDataDialogProps) {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,28 +89,8 @@ export function SyncedDataDialog({
     return () => window.clearInterval(intervalId);
   }, [open, brewId, fetchSnapshots]);
 
-  const displayedRows = useMemo(() => {
-    if (!liveSnapshot) return snapshots;
-
-    const first = snapshots[0];
-    if (!first) {
-      return [{ ...liveSnapshot, isLive: true }];
-    }
-
-    const timeGapMs = Math.abs(
-      new Date(liveSnapshot.recorded_at).getTime() - new Date(first.recorded_at).getTime(),
-    );
-
-    const shouldPrependLive =
-      timeGapMs > 60 * 1000 ||
-      differs(first.profile_target_temp, liveSnapshot.profile_target_temp) ||
-      differs(first.auto_target_temp, liveSnapshot.auto_target_temp);
-
-    return shouldPrependLive ? [{ ...liveSnapshot, isLive: true }, ...snapshots] : snapshots;
-  }, [snapshots, liveSnapshot]);
-
-  const hasControllerData = !!controllerId && displayedRows.some((s) => s.controller_temp != null);
-  const hasAutoAdjustments = hasControllerData && displayedRows.some(
+  const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
+  const hasAutoAdjustments = hasControllerData && snapshots.some(
     (s) => s.auto_target_temp != null && s.profile_target_temp != null &&
       Math.abs((s.auto_target_temp ?? 0) - (s.profile_target_temp ?? 0)) > 0.05,
   );
@@ -136,7 +108,7 @@ export function SyncedDataDialog({
           <div className="space-y-1">
             {loading ? (
               <p className="text-muted-foreground text-center py-8">Laddar...</p>
-            ) : displayedRows.length === 0 ? (
+            ) : snapshots.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
                 Ingen synkad data ännu
               </p>
@@ -159,17 +131,15 @@ export function SyncedDataDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedRows.map((point, index) => (
+                  {snapshots.map((point, index) => (
                     <tr
-                      key={`${point.recorded_at}-${point.isLive ? 'live' : 'snap'}`}
+                      key={point.recorded_at}
                       className={`border-b border-border/50 ${
                         index === 0 ? "bg-primary/5" : ""
                       }`}
                     >
                       <td className="py-1.5 text-muted-foreground">
-                        {point.isLive
-                          ? `Nu ${format(new Date(point.recorded_at), "HH:mm:ss", { locale: sv })}`
-                          : format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
+                        {format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
                       </td>
                       <td className="py-1.5 text-right font-mono text-beer-amber">
                         {point.sg != null ? point.sg.toFixed(4) : "-"}
