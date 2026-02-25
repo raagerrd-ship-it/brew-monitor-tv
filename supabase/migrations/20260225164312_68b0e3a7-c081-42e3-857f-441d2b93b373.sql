@@ -1,0 +1,1 @@
+UPDATE brew_data_snapshots SET profile_target_temp = 16 WHERE id IN ('0fa59585-a0f5-4858-af51-3c7993c2c07c', 'bc36b44a-57fe-441b-9caf-d0501eb06abb');
