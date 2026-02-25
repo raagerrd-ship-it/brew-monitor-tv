@@ -1,15 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTvMode } from "@/contexts/TvModeContext";
-import { ControllerTempPoint, ChartDataPointWithTimestamp } from "../types";
+import { ChartDataPointWithTimestamp } from "../types";
 import {
-  calculateMovingAverage,
   addTimestamps,
   generateDayBoundaries,
   generateDayTicks,
-  getOptimalWindowSize,
-  mergeWithControllerTemp,
-  downsampleForTvMode,
 } from "../utils";
 
 interface SGDataPoint {
@@ -32,24 +28,23 @@ interface UseBrewChartDataReturn {
   isLoading: boolean;
 }
 
-interface SnapshotTarget {
-  timestamp: number;
-  target: number;
+interface SnapshotRow {
+  recorded_at: string;
+  sg: number;
+  pill_temp: number;
+  controller_temp: number | null;
+  profile_target_temp: number | null;
 }
-
 
 export function useBrewChartData({
   data,
-  controllerId,
+  controllerId: _controllerId,
   brewId,
-  smoothLines,
+  smoothLines: _smoothLines,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
-  const [controllerTempData, setControllerTempData] = useState<ControllerTempPoint[]>([]);
+  const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [snapshotTargets, setSnapshotTargets] = useState<SnapshotTarget[]>([]);
-  
   const { isTvMode } = useTvMode();
-  
   const lastFetchKey = useRef<string>("");
 
   const dataLength = data?.length ?? 0;
@@ -57,87 +52,44 @@ export function useBrewChartData({
   const lastDataDate = dataLength > 0 ? data[dataLength - 1].date : "";
 
   useEffect(() => {
-    if (!controllerId || dataLength === 0) {
-      if (controllerTempData.length > 0) {
-        setControllerTempData([]);
-      }
-      setSnapshotTargets([]);
+    if (!brewId) {
+      setSnapshotRows((prev) => (prev.length > 0 ? [] : prev));
       return;
     }
 
-    const fetchKey = `${controllerId}-${brewId}-${firstDataDate}-${lastDataDate}`;
+    const fetchKey = `${brewId}-${firstDataDate}-${lastDataDate}`;
     if (fetchKey === lastFetchKey.current) return;
 
     const fetchData = async () => {
       lastFetchKey.current = fetchKey;
       setIsLoading(true);
       try {
-        // Fetch controller temp history (for gradient/area) and snapshot targets (for Mål line) in parallel
-        const controllerPromise = (async () => {
-          const allRows: ControllerTempPoint[] = [];
-          let offset = 0;
-          const batchSize = 1000;
-          let hasMore = true;
+        const allSnapshots: SnapshotRow[] = [];
+        let offset = 0;
+        const batchSize = 1000;
+        let hasMore = true;
 
-          while (hasMore) {
-            const { data: tempHistory, error } = await supabase.rpc("get_temp_history_sampled", {
-              p_controller_id: controllerId,
-              p_start_time: firstDataDate,
-              p_end_time: lastDataDate,
-              p_sample_interval_minutes: 15,
-            }).range(offset, offset + batchSize - 1);
+        while (hasMore) {
+          const { data: batch, error } = await supabase
+            .from("brew_data_snapshots")
+            .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp")
+            .eq("brew_id", brewId)
+            .order("recorded_at", { ascending: true })
+            .range(offset, offset + batchSize - 1);
 
-            if (error) { hasMore = false; }
-            else if (!tempHistory || tempHistory.length === 0) { hasMore = false; }
-            else {
-              allRows.push(...tempHistory);
-              offset += batchSize;
-              hasMore = tempHistory.length === batchSize;
-            }
+          if (error) {
+            console.error("[useBrewChartData] Failed to fetch snapshots:", error);
+            hasMore = false;
+          } else if (!batch || batch.length === 0) {
+            hasMore = false;
+          } else {
+            allSnapshots.push(...(batch as SnapshotRow[]));
+            offset += batchSize;
+            hasMore = batch.length === batchSize;
           }
-          return allRows;
-        })();
-
-        const snapshotsPromise = brewId
-          ? (async () => {
-              const allSnapshots: any[] = [];
-              let offset = 0;
-              const batchSize = 1000;
-              let hasMore = true;
-              while (hasMore) {
-                const { data: batch } = await supabase
-                  .from('brew_data_snapshots')
-                  .select('recorded_at, profile_target_temp')
-                  .eq('brew_id', brewId)
-                  .not('profile_target_temp', 'is', null)
-                  .order('recorded_at', { ascending: true })
-                  .range(offset, offset + batchSize - 1);
-                if (!batch || batch.length === 0) { hasMore = false; }
-                else {
-                  allSnapshots.push(...batch);
-                  offset += batchSize;
-                  hasMore = batch.length === batchSize;
-                }
-              }
-              return allSnapshots;
-            })()
-          : Promise.resolve([] as any[]);
-
-        const [ctrlRows, snapshotsResult] = await Promise.all([controllerPromise, snapshotsPromise]);
-
-        if (ctrlRows.length > 0) setControllerTempData(ctrlRows);
-
-        const snapshots = snapshotsResult;
-        if (snapshots && snapshots.length > 0) {
-          setSnapshotTargets(
-            snapshots.map((s: any) => ({
-              timestamp: new Date(s.recorded_at).getTime(),
-              target: s.profile_target_temp as number,
-            }))
-          );
-        } else {
-          setSnapshotTargets([]);
         }
+
+        setSnapshotRows(allSnapshots);
       } finally {
         setIsLoading(false);
       }
@@ -152,49 +104,49 @@ export function useBrewChartData({
       }, 300000);
       return () => clearInterval(intervalId);
     }
-  }, [controllerId, brewId, dataLength, firstDataDate, lastDataDate, isTvMode]);
+  }, [brewId, firstDataDate, lastDataDate, isTvMode]);
 
   const chartData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    const sourceData = isTvMode ? downsampleForTvMode(data, 80) : data;
-    const controllerDataSampled = isTvMode
-      ? downsampleForTvMode(controllerTempData, 80)
-      : controllerTempData;
-
-    const dataWithControllerTemp = mergeWithControllerTemp(sourceData, controllerDataSampled);
-    const windowSize = getOptimalWindowSize(dataWithControllerTemp.length);
-    const smoothedData = calculateMovingAverage(dataWithControllerTemp, windowSize, smoothLines);
-    const withTimestamps = addTimestamps(smoothedData);
-    const withSpan = withTimestamps.map(point => ({
-      ...point,
-      tempSpan: (point.controllerTemp != null && point.pillTemp != null)
-        ? Math.abs(point.pillTemp - point.controllerTemp)
-        : null,
-    }));
-
-    // Apply Mål exclusively from snapshots (brew_data_snapshots.profile_target_temp)
-    // No fallback — targetTemp stays null until snapshots exist for this brew
-    let mappedData = withSpan;
-
-    if (snapshotTargets.length > 0) {
-      mappedData = withSpan.map(point => {
-        let target: number | null = null;
-        for (let i = snapshotTargets.length - 1; i >= 0; i--) {
-          if (snapshotTargets[i].timestamp <= point.timestamp) {
-            target = snapshotTargets[i].target;
-            break;
-          }
-        }
-        return target !== null ? { ...point, targetTemp: target } : point;
-      });
+    if (snapshotRows.length > 0) {
+      return addTimestamps(
+        snapshotRows.map((row) => ({
+          date: row.recorded_at,
+          value: row.sg,
+          temp: row.pill_temp,
+          pillTemp: row.pill_temp,
+          controllerTemp: row.controller_temp,
+          targetTemp: row.profile_target_temp,
+          avgTemp: null,
+          tempSpan: null,
+          rawValue: row.sg,
+          rawPillTemp: row.pill_temp,
+          rawControllerTemp: row.controller_temp,
+          rawAvgTemp: null,
+        }))
+      );
     }
 
-    return mappedData;
-  }, [data, controllerTempData, smoothLines, isTvMode, snapshotTargets]);
+    if (!data || data.length === 0) return [];
+
+    return addTimestamps(
+      data.map((point) => ({
+        ...point,
+        pillTemp: point.temp,
+        controllerTemp: null,
+        targetTemp: null,
+        avgTemp: null,
+        tempSpan: null,
+        rawValue: point.value,
+        rawPillTemp: point.temp,
+        rawControllerTemp: null,
+        rawAvgTemp: null,
+      }))
+    );
+  }, [data, snapshotRows]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
 
   return { chartData, dayBoundaries, dayTicks, isLoading };
 }
+

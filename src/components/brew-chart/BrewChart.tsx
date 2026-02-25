@@ -88,8 +88,8 @@ function BrewChartComponent({
     );
   }
 
-  const lineType = smoothLines ? "monotoneX" : "linear";
-  const areaType = smoothLines ? "monotoneX" : "linear";
+  const lineType = "linear";
+  const areaType = "linear";
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
 
