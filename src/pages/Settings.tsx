@@ -7,6 +7,7 @@ import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
+import { LearnedGlycolRates } from "@/components/LearnedGlycolRates";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
@@ -1842,6 +1843,8 @@ export default function Settings() {
                   <LearnedCompensationBaselines />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
+                  <SettingsDivider />
+                  <LearnedGlycolRates />
                 </SettingsSection>
               </CollapsibleContent>
             </Collapsible>
