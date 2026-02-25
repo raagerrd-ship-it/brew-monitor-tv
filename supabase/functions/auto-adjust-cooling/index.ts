@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget } from '../_shared/temp-utils.ts';
+import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, learnGlycolCoolerRate, getGlycolRatesSummary } from '../_shared/temp-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 
 const corsHeaders = {
@@ -1054,6 +1054,27 @@ serve(async (req) => {
           });
 
           const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'));
+
+          // Learn glycol cooler rate based on current cooling load
+          const coolingLoadCount = followedControllersFullData.filter(c => {
+            if (!c.cooling_enabled) return false;
+            const ct = parseFloat(String(c.current_temp ?? c.pill_temp ?? '0'));
+            const tt = parseFloat(String(c.target_temp ?? '999'));
+            const hyst = parseFloat(String(c.cooling_hysteresis ?? '0.2'));
+            return ct > (tt + hyst); // actually demanding cooling
+          }).length;
+
+          const glycolRate = await learnGlycolCoolerRate(supabase!, coolerController.controller_id, coolingLoadCount);
+          const allGlycolRates = await getGlycolRatesSummary(supabase!, coolerController.controller_id);
+
+          if (glycolRate || Object.keys(allGlycolRates).length > 0) {
+            const rateDetails: Record<string, unknown> = { current_load: coolingLoadCount };
+            if (glycolRate) rateDetails.current_rate = `${glycolRate.rate.toFixed(2)}°C/h (n=${glycolRate.sampleCount})`;
+            for (const [bucket, info] of Object.entries(allGlycolRates)) {
+              rateDetails[`rate_${bucket}`] = `${info.rate.toFixed(2)}°C/h (n=${info.sampleCount})`;
+            }
+            log('GLYCOL_RATES', 'info', `Learned cooling rates by load`, rateDetails);
+          }
 
           // Check if any followed controller has cooling enabled
           const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true);
