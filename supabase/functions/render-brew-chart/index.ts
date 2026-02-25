@@ -36,136 +36,18 @@ interface SgDataPoint {
   temp?: number;
 }
 
-interface TempHistoryPoint {
+interface SnapshotPoint {
   recorded_at: string;
-  current_temp: number;
-  target_temp: number;
-}
-
-interface SnapshotTargetPoint {
-  recorded_at: string;
+  sg: number;
+  pill_temp: number | null;
+  controller_temp: number | null;
   profile_target_temp: number | null;
 }
 
-// Downsample array to max N points
-function downsample<T>(data: T[], maxPoints: number, getX: (d: T) => number, getY: (d: T) => number): T[] {
-  if (data.length <= maxPoints) return data;
-  
-  const sampled: T[] = [data[0]];
-  const bucketSize = (data.length - 2) / (maxPoints - 2);
-  
-  for (let i = 0; i < maxPoints - 2; i++) {
-    const start = Math.floor(i * bucketSize) + 1;
-    const end = Math.min(Math.floor((i + 1) * bucketSize) + 1, data.length - 1);
-    const mid = Math.floor((start + end) / 2);
-    sampled.push(data[mid]);
-  }
-  
-  sampled.push(data[data.length - 1]);
-  return sampled;
-}
-
-// Moving average smoothing (matches desktop getOptimalWindowSize + calculateMovingAverage)
-function smoothData(values: number[], windowSize: number): number[] {
-  if (windowSize < 2) return values;
-  const halfWindow = Math.floor(windowSize / 2);
-  const result: number[] = new Array(values.length);
-  
-  let sum = 0;
-  const firstEnd = Math.min(values.length, halfWindow + 1);
-  for (let j = 0; j < firstEnd; j++) sum += values[j];
-  
-  for (let i = 0; i < values.length; i++) {
-    if (i > 0) {
-      const newIdx = i + halfWindow;
-      if (newIdx < values.length) sum += values[newIdx];
-      const oldIdx = i - halfWindow - 1;
-      if (oldIdx >= 0) sum -= values[oldIdx];
-    }
-    const windowStart = Math.max(0, i - halfWindow);
-    const windowEnd = Math.min(values.length, i + halfWindow + 1);
-    result[i] = sum / (windowEnd - windowStart);
-  }
-  return result;
-}
-
-// scaleX and scaleY are defined inside generateChartSvg to close over dynamic PLOT_W/PLOT_H
-
-// Build smooth SVG path using monotone cubic interpolation (matches Recharts monotoneX)
-function buildSmoothPath(points: { x: number; y: number }[]): string {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
-  if (points.length === 2) return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
-  
-  // Monotone cubic Hermite spline (Fritsch-Carlson)
-  const n = points.length;
-  const dx: number[] = [];
-  const dy: number[] = [];
-  const m: number[] = [];
-  
-  for (let i = 0; i < n - 1; i++) {
-    dx.push(points[i + 1].x - points[i].x);
-    dy.push(points[i + 1].y - points[i].y);
-    m.push(dx[i] === 0 ? 0 : dy[i] / dx[i]);
-  }
-  
-  // Compute tangents
-  const tangents: number[] = new Array(n);
-  tangents[0] = m[0];
-  tangents[n - 1] = m[n - 2];
-  
-  for (let i = 1; i < n - 1; i++) {
-    if (m[i - 1] * m[i] <= 0) {
-      tangents[i] = 0;
-    } else {
-      tangents[i] = (m[i - 1] + m[i]) / 2;
-    }
-  }
-  
-  // Fritsch-Carlson monotonicity
-  for (let i = 0; i < n - 1; i++) {
-    if (Math.abs(m[i]) < 1e-10) {
-      tangents[i] = 0;
-      tangents[i + 1] = 0;
-    } else {
-      const alpha = tangents[i] / m[i];
-      const beta = tangents[i + 1] / m[i];
-      const s = alpha * alpha + beta * beta;
-      if (s > 9) {
-        const tau = 3 / Math.sqrt(s);
-        tangents[i] = tau * alpha * m[i];
-        tangents[i + 1] = tau * beta * m[i];
-      }
-    }
-  }
-  
-  // Build cubic bezier path
-  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const seg = dx[i] / 3;
-    const cp1x = points[i].x + seg;
-    const cp1y = points[i].y + tangents[i] * seg;
-    const cp2x = points[i + 1].x - seg;
-    const cp2y = points[i + 1].y - tangents[i + 1] * seg;
-    d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${points[i + 1].x.toFixed(1)},${points[i + 1].y.toFixed(1)}`;
-  }
-  return d;
-}
-
-// Build straight-line SVG path
+// Build straight-line SVG path from raw points (no interpolation/smoothing)
 function buildPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-}
-
-// Build step-after path (for target temp)
-function buildStepPath(points: { x: number; y: number }[]): string {
-  if (points.length === 0) return '';
-  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
-  for (let i = 1; i < points.length; i++) {
-    d += ` H${points[i].x.toFixed(1)} V${points[i].y.toFixed(1)}`;
-  }
-  return d;
 }
 
 // Format day label
@@ -175,11 +57,9 @@ function formatDay(dateStr: string): string {
 }
 
 function generateChartSvg(
-  sgData: SgDataPoint[],
+  snapshotData: SnapshotPoint[],
   og: number,
   fg: number,
-  tempHistory: TempHistoryPoint[] | null,
-  snapshotTargets: SnapshotTargetPoint[] | null,
   compact: boolean = false,
   brewCount: number = 2,
 ): string {
@@ -188,214 +68,46 @@ function generateChartSvg(
   const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
   const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
-  // Scale helpers (close over dynamic PLOT_W/PLOT_H)
   const scaleX = (val: number, min: number, max: number): number => {
     if (max === min) return MARGIN.left;
     return MARGIN.left + ((val - min) / (max - min)) * PLOT_W;
   };
+
   const scaleY = (val: number, min: number, max: number): number => {
     if (max === min) return MARGIN.top + PLOT_H / 2;
     return MARGIN.top + PLOT_H - ((val - min) / (max - min)) * PLOT_H;
   };
 
-  // Parse SG timestamps
-  const sgParsed = sgData.map(p => ({
-    t: new Date(p.date).getTime(),
-    sg: p.value,
-    temp: p.temp,
-  }));
+  const parsed = snapshotData
+    .map((p) => ({
+      t: new Date(p.recorded_at).getTime(),
+      sg: p.sg,
+      pill: p.pill_temp,
+      controller: p.controller_temp,
+      target: p.profile_target_temp,
+    }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.sg))
+    .sort((a, b) => a.t - b.t);
 
-  if (sgParsed.length === 0) {
+  if (parsed.length === 0) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%" height="100%">
-      <text x="${WIDTH/2}" y="${HEIGHT/2}" fill="${COLORS.axisText}" text-anchor="middle" font-size="14" font-family="sans-serif">Ingen data</text>
+      <text x="${WIDTH / 2}" y="${HEIGHT / 2}" fill="${COLORS.axisText}" text-anchor="middle" font-size="14" font-family="sans-serif">Ingen data</text>
     </svg>`;
   }
 
-  // Time range: based only on actual SG data points
-  const tMin = sgParsed[0].t;
-  const tMax = sgParsed[sgParsed.length - 1].t;
+  const tMin = parsed[0].t;
+  const tMax = parsed[parsed.length - 1].t;
 
-  // SG range with padding (matches desktop: fg - 0.001, og + 0.001)
-  const sgValues = sgParsed.map(p => p.sg);
+  const sgValues = parsed.map((p) => p.sg);
   const sgMin = Math.min(...sgValues, fg) - 0.001;
   const sgMax = Math.max(...sgValues, og) + 0.001;
 
-  // Downsample SG, then apply moving average smoothing (matches desktop)
-  const sgDown = downsample(sgParsed, 150, p => p.t, p => p.sg);
-  const windowSize = Math.max(3, Math.floor(sgDown.length * 0.08));
-  const smoothedSgValues = smoothData(sgDown.map(p => p.sg), windowSize);
-  const sgPoints = sgDown.map((p, i) => ({
-    x: scaleX(p.t, tMin, tMax),
-    y: scaleY(smoothedSgValues[i], sgMin, sgMax),
-  }));
-
-  // Temperature range (from controller data if available)
-  let tempSvgParts = '';
-  if (tempHistory && tempHistory.length > 0) {
-    const tempParsed = tempHistory.map(p => ({
-      t: new Date(p.recorded_at).getTime(),
-      current: p.current_temp,
-      target: p.target_temp,
-    })).filter(p => p.t >= tMin && p.t <= tMax);
-
-    if (tempParsed.length > 0) {
-      const tempDown = downsample(tempParsed, 150, p => p.t, p => p.current);
-      // Include pill temp values from SG data in temp range calculation
-      const pillTemps = sgParsed
-        .filter(p => p.temp !== undefined && p.temp !== null)
-        .map(p => p.temp!);
-      // Use controller current temps, pill temps, and snapshot profile targets for range
-      const snapshotTemps = (snapshotTargets || [])
-        .filter(s => s.profile_target_temp !== null)
-        .map(s => s.profile_target_temp!);
-      const allTemps = [
-        ...tempDown.map(p => p.current),
-        ...pillTemps,
-        ...snapshotTemps,
-      ];
-      const tempMin = Math.min(...allTemps) - 1;
-      const tempMax = Math.max(...allTemps) + 1;
-
-      // Right Y-axis for temp
-      const tempScaleY = (v: number) => {
-        if (tempMax === tempMin) return MARGIN.top + PLOT_H / 2;
-        return MARGIN.top + PLOT_H - ((v - tempMin) / (tempMax - tempMin)) * PLOT_H;
-      };
-
-      // Controller temp - smooth with moving average, then smooth curves
-      const ctrlSmoothed = smoothData(tempDown.map(p => p.current), Math.max(3, Math.floor(tempDown.length * 0.08)));
-      const ctrlPoints = tempDown.map((p, i) => ({
-        x: scaleX(p.t, tMin, tMax),
-        y: tempScaleY(ctrlSmoothed[i]),
-      }));
-
-      // Build average temp from pill + controller where both exist
-      // Match pill temps to controller timestamps
-      const pillTempMap = new Map<number, number>();
-      for (const sg of sgParsed) {
-        if (sg.temp != null) pillTempMap.set(sg.t, sg.temp);
-      }
-
-      // Build matched pill+controller points for span fill and avg line
-      const spanPoints: { x: number; pillY: number; ctrlY: number; avgY: number }[] = [];
-      for (let i = 0; i < tempDown.length; i++) {
-        const ct = ctrlSmoothed[i];
-        let closestPill: number | null = null;
-        let closestDist = Infinity;
-        for (const [pt, pv] of pillTempMap) {
-          const dist = Math.abs(pt - tempDown[i].t);
-          if (dist < closestDist && dist < 30 * 60 * 1000) {
-            closestDist = dist;
-            closestPill = pv;
-          }
-        }
-        if (closestPill !== null) {
-          const x = scaleX(tempDown[i].t, tMin, tMax);
-          spanPoints.push({
-            x,
-            pillY: tempScaleY(closestPill),
-            ctrlY: tempScaleY(ct),
-            avgY: tempScaleY((ct + closestPill) / 2),
-          });
-        }
-      }
-
-      // Span fill between pill and controller lines only
-      if (spanPoints.length > 1) {
-        const pillPath = spanPoints.map(p => ({ x: p.x, y: p.pillY }));
-        const ctrlPathReversed = [...spanPoints].reverse().map(p => ({ x: p.x, y: p.ctrlY }));
-        const spanD = buildSmoothPath(pillPath) + ' ' +
-          buildSmoothPath(ctrlPathReversed).replace('M', 'L') + ' Z';
-        tempSvgParts += `<path d="${spanD}" fill="url(#tempSpanGrad)" stroke="none"/>`;
-
-        // Average temp line (main)
-        const avgPath = spanPoints.map(p => ({ x: p.x, y: p.avgY }));
-        tempSvgParts += `<path d="${buildSmoothPath(avgPath)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
-      }
-
-      // Controller temp line (faint)
-      const ctrlSmoothD = buildSmoothPath(ctrlPoints);
-      tempSvgParts += `<path d="${ctrlSmoothD}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`;
-
-      // Target temp from snapshots — linear path (supports ramps)
-      if (snapshotTargets && snapshotTargets.length > 0) {
-        const validTargets = snapshotTargets
-          .filter(s => s.profile_target_temp !== null)
-          .map(s => ({
-            t: new Date(s.recorded_at).getTime(),
-            target: s.profile_target_temp!,
-          }))
-          .filter(s => s.t >= tMin && s.t <= tMax);
-
-        if (validTargets.length > 0) {
-          const targetPoints = validTargets.map(p => ({
-            x: scaleX(p.t, tMin, tMax),
-            y: tempScaleY(p.target),
-          }));
-          // Use linear path to correctly render ramps as diagonals
-          let targetD = `M${targetPoints[0].x.toFixed(1)},${targetPoints[0].y.toFixed(1)}`;
-          for (let i = 1; i < targetPoints.length; i++) {
-            targetD += ` L${targetPoints[i].x.toFixed(1)},${targetPoints[i].y.toFixed(1)}`;
-          }
-          tempSvgParts += `<path d="${targetD}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
-        }
-      }
-      // Right axis labels (temp)
-      const tempTicks = 4;
-      for (let i = 0; i <= tempTicks; i++) {
-        const v = tempMin + (i / tempTicks) * (tempMax - tempMin);
-        const y = tempScaleY(v);
-        tempSvgParts += `<text x="${WIDTH - MARGIN.right + 5}" y="${y + 3}" fill="${COLORS.controllerLine}" font-size="9" font-family="sans-serif" text-anchor="start">${v.toFixed(0)}°</text>`;
-      }
-    }
-  }
-
-  // Pill temp from SG data (if available)
-  const pillTempsAll = sgParsed.filter(p => p.temp !== undefined && p.temp !== null).map(p => p.temp!);
-
-  let pillTempSvg = '';
-  if (pillTempsAll.length > 0) {
-    // Determine temp scale: use controller scale if available, else create standalone
-    let pillTempMin: number, pillTempMax: number;
-    if (tempHistory && tempHistory.length > 0) {
-      const ctrlTemps = tempHistory.map(tp => tp.current_temp);
-      const snapTemps = (snapshotTargets || [])
-        .filter(s => s.profile_target_temp !== null)
-        .map(s => s.profile_target_temp!);
-      const allTemps = [...ctrlTemps, ...snapTemps, ...pillTempsAll];
-      pillTempMin = Math.min(...allTemps) - 1;
-      pillTempMax = Math.max(...allTemps) + 1;
-    } else {
-      pillTempMin = Math.min(...pillTempsAll) - 1;
-      pillTempMax = Math.max(...pillTempsAll) + 1;
-    }
-
-    const pillTempScaleY = (v: number) => {
-      if (pillTempMax === pillTempMin) return MARGIN.top + PLOT_H / 2;
-      return MARGIN.top + PLOT_H - ((v - pillTempMin) / (pillTempMax - pillTempMin)) * PLOT_H;
-    };
-
-    const pillTempPoints = sgDown
-      .filter(p => p.temp !== undefined && p.temp !== null)
-      .map(p => ({
-        x: scaleX(p.t, tMin, tMax),
-        y: pillTempScaleY(p.temp!),
-      }));
-
-    if (pillTempPoints.length > 0) {
-      pillTempSvg = `<path d="${buildSmoothPath(pillTempPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`;
-
-      // Add right axis labels for pill temp if no controller axis already drawn
-      if (!tempHistory || tempHistory.length === 0) {
-        const tempTicks = 4;
-        for (let i = 0; i <= tempTicks; i++) {
-          const v = pillTempMin + (i / tempTicks) * (pillTempMax - pillTempMin);
-          const y = pillTempScaleY(v);
-          pillTempSvg += `<text x="${WIDTH - MARGIN.right + 5}" y="${y + 3}" fill="${COLORS.pillTempLine}" font-size="9" font-family="sans-serif" text-anchor="start">${v.toFixed(0)}°</text>`;
-        }
-      }
-    }
-  }
+  const tempValues = parsed.flatMap((p) => [p.pill, p.controller, p.target])
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  const hasTempData = tempValues.length > 0;
+  const tempMin = hasTempData ? Math.min(...tempValues) - 1 : 0;
+  const tempMax = hasTempData ? Math.max(...tempValues) + 1 : 1;
+  const tempScaleY = (v: number) => scaleY(v, tempMin, tempMax);
 
   // Grid lines
   let gridSvg = '';
@@ -405,14 +117,14 @@ function generateChartSvg(
     gridSvg += `<line x1="${MARGIN.left}" y1="${y}" x2="${WIDTH - MARGIN.right}" y2="${y}" stroke="${COLORS.grid}" stroke-width="0.5"/>`;
   }
 
-  // X-axis day labels
+  // X-axis day markers + labels
   let xAxisSvg = '';
   const dayMs = 86400000;
   const firstDay = new Date(tMin);
   firstDay.setHours(0, 0, 0, 0);
   let dayT = firstDay.getTime() + dayMs;
   const dayLabels: string[] = [];
-  
+
   while (dayT < tMax) {
     const x = scaleX(dayT, tMin, tMax);
     if (x > MARGIN.left + 20 && x < WIDTH - MARGIN.right - 20) {
@@ -426,7 +138,7 @@ function generateChartSvg(
     dayT += dayMs;
   }
 
-  // Y-axis SG labels
+  // Left SG-axis labels
   let yAxisSvg = '';
   const sgTicks = 4;
   for (let i = 0; i <= sgTicks; i++) {
@@ -435,31 +147,53 @@ function generateChartSvg(
     yAxisSvg += `<text x="${MARGIN.left - 5}" y="${y + 3}" fill="${COLORS.axisText}" font-size="9" font-family="sans-serif" text-anchor="end">${v.toFixed(3)}</text>`;
   }
 
-  // OG/FG reference lines removed for cleaner TV display
+  // Right temp-axis labels (only if temp data exists)
+  let tempAxisSvg = '';
+  if (hasTempData) {
+    const tempTicks = 4;
+    for (let i = 0; i <= tempTicks; i++) {
+      const v = tempMin + (i / tempTicks) * (tempMax - tempMin);
+      const y = tempScaleY(v);
+      tempAxisSvg += `<text x="${WIDTH - MARGIN.right + 5}" y="${y + 3}" fill="${COLORS.controllerLine}" font-size="9" font-family="sans-serif" text-anchor="start">${v.toFixed(0)}°</text>`;
+    }
+  }
 
-  // SG line with glow effect
-  const sgPathD = buildSmoothPath(sgPoints);
-  const sgLineSvg = `
-    <path d="${sgPathD}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  `;
+  // Raw data lines only (no smoothing/interpolation/downsampling)
+  const sgLineSvg = `<path d="${buildPath(parsed.map((p) => ({ x: scaleX(p.t, tMin, tMax), y: scaleY(p.sg, sgMin, sgMax) })))}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-  // Current SG value label removed - shown in stat cards instead
+  const controllerPoints = parsed
+    .filter((p) => p.controller !== null)
+    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
+  const controllerSvg = controllerPoints.length > 0
+    ? `<path d="${buildPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
+    : '';
+
+  const pillPoints = parsed
+    .filter((p) => p.pill !== null)
+    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }));
+  const pillSvg = pillPoints.length > 0
+    ? `<path d="${buildPath(pillPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`
+    : '';
+
+  const targetPoints = parsed
+    .filter((p) => p.target !== null)
+    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.target as number) }));
+  const targetSvg = targetPoints.length > 0
+    ? `<path d="${buildPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`
+    : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
-    <defs>
-      <linearGradient id="tempSpanGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#268bd2" stop-opacity="0.15"/>
-        <stop offset="100%" stop-color="#268bd2" stop-opacity="0.08"/>
-      </linearGradient>
-    </defs>
     ${gridSvg}
     ${xAxisSvg}
     ${yAxisSvg}
-    ${tempSvgParts}
-    ${pillTempSvg}
+    ${tempAxisSvg}
+    ${targetSvg}
+    ${controllerSvg}
+    ${pillSvg}
     ${sgLineSvg}
   </svg>`;
 }
+
 
 
 serve(async (req) => {
@@ -497,10 +231,10 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Fetch brew data
+    // Fetch brew metadata
     const { data: brew, error: brewError } = await supabase
       .from('brew_readings')
-      .select('id, sg_data, original_gravity, final_gravity, linked_controller_id, fermentation_start')
+      .select('id, sg_data, original_gravity, final_gravity')
       .eq('id', brewId)
       .single();
 
@@ -512,49 +246,47 @@ serve(async (req) => {
       );
     }
 
-    const sgData = (brew.sg_data || []) as SgDataPoint[];
+    // Read static snapshot log (paginated)
+    const snapshotRows: SnapshotPoint[] = [];
+    {
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-    // Fetch controller temp history if linked
-    // Use large sample interval so DB returns ~100-200 points max (no pagination needed)
-    // When SG data is sparse, extend end time to "now" so controller data fills the chart
-    let tempHistory: TempHistoryPoint[] | null = null;
-    let snapshotTargets: SnapshotTargetPoint[] | null = null;
-
-    if (brew.linked_controller_id && sgData.length > 0) {
-      const startTime = brew.fermentation_start || sgData[0].date;
-      const endTime = sgData[sgData.length - 1].date;
-      
-      // Calculate interval to get ~150 points max
-      const totalMinutes = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000;
-      const sampleInterval = Math.max(15, Math.ceil(totalMinutes / 150));
-      
-      // Fetch controller history and snapshot targets in parallel
-      const [tempResult, snapshotResult] = await Promise.all([
-        supabase.rpc('get_temp_history_sampled', {
-          p_controller_id: brew.linked_controller_id,
-          p_start_time: startTime,
-          p_end_time: endTime,
-          p_sample_interval_minutes: sampleInterval,
-        }),
-        supabase
+      while (hasMore) {
+        const { data: batch, error } = await supabase
           .from('brew_data_snapshots')
-          .select('recorded_at, profile_target_temp')
+          .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
           .eq('brew_id', brewId)
-          .not('profile_target_temp', 'is', null)
-          .order('recorded_at', { ascending: true }),
-      ]);
+          .order('recorded_at', { ascending: true })
+          .range(offset, offset + batchSize - 1);
 
-      if (tempResult.data && tempResult.data.length > 0) {
-        tempHistory = tempResult.data as TempHistoryPoint[];
-      }
-
-      if (snapshotResult.data && snapshotResult.data.length > 0) {
-        snapshotTargets = snapshotResult.data as SnapshotTargetPoint[];
+        if (error) {
+          console.error('[RenderChart] Snapshot fetch error:', error);
+          hasMore = false;
+        } else if (!batch || batch.length === 0) {
+          hasMore = false;
+        } else {
+          snapshotRows.push(...(batch as SnapshotPoint[]));
+          offset += batchSize;
+          hasMore = batch.length === batchSize;
+        }
       }
     }
 
-    // Generate SVG
-    const svg = generateChartSvg(sgData, brew.original_gravity, brew.final_gravity, tempHistory, snapshotTargets, !!compact, brewCount ?? 2);
+    // Fallback to SG log if snapshots are not yet available
+    const fallbackRows = ((brew.sg_data || []) as SgDataPoint[]).map((p) => ({
+      recorded_at: p.date,
+      sg: p.value,
+      pill_temp: p.temp ?? null,
+      controller_temp: null,
+      profile_target_temp: null,
+    }));
+
+    const chartRows = snapshotRows.length > 0 ? snapshotRows : fallbackRows;
+
+    // Generate SVG from static log values only
+    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, brewCount ?? 2);
 
     // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);
