@@ -1,29 +1,32 @@
 
 
-## Resultat: Inga fler gremlins
+## Arkitekturförbättring: profile_target_temp som lagrad data
 
-Alla fyra ramp-interpoleringar använder nu **identisk logik**: `step_started_at` + `step_start_temp` + linjär interpolering + `Math.round(… * 10) / 10`.
+### Problem
+`record-temp-history` beräknade ramp-interpolering själv, men fick fel resultat (hoppade direkt till slutmålet 19°C istället för det interpolerade mellanvärdet ~16°C).
 
-| Plats | Starttid | Start-temp | Avrundning | Status |
-|---|---|---|---|---|
-| `fermentation-target.ts` (frontend) | `session.step_started_at` | `session.step_start_temp` | `round(…*10)/10` | OK |
-| `record-temp-history` (backend) | `session.step_started_at` | `session.step_start_temp` | `round(…*10)/10` | OK |
-| `auto-adjust-cooling` (backend) | `session.step_started_at` | `session.step_start_temp` | `round1()` | OK |
-| `process-fermentation-profiles` (backend) | `session.step_started_at` | `session.step_start_temp` | ingen (raw float) | OK |
+### Lösning
+Eliminerade ALL beräkningslogik från `record-temp-history`. Istället:
 
-`brew-snapshots.ts` läser bara `closest?.profile_target_temp` direkt från `temp_controller_history` — ingen egen beräkning. OK.
+1. **Ny kolumn**: `rapt_temp_controllers.profile_target_temp` — lagrar det aktuella profilmålet (före PID-justering)
+2. **Skrivare**: `process-fermentation-profiles` skriver `profile_target_temp` till controllern vid varje temperaturändring (hold, ramp, wait_for_temp, diacetyl_rest)
+3. **Läsare**: `record-temp-history` läser bara av `profile_target_temp` från controllern — noll beräkningar
 
-### Två kosmetiska småsaker (ej funktionella)
+### Dataflöde
+```
+process-fermentation-profiles → rapt_temp_controllers.profile_target_temp
+                                        ↓ (läs av)
+record-temp-history → temp_controller_history.profile_target_temp
+                                        ↓ (läs av)
+brew-snapshots → brew_data_snapshots.profile_target_temp
+                                        ↓ (läs av)
+render-brew-chart → SVG mållinje
+```
 
-1. **Dubbel JSDoc-kommentar** i `record-temp-history/index.ts` rad 200-206 — två `/** … */`-block ovanför samma funktion. Ofarligt men lite rörigt.
-
-2. **`process-fermentation-profiles`** avrundar inte (`calculateRampTemp` returnerar raw float). Detta spelar ingen roll i praktiken eftersom resultatet skickas till RAPT API:t som ändå har sin egen precision, men det kan ge en kosmetisk skillnad i loggar jämfört med de andra (t.ex. `16.33333` istället för `16.3`).
-
-### Åtgärder
-
-Inga av dessa är kritiska. Om du vill kan jag:
-- Ta bort den extra JSDoc-kommentaren (1 rad)
-- Lägga till `Math.round(…*10)/10` i `calculateRampTemp` för konsekvens
-
-Men det finns **inga fler funktionella felkällor** som kan ge olika Mål-värden.
-
+### Ställen som skriver profile_target_temp
+- `applyPillCompensation()` — hold, wait, diacetyl (skriver `profileTarget`)
+- Immediate ramp — `currentStep.target_temp`
+- Linear ramp (target reached) — `currentStep.target_temp`
+- Linear ramp (intermediate) — `Math.round(newTarget * 10) / 10`
+- wait_for_temp — `currentStep.target_temp`
+- diacetyl_rest (direct set) — `diacetylTarget`
