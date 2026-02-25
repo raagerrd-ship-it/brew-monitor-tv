@@ -125,7 +125,7 @@ async function getProfileTargets(
     // Get running/paused fermentation sessions for these controllers
     const { data: sessions } = await supabase
       .from('fermentation_sessions')
-      .select('id, controller_id, profile_id, started_at, current_step_index')
+      .select('id, controller_id, profile_id, started_at, current_step_index, step_started_at, step_start_temp')
       .in('controller_id', controllerIds)
       .in('status', ['running', 'paused']);
 
@@ -159,7 +159,7 @@ async function getProfileTargets(
       if (currentStep?.target_temp != null) {
         // For ramp steps, calculate the interpolated target
         if (currentStep.step_type === 'ramp') {
-          const interpTarget = await getRampInterpolatedTarget(supabase, session, steps, currentStep);
+          const interpTarget = getRampInterpolatedTarget(session, currentStep);
           result[session.controller_id] = interpTarget ?? currentStep.target_temp;
         } else {
           result[session.controller_id] = currentStep.target_temp;
@@ -200,47 +200,21 @@ async function getProfileTargets(
 /**
  * For a ramp step, interpolate the target based on elapsed time.
  */
-async function getRampInterpolatedTarget(
-  supabase: any,
+/**
+ * For a ramp step, interpolate the target using session.step_started_at and session.step_start_temp.
+ * Matches the logic in fermentation-target.ts, auto-adjust-cooling, and process-fermentation-profiles.
+ */
+function getRampInterpolatedTarget(
   session: any,
-  steps: any[],
   currentStep: any
-): Promise<number | null> {
-  try {
-    // Get the step start time from step log
-    const { data: logs } = await supabase
-      .from('fermentation_step_log')
-      .select('created_at')
-      .eq('session_id', session.id)
-      .eq('step_index', currentStep.step_order)
-      .order('created_at', { ascending: true })
-      .limit(1);
-
-    if (!logs?.[0]) return currentStep.target_temp;
-
-    const stepStartTime = new Date(logs[0].created_at).getTime();
-    const now = Date.now();
-    const elapsed = now - stepStartTime;
-
-    // Find previous step's target for interpolation start
-    let prevTarget: number | null = null;
-    for (let i = currentStep.step_order - 1; i >= 0; i--) {
-      const prevStep = steps.find((s: any) => s.step_order === i);
-      if (prevStep?.target_temp != null) {
-        prevTarget = prevStep.target_temp;
-        break;
-      }
-    }
-
-    if (prevTarget == null || !currentStep.duration_hours) {
-      return currentStep.target_temp;
-    }
-
-    const durationMs = currentStep.duration_hours * 3600 * 1000;
-    const progress = Math.min(1, elapsed / durationMs);
-    const interpolated = prevTarget + (currentStep.target_temp - prevTarget) * progress;
-    return Math.round(interpolated * 10) / 10;
-  } catch {
+): number | null {
+  if (session.step_start_temp == null || !currentStep.duration_hours || currentStep.target_temp == null) {
     return currentStep.target_temp;
   }
+
+  const stepStartTime = new Date(session.step_started_at).getTime();
+  const elapsed = (Date.now() - stepStartTime) / (1000 * 60 * 60); // hours
+  const progress = Math.min(1, elapsed / currentStep.duration_hours);
+  const interpolated = session.step_start_temp + (currentStep.target_temp - session.step_start_temp) * progress;
+  return Math.round(interpolated * 10) / 10;
 }
