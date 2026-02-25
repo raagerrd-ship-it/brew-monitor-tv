@@ -1,36 +1,46 @@
 
 
-## Plan: Visa inlärda glykolkylarmarginaler i Inlärning-sektionen
+## Plan: Använd förberäknad Activity Score i stalldetekteringen
 
 ### Bakgrund
-Systemet sparar redan inlärda kylmarginaler i `fermentation_learnings`-tabellen med `parameter_name` som `cooler_margin:cold`, `cooler_margin:cool`, `cooler_margin:warm`, `cooler_margin:hot`. Dessa visas inte i UI:t idag.
 
-### Implementering
+Idag beräknar stalldetekteringen i `auto-adjust-cooling/index.ts` (rad 749-807) sin egen SG-hastighet och temperatur-delta-analys, parallellt med att `compute-fermentation-metrics` redan beräknar `activity_score` (0-100%) och `sg_rate_per_hour` och lagrar dessa i `brew_fermentation_metrics`.
 
-**Ny komponent: `src/components/LearnedCoolerMarginValues.tsx`**
+Genom att läsa de förberäknade metriken istället elimineras duplicerad logik och säkerställer att stall-beslut baseras på samma data som visas i UI:t.
 
-Skapas efter samma mönster som `LearnedStallBoostValues.tsx`:
-- Hämtar alla rader från `fermentation_learnings` där `parameter_name` börjar med `cooler_margin:`
-- Slår upp controller-namn från `rapt_temp_controllers`
-- Grupperar per controller och visar varje temperatur-bucket med:
-  - Bucket-etikett: Kall (<5°), Sval (5-12°), Varm (12-18°), Het (>18°)
-  - Inlärt marginalvärde i °C (Badge med blå/cyan-accent, Snowflake-ikon)
-  - Antal mätningar och tid sedan senaste uppdatering
-- Tom-state med Snowflake-ikon och text om att systemet lär sig under drift
-- Refresh-knapp
+### Ändringar
 
-**Uppdatering: `src/pages/Settings.tsx`**
+**`supabase/functions/auto-adjust-cooling/index.ts`**
 
-I Inlärning-sektionen (rad 1833-1843), lägg till den nya komponenten med en `SettingsDivider` mellan befintliga och nya:
+Redan i steg 2b (rad 692-807) hämtas brew-data och beräknas SG-hastighet + delta-trend manuellt. Ersätt detta med:
 
-```
-<LearnedStallBoostValues />
-<SettingsDivider />
-<LearnedCompensationBaselines />
-<SettingsDivider />
-<LearnedCoolerMarginValues />
-```
+1. **Hämta `brew_fermentation_metrics`** för bryggningen (brew_id) -- `activity_score`, `sg_rate_per_hour`, `fermentation_phase`.
 
-### Ingen databasändring krävs
-Data finns redan i `fermentation_learnings`-tabellen.
+2. **Ersätt stalldetekteringslogiken** (rad 749-807):
+   - Bort: Manuell SG-rate-beräkning (12h-fönster, sgDrop, sgRatePerDay)
+   - Bort: Manuell delta-trend-analys (temp_delta_history-query, deltaIsDropping, deltaIsLow)
+   - Kvar: Attenuationsintervall-check (behöver fortfarande brew OG/FG/current SG)
+   - Ny logik: `sgIsStalling = sgRatePerDay < stallSettings.sgRateThreshold` baserat på `metrics.sg_rate_per_hour * 24`
+   - Ny logik: `activityIsLow = metrics.activity_score < 20` (ersätter deltaIsDropping/deltaIsLow)
+   - Ny stall-condition: `stallDetected = sgIsStalling && activityIsLow`
+
+3. **Behåll SG-data-hämtning** för attenuationsberäkning (OG/FG/current SG behövs fortfarande), men ta bort den manuella 12h-filtreringen och rate-beräkningen.
+
+4. **Ta bort `temp_delta_history`-queryn** (rad 773-778) som nu är onödig -- activity score inkluderar redan denna information.
+
+5. **Uppdatera loggningen** så den visar `activity_score` och `fermentation_phase` från metriken istället för råa delta-värden.
+
+### Vad som bevaras oförändrat
+
+- Steg 2a: Outcome-utvärdering av tidigare boosts (rad 591-690) -- oförändrad
+- Un-boost-logik (rad 818+) -- oförändrad, men använder `activity_score > 40` istället för manuell SG-rate-check för att avgöra om jäsning återupptagits
+- Boost-applicering och PID-justering -- oförändrad
+- Cooldown-period (6h) -- oförändrad
+- Inlärningslogik (`stall_boost_degrees`) -- oförändrad
+
+### Teknisk detalj
+
+Metriken hämtas redan batchat i `process-fermentation-profiles` via `.in('brew_id', brewIds)`. Samma mönster används här, men per controller-iteration (enstaka `.eq('brew_id', brewLink.id).maybeSingle()`).
+
+Fallback: Om metriken saknas (brew utan metrics-rad), skippa stall-check för den controllern med logg "Inga förberäknade metrics".
 
