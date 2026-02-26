@@ -26,6 +26,7 @@ export interface FermentationProfileStep {
   sg_comparison: SgComparison | null;
   notes: string | null;
   attenuation_trigger: number | null;
+  activity_trigger: number | null;
   temp_increase: number | null;
   created_at: string;
   updated_at: string;

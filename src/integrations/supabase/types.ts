@@ -637,6 +637,7 @@ export type Database = {
       }
       fermentation_profile_steps: {
         Row: {
+          activity_trigger: number | null
           attenuation_trigger: number | null
           created_at: string
           duration_hours: number | null
@@ -655,6 +656,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          activity_trigger?: number | null
           attenuation_trigger?: number | null
           created_at?: string
           duration_hours?: number | null
@@ -673,6 +675,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          activity_trigger?: number | null
           attenuation_trigger?: number | null
           created_at?: string
           duration_hours?: number | null

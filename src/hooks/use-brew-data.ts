@@ -249,6 +249,7 @@ export function useBrewData(): UseBrewDataReturn {
             sg_comparison: s.sg_comparison,
             step_order: s.step_order,
             attenuation_trigger: s.attenuation_trigger,
+            activity_trigger: s.activity_trigger,
             temp_increase: s.temp_increase,
             gravity_threshold: s.gravity_threshold,
           })),

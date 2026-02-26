@@ -622,48 +622,38 @@ Deno.serve(async (req) => {
         }
 
         case 'gradual_ramp': {
-          const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
+          const activityTrigger = (currentStep as any).activity_trigger ?? 35
           const tempIncrease = (currentStep as any).temp_increase ?? 3
           const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
+          const activityScore = metrics?.activity_score ?? 100
 
           if (brewData) {
-            const sortedSgData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            const latestSg = sortedSgData[0]?.value
-            const og = brewData.original_gravity
-            const fg = brewData.final_gravity
-            const attRange = og - fg
-            const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
+            // Trigger condition: activity score drops below threshold
+            const triggered = activityScore <= activityTrigger
 
-            const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
-            const attenuationReady = currentAtt >= attenuationTrigger
-
-            if (!attenuationReady || !phaseReady) {
-              // Phase 1: waiting for trigger — keep current temperature
+            if (!triggered) {
+              // Phase 1: waiting for activity to drop — keep current temperature
               const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
               if (effectiveTarget !== null) {
                 await setProfileTarget(supabase, session.controller_id, effectiveTarget)
               }
-              const waitReason = !attenuationReady
-                ? `attenuation ${Math.round(currentAtt)}% < ${attenuationTrigger}%`
-                : `phase=${metrics?.fermentation_phase ?? 'unknown'} (need declining/stationary)`
               actionDetails = {
                 phase: 'waiting_for_trigger',
-                current_attenuation: Math.round(currentAtt),
-                trigger: attenuationTrigger,
+                activity_score: activityScore,
+                activity_trigger: activityTrigger,
                 fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
-                activity_score: metrics?.activity_score ?? null,
-                wait_reason: waitReason,
+                wait_reason: `activity ${Math.round(activityScore)}% > ${activityTrigger}%`,
               }
-              console.log(`Gradual ramp: waiting - ${waitReason}`)
+              console.log(`Gradual ramp: waiting - activity ${Math.round(activityScore)}% > ${activityTrigger}%`)
               break
             }
 
             // Phase 2: Ramping — calculate target based on activity score
-            const activityScore = metrics?.activity_score ?? 50
-            const clampedActivity = Math.max(0, Math.min(100, activityScore))
+            // Progress = (activityTrigger - activityScore) / activityTrigger → 0% at trigger, 100% at 0
+            const rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
             const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
             const baseTemp = effectiveTarget ?? 18
-            const rampedTarget = Math.round((baseTemp + tempIncrease * (1 - clampedActivity / 100)) * 10) / 10
+            const rampedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
             const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
             if (currentProfileTarget === null || Math.abs(currentProfileTarget - rampedTarget) > 0.05) {
@@ -675,13 +665,14 @@ Deno.serve(async (req) => {
                 ramped_target: rampedTarget,
                 max_target: baseTemp + tempIncrease,
                 activity_score: activityScore,
-                ramp_progress: Math.round((1 - clampedActivity / 100) * 100),
+                activity_trigger: activityTrigger,
+                ramp_progress: Math.round(rampProgress * 100),
                 fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
               }
-              console.log(`🔄 Gradual ramp: activity=${activityScore}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
+              console.log(`🔄 Gradual ramp: activity=${Math.round(activityScore)}%, progress=${Math.round(rampProgress * 100)}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
             }
 
-            // Phase 3: Check completion — SG stable + activity < 15
+            // Phase 3: Check completion — SG stable + activity near zero
             const stableDays = currentStep.gravity_stable_days ?? 2
             const threshold = currentStep.gravity_threshold ?? 0.001
             const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)

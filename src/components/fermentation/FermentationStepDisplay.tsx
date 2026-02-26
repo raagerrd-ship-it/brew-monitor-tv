@@ -78,7 +78,7 @@ export function FermentationStepDisplay({
       case 'diacetyl_rest':
         return `Diacetylvila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
       case 'gradual_ramp':
-        return `Smart vila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
+        return `Smart vila +${(step as any).temp_increase ?? 3}° vid aktivitet <${(step as any).activity_trigger ?? 35}%`;
       default:
         return '';
     }
