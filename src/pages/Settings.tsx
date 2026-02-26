@@ -1466,13 +1466,10 @@ export default function Settings() {
                         <SelectItem value="3600">1 tim</SelectItem>
                       </SelectContent>
                     </Select>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center">
                       <Button onClick={handleQuickSync} disabled={quickSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                         <RefreshCw className={`h-3 w-3 ${quickSyncing ? 'animate-spin' : ''}`} />
                       </Button>
-                      <span className="text-[10px] text-muted-foreground w-16 text-right truncate">
-                        {lastBrewfatherQuickSync ? formatDistanceToNow(new Date(lastBrewfatherQuickSync), { addSuffix: false, locale: sv }) : '–'}
-                      </span>
                     </div>
 
                     {/* Full */}
@@ -1490,13 +1487,10 @@ export default function Settings() {
                         <SelectItem value="86400">24 tim</SelectItem>
                       </SelectContent>
                     </Select>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center">
                       <Button onClick={handleFullSync} disabled={syncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                         <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
                       </Button>
-                      <span className="text-[10px] text-muted-foreground w-16 text-right truncate">
-                        {lastFullSync ? formatDistanceToNow(new Date(lastFullSync), { addSuffix: false, locale: sv }) : '–'}
-                      </span>
                     </div>
                   </div>
                   {syncing && syncSteps.length > 0 && <SyncChecklist steps={syncSteps} />}
@@ -1527,13 +1521,10 @@ export default function Settings() {
                         <SelectItem value="3600">1 tim</SelectItem>
                       </SelectContent>
                     </Select>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center">
                       <Button onClick={handleRaptQuickSync} disabled={raptQuickSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                         <RefreshCw className={`h-3 w-3 ${raptQuickSyncing ? 'animate-spin' : ''}`} />
                       </Button>
-                      <span className="text-[10px] text-muted-foreground w-16 text-right truncate">
-                        {lastRaptQuickSync ? formatDistanceToNow(new Date(lastRaptQuickSync), { addSuffix: false, locale: sv }) : '–'}
-                      </span>
                     </div>
 
                     {/* Full */}
@@ -1550,13 +1541,10 @@ export default function Settings() {
                         <SelectItem value="86400">24 tim</SelectItem>
                       </SelectContent>
                     </Select>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center">
                       <Button onClick={handleRaptFullSync} disabled={raptSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                         <RefreshCw className={`h-3 w-3 ${raptSyncing ? 'animate-spin' : ''}`} />
                       </Button>
-                      <span className="text-[10px] text-muted-foreground w-16 text-right truncate">
-                        {lastRaptSync ? formatDistanceToNow(new Date(lastRaptSync), { addSuffix: false, locale: sv }) : '–'}
-                      </span>
                     </div>
                   </div>
                   {raptSyncing && raptSyncSteps.length > 0 && <SyncChecklist steps={raptSyncSteps} />}
