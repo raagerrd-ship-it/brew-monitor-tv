@@ -15,6 +15,7 @@ interface SessionInfo {
   step_started_at: string;
   step_start_temp: number | null;
   steps: FermentationStep[];
+  controller_profile_target_temp?: number | null;
 }
 
 /**
@@ -30,6 +31,13 @@ export function getInterpolatedProfileTarget(session: SessionInfo | null | undef
   if (!step) return null;
 
   const stepTarget = step.target_temp;
+
+  // For backend-driven steps (gradual_ramp, diacetyl_rest), the target is dynamically
+  // calculated by the edge function and stored in controller's profile_target_temp.
+  // Use that value directly when available.
+  if ((step.step_type === 'gradual_ramp' || step.step_type === 'diacetyl_rest') && session.controller_profile_target_temp != null) {
+    return session.controller_profile_target_temp;
+  }
 
   // During a ramp with duration, interpolate between start temp and target
   if (step.step_type === 'ramp' && step.duration_hours && session.step_start_temp != null && stepTarget != null) {
