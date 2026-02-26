@@ -116,6 +116,8 @@ export function FermentationSessionCompact({
       case 'wait_for_gravity_stable': return { icon: <Activity className={iconClass} />, color: 'hsl(280 70% 70%)' };
       case 'wait_for_sg': return { icon: <Activity className={iconClass} />, color: 'hsl(280 70% 70%)' };
       case 'wait_for_acknowledgement': return { icon: <Hand className={iconClass} />, color: 'hsl(38 92% 60%)' };
+      case 'diacetyl_rest': return { icon: <Activity className={iconClass} />, color: 'hsl(38 92% 60%)' };
+      case 'gradual_ramp': return { icon: <Activity className={iconClass} />, color: 'hsl(38 92% 60%)' };
       default: return { icon: <Clock className={iconClass} />, color: 'hsl(var(--muted-foreground))' };
     }
   };
@@ -180,6 +182,10 @@ export function FermentationSessionCompact({
         return `SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg?.toFixed(4) ?? ''}`;
       case 'wait_for_acknowledgement':
         return 'Väntar på kvittering';
+      case 'diacetyl_rest':
+        return `Vila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
+      case 'gradual_ramp':
+        return `Gradvis +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
       default:
         return '';
     }
@@ -439,6 +445,7 @@ export function FermentationSessionCompact({
                 if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'wait_for_acknowledgement') return <Hand className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 return null;
               })()}
               <span className="font-medium">{getNextStepCondition(currentStep)}</span>
