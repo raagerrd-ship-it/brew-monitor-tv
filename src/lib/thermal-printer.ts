@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v13-exact-phomymo';
+export const PRINTER_VERSION = 'v14-reliable-write-response';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -33,9 +33,9 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 6,
-  chunkSize: 128,
+  chunkSize: 64,
   chunkDelay: 20,
-  throttleEvery: 0,
+  throttleEvery: 8,
   throttleDelay: 120,
   sendSpeed: true,
   sendDensity: true,
@@ -136,11 +136,15 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  // Use writeWithoutResponse if available (matches Phomymo default), fallback to withResponse
-  const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+  // Reliable mode: prefer writeWithResponse to avoid dropped chunks on some M110 units
+  const canWriteWithResponse = !!characteristic.properties.write;
+  const canWriteWithoutResponse = !!characteristic.properties.writeWithoutResponse;
+  if (!canWriteWithResponse && !canWriteWithoutResponse) {
+    throw new Error('Skrivarkaraktäristiken stödjer inte skrivning.');
+  }
+  const writeMethod: 'withResponse' | 'withoutResponse' = canWriteWithResponse ? 'withResponse' : 'withoutResponse';
 
-  console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
+  console.log(`[Printer] Write method: ${writeMethod} (reliable mode), device: ${device.name}`);
 
   // Remember this device
   saveLastDevice(device);
