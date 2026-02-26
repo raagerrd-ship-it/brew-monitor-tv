@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v28-hybrid-init-linesminus1';
+export const PRINTER_VERSION = 'v29-dual-footer-trigger';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 4;
@@ -422,10 +422,13 @@ export async function printBitmap(
     remaining -= blockLines;
   }
 
-  // ── 6. Build footer (from CUPS rastertopm110.py) ──
+  // ── 6. Build footer (combined legacy BLE + M110 CUPS footer) ──
   const footer = new Uint8Array([
-    0x1f, 0xf0, 0x05, 0x00,
-    0x1f, 0xf0, 0x03, 0x00,
+    // Legacy BLE footer from phomemo-filter path
+    0x1b, 0x64, 0x02, 0x1b, 0x64, 0x02,
+    0x1f, 0x11, 0x08, 0x1f, 0x11, 0x0e, 0x1f, 0x11, 0x07, 0x1f, 0x11, 0x09,
+    // M110 CUPS footer
+    0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00,
   ]);
 
   // Total data size for progress
