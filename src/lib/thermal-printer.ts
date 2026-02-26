@@ -12,10 +12,10 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v32-m110-cups-strict';
+export const PRINTER_VERSION = 'v33-phomymo-m110-exact';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
-export const SETTINGS_VERSION = 7;
+export const SETTINGS_VERSION = 8;
 const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
@@ -38,8 +38,8 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 10,
-  chunkSize: 200,
-  chunkDelay: 0,
+  chunkSize: 128,
+  chunkDelay: 20,
   throttleEvery: 0,
   throttleDelay: 0,
   sendSpeed: true,
@@ -307,37 +307,8 @@ function mediaTypeCode(mt: string): number | null {
 }
 
 /**
- * Build one raster block: GS v 0 header + bitmap data.
- * M110 CUPS uses height = number of lines (not lines-1), and raw bitmap bytes.
- */
-function buildRasterBlock(
-  bitmapRows: Uint8Array[],
-  startLine: number,
-  blockLines: number,
-  bytesPerRow: number,
-): Uint8Array {
-  const linesField = Math.max(0, blockLines);
-  const header = new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00,
-    bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
-    linesField & 0xff, (linesField >> 8) & 0xff,
-  ]);
-
-  const dataSize = bytesPerRow * blockLines;
-  const data = new Uint8Array(dataSize);
-  for (let i = 0; i < blockLines; i++) {
-    const row = bitmapRows[startLine + i];
-    data.set(row, i * bytesPerRow);
-  }
-
-  const block = new Uint8Array(header.length + data.length);
-  block.set(header, 0);
-  block.set(data, header.length);
-  return block;
-}
-
-/**
- * Print canvas to Phomemo M110 using the exact protocol from phomemo-tools.
+ * Print canvas to Phomemo M110 using the exact phomymo protocol.
+ * Each command sent as a separate BLE write, matching the working implementation.
  */
 export async function printBitmap(
   connection: PrinterConnection,
@@ -371,84 +342,76 @@ export async function printBitmap(
   onProgress?.({ phase: 'Förbereder bild...', percent: 5 });
   const pixels = ditherToMonochrome(imageData);
 
-  // ── 3. Convert to bitmap rows (1 bit per pixel, MSB first, 1=black) ──
-  const bytesPerRow = Math.ceil(width / 8); // 384/8 = 48
-  const bitmapRows: Uint8Array[] = [];
+  // ── 3. Convert to packed bitmap (1 bit per pixel, MSB first, 1=black) ──
+  const widthBytes = Math.ceil(width / 8); // 384/8 = 48
+  const bitmapData = new Uint8Array(widthBytes * height);
   for (let y = 0; y < height; y++) {
-    const row = new Uint8Array(bytesPerRow);
     for (let x = 0; x < width; x++) {
       if (pixels[y * width + x] === 0) { // black pixel
-        row[Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
+        bitmapData[y * widthBytes + Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
       }
     }
-    bitmapRows.push(row);
   }
 
-  // ── 4. Build M110 header (CUPS driver sequence) ──
-  const headerParts: Uint8Array[] = [];
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
 
-  // Speed: ESC N 0x0d <speed>
-  if (settings.sendSpeed) {
-    headerParts.push(new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]));
-  }
-
-  // Density: ESC N 0x04 <density>
-  if (settings.sendDensity) {
-    headerParts.push(new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]));
-  }
-
-  // Media type: 0x1f 0x11 <type>
-  const mc = mediaTypeCode(settings.mediaType);
-  if (mc !== null) {
-    headerParts.push(new Uint8Array([0x1f, 0x11, mc]));
-  }
-
-  // Flatten header
-  const headerLen = headerParts.reduce((s, p) => s + p.length, 0);
-  const headerBuf = new Uint8Array(headerLen);
-  let hOff = 0;
-  for (const p of headerParts) { headerBuf.set(p, hOff); hOff += p.length; }
-
-  // ── 5. Build one full-image raster block (M110 CUPS behavior) ──
-  const blocks: Uint8Array[] = [buildRasterBlock(bitmapRows, 0, height, bytesPerRow)];
-
-  // ── 6. Build footer (M110 CUPS footer only) ──
-  const footer = new Uint8Array([
-    0x1f, 0xf0, 0x05, 0x00,
-    0x1f, 0xf0, 0x03, 0x00,
-  ]);
-
-  // Total data size for progress
-  const totalDataSize = headerLen + blocks.reduce((s, b) => s + b.length, 0) + footer.length;
-
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${blocks.length} block(s), ${totalDataSize} bytes, copies=${copies}`);
-
-  // ── 7. Send ──
+  // ── 4. Send using phomymo M110 protocol ──
+  // Each command is sent as a separate BLE write with delays between.
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
+    onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
-    onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: 10 });
-
-    // Send header
-    await sendChunked(connection, headerBuf, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
-    // Small pause after header to let printer process settings
-    await delay(50);
-
-    // Send raster blocks
-    for (let bi = 0; bi < blocks.length; bi++) {
-      await sendChunked(connection, blocks[bi], settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay,
-        (s) => {
-          const blockPct = 10 + ((copy + (headerLen + blocks.slice(0, bi).reduce((a, b) => a + b.length, 0) + s) / totalDataSize) / copies) * 85;
-          onProgress?.({ phase: `Skriver ut${copyLabel} (block ${bi + 1}/${blocks.length})...`, percent: Math.min(97, blockPct) });
-        });
-      // Small pause between blocks
-      if (bi < blocks.length - 1) await delay(30);
+    // Speed: ESC N 0x0d <speed>
+    if (settings.sendSpeed) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
+      await delay(30);
     }
 
-    // Send footer
+    // Density: ESC N 0x04 <density>
+    if (settings.sendDensity) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
+      await delay(30);
+    }
+
+    // Media type: 0x1f 0x11 <type>
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+      await delay(30);
+    }
+
+    // Raster header: GS v 0 (sent separately, NOT combined with data)
+    onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
+    const rasterHeader = new Uint8Array([
+      0x1d, 0x76, 0x30, 0x00,
+      widthBytes & 0xff, 0x00,
+      height & 0xff, (height >> 8) & 0xff,
+    ]);
+    await bleWrite(connection, rasterHeader, 'raster-header');
+
+    // Raster data in 128-byte chunks with 20ms delay
+    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
+    const chunkSize = settings.chunkSize;
+    const totalBytes = bitmapData.length;
+
+    for (let offset = 0; offset < totalBytes; offset += chunkSize) {
+      const end = Math.min(offset + chunkSize, totalBytes);
+      const chunk = bitmapData.slice(offset, end);
+      await bleWrite(connection, chunk, `data@${offset}`);
+      if (end < totalBytes && settings.chunkDelay > 0) {
+        await delay(settings.chunkDelay);
+      }
+
+      const pct = 20 + ((offset + chunk.length) / totalBytes) * 70;
+      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+    }
+
+    // Footer
     if (settings.sendFooter) {
-      await delay(100);
-      await sendChunked(connection, footer, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
+      await delay(300);
+      onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
+      await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]), 'footer');
+      await delay(500);
     }
 
     if (copy < copies - 1) await delay(800);
