@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v6-stream';
+export const PRINTER_VERSION = 'v6-reconnect';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -29,11 +29,10 @@ const WRITE_CHAR_UUIDS = [
 const BLE_CHUNK_SIZE = 300;
 const BLE_CHUNK_DELAY_MS = 5;           // minimal inter-chunk delay
 const BLE_WRITE_TIMEOUT_MS = 7000;
-const BLE_THROTTLE_EVERY_N = 0;         // no extra throttling - keep stream continuous
-const BLE_THROTTLE_PAUSE_MS = 0;        // disabled
-const RECONNECT_TIMEOUT_MS = 6000;     // wait for advertisement
+const RECONNECT_TIMEOUT_MS = 6000;      // wait for advertisement
 
-const LAST_PRINTER_KEY = 'phomemo-last-device';
+const LAST_PRINTER_NAME_KEY = 'phomemo-last-device-name';
+const LAST_PRINTER_ID_KEY = 'phomemo-last-device-id';
 
 export interface PrinterConnection {
   device: any;
@@ -46,14 +45,24 @@ export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && 'bluetooth' in (navigator as any);
 }
 
-/** Save last connected device name for auto-reconnect */
-function saveLastDevice(deviceName: string) {
-  try { localStorage.setItem(LAST_PRINTER_KEY, deviceName); } catch { /* ignore */ }
+/** Save last connected device info for auto-reconnect */
+function saveLastDevice(device: any) {
+  try {
+    if (device?.name) localStorage.setItem(LAST_PRINTER_NAME_KEY, device.name);
+    if (device?.id) localStorage.setItem(LAST_PRINTER_ID_KEY, device.id);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Get last connected device name */
 export function getLastDeviceName(): string | null {
-  try { return localStorage.getItem(LAST_PRINTER_KEY); } catch { return null; }
+  try { return localStorage.getItem(LAST_PRINTER_NAME_KEY); } catch { return null; }
+}
+
+/** Get last connected device id */
+function getLastDeviceId(): string | null {
+  try { return localStorage.getItem(LAST_PRINTER_ID_KEY); } catch { return null; }
 }
 
 /** Connect GATT + find service + characteristic for a given device */
@@ -87,7 +96,7 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
 
   // Remember this device
-  if (device.name) saveLastDevice(device.name);
+  saveLastDevice(device);
 
   return { device, characteristic, writeMethod };
 }
@@ -101,7 +110,8 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
   if (!isBluetoothSupported()) return null;
 
   const lastDeviceName = getLastDeviceName();
-  if (!lastDeviceName) return null;
+  const lastDeviceId = getLastDeviceId();
+  if (!lastDeviceName && !lastDeviceId) return null;
 
   try {
     const bt = navigator as any;
@@ -111,7 +121,9 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
     }
 
     const devices = await bt.bluetooth.getDevices();
-    const target = devices.find((d: any) => d.name === lastDeviceName);
+    const target = devices.find(
+      (d: any) => (lastDeviceId && d.id === lastDeviceId) || (lastDeviceName && d.name === lastDeviceName),
+    );
     if (!target) {
       console.log('[Printer] Last device not in paired list');
       return null;
@@ -123,42 +135,41 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
       return await connectDevice(target);
     }
 
-    // Wait for device to advertise before connecting
+    // Try advertisement wake-up, but do not abort reconnect if none arrives.
     if (target.watchAdvertisements) {
-      console.log(`[Printer] Waiting for ${lastDeviceName} advertisement...`);
+      console.log('[Printer] Trying watchAdvertisements before reconnect...');
 
-      const advertisementReceived = new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => {
-          console.log('[Printer] Advertisement timeout');
-          resolve(false);
-        }, RECONNECT_TIMEOUT_MS);
-
+      const received = await new Promise<boolean>((resolve) => {
+        let done = false;
         const handler = () => {
+          if (done) return;
+          done = true;
           clearTimeout(timeout);
           target.removeEventListener('advertisementreceived', handler);
-          console.log('[Printer] Advertisement received!');
+          console.log('[Printer] Advertisement received');
           resolve(true);
         };
 
+        const timeout = setTimeout(() => {
+          if (done) return;
+          done = true;
+          target.removeEventListener('advertisementreceived', handler);
+          console.log('[Printer] Advertisement timeout, continuing with direct connect');
+          resolve(false);
+        }, RECONNECT_TIMEOUT_MS);
+
         target.addEventListener('advertisementreceived', handler);
+
+        target.watchAdvertisements().catch((e: any) => {
+          console.log('[Printer] watchAdvertisements error:', e?.message || e);
+        });
       });
 
-      try {
-        await target.watchAdvertisements();
-      } catch (e: any) {
-        console.log('[Printer] watchAdvertisements error:', e.message);
-        // Continue anyway - device might still be connectable
-      }
-
-      const received = await advertisementReceived;
-      if (!received) {
-        console.log('[Printer] No advertisement received, aborting');
-        return null;
-      }
+      if (received) await delay(120);
     } else {
-      // No watchAdvertisements support — wait and hope
+      // No watchAdvertisements support — try direct connect
       console.log('[Printer] watchAdvertisements not supported, trying direct connect...');
-      await delay(1000);
+      await delay(250);
     }
 
     if (!target.gatt) return null;
