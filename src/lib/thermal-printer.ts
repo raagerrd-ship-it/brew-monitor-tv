@@ -12,10 +12,10 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v29-dual-footer-trigger';
+export const PRINTER_VERSION = 'v30-reliable-with-response-throttle';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
-export const SETTINGS_VERSION = 4;
+export const SETTINGS_VERSION = 5;
 const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
@@ -39,9 +39,9 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   speed: 5,
   density: 10,
   chunkSize: 20,
-  chunkDelay: 20,
-  throttleEvery: 0,
-  throttleDelay: 0,
+  chunkDelay: 8,
+  throttleEvery: 8,
+  throttleDelay: 80,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: true,
@@ -134,7 +134,7 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
   const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
 
   console.log(`[Printer] Connected: ${device.name}, write: ${writeMethod}`);
   saveLastDevice(device);
@@ -237,14 +237,23 @@ async function sendChunked(
   data: Uint8Array,
   chunkSize: number,
   chunkDelay: number,
+  throttleEvery: number,
+  throttleDelay: number,
   onProgress?: (sent: number, total: number) => void,
 ): Promise<void> {
   const total = data.length;
+  let chunkCount = 0;
+
   for (let offset = 0; offset < total; offset += chunkSize) {
     const end = Math.min(offset + chunkSize, total);
     await bleWrite(conn, data.slice(offset, end), `chunk@${offset}`);
     onProgress?.(end, total);
+    chunkCount++;
+
     if (end < total && chunkDelay > 0) await delay(chunkDelay);
+    if (end < total && throttleEvery > 0 && throttleDelay > 0 && chunkCount % throttleEvery === 0) {
+      await delay(throttleDelay);
+    }
   }
 }
 
@@ -439,25 +448,18 @@ export async function printBitmap(
   // ── 7. Send ──
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
-    let sent = 0;
-    const reportProgress = (added: number) => {
-      sent += added;
-      const pct = 10 + ((copy + sent / totalDataSize) / copies) * 85;
-      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(97, pct) });
-    };
 
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: 10 });
 
     // Send header
-    await sendChunked(connection, headerBuf, settings.chunkSize, settings.chunkDelay,
-      (s) => reportProgress(s - sent + headerLen - totalDataSize > 0 ? 0 : 0));
+    await sendChunked(connection, headerBuf, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
     // Small pause after header to let printer process settings
     await delay(50);
 
     // Send raster blocks
     for (let bi = 0; bi < blocks.length; bi++) {
-      await sendChunked(connection, blocks[bi], settings.chunkSize, settings.chunkDelay,
-        (s, t) => {
+      await sendChunked(connection, blocks[bi], settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay,
+        (s) => {
           const blockPct = 10 + ((copy + (headerLen + blocks.slice(0, bi).reduce((a, b) => a + b.length, 0) + s) / totalDataSize) / copies) * 85;
           onProgress?.({ phase: `Skriver ut${copyLabel} (block ${bi + 1}/${blocks.length})...`, percent: Math.min(97, blockPct) });
         });
@@ -468,7 +470,7 @@ export async function printBitmap(
     // Send footer
     if (settings.sendFooter) {
       await delay(100);
-      await sendChunked(connection, footer, settings.chunkSize, settings.chunkDelay);
+      await sendChunked(connection, footer, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
     }
 
     if (copy < copies - 1) await delay(800);
