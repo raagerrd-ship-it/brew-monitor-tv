@@ -287,20 +287,34 @@ export function calculateMovingAverage(
         }
       }
       
-      result[i] = {
-        ...data[i],
-        // Store raw (unsmoothed) values for tooltip display
-        rawValue: data[i].value,
-        rawPillTemp: data[i].pillTemp,
-        rawControllerTemp: data[i].controllerTemp,
-        rawAvgTemp: data[i].avgTemp,
-        // Store smoothed values for chart rendering
-        value: valueValid[i] ? (valueCount > 0 ? valueSum / valueCount : data[i].value) : undefined as unknown as number,
-        pillTemp: pillTempValid[i] ? (pillTempCount > 0 ? pillTempSum / pillTempCount : data[i].pillTemp) : undefined as unknown as number,
-        controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
-        avgTemp: avgTempCount > 0 ? avgTempSum / avgTempCount : null,
-        targetTemp: data[i].targetTemp
-      };
+       // Smooth targetTemp using median filter to remove spikes while preserving real step changes
+       let smoothedTarget = data[i].targetTemp;
+       if (smoothedTarget != null) {
+         const medianWindow: number[] = [];
+         const mHalf = Math.min(2, halfWindow); // smaller window for target to preserve steps
+         for (let j = Math.max(0, i - mHalf); j <= Math.min(len - 1, i + mHalf); j++) {
+           if (data[j].targetTemp != null) medianWindow.push(data[j].targetTemp!);
+         }
+         if (medianWindow.length >= 3) {
+           medianWindow.sort((a, b) => a - b);
+           smoothedTarget = medianWindow[Math.floor(medianWindow.length / 2)];
+         }
+       }
+
+       result[i] = {
+         ...data[i],
+         // Store raw (unsmoothed) values for tooltip display
+         rawValue: data[i].value,
+         rawPillTemp: data[i].pillTemp,
+         rawControllerTemp: data[i].controllerTemp,
+         rawAvgTemp: data[i].avgTemp,
+         // Store smoothed values for chart rendering
+         value: valueValid[i] ? (valueCount > 0 ? valueSum / valueCount : data[i].value) : undefined as unknown as number,
+         pillTemp: pillTempValid[i] ? (pillTempCount > 0 ? pillTempSum / pillTempCount : data[i].pillTemp) : undefined as unknown as number,
+         controllerTemp: controllerTempCount > 0 ? controllerTempSum / controllerTempCount : null,
+         avgTemp: avgTempCount > 0 ? avgTempSum / avgTempCount : null,
+         targetTemp: smoothedTarget,
+       };
    }
    
    return result;
