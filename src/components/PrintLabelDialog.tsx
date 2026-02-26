@@ -17,6 +17,7 @@ import {
   printBitmap,
   PRINTER_VERSION,
   DEFAULT_PRINT_SETTINGS,
+  migrateSettingsIfNeeded,
   type PrinterConnection,
   type PrintProgress,
   type PrintSettings,
@@ -62,6 +63,8 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [isConnecting, setIsConnecting] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [printSettings, setPrintSettings] = useState<PrintSettings>(() => {
+    // Auto-reset settings if version changed (prevents stale aggressive profiles)
+    migrateSettingsIfNeeded();
     try {
       const saved = localStorage.getItem('phomemo-print-settings');
       return saved ? { ...DEFAULT_PRINT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_PRINT_SETTINGS;
@@ -271,6 +274,15 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Paper checklist hint */}
+        {hasBle && !bleConn && !isPrinting && (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+            <p className="font-medium text-foreground">🖨️ Checklista före utskrift:</p>
+            <p>• Etikettens <strong>glansiga/termiska sida nedåt</strong> mot skrivarhuvudet</p>
+            <p>• Skrivaren laddad och påslagen</p>
           </div>
         )}
 
