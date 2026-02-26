@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Download, Printer, FileText, Bluetooth, BluetoothOff, Loader2, FlaskConical } from "lucide-react";
+import { Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { toast } from "@/hooks/use-toast";
@@ -13,7 +13,6 @@ import {
   getLastDeviceName,
   disconnectPrinter,
   printBitmap,
-  printTestPage,
   PRINTER_VERSION,
   DEFAULT_PRINT_SETTINGS,
   type PrinterConnection,
@@ -170,31 +169,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     }
   };
 
-  const handleTestPrint = async () => {
-    setIsPrinting(true);
-    setPrintProgress({ phase: 'Startar testutskrift...', percent: 0 });
-    try {
-      let conn = bleConn;
-      if (!conn) {
-        conn = await reconnectLastPrinter().catch(() => null);
-        if (!conn) conn = await connectPrinter();
-        setBleConn(conn);
-      }
-      await printTestPage(conn, setPrintProgress);
-      toast({ title: "Testsida skickad!", description: "En vit sida med ram bör skrivas ut." });
-    } catch (e: any) {
-      if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') {
-        setIsPrinting(false);
-        setPrintProgress(null);
-        return;
-      }
-      toast({ title: "Utskriftsfel", description: e.message, variant: "destructive" });
-      setBleConn(null);
-    } finally {
-      setIsPrinting(false);
-      setTimeout(() => setPrintProgress(null), 2000);
-    }
-  };
 
   const handlePrint = () => {
     if (!canvasRef.current) return;
