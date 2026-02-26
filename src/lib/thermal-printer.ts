@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v16-generic-escpos';
+export const PRINTER_VERSION = 'v17-lean-raster';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -33,13 +33,13 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 6,
-  chunkSize: 128,
-  chunkDelay: 20,
-  throttleEvery: 0,
-  throttleDelay: 120,
-  sendSpeed: true,
-  sendDensity: true,
-  sendFooter: true,
+  chunkSize: 96,
+  chunkDelay: 25,
+  throttleEvery: 10,
+  throttleDelay: 100,
+  sendSpeed: false,
+  sendDensity: false,
+  sendFooter: false,
 };
 
 /** Check if saved settings need auto-reset (version migration) */
@@ -351,6 +351,7 @@ export interface PrintProgress {
  */
 const CMD = {
   INIT: new Uint8Array([0x1b, 0x40]),
+  LINE_FEED: new Uint8Array([0x0a]),
   FEED: (dots: number) => new Uint8Array([0x1b, 0x4a, dots]),
   // ESC 7 - Heat settings (maxDots, heatTime, heatInterval)
   HEAT_SETTINGS: (maxDots: number, heatTime: number, heatInterval: number) =>
@@ -427,26 +428,34 @@ export async function printBitmap(
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
     await sendCommand(connection, CMD.INIT, 'init', 100);
 
-    // 2. Set heat/density via ESC 7 (widely supported on Chinese thermal printers)
-    await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
-    // Also send standard GS | density as backup
-    await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
+    // 2. Optional heat/density tuning (disabled by default for compatibility)
+    if (settings.sendDensity) {
+      await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
+      await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
+    } else {
+      console.log('[Printer] Skipping heat/density tuning (lean mode)');
+    }
 
     // 3. Raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
     await sendCommand(connection, rasterHeader(bytesPerRow, height), 'raster-header');
 
-    // 4. Send bitmap data in 128-byte chunks with 20ms delay
+    // 4. Send bitmap data
     onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
     await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
       const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
     }, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
 
-    // 5. Feed after print (32 dots ≈ 4mm, enough to clear print head)
+    // 5. Finalize print with minimal commands
     await delay(300);
-    onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, CMD.FEED(32), 'feed', 800);
+    onProgress?.({ phase: `Finaliserar${copyLabel}...`, percent: basePercent + 75 });
+    await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 350);
+
+    // Optional extra feed for stubborn firmwares
+    if (settings.sendFooter) {
+      await sendCommand(connection, CMD.FEED(16), 'feed', 500);
+    }
 
     if (copy < copies - 1) await delay(400);
   }
