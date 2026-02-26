@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v19-gap-sensor';
+export const PRINTER_VERSION = 'v20-fixed-384-width';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -386,9 +386,9 @@ export async function printBitmap(
   settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
-  // Normalize width for M110 print head (max 384 px) to avoid firmware stalls
+  // Normalize width to exact M110 print head width (384 px) to avoid firmware stalls
   let workingCanvas = canvas;
-  const targetWidth = Math.min(384, canvas.width);
+  const targetWidth = 384;
   if (canvas.width !== targetWidth) {
     const scaled = document.createElement('canvas');
     const scaledHeight = Math.max(1, Math.round((canvas.height * targetWidth) / canvas.width));
@@ -396,7 +396,8 @@ export async function printBitmap(
     scaled.height = scaledHeight;
     const sctx = scaled.getContext('2d');
     if (!sctx) throw new Error('Kunde inte skala etikettbild för utskrift.');
-    sctx.drawImage(canvas, 0, 0, scaled.width, scaled.height);
+    sctx.imageSmoothingEnabled = false;
+    sctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, scaled.width, scaled.height);
     workingCanvas = scaled;
     console.log(`[Printer] Rescaled canvas ${canvas.width}x${canvas.height} -> ${scaled.width}x${scaled.height}`);
   }
