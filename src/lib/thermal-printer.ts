@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v14-reliable-write-response';
+export const PRINTER_VERSION = 'v15-footer-compat';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -451,10 +451,12 @@ export async function printBitmap(
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
     }, safeSettings.chunkSize, safeSettings.chunkDelay, safeSettings.throttleEvery, safeSettings.throttleDelay);
 
-    // 6. Footer to finalize print (300ms wait before, 500ms after — per Phomymo)
-    await delay(300);
+    // 6. Finalize print with compatibility footer sequence
+    // Some M110 firmware variants are sensitive to footer framing/timing.
+    await delay(900);
     onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 500);
+    await sendCommand(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00]), 'm110:footer-part1', 120);
+    await sendCommand(connection, new Uint8Array([0x1f, 0xf0, 0x03, 0x00]), 'm110:footer-part2', 650);
 
     if (copy < copies - 1) await delay(400);
   }
