@@ -440,14 +440,14 @@ export function BrewingDashboard() {
                 Öppna Inställningar
               </Button>
             </div>
-          </div> : isMobile ? <div className="flex flex-col flex-1">
+          </div> : isMobile ? <div className="flex flex-col flex-1 min-h-0">
             {brews.length > 1 && <div className="relative py-2 flex-shrink-0">
                 <div className="flex justify-center gap-2">
                   {brews.map((_, index) => <button key={index} onClick={() => emblaApi?.scrollTo(index)} className={`h-2 rounded-full transition-all duration-300 ${index === selectedIndex ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30'}`} aria-label={`Gå till öl ${index + 1}`} />)}
                 </div>
               </div>}
             
-            <div className="flex-1 overflow-hidden px-1 pb-1" ref={emblaRef}>
+            <div className="flex-1 min-h-0 overflow-hidden px-1 pb-1" ref={emblaRef}>
               <div className="flex h-full">
                 {brews.map((brew, index) => <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-1">
                     <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
