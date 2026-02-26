@@ -13,7 +13,7 @@ import {
   formatRemainingTime,
   type VisualState 
 } from "./sessionStyles";
-import { getInterpolatedProfileTarget } from "@/lib/fermentation-target";
+
 
 interface SgDataPoint {
   date: string;
@@ -77,18 +77,10 @@ export function FermentationSessionCompact({
   controllerProfileTarget,
 }: FermentationSessionCompactProps) {
 
-  // Single source of truth for current interpolated profile target
-  const effectiveStepTarget = getInterpolatedProfileTarget(
-    currentStep ? {
-      current_step_index: 0,
-      step_started_at: stepStartedAt,
-      step_start_temp: stepStartTemp ?? null,
-      steps: [currentStep],
-      controller_profile_target_temp: controllerProfileTarget,
-    } : null
-  );
+  // Single source of truth: backend-computed profile target stored on controller
+  const effectiveStepTarget = controllerProfileTarget;
 
-  // Align with TempStat: profile target first, controller target only as final fallback
+  // Profile target first, controller target only as final fallback
   const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? targetTemp;
 
   const progress = useFermentationProgress({

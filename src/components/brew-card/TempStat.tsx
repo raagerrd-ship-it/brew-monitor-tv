@@ -4,7 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getInterpolatedProfileTarget } from "@/lib/fermentation-target";
+
 
 interface TempStatProps {
   brew: BrewData;
@@ -42,8 +42,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const originalTarget = brew.originalTarget;
 
 
-  // Single source of truth for current interpolated profile target
-  const currentProfileTarget = getInterpolatedProfileTarget(brew.fermentationSession);
+  // Single source of truth: backend-computed profile target stored on controller
+  const currentProfileTarget = brew.fermentationSession?.controller_profile_target_temp ?? null;
 
   // Show both targets if profile target differs from current (auto-adjusted)
   const profileTarget = currentProfileTarget ?? originalTarget;
