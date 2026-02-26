@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v20-fixed-384-width';
+export const PRINTER_VERSION = 'v21-no-media-probe';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -29,7 +29,7 @@ export interface PrintSettings {
 }
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
-  mediaType: 'gap',
+  mediaType: 'none',
   landscape: false,
   speed: 5,
   density: 6,
@@ -360,10 +360,6 @@ const CMD = {
   DENSITY: (level: number) => new Uint8Array([0x1d, 0x7c, level]),
 };
 
-const M110_CMD = {
-  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
-  QUERY_LABEL: new Uint8Array([0x1f, 0x11, 0x19]),
-};
 
 /** Standard ESC/POS raster header: GS v 0 */
 function rasterHeader(widthBytes: number, heightLines: number): Uint8Array {
@@ -449,25 +445,7 @@ export async function printBitmap(
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
     await sendCommand(connection, CMD.INIT, 'init', 100);
 
-    // 2. For M110-class printers, force media mode to labels-with-gap before printing
-    const deviceName = String(connection.device?.name || '').toUpperCase();
-    const isLikelyM110 = deviceName.startsWith('M110') || deviceName.startsWith('M120') || deviceName.startsWith('Q') || deviceName.includes('PHOMEMO');
-    if (isLikelyM110) {
-      const mediaCode = settings.mediaType === 'gap'
-        ? 10
-        : settings.mediaType === 'continuous'
-          ? 0
-          : settings.mediaType === 'mark'
-            ? 11
-            : null;
-
-      if (mediaCode !== null) {
-        await sendCommand(connection, M110_CMD.MEDIA_TYPE(mediaCode), 'm110:media-type', 90);
-        await sendCommand(connection, M110_CMD.QUERY_LABEL, 'm110:query-label', 90);
-      }
-    }
-
-    // 3. Optional heat/density tuning (disabled by default for compatibility)
+    // 2. Optional heat/density tuning (disabled by default for compatibility)
     if (settings.sendDensity) {
       await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
       await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
@@ -475,7 +453,7 @@ export async function printBitmap(
       console.log('[Printer] Skipping heat/density tuning (lean mode)');
     }
 
-    // 4. Raster header: GS v 0
+    // 3. Raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
     await sendCommand(connection, rasterHeader(bytesPerRow, height), 'raster-header');
 
