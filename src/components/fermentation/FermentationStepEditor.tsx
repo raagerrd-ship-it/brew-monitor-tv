@@ -141,6 +141,12 @@ export function FermentationStepEditor({
         stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
         break;
+      case "gradual_ramp":
+        stepData.attenuation_trigger = attenuationTrigger ? parseFloat(attenuationTrigger) : 75;
+        stepData.temp_increase = tempIncrease ? parseFloat(tempIncrease) : 3;
+        stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
+        stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
+        break;
     }
 
     onSave(stepData);
@@ -413,7 +419,59 @@ export function FermentationStepEditor({
             </p>
           </>
         );
-        return null;
+
+      case "gradual_ramp":
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Utjäsningsnivå (%)</Label>
+                <Input
+                  type="number"
+                  step="5"
+                  value={attenuationTrigger}
+                  onChange={(e) => setAttenuationTrigger(e.target.value)}
+                  placeholder="75"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Temperaturhöjning (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={tempIncrease}
+                  onChange={(e) => setTempIncrease(e.target.value)}
+                  placeholder="3"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Stabila dagar efter avslut</Label>
+                <Input
+                  type="number"
+                  value={gravityStableDays}
+                  onChange={(e) => setGravityStableDays(e.target.value)}
+                  placeholder="2"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>SG-tröskel</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={gravityThreshold}
+                  onChange={(e) => setGravityThreshold(e.target.value)}
+                  placeholder="0.001"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Höjer temperaturen gradvis i takt med att jäsningsaktiviteten sjunker, istället för ett plötsligt hopp. 
+              Avslutas först när SG är stabil och aktiviteten är nära noll. Minskar stresspåverkan på jästen.
+            </p>
+          </>
+        );
     }
   };
 

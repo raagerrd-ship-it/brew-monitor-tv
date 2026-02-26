@@ -620,6 +620,90 @@ Deno.serve(async (req) => {
           }
           break
         }
+
+        case 'gradual_ramp': {
+          const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
+          const tempIncrease = (currentStep as any).temp_increase ?? 3
+          const metrics = session.brew_id ? batchMetricsMap.get(session.brew_id) : null
+
+          if (brewData) {
+            const sortedSgData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            const latestSg = sortedSgData[0]?.value
+            const og = brewData.original_gravity
+            const fg = brewData.final_gravity
+            const attRange = og - fg
+            const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
+
+            const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
+            const attenuationReady = currentAtt >= attenuationTrigger
+
+            if (!attenuationReady || !phaseReady) {
+              // Phase 1: waiting for trigger — keep current temperature
+              const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+              if (effectiveTarget !== null) {
+                await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+              }
+              const waitReason = !attenuationReady
+                ? `attenuation ${Math.round(currentAtt)}% < ${attenuationTrigger}%`
+                : `phase=${metrics?.fermentation_phase ?? 'unknown'} (need declining/stationary)`
+              actionDetails = {
+                phase: 'waiting_for_trigger',
+                current_attenuation: Math.round(currentAtt),
+                trigger: attenuationTrigger,
+                fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
+                activity_score: metrics?.activity_score ?? null,
+                wait_reason: waitReason,
+              }
+              console.log(`Gradual ramp: waiting - ${waitReason}`)
+              break
+            }
+
+            // Phase 2: Ramping — calculate target based on activity score
+            const activityScore = metrics?.activity_score ?? 50
+            const clampedActivity = Math.max(0, Math.min(100, activityScore))
+            const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+            const baseTemp = effectiveTarget ?? 18
+            const rampedTarget = Math.round((baseTemp + tempIncrease * (1 - clampedActivity / 100)) * 10) / 10
+
+            const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+            if (currentProfileTarget === null || Math.abs(currentProfileTarget - rampedTarget) > 0.05) {
+              await setProfileTarget(supabase, session.controller_id, rampedTarget)
+              actionTaken = 'temp_adjusted'
+              actionDetails = {
+                phase: 'gradual_ramping',
+                base_temp: baseTemp,
+                ramped_target: rampedTarget,
+                max_target: baseTemp + tempIncrease,
+                activity_score: activityScore,
+                ramp_progress: Math.round((1 - clampedActivity / 100) * 100),
+                fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
+              }
+              console.log(`🔄 Gradual ramp: activity=${activityScore}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
+            }
+
+            // Phase 3: Check completion — SG stable + activity < 15
+            const stableDays = currentStep.gravity_stable_days ?? 2
+            const threshold = currentStep.gravity_threshold ?? 0.001
+            const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)
+            const activityLow = !metrics || metrics.activity_score < 15
+
+            if (sgStable && activityLow) {
+              stepCompleted = true
+              actionTaken = 'condition_met'
+              actionDetails = {
+                condition: 'gradual_ramp_complete',
+                stable_days: stableDays,
+                activity_score: metrics?.activity_score ?? null,
+                final_target: rampedTarget,
+              }
+              console.log(`✅ Gradual ramp complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
+            } else if (sgStable && !activityLow) {
+              console.log(`Gradual ramp: SG stable but activity still ${metrics?.activity_score}% (need <15) - continuing`)
+              actionDetails = { ...actionDetails, phase: 'gradual_ramping_waiting', sg_stable: true, activity_score: metrics?.activity_score }
+            }
+          }
+          break
+        }
       }
 
       // Log action if something happened

@@ -1,4 +1,4 @@
-export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'diacetyl_rest';
+export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'diacetyl_rest' | 'gradual_ramp';
 export type RampType = 'linear' | 'immediate';
 export type SgComparison = 'at_or_below' | 'at_or_above';
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'cancelled';
@@ -63,6 +63,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'wait_for_temp': 'Vänta på temperatur',
   'wait_for_acknowledgement': 'Torrhumla',
   'diacetyl_rest': 'Diacetylvila',
+  'gradual_ramp': 'Smart diacetylvila',
 };
 
 export const RAMP_TYPE_LABELS: Record<RampType, string> = {
