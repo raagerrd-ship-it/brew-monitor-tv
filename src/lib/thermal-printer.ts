@@ -1,16 +1,16 @@
 /**
  * Web Bluetooth communication with Phomemo M110 thermal printer.
- * Based on the proven Phomymo open-source implementation.
+ * Based on the proven phomemo-tools reverse-engineered protocol.
  * 
  * Label size: 70x50mm at 203 DPI = 559x399 pixels
  * Printer width: 384 pixels (48 bytes)
- * v4 - improved BLE reliability + proper auto-reconnect
+ * v26 - single-stream approach with writeWithoutResponse + correct M110 media type
  */
 
-export const PRINTER_VERSION = 'v25-force-m110-strict';
+export const PRINTER_VERSION = 'v26-single-stream';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
@@ -18,7 +18,7 @@ export interface PrintSettings {
   mediaType: 'none' | 'gap' | 'continuous' | 'mark';
   landscape: boolean;
   speed: number;        // 1-5
-  density: number;      // 1-8
+  density: number;      // 1-15 (M110 range)
   chunkSize: number;    // bytes per BLE write
   chunkDelay: number;   // ms between chunks
   throttleEvery: number; // extra pause every N chunks
@@ -29,14 +29,14 @@ export interface PrintSettings {
 }
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
-  mediaType: 'none',
+  mediaType: 'gap',
   landscape: false,
   speed: 5,
-  density: 6,
-  chunkSize: 20,
-  chunkDelay: 20,
-  throttleEvery: 8,
-  throttleDelay: 80,
+  density: 8,
+  chunkSize: 200,
+  chunkDelay: 5,
+  throttleEvery: 0,
+  throttleDelay: 0,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: true,
@@ -73,10 +73,8 @@ const WRITE_CHAR_UUIDS = [
 ];
 
 // Printer constants
-const BLE_CHUNK_SIZE = 300;
-const BLE_CHUNK_DELAY_MS = 5;           // minimal inter-chunk delay
 const BLE_WRITE_TIMEOUT_MS = 7000;
-const RECONNECT_TIMEOUT_MS = 6000;      // wait for advertisement
+const RECONNECT_TIMEOUT_MS = 6000;
 
 const LAST_PRINTER_NAME_KEY = 'phomemo-last-device-name';
 const LAST_PRINTER_ID_KEY = 'phomemo-last-device-id';
@@ -136,9 +134,10 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  // Prefer writeWithResponse for reliability (M110 often hangs on withoutResponse bursts)
+  // CRITICAL: Use writeWithoutResponse for speed — writeWithResponse causes
+  // printer timeout on large images due to per-chunk round-trip ACK overhead.
   const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
+    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
 
   console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
 
@@ -150,8 +149,6 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
 
 /**
  * Try to reconnect to the last used printer without showing the picker.
- * Uses navigator.bluetooth.getDevices() (Chrome 85+) with proper advertisement listening.
- * Returns null if not possible.
  */
 export async function reconnectLastPrinter(): Promise<PrinterConnection | null> {
   if (!isBluetoothSupported()) return null;
@@ -176,13 +173,11 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
       return null;
     }
 
-    // If already connected, just use it
     if (target.gatt?.connected) {
       console.log('[Printer] Device already connected');
       return await connectDevice(target);
     }
 
-    // Try advertisement wake-up, but do not abort reconnect if none arrives.
     if (target.watchAdvertisements) {
       console.log('[Printer] Trying watchAdvertisements before reconnect...');
 
@@ -214,7 +209,6 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
 
       if (received) await delay(120);
     } else {
-      // No watchAdvertisements support — try direct connect
       console.log('[Printer] watchAdvertisements not supported, trying direct connect...');
       await delay(250);
     }
@@ -257,10 +251,8 @@ export async function connectPrinter(): Promise<PrinterConnection> {
 async function connectWithRetry(device: any, retries = 2): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      // Small delay before GATT connect (helps with timing issues)
       if (attempt > 0) await delay(500 * attempt);
       const server = await device.gatt!.connect();
-      // Small delay after connect before service discovery
       await delay(100);
       return server;
     } catch (e) {
@@ -286,7 +278,6 @@ async function writeWithTimeout(
   data: Uint8Array,
   context: string,
 ): Promise<void> {
-  // Create a clean buffer (important for sliced arrays)
   const buffer = new Uint8Array(data).buffer;
 
   const writePromise = conn.writeMethod === 'withoutResponse'
@@ -301,37 +292,24 @@ async function writeWithTimeout(
   ]);
 }
 
-/** Send a small command (not chunked) — for init/config commands */
-async function sendCommand(conn: PrinterConnection, cmd: Uint8Array, context: string, waitMs = 30): Promise<void> {
-  await writeWithTimeout(conn, cmd, context);
-  if (waitMs > 0) await delay(waitMs);
-}
-
-/** Send raw bytes in chunks with periodic throttling */
-async function sendChunked(
+/**
+ * Send a contiguous byte stream in chunks via BLE.
+ * Uses fire-and-forget writeWithoutResponse for throughput.
+ */
+async function sendStream(
   conn: PrinterConnection,
   data: Uint8Array,
-  context = 'data',
-  onChunkProgress?: (sent: number, total: number) => void,
-  chunkSize = BLE_CHUNK_SIZE,
-  chunkDelay = BLE_CHUNK_DELAY_MS,
-  throttleEvery = 0,
-  throttleDelay = 80,
+  chunkSize: number,
+  chunkDelay: number,
+  onProgress?: (sent: number, total: number) => void,
 ): Promise<void> {
   const total = data.length;
-  for (let offset = 0, chunkNo = 0; offset < total; offset += chunkSize, chunkNo++) {
+  for (let offset = 0; offset < total; offset += chunkSize) {
     const chunk = data.slice(offset, Math.min(offset + chunkSize, total));
-    await writeWithTimeout(conn, chunk, `${context} (${chunkNo})`);
-
-    onChunkProgress?.(offset + chunk.length, total);
-
-    // Small inter-chunk delay to keep stream flowing
-    if (offset + chunkSize < total) {
+    await writeWithTimeout(conn, chunk, `stream@${offset}`);
+    onProgress?.(offset + chunk.length, total);
+    if (offset + chunkSize < total && chunkDelay > 0) {
       await delay(chunkDelay);
-      // Extra throttle pause every N chunks
-      if (throttleEvery > 0 && chunkNo > 0 && chunkNo % throttleEvery === 0) {
-        await delay(throttleDelay);
-      }
     }
   }
 }
@@ -346,40 +324,93 @@ export interface PrintProgress {
 }
 
 /**
- * ESC/POS commands — generic M-series protocol (works with M110, M260, etc.)
- * This is the same protocol Phomymo uses for all non-special printers.
+ * M110 protocol commands (from phomemo-tools reverse engineering of USB packets):
+ * 
+ * Header:
+ *   0x1b 0x4e 0x0d <speed>    Speed (0x01-0x05)
+ *   0x1b 0x4e 0x04 <density>  Density (0x01-0x0f)
+ *   0x1f 0x11 <media>         Media type: 0x0a=gap, 0x0b=continuous, 0x26=marks
+ * 
+ * Raster:
+ *   0x1d 0x76 0x30 0x00 <wL> <wH> <hL> <hH>  GS v 0 header
+ *   <bitmap data>
+ * 
+ * Footer:
+ *   0x1f 0xf0 0x05 0x00 0x1f 0xf0 0x03 0x00
  */
-const CMD = {
-  INIT: new Uint8Array([0x1b, 0x40]),
-  LINE_FEED: new Uint8Array([0x0a]),
-  FEED: (dots: number) => new Uint8Array([0x1b, 0x4a, dots]),
-  // ESC 7 - Heat settings (maxDots, heatTime, heatInterval)
-  HEAT_SETTINGS: (maxDots: number, heatTime: number, heatInterval: number) =>
-    new Uint8Array([0x1b, 0x37, maxDots, heatTime, heatInterval]),
-  // Standard ESC/POS density (GS | n)
-  DENSITY: (level: number) => new Uint8Array([0x1d, 0x7c, level]),
-};
 
-const M110_CMD = {
-  SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
-  DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
-  FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
-};
+/**
+ * Build the ENTIRE print job as a single byte buffer.
+ * This ensures the printer receives a complete, well-formed job
+ * without gaps that could cause timeout/Feeding states.
+ */
+function buildPrintJob(
+  rasterData: Uint8Array,
+  bytesPerRow: number,
+  height: number,
+  settings: PrintSettings,
+): Uint8Array {
+  const parts: Uint8Array[] = [];
 
+  // 1. INIT (ESC @)
+  parts.push(new Uint8Array([0x1b, 0x40]));
 
-/** Standard ESC/POS raster header: GS v 0 */
-function rasterHeader(widthBytes: number, heightLines: number): Uint8Array {
-  return new Uint8Array([
+  // 2. Speed (M110: ESC N 0x0d <speed>)
+  if (settings.sendSpeed) {
+    parts.push(new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]));
+  }
+
+  // 3. Density (M110: ESC N 0x04 <density>)
+  if (settings.sendDensity) {
+    parts.push(new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]));
+  }
+
+  // 4. Media type (M110: 0x1f 0x11 <type>)
+  // Correct values from phomemo-tools reverse engineering:
+  //   0x0a = Label With Gaps
+  //   0x0b = Continuous
+  //   0x26 = Label With Marks
+  if (settings.mediaType !== 'none') {
+    const mediaCode = settings.mediaType === 'gap' ? 0x0a
+      : settings.mediaType === 'continuous' ? 0x0b
+      : settings.mediaType === 'mark' ? 0x26
+      : null;
+    if (mediaCode !== null) {
+      parts.push(new Uint8Array([0x1f, 0x11, mediaCode]));
+    }
+  }
+
+  // 5. Raster header: GS v 0
+  parts.push(new Uint8Array([
     0x1d, 0x76, 0x30, 0x00,
-    widthBytes & 0xff, (widthBytes >> 8) & 0xff,
-    heightLines & 0xff, (heightLines >> 8) & 0xff,
-  ]);
+    bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+    height & 0xff, (height >> 8) & 0xff,
+  ]));
+
+  // 6. Bitmap data
+  parts.push(rasterData);
+
+  // 7. Footer (M110 end-of-job signal)
+  if (settings.sendFooter) {
+    parts.push(new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]));
+  }
+
+  // Concatenate into single buffer
+  const totalLen = parts.reduce((s, p) => s + p.length, 0);
+  const buffer = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const part of parts) {
+    buffer.set(part, offset);
+    offset += part.length;
+  }
+
+  return buffer;
 }
 
 /**
- * Print canvas to Phomemo M110 using the GENERIC M-series ESC/POS protocol.
- * Sequence: INIT → HEAT_SETTINGS → DENSITY → RASTER_HEADER → data → FEED
- * This matches Phomymo's printBLE() which works across M110/M260/etc.
+ * Print canvas to Phomemo M110.
+ * Builds the ENTIRE job as one contiguous byte stream and sends it
+ * via writeWithoutResponse in 200-byte chunks with minimal delay.
  */
 export async function printBitmap(
   connection: PrinterConnection,
@@ -388,7 +419,7 @@ export async function printBitmap(
   settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
-  // Normalize width to exact M110 print head width (384 px) to avoid firmware stalls
+  // Normalize width to exact M110 print head width (384 px)
   let workingCanvas = canvas;
   const targetWidth = 384;
   if (canvas.width !== targetWidth) {
@@ -428,94 +459,43 @@ export async function printBitmap(
     bitmapRows.push(row);
   }
 
-  // Build flat raster data
   const rasterData = new Uint8Array(bytesPerRow * height);
   for (let y = 0; y < height; y++) {
     rasterData.set(bitmapRows[y], y * bytesPerRow);
   }
 
-  // Map density 1-8 to heat time (~40-200)
-  const heatTimes = [40, 60, 80, 100, 120, 140, 160, 200];
-  const heatTime = heatTimes[Math.max(0, Math.min(7, settings.density - 1))];
-
-  const settingsLog = Object.entries(settings).map(([k,v]) => `${k}=${v}`).join(', ');
-  console.log(`[Printer] Printing ${width}x${height} (${rasterData.length} bytes), copies=${copies}, heatTime=${heatTime}, ${settingsLog}`);
+  // Build complete print job as single buffer
+  const jobBuffer = buildPrintJob(rasterData, bytesPerRow, height, settings);
+  console.log(`[Printer] Job buffer: ${jobBuffer.length} bytes (${width}x${height}), copies=${copies}, writeMethod=${connection.writeMethod}`);
 
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
-    const basePercent = 15 + (copy / copies) * 80;
 
-    // === Generic M-series ESC/POS protocol (from Phomymo printBLE) ===
+    onProgress?.({ phase: `Skickar${copyLabel}...`, percent: 15 + (copy / copies) * 80 });
 
-    // 1. INIT — reset printer state
-    onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
-    await sendCommand(connection, CMD.INIT, 'init', 100);
+    // Send entire job as one chunked stream
+    await sendStream(
+      connection,
+      jobBuffer,
+      settings.chunkSize,
+      settings.chunkDelay,
+      (sent, total) => {
+        const pct = 15 + ((copy + sent / total) / copies) * 80;
+        onProgress?.({ phase: `Skickar${copyLabel}...`, percent: Math.min(95, pct) });
+      },
+    );
 
-    const deviceName = String(connection.device?.name || '').toUpperCase();
-    // Force strict M110 path for this printer family (many advertise with generic names).
-    const isLikelyM110 = true;
-
-    if (isLikelyM110) {
-      // M110 strict command path (close to PrintMaster/phomemo-tools behavior)
-      const m110Density = Math.round(5 + settings.density * 1.25);
-
-      if (settings.sendSpeed) {
-        await sendCommand(connection, M110_CMD.SPEED(settings.speed), 'm110:speed', 30);
-      }
-      if (settings.sendDensity) {
-        await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density', 30);
-      }
-    } else {
-      // Generic ESC/POS fallback
-      if (settings.sendDensity) {
-        await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
-        await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
-      } else {
-        console.log('[Printer] Skipping heat/density tuning (lean mode)');
-      }
+    // Brief pause between copies
+    if (copy < copies - 1) {
+      await delay(800);
     }
-
-    // 3. Raster header: GS v 0
-    onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
-    await sendCommand(connection, rasterHeader(bytesPerRow, height), 'raster-header');
-
-    // 4. Send bitmap data
-    onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
-    const txChunkSize = isLikelyM110 ? 20 : settings.chunkSize;
-    const txChunkDelay = isLikelyM110 ? 20 : settings.chunkDelay;
-    const txThrottleEvery = isLikelyM110 ? 8 : settings.throttleEvery;
-    const txThrottleDelay = isLikelyM110 ? 80 : settings.throttleDelay;
-
-    await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
-      const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
-      onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
-    }, txChunkSize, txChunkDelay, txThrottleEvery, txThrottleDelay);
-
-    // 5. Finalize print
-    await delay(450);
-    onProgress?.({ phase: `Finaliserar${copyLabel}...`, percent: basePercent + 75 });
-
-    if (settings.sendFooter) {
-      // Dual finalize: M110 footer first (if relevant), then generic ESC/POS feed
-      // to avoid firmware states where printer stays in "Feeding" after full data transfer.
-      if (isLikelyM110) {
-        await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 250);
-      }
-      await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 220);
-      await sendCommand(connection, CMD.FEED(8), 'feed', 500);
-    } else {
-      console.log('[Printer] Lean finalize: no feed commands');
-    }
-
-    if (copy < copies - 1) await delay(400);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
 }
 
 /**
- * Print a visible test page through the exact same printBitmap pipeline
- * as normal labels, to eliminate protocol-path differences.
+ * Print a visible test page through the exact same printBitmap pipeline.
  */
 export async function printTestPage(
   connection: PrinterConnection,
