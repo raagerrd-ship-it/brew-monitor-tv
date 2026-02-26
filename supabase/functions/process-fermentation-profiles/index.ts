@@ -299,20 +299,8 @@ Deno.serve(async (req) => {
       let actionTaken = 'checked'
       let actionDetails: any = {}
 
-      // For steps without explicit target_temp, set profile target from previous steps
-      // SKIP for gradual_ramp and diacetyl_rest — they manage their own profile_target_temp
-      if (currentStep.target_temp === null && controller && currentStep.step_type !== 'gradual_ramp' && currentStep.step_type !== 'diacetyl_rest') {
-        const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
-        if (effectiveTarget !== null) {
-          // Only update if changed
-          const currentProfileTarget = controller.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
-          if (currentProfileTarget === null || Math.abs(currentProfileTarget - effectiveTarget) > 0.05) {
-            await setProfileTarget(supabase, session.controller_id, effectiveTarget)
-            actionTaken = 'profile_target_set'
-            actionDetails = { profile_target: effectiveTarget, step_type: currentStep.step_type }
-          }
-        }
-      }
+      // NOTE: Generic fallback removed — profile_target_temp is now set at step transition (see below).
+      // Each step type manages its own target in its switch case.
 
       switch (currentStep.step_type) {
         case 'hold': {
@@ -753,6 +741,22 @@ Deno.serve(async (req) => {
               step_start_temp: null
             })
             .eq('id', session.id)
+
+          // Set profile_target_temp immediately for the new step so it owns its target from second one
+          const nextStep = steps[nextStepIndex] as ProfileStep | undefined
+          if (nextStep) {
+            if (nextStep.target_temp !== null && nextStep.target_temp !== undefined) {
+              await setProfileTarget(supabase, session.controller_id, nextStep.target_temp)
+              console.log(`🎯 Step transition: set profile_target_temp=${nextStep.target_temp}°C (explicit) for step ${nextStepIndex} (${nextStep.step_type})`)
+            } else {
+              // Step has no explicit target — inherit from previous steps
+              const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], nextStepIndex)
+              if (effectiveTarget !== null) {
+                await setProfileTarget(supabase, session.controller_id, effectiveTarget)
+                console.log(`🎯 Step transition: set profile_target_temp=${effectiveTarget}°C (inherited) for step ${nextStepIndex} (${nextStep.step_type})`)
+              }
+            }
+          }
 
           await supabase.from('fermentation_step_log').insert({
             session_id: session.id,
