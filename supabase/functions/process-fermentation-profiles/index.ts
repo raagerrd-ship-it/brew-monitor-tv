@@ -300,7 +300,8 @@ Deno.serve(async (req) => {
       let actionDetails: any = {}
 
       // For steps without explicit target_temp, set profile target from previous steps
-      if (currentStep.target_temp === null && controller) {
+      // SKIP for gradual_ramp and diacetyl_rest — they manage their own profile_target_temp
+      if (currentStep.target_temp === null && controller && currentStep.step_type !== 'gradual_ramp' && currentStep.step_type !== 'diacetyl_rest') {
         const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
         if (effectiveTarget !== null) {
           // Only update if changed
