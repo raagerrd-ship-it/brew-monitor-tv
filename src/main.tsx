@@ -24,15 +24,11 @@ if ((isIframe || isTvParam || isChromecast) && 'serviceWorker' in navigator) {
   }
 }
 
-// Auto-reload when a new Service Worker takes control (e.g. after publish)
-// Skip in TV mode since we handle updates via remote refresh button
+// Service Worker updates should NOT hard-reload the app automatically.
+// Forced reloads can reset layout state on mobile and feel like random refresh loops.
 if ('serviceWorker' in navigator && !isIframe && !isTvParam && !isChromecast) {
-  let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    console.log('[SW] New service worker activated, reloading...');
-    window.location.reload();
+    console.log('[SW] New service worker activated (manual refresh required).');
   });
 }
 
