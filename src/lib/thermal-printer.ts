@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v17-lean-raster';
+export const PRINTER_VERSION = 'v18-no-feed-finalize';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -381,9 +381,24 @@ export async function printBitmap(
   settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
-  const width = canvas.width;
-  const height = canvas.height;
-  const ctx = canvas.getContext('2d')!;
+  // Normalize width for M110 print head (max 384 px) to avoid firmware stalls
+  let workingCanvas = canvas;
+  const targetWidth = Math.min(384, canvas.width);
+  if (canvas.width !== targetWidth) {
+    const scaled = document.createElement('canvas');
+    const scaledHeight = Math.max(1, Math.round((canvas.height * targetWidth) / canvas.width));
+    scaled.width = targetWidth;
+    scaled.height = scaledHeight;
+    const sctx = scaled.getContext('2d');
+    if (!sctx) throw new Error('Kunde inte skala etikettbild för utskrift.');
+    sctx.drawImage(canvas, 0, 0, scaled.width, scaled.height);
+    workingCanvas = scaled;
+    console.log(`[Printer] Rescaled canvas ${canvas.width}x${canvas.height} -> ${scaled.width}x${scaled.height}`);
+  }
+
+  const width = workingCanvas.width;
+  const height = workingCanvas.height;
+  const ctx = workingCanvas.getContext('2d')!;
   const imageData = ctx.getImageData(0, 0, width, height);
 
   // Dither to 1-bit monochrome
@@ -447,14 +462,16 @@ export async function printBitmap(
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
     }, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
 
-    // 5. Finalize print with minimal commands
-    await delay(300);
+    // 5. Finalize print
+    await delay(450);
     onProgress?.({ phase: `Finaliserar${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 350);
 
-    // Optional extra feed for stubborn firmwares
+    // Optional extra feed only when explicitly enabled
     if (settings.sendFooter) {
-      await sendCommand(connection, CMD.FEED(16), 'feed', 500);
+      await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 250);
+      await sendCommand(connection, CMD.FEED(8), 'feed', 450);
+    } else {
+      console.log('[Printer] Lean finalize: no feed commands');
     }
 
     if (copy < copies - 1) await delay(400);
