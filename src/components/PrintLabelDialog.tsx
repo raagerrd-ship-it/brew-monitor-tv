@@ -337,17 +337,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
             </Button>
 
-            {/* Test print button */}
-            <Button
-              onClick={handleTestPrint}
-              variant="outline"
-              size="sm"
-              className="w-full gap-2 text-xs"
-              disabled={isPrinting || isConnecting}
-            >
-              <FlaskConical className="h-3 w-3" />
-              Skriv ut testsida (vit med ram)
-            </Button>
           </div>
         )}
 
