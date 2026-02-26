@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v4-reliable';
+export const PRINTER_VERSION = 'v5-fast';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -26,11 +26,11 @@ const WRITE_CHAR_UUIDS = [
 ];
 
 // Printer constants
-const BLE_CHUNK_SIZE = 128;
-const BLE_CHUNK_DELAY_MS = 25;         // slightly more than phomymo's 20ms
+const BLE_CHUNK_SIZE = 200;
+const BLE_CHUNK_DELAY_MS = 8;           // minimal inter-chunk delay
 const BLE_WRITE_TIMEOUT_MS = 7000;
-const BLE_THROTTLE_EVERY_N = 8;        // pause every N chunks to let printer catch up
-const BLE_THROTTLE_PAUSE_MS = 80;      // extra pause for buffer drain
+const BLE_THROTTLE_EVERY_N = 16;        // pause every N chunks
+const BLE_THROTTLE_PAUSE_MS = 30;       // short pause for buffer drain
 const RECONNECT_TIMEOUT_MS = 6000;     // wait for advertisement
 
 const LAST_PRINTER_KEY = 'phomemo-last-device';
@@ -80,9 +80,9 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  // ALWAYS use writeWithResponse for reliability (prevents buffer overflow)
+  // Prefer writeWithoutResponse for speed (no round-trip wait per chunk)
   const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
+    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
 
   console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
 
@@ -378,11 +378,11 @@ export async function printBitmap(
     });
 
     // 6. Send M110 footer to finalize print
-    await delay(400);
+    await delay(200);
     onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 500);
+    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
 
-    if (copy < copies - 1) await delay(600);
+    if (copy < copies - 1) await delay(400);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
