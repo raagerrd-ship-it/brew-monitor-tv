@@ -156,15 +156,31 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   };
 
   const handleBlePrint = async () => {
-    if (!bleConn || !canvasRef.current) return;
+    if (!canvasRef.current) return;
     setIsPrinting(true);
     setPrintProgress({ phase: 'Startar...', percent: 0 });
     try {
-      await printBitmap(bleConn, canvasRef.current, copies, printSettings, setPrintProgress);
+      // Auto-connect if not connected
+      let conn = bleConn;
+      if (!conn) {
+        setPrintProgress({ phase: 'Ansluter till skrivare...', percent: 2 });
+        // Try auto-reconnect first, fall back to manual picker
+        conn = await reconnectLastPrinter().catch(() => null);
+        if (!conn) {
+          conn = await connectPrinter();
+        }
+        setBleConn(conn);
+        toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+      }
+      await printBitmap(conn, canvasRef.current, copies, printSettings, setPrintProgress);
       toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
     } catch (e: any) {
+      if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') {
+        setIsPrinting(false);
+        setPrintProgress(null);
+        return;
+      }
       toast({ title: "Utskriftsfel", description: e.message, variant: "destructive" });
-      // Connection may be broken
       setBleConn(null);
     } finally {
       setIsPrinting(false);
@@ -298,17 +314,19 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
 
             {/* BLE Print button */}
             <Button
-              onClick={bleConn ? handleBlePrint : handleConnect}
+              onClick={handleBlePrint}
               className="w-full gap-2"
               size="lg"
               disabled={isPrinting || isConnecting}
             >
               {isPrinting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isConnecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Bluetooth className="h-4 w-4" />
               )}
-              {isPrinting ? 'Skriver ut...' : bleConn ? 'Skriv ut via Bluetooth' : 'Anslut & skriv ut'}
+              {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
             </Button>
 
           </div>
