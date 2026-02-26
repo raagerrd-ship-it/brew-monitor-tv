@@ -119,10 +119,15 @@ export function FermentationSessionCompact({
   const phaseReady = !fermentationPhase || fermentationPhase === 'declining' || fermentationPhase === 'stationary';
   const attenuationReady = (attenuation ?? 0) >= gradualRampTrigger;
   const gradualRampTriggered = isGradualRampStep && attenuationReady && phaseReady;
+  
+  // Progress: when waiting, show attenuation progress toward trigger (capped at 90% to show it's not done)
+  // When triggered, show temp increase progress based on activity score declining toward 0
+  // The ramp formula is: target = base + increase * (1 - activity/100)
+  // So ramp progress = (1 - activity/100), but completion requires activity < 15% + SG stable
   const gradualRampProgress = isGradualRampStep 
     ? gradualRampTriggered 
-      ? (activityScore != null ? 1 - activityScore / 100 : null) // Inverted: lower activity = more progress
-      : (attenuation != null ? Math.min(1, (attenuation ?? 0) / gradualRampTrigger) : null) // Progress toward trigger
+      ? (activityScore != null ? Math.min(0.85, (1 - activityScore / 100)) : null) // Cap at 85% since completion needs SG stability too
+      : (attenuation != null ? Math.min(0.9, (attenuation ?? 0) / gradualRampTrigger * 0.9) : null) // Scale to max 90%
     : null;
 
   const getStepIconWithColor = (stepType: string) => {
