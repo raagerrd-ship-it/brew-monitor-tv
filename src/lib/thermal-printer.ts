@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v22-m110-strict-ch20';
+export const PRINTER_VERSION = 'v23-m110-with-response-no-media';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -29,7 +29,7 @@ export interface PrintSettings {
 }
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
-  mediaType: 'gap',
+  mediaType: 'none',
   landscape: false,
   speed: 5,
   density: 6,
@@ -136,9 +136,9 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  // Use writeWithoutResponse if available (faster, matches Phomymo default)
+  // Prefer writeWithResponse for reliability (M110 often hangs on withoutResponse bursts)
   const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
 
   console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
 
@@ -363,7 +363,6 @@ const CMD = {
 const M110_CMD = {
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
-  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
   FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
 };
 
@@ -457,13 +456,6 @@ export async function printBitmap(
 
     if (isLikelyM110) {
       // M110 strict command path (close to PrintMaster/phomemo-tools behavior)
-      const mediaCode = settings.mediaType === 'gap'
-        ? 10
-        : settings.mediaType === 'continuous'
-          ? 0
-          : settings.mediaType === 'mark'
-            ? 11
-            : null;
       const m110Density = Math.round(5 + settings.density * 1.25);
 
       if (settings.sendSpeed) {
@@ -471,9 +463,6 @@ export async function printBitmap(
       }
       if (settings.sendDensity) {
         await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density', 30);
-      }
-      if (mediaCode !== null) {
-        await sendCommand(connection, M110_CMD.MEDIA_TYPE(mediaCode), 'm110:media-type', 40);
       }
     } else {
       // Generic ESC/POS fallback
