@@ -321,20 +321,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               {isPrinting ? 'Skriver ut...' : bleConn ? 'Skriv ut via Bluetooth' : 'Anslut & skriv ut'}
             </Button>
 
-            <Button
-              onClick={handleDiagnostic}
-              variant="outline"
-              className="w-full gap-2"
-              size="sm"
-              disabled={!bleConn || isPrinting || isConnecting || isDiagnosing}
-            >
-              {isDiagnosing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Bluetooth className="h-4 w-4" />
-              )}
-              {isDiagnosing ? 'Kör diagnostik...' : 'Kör BLE-diagnostik'}
-            </Button>
           </div>
         )}
 
