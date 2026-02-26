@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v6-reconnect';
+export const PRINTER_VERSION = 'v7-no-media';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -296,7 +296,6 @@ export interface PrintProgress {
 const M110_CMD = {
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
-  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
   FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
 };
 
@@ -369,9 +368,7 @@ export async function printBitmap(
     // 2. Set density
     await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
 
-    // 3. Set media type (10 = labels with gaps)
-    await sendCommand(connection, M110_CMD.MEDIA_TYPE(10), 'm110:media');
-
+    // 3. Do not force media type; use printer's current paper setting (Print Master style)
     // 4. Send raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
     await sendCommand(connection, rasterHeader(bytesPerRow, height), 'm110:raster-header', 20);
