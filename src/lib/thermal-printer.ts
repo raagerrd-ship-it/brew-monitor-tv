@@ -4,6 +4,7 @@
  * 
  * Label size: 70x50mm at 203 DPI = 559x399 pixels
  * Printer width: 384 pixels (48 bytes)
+ * v2 - line-by-line protocol
  */
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
