@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v23-m110-with-response-no-media';
+export const PRINTER_VERSION = 'v24-m110-dual-finalize';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -494,13 +494,14 @@ export async function printBitmap(
     await delay(450);
     onProgress?.({ phase: `Finaliserar${copyLabel}...`, percent: basePercent + 75 });
 
-    if (isLikelyM110) {
-      if (settings.sendFooter) {
-        await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 650);
+    if (settings.sendFooter) {
+      // Dual finalize: M110 footer first (if relevant), then generic ESC/POS feed
+      // to avoid firmware states where printer stays in "Feeding" after full data transfer.
+      if (isLikelyM110) {
+        await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 250);
       }
-    } else if (settings.sendFooter) {
-      await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 250);
-      await sendCommand(connection, CMD.FEED(8), 'feed', 450);
+      await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 220);
+      await sendCommand(connection, CMD.FEED(8), 'feed', 500);
     } else {
       console.log('[Printer] Lean finalize: no feed commands');
     }
