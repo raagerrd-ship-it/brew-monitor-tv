@@ -203,6 +203,8 @@ export function FermentationProfilesManagement() {
         target_sg: stepData.target_sg ?? null,
         sg_comparison: stepData.sg_comparison ?? null,
         notes: stepData.notes ?? null,
+        attenuation_trigger: stepData.attenuation_trigger ?? null,
+        temp_increase: stepData.temp_increase ?? null,
       };
       const { error } = await supabase
         .from('fermentation_profile_steps')
