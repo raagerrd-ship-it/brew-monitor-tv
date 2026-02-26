@@ -239,9 +239,9 @@ export function AutoCoolingDecisionLogs() {
                   <span className="font-medium" style={{ 
                     color: tempChange < 0 ? 'hsl(210 80% 60%)' : tempChange > 0 ? 'hsl(var(--ferment-green))' : undefined 
                   }}>
-                    {tempChangeStr}
+                    {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°
                   </span>
-                  <span className="text-muted-foreground truncate max-w-[80px]">
+                  <span className="text-muted-foreground truncate max-w-[100px]">
                     {category === 'glykol' ? adj.cooler_controller_name : (adj.followed_controller_name || adj.cooler_controller_name)}
                   </span>
                 </div>
