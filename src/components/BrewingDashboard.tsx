@@ -359,8 +359,8 @@ export function BrewingDashboard() {
       <img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain invert" />
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>
-    <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
-    height: getContainerHeight(),
+    <div className={`w-full relative ${isMobile ? 'min-h-screen' : 'flex flex-col overflow-hidden'}`} style={{
+    height: isMobile ? 'auto' : getContainerHeight(),
     background: 'transparent'
   }}>
       
@@ -391,7 +391,7 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-      <div className={`relative flex flex-col z-0 ${isMobile ? 'h-full overflow-auto' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
+      <div className={`relative flex flex-col z-0 ${isMobile ? '' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
         {loading && brews.length === 0 ? (
           /* Skeleton loaders while data is loading */
           <div 
