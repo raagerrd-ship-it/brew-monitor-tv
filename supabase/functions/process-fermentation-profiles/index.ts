@@ -657,9 +657,14 @@ Deno.serve(async (req) => {
 
             // CRITICAL: Never lower the temperature once ramping has started.
             // Activity may temporarily rise when we heat the vessel — ignore that.
+            // But cap the "remembered" value to baseTemp + tempIncrease to prevent stale/wrong values from sticking.
             const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
-            const rampedTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
-              ? Math.max(calculatedTarget, currentProfileTarget)
+            const maxTarget = Math.round((baseTemp + tempIncrease) * 10) / 10
+            const cappedCurrentTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
+              ? Math.min(currentProfileTarget, maxTarget)
+              : null
+            const rampedTarget = cappedCurrentTarget !== null
+              ? Math.max(calculatedTarget, cappedCurrentTarget)
               : calculatedTarget
 
             if (currentProfileTarget === null || Math.abs(currentProfileTarget - rampedTarget) > 0.05) {
