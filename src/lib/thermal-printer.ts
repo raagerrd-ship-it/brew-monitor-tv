@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v11-media-type';
+export const PRINTER_VERSION = 'v12-ultra-safe';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -32,11 +32,11 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   mediaType: 'none',
   landscape: false,
   speed: 5,
-  density: 8,
-  chunkSize: 128,
+  density: 6,
+  chunkSize: 20,
   chunkDelay: 20,
   throttleEvery: 8,
-  throttleDelay: 80,
+  throttleDelay: 120,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: true,
@@ -348,6 +348,7 @@ export interface PrintProgress {
  * M110-specific commands (from phomemo-tools / Phomymo project)
  */
 const M110_CMD = {
+  INIT: new Uint8Array([0x1b, 0x40]),
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
   // 1F 11 <type> - Set media type (0x0a = 10 = labels with gaps)
@@ -423,38 +424,40 @@ export async function printBitmap(
 
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
 
-    // 1. Set speed
+    // 1. Init/reset printer state before each copy
+    await sendCommand(connection, M110_CMD.INIT, 'm110:init', 60);
+
+    // 2. Set speed
     if (safeSettings.sendSpeed) {
       await sendCommand(connection, M110_CMD.SPEED(safeSettings.speed), 'm110:speed');
     }
 
-    // 2. Set density
+    // 3. Set density
     if (safeSettings.sendDensity) {
       await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
     }
 
-    // 3. Set media type to "labels with gaps" (0x0a = 10) — required by M110 per Phomymo reference
+    // 4. Set media type to "labels with gaps" (0x0a = 10) — required by M110 per Phomymo reference
     await sendCommand(connection, M110_CMD.MEDIA_TYPE(0x0a), 'm110:media-type');
-    // 4. Orientation
-    if (safeSettings.landscape) {
-      await sendCommand(connection, M110_CMD.LANDSCAPE, 'm110:landscape');
-    }
 
-    // 5. Send raster header: GS v 0
+    // 5. Always set explicit orientation (avoid stale mode in printer firmware)
+    await sendCommand(connection, safeSettings.landscape ? M110_CMD.LANDSCAPE : M110_CMD.PORTRAIT, 'm110:orientation');
+
+    // 6. Send raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
     await sendCommand(connection, rasterHeader(bytesPerRow, height), 'm110:raster-header', 20);
 
-    // 6. Send raw bitmap data in BLE chunks
+    // 7. Send raw bitmap data in BLE chunks
     onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
     await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
       const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
     }, safeSettings.chunkSize, safeSettings.chunkDelay, safeSettings.throttleEvery, safeSettings.throttleDelay);
 
-    // 7. Always send M110 footer to finalize print
-    await delay(200);
+    // 8. Always send M110 footer to finalize print
+    await delay(300);
     onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
+    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 500);
 
     if (copy < copies - 1) await delay(400);
   }
