@@ -81,34 +81,18 @@ function drawLabelBase(ctx: CanvasRenderingContext2D) {
   ctx.fillRect(0, 0, LABEL_WIDTH, LABEL_HEIGHT);
 }
 
-/** Draw label image in top-right corner, inverted for white-on-transparent logos */
+/** Draw label image in top-right corner */
 function drawLabelImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null) {
   if (!img) return;
   const x = LABEL_WIDTH - PADDING - LABEL_IMG_SIZE;
   const y = PADDING;
-  
-  // Draw to offscreen canvas and invert colors
-  const offscreen = document.createElement('canvas');
-  offscreen.width = LABEL_IMG_SIZE;
-  offscreen.height = LABEL_IMG_SIZE;
-  const offCtx = offscreen.getContext('2d')!;
-  offCtx.drawImage(img, 0, 0, LABEL_IMG_SIZE, LABEL_IMG_SIZE);
-  const imageData = offCtx.getImageData(0, 0, LABEL_IMG_SIZE, LABEL_IMG_SIZE);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = 255 - data[i];       // R
-    data[i + 1] = 255 - data[i + 1]; // G
-    data[i + 2] = 255 - data[i + 2]; // B
-    // Alpha stays the same
-  }
-  offCtx.putImageData(imageData, 0, 0);
   
   // Draw with rounded corners
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(x, y, LABEL_IMG_SIZE, LABEL_IMG_SIZE, 6);
   ctx.clip();
-  ctx.drawImage(offscreen, x, y, LABEL_IMG_SIZE, LABEL_IMG_SIZE);
+  ctx.drawImage(img, x, y, LABEL_IMG_SIZE, LABEL_IMG_SIZE);
   ctx.restore();
 }
 
