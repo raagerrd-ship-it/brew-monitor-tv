@@ -667,7 +667,7 @@ Deno.serve(async (req) => {
                 max_target: baseTemp + tempIncrease,
                 activity_score: activityScore,
                 activity_trigger: activityTrigger,
-                ramp_progress: Math.round(rampProgress * 100),
+                ramp_progress: tempIncrease > 0 ? Math.round(((rampedTarget - baseTemp) / tempIncrease) * 100) : 0,
                 fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
               }
               console.log(`🔄 Gradual ramp: activity=${Math.round(activityScore)}%, progress=${Math.round(rampProgress * 100)}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
