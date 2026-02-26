@@ -50,18 +50,26 @@ export class ErrorBoundary extends Component<Props, State> {
       lastErrorTime: now
     });
     
-    // If too many errors in quick succession, reload the page
+    // Never hard-reload interactive devices; this causes disruptive UX loops.
     if (newErrorCount >= 3) {
-      console.log("[ErrorBoundary] Too many errors, reloading page...");
-      window.location.reload();
-      return;
+      const isTvMode = new URLSearchParams(window.location.search).get('tv') === 'true';
+      const isChromecast = navigator.userAgent.toLowerCase().includes('crkey');
+
+      if (isTvMode || isChromecast) {
+        console.log("[ErrorBoundary] Too many errors on TV/Cast, reloading page...");
+        window.location.reload();
+        return;
+      }
+
+      console.warn("[ErrorBoundary] Too many errors, skipping hard reload on interactive device.");
     }
     
-    // Auto-recover after 2 seconds
+    // Auto-recover after 2 seconds (or longer after repeated failures)
+    const recoveryDelay = newErrorCount >= 3 ? 5000 : 2000;
     this.recoveryTimeout = window.setTimeout(() => {
       console.log("[ErrorBoundary] Attempting auto-recovery...");
       this.setState({ hasError: false });
-    }, 2000);
+    }, recoveryDelay);
   }
 
   componentWillUnmount() {
