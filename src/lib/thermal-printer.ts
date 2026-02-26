@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v10-failsafe';
+export const PRINTER_VERSION = 'v11-media-type';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -350,6 +350,8 @@ export interface PrintProgress {
 const M110_CMD = {
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
+  // 1F 11 <type> - Set media type (0x0a = 10 = labels with gaps)
+  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
   LANDSCAPE: new Uint8Array([0x1b, 0x4e, 0x01, 0x01]),
   PORTRAIT: new Uint8Array([0x1b, 0x4e, 0x01, 0x00]),
   FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
@@ -431,8 +433,8 @@ export async function printBitmap(
       await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
     }
 
-    // 3. Never send media type command (avoids persisting printer paper-mode icon)
-
+    // 3. Set media type to "labels with gaps" (0x0a = 10) — required by M110 per Phomymo reference
+    await sendCommand(connection, M110_CMD.MEDIA_TYPE(0x0a), 'm110:media-type');
     // 4. Orientation
     if (safeSettings.landscape) {
       await sendCommand(connection, M110_CMD.LANDSCAPE, 'm110:landscape');
@@ -454,7 +456,6 @@ export async function printBitmap(
     onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
     await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
 
-    if (copy < copies - 1) await delay(400);
     if (copy < copies - 1) await delay(400);
   }
 
