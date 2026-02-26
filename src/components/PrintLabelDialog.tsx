@@ -314,8 +314,8 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           </div>
         )}
 
-        {/* Secondary actions */}
-        <div className="flex gap-2">
+        {/* Secondary actions - hidden on mobile */}
+        <div className="hidden sm:flex gap-2">
           <Button onClick={handleDownloadPdf} variant="outline" className="flex-1 gap-2" size="lg">
             <FileText className="h-4 w-4" />
             Spara som PDF
