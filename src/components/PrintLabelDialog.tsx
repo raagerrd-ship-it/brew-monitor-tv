@@ -11,6 +11,7 @@ import {
   connectPrinter,
   disconnectPrinter,
   printBitmap,
+  runPrinterDiagnostic,
   type PrinterConnection,
   type PrintProgress,
 } from "@/lib/thermal-printer";
@@ -53,6 +54,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [isPrinting, setIsPrinting] = useState(false);
   const [printProgress, setPrintProgress] = useState<PrintProgress | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
   const hasBle = isBluetoothSupported();
 
   // Render label preview whenever type or brew changes
@@ -116,6 +118,36 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     } finally {
       setIsPrinting(false);
       setTimeout(() => setPrintProgress(null), 2000);
+    }
+  };
+
+  const handleDiagnostic = async () => {
+    if (!bleConn) return;
+    setIsDiagnosing(true);
+    setPrintProgress({ phase: 'Diagnostik startar...', percent: 0 });
+
+    try {
+      const result = await runPrinterDiagnostic(bleConn, setPrintProgress);
+      console.info('[M110 diagnostik]', result.logs);
+
+      if (result.ok) {
+        toast({
+          title: 'Diagnostik OK',
+          description: `Alla steg svarade (${result.durationMs} ms).`,
+        });
+      } else {
+        toast({
+          title: 'Diagnostikfel',
+          description: `Fastnar vid: ${result.failedStep}. ${result.errorMessage || ''}`,
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      toast({ title: 'Diagnostikfel', description: e.message, variant: 'destructive' });
+      setBleConn(null);
+    } finally {
+      setIsDiagnosing(false);
+      setTimeout(() => setPrintProgress(null), 2500);
     }
   };
 
@@ -247,7 +279,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               onClick={bleConn ? handleBlePrint : handleConnect}
               className="w-full gap-2"
               size="lg"
-              disabled={isPrinting || isConnecting}
+              disabled={isPrinting || isConnecting || isDiagnosing}
             >
               {isPrinting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -255,6 +287,21 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
                 <Bluetooth className="h-4 w-4" />
               )}
               {isPrinting ? 'Skriver ut...' : bleConn ? 'Skriv ut via Bluetooth' : 'Anslut & skriv ut'}
+            </Button>
+
+            <Button
+              onClick={handleDiagnostic}
+              variant="outline"
+              className="w-full gap-2"
+              size="sm"
+              disabled={!bleConn || isPrinting || isConnecting || isDiagnosing}
+            >
+              {isDiagnosing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bluetooth className="h-4 w-4" />
+              )}
+              {isDiagnosing ? 'Kör diagnostik...' : 'Kör BLE-diagnostik'}
             </Button>
           </div>
         )}

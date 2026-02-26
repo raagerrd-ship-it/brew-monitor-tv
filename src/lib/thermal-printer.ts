@@ -26,6 +26,7 @@ const WRITE_CHAR_UUIDS = [
 // Printer constants
 const BLE_CHUNK_SIZE = 128;
 const BLE_CHUNK_DELAY_MS = 20;
+const BLE_WRITE_TIMEOUT_MS = 7000;
 
 export interface PrinterConnection {
   device: any;
@@ -114,15 +115,32 @@ export function disconnectPrinter(connection: PrinterConnection): void {
   } catch { /* ignore */ }
 }
 
+/** Send one BLE chunk with timeout so we can identify hanging steps */
+async function writeChunkWithTimeout(
+  conn: PrinterConnection,
+  chunk: Uint8Array,
+  context: string,
+): Promise<void> {
+  const writePromise = conn.writeMethod === 'withoutResponse'
+    ? conn.characteristic.writeValueWithoutResponse(chunk)
+    : conn.characteristic.writeValueWithResponse(chunk);
+
+  await Promise.race([
+    writePromise,
+    delay(BLE_WRITE_TIMEOUT_MS).then(() => {
+      throw new Error(`Timeout vid skrivning: ${context}`);
+    }),
+  ]);
+}
+
 /** Send raw bytes in chunks */
-async function sendChunked(conn: PrinterConnection, data: Uint8Array): Promise<void> {
+async function sendChunked(conn: PrinterConnection, data: Uint8Array, context = 'okänt steg'): Promise<void> {
+  const totalChunks = Math.ceil(data.length / BLE_CHUNK_SIZE);
   for (let offset = 0; offset < data.length; offset += BLE_CHUNK_SIZE) {
     const chunk = data.slice(offset, offset + BLE_CHUNK_SIZE);
-    if (conn.writeMethod === 'withoutResponse') {
-      await conn.characteristic.writeValueWithoutResponse(chunk);
-    } else {
-      await conn.characteristic.writeValueWithResponse(chunk);
-    }
+    const chunkNo = Math.floor(offset / BLE_CHUNK_SIZE) + 1;
+    await writeChunkWithTimeout(conn, chunk, `${context} (${chunkNo}/${totalChunks})`);
+
     if (offset + BLE_CHUNK_SIZE < data.length) {
       await delay(BLE_CHUNK_DELAY_MS);
     }
@@ -184,19 +202,19 @@ export async function printBitmap(
 
     // 1. Initialize printer
     onProgress?.({ phase: `Initierar skrivare${copyLabel}...`, percent: basePercent });
-    await sendChunked(connection, new Uint8Array([0x1B, 0x40]));
+    await sendChunked(connection, new Uint8Array([0x1B, 0x40]), 'print:init');
     await delay(100);
 
     // 2. Set concentration/density: 0x1F 0x11 0x37 [density]
-    await sendChunked(connection, new Uint8Array([0x1F, 0x11, 0x37, clampedDensity]));
+    await sendChunked(connection, new Uint8Array([0x1F, 0x11, 0x37, clampedDensity]), 'print:densitet');
     await delay(20);
 
     // 3. Set paper type: gap label detection (0x1F 0x11 0x02 0x04)
-    await sendChunked(connection, new Uint8Array([0x1F, 0x11, 0x02, 0x04]));
+    await sendChunked(connection, new Uint8Array([0x1F, 0x11, 0x02, 0x04]), 'print:mediatyp');
     await delay(20);
 
     // 4. Start print job: 0x10 0xFF 0xFE 0x01
-    await sendChunked(connection, new Uint8Array([0x10, 0xFF, 0xFE, 0x01]));
+    await sendChunked(connection, new Uint8Array([0x10, 0xFF, 0xFE, 0x01]), 'print:start-jobb');
     await delay(50);
 
     // 5. Send bitmap line by line with 0x00 prefix per line
@@ -215,11 +233,7 @@ export async function printBitmap(
     const totalChunks = Math.ceil(allData.length / BLE_CHUNK_SIZE);
     for (let i = 0; i < totalChunks; i++) {
       const chunk = allData.slice(i * BLE_CHUNK_SIZE, (i + 1) * BLE_CHUNK_SIZE);
-      if (connection.writeMethod === 'withoutResponse') {
-        await connection.characteristic.writeValueWithoutResponse(chunk);
-      } else {
-        await connection.characteristic.writeValueWithResponse(chunk);
-      }
+      await writeChunkWithTimeout(connection, chunk, `bilddata (${i + 1}/${totalChunks})`);
       if (i < totalChunks - 1) await delay(BLE_CHUNK_DELAY_MS);
 
       if (i % 10 === 0) {
@@ -230,13 +244,91 @@ export async function printBitmap(
 
     // 6. End print job / form feed: 0x1A
     await delay(100);
-    await sendChunked(connection, new Uint8Array([0x1A]));
+    await sendChunked(connection, new Uint8Array([0x1A]), 'print:avsluta');
     await delay(500);
 
     if (copy < copies - 1) await delay(500);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
+}
+
+export interface PrinterDiagnosticResult {
+  ok: boolean;
+  failedStep?: string;
+  errorMessage?: string;
+  logs: string[];
+  durationMs: number;
+}
+
+/**
+ * Runs a compact BLE diagnostic print to identify where printer communication hangs.
+ */
+export async function runPrinterDiagnostic(
+  connection: PrinterConnection,
+  onProgress?: (p: PrintProgress) => void,
+): Promise<PrinterDiagnosticResult> {
+  const startedAt = performance.now();
+  const logs: string[] = [];
+  let currentStep = '';
+
+  const runStep = async (label: string, percent: number, command: Uint8Array, waitMs = 20) => {
+    currentStep = label;
+    logs.push(`▶ ${label}`);
+    onProgress?.({ phase: `Diagnostik: ${label}`, percent });
+    await sendChunked(connection, command, `diagnostik:${label}`);
+    if (waitMs > 0) await delay(waitMs);
+    logs.push(`✅ ${label}`);
+  };
+
+  try {
+    await runStep('Init', 10, new Uint8Array([0x1B, 0x40]), 80);
+    await runStep('Densitet', 25, new Uint8Array([0x1F, 0x11, 0x37, 0x08]));
+    await runStep('Mediatyp (gap)', 40, new Uint8Array([0x1F, 0x11, 0x02, 0x04]));
+    await runStep('Starta jobb', 55, new Uint8Array([0x10, 0xFF, 0xFE, 0x01]), 40);
+
+    currentStep = 'Skicka testmönster';
+    logs.push(`▶ ${currentStep}`);
+    onProgress?.({ phase: 'Diagnostik: Skickar testmönster', percent: 75 });
+
+    const bytesPerRow = 48;
+    const testRows = 32;
+    const lineSize = 1 + bytesPerRow;
+    const testData = new Uint8Array(testRows * lineSize);
+
+    for (let y = 0; y < testRows; y++) {
+      const offset = y * lineSize;
+      testData[offset] = 0x00;
+      const fillByte = y % 2 === 0 ? 0xff : 0x00;
+      for (let x = 0; x < bytesPerRow; x++) {
+        testData[offset + 1 + x] = fillByte;
+      }
+    }
+
+    await sendChunked(connection, testData, 'diagnostik:testmönster');
+    await delay(60);
+    logs.push(`✅ ${currentStep}`);
+
+    await runStep('Avsluta jobb', 92, new Uint8Array([0x1A]), 300);
+    onProgress?.({ phase: 'Diagnostik klar', percent: 100 });
+
+    return {
+      ok: true,
+      logs,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Okänt fel';
+    logs.push(`❌ ${currentStep}: ${errorMessage}`);
+
+    return {
+      ok: false,
+      failedStep: currentStep || 'okänt steg',
+      errorMessage,
+      logs,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
+  }
 }
 
 /**
