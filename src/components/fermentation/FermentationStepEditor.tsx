@@ -51,6 +51,7 @@ export function FermentationStepEditor({
   const [notes, setNotes] = useState<string>("");
   const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg">("time");
   const [attenuationTrigger, setAttenuationTrigger] = useState<string>("75");
+  const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function FermentationStepEditor({
       setSgComparison(step.sg_comparison || "at_or_below");
       setNotes(step.notes || "");
       setAttenuationTrigger(step.attenuation_trigger?.toString() || "75");
+      setActivityTrigger((step as any).activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
       // Determine hold end condition based on existing data
       if (step.step_type === "hold" && step.target_sg !== null) {
@@ -142,7 +144,7 @@ export function FermentationStepEditor({
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
         break;
       case "gradual_ramp":
-        stepData.attenuation_trigger = attenuationTrigger ? parseFloat(attenuationTrigger) : 75;
+        stepData.activity_trigger = activityTrigger ? parseFloat(activityTrigger) : 35;
         stepData.temp_increase = tempIncrease ? parseFloat(tempIncrease) : 3;
         stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
@@ -425,14 +427,15 @@ export function FermentationStepEditor({
           <>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Utjäsningsnivå (%)</Label>
+                <Label>Aktivitetströskel (%)</Label>
                 <Input
                   type="number"
                   step="5"
-                  value={attenuationTrigger}
-                  onChange={(e) => setAttenuationTrigger(e.target.value)}
-                  placeholder="75"
+                  value={activityTrigger}
+                  onChange={(e) => setActivityTrigger(e.target.value)}
+                  placeholder="35"
                 />
+                <p className="text-xs text-muted-foreground">Börjar rampa när aktiviteten sjunker under denna nivå</p>
               </div>
               <div className="space-y-2">
                 <Label>Temperaturhöjning (°C)</Label>
@@ -467,8 +470,9 @@ export function FermentationStepEditor({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Höjer temperaturen gradvis i takt med att jäsningsaktiviteten sjunker, istället för ett plötsligt hopp. 
-              Avslutas först när SG är stabil och aktiviteten är nära noll. Minskar stresspåverkan på jästen.
+              Börjar höja temperaturen gradvis när jäsningsaktiviteten sjunker under tröskeln. 
+              Ju lägre aktivitet, desto högre temperatur (max +{tempIncrease || 3}°C).
+              Avslutas när SG är stabil och aktiviteten är nära noll.
             </p>
           </>
         );

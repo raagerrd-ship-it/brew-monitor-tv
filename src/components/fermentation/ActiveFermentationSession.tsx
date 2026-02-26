@@ -131,6 +131,7 @@ export function ActiveFermentationSession({
         notes: null,
         gravity_threshold: s.gravity_threshold ?? null,
         attenuation_trigger: s.attenuation_trigger ?? null,
+        activity_trigger: s.activity_trigger ?? null,
         temp_increase: s.temp_increase ?? null,
         created_at: '',
         updated_at: '',

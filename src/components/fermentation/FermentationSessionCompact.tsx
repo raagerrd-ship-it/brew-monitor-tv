@@ -113,21 +113,29 @@ export function FermentationSessionCompact({
   const isRamping = isRampingProp;
   const rampProgress = rampProgressProp;
 
-  // Gradual ramp trigger status
+  // Gradual ramp trigger status — for gradual_ramp: uses activity_trigger, for diacetyl_rest: uses attenuation_trigger
   const isGradualRampStep = currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest';
-  const gradualRampTrigger = isGradualRampStep ? ((currentStep as any)?.attenuation_trigger ?? 75) : 0;
-  const phaseReady = !fermentationPhase || fermentationPhase === 'declining' || fermentationPhase === 'stationary';
-  const attenuationReady = (attenuation ?? 0) >= gradualRampTrigger;
-  const gradualRampTriggered = isGradualRampStep && attenuationReady && phaseReady;
+  const isActivityBased = currentStep?.step_type === 'gradual_ramp';
+  const activityTrigger = isActivityBased ? ((currentStep as any)?.activity_trigger ?? 35) : 0;
+  const attenuationTriggerVal = !isActivityBased && isGradualRampStep ? ((currentStep as any)?.attenuation_trigger ?? 75) : 0;
   
-  // Progress: when waiting, show attenuation progress toward trigger (capped at 90% to show it's not done)
-  // When triggered, show temp increase progress based on activity score declining toward 0
-  // The ramp formula is: target = base + increase * (1 - activity/100)
-  // So ramp progress = (1 - activity/100), but completion requires activity < 15% + SG stable
+  // For gradual_ramp: triggered when activity drops below threshold
+  // For diacetyl_rest: triggered when attenuation >= trigger AND phase is declining/stationary
+  const phaseReady = !fermentationPhase || fermentationPhase === 'declining' || fermentationPhase === 'stationary';
+  const gradualRampTriggered = isGradualRampStep && (
+    isActivityBased 
+      ? (activityScore != null && activityScore <= activityTrigger)
+      : ((attenuation ?? 0) >= attenuationTriggerVal && phaseReady)
+  );
+  
+  // Progress for gradual_ramp: activity dropping from trigger to 0 = 0% to 100%
+  // Progress for diacetyl_rest: attenuation approaching trigger
   const gradualRampProgress = isGradualRampStep 
     ? gradualRampTriggered 
-      ? (activityScore != null ? Math.min(0.85, (1 - activityScore / 100)) : null) // Cap at 85% since completion needs SG stability too
-      : (attenuation != null ? Math.min(0.9, (attenuation ?? 0) / gradualRampTrigger * 0.9) : null) // Scale to max 90%
+      ? (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null)
+      : isActivityBased
+        ? (activityScore != null ? Math.max(0, 1 - activityScore / 100) * 0.5 : null) // Show some progress toward trigger
+        : (attenuation != null ? Math.min(0.9, (attenuation ?? 0) / attenuationTriggerVal * 0.9) : null)
     : null;
 
   const getStepIconWithColor = (stepType: string) => {
@@ -207,16 +215,15 @@ export function FermentationSessionCompact({
         return 'Väntar på kvittering';
       case 'diacetyl_rest':
       case 'gradual_ramp': {
-        const trigger = (step as any).attenuation_trigger ?? 75;
         const increase = (step as any).temp_increase ?? 3;
         if (gradualRampTriggered) {
           return `Rampar +${increase}° (aktivitet ${activityScore != null ? Math.round(activityScore) + '%' : '?'})`;
         }
+        if (isActivityBased) {
+          return `Väntar: aktivitet ${activityScore != null ? Math.round(activityScore) : '?'}% → ${activityTrigger}%`;
+        }
         const currentAtt = attenuation ?? 0;
-        const phaseLabel = fermentationPhase 
-          ? (fermentationPhase === 'declining' || fermentationPhase === 'stationary' ? '' : ` · ${fermentationPhase}`)
-          : '';
-        return `Väntar: ${Math.round(currentAtt)}% / ${trigger}%${phaseLabel}`;
+        return `Väntar: ${Math.round(currentAtt)}% / ${attenuationTriggerVal}%`;
       }
       default:
         return '';

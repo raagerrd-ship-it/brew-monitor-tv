@@ -32,6 +32,7 @@ export interface FermentationStepData {
   sg_comparison: string | null;
   step_order: number;
   attenuation_trigger?: number | null;
+  activity_trigger?: number | null;
   temp_increase?: number | null;
   gravity_threshold?: number | null;
 }

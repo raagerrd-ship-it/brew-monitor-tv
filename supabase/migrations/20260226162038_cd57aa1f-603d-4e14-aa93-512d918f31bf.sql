@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_profile_steps ADD COLUMN activity_trigger numeric DEFAULT NULL;

@@ -135,6 +135,7 @@ export default function Brew() {
               sg_comparison: step.sg_comparison,
               ramp_type: step.ramp_type,
               attenuation_trigger: step.attenuation_trigger,
+              activity_trigger: step.activity_trigger,
               temp_increase: step.temp_increase,
               gravity_threshold: step.gravity_threshold,
             }));
