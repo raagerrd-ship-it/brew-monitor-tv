@@ -12,10 +12,10 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v30-reliable-with-response-throttle';
+export const PRINTER_VERSION = 'v31-fast-large-chunks';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
-export const SETTINGS_VERSION = 5;
+export const SETTINGS_VERSION = 6;
 const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
@@ -38,10 +38,10 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 10,
-  chunkSize: 20,
-  chunkDelay: 8,
-  throttleEvery: 8,
-  throttleDelay: 80,
+  chunkSize: 200,
+  chunkDelay: 0,
+  throttleEvery: 0,
+  throttleDelay: 0,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: true,
@@ -134,7 +134,7 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
   const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
+    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
 
   console.log(`[Printer] Connected: ${device.name}, write: ${writeMethod}`);
   saveLastDevice(device);
