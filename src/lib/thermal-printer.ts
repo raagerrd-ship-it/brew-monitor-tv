@@ -4,8 +4,10 @@
  * 
  * Label size: 70x50mm at 203 DPI = 559x399 pixels
  * Printer width: 384 pixels (48 bytes)
- * v2 - line-by-line protocol
+ * v3 - correct M110 protocol (GS v 0 raster)
  */
+
+export const PRINTER_VERSION = 'v3-gsv0';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -28,6 +30,8 @@ const BLE_CHUNK_SIZE = 128;
 const BLE_CHUNK_DELAY_MS = 20;
 const BLE_WRITE_TIMEOUT_MS = 7000;
 
+const LAST_PRINTER_KEY = 'phomemo-last-device';
+
 export interface PrinterConnection {
   device: any;
   characteristic: any;
@@ -39,7 +43,83 @@ export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && 'bluetooth' in (navigator as any);
 }
 
-/** Connect to a Phomemo M110 printer via Web Bluetooth */
+/** Save last connected device name for auto-reconnect */
+function saveLastDevice(deviceName: string) {
+  try { localStorage.setItem(LAST_PRINTER_KEY, deviceName); } catch { /* ignore */ }
+}
+
+/** Get last connected device name */
+export function getLastDeviceName(): string | null {
+  try { return localStorage.getItem(LAST_PRINTER_KEY); } catch { return null; }
+}
+
+/** Connect GATT + find service + characteristic for a given device */
+async function connectDevice(device: any): Promise<PrinterConnection> {
+  const server = await connectWithRetry(device);
+
+  // Find service
+  let service: any = null;
+  for (const uuid of SERVICE_UUIDS) {
+    try {
+      service = await server.getPrimaryService(uuid as any);
+      break;
+    } catch { /* try next */ }
+  }
+  if (!service) throw new Error('Kunde inte hitta skrivarens BLE-tjänst.');
+
+  // Find write characteristic
+  let characteristic: any = null;
+  for (const uuid of WRITE_CHAR_UUIDS) {
+    try {
+      characteristic = await service.getCharacteristic(uuid as any);
+      break;
+    } catch { /* try next */ }
+  }
+  if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
+
+  const writeMethod = characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+
+  // Remember this device
+  if (device.name) saveLastDevice(device.name);
+
+  return { device, characteristic, writeMethod };
+}
+
+/**
+ * Try to reconnect to the last used printer without showing the picker.
+ * Uses navigator.bluetooth.getDevices() (Chrome 85+).
+ * Returns null if not possible.
+ */
+export async function reconnectLastPrinter(): Promise<PrinterConnection | null> {
+  if (!isBluetoothSupported()) return null;
+
+  const lastDeviceName = getLastDeviceName();
+  if (!lastDeviceName) return null;
+
+  try {
+    const bt = navigator as any;
+    if (!bt.bluetooth?.getDevices) return null;
+
+    const devices = await bt.bluetooth.getDevices();
+    const target = devices.find((d: any) => d.name === lastDeviceName);
+    if (!target) return null;
+
+    // watchAdvertisements + connect
+    if (target.watchAdvertisements) {
+      await target.watchAdvertisements();
+      // Wait briefly for advertisement
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    if (!target.gatt) return null;
+    return await connectDevice(target);
+  } catch (e) {
+    console.warn('[Printer] Auto-reconnect failed:', e);
+    return null;
+  }
+}
+
+/** Connect to a Phomemo M110 printer via Web Bluetooth (user picker) */
 export async function connectPrinter(): Promise<PrinterConnection> {
   if (!isBluetoothSupported()) {
     throw new Error('Web Bluetooth stöds inte i denna webbläsare. Använd Chrome eller Edge.');
@@ -56,39 +136,13 @@ export async function connectPrinter(): Promise<PrinterConnection> {
       optionalServices: SERVICE_UUIDS as any,
     });
   } catch {
-    // Fallback: show all BLE devices
     device = await (navigator as any).bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: SERVICE_UUIDS as any,
     });
   }
 
-  const server = await connectWithRetry(device);
-
-  // Find service
-  let service: any = null;
-  for (const uuid of SERVICE_UUIDS) {
-    try {
-      service = await server.getPrimaryService(uuid as any);
-      break;
-    } catch { /* try next */ }
-  }
-  if (!service) throw new Error('Kunde inte hitta skrivarens BLE-tjänst. Kontrollera att skrivaren är påslagen.');
-
-  // Find write characteristic
-  let characteristic: any = null;
-  for (const uuid of WRITE_CHAR_UUIDS) {
-    try {
-      characteristic = await service.getCharacteristic(uuid as any);
-      break;
-    } catch { /* try next */ }
-  }
-  if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
-
-  // Detect write method
-  const writeMethod = characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
-
-  return { device, characteristic, writeMethod };
+  return connectDevice(device);
 }
 
 /** Connect to GATT server with retry */
