@@ -7,7 +7,11 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v9-no-media-write';
+export const PRINTER_VERSION = 'v10-failsafe';
+
+/** Settings version — bump to auto-reset aggressive user profiles */
+export const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
 export interface PrintSettings {
@@ -29,14 +33,28 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 8,
-  chunkSize: 300,
-  chunkDelay: 5,
-  throttleEvery: 0,
+  chunkSize: 128,
+  chunkDelay: 20,
+  throttleEvery: 8,
   throttleDelay: 80,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: true,
 };
+
+/** Check if saved settings need auto-reset (version migration) */
+export function migrateSettingsIfNeeded(): boolean {
+  try {
+    const savedVersion = Number(localStorage.getItem(SETTINGS_VERSION_KEY) || '0');
+    if (savedVersion < SETTINGS_VERSION) {
+      localStorage.removeItem('phomemo-print-settings');
+      localStorage.setItem(SETTINGS_VERSION_KEY, String(SETTINGS_VERSION));
+      console.log(`[Printer] Settings migrated v${savedVersion} → v${SETTINGS_VERSION}, reset to safe defaults`);
+      return true;
+    }
+  } catch { /* ignore */ }
+  return false;
+}
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -118,11 +136,10 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  // Prefer writeWithoutResponse for speed (no round-trip wait per chunk)
-  const writeMethod: 'withResponse' | 'withoutResponse' =
-    characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+  // Force writeWithResponse for M110 stability (prevents BLE buffer overflows)
+  const writeMethod: 'withResponse' | 'withoutResponse' = 'withResponse';
 
-  console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
+  console.log(`[Printer] Write method: ${writeMethod} (forced), device: ${device.name}`);
 
   // Remember this device
   saveLastDevice(device);
@@ -359,7 +376,8 @@ export async function printBitmap(
   settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
-  onProgress?.({ phase: 'Förbereder bild...', percent: 5 });
+  // Force footer on — critical for M110 to finalize print
+  const safeSettings = { ...settings, sendFooter: true };
 
   const width = canvas.width;
   const height = canvas.height;
@@ -392,9 +410,9 @@ export async function printBitmap(
   }
 
   // Map density 1-8 to M110 range (~6-15)
-  const m110Density = Math.round(5 + Math.max(1, Math.min(8, settings.density)) * 1.25);
+  const m110Density = Math.round(5 + Math.max(1, Math.min(8, safeSettings.density)) * 1.25);
 
-  const settingsLog = Object.entries(settings).map(([k,v]) => `${k}=${v}`).join(', ');
+  const settingsLog = Object.entries(safeSettings).map(([k,v]) => `${k}=${v}`).join(', ');
   console.log(`[Printer] Printing ${width}x${height} (${rasterData.length} bytes), copies=${copies}, ${settingsLog}`);
 
   for (let copy = 0; copy < copies; copy++) {
@@ -404,19 +422,19 @@ export async function printBitmap(
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
 
     // 1. Set speed
-    if (settings.sendSpeed) {
-      await sendCommand(connection, M110_CMD.SPEED(settings.speed), 'm110:speed');
+    if (safeSettings.sendSpeed) {
+      await sendCommand(connection, M110_CMD.SPEED(safeSettings.speed), 'm110:speed');
     }
 
     // 2. Set density
-    if (settings.sendDensity) {
+    if (safeSettings.sendDensity) {
       await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
     }
 
     // 3. Never send media type command (avoids persisting printer paper-mode icon)
 
     // 4. Orientation
-    if (settings.landscape) {
+    if (safeSettings.landscape) {
       await sendCommand(connection, M110_CMD.LANDSCAPE, 'm110:landscape');
     }
 
@@ -429,15 +447,14 @@ export async function printBitmap(
     await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
       const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
-    }, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
+    }, safeSettings.chunkSize, safeSettings.chunkDelay, safeSettings.throttleEvery, safeSettings.throttleDelay);
 
-    // 7. Send M110 footer to finalize print
-    if (settings.sendFooter) {
-      await delay(200);
-      onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-      await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
-    }
+    // 7. Always send M110 footer to finalize print
+    await delay(200);
+    onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
+    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
 
+    if (copy < copies - 1) await delay(400);
     if (copy < copies - 1) await delay(400);
   }
 
