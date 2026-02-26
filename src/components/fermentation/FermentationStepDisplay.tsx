@@ -51,6 +51,7 @@ export function FermentationStepDisplay({
       case 'wait_for_sg': return <Activity className="h-3 w-3" />;
       case 'wait_for_acknowledgement': return <Hand className="h-3 w-3" />;
       case 'diacetyl_rest': return <Activity className="h-3 w-3" />;
+      case 'gradual_ramp': return <Activity className="h-3 w-3" />;
       default: return <Clock className="h-3 w-3" />;
     }
   };
@@ -76,6 +77,8 @@ export function FermentationStepDisplay({
         return 'Väntar på kvittering';
       case 'diacetyl_rest':
         return `Diacetylvila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
+      case 'gradual_ramp':
+        return `Smart vila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
       default:
         return '';
     }
@@ -166,6 +169,8 @@ export function FermentationStepDisplay({
         return 'Kvittera för att fortsätta';
       case 'diacetyl_rest':
         return 'Väntar på SG-stabilitet';
+      case 'gradual_ramp':
+        return 'Gradvis ramp → SG-stabilitet';
       default:
         return '';
     }
