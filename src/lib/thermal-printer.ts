@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v21-no-media-probe';
+export const PRINTER_VERSION = 'v22-m110-strict-ch20';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -29,17 +29,17 @@ export interface PrintSettings {
 }
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
-  mediaType: 'none',
+  mediaType: 'gap',
   landscape: false,
   speed: 5,
   density: 6,
-  chunkSize: 96,
-  chunkDelay: 25,
-  throttleEvery: 10,
-  throttleDelay: 100,
-  sendSpeed: false,
-  sendDensity: false,
-  sendFooter: false,
+  chunkSize: 20,
+  chunkDelay: 20,
+  throttleEvery: 8,
+  throttleDelay: 80,
+  sendSpeed: true,
+  sendDensity: true,
+  sendFooter: true,
 };
 
 /** Check if saved settings need auto-reset (version migration) */
@@ -360,6 +360,13 @@ const CMD = {
   DENSITY: (level: number) => new Uint8Array([0x1d, 0x7c, level]),
 };
 
+const M110_CMD = {
+  SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
+  DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
+  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
+  FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
+};
+
 
 /** Standard ESC/POS raster header: GS v 0 */
 function rasterHeader(widthBytes: number, heightLines: number): Uint8Array {
@@ -445,12 +452,37 @@ export async function printBitmap(
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
     await sendCommand(connection, CMD.INIT, 'init', 100);
 
-    // 2. Optional heat/density tuning (disabled by default for compatibility)
-    if (settings.sendDensity) {
-      await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
-      await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
+    const deviceName = String(connection.device?.name || '').toUpperCase();
+    const isLikelyM110 = deviceName.startsWith('M110') || deviceName.startsWith('M120') || deviceName.startsWith('Q') || deviceName.includes('PHOMEMO');
+
+    if (isLikelyM110) {
+      // M110 strict command path (close to PrintMaster/phomemo-tools behavior)
+      const mediaCode = settings.mediaType === 'gap'
+        ? 10
+        : settings.mediaType === 'continuous'
+          ? 0
+          : settings.mediaType === 'mark'
+            ? 11
+            : null;
+      const m110Density = Math.round(5 + settings.density * 1.25);
+
+      if (settings.sendSpeed) {
+        await sendCommand(connection, M110_CMD.SPEED(settings.speed), 'm110:speed', 30);
+      }
+      if (settings.sendDensity) {
+        await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density', 30);
+      }
+      if (mediaCode !== null) {
+        await sendCommand(connection, M110_CMD.MEDIA_TYPE(mediaCode), 'm110:media-type', 40);
+      }
     } else {
-      console.log('[Printer] Skipping heat/density tuning (lean mode)');
+      // Generic ESC/POS fallback
+      if (settings.sendDensity) {
+        await sendCommand(connection, CMD.HEAT_SETTINGS(7, heatTime, 2), 'heat-settings', 30);
+        await sendCommand(connection, CMD.DENSITY(settings.density), 'density', 50);
+      } else {
+        console.log('[Printer] Skipping heat/density tuning (lean mode)');
+      }
     }
 
     // 3. Raster header: GS v 0
@@ -459,17 +491,25 @@ export async function printBitmap(
 
     // 4. Send bitmap data
     onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
+    const txChunkSize = isLikelyM110 ? 20 : settings.chunkSize;
+    const txChunkDelay = isLikelyM110 ? 20 : settings.chunkDelay;
+    const txThrottleEvery = isLikelyM110 ? 8 : settings.throttleEvery;
+    const txThrottleDelay = isLikelyM110 ? 80 : settings.throttleDelay;
+
     await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
       const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
-    }, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
+    }, txChunkSize, txChunkDelay, txThrottleEvery, txThrottleDelay);
 
     // 5. Finalize print
     await delay(450);
     onProgress?.({ phase: `Finaliserar${copyLabel}...`, percent: basePercent + 75 });
 
-    // Optional extra feed only when explicitly enabled
-    if (settings.sendFooter) {
+    if (isLikelyM110) {
+      if (settings.sendFooter) {
+        await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 650);
+      }
+    } else if (settings.sendFooter) {
       await sendCommand(connection, CMD.LINE_FEED, 'line-feed', 250);
       await sendCommand(connection, CMD.FEED(8), 'feed', 450);
     } else {
