@@ -184,8 +184,25 @@ export async function calculateCompensatedTarget(
   }
 
   // Target average: compensate by half the delta, scaled by damping factor
+  // BUT: don't push target in the wrong direction relative to profile target.
+  // If avg is already ABOVE target, only allow compensation that pushes target DOWN (negative).
+  // If avg is already BELOW target, only allow compensation that pushes target UP (positive).
+  const latestPillForComp = parseFloat(String(deltaHistory[0].pill_temp))
+  const latestCtrlForComp = parseFloat(String(deltaHistory[0].controller_temp))
+  const currentAvgForComp = (latestPillForComp + latestCtrlForComp) / 2
   const rawCompensation = avgDelta / 2
-  const compensation = rawCompensation * dampingFactor
+  let compensation = rawCompensation * dampingFactor
+  
+  // compensation is SUBTRACTED from target: positive comp = lower target, negative comp = higher target
+  // If avg > target and comp is negative (would push target UP): suppress it
+  // If avg < target and comp is positive (would push target DOWN): suppress it
+  if (currentAvgForComp > profileTarget + 0.05 && compensation < 0) {
+    console.log(`🚫 Delta-komp undertryckt: medel=${currentAvgForComp.toFixed(1)}° redan över mål=${profileTarget}°, komp=${compensation.toFixed(2)}° skulle höja mål ytterligare`)
+    compensation = 0
+  } else if (currentAvgForComp < profileTarget - 0.05 && compensation > 0) {
+    console.log(`🚫 Delta-komp undertryckt: medel=${currentAvgForComp.toFixed(1)}° redan under mål=${profileTarget}°, komp=${compensation.toFixed(2)}° skulle sänka mål ytterligare`)
+    compensation = 0
+  }
 
   // === Adaptive PI-term: Proportional + Integral + Learned baseline ===
   // Categorize current fermentation phase by delta magnitude
