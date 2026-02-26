@@ -255,14 +255,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           </div>
         )}
 
-        {/* Paper checklist hint */}
-        {hasBle && !bleConn && !isPrinting && (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
-            <p className="font-medium text-foreground">🖨️ Checklista före utskrift:</p>
-            <p>• Etikettens <strong>glansiga/termiska sida nedåt</strong> mot skrivarhuvudet</p>
-            <p>• Skrivaren laddad och påslagen</p>
-          </div>
-        )}
 
         {/* Bluetooth section */}
         {hasBle && (
