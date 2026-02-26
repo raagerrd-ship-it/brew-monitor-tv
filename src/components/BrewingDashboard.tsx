@@ -403,7 +403,7 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-      <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-auto' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
+      <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
         {loading && brews.length === 0 ? (
           /* Skeleton loaders while data is loading */
           <div 
