@@ -653,9 +653,15 @@ Deno.serve(async (req) => {
             const rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
             const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
             const baseTemp = effectiveTarget ?? 18
-            const rampedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
+            const calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
+            // CRITICAL: Never lower the temperature once ramping has started.
+            // Activity may temporarily rise when we heat the vessel — ignore that.
             const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+            const rampedTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
+              ? Math.max(calculatedTarget, currentProfileTarget)
+              : calculatedTarget
+
             if (currentProfileTarget === null || Math.abs(currentProfileTarget - rampedTarget) > 0.05) {
               await setProfileTarget(supabase, session.controller_id, rampedTarget)
               actionTaken = 'temp_adjusted'
