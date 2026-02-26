@@ -209,7 +209,7 @@ export function useBrewData(): UseBrewDataReturn {
         ? supabase.from('fermentation_profile_steps').select('*').in('profile_id', profileIds).order('step_order')
         : Promise.resolve({ data: [] }),
       sessionControllerIds.length > 0
-        ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, target_temp').in('controller_id', sessionControllerIds)
+        ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, target_temp, profile_target_temp').in('controller_id', sessionControllerIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -255,6 +255,7 @@ export function useBrewData(): UseBrewDataReturn {
           })),
           controller_current_temp: controller?.current_temp ?? null,
           controller_target_temp: controller?.target_temp ?? null,
+          controller_profile_target_temp: controller?.profile_target_temp ?? null,
         });
       }
     });

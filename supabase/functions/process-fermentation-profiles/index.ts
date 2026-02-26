@@ -628,12 +628,16 @@ Deno.serve(async (req) => {
           const activityScore = metrics?.activity_score ?? 100
 
           if (brewData) {
-            // Trigger condition: activity score drops below threshold
-            const triggered = activityScore <= activityTrigger
+            const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
+            const baseTemp = effectiveTarget ?? 18
+            const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
+            const backendAlreadyRamping = currentProfileTarget !== null && currentProfileTarget > baseTemp + 0.05
+
+            // Sticky trigger: once ramp has started, never return to waiting even if activity rises temporarily.
+            const triggered = backendAlreadyRamping || activityScore <= activityTrigger
 
             if (!triggered) {
               // Phase 1: waiting for activity to drop — keep current temperature
-              const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
               if (effectiveTarget !== null) {
                 await setProfileTarget(supabase, session.controller_id, effectiveTarget)
               }
@@ -651,14 +655,11 @@ Deno.serve(async (req) => {
             // Phase 2: Ramping — calculate target based on activity score
             // Progress = (activityTrigger - activityScore) / activityTrigger → 0% at trigger, 100% at 0
             const rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
-            const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], session.current_step_index)
-            const baseTemp = effectiveTarget ?? 18
             const calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
             // CRITICAL: Never lower the temperature once ramping has started.
             // Activity may temporarily rise when we heat the vessel — ignore that.
             // But cap the "remembered" value to baseTemp + tempIncrease to prevent stale/wrong values from sticking.
-            const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
             const maxTarget = Math.round((baseTemp + tempIncrease) * 10) / 10
             const cappedCurrentTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
               ? Math.min(currentProfileTarget, maxTarget)

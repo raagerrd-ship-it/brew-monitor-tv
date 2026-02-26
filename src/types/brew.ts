@@ -19,6 +19,7 @@ export interface FermentationSessionData {
   steps: FermentationStepData[];
   controller_current_temp: number | null;
   controller_target_temp: number | null;
+  controller_profile_target_temp?: number | null;
 }
 
 export interface FermentationStepData {
@@ -96,6 +97,7 @@ export interface TempController {
   current_temp: number | null;
   pill_temp: number | null;
   target_temp: number | null;
+  profile_target_temp?: number | null;
   last_update: string | null;
   min_target_temp: number | null;
   max_target_temp: number | null;

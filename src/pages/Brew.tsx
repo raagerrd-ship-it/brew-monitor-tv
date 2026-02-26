@@ -152,7 +152,8 @@ export default function Brew() {
             profile_name: profile?.name || 'Okänd profil',
             steps,
             controller_current_temp: linkedController?.current_temp ?? null,
-            controller_target_temp: linkedController?.target_temp ?? null
+            controller_target_temp: linkedController?.target_temp ?? null,
+            controller_profile_target_temp: linkedController?.profile_target_temp ?? null,
           };
         }
 
