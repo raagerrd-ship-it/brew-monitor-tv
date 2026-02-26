@@ -4,10 +4,10 @@
  * 
  * Label size: 70x50mm at 203 DPI = 559x399 pixels
  * Printer width: 384 pixels (48 bytes)
- * v3 - correct M110 protocol (GS v 0 raster)
+ * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v3-gsv0';
+export const PRINTER_VERSION = 'v4-reliable';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -27,8 +27,11 @@ const WRITE_CHAR_UUIDS = [
 
 // Printer constants
 const BLE_CHUNK_SIZE = 128;
-const BLE_CHUNK_DELAY_MS = 20;
+const BLE_CHUNK_DELAY_MS = 25;         // slightly more than phomymo's 20ms
 const BLE_WRITE_TIMEOUT_MS = 7000;
+const BLE_THROTTLE_EVERY_N = 8;        // pause every N chunks to let printer catch up
+const BLE_THROTTLE_PAUSE_MS = 80;      // extra pause for buffer drain
+const RECONNECT_TIMEOUT_MS = 6000;     // wait for advertisement
 
 const LAST_PRINTER_KEY = 'phomemo-last-device';
 
@@ -77,7 +80,11 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
-  const writeMethod = characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
+  // ALWAYS use writeWithResponse for reliability (prevents buffer overflow)
+  const writeMethod: 'withResponse' | 'withoutResponse' =
+    characteristic.properties.write ? 'withResponse' : 'withoutResponse';
+
+  console.log(`[Printer] Write method: ${writeMethod}, device: ${device.name}`);
 
   // Remember this device
   if (device.name) saveLastDevice(device.name);
@@ -87,7 +94,7 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
 
 /**
  * Try to reconnect to the last used printer without showing the picker.
- * Uses navigator.bluetooth.getDevices() (Chrome 85+).
+ * Uses navigator.bluetooth.getDevices() (Chrome 85+) with proper advertisement listening.
  * Returns null if not possible.
  */
 export async function reconnectLastPrinter(): Promise<PrinterConnection | null> {
@@ -98,23 +105,66 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
 
   try {
     const bt = navigator as any;
-    if (!bt.bluetooth?.getDevices) return null;
+    if (!bt.bluetooth?.getDevices) {
+      console.log('[Printer] getDevices() not supported');
+      return null;
+    }
 
     const devices = await bt.bluetooth.getDevices();
     const target = devices.find((d: any) => d.name === lastDeviceName);
-    if (!target) return null;
+    if (!target) {
+      console.log('[Printer] Last device not in paired list');
+      return null;
+    }
 
-    // watchAdvertisements + connect
+    // If already connected, just use it
+    if (target.gatt?.connected) {
+      console.log('[Printer] Device already connected');
+      return await connectDevice(target);
+    }
+
+    // Wait for device to advertise before connecting
     if (target.watchAdvertisements) {
-      await target.watchAdvertisements();
-      // Wait briefly for advertisement
-      await new Promise(r => setTimeout(r, 2000));
+      console.log(`[Printer] Waiting for ${lastDeviceName} advertisement...`);
+
+      const advertisementReceived = new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log('[Printer] Advertisement timeout');
+          resolve(false);
+        }, RECONNECT_TIMEOUT_MS);
+
+        const handler = () => {
+          clearTimeout(timeout);
+          target.removeEventListener('advertisementreceived', handler);
+          console.log('[Printer] Advertisement received!');
+          resolve(true);
+        };
+
+        target.addEventListener('advertisementreceived', handler);
+      });
+
+      try {
+        await target.watchAdvertisements();
+      } catch (e: any) {
+        console.log('[Printer] watchAdvertisements error:', e.message);
+        // Continue anyway - device might still be connectable
+      }
+
+      const received = await advertisementReceived;
+      if (!received) {
+        console.log('[Printer] No advertisement received, aborting');
+        return null;
+      }
+    } else {
+      // No watchAdvertisements support — wait and hope
+      console.log('[Printer] watchAdvertisements not supported, trying direct connect...');
+      await delay(1000);
     }
 
     if (!target.gatt) return null;
     return await connectDevice(target);
-  } catch (e) {
-    console.warn('[Printer] Auto-reconnect failed:', e);
+  } catch (e: any) {
+    console.warn('[Printer] Auto-reconnect failed:', e.message);
     return null;
   }
 }
@@ -146,15 +196,18 @@ export async function connectPrinter(): Promise<PrinterConnection> {
 }
 
 /** Connect to GATT server with retry */
-async function connectWithRetry(device: any, retries = 1): Promise<any> {
+async function connectWithRetry(device: any, retries = 2): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
+      // Small delay before GATT connect (helps with timing issues)
+      if (attempt > 0) await delay(500 * attempt);
       const server = await device.gatt!.connect();
+      // Small delay after connect before service discovery
+      await delay(100);
       return server;
     } catch (e) {
-      if (attempt < retries) {
-        await delay(300 * (attempt + 1));
-      } else {
+      console.warn(`[Printer] GATT connect attempt ${attempt + 1} failed:`, e);
+      if (attempt >= retries) {
         throw new Error('Kunde inte ansluta till skrivaren. Försök stänga av och slå på den.');
       }
     }
@@ -169,15 +222,18 @@ export function disconnectPrinter(connection: PrinterConnection): void {
   } catch { /* ignore */ }
 }
 
-/** Send one BLE chunk with timeout so we can identify hanging steps */
-async function writeChunkWithTimeout(
+/** Send one BLE write with timeout */
+async function writeWithTimeout(
   conn: PrinterConnection,
-  chunk: Uint8Array,
+  data: Uint8Array,
   context: string,
 ): Promise<void> {
+  // Create a clean buffer (important for sliced arrays)
+  const buffer = new Uint8Array(data).buffer;
+
   const writePromise = conn.writeMethod === 'withoutResponse'
-    ? conn.characteristic.writeValueWithoutResponse(chunk)
-    : conn.characteristic.writeValueWithResponse(chunk);
+    ? conn.characteristic.writeValueWithoutResponse(buffer)
+    : conn.characteristic.writeValue(buffer);
 
   await Promise.race([
     writePromise,
@@ -187,16 +243,34 @@ async function writeChunkWithTimeout(
   ]);
 }
 
-/** Send raw bytes in chunks */
-async function sendChunked(conn: PrinterConnection, data: Uint8Array, context = 'okänt steg'): Promise<void> {
-  const totalChunks = Math.ceil(data.length / BLE_CHUNK_SIZE);
-  for (let offset = 0; offset < data.length; offset += BLE_CHUNK_SIZE) {
-    const chunk = data.slice(offset, offset + BLE_CHUNK_SIZE);
-    const chunkNo = Math.floor(offset / BLE_CHUNK_SIZE) + 1;
-    await writeChunkWithTimeout(conn, chunk, `${context} (${chunkNo}/${totalChunks})`);
+/** Send a small command (not chunked) — for init/config commands */
+async function sendCommand(conn: PrinterConnection, cmd: Uint8Array, context: string, waitMs = 30): Promise<void> {
+  await writeWithTimeout(conn, cmd, context);
+  if (waitMs > 0) await delay(waitMs);
+}
 
-    if (offset + BLE_CHUNK_SIZE < data.length) {
+/** Send raw bytes in chunks with periodic throttling */
+async function sendChunked(
+  conn: PrinterConnection,
+  data: Uint8Array,
+  context = 'data',
+  onChunkProgress?: (sent: number, total: number) => void,
+): Promise<void> {
+  const total = data.length;
+  for (let offset = 0, chunkNo = 0; offset < total; offset += BLE_CHUNK_SIZE, chunkNo++) {
+    const chunk = data.slice(offset, Math.min(offset + BLE_CHUNK_SIZE, total));
+    await writeWithTimeout(conn, chunk, `${context} (${chunkNo})`);
+
+    onChunkProgress?.(offset + chunk.length, total);
+
+    // Standard inter-chunk delay
+    if (offset + BLE_CHUNK_SIZE < total) {
       await delay(BLE_CHUNK_DELAY_MS);
+
+      // Extra throttle pause every N chunks to let printer drain buffer
+      if ((chunkNo + 1) % BLE_THROTTLE_EVERY_N === 0) {
+        await delay(BLE_THROTTLE_PAUSE_MS);
+      }
     }
   }
 }
@@ -267,7 +341,7 @@ export async function printBitmap(
     bitmapRows.push(row);
   }
 
-  // Build flat raster data (no line prefixes – raw bitmap bytes)
+  // Build flat raster data
   const rasterData = new Uint8Array(bytesPerRow * height);
   for (let y = 0; y < height; y++) {
     rasterData.set(bitmapRows[y], y * bytesPerRow);
@@ -276,128 +350,42 @@ export async function printBitmap(
   // Map density 1-8 to M110 range (~6-15)
   const m110Density = Math.round(5 + Math.max(1, Math.min(8, density)) * 1.25);
 
+  console.log(`[Printer] Printing ${width}x${height} (${rasterData.length} bytes), density=${m110Density}, copies=${copies}`);
+
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     const basePercent = 15 + (copy / copies) * 80;
 
     // 1. Set speed (default 5)
-    onProgress?.({ phase: `Initierar skrivare${copyLabel}...`, percent: basePercent });
-    await sendChunked(connection, M110_CMD.SPEED(5), 'm110:speed');
-    await delay(30);
+    onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
+    await sendCommand(connection, M110_CMD.SPEED(5), 'm110:speed');
 
     // 2. Set density
-    await sendChunked(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
-    await delay(30);
+    await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
 
     // 3. Set media type (10 = labels with gaps)
-    await sendChunked(connection, M110_CMD.MEDIA_TYPE(10), 'm110:media');
-    await delay(30);
+    await sendCommand(connection, M110_CMD.MEDIA_TYPE(10), 'm110:media');
 
-    // 4. Send raster header: GS v 0 (standard ESC/POS)
+    // 4. Send raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
-    await sendChunked(connection, rasterHeader(bytesPerRow, height), 'm110:raster-header');
+    await sendCommand(connection, rasterHeader(bytesPerRow, height), 'm110:raster-header', 20);
 
-    // 5. Send raw bitmap data in BLE chunks
+    // 5. Send raw bitmap data in BLE chunks with throttling
     onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
-    const totalChunks = Math.ceil(rasterData.length / BLE_CHUNK_SIZE);
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = rasterData.slice(i * BLE_CHUNK_SIZE, (i + 1) * BLE_CHUNK_SIZE);
-      await writeChunkWithTimeout(connection, chunk, `bilddata (${i + 1}/${totalChunks})`);
-      if (i < totalChunks - 1) await delay(BLE_CHUNK_DELAY_MS);
-
-      if (i % 10 === 0) {
-        const chunkPercent = basePercent + 10 + (i / totalChunks) * 60 * (1 / copies);
-        onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
-      }
-    }
+    await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
+      const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
+      onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
+    });
 
     // 6. Send M110 footer to finalize print
-    await delay(300);
+    await delay(400);
     onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendChunked(connection, M110_CMD.FOOTER, 'm110:footer');
-    await delay(500);
+    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 500);
 
-    if (copy < copies - 1) await delay(500);
+    if (copy < copies - 1) await delay(600);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
-}
-
-export interface PrinterDiagnosticResult {
-  ok: boolean;
-  failedStep?: string;
-  errorMessage?: string;
-  logs: string[];
-  durationMs: number;
-}
-
-/**
- * Runs a compact BLE diagnostic print to identify where printer communication hangs.
- */
-export async function runPrinterDiagnostic(
-  connection: PrinterConnection,
-  onProgress?: (p: PrintProgress) => void,
-): Promise<PrinterDiagnosticResult> {
-  const startedAt = performance.now();
-  const logs: string[] = [];
-  let currentStep = '';
-
-  const runStep = async (label: string, percent: number, command: Uint8Array, waitMs = 20) => {
-    currentStep = label;
-    logs.push(`▶ ${label}`);
-    onProgress?.({ phase: `Diagnostik: ${label}`, percent });
-    await sendChunked(connection, command, `diagnostik:${label}`);
-    if (waitMs > 0) await delay(waitMs);
-    logs.push(`✅ ${label}`);
-  };
-
-  try {
-    await runStep('Speed', 10, M110_CMD.SPEED(5), 30);
-    await runStep('Densitet', 25, M110_CMD.DENSITY(11), 30);
-    await runStep('Mediatyp (gap)', 40, M110_CMD.MEDIA_TYPE(10), 30);
-
-    // Raster header for a small 48x32 test image
-    const bytesPerRow = 48;
-    const testRows = 32;
-    await runStep('Raster header (GS v 0)', 55, rasterHeader(bytesPerRow, testRows), 20);
-
-    currentStep = 'Skicka testmönster';
-    logs.push(`▶ ${currentStep}`);
-    onProgress?.({ phase: 'Diagnostik: Skickar testmönster', percent: 75 });
-
-    // Raw bitmap data (no line prefix – just alternating black/white rows)
-    const testData = new Uint8Array(testRows * bytesPerRow);
-    for (let y = 0; y < testRows; y++) {
-      const fillByte = y % 2 === 0 ? 0xff : 0x00;
-      for (let x = 0; x < bytesPerRow; x++) {
-        testData[y * bytesPerRow + x] = fillByte;
-      }
-    }
-
-    await sendChunked(connection, testData, 'diagnostik:testmönster');
-    await delay(60);
-    logs.push(`✅ ${currentStep}`);
-
-    await runStep('Footer (M110)', 92, M110_CMD.FOOTER, 300);
-    onProgress?.({ phase: 'Diagnostik klar', percent: 100 });
-
-    return {
-      ok: true,
-      logs,
-      durationMs: Math.round(performance.now() - startedAt),
-    };
-  } catch (error: any) {
-    const errorMessage = error?.message || 'Okänt fel';
-    logs.push(`❌ ${currentStep}: ${errorMessage}`);
-
-    return {
-      ok: false,
-      failedStep: currentStep || 'okänt steg',
-      errorMessage,
-      logs,
-      durationMs: Math.round(performance.now() - startedAt),
-    };
-  }
 }
 
 /**

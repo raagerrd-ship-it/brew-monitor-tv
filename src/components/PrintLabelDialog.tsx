@@ -13,7 +13,6 @@ import {
   getLastDeviceName,
   disconnectPrinter,
   printBitmap,
-  runPrinterDiagnostic,
   PRINTER_VERSION,
   type PrinterConnection,
   type PrintProgress,
@@ -57,7 +56,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [isPrinting, setIsPrinting] = useState(false);
   const [printProgress, setPrintProgress] = useState<PrintProgress | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  
   const hasBle = isBluetoothSupported();
 
   // Render label preview whenever type or brew changes
@@ -153,35 +152,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     }
   };
 
-  const handleDiagnostic = async () => {
-    if (!bleConn) return;
-    setIsDiagnosing(true);
-    setPrintProgress({ phase: 'Diagnostik startar...', percent: 0 });
-
-    try {
-      const result = await runPrinterDiagnostic(bleConn, setPrintProgress);
-      console.info('[M110 diagnostik]', result.logs);
-
-      if (result.ok) {
-        toast({
-          title: 'Diagnostik OK',
-          description: `Alla steg svarade (${result.durationMs} ms).`,
-        });
-      } else {
-        toast({
-          title: 'Diagnostikfel',
-          description: `Fastnar vid: ${result.failedStep}. ${result.errorMessage || ''}`,
-          variant: 'destructive',
-        });
-      }
-    } catch (e: any) {
-      toast({ title: 'Diagnostikfel', description: e.message, variant: 'destructive' });
-      setBleConn(null);
-    } finally {
-      setIsDiagnosing(false);
-      setTimeout(() => setPrintProgress(null), 2500);
-    }
-  };
 
   const handlePrint = () => {
     if (!canvasRef.current) return;
@@ -311,7 +281,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               onClick={bleConn ? handleBlePrint : handleConnect}
               className="w-full gap-2"
               size="lg"
-              disabled={isPrinting || isConnecting || isDiagnosing}
+              disabled={isPrinting || isConnecting}
             >
               {isPrinting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
