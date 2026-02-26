@@ -471,8 +471,9 @@ export async function calculateCompensatedTarget(
   // Round to 1 decimal
   compensatedTarget = Math.round(compensatedTarget * 10) / 10
 
-  // Skip if change is negligible (< 0.1°C)
-  if (Math.abs(compensatedTarget - currentControllerTarget) < 0.1) {
+  // Skip if change is negligible (< 0.05°C after rounding to 1 decimal)
+  // Use 0.05 threshold to avoid floating-point issues where 0.1 diff rounds to 0.0999...
+  if (Math.abs(compensatedTarget - currentControllerTarget) < 0.05) {
     console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
     return null
   }
