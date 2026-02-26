@@ -349,9 +349,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
             Skriv ut
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground text-center -mt-2">
-          Öppna PDF:en i PrintMaster → PDF Print
-        </p>
         <p className="text-xs text-muted-foreground/40 text-center">
           Printer {PRINTER_VERSION}
         </p>
