@@ -129,7 +129,9 @@ export function ActiveFermentationSession({
         target_sg: s.target_sg,
         sg_comparison: s.sg_comparison,
         notes: null,
-        gravity_threshold: null,
+        gravity_threshold: s.gravity_threshold ?? null,
+        attenuation_trigger: s.attenuation_trigger ?? null,
+        temp_increase: s.temp_increase ?? null,
         created_at: '',
         updated_at: '',
       })) as FermentationProfileStep[];

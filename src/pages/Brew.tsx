@@ -133,7 +133,10 @@ export default function Brew() {
               gravity_stable_days: step.gravity_stable_days,
               target_sg: step.target_sg,
               sg_comparison: step.sg_comparison,
-              ramp_type: step.ramp_type
+              ramp_type: step.ramp_type,
+              attenuation_trigger: step.attenuation_trigger,
+              temp_increase: step.temp_increase,
+              gravity_threshold: step.gravity_threshold,
             }));
 
           fermentationSession = {
