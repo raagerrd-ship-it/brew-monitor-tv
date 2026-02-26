@@ -1,0 +1,1 @@
+UPDATE brew_data_snapshots SET profile_target_temp = 19 WHERE id = 'f636ca45-0ee5-4b38-9c4f-04b6b17840ac'
