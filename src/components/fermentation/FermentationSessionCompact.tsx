@@ -84,6 +84,7 @@ export function FermentationSessionCompact({
       step_started_at: stepStartedAt,
       step_start_temp: stepStartTemp ?? null,
       steps: [currentStep],
+      controller_profile_target_temp: controllerProfileTarget,
     } : null
   );
 
