@@ -356,7 +356,7 @@ export function BrewingDashboard() {
         ...(showSplash ? {} : { visibility: 'hidden' as const, transitionProperty: 'opacity, visibility', transitionDelay: '0s, 0.5s' }),
       }}
     >
-      <img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain" />
+      <img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain invert brightness-200" />
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>
     <div className={`w-full relative ${isMobile ? '' : 'flex flex-col overflow-hidden'}`} style={{
