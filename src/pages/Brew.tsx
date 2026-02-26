@@ -236,7 +236,7 @@ export default function Brew() {
       {/* Splash overlay */}
       {showSplash && (
         <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-          <img src={dbLogo} alt="Dahlsjö Brewing" className="max-h-[60vh] w-auto object-contain" />
+          <img src={dbLogo} alt="Dahlsjö Brewing" className="max-h-[60vh] w-auto object-contain invert brightness-200" />
         </div>
       )}
 
@@ -246,7 +246,7 @@ export default function Brew() {
           <img 
             src={dbLogo} 
             alt="Dahlsjö Brewing" 
-            className="h-24 md:h-32 w-auto opacity-90"
+            className="h-24 md:h-32 w-auto opacity-90 invert brightness-200"
           />
         </div>
         {/* Label and description side by side */}
