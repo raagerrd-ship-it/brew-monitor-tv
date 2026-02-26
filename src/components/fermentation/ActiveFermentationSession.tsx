@@ -164,7 +164,7 @@ export function ActiveFermentationSession({
       setControllerData({
         current_temp: preloadedSession.controller_current_temp,
         target_temp: preloadedSession.controller_target_temp,
-        profile_target_temp: null,
+        profile_target_temp: preloadedSession.controller_profile_target_temp ?? null,
         name: '',
       });
       
@@ -173,12 +173,12 @@ export function ActiveFermentationSession({
   }, [preloadedSession, compact, brewId]);
 
   // Keep controller data fresh via realtime in compact/preloaded mode
-  // Only active during ramp steps (where target_temp changes continuously) to save resources
+  // Active during dynamic-target steps where profile_target_temp can change continuously
   const currentStepType = preloadedSession?.steps?.[preloadedSession.current_step_index]?.step_type;
-  const isRampStep = currentStepType === 'ramp';
+  const isDynamicTargetStep = currentStepType === 'ramp' || currentStepType === 'gradual_ramp' || currentStepType === 'diacetyl_rest';
 
   useEffect(() => {
-    if (!preloadedSession || !compact || !isRampStep) return;
+    if (!preloadedSession || !compact || !isDynamicTargetStep) return;
     const cId = preloadedSession.controller_id;
     if (!cId) return;
 
@@ -208,7 +208,7 @@ export function ActiveFermentationSession({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [preloadedSession?.controller_id, compact, isRampStep]);
+  }, [preloadedSession?.controller_id, compact, isDynamicTargetStep]);
 
   // Load session data (only if not using preloaded data)
   const loadSession = useCallback(async () => {
