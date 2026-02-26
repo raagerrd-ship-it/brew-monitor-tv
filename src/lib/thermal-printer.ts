@@ -459,7 +459,7 @@ export async function printBitmap(
 }
 
 /**
- * Print a blank white test page (384 x 200 pixels) to verify printer communication.
+ * Print a visible test page (384 x 200 pixels) with thick border, cross, and checkerboard.
  * If this prints and ejects cleanly, the protocol is working.
  */
 export async function printTestPage(
@@ -471,20 +471,49 @@ export async function printTestPage(
   const bytesPerRow = width / 8; // 48
   const rasterData = new Uint8Array(bytesPerRow * height); // all zeros = all white
 
-  // Add a thin black border (2px) so we can see the page was printed
+  const setPixel = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const byteIdx = y * bytesPerRow + Math.floor(x / 8);
+    const bitIdx = 7 - (x % 8);
+    rasterData[byteIdx] |= (1 << bitIdx);
+  };
+
+  // 1. Thick border (8px)
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (y < 2 || y >= height - 2 || x < 2 || x >= width - 2) {
-        const byteIdx = y * bytesPerRow + Math.floor(x / 8);
-        const bitIdx = 7 - (x % 8);
-        rasterData[byteIdx] |= (1 << bitIdx);
+      if (y < 8 || y >= height - 8 || x < 8 || x >= width - 8) {
+        setPixel(x, y);
       }
+    }
+  }
+
+  // 2. Diagonal cross (4px wide)
+  for (let i = 0; i < Math.max(width, height); i++) {
+    for (let t = -2; t <= 2; t++) {
+      // Top-left to bottom-right
+      const x1 = Math.round(i * width / Math.max(width, height));
+      const y1 = Math.round(i * height / Math.max(width, height));
+      setPixel(x1 + t, y1);
+      setPixel(x1, y1 + t);
+      // Top-right to bottom-left
+      setPixel(width - 1 - x1 + t, y1);
+      setPixel(width - 1 - x1, y1 + t);
+    }
+  }
+
+  // 3. "TEST" text approximation — solid black rectangle in center
+  const rectW = 120, rectH = 40;
+  const rx = Math.floor((width - rectW) / 2);
+  const ry = Math.floor((height - rectH) / 2);
+  for (let y = ry; y < ry + rectH; y++) {
+    for (let x = rx; x < rx + rectW; x++) {
+      setPixel(x, y);
     }
   }
 
   const m110Density = 10;
 
-  console.log(`[Printer] TEST PAGE: ${width}x${height}, ${rasterData.length} bytes`);
+  console.log(`[Printer] TEST PAGE: ${width}x${height}, ${rasterData.length} bytes, ~${Math.round(rasterData.reduce((s, b) => s + (b ? 1 : 0), 0) / rasterData.length * 100)}% filled`);
   onProgress?.({ phase: 'Skickar testsida...', percent: 10 });
 
   await sendCommand(connection, M110_CMD.SPEED(5), 'test:speed');
