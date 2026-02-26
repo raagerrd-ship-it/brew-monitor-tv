@@ -115,6 +115,17 @@ function getStepIconConfig(stepType?: string) {
           icon: 'hsl(38 92% 60%)',
         },
       };
+    case 'diacetyl_rest':
+    case 'gradual_ramp':
+      return {
+        Icon: Activity,
+        color: {
+          bg: 'hsl(38 92% 50% / 0.3)',
+          bgDark: 'hsl(38 92% 50% / 0.15)',
+          glow: 'hsl(38 92% 50% / 0.4)',
+          icon: 'hsl(38 92% 60%)',
+        },
+      };
     default:
       return {
         Icon: Thermometer,
