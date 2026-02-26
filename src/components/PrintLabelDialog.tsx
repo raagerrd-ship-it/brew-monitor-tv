@@ -357,7 +357,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
             {/* Media type */}
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Papperstyp (media type)</Label>
+              <Label className="text-xs text-muted-foreground">Papperstyp (lokalt test, skickas ej till skrivaren)</Label>
               <div className="flex gap-1">
                 {(['none', 'gap', 'continuous', 'mark'] as const).map(mt => (
                   <button

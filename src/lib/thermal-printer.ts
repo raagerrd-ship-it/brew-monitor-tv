@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v8-debug';
+export const PRINTER_VERSION = 'v9-no-media-write';
 
 /** Configurable print settings for troubleshooting */
 export interface PrintSettings {
@@ -333,7 +333,6 @@ export interface PrintProgress {
 const M110_CMD = {
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
-  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
   LANDSCAPE: new Uint8Array([0x1b, 0x4e, 0x01, 0x01]),
   PORTRAIT: new Uint8Array([0x1b, 0x4e, 0x01, 0x00]),
   FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
@@ -414,11 +413,7 @@ export async function printBitmap(
       await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
     }
 
-    // 3. Set media type
-    if (settings.mediaType !== 'none') {
-      const mediaMap = { gap: 0x0a, continuous: 0x0b, mark: 0x26 };
-      await sendCommand(connection, M110_CMD.MEDIA_TYPE(mediaMap[settings.mediaType]), 'm110:media');
-    }
+    // 3. Never send media type command (avoids persisting printer paper-mode icon)
 
     // 4. Orientation
     if (settings.landscape) {
