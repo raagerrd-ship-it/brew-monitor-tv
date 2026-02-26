@@ -462,7 +462,13 @@ export async function calculateCompensatedTarget(
       }
     }
     
-    if (distanceFromIdeal > baseLimit) {
+    // Bypass rate-limit for small corrections toward profile target to avoid deadzone
+    const currentDistToProfile = Math.abs(currentControllerTarget - profileTarget)
+    const newDistToProfile = Math.abs(compensatedTarget - profileTarget)
+    const isTowardTarget = newDistToProfile < currentDistToProfile
+    if (isTowardTarget && distanceFromIdeal <= 0.2) {
+      console.log(`✅ Rate-limit bypass: liten korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)`)
+    } else if (distanceFromIdeal > baseLimit) {
       compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
