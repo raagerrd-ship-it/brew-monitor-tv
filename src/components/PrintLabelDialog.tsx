@@ -2,7 +2,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Download, Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Download, Printer, FileText, Bluetooth, BluetoothOff, Loader2, Settings2 } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { toast } from "@/hooks/use-toast";
@@ -14,8 +16,10 @@ import {
   disconnectPrinter,
   printBitmap,
   PRINTER_VERSION,
+  DEFAULT_PRINT_SETTINGS,
   type PrinterConnection,
   type PrintProgress,
+  type PrintSettings,
 } from "@/lib/thermal-printer";
 
 /** Trim white pixels from canvas edges, keeping a small margin */
@@ -56,8 +60,24 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [isPrinting, setIsPrinting] = useState(false);
   const [printProgress, setPrintProgress] = useState<PrintProgress | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [printSettings, setPrintSettings] = useState<PrintSettings>(() => {
+    try {
+      const saved = localStorage.getItem('phomemo-print-settings');
+      return saved ? { ...DEFAULT_PRINT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_PRINT_SETTINGS;
+    } catch { return DEFAULT_PRINT_SETTINGS; }
+  });
   
   const hasBle = isBluetoothSupported();
+
+  // Persist settings
+  const updateSettings = (patch: Partial<PrintSettings>) => {
+    setPrintSettings(prev => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem('phomemo-print-settings', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Render label preview whenever type or brew changes
   const renderPreview = useCallback(async () => {
@@ -140,7 +160,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     setIsPrinting(true);
     setPrintProgress({ phase: 'Startar...', percent: 0 });
     try {
-      await printBitmap(bleConn, canvasRef.current, copies, 8, setPrintProgress);
+      await printBitmap(bleConn, canvasRef.current, copies, printSettings, setPrintProgress);
       toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
     } catch (e: any) {
       toast({ title: "Utskriftsfel", description: e.message, variant: "destructive" });
@@ -305,9 +325,93 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
             Skriv ut
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground/40 text-center">
-          Printer {PRINTER_VERSION}
-        </p>
+
+        {/* Debug settings toggle */}
+        <button
+          onClick={() => setShowDebug(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground mx-auto transition-colors"
+        >
+          <Settings2 className="h-3 w-3" />
+          Printer {PRINTER_VERSION} {showDebug ? '▲' : '▼'}
+        </button>
+
+        {showDebug && (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            {/* Media type */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Papperstyp (media type)</Label>
+              <div className="flex gap-1">
+                {(['none', 'gap', 'continuous', 'mark'] as const).map(mt => (
+                  <button
+                    key={mt}
+                    onClick={() => updateSettings({ mediaType: mt })}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      printSettings.mediaType === mt
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {mt === 'none' ? 'Av' : mt === 'gap' ? 'Gap' : mt === 'continuous' ? 'Löpande' : 'Mark'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Toggle switches */}
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                ['landscape', 'Landscape'] as const,
+                ['sendSpeed', 'Skicka Speed'] as const,
+                ['sendDensity', 'Skicka Density'] as const,
+                ['sendFooter', 'Skicka Footer'] as const,
+              ]).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Switch
+                    checked={printSettings[key] as boolean}
+                    onCheckedChange={(v) => updateSettings({ [key]: v })}
+                    className="scale-75"
+                  />
+                  <span className="text-xs">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Numeric settings */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {([
+                ['speed', 'Speed', 1, 8],
+                ['density', 'Density', 1, 8],
+                ['chunkSize', 'Chunk (bytes)', 20, 500],
+                ['chunkDelay', 'Delay (ms)', 0, 100],
+                ['throttleEvery', 'Throttle var N:e', 0, 32],
+                ['throttleDelay', 'Throttle ms', 0, 500],
+              ] as const).map(([key, label, min, max]) => (
+                <div key={key} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <input
+                    type="number"
+                    min={min}
+                    max={max}
+                    value={printSettings[key]}
+                    onChange={(e) => updateSettings({ [key]: Number(e.target.value) })}
+                    className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-right"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Reset */}
+            <button
+              onClick={() => {
+                setPrintSettings(DEFAULT_PRINT_SETTINGS);
+                localStorage.removeItem('phomemo-print-settings');
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              Återställ till standard
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
