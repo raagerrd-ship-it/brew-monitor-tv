@@ -126,13 +126,19 @@ export function FermentationSessionCompact({
       : ((attenuation ?? 0) >= attenuationTriggerVal && phaseReady)
   );
   
-  // Progress for gradual_ramp: activity dropping from trigger to 0 = 0% to 100%
+  // Progress for gradual_ramp: derived from ratcheted temperature target (never decreases)
   // Progress for diacetyl_rest: attenuation approaching trigger
+  const tempIncrease = isGradualRampStep ? ((currentStep as any)?.temp_increase ?? 3) : 0;
   const gradualRampProgress = isGradualRampStep 
     ? gradualRampTriggered 
-      ? (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null)
+      ? isActivityBased
+        // Use actual profile target (ratcheted by backend) for monotonic progress
+        ? (controllerProfileTarget != null && profileStepTarget != null && tempIncrease > 0
+            ? Math.min(0.95, Math.max(0, (controllerProfileTarget - profileStepTarget) / tempIncrease))
+            : (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null))
+        : (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null)
       : isActivityBased
-        ? (activityScore != null ? Math.max(0, 1 - activityScore / 100) * 0.5 : null) // Show some progress toward trigger
+        ? (activityScore != null ? Math.max(0, 1 - activityScore / 100) * 0.5 : null)
         : (attenuation != null ? Math.min(0.9, (attenuation ?? 0) / attenuationTriggerVal * 0.9) : null)
     : null;
 
