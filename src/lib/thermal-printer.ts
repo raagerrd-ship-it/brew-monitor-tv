@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v24-m110-dual-finalize';
+export const PRINTER_VERSION = 'v25-force-m110-strict';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 2;
@@ -452,7 +452,8 @@ export async function printBitmap(
     await sendCommand(connection, CMD.INIT, 'init', 100);
 
     const deviceName = String(connection.device?.name || '').toUpperCase();
-    const isLikelyM110 = deviceName.startsWith('M110') || deviceName.startsWith('M120') || deviceName.startsWith('Q') || deviceName.includes('PHOMEMO');
+    // Force strict M110 path for this printer family (many advertise with generic names).
+    const isLikelyM110 = true;
 
     if (isLikelyM110) {
       // M110 strict command path (close to PrintMaster/phomemo-tools behavior)
