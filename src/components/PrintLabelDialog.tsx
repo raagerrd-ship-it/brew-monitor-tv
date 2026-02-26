@@ -9,9 +9,12 @@ import { toast } from "@/hooks/use-toast";
 import {
   isBluetoothSupported,
   connectPrinter,
+  reconnectLastPrinter,
+  getLastDeviceName,
   disconnectPrinter,
   printBitmap,
   runPrinterDiagnostic,
+  PRINTER_VERSION,
   type PrinterConnection,
   type PrintProgress,
 } from "@/lib/thermal-printer";
@@ -74,6 +77,35 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
       return () => clearTimeout(t);
     }
   }, [open, renderPreview]);
+
+  // Auto-reconnect to last printer when dialog opens
+  useEffect(() => {
+    if (!open || bleConn || !hasBle) return;
+
+    const lastDevice = getLastDeviceName();
+    if (!lastDevice) return;
+
+    let cancelled = false;
+    setIsConnecting(true);
+
+    reconnectLastPrinter()
+      .then((conn) => {
+        if (cancelled) {
+          if (conn) disconnectPrinter(conn);
+          return;
+        }
+        if (conn) {
+          setBleConn(conn);
+          toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+        }
+      })
+      .catch(() => { /* silent – user can connect manually */ })
+      .finally(() => {
+        if (!cancelled) setIsConnecting(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [open, hasBle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clean up BLE connection on unmount
   useEffect(() => {
@@ -319,6 +351,9 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
         </div>
         <p className="text-xs text-muted-foreground text-center -mt-2">
           Öppna PDF:en i PrintMaster → PDF Print
+        </p>
+        <p className="text-xs text-muted-foreground/40 text-center">
+          Printer {PRINTER_VERSION}
         </p>
       </DialogContent>
     </Dialog>
