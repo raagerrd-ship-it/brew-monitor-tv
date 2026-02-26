@@ -459,80 +459,47 @@ export async function printBitmap(
 }
 
 /**
- * Print a visible test page (384 x 200 pixels) with thick border, cross, and checkerboard.
- * If this prints and ejects cleanly, the protocol is working.
+ * Print a visible test page through the exact same printBitmap pipeline
+ * as normal labels, to eliminate protocol-path differences.
  */
 export async function printTestPage(
   connection: PrinterConnection,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
-  const width = 384;
-  const height = 200;
-  const bytesPerRow = width / 8; // 48
-  const rasterData = new Uint8Array(bytesPerRow * height); // all zeros = all white
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 240;
 
-  const setPixel = (x: number, y: number) => {
-    if (x < 0 || x >= width || y < 0 || y >= height) return;
-    const byteIdx = y * bytesPerRow + Math.floor(x / 8);
-    const bitIdx = 7 - (x % 8);
-    rasterData[byteIdx] |= (1 << bitIdx);
-  };
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Kunde inte skapa testcanvas.');
 
-  // 1. Thick border (8px)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (y < 8 || y >= height - 8 || x < 8 || x >= width - 8) {
-        setPixel(x, y);
-      }
-    }
-  }
+  // White background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 2. Diagonal cross (4px wide)
-  for (let i = 0; i < Math.max(width, height); i++) {
-    for (let t = -2; t <= 2; t++) {
-      // Top-left to bottom-right
-      const x1 = Math.round(i * width / Math.max(width, height));
-      const y1 = Math.round(i * height / Math.max(width, height));
-      setPixel(x1 + t, y1);
-      setPixel(x1, y1 + t);
-      // Top-right to bottom-left
-      setPixel(width - 1 - x1 + t, y1);
-      setPixel(width - 1 - x1, y1 + t);
-    }
-  }
+  // Thick black border
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, canvas.width, 10);
+  ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
+  ctx.fillRect(0, 0, 10, canvas.height);
+  ctx.fillRect(canvas.width - 10, 0, 10, canvas.height);
 
-  // 3. "TEST" text approximation — solid black rectangle in center
-  const rectW = 120, rectH = 40;
-  const rx = Math.floor((width - rectW) / 2);
-  const ry = Math.floor((height - rectH) / 2);
-  for (let y = ry; y < ry + rectH; y++) {
-    for (let x = rx; x < rx + rectW; x++) {
-      setPixel(x, y);
-    }
-  }
+  // Cross lines
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#000000';
+  ctx.beginPath();
+  ctx.moveTo(20, 20);
+  ctx.lineTo(canvas.width - 20, canvas.height - 20);
+  ctx.moveTo(canvas.width - 20, 20);
+  ctx.lineTo(20, canvas.height - 20);
+  ctx.stroke();
 
-  const m110Density = 10;
+  // Center block
+  ctx.fillRect(canvas.width / 2 - 60, canvas.height / 2 - 20, 120, 40);
 
-  console.log(`[Printer] TEST PAGE: ${width}x${height}, ${rasterData.length} bytes, ~${Math.round(rasterData.reduce((s, b) => s + (b ? 1 : 0), 0) / rasterData.length * 100)}% filled`);
-  onProgress?.({ phase: 'Skickar testsida...', percent: 10 });
+  console.log(`[Printer] TEST PAGE (via printBitmap): ${canvas.width}x${canvas.height}`);
 
-  await sendCommand(connection, M110_CMD.SPEED(5), 'test:speed');
-  await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'test:density');
-  await sendCommand(connection, M110_CMD.MEDIA_TYPE(0x0a), 'test:media-type');
-
-  onProgress?.({ phase: 'Skickar header...', percent: 20 });
-  await sendCommand(connection, rasterHeader(bytesPerRow, height), 'test:raster-header');
-
-  onProgress?.({ phase: 'Skickar bilddata...', percent: 30 });
-  await sendChunked(connection, rasterData, 'test-data', (sent, total) => {
-    onProgress?.({ phase: 'Skickar bilddata...', percent: 30 + (sent / total) * 50 });
-  }, 128, 20, 0, 0);
-
-  await delay(300);
-  onProgress?.({ phase: 'Slutför...', percent: 90 });
-  await sendCommand(connection, M110_CMD.FOOTER, 'test:footer', 500);
-
-  onProgress?.({ phase: 'Klar!', percent: 100 });
+  await printBitmap(connection, canvas, 1, DEFAULT_PRINT_SETTINGS, onProgress);
 }
 
 /**
