@@ -12,10 +12,10 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v31-fast-large-chunks';
+export const PRINTER_VERSION = 'v32-m110-cups-strict';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
-export const SETTINGS_VERSION = 6;
+export const SETTINGS_VERSION = 7;
 const SETTINGS_VERSION_KEY = 'phomemo-settings-version';
 
 /** Configurable print settings for troubleshooting */
@@ -297,7 +297,7 @@ function delay(ms: number): Promise<void> {
 // We use the CUPS driver sequence (speed+density+media header, CUPS footer)
 // combined with the phomemo-filter.py 0x0a escaping and 256-line blocking.
 
-const MAX_BLOCK_LINES = 256;
+// M110 CUPS path: single raster block for full image height.
 
 function mediaTypeCode(mt: string): number | null {
   if (mt === 'gap') return 0x0a;
@@ -307,8 +307,8 @@ function mediaTypeCode(mt: string): number | null {
 }
 
 /**
- * Build one raster block: GS v 0 header + bitmap data (with 0x0a escaping).
- * Uses height = blockLines (matching CUPS driver, NOT the filter.py lines-1).
+ * Build one raster block: GS v 0 header + bitmap data.
+ * M110 CUPS uses height = number of lines (not lines-1), and raw bitmap bytes.
  */
 function buildRasterBlock(
   bitmapRows: Uint8Array[],
@@ -316,28 +316,20 @@ function buildRasterBlock(
   blockLines: number,
   bytesPerRow: number,
 ): Uint8Array {
-  const linesField = Math.max(0, blockLines - 1);
+  const linesField = Math.max(0, blockLines);
   const header = new Uint8Array([
     0x1d, 0x76, 0x30, 0x00,
     bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
     linesField & 0xff, (linesField >> 8) & 0xff,
   ]);
 
-  // Bitmap data with 0x0a → 0x14 escaping
   const dataSize = bytesPerRow * blockLines;
   const data = new Uint8Array(dataSize);
   for (let i = 0; i < blockLines; i++) {
     const row = bitmapRows[startLine + i];
-    for (let j = 0; j < bytesPerRow; j++) {
-      let byte = row[j];
-      // CRITICAL: 0x0a in bitmap data is interpreted as LineFeed by the printer!
-      // phomemo-filter.py replaces it with 0x14 to avoid breaking the rendering.
-      if (byte === 0x0a) byte = 0x14;
-      data[i * bytesPerRow + j] = byte;
-    }
+    data.set(row, i * bytesPerRow);
   }
 
-  // Concatenate header + data
   const block = new Uint8Array(header.length + data.length);
   block.set(header, 0);
   block.set(data, header.length);
@@ -392,11 +384,8 @@ export async function printBitmap(
     bitmapRows.push(row);
   }
 
-  // ── 4. Build protocol preamble + header ──
-  const headerParts: Uint8Array[] = [
-    // Legacy BLE preamble used by phomemo-filter path
-    new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x01, 0x1f, 0x11, 0x02, 0x04]),
-  ];
+  // ── 4. Build M110 header (CUPS driver sequence) ──
+  const headerParts: Uint8Array[] = [];
 
   // Speed: ESC N 0x0d <speed>
   if (settings.sendSpeed) {
@@ -420,24 +409,13 @@ export async function printBitmap(
   let hOff = 0;
   for (const p of headerParts) { headerBuf.set(p, hOff); hOff += p.length; }
 
-  // ── 5. Build raster blocks (max 256 lines each) ──
-  const blocks: Uint8Array[] = [];
-  let remaining = height;
-  let line = 0;
-  while (remaining > 0) {
-    const blockLines = Math.min(remaining, MAX_BLOCK_LINES);
-    blocks.push(buildRasterBlock(bitmapRows, line, blockLines, bytesPerRow));
-    line += blockLines;
-    remaining -= blockLines;
-  }
+  // ── 5. Build one full-image raster block (M110 CUPS behavior) ──
+  const blocks: Uint8Array[] = [buildRasterBlock(bitmapRows, 0, height, bytesPerRow)];
 
-  // ── 6. Build footer (combined legacy BLE + M110 CUPS footer) ──
+  // ── 6. Build footer (M110 CUPS footer only) ──
   const footer = new Uint8Array([
-    // Legacy BLE footer from phomemo-filter path
-    0x1b, 0x64, 0x02, 0x1b, 0x64, 0x02,
-    0x1f, 0x11, 0x08, 0x1f, 0x11, 0x0e, 0x1f, 0x11, 0x07, 0x1f, 0x11, 0x09,
-    // M110 CUPS footer
-    0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00,
+    0x1f, 0xf0, 0x05, 0x00,
+    0x1f, 0xf0, 0x03, 0x00,
   ]);
 
   // Total data size for progress
