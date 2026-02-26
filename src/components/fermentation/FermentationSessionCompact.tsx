@@ -46,6 +46,7 @@ interface FermentationSessionCompactProps {
   activityScore?: number | null;
   fermentationPhase?: string | null;
   attenuation?: number | null;
+  controllerProfileTarget?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -73,6 +74,7 @@ export function FermentationSessionCompact({
   activityScore,
   fermentationPhase,
   attenuation,
+  controllerProfileTarget,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth for current interpolated profile target
@@ -119,12 +121,15 @@ export function FermentationSessionCompact({
   const activityTrigger = isActivityBased ? ((currentStep as any)?.activity_trigger ?? 35) : 0;
   const attenuationTriggerVal = !isActivityBased && isGradualRampStep ? ((currentStep as any)?.attenuation_trigger ?? 75) : 0;
   
-  // For gradual_ramp: triggered when activity drops below threshold
+  // For gradual_ramp: triggered when activity drops below threshold OR backend already started ramping
+  // (profile_target_temp elevated above base means backend has triggered, even if activity bounced back)
   // For diacetyl_rest: triggered when attenuation >= trigger AND phase is declining/stationary
   const phaseReady = !fermentationPhase || fermentationPhase === 'declining' || fermentationPhase === 'stationary';
+  const backendAlreadyRamping = isActivityBased && profileStepTarget != null && controllerProfileTarget != null
+    && controllerProfileTarget > profileStepTarget + 0.05;
   const gradualRampTriggered = isGradualRampStep && (
     isActivityBased 
-      ? (activityScore != null && activityScore <= activityTrigger)
+      ? (backendAlreadyRamping || (activityScore != null && activityScore <= activityTrigger))
       : ((attenuation ?? 0) >= attenuationTriggerVal && phaseReady)
   );
   
