@@ -7,7 +7,36 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v7-no-media';
+export const PRINTER_VERSION = 'v8-debug';
+
+/** Configurable print settings for troubleshooting */
+export interface PrintSettings {
+  mediaType: 'none' | 'gap' | 'continuous' | 'mark';
+  landscape: boolean;
+  speed: number;        // 1-5
+  density: number;      // 1-8
+  chunkSize: number;    // bytes per BLE write
+  chunkDelay: number;   // ms between chunks
+  throttleEvery: number; // extra pause every N chunks
+  throttleDelay: number; // ms for that extra pause
+  sendSpeed: boolean;
+  sendDensity: boolean;
+  sendFooter: boolean;
+}
+
+export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
+  mediaType: 'none',
+  landscape: false,
+  speed: 5,
+  density: 8,
+  chunkSize: 300,
+  chunkDelay: 5,
+  throttleEvery: 0,
+  throttleDelay: 80,
+  sendSpeed: true,
+  sendDensity: true,
+  sendFooter: true,
+};
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -266,17 +295,25 @@ async function sendChunked(
   data: Uint8Array,
   context = 'data',
   onChunkProgress?: (sent: number, total: number) => void,
+  chunkSize = BLE_CHUNK_SIZE,
+  chunkDelay = BLE_CHUNK_DELAY_MS,
+  throttleEvery = 0,
+  throttleDelay = 80,
 ): Promise<void> {
   const total = data.length;
-  for (let offset = 0, chunkNo = 0; offset < total; offset += BLE_CHUNK_SIZE, chunkNo++) {
-    const chunk = data.slice(offset, Math.min(offset + BLE_CHUNK_SIZE, total));
+  for (let offset = 0, chunkNo = 0; offset < total; offset += chunkSize, chunkNo++) {
+    const chunk = data.slice(offset, Math.min(offset + chunkSize, total));
     await writeWithTimeout(conn, chunk, `${context} (${chunkNo})`);
 
     onChunkProgress?.(offset + chunk.length, total);
 
     // Small inter-chunk delay to keep stream flowing
-    if (offset + BLE_CHUNK_SIZE < total) {
-      await delay(BLE_CHUNK_DELAY_MS);
+    if (offset + chunkSize < total) {
+      await delay(chunkDelay);
+      // Extra throttle pause every N chunks
+      if (throttleEvery > 0 && chunkNo > 0 && chunkNo % throttleEvery === 0) {
+        await delay(throttleDelay);
+      }
     }
   }
 }
@@ -296,6 +333,9 @@ export interface PrintProgress {
 const M110_CMD = {
   SPEED: (speed: number) => new Uint8Array([0x1b, 0x4e, 0x0d, speed]),
   DENSITY: (density: number) => new Uint8Array([0x1b, 0x4e, 0x04, density]),
+  MEDIA_TYPE: (type: number) => new Uint8Array([0x1f, 0x11, type]),
+  LANDSCAPE: new Uint8Array([0x1b, 0x4e, 0x01, 0x01]),
+  PORTRAIT: new Uint8Array([0x1b, 0x4e, 0x01, 0x00]),
   FOOTER: new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]),
 };
 
@@ -317,7 +357,7 @@ export async function printBitmap(
   connection: PrinterConnection,
   canvas: HTMLCanvasElement,
   copies: number = 1,
-  density: number = 8,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
   onProgress?: (p: PrintProgress) => void,
 ): Promise<void> {
   onProgress?.({ phase: 'Förbereder bild...', percent: 5 });
@@ -353,37 +393,55 @@ export async function printBitmap(
   }
 
   // Map density 1-8 to M110 range (~6-15)
-  const m110Density = Math.round(5 + Math.max(1, Math.min(8, density)) * 1.25);
+  const m110Density = Math.round(5 + Math.max(1, Math.min(8, settings.density)) * 1.25);
 
-  console.log(`[Printer] Printing ${width}x${height} (${rasterData.length} bytes), density=${m110Density}, copies=${copies}`);
+  const settingsLog = Object.entries(settings).map(([k,v]) => `${k}=${v}`).join(', ');
+  console.log(`[Printer] Printing ${width}x${height} (${rasterData.length} bytes), copies=${copies}, ${settingsLog}`);
 
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     const basePercent = 15 + (copy / copies) * 80;
 
-    // 1. Set speed (default 5)
     onProgress?.({ phase: `Initierar${copyLabel}...`, percent: basePercent });
-    await sendCommand(connection, M110_CMD.SPEED(5), 'm110:speed');
+
+    // 1. Set speed
+    if (settings.sendSpeed) {
+      await sendCommand(connection, M110_CMD.SPEED(settings.speed), 'm110:speed');
+    }
 
     // 2. Set density
-    await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
+    if (settings.sendDensity) {
+      await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'm110:density');
+    }
 
-    // 3. Do not force media type; use printer's current paper setting (Print Master style)
-    // 4. Send raster header: GS v 0
+    // 3. Set media type
+    if (settings.mediaType !== 'none') {
+      const mediaMap = { gap: 0x0a, continuous: 0x0b, mark: 0x26 };
+      await sendCommand(connection, M110_CMD.MEDIA_TYPE(mediaMap[settings.mediaType]), 'm110:media');
+    }
+
+    // 4. Orientation
+    if (settings.landscape) {
+      await sendCommand(connection, M110_CMD.LANDSCAPE, 'm110:landscape');
+    }
+
+    // 5. Send raster header: GS v 0
     onProgress?.({ phase: `Skickar header${copyLabel}...`, percent: basePercent + 5 });
     await sendCommand(connection, rasterHeader(bytesPerRow, height), 'm110:raster-header', 20);
 
-    // 5. Send raw bitmap data in BLE chunks with throttling
+    // 6. Send raw bitmap data in BLE chunks
     onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: basePercent + 10 });
     await sendChunked(connection, rasterData, 'bilddata', (sent, total) => {
       const chunkPercent = basePercent + 10 + (sent / total) * 60 * (1 / copies);
       onProgress?.({ phase: `Skickar bilddata${copyLabel}...`, percent: Math.min(95, chunkPercent) });
-    });
+    }, settings.chunkSize, settings.chunkDelay, settings.throttleEvery, settings.throttleDelay);
 
-    // 6. Send M110 footer to finalize print
-    await delay(200);
-    onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
-    await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
+    // 7. Send M110 footer to finalize print
+    if (settings.sendFooter) {
+      await delay(200);
+      onProgress?.({ phase: `Slutför utskrift${copyLabel}...`, percent: basePercent + 75 });
+      await sendCommand(connection, M110_CMD.FOOTER, 'm110:footer', 300);
+    }
 
     if (copy < copies - 1) await delay(400);
   }
