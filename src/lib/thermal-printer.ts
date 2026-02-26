@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v27-phomemo-tools-exact';
+export const PRINTER_VERSION = 'v28-hybrid-init-linesminus1';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 4;
@@ -38,8 +38,8 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 10,
-  chunkSize: 100,
-  chunkDelay: 8,
+  chunkSize: 20,
+  chunkDelay: 20,
   throttleEvery: 0,
   throttleDelay: 0,
   sendSpeed: true,
@@ -307,11 +307,11 @@ function buildRasterBlock(
   blockLines: number,
   bytesPerRow: number,
 ): Uint8Array {
-  // GS v 0 header (8 bytes)
+  const linesField = Math.max(0, blockLines - 1);
   const header = new Uint8Array([
     0x1d, 0x76, 0x30, 0x00,
     bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
-    blockLines & 0xff, (blockLines >> 8) & 0xff,
+    linesField & 0xff, (linesField >> 8) & 0xff,
   ]);
 
   // Bitmap data with 0x0a → 0x14 escaping
@@ -383,8 +383,11 @@ export async function printBitmap(
     bitmapRows.push(row);
   }
 
-  // ── 4. Build protocol header (from CUPS rastertopm110.py) ──
-  const headerParts: Uint8Array[] = [];
+  // ── 4. Build protocol preamble + header ──
+  const headerParts: Uint8Array[] = [
+    // Legacy BLE preamble used by phomemo-filter path
+    new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x01, 0x1f, 0x11, 0x02, 0x04]),
+  ];
 
   // Speed: ESC N 0x0d <speed>
   if (settings.sendSpeed) {
