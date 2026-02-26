@@ -49,6 +49,7 @@ interface SessionWithDetails extends FermentationSession {
 interface ControllerData {
   current_temp: number | null;
   target_temp: number | null;
+  profile_target_temp: number | null;
   name: string;
 }
 
@@ -163,6 +164,7 @@ export function ActiveFermentationSession({
       setControllerData({
         current_temp: preloadedSession.controller_current_temp,
         target_temp: preloadedSession.controller_target_temp,
+        profile_target_temp: null,
         name: '',
       });
       
@@ -196,6 +198,7 @@ export function ActiveFermentationSession({
             ...prev,
             current_temp: newData.current_temp ?? prev?.current_temp ?? null,
             target_temp: newData.target_temp ?? prev?.target_temp ?? null,
+            profile_target_temp: newData.profile_target_temp ?? prev?.profile_target_temp ?? null,
             name: prev?.name ?? '',
           }));
         }
@@ -242,7 +245,7 @@ export function ActiveFermentationSession({
           .order('step_order'),
         supabase
           .from('rapt_temp_controllers')
-          .select('current_temp, target_temp, name')
+          .select('current_temp, target_temp, profile_target_temp, name')
           .eq('controller_id', sessions.controller_id)
           .single()
       ]);
@@ -632,6 +635,7 @@ export function ActiveFermentationSession({
         activityScore={activityScore}
         fermentationPhase={fermentationPhase}
         attenuation={attenuation}
+        controllerProfileTarget={controllerData?.profile_target_temp ?? null}
       />
     );
   }
