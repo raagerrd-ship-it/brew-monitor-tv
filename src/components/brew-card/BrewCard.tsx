@@ -325,6 +325,7 @@ function BrewCardComponent({
             currentSg={brew.currentSG}
             originalGravity={brew.originalGravity}
             sgData={brew.sgData}
+            activityScore={brew.fermentationMetrics?.activity_score ?? null}
           />
         </div>
       </div>

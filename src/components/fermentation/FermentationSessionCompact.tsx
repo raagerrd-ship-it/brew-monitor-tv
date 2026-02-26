@@ -43,6 +43,7 @@ interface FermentationSessionCompactProps {
   onAcknowledge?: () => void;
   onAcknowledgeStep?: () => void;
   acknowledgeLoading?: boolean;
+  activityScore?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -67,6 +68,7 @@ export function FermentationSessionCompact({
   onAcknowledge,
   onAcknowledgeStep,
   acknowledgeLoading,
+  activityScore,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth for current interpolated profile target
@@ -310,6 +312,9 @@ export function FermentationSessionCompact({
       {currentStep?.step_type === 'wait_for_gravity_stable' && (
         <ProgressOverlay progress={stabilityProgress} color="purple" />
       )}
+      {(currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && activityScore != null && (
+        <ProgressOverlay progress={activityScore / 100} color="amber" />
+      )}
       
       <ShimmerOverlay />
       
@@ -457,6 +462,9 @@ export function FermentationSessionCompact({
             )}
             {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
               <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
+            )}
+            {(currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && activityScore != null && (
+              <span className="text-muted-foreground font-medium">⚡ {Math.round(activityScore)}%</span>
             )}
           </div>
         )}

@@ -36,6 +36,7 @@ interface ActiveFermentationSessionProps {
   currentSg?: number | null;
   originalGravity?: number | null;
   sgData?: Array<{ date: string; value: number; temp: number }>;
+  activityScore?: number | null;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -58,6 +59,7 @@ export function ActiveFermentationSession({
   currentSg,
   originalGravity,
   sgData,
+  activityScore,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
@@ -620,6 +622,7 @@ export function ActiveFermentationSession({
         onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
         onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
         acknowledgeLoading={acknowledgeLoading}
+        activityScore={activityScore}
       />
     );
   }
