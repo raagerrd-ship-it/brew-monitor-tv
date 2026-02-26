@@ -1,51 +1,38 @@
 
 
-## Smart Diacetylvila: `gradual_ramp` stegtyp
+## Analys
 
-### Koncept
+Du har helt rätt. Problemet uppstår för att `gradual_ramp` och `diacetyl_rest` inte har ett explicit `target_temp` i databasen (det är `null`), och de förlitar sig på `getEffectiveTargetTemp()` varje cykel för att hitta sin bas-temperatur. Detta skapar en sårbarhet — den generiska fallback-logiken kunde skriva över deras dynamiska mål.
 
-Ersätt det nuvarande "hopp"-beteendet i diacetylvilan med en gradvis temperaturhöjning styrd av **activity score** istället för tid. När jäsningen saktar ner höjs temperaturen proportionellt, och steget avslutas först när aktiviteten är nära noll och SG är stabil.
+**Lösning**: Vid stegövergång (rad 747-775), sätt `profile_target_temp` direkt till det effektiva målet för det nya steget. Då äger varje steg sitt mål från första sekunden.
 
-```text
-Temp                Activity
- ▲                    ▲
- │    ┌─── target    │ ████
- │   /               │ ██████
- │  /                │ ████████
- │ / gradual_ramp    │ ██████████
- │/                  │ ████████████
- └──────────► tid    └──────────► tid
-   activity ↓ = temp ↑    activity sjunker
+## Plan
+
+### 1. Sätt `profile_target_temp` vid stegövergång
+
+I `supabase/functions/process-fermentation-profiles/index.ts`, vid rad ~748-755 där nästa steg startas, lägg till logik som beräknar och sätter `profile_target_temp` direkt:
+
+```typescript
+// After updating current_step_index...
+const nextStep = steps[nextStepIndex];
+if (nextStep && nextStep.target_temp === null) {
+  const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], nextStepIndex);
+  if (effectiveTarget !== null) {
+    await setProfileTarget(supabase, session.controller_id, effectiveTarget);
+  }
+} else if (nextStep?.target_temp !== null) {
+  await setProfileTarget(supabase, session.controller_id, nextStep.target_temp);
+}
 ```
 
-### Beteende
+Detta gäller **alla** stegtyper utan explicit target — `wait_for_gravity_stable`, `wait_for_sg`, `wait_for_acknowledgement`, `diacetyl_rest`, `gradual_ramp`. Alla får sitt mål satt direkt vid övergång istället för att vänta på nästa 5-minuterscykel.
 
-1. **Väntar på trigger**: Utjäsning når `attenuation_trigger` (t.ex. 75%) OCH fas = declining/stationary (samma som nuvarande diacetyl_rest)
-2. **Gradvis ramp**: `temp_increase` fördelas omvänt proportionellt mot activity score:
-   - Activity 100 → 0% av höjningen
-   - Activity 50 → 50% av höjningen  
-   - Activity 0 → 100% av höjningen
-   - Formel: `rampedTarget = baseTemp + tempIncrease × (1 - activityScore/100)`
-3. **Avslutning**: SG stabil i `gravity_stable_days` OCH activity < 15
+### 2. Ta bort den generiska fallback-logiken (rad 302-315)
 
-### Tekniska ändringar
+Eftersom alla steg nu får sitt mål satt vid övergång, behövs inte den generiska fallback-logiken längre. Den kan tas bort helt — varje `case` i switchen hanterar redan sitt eget mål.
 
-**1. Databasschema** — Inga ändringar krävs. Befintliga kolumner `attenuation_trigger`, `temp_increase`, `gravity_stable_days`, `gravity_threshold` på `fermentation_profile_steps` räcker.
-
-**2. `src/types/fermentation.ts`** — Lägg till `'gradual_ramp'` i `StepType` union och `STEP_TYPE_LABELS`.
-
-**3. `supabase/functions/process-fermentation-profiles/index.ts`** — Nytt `case 'gradual_ramp'` i switch:
-- Fas 1 (waiting): Samma trigger-logik som `diacetyl_rest` (utjäsning + fas)
-- Fas 2 (ramping): Beräkna `rampedTarget = baseTemp + tempIncrease × (1 - clamp(activityScore, 0, 100) / 100)`, sätt som profileTarget
-- Fas 3 (complete): SG stabil + activity < 15 → stepCompleted
-
-**4. `src/components/fermentation/FermentationStepEditor.tsx`** — Nytt case `'gradual_ramp'` i `renderStepTypeFields` och `handleSave`. Samma fält som diacetyl_rest (utjäsning%, temp-höjning, stabila dagar, SG-tröskel) plus förklarande text.
-
-**5. `src/components/fermentation/FermentationStepDisplay.tsx`** — Hantera `gradual_ramp` i `getStepIcon`, `getStepDescription`, `getNextStepCondition`.
-
-**6. `src/lib/fermentation-target.ts`** — Inga ändringar, profileTarget sätts av edge function.
-
-**7. `src/components/fermentation/hooks/useFermentationProgress.ts`** — Inga ändringar krävs, progressen styrs av backend.
-
-**8. Deploy** `process-fermentation-profiles` edge function.
+### Fördelar
+- Eliminerar hela klassen av buggar där fallback skriver över dynamiska mål
+- Enklare kod — en plats sätter initialt mål, varje case uppdaterar sitt eget
+- Inga specialundantag behövs (`!== 'gradual_ramp'` etc.)
 
