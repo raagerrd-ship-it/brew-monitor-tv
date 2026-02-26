@@ -7,7 +7,7 @@
  * v4 - improved BLE reliability + proper auto-reconnect
  */
 
-export const PRINTER_VERSION = 'v5-fast';
+export const PRINTER_VERSION = 'v6-stream';
 
 // Phomemo BLE Service UUIDs (from Phomymo project)
 const SERVICE_UUIDS = [
@@ -26,11 +26,11 @@ const WRITE_CHAR_UUIDS = [
 ];
 
 // Printer constants
-const BLE_CHUNK_SIZE = 200;
-const BLE_CHUNK_DELAY_MS = 8;           // minimal inter-chunk delay
+const BLE_CHUNK_SIZE = 300;
+const BLE_CHUNK_DELAY_MS = 5;           // minimal inter-chunk delay
 const BLE_WRITE_TIMEOUT_MS = 7000;
-const BLE_THROTTLE_EVERY_N = 16;        // pause every N chunks
-const BLE_THROTTLE_PAUSE_MS = 30;       // short pause for buffer drain
+const BLE_THROTTLE_EVERY_N = 0;         // no extra throttling - keep stream continuous
+const BLE_THROTTLE_PAUSE_MS = 0;        // disabled
 const RECONNECT_TIMEOUT_MS = 6000;     // wait for advertisement
 
 const LAST_PRINTER_KEY = 'phomemo-last-device';
@@ -263,14 +263,9 @@ async function sendChunked(
 
     onChunkProgress?.(offset + chunk.length, total);
 
-    // Standard inter-chunk delay
+    // Small inter-chunk delay to keep stream flowing
     if (offset + BLE_CHUNK_SIZE < total) {
       await delay(BLE_CHUNK_DELAY_MS);
-
-      // Extra throttle pause every N chunks to let printer drain buffer
-      if ((chunkNo + 1) % BLE_THROTTLE_EVERY_N === 0) {
-        await delay(BLE_THROTTLE_PAUSE_MS);
-      }
     }
   }
 }
