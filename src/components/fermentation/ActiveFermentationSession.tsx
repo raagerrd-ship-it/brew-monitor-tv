@@ -37,6 +37,8 @@ interface ActiveFermentationSessionProps {
   originalGravity?: number | null;
   sgData?: Array<{ date: string; value: number; temp: number }>;
   activityScore?: number | null;
+  fermentationPhase?: string | null;
+  attenuation?: number | null;
 }
 
 interface SessionWithDetails extends FermentationSession {
@@ -60,6 +62,8 @@ export function ActiveFermentationSession({
   originalGravity,
   sgData,
   activityScore,
+  fermentationPhase,
+  attenuation,
 }: ActiveFermentationSessionProps) {
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
@@ -623,6 +627,8 @@ export function ActiveFermentationSession({
         onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
         acknowledgeLoading={acknowledgeLoading}
         activityScore={activityScore}
+        fermentationPhase={fermentationPhase}
+        attenuation={attenuation}
       />
     );
   }

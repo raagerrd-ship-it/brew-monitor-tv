@@ -44,6 +44,8 @@ interface FermentationSessionCompactProps {
   onAcknowledgeStep?: () => void;
   acknowledgeLoading?: boolean;
   activityScore?: number | null;
+  fermentationPhase?: string | null;
+  attenuation?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -69,6 +71,8 @@ export function FermentationSessionCompact({
   onAcknowledgeStep,
   acknowledgeLoading,
   activityScore,
+  fermentationPhase,
+  attenuation,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth for current interpolated profile target
@@ -108,6 +112,18 @@ export function FermentationSessionCompact({
   // Use props for ramping state (passed from parent) or fall back to calculated
   const isRamping = isRampingProp;
   const rampProgress = rampProgressProp;
+
+  // Gradual ramp trigger status
+  const isGradualRampStep = currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest';
+  const gradualRampTrigger = isGradualRampStep ? ((currentStep as any)?.attenuation_trigger ?? 75) : 0;
+  const phaseReady = !fermentationPhase || fermentationPhase === 'declining' || fermentationPhase === 'stationary';
+  const attenuationReady = (attenuation ?? 0) >= gradualRampTrigger;
+  const gradualRampTriggered = isGradualRampStep && attenuationReady && phaseReady;
+  const gradualRampProgress = isGradualRampStep 
+    ? gradualRampTriggered 
+      ? (activityScore != null ? 1 - activityScore / 100 : null) // Inverted: lower activity = more progress
+      : (attenuation != null ? Math.min(1, (attenuation ?? 0) / gradualRampTrigger) : null) // Progress toward trigger
+    : null;
 
   const getStepIconWithColor = (stepType: string) => {
     const iconClass = "h-3 w-3";
@@ -185,9 +201,18 @@ export function FermentationSessionCompact({
       case 'wait_for_acknowledgement':
         return 'Väntar på kvittering';
       case 'diacetyl_rest':
-        return `Vila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
-      case 'gradual_ramp':
-        return `Gradvis +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
+      case 'gradual_ramp': {
+        const trigger = (step as any).attenuation_trigger ?? 75;
+        const increase = (step as any).temp_increase ?? 3;
+        if (gradualRampTriggered) {
+          return `Rampar +${increase}° (aktivitet ${activityScore != null ? Math.round(activityScore) + '%' : '?'})`;
+        }
+        const currentAtt = attenuation ?? 0;
+        const phaseLabel = fermentationPhase 
+          ? (fermentationPhase === 'declining' || fermentationPhase === 'stationary' ? '' : ` · ${fermentationPhase}`)
+          : '';
+        return `Väntar: ${Math.round(currentAtt)}% / ${trigger}%${phaseLabel}`;
+      }
       default:
         return '';
     }
@@ -312,8 +337,8 @@ export function FermentationSessionCompact({
       {currentStep?.step_type === 'wait_for_gravity_stable' && (
         <ProgressOverlay progress={stabilityProgress} color="purple" />
       )}
-      {(currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && activityScore != null && (
-        <ProgressOverlay progress={activityScore / 100} color="amber" />
+      {isGradualRampStep && gradualRampProgress != null && (
+        <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
       )}
       
       <ShimmerOverlay />
@@ -463,8 +488,10 @@ export function FermentationSessionCompact({
             {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
               <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
             )}
-            {(currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && activityScore != null && (
-              <span className="text-muted-foreground font-medium">⚡ {Math.round(activityScore)}%</span>
+            {isGradualRampStep && gradualRampProgress != null && (
+              <span className="text-muted-foreground font-medium">
+                {gradualRampTriggered ? '⚡' : '⏳'} {Math.round(gradualRampProgress * 100)}%
+              </span>
             )}
           </div>
         )}
