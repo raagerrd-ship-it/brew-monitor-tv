@@ -459,6 +459,54 @@ export async function printBitmap(
 }
 
 /**
+ * Print a blank white test page (384 x 200 pixels) to verify printer communication.
+ * If this prints and ejects cleanly, the protocol is working.
+ */
+export async function printTestPage(
+  connection: PrinterConnection,
+  onProgress?: (p: PrintProgress) => void,
+): Promise<void> {
+  const width = 384;
+  const height = 200;
+  const bytesPerRow = width / 8; // 48
+  const rasterData = new Uint8Array(bytesPerRow * height); // all zeros = all white
+
+  // Add a thin black border (2px) so we can see the page was printed
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (y < 2 || y >= height - 2 || x < 2 || x >= width - 2) {
+        const byteIdx = y * bytesPerRow + Math.floor(x / 8);
+        const bitIdx = 7 - (x % 8);
+        rasterData[byteIdx] |= (1 << bitIdx);
+      }
+    }
+  }
+
+  const m110Density = 10;
+
+  console.log(`[Printer] TEST PAGE: ${width}x${height}, ${rasterData.length} bytes`);
+  onProgress?.({ phase: 'Skickar testsida...', percent: 10 });
+
+  await sendCommand(connection, M110_CMD.SPEED(5), 'test:speed');
+  await sendCommand(connection, M110_CMD.DENSITY(m110Density), 'test:density');
+  await sendCommand(connection, M110_CMD.MEDIA_TYPE(0x0a), 'test:media-type');
+
+  onProgress?.({ phase: 'Skickar header...', percent: 20 });
+  await sendCommand(connection, rasterHeader(bytesPerRow, height), 'test:raster-header');
+
+  onProgress?.({ phase: 'Skickar bilddata...', percent: 30 });
+  await sendChunked(connection, rasterData, 'test-data', (sent, total) => {
+    onProgress?.({ phase: 'Skickar bilddata...', percent: 30 + (sent / total) * 50 });
+  }, 128, 20, 0, 0);
+
+  await delay(300);
+  onProgress?.({ phase: 'Slutför...', percent: 90 });
+  await sendCommand(connection, M110_CMD.FOOTER, 'test:footer', 500);
+
+  onProgress?.({ phase: 'Klar!', percent: 100 });
+}
+
+/**
  * Floyd-Steinberg dithering: converts RGBA image data to array of 0 (black) or 255 (white).
  */
 function ditherToMonochrome(imageData: ImageData): Uint8Array {
