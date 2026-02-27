@@ -118,6 +118,7 @@ serve(async (req) => {
         color: extractColor(pill.name || ''),
         battery_level: batteryLevel,
         last_update: pill.lastActivityTime ? new Date(pill.lastActivityTime).toISOString() : new Date().toISOString(),
+        paired_device_id: pill.pairedDeviceId || null,
       };
     });
 

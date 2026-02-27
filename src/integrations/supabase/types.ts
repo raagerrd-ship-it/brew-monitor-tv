@@ -931,6 +931,7 @@ export type Database = {
           id: string
           last_update: string | null
           name: string
+          paired_device_id: string | null
           pill_id: string
           updated_at: string
         }
@@ -941,6 +942,7 @@ export type Database = {
           id?: string
           last_update?: string | null
           name: string
+          paired_device_id?: string | null
           pill_id: string
           updated_at?: string
         }
@@ -951,6 +953,7 @@ export type Database = {
           id?: string
           last_update?: string | null
           name?: string
+          paired_device_id?: string | null
           pill_id?: string
           updated_at?: string
         }

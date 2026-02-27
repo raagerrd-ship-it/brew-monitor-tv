@@ -36,6 +36,19 @@ export function findDevicesForBrew(
   let matchingPill: PillData | null = null;
   let matchingController: TempController | null = null;
 
+  // Try paired_device_id matching first (RAPT hardware pairing)
+  const pairedPill = pills.find(p => p.paired_device_id && controllers.some(c => c.controller_id === p.paired_device_id));
+  if (pairedPill) {
+    const pairedController = controllers.find(c => c.controller_id === pairedPill.paired_device_id) || null;
+    if (pairedController) {
+      // Check if this pill's temp matches the brew temp (±3°C) to confirm it's the right brew
+      const pillTemp = pairedController.pill_temp;
+      if (pillTemp !== null && Math.abs(pillTemp - brew.currentTemp) <= 3) {
+        return { pill: pairedPill, controller: pairedController };
+      }
+    }
+  }
+
   const brewNameLower = brew.name.toLowerCase();
   const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
 
