@@ -461,24 +461,23 @@ export async function printTestPage(
 ): Promise<void> {
   const canvas = document.createElement('canvas');
   canvas.width = 384;
-  canvas.height = 240;
+  canvas.height = 300;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Kunde inte skapa testcanvas.');
 
+  // White background
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 384, 240);
+  ctx.fillRect(0, 0, 384, 300);
+
+  // Thick black border rectangle
   ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, 384, 10);
-  ctx.fillRect(0, 230, 384, 10);
-  ctx.fillRect(0, 0, 10, 240);
-  ctx.fillRect(374, 0, 10, 240);
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = '#000000';
-  ctx.beginPath();
-  ctx.moveTo(20, 20); ctx.lineTo(364, 220);
-  ctx.moveTo(364, 20); ctx.lineTo(20, 220);
-  ctx.stroke();
-  ctx.fillRect(132, 100, 120, 40);
+  ctx.fillRect(20, 20, 344, 10);   // top
+  ctx.fillRect(20, 270, 344, 10);   // bottom
+  ctx.fillRect(20, 20, 10, 260);    // left
+  ctx.fillRect(354, 20, 10, 260);   // right
+
+  // Filled square in center
+  ctx.fillRect(142, 100, 100, 100);
 
   await printBitmap(connection, canvas, 1, DEFAULT_PRINT_SETTINGS, onProgress);
 }
