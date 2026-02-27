@@ -7,7 +7,7 @@ import { BrewData } from "@/types/brew";
 import QRCode from 'qrcode';
 
 export const LABEL_WIDTH = 384;
-export const LABEL_HEIGHT = 538;
+export const LABEL_HEIGHT = 555;
 const PADDING = 23;
 const LABEL_IMG_SIZE = 144;
 const QR_SIZE = 144;
