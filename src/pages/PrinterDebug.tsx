@@ -97,23 +97,18 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
 
   // Label: 50×70mm @ 203dpi = 400×560px, printhead=384px wide
   const widthBytes = 48; // 384 pixels
-  const patH = 520; // slightly shorter to fit within 70mm label
+  const patH = 520;
   const leadInRows = 10;
   const trailRows = 25;
   const height = patH + leadInRows + trailRows;
-  log(`→ 7. Raster ${widthBytes * 8}×${height} (${patH}px pattern)...`);
-  await bleWrite(conn, new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff
-  ]), "raster-hdr");
-  await delay(100);
 
-  // Hardware adds ~16px left margin, pad right to match
-  const rightMargin = 16;
+  // Build full raster in memory
   const rasterData = new Uint8Array(widthBytes * height);
   rasterData.fill(0x00);
 
-  const w = widthBytes * 8; // 384
+  const w = widthBytes * 8;
   const xMin = 0;
+  const rightMargin = 16;
   const xMax = w - 1 - rightMargin;
   const contentW = xMax - xMin;
 
@@ -125,33 +120,23 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   for (let py = 0; py < patH; py++) {
     const y = py + leadInRows;
     const row = y * widthBytes;
-
-    // Top & bottom border (2 rows)
     if (py < 2 || py >= patH - 2) {
       for (let px = xMin; px <= xMax; px++) setPixel(row, px);
       continue;
     }
-
-    // Left & right border (2px each)
     for (let dx = 0; dx < 2; dx++) {
       setPixel(row, xMin + dx);
       setPixel(row, xMax - dx);
     }
-
-    // Diagonal X (3px wide)
     const xA = xMin + Math.floor((py / (patH - 1)) * contentW);
     const xB = xMin + Math.floor(((patH - 1 - py) / (patH - 1)) * contentW);
     for (const xPos of [xA, xB]) {
       for (let dx = -1; dx <= 1; dx++) setPixel(row, xPos + dx);
     }
-
-    // Center vertical line (2px)
     const cx = Math.floor((xMin + xMax) / 2);
     setPixel(row, cx);
     setPixel(row, cx + 1);
   }
-
-  // Center horizontal line (2 rows)
   for (let dy = -1; dy <= 0; dy++) {
     const my = leadInRows + Math.floor(patH / 2) + dy;
     const row = my * widthBytes;
@@ -163,26 +148,48 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
 
-  // Send in chunks with response to guarantee delivery (prevents "Waiting for data")
+  // ── Send raster in 256-line blocks (like phomemo-filter.py) ──
+  // Printer can start printing block N while receiving block N+1
+  const MAX_BLOCK_LINES = 256;
   const CHUNK = 200;
-  const totalChunks = Math.ceil(rasterData.length / CHUNK);
-  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B (with-response)...`);
-  for (let off = 0; off < rasterData.length; off += CHUNK) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, "forceWithResponse");
+  let linesSent = 0;
+  let blockNum = 0;
+
+  while (linesSent < height) {
+    const blockLines = Math.min(MAX_BLOCK_LINES, height - linesSent);
+    blockNum++;
+    log(`→ 7${String.fromCharCode(96 + blockNum)}. Block ${blockNum}: ${blockLines} rader (rad ${linesSent}–${linesSent + blockLines - 1})...`);
+
+    // GS v 0 header — height = lines-1 per phomemo-filter.py
+    await bleWrite(conn, new Uint8Array([
+      0x1d, 0x76, 0x30, 0x00,
+      widthBytes, 0x00,
+      (blockLines - 1) & 0xff, ((blockLines - 1) >> 8) & 0xff,
+    ]), `raster-hdr-${blockNum}`);
+    await delay(50);
+
+    // Send block pixel data
+    const blockStart = linesSent * widthBytes;
+    const blockEnd = (linesSent + blockLines) * widthBytes;
+    const blockData = rasterData.slice(blockStart, blockEnd);
+
+    for (let off = 0; off < blockData.length; off += CHUNK) {
+      await bleWrite(conn, blockData.slice(off, Math.min(off + CHUNK, blockData.length)), `b${blockNum}-${off}`, "forceWithResponse");
+    }
+
+    linesSent += blockLines;
+    log(`   ✓ Block ${blockNum} skickat (${blockData.length} bytes)`);
   }
 
-  // Wait for immediate transport ACK after last chunk, then let printer drain/print
+  log(`   ✓ Alla ${blockNum} block skickade (${rasterData.length} bytes totalt)`);
+
+  // Let printer finish last block
   notifyQueue.length = 0;
-  await delay(300);
-  await waitForAck("ACK efter bilddata", 5000);
+  await delay(500);
+  await waitForAck("ACK efter sista block", 5000);
+  await delay(2000);
 
-  // IMPORTANT: 0x01 0x01 is transport ACK, not "print complete".
-  // Let the printer process raster payload before end-job.
-  log("→ 8. Väntar att skrivaren hinner börja mata ut...");
-  await delay(3000);
-  log(`   ✓ Data skickad (${rasterData.length} bytes)`);
-
-  // Now send end-job
+  // End-job
   notifyQueue.length = 0;
   log("→ 9. End-job...");
   await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "End-job", "forceWithResponse");
