@@ -8,7 +8,8 @@ import QRCode from 'qrcode';
 
 export const LABEL_WIDTH = 384;
 export const LABEL_HEIGHT = 555;
-const PADDING = 23;
+const PADDING = 8;      // (384-368)/2 = 8px per side → 368px content width
+// Content area: 368 × 520px (with ~17px top + ~18px bottom implicit)
 const LABEL_IMG_SIZE = 144;
 const QR_SIZE = 144;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
