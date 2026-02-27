@@ -36,7 +36,6 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const settings = useSettingsData();
-  const { toast } = settings as any; // toast is used via handlers
 
   // Get initial tab from URL or default to "sync"
   const validTabs = ["sync", "automation", "devices", "brews"];

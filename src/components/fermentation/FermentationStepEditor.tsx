@@ -65,9 +65,9 @@ export function FermentationStepEditor({
       setSgComparison(step.sg_comparison || "at_or_below");
       setNotes(step.notes || "");
       setAttenuationTrigger(step.attenuation_trigger?.toString() || "75");
-      setActivityTrigger((step as any).activity_trigger?.toString() || "35");
+      setActivityTrigger(step.activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
-      setMinRampHours((step as any).min_ramp_hours?.toString() || "");
+      setMinRampHours(step.min_ramp_hours?.toString() || "");
       // Determine hold end condition based on existing step_type
       if (step.step_type === "wait_for_gravity_stable") {
         setStepType("hold");
@@ -154,7 +154,7 @@ export function FermentationStepEditor({
         stepData.temp_increase = tempIncrease ? parseFloat(tempIncrease) : 3;
         stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
-        (stepData as any).min_ramp_hours = minRampHours ? parseInt(minRampHours) : null;
+        stepData.min_ramp_hours = minRampHours ? parseInt(minRampHours) : null;
         break;
     }
 
