@@ -1,10 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import {
-  ProfileStep,
-  getEffectiveTargetTemp,
-} from '../_shared/temp-utils.ts'
-import { insertNotification } from '../_shared/notifications.ts'
+import { ProfileStep } from '../_shared/temp-utils.ts'
 import { processStep, StepContext, SgDataPoint } from '../_shared/step-handlers.ts'
+import { completeProfile, advanceToNextStep } from '../_shared/session-lifecycle.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,21 +21,61 @@ interface Session {
   ramp_triggered_at: string | null
 }
 
-/**
- * Set the profile target temperature in the database.
- * This does NOT write to the RAPT controller — PID owns that.
- */
-async function setProfileTarget(
-  supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-  profileTarget: number,
-) {
-  await supabase
-    .from('rapt_temp_controllers')
-    .update({ profile_target_temp: profileTarget, updated_at: new Date().toISOString() })
-    .eq('controller_id', controllerId)
-  console.log(`📋 Profile target set: ${profileTarget}°C for ${controllerId} (PID will enforce)`)
+// ─── Batch data helpers ───────────────────────────────────────────────
+
+function buildStepsMap(allSteps: any[] | null): Map<string, any[]> {
+  const map = new Map<string, any[]>()
+  if (allSteps) {
+    for (const step of allSteps) {
+      const list = map.get(step.profile_id) || []
+      list.push(step)
+      map.set(step.profile_id, list)
+    }
+  }
+  return map
 }
+
+function buildControllerMap(allControllers: any[] | null): Map<string, any> {
+  const map = new Map<string, any>()
+  if (allControllers) {
+    for (const c of allControllers) {
+      map.set(c.controller_id, c)
+    }
+  }
+  return map
+}
+
+function buildBrewDataMap(allBrewData: any[] | null): Map<string, { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number }> {
+  const map = new Map()
+  if (allBrewData) {
+    for (const b of allBrewData) {
+      map.set(b.id, {
+        sg_data: b.sg_data as SgDataPoint[],
+        original_gravity: parseFloat(String(b.original_gravity ?? 0)),
+        final_gravity: parseFloat(String(b.final_gravity ?? 0)),
+      })
+    }
+  }
+  return map
+}
+
+function buildMetricsMap(allMetrics: any[] | null): Map<string, { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean }> {
+  const map = new Map()
+  if (allMetrics) {
+    for (const m of allMetrics) {
+      map.set(m.brew_id, {
+        fermentation_phase: m.fermentation_phase,
+        activity_score: parseFloat(String(m.activity_score)),
+        sg_rate_per_hour: parseFloat(String(m.sg_rate_per_hour)),
+        eta_to_fg_hours: m.eta_to_fg_hours ? parseFloat(String(m.eta_to_fg_hours)) : null,
+        ready_to_crash: m.ready_to_crash,
+      })
+    }
+  }
+  return map
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -46,10 +83,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
 
     // Get all running sessions
     const { data: sessions, error: sessionsError } = await supabase
@@ -67,10 +104,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    const results: { sessionId: string; action: string; details: any }[] = []
     const typedSessions = sessions as Session[]
+    const results: { sessionId: string; action: string; details: any }[] = []
 
-    // ---- Batch pre-fetch: profile steps, controllers, brew data ----
+    // ---- Batch pre-fetch ----
     const uniqueProfileIds = [...new Set(typedSessions.map(s => s.profile_id))]
     const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
     const brewIds = typedSessions.map(s => s.brew_id).filter((id): id is string => id !== null)
@@ -91,165 +128,48 @@ Deno.serve(async (req) => {
         .select('*')
         .in('controller_id', uniqueControllerIds),
       brewIds.length > 0
-        ? supabase
-            .from('brew_readings')
-            .select('id, sg_data, original_gravity, final_gravity')
-            .in('id', brewIds)
+        ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
         : Promise.resolve({ data: null } as { data: null }),
       brewIds.length > 0
-        ? supabase
-            .from('brew_fermentation_metrics')
-            .select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash')
-            .in('brew_id', brewIds)
+        ? supabase.from('brew_fermentation_metrics').select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash').in('brew_id', brewIds)
         : Promise.resolve({ data: null } as { data: null }),
     ])
 
-    // Group steps by profile_id
-    const batchStepsMap = new Map<string, any[]>()
-    if (allSteps) {
-      for (const step of allSteps) {
-        const list = batchStepsMap.get(step.profile_id) || []
-        list.push(step)
-        batchStepsMap.set(step.profile_id, list)
-      }
-    }
+    const stepsMap = buildStepsMap(allSteps)
+    const controllerMap = buildControllerMap(allControllers)
+    const brewDataMap = buildBrewDataMap(allBrewData as any[] | null)
+    const metricsMap = buildMetricsMap(allMetrics as any[] | null)
 
-    // Map controllers by controller_id
-    const batchControllerMap = new Map<string, any>()
-    if (allControllers) {
-      for (const c of allControllers) {
-        batchControllerMap.set(c.controller_id, c)
-      }
-    }
-
-    // Map brew data by brew id
-    const batchBrewDataMap = new Map<string, { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number }>()
-    if (allBrewData) {
-      for (const b of allBrewData as any[]) {
-        batchBrewDataMap.set(b.id, {
-          sg_data: b.sg_data as SgDataPoint[],
-          original_gravity: parseFloat(String(b.original_gravity ?? 0)),
-          final_gravity: parseFloat(String(b.final_gravity ?? 0)),
-        })
-      }
-    }
-
-    // Map fermentation metrics by brew id
-    const batchMetricsMap = new Map<string, { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean }>()
-    if (allMetrics) {
-      for (const m of allMetrics as any[]) {
-        batchMetricsMap.set(m.brew_id, {
-          fermentation_phase: m.fermentation_phase,
-          activity_score: parseFloat(String(m.activity_score)),
-          sg_rate_per_hour: parseFloat(String(m.sg_rate_per_hour)),
-          eta_to_fg_hours: m.eta_to_fg_hours ? parseFloat(String(m.eta_to_fg_hours)) : null,
-          ready_to_crash: m.ready_to_crash,
-        })
-      }
-    }
-
+    // ---- Process each session ----
     for (const session of typedSessions) {
-      const steps = batchStepsMap.get(session.profile_id)
-
+      const steps = stepsMap.get(session.profile_id)
       if (!steps || steps.length === 0) {
         console.error(`No steps found for profile ${session.profile_id}`)
         continue
       }
 
       const currentStep = steps[session.current_step_index] as ProfileStep
-      
+
+      // All steps completed (index past end)
       if (!currentStep) {
-        // All steps completed
-        await supabase
-          .from('fermentation_sessions')
-          .update({ status: 'completed', completed_at: new Date().toISOString() })
-          .eq('id', session.id)
-
-        await supabase.from('fermentation_step_log').insert({
-          session_id: session.id,
-          step_index: session.current_step_index,
-          action: 'completed',
-          details: { message: 'Profile completed' },
-        })
-
-        // Clear profile_target_temp when profile completes
-        await supabase
-          .from('rapt_temp_controllers')
-          .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
-          .eq('controller_id', session.controller_id)
-
-        // Notification for profile completion
-        await insertNotification(supabase, {
-          type: 'profile_completed',
-          title: 'Fermenteringsprofil klar',
-          body: `Controller ${session.controller_id} har slutfört sin profil`,
-          controller_id: session.controller_id,
-          brew_id: session.brew_id,
-        })
-
-        // === Learn from completed fermentation ===
-        try {
-          const sessionDurationHours = (Date.now() - new Date(session.started_at).getTime()) / (1000 * 60 * 60);
-          
-          const { count: pidAdjCount } = await supabase
-            .from('auto_cooling_adjustments')
-            .select('id', { count: 'exact', head: true })
-            .eq('cooler_controller_id', session.controller_id)
-            .gte('created_at', session.started_at);
-
-          const { count: stallBoostCount } = await supabase
-            .from('stall_boost_outcomes')
-            .select('id', { count: 'exact', head: true })
-            .eq('controller_id', session.controller_id)
-            .gte('created_at', session.started_at);
-
-          const { data: learnedComps } = await supabase
-            .from('controller_learned_compensation')
-            .select('convergence_count, latest_avg_error')
-            .eq('controller_id', session.controller_id);
-          
-          const avgError = learnedComps && learnedComps.length > 0
-            ? learnedComps.reduce((sum, c) => sum + Math.abs(parseFloat(String(c.latest_avg_error))), 0) / learnedComps.length
-            : null;
-
-          await supabase.from('fermentation_learnings').upsert({
-            controller_id: session.controller_id,
-            parameter_name: 'avg_convergence_error',
-            learned_value: avgError ?? 0,
-            sample_count: (await supabase.from('fermentation_learnings').select('sample_count').eq('controller_id', session.controller_id).eq('parameter_name', 'avg_convergence_error').maybeSingle()).data?.sample_count ?? 0 + 1,
-            last_updated_at: new Date().toISOString(),
-          }, { onConflict: 'controller_id,parameter_name' });
-
-          console.log(`🎓 Fermentation learning for ${session.controller_id}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}, avg_error=${avgError?.toFixed(2) ?? 'N/A'}`);
-        } catch (learnError) {
-          console.error('Error saving fermentation learnings:', learnError);
-        }
-
+        await completeProfile(supabase, session, session.current_step_index)
         results.push({ sessionId: session.id, action: 'completed', details: {} })
         continue
       }
 
       // Build step context
-      const controller = batchControllerMap.get(session.controller_id) ?? null
-      const brewData = session.brew_id ? (batchBrewDataMap.get(session.brew_id) ?? null) : null
-      const metrics = session.brew_id ? (batchMetricsMap.get(session.brew_id) ?? null) : null
-
-      const stepStartedAt = new Date(session.step_started_at)
-      const now = new Date()
-      const elapsedHours = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
+      const controller = controllerMap.get(session.controller_id) ?? null
+      const brewData = session.brew_id ? (brewDataMap.get(session.brew_id) ?? null) : null
+      const metrics = session.brew_id ? (metricsMap.get(session.brew_id) ?? null) : null
+      const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
 
       const ctx: StepContext = {
-        supabase,
-        session,
-        currentStep,
+        supabase, session, currentStep,
         steps: steps as ProfileStep[],
-        controller,
-        brewData,
-        metrics,
-        elapsedHours,
+        controller, brewData, metrics, elapsedHours,
       }
 
-      // Process the current step via the dispatcher
+      // Process the current step
       const { stepCompleted, actionTaken, actionDetails } = await processStep(ctx)
 
       // Log action if something happened
@@ -265,72 +185,25 @@ Deno.serve(async (req) => {
       // Advance to next step if completed
       if (stepCompleted) {
         const nextStepIndex = session.current_step_index + 1
-        
+
         if (nextStepIndex >= steps.length) {
-          await supabase
-            .from('fermentation_sessions')
-            .update({ status: 'completed', completed_at: new Date().toISOString() })
-            .eq('id', session.id)
-
-          // Clear profile_target_temp when profile completes
-          await supabase
-            .from('rapt_temp_controllers')
-            .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
-            .eq('controller_id', session.controller_id)
-
-          await supabase.from('fermentation_step_log').insert({
-            session_id: session.id,
-            step_index: nextStepIndex,
-            action: 'completed',
-            details: { message: 'Profile completed' },
-          })
-
+          // Profile complete
+          await completeProfile(supabase, session, nextStepIndex)
           results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
         } else {
-          await supabase
-            .from('fermentation_sessions')
-            .update({ 
-              current_step_index: nextStepIndex, 
-              step_started_at: new Date().toISOString(),
-              step_start_temp: null,
-              ramp_triggered_at: null,
-            })
-            .eq('id', session.id)
-
-          // Set profile_target_temp immediately for the new step so it owns its target from second one
-          const nextStep = steps[nextStepIndex] as ProfileStep | undefined
-          if (nextStep) {
-            if (nextStep.target_temp !== null && nextStep.target_temp !== undefined) {
-              await setProfileTarget(supabase, session.controller_id, nextStep.target_temp)
-              console.log(`🎯 Step transition: set profile_target_temp=${nextStep.target_temp}°C (explicit) for step ${nextStepIndex} (${nextStep.step_type})`)
-            } else {
-              // Step has no explicit target — inherit from previous steps
-              const effectiveTarget = getEffectiveTargetTemp(steps as ProfileStep[], nextStepIndex)
-              if (effectiveTarget !== null) {
-                await setProfileTarget(supabase, session.controller_id, effectiveTarget)
-                console.log(`🎯 Step transition: set profile_target_temp=${effectiveTarget}°C (inherited) for step ${nextStepIndex} (${nextStep.step_type})`)
-              }
-            }
-          }
-
-          await supabase.from('fermentation_step_log').insert({
-            session_id: session.id,
-            step_index: nextStepIndex,
-            action: 'started',
-            details: { 
-              previous_step: currentStep.step_type,
-              new_step: steps[nextStepIndex]?.step_type || 'unknown',
-            },
-          })
-
-          results.push({ 
-            sessionId: session.id, 
-            action: 'step_advanced', 
-            details: { 
-              from: session.current_step_index, 
+          // Advance
+          await advanceToNextStep(
+            supabase, session.id, session.controller_id,
+            nextStepIndex, steps as ProfileStep[], currentStep.step_type,
+          )
+          results.push({
+            sessionId: session.id,
+            action: 'step_advanced',
+            details: {
+              from: session.current_step_index,
               to: nextStepIndex,
               new_step_type: steps[nextStepIndex]?.step_type || 'unknown',
-            } 
+            },
           })
         }
       } else {
