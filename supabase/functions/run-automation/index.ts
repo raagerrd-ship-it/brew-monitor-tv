@@ -105,6 +105,34 @@ Deno.serve(async (req) => {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
   }
 
+  // ============================================================
+  // STEP 4: System Health Check (10s timeout)
+  // Runs after all automation — logs system status
+  // ============================================================
+  console.log("Step 4: Running system health check...");
+  const healthData = await runStep("system-health-check", "system-health-check", {}, 10000);
+
+  // Log health summary to pending_notifications if critical
+  if (healthData?.overall_status === 'critical') {
+    const issuesSummary = (healthData.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
+    // Deduplicate: only send if no recent health-critical notification
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: recentHealthNotifs } = await supabase
+      .from("pending_notifications")
+      .select("id")
+      .eq("type", "system_health_critical")
+      .gte("created_at", oneHourAgo)
+      .limit(1);
+
+    if (!recentHealthNotifs || recentHealthNotifs.length === 0) {
+      await supabase.from("pending_notifications").insert({
+        type: "system_health_critical",
+        title: "Systemhälsa: Kritisk",
+        body: issuesSummary,
+      });
+    }
+  }
+
   const totalDuration = Date.now() - startTime;
   const failedSteps = results.filter(r => r.status === "error" || r.status === "timeout");
   console.log(`Automation complete in ${totalDuration}ms: ${results.map(r => `${r.step}=${r.status}`).join(", ")}`);
