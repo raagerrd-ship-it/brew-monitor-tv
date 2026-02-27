@@ -92,6 +92,12 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, brewData, steps, session, supabase, elapsedHours } = ctx
   let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
+  // SAFETY: Warn if hold step has no exit condition
+  if (!currentStep.duration_hours && currentStep.target_sg === null) {
+    console.warn(`⚠️ Hold step ${session.current_step_index} in session ${session.id} has no exit condition (no duration, no SG target) — will never complete automatically`)
+    actionDetails = { warning: 'no_exit_condition' }
+  }
+
   if (currentStep.target_temp !== null) {
     const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
     if (currentProfileTarget === null || Math.abs(currentProfileTarget - currentStep.target_temp) > 0.05) {
@@ -344,11 +350,25 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
   }
 
   const latest = getLatestSg(brewData.sg_data)
-  const latestSg = latest?.value ?? 0
+  if (!latest) {
+    console.log(`Diacetyl rest: No SG data available — waiting`)
+    actionDetails = { phase: 'waiting_for_data', wait_reason: 'No SG readings available' }
+    return { stepCompleted, actionTaken, actionDetails }
+  }
+
+  const latestSg = latest.value
   const og = brewData.original_gravity
   const fg = brewData.final_gravity
   const attRange = og - fg
-  const currentAtt = attRange > 0 ? ((og - latestSg) / attRange) * 100 : 0
+
+  // SAFETY: Guard against inverted/zero gravity range
+  if (attRange <= 0.001) {
+    console.error(`🚨 Diacetyl rest: Invalid gravity range OG=${og} FG=${fg} (attRange=${attRange.toFixed(4)}) — cannot calculate attenuation`)
+    actionDetails = { phase: 'error', wait_reason: `Invalid gravity range: OG=${og}, FG=${fg}` }
+    return { stepCompleted, actionTaken, actionDetails }
+  }
+
+  const currentAtt = ((og - latestSg) / attRange) * 100
 
   const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
   const attenuationReady = currentAtt >= attenuationTrigger
@@ -432,6 +452,10 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   const activityTrigger = currentStep.activity_trigger ?? 35
+  if (activityTrigger <= 0) {
+    console.error(`🚨 Gradual ramp: activityTrigger is ${activityTrigger} — must be > 0. Defaulting to 35.`)
+  }
+  const safeActivityTrigger = activityTrigger > 0 ? activityTrigger : 35
   const tempIncrease = currentStep.temp_increase ?? 3
   const minRampHours = currentStep.min_ramp_hours ?? null
   const activityScore = metrics?.activity_score ?? 100
@@ -445,7 +469,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
   const backendAlreadyRamping = currentProfileTarget !== null && currentProfileTarget > baseTemp + 0.05
 
-  const triggered = backendAlreadyRamping || activityScore <= activityTrigger
+  const triggered = backendAlreadyRamping || activityScore <= safeActivityTrigger
 
   if (!triggered) {
     if (effectiveTarget !== null) {
@@ -503,7 +527,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   }
 
   // Phase 2: Ramping (always exponential curve for gentler start)
-  let rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
+  let rampProgress = Math.min(1, Math.max(0, (safeActivityTrigger - activityScore) / safeActivityTrigger))
   rampProgress = rampProgress ** 2
   let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
