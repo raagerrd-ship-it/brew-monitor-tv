@@ -585,23 +585,25 @@ const STEPS: WizardStep[] = [
       await send([0x1b, 0x4e, 0x0d, 0x03], "speed=3");
       await send([0x1b, 0x4e, 0x04, 0x08], "density=8");
 
-      // 6. Small raster: 384px wide × 10 rows = 480 bytes
+      // 6. Full label: 384px wide × 560 rows (50×70mm)
       const widthBytes = 48;
-      const height = 10;
-      log(`→ GS v 0 raster (${widthBytes*8}×${height})...`);
-      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00], "raster-hdr");
+      const height = 560;
+      log(`→ GS v 0 raster (${widthBytes*8}×${height}) = full 50×70mm etikett...`);
+      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff], "raster-hdr");
 
-      // 10 rows of solid black, sent in 20-byte chunks
+      // 20 black rows at top, rest white
       const rasterData = new Uint8Array(widthBytes * height);
-      rasterData.fill(0xff);
+      rasterData.fill(0xff, 0, widthBytes * 20); // 20 svarta rader
       const CHUNK = 20;
       let chunks = 0;
-      for (let off = 0; off < rasterData.length; off += CHUNK) {
-        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `raster-${off}`);
+      const totalBytes = rasterData.length;
+      for (let off = 0; off < totalBytes; off += CHUNK) {
+        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, totalBytes)), `r-${off}`);
         chunks++;
+        if (chunks % 200 === 0) log(`   ...${Math.round((off / totalBytes) * 100)}%`);
       }
       await delay(500);
-      log(`   Rasterdata skickad (${rasterData.length} bytes i ${chunks} chunks à ${CHUNK}B, helsvart)`);
+      log(`   Rasterdata skickad (${totalBytes} bytes, ${chunks} chunks)`);
 
       // 7. Print-execute
       await send([0x1f, 0x11, 0x04, 0x00], "print-execute");
