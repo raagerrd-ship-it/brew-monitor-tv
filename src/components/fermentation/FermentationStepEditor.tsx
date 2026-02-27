@@ -51,6 +51,7 @@ export function FermentationStepEditor({
   const [attenuationTrigger, setAttenuationTrigger] = useState<string>("75");
   const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
+  const [minRampHours, setMinRampHours] = useState<string>("");
 
   useEffect(() => {
     if (step) {
@@ -66,6 +67,7 @@ export function FermentationStepEditor({
       setAttenuationTrigger(step.attenuation_trigger?.toString() || "75");
       setActivityTrigger((step as any).activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
+      setMinRampHours((step as any).min_ramp_hours?.toString() || "");
       // Determine hold end condition based on existing step_type
       if (step.step_type === "wait_for_gravity_stable") {
         setStepType("hold");
@@ -100,6 +102,7 @@ export function FermentationStepEditor({
     setHoldEndCondition("time");
     setAttenuationTrigger("75");
     setTempIncrease("3");
+    setMinRampHours("");
   };
 
   const handleSave = () => {
@@ -151,6 +154,7 @@ export function FermentationStepEditor({
         stepData.temp_increase = tempIncrease ? parseFloat(tempIncrease) : 3;
         stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
+        (stepData as any).min_ramp_hours = minRampHours ? parseInt(minRampHours) : null;
         break;
     }
 
@@ -330,6 +334,28 @@ export function FermentationStepEditor({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>Min. ramptid (timmar)</Label>
+                <Input
+                  type="number"
+                  value={minRampHours}
+                  onChange={(e) => setMinRampHours(e.target.value)}
+                  placeholder="48"
+                />
+                <p className="text-xs text-muted-foreground">Minsta tid för full temperaturökning (begränsar rampningshastigheten)</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Temperaturhöjning (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={tempIncrease}
+                  onChange={(e) => setTempIncrease(e.target.value)}
+                  placeholder="3"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Stabila dagar efter avslut</Label>
                 <Input
                   type="number"
@@ -352,6 +378,7 @@ export function FermentationStepEditor({
             <p className="text-xs text-muted-foreground">
               Börjar höja temperaturen gradvis när jäsningsaktiviteten sjunker under tröskeln. 
               Ju lägre aktivitet, desto högre temperatur (max +{tempIncrease || 3}°C).
+              {minRampHours ? ` Temperaturökningen sprids ut över minst ${minRampHours} timmar.` : ''}
               Avslutas när SG är stabil och aktiviteten är nära noll.
             </p>
           </>

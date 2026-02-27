@@ -650,6 +650,7 @@ export type Database = {
           gravity_stable_days: number | null
           gravity_threshold: number | null
           id: string
+          min_ramp_hours: number | null
           notes: string | null
           profile_id: string
           ramp_type: string | null
@@ -669,6 +670,7 @@ export type Database = {
           gravity_stable_days?: number | null
           gravity_threshold?: number | null
           id?: string
+          min_ramp_hours?: number | null
           notes?: string | null
           profile_id: string
           ramp_type?: string | null
@@ -688,6 +690,7 @@ export type Database = {
           gravity_stable_days?: number | null
           gravity_threshold?: number | null
           id?: string
+          min_ramp_hours?: number | null
           notes?: string | null
           profile_id?: string
           ramp_type?: string | null

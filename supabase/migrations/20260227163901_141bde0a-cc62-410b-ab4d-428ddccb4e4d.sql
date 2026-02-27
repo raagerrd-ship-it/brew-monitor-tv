@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_profile_steps ADD COLUMN min_ramp_hours integer NULL DEFAULT NULL;

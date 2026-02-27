@@ -441,6 +441,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
 
   const activityTrigger = (currentStep as any).activity_trigger ?? 35
   const tempIncrease = (currentStep as any).temp_increase ?? 3
+  const minRampHours = (currentStep as any).min_ramp_hours ?? null
   const activityScore = metrics?.activity_score ?? 100
 
   if (!brewData) {
@@ -471,7 +472,22 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
 
   // Phase 2: Ramping
   const rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
-  const calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
+  let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
+
+  // Apply min ramp hours constraint: limit how fast temp can increase
+  if (minRampHours && minRampHours > 0) {
+    // Calculate how long since the ramp was triggered (use step_started_at as base, 
+    // but the trigger may have happened after step start)
+    const stepStartedAt = new Date(session.step_started_at)
+    const now = new Date()
+    const elapsedSinceStep = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
+    const maxAllowedIncrease = (tempIncrease / minRampHours) * elapsedSinceStep
+    const timeConstrainedTarget = Math.round((baseTemp + Math.min(tempIncrease, maxAllowedIncrease)) * 10) / 10
+    if (calculatedTarget > timeConstrainedTarget) {
+      console.log(`⏱️ Min ramp constraint: activity wants ${calculatedTarget}°C but time allows max ${timeConstrainedTarget}°C (${elapsedSinceStep.toFixed(1)}h / ${minRampHours}h)`)
+      calculatedTarget = timeConstrainedTarget
+    }
+  }
 
   const maxTarget = Math.round((baseTemp + tempIncrease) * 10) / 10
   const cappedCurrentTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
