@@ -1,33 +1,37 @@
 
 
-## Add exponential ramp curve to gradual_ramp
+## Granskning: Smart diacetylvila (`gradual_ramp`)
 
-### Current behavior
-Line 506: `rampProgress = (activityTrigger - activityScore) / activityTrigger` — linear mapping from activity drop to temperature increase.
+### Styrkor (redan professionellt)
+- **Exponentiell kurva** (`rampProgress ** 2`) — försiktig start, accelererar mot slutet
+- **Ratchet-mekanism** (rad 523-528) — temperaturen går aldrig bakåt
+- **Min ramp hours** med `ramp_triggered_at` — tidsbegränsning räknas från trigger, inte stegstart
+- **Tvåfas-triggning** — väntar tills aktivitet < tröskel ELLER backend redan rampar
+- **Kompletteringsvillkor** — kräver både SG-stabilitet OCH aktivitet < 15%
+- **Loggning av trigger-event** i `fermentation_step_log`
 
-### Change
-Add a `ramp_curve` field (`'linear' | 'exponential'`) to fermentation profile steps. When set to `exponential`, apply a power curve: `rampProgress^2` — this makes the temperature increase slow at first and accelerate as activity drops further.
+### Brister att åtgärda
 
-```text
-Linear:       activity 35→0%  →  temp +0→3°C  (constant rate)
-Exponential:  activity 35→0%  →  temp +0→3°C  (slow start, fast finish)
+1. **`ProfileStep`-typen i `temp-utils.ts` saknar `gradual_ramp` och `diacetyl_rest`**
+   - Rad 11: `step_type` union har bara de gamla typerna
+   - Fält som `activity_trigger`, `temp_increase`, `min_ramp_hours`, `ramp_curve` saknas helt
+   - Tvingar fram `(currentStep as any)` i step-handlers.ts (rad 443-445)
+   - **Fix**: Utöka `ProfileStep` med alla moderna fält och stegtyper
 
-Example at 50% progress (activity ~17.5%):
-  Linear:      +1.5°C
-  Exponential: +0.75°C  (only half as much)
-```
+2. **Ingen notifikation vid ramp-trigger**
+   - Profilen skickar notis vid slutförande men **inte** när gradual ramp aktiveras
+   - Viktigt att veta: "Din diacetylvila har startat automatiskt"
+   - **Fix**: Lägg till `insertNotification()` vid första trigger (rad 489-501)
 
-### Files to change
+3. **Ingen notifikation vid gradual_ramp-slutförande**
+   - `stepCompleted = true` sätts (rad 553) men ingen notis skickas
+   - Notisen skickas bara för hela profilen, inte per steg
+   - **Fix**: Lägg till notis i completion-blocket
 
-1. **Database migration** — Add `ramp_curve text` column to `fermentation_profile_steps` (nullable, default null = linear for backward compat).
+### Ändringar
 
-2. **`src/types/fermentation.ts`** — Add `ramp_curve` to `FermentationProfileStep` and `FermentationStepData`.
-
-3. **`src/components/fermentation/FermentationStepEditor.tsx`** — Add a Select for ramp curve (Linjär / Exponentiell) in the `gradual_ramp` section.
-
-4. **`src/components/fermentation/FermentationStepDisplay.tsx`** — Show curve type in display text.
-
-5. **`supabase/functions/_shared/step-handlers.ts`** — In `processGradualRampStep`, read `ramp_curve` from step and apply `rampProgress = rampProgress ** 2` when exponential.
-
-6. **Hooks** (`use-fermentation-profiles.ts`, `use-active-fermentation-session.ts`, `use-brew-data.ts`, `use-brew-page.ts`) — Include `ramp_curve` in queries.
+| Fil | Ändring |
+|---|---|
+| `supabase/functions/_shared/temp-utils.ts` | Utöka `ProfileStep` med `diacetyl_rest`, `gradual_ramp`, `wait_for_acknowledgement` + fälten `attenuation_trigger`, `activity_trigger`, `temp_increase`, `min_ramp_hours`, `ramp_curve` |
+| `supabase/functions/_shared/step-handlers.ts` | Ta bort alla `(currentStep as any)` → använd typade fält. Lägg till `insertNotification()` vid trigger + completion |
 
