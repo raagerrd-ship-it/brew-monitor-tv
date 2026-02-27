@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   isBluetoothSupported,
-  connectPrinter,
   reconnectLastPrinter,
   getLastDeviceName,
-  setTargetPrinterName,
   disconnectPrinter,
   printBitmapBypassProcessing,
   DEFAULT_PRINT_SETTINGS,
@@ -12,8 +10,6 @@ import {
   type PrintProgress,
 } from "@/lib/thermal-printer";
 import { toast } from "@/hooks/use-toast";
-
-const TARGET_PRINTER_NAME = 'Q199E44I1590809';
 
 export function usePrinterConnection(dialogOpen: boolean) {
   const [bleConn, setBleConn] = useState<PrinterConnection | null>(null);
@@ -23,16 +19,14 @@ export function usePrinterConnection(dialogOpen: boolean) {
   const [autoConnectFailed, setAutoConnectFailed] = useState(false);
   const hasBle = isBluetoothSupported();
   const connRef = useRef<PrinterConnection | null>(null);
+  const targetName = getLastDeviceName();
 
   // Keep ref in sync
   useEffect(() => { connRef.current = bleConn; }, [bleConn]);
 
-  // Seed target printer name so reconnect can find it
-  useEffect(() => { setTargetPrinterName(TARGET_PRINTER_NAME); }, []);
-
-  // Auto-reconnect to target printer when dialog opens
+  // Auto-reconnect to saved printer when dialog opens
   useEffect(() => {
-    if (!dialogOpen || bleConn || !hasBle) return;
+    if (!dialogOpen || bleConn || !hasBle || !targetName) return;
 
     let cancelled = false;
     setIsConnecting(true);
@@ -59,28 +53,25 @@ export function usePrinterConnection(dialogOpen: boolean) {
     return () => { if (connRef.current) disconnectPrinter(connRef.current); };
   }, []);
 
-  const connect = useCallback(async () => {
+  const retry = useCallback(async () => {
     setIsConnecting(true);
     setAutoConnectFailed(false);
     try {
-      const conn = await connectPrinter();
-      setBleConn(conn);
-      toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
-    } catch (e: any) {
-      if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') return;
-      toast({ title: "Anslutningsfel", description: e.message, variant: "destructive" });
+      const conn = await reconnectLastPrinter();
+      if (conn) {
+        setBleConn(conn);
+        toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+      } else {
+        setAutoConnectFailed(true);
+        toast({ title: "Kunde inte ansluta", description: "Kontrollera att skrivaren är på och nära.", variant: "destructive" });
+      }
+    } catch {
+      setAutoConnectFailed(true);
+      toast({ title: "Kunde inte ansluta", description: "Kontrollera att skrivaren är på och nära.", variant: "destructive" });
     } finally {
       setIsConnecting(false);
     }
   }, []);
-
-  const disconnect = useCallback(() => {
-    if (bleConn) {
-      disconnectPrinter(bleConn);
-      setBleConn(null);
-      toast({ title: "Frånkopplad", description: "Skrivaren har kopplats från." });
-    }
-  }, [bleConn]);
 
   const print = useCallback(async (canvas: HTMLCanvasElement, copies: number) => {
     setIsPrinting(true);
@@ -88,12 +79,14 @@ export function usePrinterConnection(dialogOpen: boolean) {
     try {
       let conn = bleConn;
       if (!conn) {
-        setPrintProgress({ phase: `Ansluter till ${TARGET_PRINTER_NAME}...`, percent: 2 });
+        setPrintProgress({ phase: `Återansluter till ${targetName || 'skrivare'}...`, percent: 2 });
         conn = await reconnectLastPrinter().catch(() => null);
-        if (!conn) conn = await connectPrinter();
+        if (!conn) {
+          throw new Error("Kunde inte ansluta till skrivaren. Gå till Inställningar → Enheter för att ansluta.");
+        }
         setBleConn(conn);
         setAutoConnectFailed(false);
-        toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+        toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
       }
       await printBitmapBypassProcessing(conn, canvas, copies, DEFAULT_PRINT_SETTINGS, setPrintProgress);
       toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
@@ -105,15 +98,16 @@ export function usePrinterConnection(dialogOpen: boolean) {
       }
       toast({ title: "Utskriftsfel", description: e.message, variant: "destructive" });
       setBleConn(null);
+      setAutoConnectFailed(true);
     } finally {
       setIsPrinting(false);
       setTimeout(() => setPrintProgress(null), 2000);
     }
-  }, [bleConn]);
+  }, [bleConn, targetName]);
 
   return {
     hasBle, bleConn, isConnecting, isPrinting, printProgress,
-    autoConnectFailed, targetPrinterName: TARGET_PRINTER_NAME,
-    connect, disconnect, print,
+    autoConnectFailed, targetPrinterName: targetName,
+    retry, print,
   };
 }
