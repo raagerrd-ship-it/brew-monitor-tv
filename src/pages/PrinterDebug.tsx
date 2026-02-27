@@ -77,16 +77,14 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   ]), "raster-hdr");
   await delay(100);
 
-  // Build test pattern with margin compensation
-  // Hardware adds ~16px left margin, so we only pad right side to match
-  const rightMargin = 16;
+  // Full width - no software margins, let hardware offset be visible
   const rasterData = new Uint8Array(widthBytes * height);
   rasterData.fill(0x00);
 
   const patH = 120;
   const w = widthBytes * 8; // 384
   const xMin = 0;
-  const xMax = w - 1 - rightMargin;
+  const xMax = w - 1;
   const contentW = xMax - xMin;
 
   const setPixel = (row: number, px: number) => {
