@@ -211,10 +211,10 @@ export async function connectPrinter(): Promise<PrinterConnection> {
   return connectDevice(device);
 }
 
-async function connectWithRetry(device: any, retries = 2): Promise<any> {
+async function connectWithRetry(device: any, retries = 3): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (attempt > 0) await delay(500 * attempt);
+      if (attempt > 0) await delay(800 * attempt);
       const server = await device.gatt!.connect();
       await delay(100);
       return server;
