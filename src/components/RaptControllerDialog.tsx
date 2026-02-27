@@ -1,14 +1,13 @@
-import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Plus, Pencil } from 'lucide-react';
+import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
-import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
+import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
 import { getControllerColor } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
 
@@ -42,7 +41,6 @@ interface RaptControllerDialogProps {
 
 export function RaptControllerDialog({ controller, open, onOpenChange, isCooler = false }: RaptControllerDialogProps) {
   const navigate = useNavigate();
-  const [showStartSessionDialog, setShowStartSessionDialog] = useState(false);
   const controllerColor = getControllerColor(controller.name);
 
   const {
@@ -72,8 +70,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Active Fermentation Session */}
-          {!isCooler && <ActiveFermentationSession controllerId={controller.controller_id} />}
+          {/* Minimal Fermentation Session Status */}
+          {!isCooler && <FermentationSessionMinimal controllerId={controller.controller_id} />}
 
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
@@ -214,19 +212,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </span>
           </div>
         )}
-            
-        {/* Start Profile Button */}
-        {isAuthenticated && !isCooler && !hasActiveSession && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-4"
-            onClick={() => setShowStartSessionDialog(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Starta fermenteringsprofil
-          </Button>
-        )}
 
         {!isAuthenticated && (
           <div className="bg-muted/30 backdrop-blur-sm p-4 rounded-xl flex items-center gap-3 border border-border/30 mt-4">
@@ -247,15 +232,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           </div>
         )}
       </DialogContent>
-
-      {/* Start Session Dialog */}
-      {!isCooler && (
-        <StartFermentationSessionDialog
-          open={showStartSessionDialog}
-          onOpenChange={setShowStartSessionDialog}
-          preselectedControllerId={controller.controller_id}
-        />
-      )}
     </Dialog>
   );
 }
