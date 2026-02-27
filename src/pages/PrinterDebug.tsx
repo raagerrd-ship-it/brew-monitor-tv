@@ -66,25 +66,26 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await bleWrite(conn, new Uint8Array([0x1b, 0x42, 0x00]), "ESC-B-0");
   await delay(100);
 
-  // Add blank rows top/bottom for margin compensation
+  // Label: 50×70mm @ 203dpi = 400×560px, printhead=384px wide
   const widthBytes = 48; // 384 pixels
+  const patH = 560; // 70mm * 8 dots/mm
   const leadInRows = 10;
   const trailRows = 10;
-  const height = 120 + leadInRows + trailRows;
-  log(`→ 7. Raster ${widthBytes * 8}×${height} (${leadInRows} blank + ram + kryss)...`);
+  const height = patH + leadInRows + trailRows;
+  log(`→ 7. Raster ${widthBytes * 8}×${height} (${patH}px pattern)...`);
   await bleWrite(conn, new Uint8Array([
     0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff
   ]), "raster-hdr");
   await delay(100);
 
-  // Full width - no software margins, let hardware offset be visible
+  // Hardware adds ~16px left margin, pad right to match
+  const rightMargin = 16;
   const rasterData = new Uint8Array(widthBytes * height);
   rasterData.fill(0x00);
 
-  const patH = 120;
   const w = widthBytes * 8; // 384
   const xMin = 0;
-  const xMax = w - 1;
+  const xMax = w - 1 - rightMargin;
   const contentW = xMax - xMin;
 
   const setPixel = (row: number, px: number) => {
