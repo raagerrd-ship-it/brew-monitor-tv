@@ -1,44 +1,51 @@
 
 
-## Analys
+## Analysis of Smart Diacetyl Rest (`gradual_ramp`) Logic
 
-Editorn har blivit rörig efter alla iterationer. Problem:
+### Current Issues Found
 
-1. **Död kod**: `diacetyl_rest` case i `renderStepTypeFields()` (rad 308-358) — finns kvar i renderingen men är borttagen från dropdown
-2. **Oanvänd state**: `rampType` sätts men används aldrig i UI
-3. **Oanvända imports**: `RAMP_TYPE_LABELS` importeras men används inte
-4. **Tomma rader/kommentarer** på rad 188, 263 — kvarlevor
-5. **Inkonsekvent "Håll temperatur"-mapping** — samma logik (`['hold', 'wait_for_...'].includes(...)`) dupliceras på 4 ställen istället för en hjälpfunktion
-6. **`STEP_TYPE_LABELS` i fermentation.ts** har fortfarande de gamla oanvända etiketterna synliga
+**1. min_ramp_hours constraint is broken**
+The time constraint uses `session.step_started_at` as its start reference, but the ramp may not trigger until days after the step starts (waiting for activity to drop below the trigger). By the time activity drops to e.g. 35%, `elapsedSinceStep` could already be 72+ hours, making a 48h min_ramp_hours constraint completely ineffective — the full temperature increase would be allowed immediately.
 
-## Plan
+**2. No tracking of when the ramp actually triggered**
+There is no field to record when activity first dropped below the trigger threshold. This is needed for both the min_ramp_hours constraint and for accurate progress reporting.
 
-### 1. Städa FermentationStepEditor.tsx
-- Ta bort `rampType` state (rad 46) — oanvänd
-- Ta bort `RAMP_TYPE_LABELS` import
-- Ta bort hela `case "diacetyl_rest"` i renderStepTypeFields (rad 308-358) — död kod
-- Ta bort `case "diacetyl_rest"` i handleSave (rad 145-150) — behåll för bakåtkompatibilitet? Nej, editorn skapar aldrig den typen längre, men om någon öppnar ett gammalt steg... Vi behåller save-logiken men gömmer render-caset. Faktiskt: om step_type = diacetyl_rest laddas i useEffect sätts det till stepType direkt, och renderStepTypeFields har inget case → renderar ingenting. Det är ok. Behåll save-caset för säkerhets skull.
-- Ta bort tomma rader vid 188 och 263
+**3. step_start_temp not utilized for gradual_ramp**
+The ramp uses `getEffectiveTargetTemp()` (looking back through steps) as the base temperature, but never saves `step_start_temp`. This means the base temp reference could shift if previous steps are modified, though this is a minor concern.
 
-### 2. Skapa hjälpfunktion för "Håll temperatur"-label
-I `fermentation.ts`, lägg till:
-```typescript
-export const getStepTypeLabel = (stepType: string): string => {
-  if (['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(stepType)) {
-    return 'Håll temperatur';
-  }
-  return STEP_TYPE_LABELS[stepType as StepType] ?? stepType;
-};
+### Plan
+
+**Step 1: Add `ramp_triggered_at` column to `fermentation_sessions`**
+- Nullable timestamp, defaults to null
+- Records when a gradual_ramp step's activity trigger first fires
+- Reset to null on step transitions (already handled by existing step advance logic which resets `step_start_temp`)
+
+**Step 2: Update `processGradualRampStep` in `step-handlers.ts`**
+- On first trigger (activity <= threshold AND `ramp_triggered_at` is null): set `ramp_triggered_at = now()` and `step_start_temp = baseTemp` on the session
+- Use `ramp_triggered_at` (not `step_started_at`) for the min_ramp_hours elapsed time calculation
+- If `ramp_triggered_at` is not yet set and trigger hasn't fired, skip the time constraint entirely
+
+**Step 3: Update session type and step advance logic**
+- Add `ramp_triggered_at` to the Session interface in `process-fermentation-profiles/index.ts`
+- Ensure step transitions reset `ramp_triggered_at` to null (add to the existing update query)
+- Update `src/types/fermentation.ts` FermentationSession type
+
+### Technical Details
+
+```text
+Timeline (current - broken):
+  step_started_at ──── 72h waiting ──── trigger fires ──── min_ramp_hours already elapsed!
+                                                           constraint is useless
+
+Timeline (fixed):
+  step_started_at ──── 72h waiting ──── ramp_triggered_at ──── min_ramp_hours starts here
+                                                                constraint works correctly
 ```
 
-Ersätt alla 4 ställen som har den duplicerade `['hold', 'wait_for_...'].includes(...)` ternary:
-- `FermentationStepDisplay.tsx` rad 209, 291
-- `FermentationProfilesManagement.tsx` rad 137
-- `FermentationSessionCompact.tsx` rad 481
-
-### 3. Städa FermentationStepDisplay.tsx
-- `getStepDescription` för `wait_for_temp` (rad 73) är nu en legacy-case som mappas till ramp. Behåll för befintliga sessioner men det är ok.
-
-### Sammanfattning
-Ren städning — ingen funktionell ändring, bara bort med död kod, oanvänd state, duplicerad logik → en hjälpfunktion.
+Files to modify:
+- `supabase/migrations/` — new migration adding `ramp_triggered_at`
+- `supabase/functions/_shared/step-handlers.ts` — fix timing logic in `processGradualRampStep`
+- `supabase/functions/process-fermentation-profiles/index.ts` — add field to Session interface, reset on step advance
+- `src/types/fermentation.ts` — add field to FermentationSession type
+- `src/integrations/supabase/types.ts` — auto-updated
 
