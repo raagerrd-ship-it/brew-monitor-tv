@@ -58,7 +58,7 @@ export function FermentationStepEditor({
     if (step) {
       setStepType(step.step_type);
       setTargetTemp(step.target_temp?.toString() || "");
-      setDurationHours(step.duration_hours?.toString() || "");
+      setDurationHours(step.ramp_type === 'immediate' ? "0" : (step.duration_hours?.toString() || ""));
       setRampType(step.ramp_type || "linear");
       setGravityStableDays(step.gravity_stable_days?.toString() || "3");
       setGravityThreshold(step.gravity_threshold?.toString() || "0.001");
@@ -137,8 +137,9 @@ export function FermentationStepEditor({
         break;
       case "ramp":
         stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
-        stepData.ramp_type = rampType;
-        stepData.duration_hours = rampType === "linear" ? (durationHours ? parseInt(durationHours) : null) : null;
+        const hours = durationHours ? parseInt(durationHours) : 0;
+        stepData.ramp_type = hours === 0 ? "immediate" : "linear";
+        stepData.duration_hours = hours === 0 ? null : hours;
         break;
       case "wait_for_acknowledgement":
         break;
@@ -268,21 +269,6 @@ export function FermentationStepEditor({
       case "ramp":
         return (
           <>
-            <div className="space-y-2">
-              <Label>Ramptyp</Label>
-              <Select value={rampType} onValueChange={(v) => setRampType(v as RampType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RAMP_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Måltemperatur (°C)</Label>
@@ -294,18 +280,19 @@ export function FermentationStepEditor({
                   placeholder="4"
                 />
               </div>
-              {rampType === "linear" && (
-                <div className="space-y-2">
-                  <Label>Tid för rampa (timmar)</Label>
-                  <Input
-                    type="number"
-                    value={durationHours}
-                    onChange={(e) => setDurationHours(e.target.value)}
-                    placeholder="24"
-                  />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>Tid för rampa (timmar)</Label>
+                <Input
+                  type="number"
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(e.target.value)}
+                  placeholder="24"
+                />
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Ange 0 timmar för omedelbar temperaturändring.
+            </p>
           </>
         );
 
