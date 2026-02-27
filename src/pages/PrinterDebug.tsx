@@ -20,10 +20,18 @@ function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string, forceNoResponse = false) {
+async function bleWrite(
+  conn: PrinterConnection,
+  data: Uint8Array,
+  ctx: string,
+  mode: "auto" | "forceNoResponse" | "forceWithResponse" = "auto",
+) {
   const buffer = new Uint8Array(data).buffer;
-  const useNoResponse = forceNoResponse && conn.characteristic.properties.writeWithoutResponse;
-  const p = (useNoResponse || conn.writeMethod === "withoutResponse")
+  const supportsNoResponse = !!conn.characteristic.properties.writeWithoutResponse;
+  const supportsWithResponse = !!conn.characteristic.properties.write;
+  const useNoResponse = mode === "forceNoResponse" ? supportsNoResponse : (mode === "forceWithResponse" ? false : (conn.writeMethod === "withoutResponse" && supportsNoResponse));
+  const useWithResponse = mode === "forceWithResponse" && supportsWithResponse;
+  const p = (useNoResponse && !useWithResponse)
     ? conn.characteristic.writeValueWithoutResponse(buffer)
     : conn.characteristic.writeValue(buffer);
   await Promise.race([
@@ -35,11 +43,32 @@ async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string, 
 async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void) {
   const service = await conn.device.gatt!.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
   const notifyChar = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
-  notifyChar.addEventListener('characteristicvaluechanged', (event: any) => {
+  const notifyQueue: Uint8Array[] = [];
+  const toHex = (value: Uint8Array) => Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+
+  const onNotify = (event: any) => {
     const value = new Uint8Array(event.target.value.buffer);
-    const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-    log(`   📨 [${hex}]`);
-  });
+    notifyQueue.push(value);
+    const hex = toHex(value);
+    const hasAck = value.some((b: number) => b === 0x06);
+    log(`   📨 ${hasAck ? '[ACK]' : '[notify]'} [${hex}]`);
+  };
+
+  const waitForAck = async (label: string, timeoutMs = 4000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const packet = notifyQueue.shift();
+      if (packet) {
+        log(`✓ ${label}: ACK [${toHex(packet)}]`);
+        return true;
+      }
+      await delay(40);
+    }
+    log(`⚠ ${label}: inget ACK inom ${timeoutMs}ms`);
+    return false;
+  };
+
+  notifyChar.addEventListener('characteristicvaluechanged', onNotify);
   await notifyChar.startNotifications();
   log("✓ Lyssnare aktiv");
   await delay(200);
@@ -134,21 +163,29 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
 
-  // Send in larger chunks using writeWithoutResponse for speed
-  const CHUNK = 500;
+  // Send in chunks using writeWithoutResponse for speed but with safer pacing
+  const CHUNK = 244;
   const totalChunks = Math.ceil(rasterData.length / CHUNK);
   log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B (no-response)...`);
   for (let off = 0; off < rasterData.length; off += CHUNK) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, true);
-    // Small yield every 10 chunks to let BLE buffer drain
-    if ((off / CHUNK) % 10 === 9) await delay(5);
+    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, "forceNoResponse");
+    // Give printer BLE buffer time to drain
+    if ((off / CHUNK) % 8 === 7) await delay(8);
   }
-  await delay(1000);
+
+  // Wait for ACK/status after raster payload
+  notifyQueue.length = 0;
+  await delay(250);
+  await waitForAck("ACK efter bilddata", 5000);
+  await delay(1200);
   log(`   Data skickad (${rasterData.length} bytes)`);
 
-  await send([0x1f, 0x11, 0x03, 0x00], "9. End-job");
-  await delay(500);
+  notifyQueue.length = 0;
+  await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "9. End-job", "forceWithResponse");
+  await waitForAck("ACK efter end-job", 5000);
+  await delay(600);
 
+  try { notifyChar.removeEventListener('characteristicvaluechanged', onNotify); } catch { /* ok */ }
   try { await notifyChar.stopNotifications(); } catch { /* ok */ }
   log("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns och krysset möts i mitten.");
 }
