@@ -13,6 +13,7 @@ import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
+import { PrinterSettings } from "@/components/PrinterSettings";
 import { DashboardHeader, HEADER_HEIGHT } from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
@@ -675,6 +676,10 @@ export default function Settings() {
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
               <RaptPillsManagement />
+            </SettingsSection>
+            <CategorySeparator icon={Printer} label="Skrivare" />
+            <SettingsSection icon={Printer} title="Termoskrivare" description="Bluetooth-anslutning till etikettskrivare">
+              <PrinterSettings />
             </SettingsSection>
           </TabsContent>
 
