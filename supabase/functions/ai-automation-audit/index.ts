@@ -180,7 +180,12 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           last_update: c.last_update,
         })),
       running_sessions: (runningSessions || []).length,
-      learned_parameters: learnings || [],
+      learned_parameters: (learnings || []).map((l: any) => ({
+        controller_id: l.controller_id,
+        parameter_name: sanitize(l.parameter_name, 50),
+        learned_value: l.learned_value,
+        sample_count: l.sample_count,
+      })),
       pid_baselines: (learnedComp || []).map((c: any) => ({
         controller_id: c.controller_id,
         bucket: c.delta_bucket,
@@ -206,7 +211,14 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         reason: sanitize(a.reason?.substring(0, 100) ?? ''),
         at: a.created_at,
       })),
-      boost_outcomes: boostOutcomes || [],
+      boost_outcomes: (boostOutcomes || []).slice(0, 20).map((b: any) => ({
+        controller_id: b.controller_id,
+        boost_degrees: b.boost_degrees,
+        sg_rate_before: b.sg_rate_before,
+        sg_rate_after: b.sg_rate_after,
+        outcome: sanitize(b.outcome, 30),
+        created_at: b.created_at,
+      })),
       delta_trend: summarizeDeltaTrend(deltaHistory || []),
     };
 
@@ -235,6 +247,7 @@ Svara ENBART med JSON (inget annat).`;
         ],
         temperature: 0.3,
       }),
+      signal: AbortSignal.timeout(30000), // 30s timeout to prevent hanging
     });
 
     if (!aiResponse.ok) {
@@ -579,5 +592,4 @@ function summarizeDeltaTrend(deltaHistory: any[]): Record<string, { avg_delta: n
     result[cId] = { avg_delta: +avg.toFixed(2), trend, samples: deltas.length };
   }
   return result;
-}
 }
