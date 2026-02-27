@@ -40,6 +40,11 @@ export interface SgDataPoint {
 
 // ─── Shared helpers ───────────────────────────────────────────────────
 
+/** Create a default StepResult to reduce boilerplate across handlers */
+function defaultResult(): { stepCompleted: boolean; actionTaken: string; actionDetails: any } {
+  return { stepCompleted: false, actionTaken: 'checked', actionDetails: {} }
+}
+
 /** Get the latest SG value from sg_data, sorted newest first */
 function getLatestSg(sgData: SgDataPoint[]): { value: number; date: string } | null {
   if (!sgData || sgData.length === 0) return null
@@ -124,9 +129,7 @@ async function setProfileTarget(
 
 export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, brewData, steps, session, supabase, elapsedHours } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   if (currentStep.target_temp !== null) {
     const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
@@ -187,9 +190,7 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
 
 export async function processRampStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, session, supabase, elapsedHours } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   if (currentStep.target_temp === null) {
     return { stepCompleted, actionTaken, actionDetails }
@@ -282,9 +283,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
 
 export async function processWaitForTempStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, session, supabase } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   if (currentStep.target_temp !== null && controller) {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
@@ -306,9 +305,7 @@ export async function processWaitForTempStep(ctx: StepContext): Promise<StepResu
 
 export async function processWaitForGravityStableStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, brewData, steps, session, supabase, metrics } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
   if (effectiveTarget !== null) {
@@ -338,9 +335,7 @@ export async function processWaitForGravityStableStep(ctx: StepContext): Promise
 
 export async function processWaitForSgStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, brewData, steps, session, supabase } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
   if (effectiveTarget !== null) {
@@ -373,14 +368,12 @@ export async function processWaitForAcknowledgementStep(ctx: StepContext): Promi
     await setProfileTarget(supabase, session.controller_id, effectiveTarget)
   }
 
-  return { stepCompleted: false, actionTaken: 'checked', actionDetails: {} }
+  return defaultResult()
 }
 
 export async function processDiacetylRestStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, brewData, steps, session, supabase, metrics } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   const attenuationTrigger = currentStep.attenuation_trigger ?? 75
   const tempIncrease = currentStep.temp_increase ?? 3
@@ -399,7 +392,10 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
   const phaseReady = !metrics || metrics.fermentation_phase === 'declining' || metrics.fermentation_phase === 'stationary'
   const attenuationReady = currentAtt >= attenuationTrigger
 
-  if (!attenuationReady || !phaseReady) {
+  // Check if already triggered (ramp_triggered_at used as state flag)
+  const alreadyTriggered = session.ramp_triggered_at !== null
+
+  if (!alreadyTriggered && (!attenuationReady || !phaseReady)) {
     const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
     if (effectiveTarget !== null) {
       await setProfileTarget(supabase, session.controller_id, effectiveTarget)
@@ -419,16 +415,23 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
     return { stepCompleted, actionTaken, actionDetails }
   }
 
-  console.log(`🍺 Diacetyl rest triggered: att=${Math.round(currentAtt)}%, phase=${metrics?.fermentation_phase ?? 'unknown'}, activity=${metrics?.activity_score ?? '?'}%`)
+  // First trigger — record state and notify
+  if (!alreadyTriggered) {
+    console.log(`🍺 Diacetyl rest triggered: att=${Math.round(currentAtt)}%, phase=${metrics?.fermentation_phase ?? 'unknown'}, activity=${metrics?.activity_score ?? '?'}%`)
 
-  // Notify user that diacetyl rest has triggered
-  await insertNotification(supabase, {
-    type: 'diacetyl_rest_triggered',
-    title: 'Diacetylvila startad',
-    body: `Attenuation nått ${Math.round(currentAtt)}% — temperaturen höjs med ${tempIncrease}°C`,
-    controller_id: session.controller_id,
-    brew_id: session.brew_id,
-  })
+    await supabase
+      .from('fermentation_sessions')
+      .update({ ramp_triggered_at: new Date().toISOString() })
+      .eq('id', session.id)
+
+    await insertNotification(supabase, {
+      type: 'diacetyl_rest_triggered',
+      title: 'Diacetylvila startad',
+      body: `Attenuation nått ${Math.round(currentAtt)}% — temperaturen höjs med ${tempIncrease}°C`,
+      controller_id: session.controller_id,
+      brew_id: session.brew_id,
+    })
+  }
 
   const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
   const diacetylTarget = (effectiveTarget ?? 18) + tempIncrease
@@ -465,9 +468,7 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
 
 export async function processGradualRampStep(ctx: StepContext): Promise<StepResult> {
   const { currentStep, controller, brewData, steps, session, supabase, metrics } = ctx
-  let stepCompleted = false
-  let actionTaken = 'checked'
-  let actionDetails: any = {}
+  let { stepCompleted, actionTaken, actionDetails } = defaultResult()
 
   const activityTrigger = currentStep.activity_trigger ?? 35
   const tempIncrease = currentStep.temp_increase ?? 3
@@ -635,6 +636,6 @@ export async function processStep(ctx: StepContext): Promise<StepResult> {
     case 'gradual_ramp':
       return processGradualRampStep(ctx)
     default:
-      return { stepCompleted: false, actionTaken: 'checked', actionDetails: {} }
+      return defaultResult()
   }
 }
