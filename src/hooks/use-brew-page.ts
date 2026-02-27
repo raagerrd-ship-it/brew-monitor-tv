@@ -61,9 +61,13 @@ export function useBrewPage(brewId: string | undefined) {
         // Process fermentation session
         let fermentationSession: FermentationSessionData | undefined;
         const sessionData = responseData.fermentationSession;
-        const linkedController = (responseData.controllers || []).find(
-          (c: { controller_id: string }) => c.controller_id === reading.linked_controller_id
-        );
+        // Find the controller for this session (from fermentation session, not brew's linked_controller_id)
+        const sessionControllerId = sessionData?.controller_id;
+        const linkedController = sessionControllerId 
+          ? (responseData.controllers || []).find(
+              (c: { controller_id: string }) => c.controller_id === sessionControllerId
+            )
+          : null;
 
         if (sessionData) {
           const profile = sessionData.fermentation_profiles as { name?: string; fermentation_profile_steps?: FermentationStepData[] } | null;
