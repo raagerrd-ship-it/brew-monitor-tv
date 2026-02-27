@@ -36,6 +36,7 @@ export interface TempController {
   min_target_temp: number | null
   max_target_temp: number | null
   last_update: string | null
+  profile_target_temp: number | null
 }
 
 export interface PillCompensationSettings {
