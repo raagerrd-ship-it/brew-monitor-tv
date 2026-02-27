@@ -131,30 +131,6 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
         {/* Bluetooth section */}
         {hasBle && (
           <div className="space-y-2">
-            {/* Connection status */}
-            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <div className="flex items-center gap-2 text-sm">
-                {bleConn ? (
-                  <>
-                    <Bluetooth className="h-4 w-4 text-primary" />
-                    <span className="text-foreground">{bleConn.device.name || 'Skrivare'}</span>
-                  </>
-                ) : isConnecting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    <span className="text-muted-foreground">Ansluter till {targetPrinterName || 'skrivare'}...</span>
-                  </>
-                ) : (
-                  <>
-                    <BluetoothOff className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      {targetPrinterName ? `${targetPrinterName} – ej ansluten` : 'Ingen skrivare vald'}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
             {/* Print progress */}
             {printProgress && (
               <div className="space-y-1">
@@ -163,35 +139,27 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               </div>
             )}
 
-            {/* Action buttons */}
+            {/* Single action button */}
             {!targetPrinterName ? (
               <Button onClick={goToSettings} className="w-full gap-2" size="lg" variant="outline">
                 <Settings className="h-4 w-4" />
-                Gå till Inställningar → Enheter
+                Välj skrivare i Inställningar
               </Button>
-            ) : autoConnectFailed && !bleConn ? (
-              <div className="space-y-2">
-                <Button onClick={retry} className="w-full gap-2" size="lg" variant="outline" disabled={isConnecting}>
-                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
-                  {isConnecting ? 'Ansluter...' : `Återanslut till ${targetPrinterName}`}
-                </Button>
-                <button onClick={goToSettings} className="w-full text-xs text-muted-foreground hover:text-primary transition-colors">
-                  Ändra skrivare i Inställningar
-                </button>
-              </div>
+            ) : bleConn ? (
+              <Button onClick={handleBlePrint} className="w-full gap-2" size="lg" disabled={isPrinting}>
+                {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
+                {isPrinting ? 'Skriver ut...' : 'Skriv ut via Bluetooth'}
+              </Button>
             ) : (
               <Button
-                onClick={handleBlePrint}
+                onClick={autoConnectFailed ? retry : handleBlePrint}
                 className="w-full gap-2"
                 size="lg"
-                disabled={isPrinting || isConnecting}
+                variant={autoConnectFailed ? "outline" : "default"}
+                disabled={isConnecting}
               >
-                {isPrinting || isConnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Bluetooth className="h-4 w-4" />
-                )}
-                {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
+                {isConnecting ? 'Ansluter...' : autoConnectFailed ? `Återanslut till ${targetPrinterName}` : 'Skriv ut via Bluetooth'}
               </Button>
             )}
           </div>
