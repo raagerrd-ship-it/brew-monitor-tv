@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
       .from('ai_audit_log')
       .select('id, created_at')
       .gte('created_at', cooldownCutoff)
+      .not('analysis', 'like', 'Error:%') // Don't count failed audits
       .limit(1);
 
     if (recentAudits && recentAudits.length > 0) {
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       // Recent decision logs (last 6h)
       supabase.from('auto_cooling_decision_logs')
-        .select('created_at, duration_ms, decision_count, decisions, adjustment_made, final_result')
+        .select('created_at, duration_ms, decision_count, adjustment_made, final_result')
         .gte('created_at', sixHoursAgo)
         .order('created_at', { ascending: false })
         .limit(20),
