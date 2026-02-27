@@ -2,66 +2,43 @@
 
 ## Analys
 
-Användaren har helt rätt. Nuvarande stegtyper har stor överlappning:
+Editorn har blivit rörig efter alla iterationer. Problem:
 
-| Stegtyp | Vad den gör | Slutvillkor |
-|---------|-------------|-------------|
-| `hold` | Håll temp | Tid ELLER SG-värde |
-| `wait_for_gravity_stable` | Håll temp (ärvd) | Stabil SG i N dagar |
-| `wait_for_sg` | Håll temp (ärvd) | SG når visst värde |
-| `wait_for_temp` | Sätt temp | Temperaturen nådd |
-
-Alla fyra håller/sätter en temperatur och skiljer sig bara i slutvillkor. `hold` har redan en dropdown för "Tid" vs "SG-värde". Vi utökar den till att inkludera alla slutvillkor.
+1. **Död kod**: `diacetyl_rest` case i `renderStepTypeFields()` (rad 308-358) — finns kvar i renderingen men är borttagen från dropdown
+2. **Oanvänd state**: `rampType` sätts men används aldrig i UI
+3. **Oanvända imports**: `RAMP_TYPE_LABELS` importeras men används inte
+4. **Tomma rader/kommentarer** på rad 188, 263 — kvarlevor
+5. **Inkonsekvent "Håll temperatur"-mapping** — samma logik (`['hold', 'wait_for_...'].includes(...)`) dupliceras på 4 ställen istället för en hjälpfunktion
+6. **`STEP_TYPE_LABELS` i fermentation.ts** har fortfarande de gamla oanvända etiketterna synliga
 
 ## Plan
 
-### 1. Utöka "Håll temperatur" med fler slutvillkor i editorn
+### 1. Städa FermentationStepEditor.tsx
+- Ta bort `rampType` state (rad 46) — oanvänd
+- Ta bort `RAMP_TYPE_LABELS` import
+- Ta bort hela `case "diacetyl_rest"` i renderStepTypeFields (rad 308-358) — död kod
+- Ta bort `case "diacetyl_rest"` i handleSave (rad 145-150) — behåll för bakåtkompatibilitet? Nej, editorn skapar aldrig den typen längre, men om någon öppnar ett gammalt steg... Vi behåller save-logiken men gömmer render-caset. Faktiskt: om step_type = diacetyl_rest laddas i useEffect sätts det till stepType direkt, och renderStepTypeFields har inget case → renderar ingenting. Det är ok. Behåll save-caset för säkerhets skull.
+- Ta bort tomma rader vid 188 och 263
 
-**FermentationStepEditor.tsx** — Utöka `holdEndCondition` från `"time" | "sg"` till `"time" | "sg" | "gravity_stable" | "temp_reached"`:
-
-- **Tid** — Befintligt, visar timmar-fält
-- **SG-värde** — Befintligt, visar SG + jämförelse
-- **Stabil SG** — Visar antal dagar + tröskel (från nuvarande `wait_for_gravity_stable`)
-- **Temperatur nådd** — Visar måltemp, steget avslutas när temp nås (från nuvarande `wait_for_temp`)
-
-Vid spara: mappa slutvillkor → korrekt `step_type` i databasen:
-- `time` / `sg` → `hold`
-- `gravity_stable` → `wait_for_gravity_stable`
-- `temp_reached` → `wait_for_temp`
-
-Vid laddning: mappa `step_type` tillbaka till rätt `holdEndCondition`.
-
-### 2. Ta bort separata stegtyper från väljaren
-
-**FermentationStepEditor.tsx** — Ta bort `wait_for_gravity_stable`, `wait_for_sg`, `wait_for_temp` från stegtyps-dropdown. Kvar blir:
-- Håll temperatur
-- Temperaturrampa
-- Torrhumla (kvittering)
-- Diacetylvila
-- Smart diacetylvila
-
-### 3. Uppdatera labels och visning
-
-**fermentation.ts** — Ta bort/behåll labels för bakåtkompatibilitet (backend använder fortfarande de gamla step_types).
-
-**FermentationStepDisplay.tsx** — Visa "Håll temperatur" som label för alla tre underliggande typer (`hold`, `wait_for_gravity_stable`, `wait_for_sg`, `wait_for_temp`), men med kontextuell beskrivning av slutvillkoret.
-
-### 4. Ingen backend-ändring
-
-Backend-handlers (`step-handlers.ts`) behålls oförändrade. De dispatchar fortfarande på `step_type` i databasen. UI:t mappar bara till rätt typ vid spara/ladda.
-
-### Sammanfattning av flöde
-
-```text
-UI Stegtyp-dropdown          Slutvillkors-dropdown        DB step_type
-─────────────────           ─────────────────────        ────────────
-Håll temperatur      →      Tid                    →     hold
-                            SG-värde               →     hold (med target_sg)
-                            Stabil SG              →     wait_for_gravity_stable
-                            Temperatur nådd        →     wait_for_temp
-Temperaturrampa      →      (ramp-inställningar)   →     ramp
-Torrhumla            →      (ingen)                →     wait_for_acknowledgement
-Diacetylvila         →      (auto)                 →     diacetyl_rest
-Smart diacetylvila   →      (auto)                 →     gradual_ramp
+### 2. Skapa hjälpfunktion för "Håll temperatur"-label
+I `fermentation.ts`, lägg till:
+```typescript
+export const getStepTypeLabel = (stepType: string): string => {
+  if (['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(stepType)) {
+    return 'Håll temperatur';
+  }
+  return STEP_TYPE_LABELS[stepType as StepType] ?? stepType;
+};
 ```
+
+Ersätt alla 4 ställen som har den duplicerade `['hold', 'wait_for_...'].includes(...)` ternary:
+- `FermentationStepDisplay.tsx` rad 209, 291
+- `FermentationProfilesManagement.tsx` rad 137
+- `FermentationSessionCompact.tsx` rad 481
+
+### 3. Städa FermentationStepDisplay.tsx
+- `getStepDescription` för `wait_for_temp` (rad 73) är nu en legacy-case som mappas till ramp. Behåll för befintliga sessioner men det är ok.
+
+### Sammanfattning
+Ren städning — ingen funktionell ändring, bara bort med död kod, oanvänd state, duplicerad logik → en hjälpfunktion.
 
