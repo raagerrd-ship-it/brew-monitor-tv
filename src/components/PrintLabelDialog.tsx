@@ -23,6 +23,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
 
   const {
     hasBle, bleConn, isConnecting, isPrinting, printProgress,
+    autoConnectFailed, targetPrinterName,
     connect, disconnect, print,
   } = usePrinterConnection(open);
 
@@ -158,22 +159,39 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               </div>
             )}
 
-            {/* BLE Print button */}
-            <Button
-              onClick={handleBlePrint}
-              className="w-full gap-2"
-              size="lg"
-              disabled={isPrinting || isConnecting}
-            >
-              {isPrinting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isConnecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Bluetooth className="h-4 w-4" />
-              )}
-              {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
-            </Button>
+            {/* BLE Print / Reconnect button */}
+            {autoConnectFailed && !bleConn ? (
+              <Button
+                onClick={connect}
+                className="w-full gap-2"
+                size="lg"
+                variant="outline"
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bluetooth className="h-4 w-4" />
+                )}
+                {isConnecting ? 'Ansluter...' : `Återanslut till ${targetPrinterName}`}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleBlePrint}
+                className="w-full gap-2"
+                size="lg"
+                disabled={isPrinting || isConnecting}
+              >
+                {isPrinting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bluetooth className="h-4 w-4" />
+                )}
+                {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
+              </Button>
+            )}
           </div>
         )}
 

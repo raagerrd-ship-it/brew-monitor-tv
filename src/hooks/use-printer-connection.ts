@@ -12,25 +12,27 @@ import {
 } from "@/lib/thermal-printer";
 import { toast } from "@/hooks/use-toast";
 
+const TARGET_PRINTER_NAME = 'Q199E44I1590809';
+
 export function usePrinterConnection(dialogOpen: boolean) {
   const [bleConn, setBleConn] = useState<PrinterConnection | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [printProgress, setPrintProgress] = useState<PrintProgress | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [autoConnectFailed, setAutoConnectFailed] = useState(false);
   const hasBle = isBluetoothSupported();
   const connRef = useRef<PrinterConnection | null>(null);
 
   // Keep ref in sync
   useEffect(() => { connRef.current = bleConn; }, [bleConn]);
 
-  // Auto-reconnect when dialog opens
+  // Auto-reconnect to target printer when dialog opens
   useEffect(() => {
     if (!dialogOpen || bleConn || !hasBle) return;
-    const lastDevice = getLastDeviceName();
-    if (!lastDevice) return;
 
     let cancelled = false;
     setIsConnecting(true);
+    setAutoConnectFailed(false);
 
     reconnectLastPrinter()
       .then((conn) => {
@@ -38,9 +40,11 @@ export function usePrinterConnection(dialogOpen: boolean) {
         if (conn) {
           setBleConn(conn);
           toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+        } else {
+          if (!cancelled) setAutoConnectFailed(true);
         }
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setAutoConnectFailed(true); })
       .finally(() => { if (!cancelled) setIsConnecting(false); });
 
     return () => { cancelled = true; };
@@ -53,6 +57,7 @@ export function usePrinterConnection(dialogOpen: boolean) {
 
   const connect = useCallback(async () => {
     setIsConnecting(true);
+    setAutoConnectFailed(false);
     try {
       const conn = await connectPrinter();
       setBleConn(conn);
@@ -79,10 +84,11 @@ export function usePrinterConnection(dialogOpen: boolean) {
     try {
       let conn = bleConn;
       if (!conn) {
-        setPrintProgress({ phase: 'Ansluter till skrivare...', percent: 2 });
+        setPrintProgress({ phase: `Ansluter till ${TARGET_PRINTER_NAME}...`, percent: 2 });
         conn = await reconnectLastPrinter().catch(() => null);
         if (!conn) conn = await connectPrinter();
         setBleConn(conn);
+        setAutoConnectFailed(false);
         toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
       }
       await printBitmapBypassProcessing(conn, canvas, copies, DEFAULT_PRINT_SETTINGS, setPrintProgress);
@@ -101,5 +107,9 @@ export function usePrinterConnection(dialogOpen: boolean) {
     }
   }, [bleConn]);
 
-  return { hasBle, bleConn, isConnecting, isPrinting, printProgress, connect, disconnect, print };
+  return {
+    hasBle, bleConn, isConnecting, isPrinting, printProgress,
+    autoConnectFailed, targetPrinterName: TARGET_PRINTER_NAME,
+    connect, disconnect, print,
+  };
 }
