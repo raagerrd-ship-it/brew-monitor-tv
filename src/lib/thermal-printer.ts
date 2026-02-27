@@ -431,89 +431,79 @@ export async function printBitmap(
 
   console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
 
-  const notify = await setupNotifyChannel(connection, (msg) => console.log(msg));
+  for (let copy = 0; copy < copies; copy++) {
+    const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
+    onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
-  try {
-    for (let copy = 0; copy < copies; copy++) {
-      const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
-      onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
+    // ESC @ (initialize)
+    await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
+    await delay(50);
 
-      // ESC @ (initialize)
-      await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
+    // Start-job
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
+    await delay(50);
+
+    // Media type: 0x1f 0x11 <type>
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
       await delay(50);
-
-      // Start-job
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
-      await delay(50);
-
-      // Media type: 0x1f 0x11 <type>
-      const mc = mediaTypeCode(settings.mediaType);
-      if (mc !== null) {
-        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-        await delay(50);
-      }
-
-      // Speed: ESC N 0x0d <speed>
-      if (settings.sendSpeed) {
-        await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-        await delay(50);
-      }
-
-      // Density: ESC N 0x04 <density>
-      if (settings.sendDensity) {
-        await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-        await delay(50);
-      }
-
-      // Left margin = 0 (GS L)
-      await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
-      await delay(50);
-
-      // Raster header: GS v 0
-      onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
-      await bleWrite(connection, new Uint8Array([
-        0x1d, 0x76, 0x30, 0x00,
-        widthBytes & 0xff, 0x00,
-        height & 0xff, (height >> 8) & 0xff,
-      ]), 'raster-header');
-      await delay(100);
-
-      // Escape 0x0a (LF) → 0x14 in bitmap data (printer interprets 0x0a as line feed)
-      const escapedData = new Uint8Array(bitmapData);
-      for (let i = 0; i < escapedData.length; i++) {
-        if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
-      }
-
-      // Raster data: guaranteed delivery (with response)
-      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-      const BLE_CHUNK = 100;
-      const totalBytes = escapedData.length;
-
-      for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
-        const end = Math.min(offset + BLE_CHUNK, totalBytes);
-        await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
-
-        const pct = 20 + ((end) / totalBytes) * 70;
-        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-      }
-
-      // Wait for printer ACK/status after raster payload
-      notify?.clear();
-      await delay(300);
-      await notify?.waitForPacket(`efter bilddata${copyLabel}`, 5000);
-      await delay(1800);
-      onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
-
-      // End-job and wait for ACK/status
-      notify?.clear();
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job', 'forceWithResponse');
-      await notify?.waitForPacket(`efter end-job${copyLabel}`, 5000);
-      await delay(600);
-
-      if (copy < copies - 1) await delay(800);
     }
-  } finally {
-    await notify?.stop();
+
+    // Speed: ESC N 0x0d <speed>
+    if (settings.sendSpeed) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
+      await delay(50);
+    }
+
+    // Density: ESC N 0x04 <density>
+    if (settings.sendDensity) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
+      await delay(50);
+    }
+
+    // Left margin = 0 (GS L)
+    await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
+    await delay(50);
+
+    // Raster header: GS v 0 (single block)
+    onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
+    await bleWrite(connection, new Uint8Array([
+      0x1d, 0x76, 0x30, 0x00,
+      widthBytes & 0xff, 0x00,
+      height & 0xff, (height >> 8) & 0xff,
+    ]), 'raster-header');
+    await delay(100);
+
+    // Escape 0x0a (LF) → 0x14 in bitmap data
+    const escapedData = new Uint8Array(bitmapData);
+    for (let i = 0; i < escapedData.length; i++) {
+      if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
+    }
+
+    // Raster data in 100-byte chunks (verified max for this printer)
+    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
+    const BLE_CHUNK = 100;
+    const totalBytes = escapedData.length;
+
+    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
+      const end = Math.min(offset + BLE_CHUNK, totalBytes);
+      await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
+
+      const pct = 20 + ((end) / totalBytes) * 70;
+      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+    }
+
+    // Wait for printer to process and start printing
+    onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
+    await delay(3000);
+    onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
+
+    // End-job
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
+    await delay(500);
+
+    if (copy < copies - 1) await delay(800);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
