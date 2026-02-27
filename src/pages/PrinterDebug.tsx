@@ -68,9 +68,9 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
 
   // Label: 50×70mm @ 203dpi = 400×560px, printhead=384px wide
   const widthBytes = 48; // 384 pixels
-  const patH = 560; // 70mm * 8 dots/mm
+  const patH = 520; // slightly shorter to fit within 70mm label
   const leadInRows = 10;
-  const trailRows = 10;
+  const trailRows = 30;
   const height = patH + leadInRows + trailRows;
   log(`→ 7. Raster ${widthBytes * 8}×${height} (${patH}px pattern)...`);
   await bleWrite(conn, new Uint8Array([
