@@ -108,7 +108,7 @@ export default function Settings() {
               <Cpu className="h-4 w-4" />
               Enheter
               {devicesTabStatus && (
-                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
+                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-success text-success-foreground hover:bg-success">
                   {devicesTabStatus.count}
                 </Badge>
               )}
@@ -117,7 +117,7 @@ export default function Settings() {
               <Beer className="h-4 w-4" />
               Öl
               {brewsTabStatus && (
-                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-green-600 text-white hover:bg-green-600">
+                <Badge className="absolute -top-2 -right-2 h-5 min-w-5 px-1 text-[10px] flex items-center justify-center bg-success text-success-foreground hover:bg-success">
                   {brewsTabStatus.count}
                 </Badge>
               )}
@@ -143,11 +143,11 @@ export default function Settings() {
                         </div>
                         <span className="text-sm font-semibold">Brewfather</span>
                         {settings.apiSettings?.brewfather?.configured ? (
-                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
                             <Check className="h-2.5 w-2.5 mr-0.5" /> OK
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
                             <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
                           </Badge>
                         )}
@@ -214,11 +214,11 @@ export default function Settings() {
                         </div>
                         <span className="text-sm font-semibold">RAPT</span>
                         {settings.apiSettings?.rapt?.configured ? (
-                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
                             <Check className="h-2.5 w-2.5 mr-0.5" /> OK
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500 px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
                             <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
                           </Badge>
                         )}
@@ -259,7 +259,7 @@ export default function Settings() {
                         </div>
                         <span className="text-sm font-semibold">Brygg-timer</span>
                         {isExternalAuthenticated ? (
-                          <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
                             <Check className="h-2.5 w-2.5 mr-0.5" /> Ansluten
                           </Badge>
                         ) : (
@@ -314,7 +314,7 @@ export default function Settings() {
                           </div>
                         </div>
                         <span className="text-sm font-semibold">Sonos</span>
-                        <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500 px-1.5 py-0">
+                        <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
                           <Check className="h-2.5 w-2.5 mr-0.5" /> OK
                         </Badge>
                       </div>
@@ -486,7 +486,7 @@ export default function Settings() {
                     <div>
                       <p className="text-sm font-medium">Autojustera glykolkylare</p>
                       {settings.autoCoolingEnabled && !settings.coolerControllerId && (
-                        <p className="text-[11px] text-amber-500">Ingen kylare markerad under Enheter</p>
+                        <p className="text-[11px] text-warning">Ingen kylare markerad under Enheter</p>
                       )}
                     </div>
                   </div>
