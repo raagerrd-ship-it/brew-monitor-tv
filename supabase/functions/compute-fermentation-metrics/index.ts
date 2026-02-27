@@ -82,10 +82,16 @@ function calculateActivityScore(
     .reduce((sum, d) => sum + Math.abs(d.delta), 0) / Math.min(6, deltas.length);
   const deltaScore = recentAvg / peakDelta;
 
+  // Absolute SG rate floor: below ~0.001/day (0.0000417/h) = essentially no fermentation
+  const SG_RATE_FLOOR = 0.00004; // ~0.001 SG/day
+  if (sgRatePerHour < SG_RATE_FLOOR) {
+    // Fermentation is essentially stopped — score capped at 5%
+    return Math.min(5, Math.round(deltaScore * 10));
+  }
+
   // SG-rate weight: scales 0→1 based on current vs peak fermentation rate
-  // When SG is stable (no fermentation), this drives the score toward 0
   let sgWeight = 0;
-  if (peakSgRatePerHour > 0.000001) {
+  if (peakSgRatePerHour > SG_RATE_FLOOR) {
     sgWeight = Math.min(1, sgRatePerHour / peakSgRatePerHour);
   }
 
