@@ -567,7 +567,7 @@ export async function printBitmap(
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     await sendRasterJob(connection, bitmapData, widthBytes, height, settings, onProgress, copyLabel);
-    if (copy < copies - 1) await delay(800);
+    if (copy < copies - 1) await delay(2000);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
@@ -596,7 +596,7 @@ export async function printBitmapBypassProcessing(
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     await sendRasterJob(connection, bitmapData, widthBytes, height, settings, onProgress, copyLabel);
-    if (copy < copies - 1) await delay(800);
+    if (copy < copies - 1) await delay(2000);
   }
 
   onProgress?.({ phase: 'Klar!', percent: 100 });
