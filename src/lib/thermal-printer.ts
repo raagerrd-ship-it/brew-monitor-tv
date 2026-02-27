@@ -392,6 +392,10 @@ export async function printBitmap(
       await delay(50);
     }
 
+    // Left margin = 0 (GS L)
+    await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
+    await delay(50);
+
     // Raster header: GS v 0
     onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
     await bleWrite(connection, new Uint8Array([
