@@ -320,6 +320,30 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "gemini-feed-to-gap",
+    title: "Mata till gap (start → gap-mode → feed → end)",
+    description: "Enklast möjliga test: väcker skrivaren, sätter gap-mode, kör feed-to-gap (0x04) och avslutar. Ska mata pappret till nästa glipa.",
+    run: async (conn, log) => {
+      log("1. Start (0x1f 0x11 0x02 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), "start");
+      await delay(50);
+
+      log("2. Set GAP mode (0x1f 0x11 0x0e 0x01)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), "set-gap-mode");
+      await delay(50);
+
+      log("3. Feed-to-gap (0x1f 0x11 0x04 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x04, 0x00]), "feed-to-gap");
+      await delay(200);
+
+      log("4. End (0x1f 0x11 0x03 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "end");
+      await delay(100);
+
+      log("Klart! Pappret bör ha matats fram till nästa glipa.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
