@@ -221,6 +221,24 @@ export function FermentationSessionCompact({
       case 'gradual_ramp': {
         const increase = (step as any).temp_increase ?? 3;
         if (gradualRampTriggered) {
+          // Show stability countdown when ramping (backend requires gravity_stable_days + low activity to complete)
+          const stableDays = step.gravity_stable_days ?? 2;
+          const requiredHours = stableDays * 24;
+          if (stabilityDuration) {
+            const { days, hours, stableSince } = stabilityDuration;
+            const totalStableHours = days * 24 + hours;
+            let sinceStr = '';
+            if (stableSince) {
+              const today = new Date();
+              const isToday = stableSince.toDateString() === today.toDateString();
+              if (isToday) {
+                sinceStr = ` (sedan ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
+              } else {
+                sinceStr = ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
+              }
+            }
+            return `Rampar +${increase}° │ Stabil ${totalStableHours}h / ${requiredHours}h${sinceStr}`;
+          }
           return `Rampar +${increase}° (aktivitet ${activityScore != null ? Math.round(activityScore) + '%' : '?'})`;
         }
         if (isActivityBased) {
@@ -350,7 +368,8 @@ export function FermentationSessionCompact({
       {/* Progress overlays */}
       <ProgressOverlay progress={sgProgress} color="green" />
       {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
-      {currentStep?.step_type === 'wait_for_gravity_stable' && (
+      {(currentStep?.step_type === 'wait_for_gravity_stable' || 
+        ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
         <ProgressOverlay progress={stabilityProgress} color="purple" />
       )}
       {isGradualRampStep && gradualRampProgress != null && (

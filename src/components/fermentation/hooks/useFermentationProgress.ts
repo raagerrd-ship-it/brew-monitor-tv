@@ -53,7 +53,7 @@ export function useFermentationProgress({
   return useMemo(() => {
     // Calculate stability duration for wait_for_gravity_stable steps
     const calculateStabilityDuration = (): StabilityDuration | null => {
-      if (!currentStep || currentStep.step_type !== 'wait_for_gravity_stable') return null;
+      if (!currentStep || (currentStep.step_type !== 'wait_for_gravity_stable' && currentStep.step_type !== 'gradual_ramp' && currentStep.step_type !== 'diacetyl_rest')) return null;
       if (!sgData || sgData.length < 2) return null;
       
       const threshold = currentStep.gravity_threshold ?? 0.001;
