@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 
 export interface ControllerData {
@@ -81,7 +82,7 @@ export function useControllersManagement() {
         return aIndex - bIndex;
       }).map(c => ({
         ...c,
-        is_glycol_cooler: (c as any).is_glycol_cooler ?? false,
+        is_glycol_cooler: c.is_glycol_cooler ?? false,
       })) as ControllerData[];
 
       setControllers(sortedControllers);
@@ -140,7 +141,7 @@ export function useControllersManagement() {
         loadData();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload) => {
-        const newData = payload.new as any;
+        const newData = payload.new as Tables<'sync_settings'>;
         if (newData?.rapt_sync_interval) {
           setSyncInterval(newData.rapt_sync_interval);
           if (!isLocalChange.current) {
@@ -314,9 +315,9 @@ export function useControllersManagement() {
       isLocalChange.current = true;
 
       if (newValue) {
-        await supabase.from('rapt_temp_controllers').update({ is_glycol_cooler: false } as any).neq('controller_id', controllerId);
+        await supabase.from('rapt_temp_controllers').update({ is_glycol_cooler: false }).neq('controller_id', controllerId);
       }
-      await supabase.from('rapt_temp_controllers').update({ is_glycol_cooler: newValue } as any).eq('controller_id', controllerId);
+      await supabase.from('rapt_temp_controllers').update({ is_glycol_cooler: newValue }).eq('controller_id', controllerId);
 
       const { data: settings } = await supabase.from('auto_cooling_settings').select('id').limit(1).maybeSingle();
       if (settings) {

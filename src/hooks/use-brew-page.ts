@@ -62,14 +62,14 @@ export function useBrewPage(brewId: string | undefined) {
         let fermentationSession: FermentationSessionData | undefined;
         const sessionData = responseData.fermentationSession;
         const linkedController = (responseData.controllers || []).find(
-          (c: any) => c.controller_id === reading.linked_controller_id
+          (c: { controller_id: string }) => c.controller_id === reading.linked_controller_id
         );
 
         if (sessionData) {
-          const profile = sessionData.fermentation_profiles as any;
+          const profile = sessionData.fermentation_profiles as { name?: string; fermentation_profile_steps?: FermentationStepData[] } | null;
           const steps: FermentationStepData[] = (profile?.fermentation_profile_steps || [])
-            .sort((a: any, b: any) => a.step_order - b.step_order)
-            .map((step: any) => ({
+            .sort((a, b) => a.step_order - b.step_order)
+            .map((step) => ({
               id: step.id,
               step_order: step.step_order,
               step_type: step.step_type,

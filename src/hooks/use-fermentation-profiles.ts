@@ -157,8 +157,8 @@ export function useFermentationProfiles() {
         attenuation_trigger: stepData.attenuation_trigger ?? null,
         activity_trigger: stepData.activity_trigger ?? null,
         temp_increase: stepData.temp_increase ?? null,
-        min_ramp_hours: (stepData as any).min_ramp_hours ?? null,
-        ramp_curve: (stepData as any).ramp_curve ?? null,
+        min_ramp_hours: stepData.min_ramp_hours ?? null,
+        ramp_curve: stepData.ramp_curve ?? null,
       };
       const { error } = await supabase.from('fermentation_profile_steps').insert(insertData);
       if (error) {
