@@ -83,3 +83,36 @@ export const SESSION_STATUS_LABELS: Record<SessionStatus, string> = {
   'completed': 'Klar',
   'cancelled': 'Avbruten',
 };
+
+// DTO types used for brew card display (joined/enriched data)
+export interface FermentationSessionData {
+  id: string;
+  profile_id: string;
+  controller_id: string;
+  status: string;
+  current_step_index: number;
+  step_started_at: string;
+  started_at: string;
+  step_start_temp: number | null;
+  profile_name: string;
+  steps: FermentationStepData[];
+  controller_current_temp: number | null;
+  controller_target_temp: number | null;
+  controller_profile_target_temp?: number | null;
+}
+
+export interface FermentationStepData {
+  id: string;
+  step_type: string;
+  target_temp: number | null;
+  duration_hours: number | null;
+  ramp_type: string | null;
+  gravity_stable_days: number | null;
+  target_sg: number | null;
+  sg_comparison: string | null;
+  step_order: number;
+  attenuation_trigger?: number | null;
+  activity_trigger?: number | null;
+  temp_increase?: number | null;
+  gravity_threshold?: number | null;
+}
