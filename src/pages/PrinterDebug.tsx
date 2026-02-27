@@ -411,59 +411,89 @@ const STEPS: WizardStep[] = [
   },
   {
     id: "ble-notify-listener",
-    title: "🔔 Lyssna på skrivarens svar (notifications)",
-    description: "Aktiverar BLE notifications på 0xff01 och skickar status-kommandon. Visar allt skrivaren svarar i loggen – hjälper identifiera rätt protokoll.",
+    title: "🔔 Lista alla karakteristiker + lyssna på svar",
+    description: "Listar ALLA karakteristiker i 0xff00-servicen med deras egenskaper, försöker aktivera notifications/indications, och skickar status-kommandon.",
     run: async (conn, log) => {
       const service = await conn.device.gatt.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
 
-      let notifyChar: any = null;
-      const NOTIFY_UUIDS = ['0000ff01-0000-1000-8000-00805f9b34fb', 0xff01];
-      for (const uuid of NOTIFY_UUIDS) {
-        try { notifyChar = await service.getCharacteristic(uuid as any); break; } catch { /* next */ }
-      }
-
-      if (!notifyChar) {
-        log("⚠ Kunde inte hitta notify-karakteristik (0xff01). Provar att lista alla...");
-        try {
-          const chars = await service.getCharacteristics();
-          for (const c of chars) {
-            log(`   Karakteristik: ${c.uuid} – notify=${c.properties.notify}, indicate=${c.properties.indicate}, write=${c.properties.write}, writeNoResp=${c.properties.writeWithoutResponse}`);
-          }
-        } catch (e: any) {
-          log(`   Fel vid listing: ${e.message}`);
+      log("1. Listar alla karakteristiker i 0xff00...");
+      let chars: any[] = [];
+      try {
+        chars = await service.getCharacteristics();
+        for (const c of chars) {
+          const props = c.properties;
+          const flags = [
+            props.read && 'READ',
+            props.write && 'WRITE',
+            props.writeWithoutResponse && 'WRITE_NO_RESP',
+            props.notify && 'NOTIFY',
+            props.indicate && 'INDICATE',
+          ].filter(Boolean).join(', ');
+          log(`   ${c.uuid} → [${flags}]`);
         }
+      } catch (e: any) {
+        log(`   ✗ Kunde inte lista: ${e.message}`);
         return;
       }
 
-      log(`✓ Hittade notify-karakteristik: ${notifyChar.uuid}`);
-      log("  Aktiverar notifications...");
+      // Try to find a readable/notify/indicate characteristic
+      log("");
+      log("2. Försöker aktivera lyssnare...");
+      for (const c of chars) {
+        if (c.properties.notify || c.properties.indicate) {
+          log(`   Provar ${c.uuid} (${c.properties.notify ? 'notify' : 'indicate'})...`);
+          c.addEventListener('characteristicvaluechanged', (event: any) => {
+            const value = new Uint8Array(event.target.value.buffer);
+            const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+            log(`   📨 SVAR från ${c.uuid}: [${hex}] (${value.length} bytes)`);
+          });
+          try {
+            await c.startNotifications();
+            log(`   ✓ Notifications aktiva på ${c.uuid}`);
+          } catch (e: any) {
+            log(`   ✗ startNotifications misslyckades: ${e.message}`);
+            // If indicate, try reading instead
+            if (c.properties.read) {
+              try {
+                const val = await c.readValue();
+                const bytes = new Uint8Array(val.buffer);
+                const hex = Array.from(bytes).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+                log(`   📖 readValue: [${hex}] (${bytes.length} bytes)`);
+              } catch (e2: any) {
+                log(`   ✗ readValue misslyckades: ${e2.message}`);
+              }
+            }
+          }
+        }
+        if (c.properties.read && !c.properties.notify && !c.properties.indicate) {
+          log(`   Läser ${c.uuid}...`);
+          try {
+            const val = await c.readValue();
+            const bytes = new Uint8Array(val.buffer);
+            const hex = Array.from(bytes).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+            log(`   📖 ${c.uuid}: [${hex}] (${bytes.length} bytes)`);
+          } catch (e: any) {
+            log(`   ✗ readValue: ${e.message}`);
+          }
+        }
+      }
 
-      notifyChar.addEventListener('characteristicvaluechanged', (event: any) => {
-        const value = new Uint8Array(event.target.value.buffer);
-        const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-        log(`  📨 SVAR: [${hex}] (${value.length} bytes)`);
-      });
-      await notifyChar.startNotifications();
-      log("  ✓ Notifications aktiva – skickar status-kommandon...");
-      await delay(200);
-
+      log("");
+      log("3. Skickar status-kommandon...");
       const cmds = [
-        { data: [0x1f, 0x11, 0x08, 0x00], label: "Status (0x08)" },
-        { data: [0x1f, 0x11, 0x07, 0x00], label: "Status (0x07)" },
-        { data: [0x1f, 0x11, 0x09, 0x00], label: "Status (0x09)" },
-        { data: [0x1f, 0x11, 0x0e, 0x00], label: "Status (0x0e)" },
+        { data: [0x1f, 0x11, 0x08, 0x00], label: "0x08" },
+        { data: [0x1f, 0x11, 0x07, 0x00], label: "0x07" },
+        { data: [0x1f, 0x11, 0x09, 0x00], label: "0x09" },
       ];
       for (const cmd of cmds) {
-        log(`  → Skickar ${cmd.label}...`);
+        log(`   → Status ${cmd.label}...`);
         await bleWrite(conn, new Uint8Array(cmd.data), cmd.label);
         await delay(500);
       }
 
-      log("  Väntar 2s på fler svar...");
+      log("   Väntar 2s på svar...");
       await delay(2000);
-
-      try { await notifyChar.stopNotifications(); } catch { /* ok */ }
-      log("Klart! Kontrollera SVAR-raderna ovan.");
+      log("Klart! Kolla ovan för SVAR-rader eller läsvärden.");
     },
   },
   {
