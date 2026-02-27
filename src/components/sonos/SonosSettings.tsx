@@ -46,7 +46,7 @@ export function SonosSettings() {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
         }),
-        (supabase as any)
+        supabase
           .from('sonos_settings')
           .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
           .limit(1)
@@ -90,10 +90,10 @@ export function SonosSettings() {
   };
 
   /** Persist a partial settings update immediately */
-  const saveField = useCallback(async (fields: Record<string, any>) => {
+  const saveField = useCallback(async (fields: Partial<Record<string, unknown>>) => {
     try {
       if (settingsId) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('sonos_settings')
           .update(fields)
           .eq('id', settingsId);
@@ -101,7 +101,7 @@ export function SonosSettings() {
           console.error('Failed to save setting:', error.message, fields);
         }
       } else {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from('sonos_settings')
           .insert(fields)
           .select('id')
@@ -224,7 +224,7 @@ export function SonosSettings() {
 
       console.log('saveAndRegenerate: saving bgFields', bgFields, 'settingsId:', settingsId);
       if (settingsId) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('sonos_settings')
           .update(bgFields)
           .eq('id', settingsId);
@@ -235,7 +235,7 @@ export function SonosSettings() {
         }
         console.log('saveAndRegenerate: update succeeded');
       } else {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from('sonos_settings')
           .insert(bgFields)
           .select('id')
