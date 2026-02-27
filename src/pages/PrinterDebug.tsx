@@ -585,38 +585,50 @@ const STEPS: WizardStep[] = [
       await send([0x1b, 0x4e, 0x0d, 0x03], "speed=3");
       await send([0x1b, 0x4e, 0x04, 0x08], "density=8");
 
-      // 6. Full label: 384px wide × 560 rows (50×70mm)
+      // 6. Small raster: 384px wide × 10 rows
       const widthBytes = 48;
-      const height = 560;
-      log(`→ GS v 0 raster (${widthBytes*8}×${height}) = full 50×70mm etikett...`);
-      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff], "raster-hdr");
+      const height = 10;
+      log(`→ GS v 0 raster (${widthBytes*8}×${height})...`);
+      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00], "raster-hdr");
 
-      // 20 black rows at top, rest white
       const rasterData = new Uint8Array(widthBytes * height);
-      rasterData.fill(0xff, 0, widthBytes * 20); // 20 svarta rader
+      rasterData.fill(0xff);
       const CHUNK = 20;
-      let chunks = 0;
-      const totalBytes = rasterData.length;
-      for (let off = 0; off < totalBytes; off += CHUNK) {
-        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, totalBytes)), `r-${off}`);
-        chunks++;
-        if (chunks % 200 === 0) log(`   ...${Math.round((off / totalBytes) * 100)}%`);
+      for (let off = 0; off < rasterData.length; off += CHUNK) {
+        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`);
       }
-      await delay(500);
-      log(`   Rasterdata skickad (${totalBytes} bytes, ${chunks} chunks)`);
+      await delay(300);
+      log(`   Rasterdata skickad (${rasterData.length} bytes)`);
 
-      // 7. Print-execute
-      await send([0x1f, 0x11, 0x04, 0x00], "print-execute");
+      // 7. Try MULTIPLE end sequences — watch which one makes the printer finish
+      log("");
+      log("── Testar avslut-sekvenser (en i taget, 2s mellan) ──");
 
-      // 8. CUPS footer
-      await send([0x1f, 0xf0, 0x05, 0x00], "cups-footer-1");
-      await send([0x1f, 0xf0, 0x03, 0x00], "cups-footer-2");
+      await send([0x1f, 0x11, 0x04, 0x00], "A: print-execute (0x04)");
+      await delay(2000);
 
-      // 9. ESC d (feed)
-      await send([0x1b, 0x64, 0x02], "ESC d 2 (feed)");
+      await send([0x1f, 0xf0, 0x45, 0x00], "B: form-feed alt (0xf0 0x45)");
+      await delay(2000);
 
-      // 10. End-job
-      await send([0x1f, 0x11, 0x03, 0x00], "end-job");
+      await send([0x0c], "C: FF (form feed, 0x0c)");
+      await delay(2000);
+
+      await send([0x1f, 0xf0, 0x05, 0x00], "D: cups-footer-1");
+      await send([0x1f, 0xf0, 0x03, 0x00], "E: cups-footer-2");
+      await delay(2000);
+
+      await send([0x1b, 0x64, 0x02], "F: ESC d 2 (feed)");
+      await send([0x1b, 0x64, 0x02], "G: ESC d 2 (feed x2)");
+      await delay(2000);
+
+      await send([0x1f, 0x11, 0x08, 0x00], "H: status (0x08)");
+      await delay(1000);
+
+      await send([0x1f, 0x11, 0x03, 0x00], "I: end-job (0x03)");
+      await delay(1000);
+
+      await send([0x1b, 0x40], "J: ESC @ (re-init)");
+      await delay(1000);
 
       log("");
       log(`Totalt ${responses.length} svar från skrivaren.`);
