@@ -49,10 +49,35 @@ serve(async (req) => {
 
     if (supabase) {
       try {
-        await supabase.from('auto_cooling_decision_logs').insert({
-          duration_ms: duration, decision_count: decisionLog.length,
-          decisions: decisionLog, final_result: finalResult, adjustment_made: adjustmentMade,
-        } as any);
+        // Deduplicate consecutive "No adjustment" logs: only keep first and last in a streak
+        let shouldInsert = true;
+        if (!adjustmentMade) {
+          const { data: prev } = await supabase
+            .from('auto_cooling_decision_logs')
+            .select('id, adjustment_made, created_at')
+            .order('created_at', { ascending: false })
+            .limit(2);
+
+          if (prev && prev.length >= 2 && !prev[0].adjustment_made && !prev[1].adjustment_made) {
+            // We have 2+ consecutive no-adjustment logs — update the latest one instead of inserting
+            await supabase.from('auto_cooling_decision_logs')
+              .update({
+                duration_ms: duration,
+                decision_count: decisionLog.length,
+                decisions: decisionLog as any,
+                final_result: finalResult,
+              } as any)
+              .eq('id', prev[0].id);
+            shouldInsert = false;
+          }
+        }
+
+        if (shouldInsert) {
+          await supabase.from('auto_cooling_decision_logs').insert({
+            duration_ms: duration, decision_count: decisionLog.length,
+            decisions: decisionLog, final_result: finalResult, adjustment_made: adjustmentMade,
+          } as any);
+        }
       } catch (e) { console.error('Error saving decision log:', e); }
     }
   };
