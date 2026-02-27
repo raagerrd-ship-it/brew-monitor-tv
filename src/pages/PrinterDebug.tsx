@@ -192,7 +192,7 @@ export default function PrinterDebug() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [chunkSize, setChunkSize] = useState(20);
+  const [chunkSize, setChunkSize] = useState(100);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = useCallback((msg: string) => {
