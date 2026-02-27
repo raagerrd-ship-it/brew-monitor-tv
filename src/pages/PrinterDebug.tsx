@@ -20,12 +20,12 @@ function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
-async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string) {
+async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string, forceNoResponse = false) {
   const buffer = new Uint8Array(data).buffer;
-  const p =
-    conn.writeMethod === "withoutResponse"
-      ? conn.characteristic.writeValueWithoutResponse(buffer)
-      : conn.characteristic.writeValue(buffer);
+  const useNoResponse = forceNoResponse && conn.characteristic.properties.writeWithoutResponse;
+  const p = (useNoResponse || conn.writeMethod === "withoutResponse")
+    ? conn.characteristic.writeValueWithoutResponse(buffer)
+    : conn.characteristic.writeValue(buffer);
   await Promise.race([
     p,
     delay(7000).then(() => { throw new Error(`BLE timeout: ${ctx}`); }),
@@ -134,12 +134,14 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
 
-  // Send in larger chunks for speed (BLE MTU typically 244-512 bytes)
-  const CHUNK = 200;
+  // Send in larger chunks using writeWithoutResponse for speed
+  const CHUNK = 500;
   const totalChunks = Math.ceil(rasterData.length / CHUNK);
-  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B...`);
+  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B (no-response)...`);
   for (let off = 0; off < rasterData.length; off += CHUNK) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`);
+    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, true);
+    // Small yield every 10 chunks to let BLE buffer drain
+    if ((off / CHUNK) % 10 === 9) await delay(5);
   }
   await delay(1000);
   log(`   Data skickad (${rasterData.length} bytes)`);
