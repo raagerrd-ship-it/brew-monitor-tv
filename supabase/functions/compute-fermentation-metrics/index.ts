@@ -75,29 +75,32 @@ function calculateActivityScore(
   sgRatePerHour: number,
   peakSgRatePerHour: number,
 ): number {
-  if (deltas.length === 0 || peakDelta <= 0) return 0;
-
-  // Delta-based score (how hard the controller is working relative to peak)
-  const recentAvg = deltas.slice(0, Math.min(6, deltas.length))
-    .reduce((sum, d) => sum + Math.abs(d.delta), 0) / Math.min(6, deltas.length);
-  const deltaScore = recentAvg / peakDelta;
-
-  // Absolute SG rate floor: below ~0.001/day (0.0000417/h) = essentially no fermentation
+  // Absolute SG rate floor: below ~0.001/day = essentially no fermentation
   const SG_RATE_FLOOR = 0.00004; // ~0.001 SG/day
+
+  // --- Delta-based score (0-1) ---
+  let deltaScore = 0;
+  if (deltas.length > 0 && peakDelta > 0) {
+    const recentAvg = deltas.slice(0, Math.min(6, deltas.length))
+      .reduce((sum, d) => sum + Math.abs(d.delta), 0) / Math.min(6, deltas.length);
+    deltaScore = recentAvg / peakDelta;
+  }
+
+  // --- SG-rate score (0-1) ---
+  let sgScore = 0;
+  if (peakSgRatePerHour > SG_RATE_FLOOR && sgRatePerHour > SG_RATE_FLOOR) {
+    sgScore = Math.min(1, sgRatePerHour / peakSgRatePerHour);
+  }
+
+  // If SG is essentially stopped, cap regardless of delta
   if (sgRatePerHour < SG_RATE_FLOOR) {
-    // Fermentation is essentially stopped — score capped at 5%
     return Math.min(5, Math.round(deltaScore * 10));
   }
 
-  // SG-rate weight: scales 0→1 based on current vs peak fermentation rate
-  let sgWeight = 0;
-  if (peakSgRatePerHour > SG_RATE_FLOOR) {
-    sgWeight = Math.min(1, sgRatePerHour / peakSgRatePerHour);
-  }
-
-  // Blend: delta provides the base, SG rate gates it
-  // Use sqrt on sgWeight so it doesn't collapse too aggressively
-  const blended = deltaScore * Math.sqrt(Math.max(sgWeight, 0));
+  // Hybrid: take the higher of the two signals, but weight SG slightly more
+  // This ensures high SG activity shows even without a big delta,
+  // and vice versa (controller working hard = activity)
+  const blended = Math.max(deltaScore * 0.7, sgScore) * 0.6 + Math.min(deltaScore, sgScore) * 0.4;
 
   return Math.max(0, Math.min(100, Math.round(blended * 100)));
 }
