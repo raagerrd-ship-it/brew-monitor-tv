@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
-import { FermentationStepDisplay } from "./FermentationStepDisplay";
-import { RadialGauge } from "./RadialGauge";
+import { StepExecutionDisplay } from "./StepExecutionDisplay";
 import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { formatRemainingTime } from "./sessionStyles";
@@ -187,21 +186,20 @@ export function ActiveFermentationSession({
 
             {currentStep && (
               <>
-                <FermentationStepDisplay
+                <StepExecutionDisplay
                   currentStep={currentStep}
-                  steps={session.steps || []}
-                  currentStepIndex={session.current_step_index}
                   stepStartedAt={session.step_started_at}
                   stepStartTemp={session.step_start_temp}
-                  targetTemp={controllerData?.target_temp ?? null}
                   currentTemp={controllerData?.current_temp ?? null}
+                  targetTemp={controllerData?.target_temp ?? null}
+                  profileTargetTemp={controllerData?.profile_target_temp ?? null}
                   isRamping={isRamping}
                   rampProgress={rampProgress}
-                  stepProgress={stepProgress}
+                  rampTriggeredAt={session.ramp_triggered_at}
                   currentSg={currentSg}
-                  targetSg={currentStep.target_sg ?? null}
-                  sgComparison={currentStep.sg_comparison ?? null}
                   originalGravity={originalGravity}
+                  activityScore={activityScore}
+                  attenuation={attenuation}
                 />
                 <StepConditionsDisplay
                   currentStep={currentStep}
@@ -343,55 +341,36 @@ export function ActiveFermentationSession({
           startedAt={session.started_at}
         />
 
-        {/* Gauges */}
-        <div 
-          className="flex items-center justify-around py-3 px-2 rounded-lg"
-          style={{
-            background: 'hsl(0 0% 0% / 0.2)',
-            border: '1px solid hsl(0 0% 100% / 0.04)',
-          }}
-        >
-          <RadialGauge
-            value={progress / 100}
-            size={76}
-            strokeWidth={5}
-            fillColor="hsl(var(--primary))"
-            label={`${session.current_step_index + 1}/${session.steps?.length || 0}`}
-            subLabel="Profil"
-          />
-          {controllerData?.current_temp != null && currentStep?.target_temp != null && (
-            <RadialGauge
-              value={Math.max(0, Math.min(1, 1 - Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) / 5))}
-              size={76}
-              strokeWidth={5}
-              fillColor={
-                Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 0.5
-                  ? 'hsl(142 70% 50%)'
-                  : 'hsl(38 92% 55%)'
-              }
-              label={`${controllerData.current_temp.toFixed(1)}°`}
-              subLabel={`Mål ${(controllerData?.profile_target_temp ?? currentStep.target_temp).toFixed(1)}°`}
-            />
-          )}
-        </div>
-
         {currentStep && (
-          <FermentationStepDisplay
-            currentStep={currentStep}
-            steps={session.steps || []}
-            currentStepIndex={session.current_step_index}
-            stepStartedAt={session.step_started_at}
-            stepStartTemp={session.step_start_temp}
-            targetTemp={controllerData?.target_temp ?? null}
-            currentTemp={controllerData?.current_temp ?? null}
-            isRamping={isRamping}
-            rampProgress={rampProgress}
-            stepProgress={stepProgress}
-            currentSg={currentSg}
-            targetSg={currentStep.target_sg ?? null}
-            sgComparison={currentStep.sg_comparison ?? null}
-            originalGravity={originalGravity}
-          />
+          <>
+            <StepExecutionDisplay
+              currentStep={currentStep}
+              stepStartedAt={session.step_started_at}
+              stepStartTemp={session.step_start_temp}
+              currentTemp={controllerData?.current_temp ?? null}
+              targetTemp={controllerData?.target_temp ?? null}
+              profileTargetTemp={controllerData?.profile_target_temp ?? null}
+              isRamping={isRamping}
+              rampProgress={rampProgress}
+              rampTriggeredAt={session.ramp_triggered_at}
+              currentSg={currentSg}
+              originalGravity={originalGravity}
+              activityScore={activityScore}
+              attenuation={attenuation}
+            />
+            <StepConditionsDisplay
+              currentStep={currentStep}
+              stepStartedAt={session.step_started_at}
+              stepStartTemp={session.step_start_temp}
+              currentTemp={controllerData?.current_temp ?? null}
+              profileTargetTemp={controllerData?.profile_target_temp ?? null}
+              currentSg={currentSg}
+              originalGravity={originalGravity}
+              activityScore={activityScore}
+              attenuation={attenuation}
+              sgData={sgData}
+            />
+          </>
         )}
 
         {session.steps && session.steps.length > 0 && (
