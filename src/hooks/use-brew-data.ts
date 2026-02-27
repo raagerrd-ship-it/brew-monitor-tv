@@ -252,6 +252,7 @@ export function useBrewData(): UseBrewDataReturn {
             activity_trigger: s.activity_trigger,
             temp_increase: s.temp_increase,
             gravity_threshold: s.gravity_threshold,
+            min_ramp_hours: (s as any).min_ramp_hours ?? null,
           })),
           controller_current_temp: controller?.current_temp ?? null,
           controller_target_temp: controller?.target_temp ?? null,

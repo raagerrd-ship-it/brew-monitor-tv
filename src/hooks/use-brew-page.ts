@@ -83,6 +83,7 @@ export function useBrewPage(brewId: string | undefined) {
               activity_trigger: step.activity_trigger,
               temp_increase: step.temp_increase,
               gravity_threshold: step.gravity_threshold,
+              min_ramp_hours: (step as any).min_ramp_hours ?? null,
             }));
 
           fermentationSession = {
