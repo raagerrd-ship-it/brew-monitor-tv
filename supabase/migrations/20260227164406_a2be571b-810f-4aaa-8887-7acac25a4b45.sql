@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_sessions ADD COLUMN ramp_triggered_at timestamp with time zone DEFAULT NULL;
