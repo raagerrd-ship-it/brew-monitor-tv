@@ -510,6 +510,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       controller_id: session.controller_id,
       brew_id: session.brew_id,
     })
+  }
 
   // Phase 2: Ramping (always exponential curve for gentler start)
   let rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
