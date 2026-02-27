@@ -203,16 +203,6 @@ const STEPS: WizardStep[] = [
       await bleWrite(conn, new Uint8Array([0x1b, 0x40]), "init");
       await delay(30);
 
-      log("Speed + Density...");
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x0d, 0x05]), "speed");
-      await delay(30);
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x04, 0x0a]), "density");
-      await delay(30);
-
-      log("Media type (gap)...");
-      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x0a]), "media");
-      await delay(30);
-
       log("Raster header...");
       await bleWrite(
         conn,
@@ -291,14 +281,8 @@ const STEPS: WizardStep[] = [
         }
       }
 
-      log("Init + config...");
+      log("Init...");
       await bleWrite(conn, new Uint8Array([0x1b, 0x40]), "init");
-      await delay(30);
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x0d, 0x05]), "speed");
-      await delay(30);
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x04, 0x0a]), "density");
-      await delay(30);
-      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x0a]), "media");
       await delay(30);
 
       log("Raster header...");
