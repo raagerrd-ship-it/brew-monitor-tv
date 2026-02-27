@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v33-phomymo-m110-exact';
+export const PRINTER_VERSION = 'v34-m110-blocked-raster';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -398,28 +398,41 @@ export async function printBitmap(
       await delay(50);
     }
 
-    // Raster header: GS v 0
-    onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
-    await bleWrite(connection, new Uint8Array([
-      0x1d, 0x76, 0x30, 0x00,
-      widthBytes & 0xff, 0x00,
-      height & 0xff, (height >> 8) & 0xff,
-    ]), 'raster-header');
-    await delay(100);
-
-    // Raster data in 20-byte chunks (BLE MTU safe)
+    // Raster data in BLE-safe chunks, split into max 256-line blocks
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
     const BLE_CHUNK = 20;
+    const MAX_LINES_PER_BLOCK = 256;
     const totalBytes = bitmapData.length;
 
-    const writeDelayMs = Math.max(5, settings.chunkDelay);
-    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
-      const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, bitmapData.slice(offset, end), `data@${offset}`);
-      if (end < totalBytes) await delay(writeDelayMs);
+    for (let blockStartLine = 0; blockStartLine < height; blockStartLine += MAX_LINES_PER_BLOCK) {
+      const blockLines = Math.min(MAX_LINES_PER_BLOCK, height - blockStartLine);
+      const blockOffsetBytes = blockStartLine * widthBytes;
+      const blockSizeBytes = blockLines * widthBytes;
 
-      const pct = 20 + ((end) / totalBytes) * 70;
-      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+      // Header for this raster block
+      await bleWrite(connection, new Uint8Array([
+        0x1d, 0x76, 0x30, 0x00,
+        widthBytes & 0xff, 0x00,
+        blockLines & 0xff, (blockLines >> 8) & 0xff,
+      ]), `raster-header@${blockStartLine}`);
+      await delay(80);
+
+      const writeDelayMs = Math.max(5, settings.chunkDelay);
+      for (let offset = 0; offset < blockSizeBytes; offset += BLE_CHUNK) {
+        const end = Math.min(offset + BLE_CHUNK, blockSizeBytes);
+        await bleWrite(
+          connection,
+          bitmapData.slice(blockOffsetBytes + offset, blockOffsetBytes + end),
+          `data@${blockOffsetBytes + offset}`,
+        );
+        if (end < blockSizeBytes) await delay(writeDelayMs);
+
+        const globalEnd = blockOffsetBytes + end;
+        const pct = 20 + (globalEnd / totalBytes) * 70;
+        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+      }
+
+      await delay(120);
     }
 
     // Wait for printer to finish processing raster data
