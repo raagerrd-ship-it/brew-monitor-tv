@@ -8,31 +8,16 @@ export interface DeviceMatch {
 
 /**
  * Find matching pill and controller for a brew based on:
- * 1. Manual controller connection (linked_controller_id) - pill is automatically derived from controller
+ * 1. paired_device_id from RAPT hardware pairing (pill → controller)
  * 2. Color name matching
  * 3. Temperature matching (±3°C tolerance)
- * 
- * Note: linked_pill_id on brew is deprecated - pill is now derived from controller's linked_pill_id
  */
 export function findDevicesForBrew(
   brew: BrewData,
   pills: PillData[],
   controllers: TempController[]
 ): DeviceMatch {
-  // First, check for manual controller connection
-  if (brew.linked_controller_id) {
-    const manualController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
-    
-    if (manualController) {
-      const linkedPill = manualController.linked_pill_id 
-        ? pills.find(p => p.pill_id === manualController.linked_pill_id) || null
-        : null;
-      
-      return { pill: linkedPill, controller: manualController };
-    }
-  }
-
-  // Fallback to automatic matching
+  // Automatic matching
   let matchingPill: PillData | null = null;
   let matchingController: TempController | null = null;
 

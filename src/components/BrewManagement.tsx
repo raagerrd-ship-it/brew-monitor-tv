@@ -191,8 +191,6 @@ export function BrewManagement() {
           if (!open) closeCustomBrewDialog();
           else setShowCustomBrewDialog(open);
         }}
-        pills={pills}
-        controllers={controllers}
         onBrewSaved={loadData}
         editBrew={editingBrew}
         prefill={prefillData}
