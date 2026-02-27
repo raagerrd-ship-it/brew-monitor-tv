@@ -56,9 +56,14 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await send([0x1b, 0x4e, 0x0d, 0x03], "4. Speed=3");
   await send([0x1b, 0x4e, 0x04, 0x08], "5. Density=8");
 
+  // Left margin = 0
+  log("→ 6. GS L margin=0");
+  await bleWrite(conn, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), "margin-0");
+  await delay(100);
+
   const widthBytes = 48;
   const height = 20;
-  log(`→ 6. Raster ${widthBytes * 8}×${height}...`);
+  log(`→ 7. Raster ${widthBytes * 8}×${height}...`);
   await bleWrite(conn, new Uint8Array([
     0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00
   ]), "raster-hdr");
