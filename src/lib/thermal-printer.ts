@@ -79,9 +79,14 @@ const WRITE_CHAR_UUIDS = [
 ];
 
 const BLE_WRITE_TIMEOUT_MS = 7000;
-const RECONNECT_TIMEOUT_MS = 6000;
+const RECONNECT_TIMEOUT_MS = 10000;
 const LAST_PRINTER_NAME_KEY = 'phomemo-last-device-name';
 const LAST_PRINTER_ID_KEY = 'phomemo-last-device-id';
+
+/** Pre-seed the last device name so auto-reconnect can find it */
+export function setTargetPrinterName(name: string): void {
+  try { localStorage.setItem(LAST_PRINTER_NAME_KEY, name); } catch { /* ignore */ }
+}
 
 // ── Types ───────────────────────────────────────────────────────
 
