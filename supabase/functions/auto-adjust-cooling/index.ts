@@ -249,31 +249,41 @@ serve(async (req) => {
           profileOwnedControllerIds.add(session.controller_id);
           if (session.brew_id) sessionBrewIdMap.set(session.controller_id, session.brew_id);
 
+          // Find the controller's profile_target_temp (SSOT) from the full controller data
+          const controllerData = followedControllersFullData.find(c => c.controller_id === session.controller_id);
+          const controllerProfileTarget = controllerData?.profile_target_temp != null
+            ? parseFloat(String(controllerData.profile_target_temp))
+            : null;
+
           let effectiveTarget: number | null = null;
           const profileSteps = profileStepsMap.get(session.profile_id);
-          if (profileSteps && profileSteps.length > 0) {
-            for (let i = Math.min(session.current_step_index, profileSteps.length - 1); i >= 0; i--) {
+          const currentStepIdx = profileSteps ? Math.min(session.current_step_index, profileSteps.length - 1) : -1;
+          const currentStep = profileSteps && currentStepIdx >= 0 ? profileSteps[currentStepIdx] : null;
+          const isDynamicStep = currentStep && ['gradual_ramp', 'diacetyl_rest'].includes(currentStep.step_type);
+
+          if (isDynamicStep && controllerProfileTarget !== null) {
+            // For dynamic steps (gradual_ramp, diacetyl_rest), the controller's
+            // profile_target_temp is the SSOT — not the step's base target_temp
+            effectiveTarget = controllerProfileTarget;
+          } else if (profileSteps && profileSteps.length > 0) {
+            for (let i = currentStepIdx; i >= 0; i--) {
               if (profileSteps[i].target_temp !== null) {
                 effectiveTarget = parseFloat(String(profileSteps[i].target_temp));
                 break;
               }
             }
-            if (effectiveTarget !== null) profileTargetMap.set(session.controller_id, effectiveTarget);
           }
+          if (effectiveTarget !== null) profileTargetMap.set(session.controller_id, effectiveTarget);
 
-          // Interpolated ramp target
+          // Interpolated ramp target (for linear ramp steps only)
           let activeTarget: number | null = null;
-          if (profileSteps && profileSteps.length > 0) {
-            const currentStepIdx = Math.min(session.current_step_index, profileSteps.length - 1);
-            const currentStep = profileSteps[currentStepIdx];
-            if (currentStep.step_type === 'ramp' && currentStep.ramp_type !== 'immediate' && currentStep.duration_hours > 0) {
-              const stepStartTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : null;
-              const stepTarget = currentStep.target_temp != null ? parseFloat(String(currentStep.target_temp)) : null;
-              if (stepStartTemp != null && stepTarget != null && session.step_started_at) {
-                const elapsedMs = Date.now() - new Date(session.step_started_at).getTime();
-                const progress = Math.min(elapsedMs / (currentStep.duration_hours * 3600000), 1);
-                activeTarget = round1(stepStartTemp + (stepTarget - stepStartTemp) * progress);
-              }
+          if (currentStep && currentStep.step_type === 'ramp' && currentStep.ramp_type !== 'immediate' && currentStep.duration_hours > 0) {
+            const stepStartTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : null;
+            const stepTarget = currentStep.target_temp != null ? parseFloat(String(currentStep.target_temp)) : null;
+            if (stepStartTemp != null && stepTarget != null && session.step_started_at) {
+              const elapsedMs = Date.now() - new Date(session.step_started_at).getTime();
+              const progress = Math.min(elapsedMs / (currentStep.duration_hours * 3600000), 1);
+              activeTarget = round1(stepStartTemp + (stepTarget - stepStartTemp) * progress);
             }
           }
 
