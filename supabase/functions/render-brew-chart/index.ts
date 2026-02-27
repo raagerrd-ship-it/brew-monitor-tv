@@ -30,11 +30,7 @@ const COLORS = {
   axisText: '#6b7280',
 };
 
-interface SgDataPoint {
-  date: string;
-  value: number;
-  temp?: number;
-}
+import type { SgDataPoint } from '../_shared/types.ts'
 
 interface SnapshotPoint {
   recorded_at: string;

@@ -4,11 +4,7 @@
  * All values come directly from existing database records — no post-hoc calculation.
  */
 
-interface SgDataPoint {
-  date: string;
-  value: number;
-  temp: number;
-}
+import type { SgDataPoint } from './types.ts'
 
 export async function createBrewSnapshots(
   supabase: any,

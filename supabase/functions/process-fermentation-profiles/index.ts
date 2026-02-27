@@ -2,23 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep } from '../_shared/temp-utils.ts'
 import { processStep, StepContext, SgDataPoint } from '../_shared/step-handlers.ts'
 import { completeProfile, advanceToNextStep } from '../_shared/session-lifecycle.ts'
+import type { FermentationSession, BrewData, FermentationMetrics } from '../_shared/types.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
-
-interface Session {
-  id: string
-  profile_id: string
-  brew_id: string | null
-  controller_id: string
-  status: string
-  current_step_index: number
-  step_started_at: string
-  step_start_temp: number | null
-  started_at: string
-  ramp_triggered_at: string | null
 }
 
 // ─── Batch data helpers ───────────────────────────────────────────────
@@ -45,7 +33,7 @@ function buildControllerMap(allControllers: any[] | null): Map<string, any> {
   return map
 }
 
-function buildBrewDataMap(allBrewData: any[] | null): Map<string, { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number }> {
+function buildBrewDataMap(allBrewData: any[] | null): Map<string, BrewData> {
   const map = new Map()
   if (allBrewData) {
     for (const b of allBrewData) {
@@ -59,7 +47,7 @@ function buildBrewDataMap(allBrewData: any[] | null): Map<string, { sg_data: SgD
   return map
 }
 
-function buildMetricsMap(allMetrics: any[] | null): Map<string, { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean }> {
+function buildMetricsMap(allMetrics: any[] | null): Map<string, FermentationMetrics> {
   const map = new Map()
   if (allMetrics) {
     for (const m of allMetrics) {
@@ -104,7 +92,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const typedSessions = sessions as Session[]
+    const typedSessions = sessions as FermentationSession[]
     const results: { sessionId: string; action: string; details: any }[] = []
 
     // ---- Batch pre-fetch ----
