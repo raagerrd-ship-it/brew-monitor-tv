@@ -87,9 +87,15 @@ function calculateActivityScore(
   }
 
   // --- SG-rate score (0-1) ---
+  // Relative to peak, but also scaled by absolute magnitude
+  // A rate of ~0.002/day should not score high even if it equals peak
+  const SG_RATE_HIGH = 0.000250; // ~0.006 SG/day = clearly active fermentation
   let sgScore = 0;
   if (peakSgRatePerHour > SG_RATE_FLOOR && sgRatePerHour > SG_RATE_FLOOR) {
-    sgScore = Math.min(1, sgRatePerHour / peakSgRatePerHour);
+    const relativeScore = Math.min(1, sgRatePerHour / peakSgRatePerHour);
+    // Absolute magnitude factor: ramps from 0→1 as rate goes from FLOOR→HIGH
+    const absoluteFactor = Math.min(1, (sgRatePerHour - SG_RATE_FLOOR) / (SG_RATE_HIGH - SG_RATE_FLOOR));
+    sgScore = relativeScore * absoluteFactor;
   }
 
   // If SG is essentially stopped, cap regardless of delta
