@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check, Hand } from "lucide-react";
-import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
+import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/types/fermentation";
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
@@ -478,7 +478,7 @@ export function FermentationSessionCompact({
               return (
                 <span className="flex items-center gap-1" style={{ color }}>
                   {icon}
-                  <span className="font-semibold">{['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(currentStep.step_type) ? 'Håll temperatur' : STEP_TYPE_LABELS[currentStep.step_type]}</span>
+                  <span className="font-semibold">{getStepTypeLabel(currentStep.step_type)}</span>
                 </span>
               );
             })()}

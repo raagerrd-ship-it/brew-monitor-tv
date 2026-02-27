@@ -20,10 +20,8 @@ import {
 import {
   FermentationProfileStep,
   StepType,
-  RampType,
   SgComparison,
   STEP_TYPE_LABELS,
-  RAMP_TYPE_LABELS,
   SG_COMPARISON_LABELS,
 } from "@/types/fermentation";
 
@@ -43,7 +41,7 @@ export function FermentationStepEditor({
   const [stepType, setStepType] = useState<StepType>("hold");
   const [targetTemp, setTargetTemp] = useState<string>("");
   const [durationHours, setDurationHours] = useState<string>("");
-  const [rampType, setRampType] = useState<RampType>("linear");
+  
   const [gravityStableDays, setGravityStableDays] = useState<string>("3");
   const [gravityThreshold, setGravityThreshold] = useState<string>("0.001");
   const [targetSg, setTargetSg] = useState<string>("");
@@ -59,7 +57,7 @@ export function FermentationStepEditor({
       setStepType(step.step_type);
       setTargetTemp(step.target_temp?.toString() || "");
       setDurationHours(step.ramp_type === 'immediate' ? "0" : (step.duration_hours?.toString() || ""));
-      setRampType(step.ramp_type || "linear");
+      
       setGravityStableDays(step.gravity_stable_days?.toString() || "3");
       setGravityThreshold(step.gravity_threshold?.toString() || "0.001");
       setTargetSg(step.target_sg?.toString() || "");
@@ -93,7 +91,7 @@ export function FermentationStepEditor({
     setStepType("hold");
     setTargetTemp("");
     setDurationHours("");
-    setRampType("linear");
+    
     setGravityStableDays("3");
     setGravityThreshold("0.001");
     setTargetSg("");
@@ -185,7 +183,6 @@ export function FermentationStepEditor({
                   <SelectItem value="time">Tid (antal timmar)</SelectItem>
                   <SelectItem value="sg">SG-värde uppnått</SelectItem>
                   <SelectItem value="gravity_stable">Stabil SG (antal dagar)</SelectItem>
-                  
                 </SelectContent>
               </Select>
             </div>
@@ -260,7 +257,6 @@ export function FermentationStepEditor({
               {holdEndCondition === "time" && "Håll temperaturen under angiven tid innan nästa steg."}
               {holdEndCondition === "sg" && "Håll temperaturen tills SG-värdet når det angivna villkoret."}
               {holdEndCondition === "gravity_stable" && "Håll temperaturen tills SG-värdet har varit stabilt under det angivna antalet dagar."}
-              
             </p>
           </>
         );
@@ -305,58 +301,6 @@ export function FermentationStepEditor({
           </div>
         );
 
-      case "diacetyl_rest":
-        return (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Utjäsningsnivå (%)</Label>
-                <Input
-                  type="number"
-                  step="5"
-                  value={attenuationTrigger}
-                  onChange={(e) => setAttenuationTrigger(e.target.value)}
-                  placeholder="75"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Temperaturhöjning (°C)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={tempIncrease}
-                  onChange={(e) => setTempIncrease(e.target.value)}
-                  placeholder="3"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Stabila dagar efter vila</Label>
-                <Input
-                  type="number"
-                  value={gravityStableDays}
-                  onChange={(e) => setGravityStableDays(e.target.value)}
-                  placeholder="2"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>SG-tröskel</Label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={gravityThreshold}
-                  onChange={(e) => setGravityThreshold(e.target.value)}
-                  placeholder="0.001"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Höjer temperaturen automatiskt när utjäsningen når angiven nivå. Väntar sedan på stabil SG innan nästa steg.
-              Särskilt viktigt för lager för att bryta ned diacetyl.
-            </p>
-          </>
-        );
 
       case "gradual_ramp":
         return (
