@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v34-single-block-100B';
+export const PRINTER_VERSION = 'v35-debug-synced-gap-mode';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -443,11 +443,16 @@ export async function printBitmap(
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(50);
 
-    // Media type: 0x1f 0x11 <type>
-    const mc = mediaTypeCode(settings.mediaType);
-    if (mc !== null) {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+    // Media mode — sync with proven debug flow
+    if (settings.mediaType === 'gap') {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
       await delay(50);
+    } else {
+      const mc = mediaTypeCode(settings.mediaType);
+      if (mc !== null) {
+        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+        await delay(50);
+      }
     }
 
     // Speed: ESC N 0x0d <speed>
@@ -462,8 +467,12 @@ export async function printBitmap(
       await delay(50);
     }
 
-    // Left margin = 0 (GS L)
+    // Left margin / position reset — sync with proven debug flow
     await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
+    await delay(50);
+    await bleWrite(connection, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), 'abs-pos-0');
+    await delay(50);
+    await bleWrite(connection, new Uint8Array([0x1b, 0x42, 0x00]), 'esc-b-0');
     await delay(50);
 
     // Raster header: GS v 0 (single block)
