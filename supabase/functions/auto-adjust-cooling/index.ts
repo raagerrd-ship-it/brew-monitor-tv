@@ -115,7 +115,13 @@ serve(async (req) => {
     const coolingEnabled = settings.enabled;
     const pillCompEnabled = pillCompSettings.enabled;
 
-    log('SETTINGS', 'info', 'Feature toggles', { cooling: coolingEnabled, pill_compensation: pillCompEnabled });
+    log('SETTINGS', 'info', 'Feature toggles', {
+      cooling: coolingEnabled,
+      pill_compensation: pillCompEnabled,
+      stall_boost: !!settings.auto_boost_enabled,
+      overshoot_prevention: !!settings.overshoot_prevention_enabled,
+      ai_audit: !!settings.ai_audit_enabled,
+    });
 
     if (!coolingEnabled && !pillCompEnabled) {
       log('SETTINGS', 'fail', 'All features disabled');
