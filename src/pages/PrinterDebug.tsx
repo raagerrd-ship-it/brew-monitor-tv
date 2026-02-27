@@ -160,11 +160,11 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     blockNum++;
     log(`→ 7${String.fromCharCode(96 + blockNum)}. Block ${blockNum}: ${blockLines} rader (rad ${linesSent}–${linesSent + blockLines - 1})...`);
 
-    // GS v 0 header — height = lines-1 per phomemo-filter.py
+    // GS v 0 header — this device expects exact line count (not lines-1)
     await bleWrite(conn, new Uint8Array([
       0x1d, 0x76, 0x30, 0x00,
       widthBytes, 0x00,
-      (blockLines - 1) & 0xff, ((blockLines - 1) >> 8) & 0xff,
+      blockLines & 0xff, (blockLines >> 8) & 0xff,
     ]), `raster-hdr-${blockNum}`);
     await delay(50);
 
