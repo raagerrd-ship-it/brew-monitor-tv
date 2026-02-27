@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
-import { PRINTER_VERSION, printTestPage } from "@/lib/thermal-printer";
+import { PRINTER_VERSION, printRawTest } from "@/lib/thermal-printer";
 import { usePrinterConnection } from "@/hooks";
 import { printCanvasInWindow, downloadCanvasAsPdf } from "@/lib/label-utils";
 
@@ -31,7 +31,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
     if (!bleConn) return;
     setIsTesting(true);
     try {
-      await printTestPage(bleConn, (p) => {
+      await printRawTest(bleConn, (p) => {
         console.log(`[Test] ${p.phase} ${p.percent}%`);
       });
     } catch (e: any) {
