@@ -4,6 +4,7 @@ import {
   connectPrinter,
   reconnectLastPrinter,
   getLastDeviceName,
+  setTargetPrinterName,
   disconnectPrinter,
   printBitmapBypassProcessing,
   DEFAULT_PRINT_SETTINGS,
@@ -25,6 +26,9 @@ export function usePrinterConnection(dialogOpen: boolean) {
 
   // Keep ref in sync
   useEffect(() => { connRef.current = bleConn; }, [bleConn]);
+
+  // Seed target printer name so reconnect can find it
+  useEffect(() => { setTargetPrinterName(TARGET_PRINTER_NAME); }, []);
 
   // Auto-reconnect to target printer when dialog opens
   useEffect(() => {
