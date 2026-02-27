@@ -57,18 +57,20 @@ export function FermentationStepDisplay({
   };
 
   const getStepDescription = (step: FermentationProfileStep) => {
-    // For current ramp step, show the correct arrow direction
     const rampArrow = step.step_type === 'ramp' && step === currentStep 
       ? (isRampingUp ? '↗' : '↘')
       : (step.step_type === 'ramp' ? '↘' : '');
     
     switch (step.step_type) {
       case 'hold':
+        if (step.target_sg != null) {
+          return `${step.target_temp ?? '—'}° tills SG ${step.sg_comparison === 'at_or_below' ? '≤' : '≥'} ${step.target_sg}`;
+        }
         return `${step.target_temp}° i ${step.duration_hours}h`;
       case 'ramp':
         return `${step.ramp_type === 'immediate' ? '→' : rampArrow} ${step.target_temp}°`;
       case 'wait_for_temp':
-        return `Vänta tills ${step.target_temp}°`;
+        return `${step.target_temp}° (temperatur nådd)`;
       case 'wait_for_gravity_stable':
         return `Stabil SG ${step.gravity_stable_days}d`;
       case 'wait_for_sg':
@@ -203,7 +205,11 @@ export function FermentationStepDisplay({
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <div className="text-xs font-medium">{STEP_TYPE_LABELS[currentStep.step_type]}</div>
+              <div className="text-xs font-medium">
+                {['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(currentStep.step_type) 
+                  ? 'Håll temperatur' 
+                  : STEP_TYPE_LABELS[currentStep.step_type]}
+              </div>
               {waitingForTemp ? (
                 <span className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
                   <Thermometer className="w-2.5 h-2.5" />
@@ -282,7 +288,7 @@ export function FermentationStepDisplay({
       {nextStep && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
           <ChevronRight className="w-3 h-3" />
-          <span>Nästa: {STEP_TYPE_LABELS[nextStep.step_type]}</span>
+          <span>Nästa: {['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(nextStep.step_type) ? 'Håll temperatur' : STEP_TYPE_LABELS[nextStep.step_type]}</span>
           <span className="opacity-60">({getStepDescription(nextStep)})</span>
         </div>
       )}

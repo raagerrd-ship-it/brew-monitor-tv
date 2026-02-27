@@ -49,7 +49,7 @@ export function FermentationStepEditor({
   const [targetSg, setTargetSg] = useState<string>("");
   const [sgComparison, setSgComparison] = useState<SgComparison>("at_or_below");
   const [notes, setNotes] = useState<string>("");
-  const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg">("time");
+  const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg" | "gravity_stable" | "temp_reached">("time");
   const [attenuationTrigger, setAttenuationTrigger] = useState<string>("75");
   const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
@@ -68,8 +68,17 @@ export function FermentationStepEditor({
       setAttenuationTrigger(step.attenuation_trigger?.toString() || "75");
       setActivityTrigger((step as any).activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
-      // Determine hold end condition based on existing data
-      if (step.step_type === "hold" && step.target_sg !== null) {
+      // Determine hold end condition based on existing step_type
+      if (step.step_type === "wait_for_gravity_stable") {
+        setStepType("hold");
+        setHoldEndCondition("gravity_stable");
+      } else if (step.step_type === "wait_for_sg") {
+        setStepType("hold");
+        setHoldEndCondition("sg");
+      } else if (step.step_type === "wait_for_temp") {
+        setStepType("hold");
+        setHoldEndCondition("temp_reached");
+      } else if (step.step_type === "hold" && step.target_sg !== null) {
         setHoldEndCondition("sg");
       } else {
         setHoldEndCondition("time");
@@ -112,10 +121,18 @@ export function FermentationStepEditor({
       case "hold":
         stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
         if (holdEndCondition === "time") {
+          stepData.step_type = "hold";
           stepData.duration_hours = durationHours ? parseInt(durationHours) : null;
-        } else {
+        } else if (holdEndCondition === "sg") {
+          stepData.step_type = "hold";
           stepData.target_sg = targetSg ? parseFloat(targetSg) : null;
           stepData.sg_comparison = sgComparison;
+        } else if (holdEndCondition === "gravity_stable") {
+          stepData.step_type = "wait_for_gravity_stable";
+          stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : null;
+          stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : null;
+        } else if (holdEndCondition === "temp_reached") {
+          stepData.step_type = "wait_for_temp";
         }
         break;
       case "ramp":
@@ -123,19 +140,7 @@ export function FermentationStepEditor({
         stepData.ramp_type = rampType;
         stepData.duration_hours = rampType === "linear" ? (durationHours ? parseInt(durationHours) : null) : null;
         break;
-      case "wait_for_temp":
-        stepData.target_temp = targetTemp ? parseFloat(targetTemp) : null;
-        break;
-      case "wait_for_gravity_stable":
-        stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : null;
-        stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : null;
-        break;
-      case "wait_for_sg":
-        stepData.target_sg = targetSg ? parseFloat(targetSg) : null;
-        stepData.sg_comparison = sgComparison;
-        break;
       case "wait_for_acknowledgement":
-        // No additional fields needed - just waits for manual acknowledgement
         break;
       case "diacetyl_rest":
         stepData.attenuation_trigger = attenuationTrigger ? parseFloat(attenuationTrigger) : 75;
@@ -172,18 +177,20 @@ export function FermentationStepEditor({
             
             <div className="space-y-2">
               <Label>Slutvillkor</Label>
-              <Select value={holdEndCondition} onValueChange={(v) => setHoldEndCondition(v as "time" | "sg")}>
+              <Select value={holdEndCondition} onValueChange={(v) => setHoldEndCondition(v as "time" | "sg" | "gravity_stable" | "temp_reached")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border z-50">
                   <SelectItem value="time">Tid (antal timmar)</SelectItem>
                   <SelectItem value="sg">SG-värde uppnått</SelectItem>
+                  <SelectItem value="gravity_stable">Stabil SG (antal dagar)</SelectItem>
+                  <SelectItem value="temp_reached">Temperatur nådd</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {holdEndCondition === "time" ? (
+            {holdEndCondition === "time" && (
               <div className="space-y-2">
                 <Label>Varaktighet (timmar)</Label>
                 <Input
@@ -193,7 +200,9 @@ export function FermentationStepEditor({
                   placeholder="48"
                 />
               </div>
-            ) : (
+            )}
+
+            {holdEndCondition === "sg" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Jämförelse</Label>
@@ -222,12 +231,36 @@ export function FermentationStepEditor({
                 </div>
               </div>
             )}
+
+            {holdEndCondition === "gravity_stable" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Antal dagar stabil</Label>
+                  <Input
+                    type="number"
+                    value={gravityStableDays}
+                    onChange={(e) => setGravityStableDays(e.target.value)}
+                    placeholder="3"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Max SG-variation</Label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    value={gravityThreshold}
+                    onChange={(e) => setGravityThreshold(e.target.value)}
+                    placeholder="0.001"
+                  />
+                </div>
+              </div>
+            )}
             
             <p className="text-xs text-muted-foreground">
-              {holdEndCondition === "time" 
-                ? "Håll temperaturen under angiven tid innan nästa steg."
-                : "Håll temperaturen tills SG-värdet når det angivna villkoret."
-              }
+              {holdEndCondition === "time" && "Håll temperaturen under angiven tid innan nästa steg."}
+              {holdEndCondition === "sg" && "Håll temperaturen tills SG-värdet når det angivna villkoret."}
+              {holdEndCondition === "gravity_stable" && "Håll temperaturen tills SG-värdet har varit stabilt under det angivna antalet dagar."}
+              {holdEndCondition === "temp_reached" && "Steget fortsätter automatiskt när controllerns temperatur når målvärdet (±0.5°C)."}
             </p>
           </>
         );
@@ -273,89 +306,6 @@ export function FermentationStepEditor({
                 </div>
               )}
             </div>
-          </>
-        );
-
-      case "wait_for_temp":
-        return (
-          <div className="space-y-2">
-            <Label>Vänta tills temperaturen når (°C)</Label>
-            <Input
-              type="number"
-              step="0.5"
-              value={targetTemp}
-              onChange={(e) => setTargetTemp(e.target.value)}
-              placeholder="4"
-            />
-            <p className="text-xs text-muted-foreground">
-              Steget fortsätter automatiskt när controllerns nuvarande temperatur når målvärdet (±0.5°C).
-            </p>
-          </div>
-        );
-
-      case "wait_for_gravity_stable":
-        return (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Antal dagar stabil</Label>
-                <Input
-                  type="number"
-                  value={gravityStableDays}
-                  onChange={(e) => setGravityStableDays(e.target.value)}
-                  placeholder="3"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Max SG-variation</Label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={gravityThreshold}
-                  onChange={(e) => setGravityThreshold(e.target.value)}
-                  placeholder="0.001"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Steget fortsätter när SG-värdet har varit stabilt (variation mindre än tröskeln) under det angivna antalet dagar.
-            </p>
-          </>
-        );
-
-      case "wait_for_sg":
-        return (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Jämförelse</Label>
-                <Select value={sgComparison} onValueChange={(v) => setSgComparison(v as SgComparison)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(SG_COMPARISON_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Mål-SG</Label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  value={targetSg}
-                  onChange={(e) => setTargetSg(e.target.value)}
-                  placeholder="1.020"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Steget fortsätter när SG-värdet når det angivna villkoret.
-            </p>
           </>
         );
 
@@ -493,9 +443,9 @@ export function FermentationStepEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(STEP_TYPE_LABELS).map(([value, label]) => (
+                {(['hold', 'ramp', 'wait_for_acknowledgement', 'diacetyl_rest', 'gradual_ramp'] as StepType[]).map((value) => (
                   <SelectItem key={value} value={value}>
-                    {label}
+                    {STEP_TYPE_LABELS[value]}
                   </SelectItem>
                 ))}
               </SelectContent>
