@@ -203,12 +203,13 @@ serve(async (req) => {
         .in('controller_id', followedControllerIds);
 
       if (runningSessions && runningSessions.length > 0) {
-        // Cooloff check
+        // Cooloff check — only trigger for large temp changes (≥ 1°C)
+        // Small incremental changes from gradual_ramp should not block PID
         const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         const sessionIds = runningSessions.map(s => s.id);
         const { data: recentAdjs } = await supabase
           .from('fermentation_step_log')
-          .select('session_id')
+          .select('session_id, details')
           .in('session_id', sessionIds)
           .eq('action', 'temp_adjusted')
           .gte('created_at', thirtyMinAgo);
@@ -216,6 +217,12 @@ serve(async (req) => {
         const sessionControllerMap = new Map(runningSessions.map(s => [s.id, s.controller_id]));
         if (recentAdjs) {
           for (const adj of recentAdjs) {
+            // Check if this was a small incremental change (gradual_ramp)
+            const details = adj.details as Record<string, any> | null;
+            if (details?.phase === 'gradual_ramping') {
+              // Skip cooloff for gradual ramp — these are small incremental changes
+              continue;
+            }
             const cId = sessionControllerMap.get(adj.session_id);
             if (cId) { cooloffControllerIds.add(cId); }
           }
