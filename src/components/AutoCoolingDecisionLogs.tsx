@@ -232,18 +232,18 @@ export function AutoCoolingDecisionLogs() {
 
           return (
             <Collapsible key={`adj-${adj.id}`}>
-              <CollapsibleTrigger className="grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[auto_1fr_1fr_1fr_auto] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
+              <CollapsibleTrigger className="grid grid-cols-[72px_105px_1fr_20px] md:grid-cols-[72px_105px_1fr_minmax(0,140px)_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
                   {getCategoryBadge(category)}
-                  <span className="text-muted-foreground whitespace-nowrap">{formatTime(adj.created_at)}</span>
-                  <span className="font-medium whitespace-nowrap" style={{ 
+                  <span className="text-muted-foreground whitespace-nowrap text-left">{formatTime(adj.created_at)}</span>
+                  <span className="font-medium whitespace-nowrap text-right" style={{ 
                     color: tempChange < 0 ? 'hsl(210 80% 60%)' : tempChange > 0 ? 'hsl(var(--ferment-green))' : undefined 
                   }}>
                     {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°
                   </span>
-                  <span className="text-muted-foreground truncate hidden md:block">
+                  <span className="text-muted-foreground truncate hidden md:block text-right">
                     {category === 'glykol' ? adj.cooler_controller_name : (adj.followed_controller_name || adj.cooler_controller_name)}
                   </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 justify-self-end" />
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-2">
