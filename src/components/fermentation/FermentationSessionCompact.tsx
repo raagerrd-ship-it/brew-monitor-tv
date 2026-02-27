@@ -198,17 +198,7 @@ export function FermentationSessionCompact({
           const required = step.gravity_stable_days ?? 0;
           const totalHours = days * 24 + hours;
           const requiredHours = required * 24;
-          let sinceStr = '';
-          if (stableSince) {
-            const today = new Date();
-            const isToday = stableSince.toDateString() === today.toDateString();
-            if (isToday) {
-              sinceStr = ` (sedan ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
-            } else {
-              sinceStr = ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
-            }
-          }
-          return `Stabil ${totalHours}h / ${requiredHours}h${sinceStr}`;
+          return `Stabil ${totalHours}h / ${requiredHours}h`;
         }
         const requiredHours = (step.gravity_stable_days ?? 0) * 24;
         return `Stabil i ${requiredHours}h`;
@@ -227,17 +217,7 @@ export function FermentationSessionCompact({
           if (stabilityDuration) {
             const { days, hours, stableSince } = stabilityDuration;
             const totalStableHours = days * 24 + hours;
-            let sinceStr = '';
-            if (stableSince) {
-              const today = new Date();
-              const isToday = stableSince.toDateString() === today.toDateString();
-              if (isToday) {
-                sinceStr = ` (sedan ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
-              } else {
-                sinceStr = ` (sedan ${stableSince.toLocaleDateString('sv-SE')} ${stableSince.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })})`;
-              }
-            }
-            return `Rampar +${increase}° │ Stabil ${totalStableHours}h / ${requiredHours}h${sinceStr}`;
+            return `Rampar +${increase}° │ Stabil ${totalStableHours}h / ${requiredHours}h`;
           }
           return `Rampar +${increase}° (aktivitet ${activityScore != null ? Math.round(activityScore) + '%' : '?'})`;
         }
@@ -522,11 +502,6 @@ export function FermentationSessionCompact({
             )}
             {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
               <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
-            )}
-            {isGradualRampStep && gradualRampProgress != null && (
-              <span className="text-muted-foreground font-medium">
-                {gradualRampTriggered ? '⚡' : '⏳'} {Math.round(gradualRampProgress * 100)}%
-              </span>
             )}
           </div>
         )}
