@@ -21,16 +21,22 @@ serve(async (req) => {
 
     const { batchId } = await req.json();
     
-    if (!batchId) {
-      throw new Error('batchId is required');
+    if (!batchId || typeof batchId !== 'string') {
+      throw new Error('batchId is required and must be a string');
+    }
+
+    // Sanitize batchId: only allow alphanumeric + hyphens + underscores
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(batchId)) {
+      throw new Error('Invalid batchId format');
     }
 
     const response = await fetch(
-      `https://api.brewfather.app/v2/batches/${batchId}/readings`,
+      `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}/readings`,
       {
         headers: {
           'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
         },
+        signal: AbortSignal.timeout(15000),
       }
     );
 

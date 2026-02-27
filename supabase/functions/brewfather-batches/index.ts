@@ -21,17 +21,25 @@ serve(async (req) => {
 
     const { batchIds, limit, complete } = await req.json();
     
-    console.log('Received request with batchIds:', batchIds, 'limit:', limit, 'complete:', complete);
+    console.log('Received request with batchIds count:', batchIds?.length, 'limit:', limit);
     
     // If specific batch IDs are requested, fetch those
     if (batchIds && Array.isArray(batchIds) && batchIds.length > 0) {
-      const batchPromises = batchIds.map(async (batchId: string) => {
+      // SAFETY: Cap array size to prevent abuse
+      if (batchIds.length > 50) {
+        throw new Error('Too many batchIds requested (max 50)');
+      }
+
+      const batchPromises = batchIds
+        .filter((id: any) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(id))
+        .map(async (batchId: string) => {
         const response = await fetch(
-          `https://api.brewfather.app/v2/batches/${batchId}`,
+          `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}`,
           {
             headers: {
               'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
             },
+            signal: AbortSignal.timeout(15000),
           }
         );
         
@@ -67,6 +75,7 @@ serve(async (req) => {
       headers: {
         'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}`,
       },
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
