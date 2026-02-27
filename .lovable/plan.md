@@ -42,3 +42,29 @@
 - 8 isolerade handlers + dispatcher
 - `defaultResult()` — eliminerar boilerplate
 - Importerar `setProfileTarget` från types.ts (SSOT)
+
+### `_shared/learning-utils.ts` — Adaptiv inlärning (SSOT)
+- `getLearnedParam()` — hämta inlärt värde med default
+- `updateLearnedParam()` — EMA-baserad uppdatering med clamp
+- `getTempBucket()` — temperaturzon-klassificering (cold/cool/warm/hot)
+
+### `_shared/adjustment-logger.ts` — Justeringsloggning (SSOT)
+- `logAdjustment()` — **enda plats** som insertar i `auto_cooling_adjustments`
+- `AdjustmentRecord` / `AdjustmentResult` — typade interfaces
+
+### `_shared/stall-detection.ts` — Stalldetektering
+- `evaluateBoostOutcomes()` — lär från historiska boost-utfall
+- `detectAndHandleStalls()` — detektion + adaptiv boost/un-boost
+- `handleUnBoost()` — reverserar boost när jäsning återupptas
+
+### `_shared/glycol-cooling.ts` — Glykolkylare
+- `runGlycolCooling()` — huvudorkestrering
+- `evaluateCoolingOutcomes()` — lär marginaler från historik
+- `handleActiveCooling()` — sustained cooling + smart performance check
+- `handleRecovery()` — recovery mot idealtemperatur
+- `handleNoCooling()` / `handleOvercooling()` — specialfall
+
+### `auto-adjust-cooling/index.ts` — Tunn orkestrerare (~370 rader)
+- Laddar settings + controllers + profiler
+- Anropar Feature 1 (PID) inline, Feature 2 (stall) + Feature 3 (glycol) via imports
+- Decision log + summary
