@@ -21,6 +21,7 @@ interface Session {
   step_started_at: string
   step_start_temp: number | null
   started_at: string
+  ramp_triggered_at: string | null
 }
 
 /**
@@ -291,7 +292,8 @@ Deno.serve(async (req) => {
             .update({ 
               current_step_index: nextStepIndex, 
               step_started_at: new Date().toISOString(),
-              step_start_temp: null
+              step_start_temp: null,
+              ramp_triggered_at: null,
             })
             .eq('id', session.id)
 

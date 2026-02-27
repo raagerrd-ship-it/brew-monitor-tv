@@ -15,6 +15,7 @@ export interface StepContext {
     step_started_at: string
     step_start_temp: number | null
     started_at: string
+    ramp_triggered_at: string | null
   }
   currentStep: ProfileStep
   steps: ProfileStep[]
@@ -470,21 +471,49 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     return { stepCompleted, actionTaken, actionDetails }
   }
 
+  // Record when the ramp was first triggered
+  let rampTriggeredAt: Date
+  if (session.ramp_triggered_at) {
+    rampTriggeredAt = new Date(session.ramp_triggered_at)
+  } else {
+    // First trigger — save ramp_triggered_at and step_start_temp
+    rampTriggeredAt = new Date()
+    await supabase
+      .from('fermentation_sessions')
+      .update({
+        ramp_triggered_at: rampTriggeredAt.toISOString(),
+        step_start_temp: baseTemp,
+      })
+      .eq('id', session.id)
+
+    await supabase.from('fermentation_step_log').insert({
+      session_id: session.id,
+      step_index: session.current_step_index,
+      action: 'condition_met',
+      details: {
+        condition: 'gradual_ramp_triggered',
+        activity_score: activityScore,
+        activity_trigger: activityTrigger,
+        base_temp: baseTemp,
+        temp_increase: tempIncrease,
+        min_ramp_hours: minRampHours,
+      },
+    })
+    console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C`)
+  }
+
   // Phase 2: Ramping
   const rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
   let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
-  // Apply min ramp hours constraint: limit how fast temp can increase
+  // Apply min ramp hours constraint using ramp_triggered_at (not step_started_at)
   if (minRampHours && minRampHours > 0) {
-    // Calculate how long since the ramp was triggered (use step_started_at as base, 
-    // but the trigger may have happened after step start)
-    const stepStartedAt = new Date(session.step_started_at)
     const now = new Date()
-    const elapsedSinceStep = (now.getTime() - stepStartedAt.getTime()) / (1000 * 60 * 60)
-    const maxAllowedIncrease = (tempIncrease / minRampHours) * elapsedSinceStep
+    const elapsedSinceTrigger = (now.getTime() - rampTriggeredAt.getTime()) / (1000 * 60 * 60)
+    const maxAllowedIncrease = (tempIncrease / minRampHours) * elapsedSinceTrigger
     const timeConstrainedTarget = Math.round((baseTemp + Math.min(tempIncrease, maxAllowedIncrease)) * 10) / 10
     if (calculatedTarget > timeConstrainedTarget) {
-      console.log(`⏱️ Min ramp constraint: activity wants ${calculatedTarget}°C but time allows max ${timeConstrainedTarget}°C (${elapsedSinceStep.toFixed(1)}h / ${minRampHours}h)`)
+      console.log(`⏱️ Min ramp constraint: activity wants ${calculatedTarget}°C but time allows max ${timeConstrainedTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h since trigger)`)
       calculatedTarget = timeConstrainedTarget
     }
   }

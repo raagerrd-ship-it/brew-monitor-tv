@@ -42,6 +42,7 @@ export interface FermentationSession {
   current_step_index: number;
   step_started_at: string;
   step_start_temp: number | null;
+  ramp_triggered_at: string | null;
   started_at: string;
   completed_at: string | null;
   created_at: string;
