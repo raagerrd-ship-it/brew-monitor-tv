@@ -278,21 +278,16 @@ export function BrewingDashboard() {
     second: '2-digit'
   }), [appLoadTime]);
 
-  // Minimum splash time (2s) so logo is always visible
-  // Use sessionStorage to persist splash dismissal across ErrorBoundary remounts
-  const splashAlreadyDismissed = useMemo(() => {
-    try { return sessionStorage.getItem('splash-dismissed') === '1'; } catch { return false; }
-  }, []);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(splashAlreadyDismissed);
-  const [contentPainted, setContentPainted] = useState(splashAlreadyDismissed);
+  // Minimum splash time (2s) so logo is always visible on every load
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [contentPainted, setContentPainted] = useState(false);
   const [splashDelayMs, setSplashDelayMs] = useState(1000);
   const showSplash = !minTimeElapsed || !contentPainted;
   
   useEffect(() => {
-    if (splashAlreadyDismissed) return;
     const timer = setTimeout(() => setMinTimeElapsed(true), 2000);
     return () => clearTimeout(timer);
-  }, [splashAlreadyDismissed]);
+  }, []);
 
   // Load splash delay from DB
   useEffect(() => {
@@ -304,24 +299,19 @@ export function BrewingDashboard() {
   // Once data is loaded, wait for lazy-loaded charts to resolve before removing splash.
   useEffect(() => {
     if (!loading) {
-      if (splashAlreadyDismissed) {
-        setContentPainted(true);
-        return;
-      }
       let cancelled = false;
       const timer = setTimeout(() => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (!cancelled) {
               setContentPainted(true);
-              try { sessionStorage.setItem('splash-dismissed', '1'); } catch { /* ignore */ }
             }
           });
         });
       }, splashDelayMs);
       return () => { cancelled = true; clearTimeout(timer); };
     }
-  }, [loading, splashDelayMs, splashAlreadyDismissed]);
+  }, [loading, splashDelayMs]);
 
   // Show timer footer based on setting
   const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
