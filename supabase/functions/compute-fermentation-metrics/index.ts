@@ -187,7 +187,10 @@ Deno.serve(async (req) => {
     const upserts: any[] = [];
 
     for (const brew of brews) {
-      const sgData = (Array.isArray(brew.sg_data) ? brew.sg_data : []) as SgDataPoint[];
+      const allSgData = (Array.isArray(brew.sg_data) ? brew.sg_data : []) as SgDataPoint[];
+      // Trim to last 14 days to reduce computation
+      const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const sgData = allSgData.filter(p => new Date(p.date).getTime() > fourteenDaysAgo);
       if (sgData.length < 3) continue;
 
       const fermentationStartMs = brew.fermentation_start
