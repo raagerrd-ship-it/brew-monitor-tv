@@ -22,12 +22,12 @@ export function useSonosInit(params: UseSonosInitParams) {
       try {
         console.log('[Sonos] Init starting...');
         const [settingsResult, nowPlayingResult] = await Promise.all([
-          (supabase as any)
+          supabase
             .from('sonos_settings')
             .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
             .limit(1)
             .maybeSingle(),
-          (supabase as any)
+          supabase
             .from('sonos_now_playing')
             .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at')
             .limit(1)
