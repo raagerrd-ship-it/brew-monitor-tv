@@ -236,8 +236,8 @@ const STEPS: WizardStep[] = [
   },
   {
     id: "gemini-protocol",
-    title: "Gemini-protokoll (0x1f 0x11 start/stop)",
-    description: "Alternativt flöde: start-job → raster → 10 svarta rader + 90 vita → print-execute → end-job. Använder 0x1f 0x11-kommandon istället för ESC @ / CUPS-footer.",
+    title: "Gemini v1 (100px höjd)",
+    description: "Start-job → raster 384×100 → 10 svarta + 90 vita → print-execute → end-job.",
     run: async (conn, log, chunkSize) => {
       log("1. Start-job (0x1f 0x11 0x02 0x00)...");
       await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), "start-job");
@@ -271,6 +271,52 @@ const STEPS: WizardStep[] = [
       await delay(200);
 
       log("Klart! Du bör se en svart rektangel (10 rader) följt av vitt.");
+    },
+  },
+  {
+    id: "gemini-label-50x70",
+    title: "Gemini v2 – 50×70mm etikett (gap-läge)",
+    description: "Sätter GAP-mode → start-job → raster 384×560 (50×70mm) → 20 svarta rader + resten vitt → print-execute → end-job. Anpassad för ditt etikettformat.",
+    run: async (conn, log, chunkSize) => {
+      log("1. Set GAP mode (0x1f 0x11 0x0e 0x01)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), "set-gap-mode");
+      await delay(50);
+
+      log("2. Start-job (0x1f 0x11 0x02 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), "start-job");
+      await delay(50);
+
+      const widthBytes = 48;
+      const height = 560; // 70mm × 8 dots/mm = 560
+
+      log("3. Raster header (384×560)...");
+      await bleWrite(conn, new Uint8Array([
+        0x1d, 0x76, 0x30, 0x00,
+        0x30, 0x00,       // xL=48, xH=0
+        0x30, 0x02,       // yL=0x30, yH=0x02 → 560
+      ]), "raster-hdr");
+
+      log("4. Genererar data (20 svarta + 540 vita rader)...");
+      const data = new Uint8Array(widthBytes * height);
+      data.fill(0xff, 0, widthBytes * 20);
+
+      log(`   Skickar ${data.length} bytes (chunk=${chunkSize})...`);
+      let sent = 0;
+      for (let off = 0; off < data.length; off += chunkSize) {
+        await bleWrite(conn, data.slice(off, Math.min(off + chunkSize, data.length)), `d-${off}`);
+        sent++;
+        if (sent % 100 === 0) log(`   ...${Math.round((off / data.length) * 100)}%`);
+      }
+
+      log("5. Print-execute (0x1f 0x11 0x04 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x04, 0x00]), "print-execute");
+      await delay(100);
+
+      log("6. End-job (0x1f 0x11 0x03 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "end-job");
+      await delay(200);
+
+      log("Klart! Bör skriva ut en 50×70mm etikett med svart streck och stanna vid gap-sensorn.");
     },
   },
   {
