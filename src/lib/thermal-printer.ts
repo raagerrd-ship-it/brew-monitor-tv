@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v38-wizard-match';
+export const PRINTER_VERSION = 'v33-phomymo-m110-exact';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -38,13 +38,13 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   landscape: false,
   speed: 5,
   density: 10,
-  chunkSize: 20,
-  chunkDelay: 5,
+  chunkSize: 128,
+  chunkDelay: 20,
   throttleEvery: 0,
   throttleDelay: 0,
   sendSpeed: true,
   sendDensity: true,
-  sendFooter: false,
+  sendFooter: true,
 };
 
 /** Check if saved settings need auto-reset (version migration) */
@@ -359,70 +359,66 @@ export async function printBitmap(
 
   console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
 
-  // ── 4. Send using the confirmed working wizard protocol ──
-  // Matches "🎯 Ren print-sekvens" from debug wizard (the step that worked)
-  // Sequence: ESC@ → Start-job → GAP-mode → Speed → Density → single raster block → data (20B, no delay) → wait 3s → End-job
+  // ── 4. Send using confirmed M110 BLE protocol ──
+  // Sequence: ESC@ → start-job → gap → speed → density → GS v 0 → data (20B chunks) → print-execute → end-job
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
-    // 1. ESC @ (initialize)
+    // ESC @ (initialize)
     await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
     await delay(50);
 
-    // 2. Start-job
+    // Start-job
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(50);
 
-    // 3. GAP-mode
-    if (settings.mediaType === 'gap') {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
+    // Media type: 0x1f 0x11 <type>
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
       await delay(50);
-    } else {
-      const mc = mediaTypeCode(settings.mediaType);
-      if (mc !== null) {
-        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-        await delay(50);
-      }
     }
 
-    // 4. Speed
+    // Speed: ESC N 0x0d <speed>
     if (settings.sendSpeed) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
       await delay(50);
     }
 
-    // 5. Density
+    // Density: ESC N 0x04 <density>
     if (settings.sendDensity) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
       await delay(50);
     }
 
-    // 6. Single raster header for full image (no 256-line blocking)
-    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
+    // Raster header: GS v 0
+    onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
     await bleWrite(connection, new Uint8Array([
       0x1d, 0x76, 0x30, 0x00,
       widthBytes & 0xff, 0x00,
       height & 0xff, (height >> 8) & 0xff,
-    ]), 'raster-hdr');
+    ]), 'raster-header');
     await delay(100);
 
-    // 7. Send bitmap data in 20B chunks, NO delay between chunks (wizard had none)
+    // Raster data in 20-byte chunks (BLE MTU safe)
+    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
     const BLE_CHUNK = 20;
     const totalBytes = bitmapData.length;
+
     for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
       const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, bitmapData.slice(offset, end), `r-${offset}`);
-      const pct = 20 + (end / totalBytes) * 70;
+      await bleWrite(connection, bitmapData.slice(offset, end), `data@${offset}`);
+
+      const pct = 20 + ((end) / totalBytes) * 70;
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
     }
-    console.log(`[Printer] Data sent (${totalBytes} bytes)`);
 
-    // 8. Wait for printer to finish (wizard used 3s)
+    // Wait for printer to finish processing raster data
+    await delay(1500);
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
-    await delay(3000);
 
-    // 9. End-job (NO print-execute — wizard explicitly excluded it)
+    // End-job (NO print-execute — printer prints automatically after raster data)
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
     await delay(500);
 
@@ -433,88 +429,7 @@ export async function printBitmap(
 }
 
 /**
- * Raw test print — hardcoded small bitmap, NO canvas/dithering.
- * Sends a 384×40 pixel checkerboard pattern using exact wizard sequence.
- * All 0x0a bytes in bitmap data are escaped to 0x14.
- */
-export async function printRawTest(
-  connection: PrinterConnection,
-  onProgress?: (p: PrintProgress) => void,
-): Promise<void> {
-  const width = 384;
-  const height = 40;
-  const widthBytes = 48; // 384/8
-
-  // Build checkerboard bitmap: alternating 8px black/white blocks
-  const bitmap = new Uint8Array(widthBytes * height);
-  for (let y = 0; y < height; y++) {
-    for (let byteX = 0; byteX < widthBytes; byteX++) {
-      // Alternate every 8px (1 byte) and every 8 rows
-      const blockX = Math.floor(byteX / 1) % 2;
-      const blockY = Math.floor(y / 8) % 2;
-      bitmap[y * widthBytes + byteX] = (blockX ^ blockY) ? 0xFF : 0x00;
-    }
-  }
-
-  // Escape 0x0a bytes (printer interprets as LF over BLE)
-  for (let i = 0; i < bitmap.length; i++) {
-    if (bitmap[i] === 0x0a) bitmap[i] = 0x14;
-  }
-
-  const totalBytes = bitmap.length;
-  console.log(`[Printer] RAW TEST ${PRINTER_VERSION}: ${width}x${height}, ${totalBytes} bytes`);
-
-  onProgress?.({ phase: 'Initierar...', percent: 5 });
-
-  // 1. ESC @ (initialize)
-  await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
-  await delay(50);
-
-  // 2. Start-job
-  await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
-  await delay(50);
-
-  // 3. GAP-mode
-  await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
-  await delay(50);
-
-  // 4. Speed 5
-  await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, 0x05]), 'speed');
-  await delay(50);
-
-  // 5. Density 10
-  await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, 0x0a]), 'density');
-  await delay(50);
-
-  // 6. Raster header
-  onProgress?.({ phase: 'Skickar data...', percent: 15 });
-  await bleWrite(connection, new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00,
-    widthBytes & 0xff, 0x00,
-    height & 0xff, (height >> 8) & 0xff,
-  ]), 'raster-hdr');
-  await delay(100);
-
-  // 7. Send bitmap with flow-control
-  await sendChunked(connection, bitmap, 20, 20, 25, 80, (sent, total) => {
-    const pct = 15 + (sent / total) * 75;
-    onProgress?.({ phase: 'Skickar data...', percent: Math.min(95, pct) });
-  });
-  console.log(`[Printer] RAW TEST data sent (${totalBytes} bytes)`);
-
-  // 8. Wait 3s
-  onProgress?.({ phase: 'Väntar...', percent: 96 });
-  await delay(3000);
-
-  // 9. End-job
-  await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
-  await delay(500);
-
-  onProgress?.({ phase: 'Klar!', percent: 100 });
-}
-
-/**
- * Print a visible test page (uses full printBitmap pipeline).
+ * Print a visible test page.
  */
 export async function printTestPage(
   connection: PrinterConnection,
@@ -522,45 +437,26 @@ export async function printTestPage(
 ): Promise<void> {
   const canvas = document.createElement('canvas');
   canvas.width = 384;
-  canvas.height = 300;
+  canvas.height = 240;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Kunde inte skapa testcanvas.');
 
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 384, 300);
+  ctx.fillRect(0, 0, 384, 240);
   ctx.fillStyle = '#000000';
-  ctx.fillRect(20, 20, 344, 10);
-  ctx.fillRect(20, 270, 344, 10);
-  ctx.fillRect(20, 20, 10, 260);
-  ctx.fillRect(354, 20, 10, 260);
-  ctx.fillRect(142, 100, 100, 100);
+  ctx.fillRect(0, 0, 384, 10);
+  ctx.fillRect(0, 230, 384, 10);
+  ctx.fillRect(0, 0, 10, 240);
+  ctx.fillRect(374, 0, 10, 240);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#000000';
+  ctx.beginPath();
+  ctx.moveTo(20, 20); ctx.lineTo(364, 220);
+  ctx.moveTo(364, 20); ctx.lineTo(20, 220);
+  ctx.stroke();
+  ctx.fillRect(132, 100, 120, 40);
 
   await printBitmap(connection, canvas, 1, DEFAULT_PRINT_SETTINGS, onProgress);
-}
-
-/**
- * Replaces bytes that conflict with printer transport control characters.
- * Phomemo BLE transport treats 0x0a as line-feed inside payload.
- */
-function escapeBleUnsafeBytes(data: Uint8Array): Uint8Array {
-  const out = new Uint8Array(data.length);
-  let replaced = 0;
-
-  for (let i = 0; i < data.length; i++) {
-    const b = data[i];
-    if (b === 0x0a) {
-      out[i] = 0x14;
-      replaced++;
-    } else {
-      out[i] = b;
-    }
-  }
-
-  if (replaced > 0) {
-    console.log(`[Printer] Escaped ${replaced} payload byte(s): 0x0a -> 0x14`);
-  }
-
-  return out;
 }
 
 /**
