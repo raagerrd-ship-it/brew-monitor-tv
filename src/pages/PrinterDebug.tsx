@@ -134,14 +134,15 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
 
-  for (let off = 0; off < rasterData.length; off += 20) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + 20, rasterData.length)), `r-${off}`);
+  // Send in larger chunks for speed (BLE MTU typically 244-512 bytes)
+  const CHUNK = 200;
+  const totalChunks = Math.ceil(rasterData.length / CHUNK);
+  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B...`);
+  for (let off = 0; off < rasterData.length; off += CHUNK) {
+    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`);
   }
-  await delay(500);
+  await delay(1000);
   log(`   Data skickad (${rasterData.length} bytes)`);
-
-  log("→ 8. Väntar 3s...");
-  await delay(3000);
 
   await send([0x1f, 0x11, 0x03, 0x00], "9. End-job");
   await delay(500);
