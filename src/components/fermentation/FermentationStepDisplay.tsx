@@ -81,8 +81,7 @@ export function FermentationStepDisplay({
         return `Diacetylvila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
       case 'gradual_ramp': {
         const minRamp = (step as any).min_ramp_hours;
-        const curve = (step as any).ramp_curve === 'exponential' ? ' exp' : '';
-        const rampInfo = minRamp ? ` (≥${minRamp}h${curve})` : (curve ? ` (${curve.trim()})` : '');
+        const rampInfo = minRamp ? ` (≥${minRamp}h)` : '';
         return `Smart vila +${(step as any).temp_increase ?? 3}°${rampInfo} vid aktivitet <${(step as any).activity_trigger ?? 35}%`;
       }
       default:
