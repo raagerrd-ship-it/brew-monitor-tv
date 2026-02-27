@@ -163,14 +163,12 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
 
-  // Send in chunks using writeWithoutResponse for speed but with safer pacing
-  const CHUNK = 244;
+  // Send in chunks with response to guarantee delivery (prevents "Waiting for data")
+  const CHUNK = 200;
   const totalChunks = Math.ceil(rasterData.length / CHUNK);
-  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B (no-response)...`);
+  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B (with-response)...`);
   for (let off = 0; off < rasterData.length; off += CHUNK) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, "forceNoResponse");
-    // Give printer BLE buffer time to drain
-    if ((off / CHUNK) % 8 === 7) await delay(8);
+    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`, "forceWithResponse");
   }
 
   // Wait for immediate transport ACK after last chunk, then let printer drain/print
