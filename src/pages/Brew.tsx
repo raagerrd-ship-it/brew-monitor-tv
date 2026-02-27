@@ -2,13 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { BrewCard } from "@/components/brew-card/BrewCard";
-import type { BrewData, PillData, TempController, BrewEvent, FermentationSessionData, FermentationStepData } from "@/types/brew";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
-import { calculateFermentationRate, calculateFermentationTrend } from "@/lib/brew-utils";
 import dbLogo from "@/assets/db-logo.png";
-
-console.log('Brew.tsx loaded - this confirms the route /brew/:id is being matched');
+import { useBrewPage } from "@/hooks";
 
 // Update document title and favicon when brew is loaded
 const useDocumentTitleAndIcon = (title: string | null) => {
@@ -18,8 +13,6 @@ const useDocumentTitleAndIcon = (title: string | null) => {
 
     if (title) {
       document.title = `${title} - Dahlsjö Brewing`;
-      
-      // Set custom brew icon
       let iconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
       if (!iconLink) {
         iconLink = document.createElement('link');
@@ -31,7 +24,6 @@ const useDocumentTitleAndIcon = (title: string | null) => {
     
     return () => {
       document.title = "Bryggövervakare";
-      // Restore original icon
       const iconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
       if (iconLink && originalHref) {
         iconLink.href = originalHref;
@@ -40,177 +32,20 @@ const useDocumentTitleAndIcon = (title: string | null) => {
   }, [title]);
 };
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
-
 export default function Brew() {
   const { id } = useParams<{ id: string }>();
-  const [brew, setBrew] = useState<BrewData | null>(null);
-  const [pills, setPills] = useState<PillData[]>([]);
-  const [controllers, setControllers] = useState<TempController[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { brew, pills, controllers, loading, error } = useBrewPage(id);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
+  const [labelExpanded, setLabelExpanded] = useState(false);
 
-  // Show splash for at least 2 seconds
   useEffect(() => {
     const timer = setTimeout(() => setMinSplashElapsed(true), 2000);
     return () => clearTimeout(timer);
   }, []);
 
   const showSplash = !minSplashElapsed || loading;
-  const [labelExpanded, setLabelExpanded] = useState(false);
 
   useDocumentTitleAndIcon(brew?.name ?? null);
-
-  useEffect(() => {
-    if (!id) {
-      setError("Ingen öl-ID angiven");
-      setLoading(false);
-      return;
-    }
-
-    const fetchBrew = async () => {
-      try {
-        // Use edge function for public access (no auth required)
-        const response = await fetch(
-          `${SUPABASE_URL}/functions/v1/get-public-rapt-data?brew_id=${encodeURIComponent(id)}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError("Ölen hittades inte");
-            setLoading(false);
-            return;
-          }
-          throw new Error(`HTTP error: ${response.status}`);
-        }
-
-        const responseData = await response.json();
-        
-        if (!responseData.success || !responseData.brew) {
-          setError("Ölen hittades inte");
-          setLoading(false);
-          return;
-        }
-
-        const reading = responseData.brew;
-        const brewEvents: BrewEvent[] = (responseData.events || []).map((e: any) => ({
-          id: e.id,
-          brew_id: e.brew_id,
-          event_type: e.event_type,
-          event_date: e.event_date,
-          notes: e.notes,
-          created_at: e.created_at,
-          updated_at: e.updated_at
-        }));
-
-        // Process fermentation session from edge function response
-        let fermentationSession: FermentationSessionData | undefined;
-        const sessionData = responseData.fermentationSession;
-        
-        // Find linked controller for session data
-        const linkedController = (responseData.controllers || []).find(
-          (c: any) => c.controller_id === reading.linked_controller_id
-        );
-
-        if (sessionData) {
-          const profile = sessionData.fermentation_profiles as any;
-          const steps: FermentationStepData[] = (profile?.fermentation_profile_steps || [])
-            .sort((a: any, b: any) => a.step_order - b.step_order)
-            .map((step: any) => ({
-              id: step.id,
-              step_order: step.step_order,
-              step_type: step.step_type,
-              target_temp: step.target_temp,
-              duration_hours: step.duration_hours,
-              gravity_stable_days: step.gravity_stable_days,
-              target_sg: step.target_sg,
-              sg_comparison: step.sg_comparison,
-              ramp_type: step.ramp_type,
-              attenuation_trigger: step.attenuation_trigger,
-              activity_trigger: step.activity_trigger,
-              temp_increase: step.temp_increase,
-              gravity_threshold: step.gravity_threshold,
-            }));
-
-          fermentationSession = {
-            id: sessionData.id,
-            profile_id: sessionData.profile_id,
-            controller_id: sessionData.controller_id,
-            current_step_index: sessionData.current_step_index,
-            step_started_at: sessionData.step_started_at,
-            step_start_temp: sessionData.step_start_temp,
-            status: sessionData.status,
-            started_at: sessionData.started_at,
-            profile_name: profile?.name || 'Okänd profil',
-            steps,
-            controller_current_temp: linkedController?.current_temp ?? null,
-            controller_target_temp: linkedController?.target_temp ?? null,
-            controller_profile_target_temp: linkedController?.profile_target_temp ?? null,
-          };
-        }
-
-        // Calculate fermentation rate
-        const sgData = reading.sg_data || [];
-        const fermentationRate = calculateFermentationRate(sgData);
-        const fermentationTrend = calculateFermentationTrend(sgData);
-
-        // Format last update
-        const lastUpdate = reading.last_update
-          ? formatDistanceToNow(new Date(reading.last_update), { addSuffix: true, locale: sv })
-          : "Aldrig";
-
-        const brewData: BrewData = {
-          id: reading.id,
-          batch_id: reading.batch_id,
-          share_id: reading.share_id || null,
-          name: reading.name,
-          style: reading.style,
-          batchNumber: reading.batch_number,
-          status: reading.status,
-          currentSG: reading.current_sg,
-          currentTemp: reading.current_temp,
-          attenuation: reading.attenuation,
-          abv: reading.abv,
-          originalGravity: reading.original_gravity,
-          finalGravity: reading.final_gravity,
-          lastUpdate,
-          lastUpdateRaw: reading.last_update,
-          sgData,
-          battery: reading.battery,
-          linked_controller_id: reading.linked_controller_id,
-          linked_pill_id: reading.linked_pill_id,
-          fermentationRate,
-          coldcrashAcknowledged: reading.coldcrash_acknowledged,
-          events: brewEvents,
-          fermentationSession,
-          label_image_url: reading.label_image_url || null,
-          description: reading.description || null,
-          overshootReason: null,
-          originalTarget: null,
-          fermentationTrend,
-        };
-
-        setBrew(brewData);
-        setPills(responseData.pills || []);
-        setControllers(responseData.controllers || []);
-      } catch (err) {
-        console.error('Error fetching brew:', err);
-        setError("Kunde inte hämta öl-data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBrew();
-  }, [id]);
 
   if (loading) {
     return (
@@ -233,7 +68,6 @@ export default function Brew() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      {/* Splash overlay */}
       {showSplash && (
         <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
           <img src={dbLogo} alt="Dahlsjö Brewing" className="max-h-[60vh] w-auto object-contain invert" />
@@ -241,19 +75,13 @@ export default function Brew() {
       )}
 
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Logo header */}
         <div className="flex justify-center">
-          <img 
-            src={dbLogo} 
-            alt="Dahlsjö Brewing" 
-            className="h-24 md:h-32 w-auto opacity-90 invert"
-          />
+          <img src={dbLogo} alt="Dahlsjö Brewing" className="h-24 md:h-32 w-auto opacity-90 invert" />
         </div>
-        {/* Label and description side by side */}
+        
         {(brew.label_image_url || brew.description) && (
-        <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
+          <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row gap-4 md:gap-6 items-start">
-              {/* Label image */}
               {brew.label_image_url && (
                 <div className="flex-shrink-0 mx-auto sm:mx-0 cursor-pointer" onClick={() => setLabelExpanded(v => !v)}>
                   <img
@@ -264,8 +92,6 @@ export default function Brew() {
                   <p className="text-xs text-muted-foreground text-center mt-1">Tryck för att förstora</p>
                 </div>
               )}
-              
-              {/* Description */}
               {brew.description && (
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-foreground mb-3">Om ölet</h3>
@@ -278,7 +104,6 @@ export default function Brew() {
           </div>
         )}
 
-        {/* Chart or expanded label */}
         <div className="h-[600px] md:h-[700px]">
           {labelExpanded && brew.label_image_url ? (
             <div
