@@ -52,7 +52,7 @@ function BatchReportButtonComponent({
               .eq("cooler_controller_id", controllerId)
               .order("created_at", { ascending: true })
               .limit(500)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as { created_at: string; reason: string; old_target_temp: number; new_target_temp: number }[] }),
         supabase
           .from("stall_boost_outcomes")
           .select("created_at, boost_degrees, sg_rate_before, sg_rate_after, outcome")
@@ -93,10 +93,10 @@ function BatchReportButtonComponent({
         ["Jäsningsstart", fermentationStart ? format(new Date(fermentationStart), "d MMM yyyy HH:mm", { locale: sv }) : "—"],
       ];
       if (metrics) {
-        fields.push(["Fas", String((metrics as any).fermentation_phase)]);
-        fields.push(["Aktivitet", `${(metrics as any).activity_score}%`]);
-        fields.push(["Peak Δ", `${parseFloat(String((metrics as any).peak_delta)).toFixed(1)}°C`]);
-        if ((metrics as any).ready_to_crash) fields.push(["Cold Crash", "Redo"]);
+        fields.push(["Fas", String(metrics.fermentation_phase)]);
+        fields.push(["Aktivitet", `${metrics.activity_score}%`]);
+        fields.push(["Peak Δ", `${parseFloat(String(metrics.peak_delta)).toFixed(1)}°C`]);
+        if (metrics.ready_to_crash) fields.push(["Cold Crash", "Redo"]);
       }
 
       doc.setFontSize(12);
