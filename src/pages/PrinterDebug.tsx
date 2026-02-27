@@ -173,15 +173,29 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     if ((off / CHUNK) % 8 === 7) await delay(8);
   }
 
-  // Wait for ACK/status after raster payload
+  // Wait for any immediate ACK after last chunk
   notifyQueue.length = 0;
-  await delay(250);
+  await delay(300);
   await waitForAck("ACK efter bilddata", 5000);
-  await delay(1200);
-  log(`   Data skickad (${rasterData.length} bytes)`);
 
+  // Request printer status to confirm print complete
+  log("→ 8. Frågar skrivarstatus (0x1f 0x11 0x07)...");
   notifyQueue.length = 0;
-  await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "9. End-job", "forceWithResponse");
+  await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x07]), "status-query-07");
+  await waitForAck("Status 0x07 (utskrift klar?)", 6000);
+
+  log("→ 8b. Frågar skrivarstatus (0x1f 0x11 0x09)...");
+  notifyQueue.length = 0;
+  await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x09]), "status-query-09");
+  await waitForAck("Status 0x09", 4000);
+
+  await delay(500);
+  log(`   ✓ Data skickad & status bekräftad (${rasterData.length} bytes)`);
+
+  // Now send end-job
+  notifyQueue.length = 0;
+  log("→ 9. End-job...");
+  await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "End-job", "forceWithResponse");
   await waitForAck("ACK efter end-job", 5000);
   await delay(600);
 
