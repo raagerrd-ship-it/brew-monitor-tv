@@ -51,22 +51,34 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   const stepLabel = getStepTypeLabel(stepType);
 
   // --- Temperature ---
+  // For gradual_ramp/diacetyl_rest, show final target (start + increase), not the intermediate profile target
+  const isGradualOrDiacetyl = stepType === 'gradual_ramp' || stepType === 'diacetyl_rest';
+  const finalTarget = isGradualOrDiacetyl && stepStartTemp != null && currentStep.temp_increase != null
+    ? stepStartTemp + currentStep.temp_increase
+    : null;
   const effectiveTarget = profileTargetTemp ?? targetTemp ?? currentStep.target_temp;
-  if (effectiveTarget != null) {
-    const tempItems: ExecutionItem = {
+  const displayTarget = finalTarget ?? effectiveTarget;
+
+  if (displayTarget != null) {
+    const tempItem: ExecutionItem = {
       label: 'Måltemp',
       icon: <Thermometer className={iconClass} />,
-      value: `${effectiveTarget.toFixed(1)}°`,
+      value: `${displayTarget.toFixed(1)}°`,
       color: 'hsl(var(--primary))',
     };
     
     if (currentTemp != null) {
-      const diff = Math.abs(currentTemp - effectiveTarget);
-      tempItems.detail = `Aktuell ${currentTemp.toFixed(1)}°`;
-      tempItems.progress = Math.max(0, Math.min(1, 1 - diff / 5));
-      tempItems.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
+      const diff = Math.abs(currentTemp - displayTarget);
+      // For gradual steps with intermediate target, show that too
+      if (isGradualOrDiacetyl && effectiveTarget != null && finalTarget != null && Math.abs(effectiveTarget - finalTarget) > 0.2) {
+        tempItem.detail = `Aktuell ${currentTemp.toFixed(1)}° · Mål nu ${effectiveTarget.toFixed(1)}°`;
+      } else {
+        tempItem.detail = `Aktuell ${currentTemp.toFixed(1)}°`;
+      }
+      tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
+      tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
     }
-    items.push(tempItems);
+    items.push(tempItem);
   }
 
   // --- Ramp progress (for ramp steps) ---
