@@ -364,6 +364,52 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "force-with-response",
+    title: "Tvinga writeValue (withResponse) + feed",
+    description: "Skickar samma kommandon men med writeValue istället för writeValueWithoutResponse. Ger faktisk bekräftelse från skrivaren – om det misslyckas vet vi att skrivaren avvisar datan.",
+    run: async (conn, log) => {
+      const char = conn.characteristic;
+      const write = async (data: Uint8Array, label: string) => {
+        log(`   ${label}: [${Array.from(data).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}]`);
+        try {
+          await char.writeValue(new Uint8Array(data).buffer);
+          log(`   ✓ ${label} – writeValue OK (skrivaren accepterade)`);
+        } catch (e: any) {
+          log(`   ✗ ${label} – writeValue MISSLYCKADES: ${e.message}`);
+          log(`   Provar writeValueWithoutResponse...`);
+          try {
+            await char.writeValueWithoutResponse(new Uint8Array(data).buffer);
+            log(`   ~ ${label} – writeValueWithoutResponse OK (ingen bekräftelse)`);
+          } catch (e2: any) {
+            log(`   ✗✗ ${label} – BÅDA misslyckades: ${e2.message}`);
+          }
+        }
+      };
+
+      log("1. ESC @ (initialize)...");
+      await write(new Uint8Array([0x1b, 0x40]), "ESC @");
+      await delay(100);
+
+      log("2. Start-job (0x1f 0x11 0x02 0x00)...");
+      await write(new Uint8Array([0x1f, 0x11, 0x02, 0x00]), "start-job");
+      await delay(100);
+
+      log("3. Feed-to-gap (0x1f 0x11 0x04 0x00)...");
+      await write(new Uint8Array([0x1f, 0x11, 0x04, 0x00]), "feed-to-gap");
+      await delay(300);
+
+      log("4. ESC d 5 (feed 5 rader)...");
+      await write(new Uint8Array([0x1b, 0x64, 0x05]), "ESC d 5");
+      await delay(300);
+
+      log("5. End-job (0x1f 0x11 0x03 0x00)...");
+      await write(new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "end-job");
+      await delay(100);
+
+      log("Klart! Kolla loggarna ovan – om writeValue lyckades tar skrivaren emot datan.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
