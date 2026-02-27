@@ -40,7 +40,7 @@ async function bleWrite(
   ]);
 }
 
-async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void) {
+async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void, chunkSize: number = 20) {
   const service = await conn.device.gatt!.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
   const notifyChar = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
   const notifyQueue: Uint8Array[] = [];
@@ -157,7 +157,7 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   ]), "raster-hdr");
   await delay(100);
 
-  const CHUNK = 20;
+  const CHUNK = chunkSize;
   const totalChunks = Math.ceil(rasterData.length / CHUNK);
   log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B...`);
   const t0 = Date.now();
@@ -183,6 +183,8 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   log("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns och krysset möts i mitten.");
 }
 
+const CHUNK_OPTIONS = [20, 50, 100, 200, 500];
+
 export default function PrinterDebug() {
   const navigate = useNavigate();
   const [conn, setConn] = useState<PrinterConnection | null>(null);
@@ -190,6 +192,7 @@ export default function PrinterDebug() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [chunkSize, setChunkSize] = useState(20);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = useCallback((msg: string) => {
@@ -224,9 +227,9 @@ export default function PrinterDebug() {
     if (!conn) return;
     setRunning(true);
     setError(null);
-    addLog("── Kör print-test ──");
+    addLog(`── Kör print-test (chunk=${chunkSize}B) ──`);
     try {
-      await runPrintTest(conn, addLog);
+      await runPrintTest(conn, addLog, chunkSize);
     } catch (e: any) {
       setError(e.message);
       addLog(`✗ FEL: ${e.message}`);
@@ -267,12 +270,33 @@ export default function PrinterDebug() {
         {!hasBle ? (
           <p className="text-xs text-destructive">Web Bluetooth stöds inte i denna webbläsare.</p>
         ) : conn ? (
-          <div className="flex gap-2 items-center">
-            <Button size="sm" onClick={handleRunTest} disabled={running}>
-              <Zap className="h-3.5 w-3.5 mr-1.5" />
-              {running ? "Kör..." : "Kör print-test"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Chunk:</span>
+              <div className="flex gap-1">
+                {CHUNK_OPTIONS.map(size => (
+                  <button
+                    key={size}
+                    onClick={() => setChunkSize(size)}
+                    disabled={running}
+                    className={`h-7 px-2 rounded text-xs font-mono transition-colors ${
+                      chunkSize === size
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {size}B
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <Button size="sm" onClick={handleRunTest} disabled={running}>
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+                {running ? "Kör..." : `Kör print-test (${chunkSize}B)`}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
+            </div>
           </div>
         ) : (
           <Button size="sm" onClick={handleConnect} disabled={isConnecting}>
