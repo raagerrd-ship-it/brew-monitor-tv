@@ -114,9 +114,9 @@ export function useBrewManagement() {
         .maybeSingle();
 
       if (data) {
-        const recipeName = (data as Record<string, unknown>).recipe_name as string | null;
+        const recipeName = data.recipe_name;
         setTimerRecipeName(recipeName);
-        setTimerBeerStyle((data as Record<string, unknown>).beer_style as string | null);
+        setTimerBeerStyle(data.beer_style);
 
         if (recipeName) {
           const { data: existingBrew } = await supabase
@@ -128,9 +128,9 @@ export function useBrewManagement() {
 
           if (existingBrew) {
             setTimerBrewMatch({
-              style: (existingBrew as Record<string, unknown>).style as string | undefined,
-              description: (existingBrew as Record<string, unknown>).description as string | undefined,
-              label_image_url: (existingBrew as Record<string, unknown>).label_image_url as string | undefined,
+              style: existingBrew.style,
+              description: existingBrew.description ?? undefined,
+              label_image_url: existingBrew.label_image_url ?? undefined,
             });
           }
         }

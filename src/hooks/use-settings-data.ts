@@ -145,14 +145,14 @@ export function useSettingsData() {
         setSyncInterval(data.sync_interval.toString());
         setAutoHideCompleted(data.auto_hide_completed ?? true);
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
-        setAutoHideArchived((data as any).auto_hide_archived ?? true);
+        setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
         setLastRaptSync(data.last_rapt_sync_at);
         setLastRaptQuickSync(data.last_rapt_quick_sync_at);
         setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
-        setRaptFullSyncInterval((data as any).rapt_full_sync_interval?.toString() ?? "86400");
-        setSplashDelayMs((data as any).splash_delay_ms?.toString() ?? "1000");
+        setRaptFullSyncInterval(data.rapt_full_sync_interval?.toString() ?? "86400");
+        setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
         setLastBrewfatherQuickSync(data.last_sync_time);
       }
@@ -182,13 +182,13 @@ export function useSettingsData() {
         setTempReduction(data.temp_reduction_degrees.toString());
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         setLastAutoCoolingCheck(data.last_check_at);
-        setStallDetectionEnabled((data as any).auto_boost_enabled ?? false);
-        setStallBoostDegrees(((data as any).auto_boost_degrees ?? 1.0).toString());
-        setPillCompEnabled((data as any).pill_compensation_enabled ?? false);
-        setPillCompMaxCompensation(((data as any).pill_compensation_max_compensation ?? 5.0).toString());
-        setDeltaAlertThreshold(((data as any).delta_alert_threshold ?? 2.0).toString());
-        setOvershootPreventionEnabled((data as any).overshoot_prevention_enabled ?? true);
-        setAiAuditEnabled((data as any).ai_audit_enabled ?? true);
+        setStallDetectionEnabled(data.auto_boost_enabled ?? false);
+        setStallBoostDegrees((data.auto_boost_degrees ?? 1.0).toString());
+        setPillCompEnabled(data.pill_compensation_enabled ?? false);
+        setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
+        setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
+        setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
+        setAiAuditEnabled(data.ai_audit_enabled ?? true);
       }
       const { data: adjData } = await supabase.from('auto_cooling_adjustments')
         .select('created_at, old_target_temp, new_target_temp, reason, followed_controller_name, followed_current_temp, followed_target_temp')
@@ -213,7 +213,7 @@ export function useSettingsData() {
             current_temp: c.current_temp, pill_temp: c.pill_temp, target_temp: c.target_temp,
             cooling_enabled: c.cooling_enabled, heating_enabled: c.heating_enabled,
             cooling_hysteresis: c.cooling_hysteresis, linked_pill_id: c.linked_pill_id,
-            is_glycol_cooler: (c as any).is_glycol_cooler ?? false
+            is_glycol_cooler: c.is_glycol_cooler ?? false
           })));
         }
       }
@@ -341,7 +341,7 @@ export function useSettingsData() {
 
   // ─── Handlers ───
 
-  const updateSyncSetting = useCallback(async (field: string, value: any) => {
+  const updateSyncSetting = useCallback(async (field: string, value: string | number | boolean) => {
     if (!settingsId) return;
     try {
       const { error } = await supabase.from('sync_settings').update({ [field]: value }).eq('id', settingsId);
@@ -352,10 +352,10 @@ export function useSettingsData() {
     }
   }, [settingsId, toast]);
 
-  const updateAutoCoolingSetting = useCallback(async (field: string, value: any) => {
+  const updateAutoCoolingSetting = useCallback(async (field: string, value: string | number | boolean) => {
     if (!autoCoolingSettingsId) return;
     try {
-      const { error } = await supabase.from('auto_cooling_settings').update({ [field]: value } as any).eq('id', autoCoolingSettingsId);
+      const { error } = await supabase.from('auto_cooling_settings').update({ [field]: value }).eq('id', autoCoolingSettingsId);
       if (error) throw error;
       toast({ title: "Inställningar sparade" });
     } catch {

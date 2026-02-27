@@ -83,8 +83,8 @@ export function useBrewPage(brewId: string | undefined) {
               activity_trigger: step.activity_trigger,
               temp_increase: step.temp_increase,
               gravity_threshold: step.gravity_threshold,
-              min_ramp_hours: (step as any).min_ramp_hours ?? null,
-              ramp_curve: (step as any).ramp_curve ?? null,
+              min_ramp_hours: step.min_ramp_hours ?? null,
+              ramp_curve: step.ramp_curve ?? null,
             }));
 
           fermentationSession = {
@@ -94,6 +94,7 @@ export function useBrewPage(brewId: string | undefined) {
             current_step_index: sessionData.current_step_index,
             step_started_at: sessionData.step_started_at,
             step_start_temp: sessionData.step_start_temp,
+            ramp_triggered_at: sessionData.ramp_triggered_at ?? null,
             status: sessionData.status,
             started_at: sessionData.started_at,
             profile_name: profile?.name || 'Okänd profil',
