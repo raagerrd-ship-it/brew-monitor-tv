@@ -228,7 +228,7 @@ export async function calculateCompensatedTarget(
     }
   }
 
-  if (avgError > 0.5) {
+  if (avgError >= 0.35) {
     // === UNDERSHOOT ===
     pCorrection = avgError * mp.pGain
 
@@ -377,11 +377,14 @@ export async function calculateCompensatedTarget(
     const currentDistToProfile = Math.abs(currentControllerTarget - profileTarget)
     const newDistToProfile = Math.abs(compensatedTarget - profileTarget)
     const isTowardTarget = newDistToProfile < currentDistToProfile
-    if (isTowardTarget && distanceFromIdeal <= 0.2) {
-      console.log(`✅ Rate-limit bypass: liten korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)`)
+    if (isTowardTarget && distanceFromIdeal <= 0.5) {
+      // Allow faster convergence toward profile target — bypass rate-limit for steps up to 0.5°
+      console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)`)
     } else if (distanceFromIdeal > baseLimit) {
-      compensatedTarget = currentControllerTarget + (isIncreasing ? baseLimit : -baseLimit)
-      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${baseLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
+      // Ensure minimum step of 0.1° to avoid getting stuck
+      const effectiveLimit = Math.max(baseLimit, 0.1)
+      compensatedTarget = currentControllerTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
+      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
   }
 
