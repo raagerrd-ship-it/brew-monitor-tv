@@ -137,7 +137,7 @@ export function StartFermentationSessionDialog({
     if (data) {
       setExistingSession({
         controller_id: data.controller_id,
-        profile_name: (data.fermentation_profiles as any)?.name || 'Okänd profil',
+        profile_name: (data.fermentation_profiles as { name?: string } | null)?.name || 'Okänd profil',
       });
     } else {
       setExistingSession(null);

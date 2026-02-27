@@ -26,11 +26,11 @@ export function useDeferredRender(priority: 'high' | 'low' = 'high'): boolean {
     // Use requestIdleCallback to wait for browser idle time
     if ('requestIdleCallback' in window) {
       const timeout = priority === 'high' ? 200 : 500;
-      const idleId = (window as any).requestIdleCallback(
+      const idleId = window.requestIdleCallback(
         () => setShouldRender(true),
         { timeout }
       );
-      return () => (window as any).cancelIdleCallback(idleId);
+      return () => window.cancelIdleCallback(idleId);
     } else {
       // Fallback for Safari/older browsers
       const delay = priority === 'high' ? 100 : 300;
@@ -72,7 +72,7 @@ export function useStaggeredRender(index: number): boolean {
     if ('requestIdleCallback' in window) {
       let cancelled = false;
       
-      const idleId = (window as any).requestIdleCallback(
+      const idleId = window.requestIdleCallback(
         () => {
           if (!cancelled) setShouldRender(true);
         },
@@ -82,14 +82,14 @@ export function useStaggeredRender(index: number): boolean {
       // Fallback timeout in case idle never fires
       const timeoutId = setTimeout(() => {
         if (!cancelled) {
-          (window as any).cancelIdleCallback(idleId);
+          window.cancelIdleCallback(idleId);
           setShouldRender(true);
         }
       }, totalDelay + 1000);
       
       return () => {
         cancelled = true;
-        (window as any).cancelIdleCallback(idleId);
+        window.cancelIdleCallback(idleId);
         clearTimeout(timeoutId);
       };
     } else {

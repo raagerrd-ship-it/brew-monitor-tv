@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { TempController } from "@/types/brew";
 import { User } from "@supabase/supabase-js";
@@ -287,7 +288,7 @@ export function useSettingsData() {
     const channel = supabase
       .channel('sync-settings-changes')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload) => {
-        const newData = payload.new as any;
+        const newData = payload.new as Tables<'sync_settings'>;
         if (newData) {
           setLastRaptSync(newData.last_rapt_sync_at);
           setLastRaptQuickSync(newData.last_rapt_quick_sync_at);
@@ -299,7 +300,7 @@ export function useSettingsData() {
         setLastAutoCoolingCheck(new Date().toISOString());
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'auto_cooling_settings' }, (payload) => {
-        const newData = payload.new as any;
+        const newData = payload.new as Tables<'auto_cooling_settings'>;
         if (newData) {
           if (newData.last_check_at !== undefined) setLastAutoCoolingCheck(newData.last_check_at);
           if (newData.enabled !== undefined) setAutoCoolingEnabled(newData.enabled);
@@ -316,7 +317,7 @@ export function useSettingsData() {
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers' }, (payload) => {
-        const newData = payload.new as any;
+        const newData = payload.new as Tables<'rapt_temp_controllers'>;
         if (newData && newData.controller_id) {
           setAvailableControllers(prev => prev.map(c => 
             c.id === newData.controller_id ? {
