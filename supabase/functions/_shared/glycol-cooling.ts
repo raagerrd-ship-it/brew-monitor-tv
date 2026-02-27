@@ -40,6 +40,19 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     return adjustments
   }
 
+  // SAFETY: Check if glycol cooler sensor data is stale
+  if (coolerController.last_update) {
+    const coolerAgeMs = Date.now() - new Date(coolerController.last_update).getTime()
+    const coolerAgeMinutes = Math.round(coolerAgeMs / 60000)
+    if (coolerAgeMs > 30 * 60 * 1000) {
+      log('COOLER_STALE', 'fail', `Glycol cooler ${coolerController.name}: sensor data is ${coolerAgeMinutes}min old — SKIPPING glycol control for safety`)
+      return adjustments
+    }
+  } else {
+    log('COOLER_STALE', 'fail', `Glycol cooler ${coolerController.name}: no sensor data timestamp — SKIPPING for safety`)
+    return adjustments
+  }
+
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
     target_temp: round1(coolerController.target_temp),
     current_temp: round1(coolerController.current_temp),
@@ -110,27 +123,37 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
       threshold: round1(lowestTargetTemp + lowestHysteresis),
     })
 
-  if (isActivelyCooling) {
-    await handleActiveCooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
-  } else {
-    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
+  try {
+    if (isActivelyCooling) {
+      await handleActiveCooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+    } else {
+      await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
 
-    // Learn margin is adequate
-    const tempBucketLearn = getTempBucket(lowestTargetTemp)
-    const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
-    const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp)
-    if (currentMargin > 2.0) {
-      const suggestedMargin = currentMargin * 0.95
-      const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`
-      const marginUpdate = await updateLearnedParam(supabase, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0)
-      const baseUpdate = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0)
-      log('MARGIN_LEARNING', 'info', `Tank at target → margin adequate [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}→${marginUpdate.newValue.toFixed(1)}°C (base: ${baseUpdate.oldValue.toFixed(1)}→${baseUpdate.newValue.toFixed(1)}°C)`)
+      // Learn margin is adequate
+      const tempBucketLearn = getTempBucket(lowestTargetTemp)
+      const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
+      const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp)
+      if (currentMargin > 2.0) {
+        const suggestedMargin = currentMargin * 0.95
+        const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`
+        const marginUpdate = await updateLearnedParam(supabase, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0)
+        const baseUpdate = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0)
+        log('MARGIN_LEARNING', 'info', `Tank at target → margin adequate [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}→${marginUpdate.newValue.toFixed(1)}°C (base: ${baseUpdate.oldValue.toFixed(1)}→${baseUpdate.newValue.toFixed(1)}°C)`)
+      }
+      log('TIMER', 'info', 'Reset timer - not actively cooling')
     }
-    log('TIMER', 'info', 'Reset timer - not actively cooling')
+  } catch (coolingError) {
+    const errorMsg = coolingError instanceof Error ? coolingError.message : String(coolingError)
+    log('COOLING_ERROR', 'fail', `Active cooling handler crashed: ${errorMsg}`)
   }
 
-  // Always: recovery check
-  await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+  // Always: recovery check (even if handleActiveCooling crashed)
+  try {
+    await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+  } catch (recoveryError) {
+    const errorMsg = recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+    log('RECOVERY_ERROR', 'fail', `Recovery handler crashed: ${errorMsg}`)
+  }
 
   return adjustments
 }

@@ -134,6 +134,7 @@ export async function detectAndHandleStalls(
   log('STALL', 'info', '--- Stall detection check ---')
 
   for (const cId of profileOwnedControllerIds) {
+   try {
     const profileTarget = profileTargetMap.get(cId)
     const fc = followedControllersFullData.find(c => c.controller_id === cId)
     if (!fc) continue
@@ -352,6 +353,10 @@ export async function detectAndHandleStalls(
         },
       })
     }
+   } catch (stallError) {
+    const errorMsg = stallError instanceof Error ? stallError.message : String(stallError)
+    log('STALL_ERROR', 'fail', `Stall-hantering kraschade för controller ${cId}: ${errorMsg}`)
+   }
   }
 
   return adjustments
@@ -368,11 +373,11 @@ async function handleUnBoost(
   phase: string,
   now: number
 ): Promise<void> {
-  const { supabase, log } = ctx
+  const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
 
   const { data: recentBoost } = await supabase
     .from('auto_cooling_adjustments')
-    .select('created_at, new_target_temp, old_target_temp')
+    .select('created_at, new_target_temp, old_target_temp, reason')
     .eq('cooler_controller_id', fc.controller_id)
     .like('reason', '🔥%')
     .order('created_at', { ascending: false }).limit(1)
@@ -389,6 +394,10 @@ async function handleUnBoost(
 
   if (boostAgeHours >= 24 || (alreadyReversed.data && alreadyReversed.data.length > 0)) return
 
+  const currentTarget = parseFloat(String(fc.target_temp ?? 20))
+  const effectiveProfileTarget = profileTarget ?? currentTarget
+
+  // Check if boost was applied via PID compensation
   const { data: existingComp } = await supabase
     .from('controller_learned_compensation')
     .select('id, learned_pi_correction, accumulated_integral')
@@ -397,33 +406,52 @@ async function handleUnBoost(
     .eq('mode', fc.cooling_enabled ? 'cooling' : 'heating')
     .limit(1).maybeSingle()
 
-  if (!existingComp) return
+  if (existingComp) {
+    // PID-based un-boost: reverse the learned correction
+    const newCorrection = Math.max(0, existingComp.learned_pi_correction - boostDeg)
+    const newIntegral = Math.max(0, existingComp.accumulated_integral - boostDeg)
+    await supabase.from('controller_learned_compensation')
+      .update({
+        learned_pi_correction: newCorrection,
+        accumulated_integral: newIntegral,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingComp.id)
 
-  const newCorrection = Math.max(0, existingComp.learned_pi_correction - boostDeg)
-  const newIntegral = Math.max(0, existingComp.accumulated_integral - boostDeg)
-  await supabase.from('controller_learned_compensation')
-    .update({
-      learned_pi_correction: newCorrection,
-      accumulated_integral: newIntegral,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', existingComp.id)
+    log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, PID -${boostDeg.toFixed(1)}°C`)
+  } else {
+    // Direct un-boost: the boost was applied as a direct temp change, reverse it
+    const boostOldTarget = parseFloat(String(recentBoost[0].old_target_temp))
+    const restoredTarget = Math.max(effectiveProfileTarget, boostOldTarget)
 
-  log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, PID -${boostDeg.toFixed(1)}°C`)
+    if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
+      const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, restoredTarget)
+      if (success) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: restoredTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, direkt un-boost ${currentTarget}°C → ${restoredTarget}°C`)
+      } else {
+        log('STALL_UNBOOST', 'fail', `${fc.name}: Kunde inte reversera direkt boost`)
+        return
+      }
+    } else {
+      log('STALL_UNBOOST', 'info', `${fc.name}: Direkt boost redan återställd (${currentTarget}°C ≈ ${restoredTarget}°C)`)
+      return
+    }
+  }
 
-  const currentTarget = parseFloat(String(fc.target_temp ?? 20))
-  const effectiveProfileTarget = profileTarget ?? currentTarget
   await logAdjustment(supabase, {
     cooler_controller_id: fc.controller_id,
     cooler_controller_name: fc.name,
     old_target_temp: currentTarget,
-    new_target_temp: currentTarget,
+    new_target_temp: existingComp ? currentTarget : effectiveProfileTarget,
     original_target_temp: effectiveProfileTarget,
     lowest_followed_temp: currentTarget,
     followed_controller_id: fc.controller_id,
     followed_controller_name: fc.name,
     followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? 0)),
     followed_target_temp: effectiveProfileTarget,
-    reason: `🔄 Un-boost: aktivitet ${activityScore}%, fas ${phase}, PID -${boostDeg.toFixed(1)}°C`,
+    reason: `🔄 Un-boost: aktivitet ${activityScore}%, fas ${phase}, ${existingComp ? 'PID' : 'direkt'} -${boostDeg.toFixed(1)}°C`,
   })
 }
