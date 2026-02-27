@@ -373,11 +373,17 @@ export async function printBitmap(
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(50);
 
-    // Media type: 0x1f 0x11 <type>
-    const mc = mediaTypeCode(settings.mediaType);
-    if (mc !== null) {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+    // Media mode for label sensor behavior
+    if (settings.mediaType === 'gap') {
+      // Confirmed working on this device: explicit GAP/LABEL mode
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
       await delay(50);
+    } else {
+      const mc = mediaTypeCode(settings.mediaType);
+      if (mc !== null) {
+        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+        await delay(50);
+      }
     }
 
     // Speed: ESC N 0x0d <speed>
@@ -406,9 +412,11 @@ export async function printBitmap(
     const BLE_CHUNK = 20;
     const totalBytes = bitmapData.length;
 
+    const writeDelayMs = Math.max(5, settings.chunkDelay);
     for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
       const end = Math.min(offset + BLE_CHUNK, totalBytes);
       await bleWrite(connection, bitmapData.slice(offset, end), `data@${offset}`);
+      if (end < totalBytes) await delay(writeDelayMs);
 
       const pct = 20 + ((end) / totalBytes) * 70;
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
