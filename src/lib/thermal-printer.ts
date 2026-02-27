@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v39-shared-engine-tunable';
+export const PRINTER_VERSION = 'v40-bypass-label-pipeline';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -480,8 +480,39 @@ export async function sendRasterJob(
 }
 
 /**
+ * Pack canvas to 1-bit bitmap with simple threshold (no dithering).
+ */
+function packThresholdBitmap(canvas: HTMLCanvasElement): { width: number; height: number; widthBytes: number; bitmapData: Uint8Array } {
+  const width = canvas.width;
+  const height = canvas.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Kunde inte läsa canvas för utskrift.');
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const widthBytes = Math.ceil(width / 8);
+  const bitmapData = new Uint8Array(widthBytes * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3] / 255;
+      const gray = (0.299 * r + 0.587 * g + 0.114 * b) * a + 255 * (1 - a);
+      if (gray < 128) {
+        bitmapData[y * widthBytes + Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
+      }
+    }
+  }
+
+  return { width, height, widthBytes, bitmapData };
+}
+
+/**
  * Print canvas to Phomemo M110.
- * Converts canvas → dithered monochrome bitmap → sendRasterJob.
+ * Full pipeline: optional scale to 384px + dithering + shared raster protocol.
  */
 export async function printBitmap(
   connection: PrinterConnection,
@@ -511,11 +542,9 @@ export async function printBitmap(
   const ctx = workingCanvas.getContext('2d')!;
   const imageData = ctx.getImageData(0, 0, width, height);
 
-  // ── 2. Dither to 1-bit monochrome ──
   onProgress?.({ phase: 'Förbereder bild...', percent: 5 });
   const pixels = ditherToMonochrome(imageData);
 
-  // ── 3. Pack to bitmap (1 bit/pixel, MSB first, 1=black) ──
   const widthBytes = Math.ceil(width / 8);
   const bitmapData = new Uint8Array(widthBytes * height);
   for (let y = 0; y < height; y++) {
@@ -526,7 +555,36 @@ export async function printBitmap(
     }
   }
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes, copies=${copies}`);
+  console.log(`[Printer] ${PRINTER_VERSION}: dither ${width}x${height}, ${bitmapData.length} bytes, copies=${copies}`);
+
+  for (let copy = 0; copy < copies; copy++) {
+    const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
+    await sendRasterJob(connection, bitmapData, widthBytes, height, settings, onProgress, copyLabel);
+    if (copy < copies - 1) await delay(800);
+  }
+
+  onProgress?.({ phase: 'Klar!', percent: 100 });
+}
+
+/**
+ * Bypass image pipeline: no scaling, no dithering.
+ * Requires 384px width and packs the canvas directly with thresholding.
+ */
+export async function printBitmapBypassProcessing(
+  connection: PrinterConnection,
+  canvas: HTMLCanvasElement,
+  copies: number = 1,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+  onProgress?: (p: PrintProgress) => void,
+): Promise<void> {
+  if (canvas.width !== 384) {
+    throw new Error(`Bypass kräver 384px bredd (fick ${canvas.width}px).`);
+  }
+
+  onProgress?.({ phase: 'Förbereder bild (bypass)...', percent: 5 });
+  const { width, height, widthBytes, bitmapData } = packThresholdBitmap(canvas);
+
+  console.log(`[Printer] ${PRINTER_VERSION}: bypass ${width}x${height}, ${bitmapData.length} bytes, copies=${copies}`);
 
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
