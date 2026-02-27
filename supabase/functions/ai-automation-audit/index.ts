@@ -260,6 +260,12 @@ Svara ENBART med JSON (inget annat).`;
       stall_rate_threshold: 0.0005,
       temp_reduction_degrees: 1.0,
       stall_boost_degrees: 1.0,
+      'cooler_margin:cold': 1.0,
+      'cooler_margin:cool': 1.0,
+      'cooler_margin:warm': 1.0,
+      'cooler_margin:hot': 1.0,
+      thermal_rate: 0.05,
+      glycol_cooler_rate: 0.1,
     };
 
     // Absolute bounds per parameter
@@ -275,6 +281,8 @@ Svara ENBART med JSON (inget annat).`;
       'cooler_margin:cool': [0.5, 8.0],
       'cooler_margin:warm': [0.5, 8.0],
       'cooler_margin:hot': [0.5, 8.0],
+      thermal_rate: [0.01, 2.0],
+      glycol_cooler_rate: [0.01, 5.0],
     };
 
     // Whitelist for fermentation_learnings parameter_name
@@ -288,6 +296,19 @@ Svara ENBART med JSON (inget annat).`;
       'glycol_cooler_rate',
     ]);
 
+    // Valid settings params (single source)
+    const VALID_SETTINGS_PARAMS = [
+      'pill_compensation_damping', 'pill_compensation_rate_limit',
+      'pill_compensation_max_compensation', 'delta_alert_threshold',
+      'stall_rate_threshold', 'temp_reduction_degrees',
+    ];
+
+    // Helper: get the REAL current value from the database, not AI's claimed old_value
+    function getActualSettingsValue(param: string): number | null {
+      if (!settings) return null;
+      return (settings as any)[param] ?? null;
+    }
+
     if (analysis.parameter_changes && Array.isArray(analysis.parameter_changes)) {
       for (const change of analysis.parameter_changes) {
         // Hard cap on total changes per audit
@@ -297,15 +318,38 @@ Svara ENBART med JSON (inget annat).`;
         }
 
         try {
+          // Reject changes with non-numeric new_value
+          if (typeof change.new_value !== 'number' || !isFinite(change.new_value)) {
+            console.log(`⚠️ Skipping non-numeric new_value for ${change.parameter}: ${change.new_value}`);
+            continue;
+          }
+
           const maxStep = MAX_STEP[change.parameter];
           const bounds = BOUNDS[change.parameter];
 
-          // Safety: clamp to max step size
-          if (maxStep != null && change.old_value != null) {
-            const delta = change.new_value - change.old_value;
+          // CRITICAL: Use ACTUAL database value, not AI-provided old_value
+          let actualOldValue: number | null = null;
+
+          if (change.table === 'auto_cooling_settings') {
+            actualOldValue = getActualSettingsValue(change.parameter);
+          } else if (change.table === 'fermentation_learnings') {
+            const existing = (learnings || []).find(
+              (l: any) => l.controller_id === change.controller_id && l.parameter_name === change.parameter
+            );
+            actualOldValue = existing?.learned_value ?? null;
+          }
+
+          // Log if AI's old_value doesn't match reality
+          if (actualOldValue != null && change.old_value != null && Math.abs(actualOldValue - change.old_value) > 0.001) {
+            console.log(`⚠️ AI hallucinated old_value for ${change.parameter}: claimed ${change.old_value}, actual ${actualOldValue}`);
+          }
+
+          // Safety: clamp to max step size (using ACTUAL old value)
+          if (maxStep != null && actualOldValue != null) {
+            const delta = change.new_value - actualOldValue;
             if (Math.abs(delta) > maxStep) {
-              const clampedNew = change.old_value + Math.sign(delta) * maxStep;
-              console.log(`⚠️ Safety clamp: ${change.parameter} wanted ${change.old_value}→${change.new_value}, clamped to ${clampedNew.toFixed(4)} (max step ±${maxStep})`);
+              const clampedNew = actualOldValue + Math.sign(delta) * maxStep;
+              console.log(`⚠️ Safety clamp: ${change.parameter} wanted ${actualOldValue}→${change.new_value}, clamped to ${clampedNew.toFixed(4)} (max step ±${maxStep})`);
               change.new_value = parseFloat(clampedNew.toFixed(4));
             }
           }
@@ -315,28 +359,31 @@ Svara ENBART med JSON (inget annat).`;
             change.new_value = Math.max(bounds[0], Math.min(bounds[1], change.new_value));
           }
 
-          // Skip no-op changes
-          if (change.old_value != null && Math.abs(change.new_value - change.old_value) < 0.0001) {
+          // Skip no-op changes (against actual value)
+          const effectiveOld = actualOldValue ?? change.old_value;
+          if (effectiveOld != null && Math.abs(change.new_value - effectiveOld) < 0.0001) {
             console.log(`⏭️ Skipping no-op change for ${change.parameter}`);
             continue;
           }
 
+          // Record actual old value for audit log
+          change._actual_old_value = actualOldValue;
+
           if (change.table === 'auto_cooling_settings') {
-            const validParams = [
-              'pill_compensation_damping', 'pill_compensation_rate_limit',
-              'pill_compensation_max_compensation', 'delta_alert_threshold',
-              'stall_rate_threshold', 'temp_reduction_degrees',
-            ];
-            if (!validParams.includes(change.parameter)) {
+            if (!settings) {
+              console.log(`⚠️ Skipping settings change: no settings row found`);
+              continue;
+            }
+            if (!VALID_SETTINGS_PARAMS.includes(change.parameter)) {
               console.log(`⚠️ Skipping invalid settings parameter: ${change.parameter}`);
               continue;
             }
             const { error } = await supabase.from('auto_cooling_settings')
               .update({ [change.parameter]: change.new_value, updated_at: new Date().toISOString() })
-              .eq('id', settings!.id);
+              .eq('id', settings.id);
             if (!error) {
               appliedChanges.push(change);
-              console.log(`✅ Updated ${change.parameter}: ${change.old_value} → ${change.new_value} (${change.reason})`);
+              console.log(`✅ Updated ${change.parameter}: ${actualOldValue} → ${change.new_value} (${change.reason})`);
             } else {
               console.error(`❌ Failed to update ${change.parameter}:`, error);
             }
@@ -344,6 +391,15 @@ Svara ENBART med JSON (inget annat).`;
             // Validate parameter name against whitelist
             if (!VALID_LEARNING_PARAMS.has(change.parameter)) {
               console.log(`⚠️ Skipping invalid learning parameter: ${change.parameter}`);
+              continue;
+            }
+
+            // Validate controller_id actually exists
+            const controllerExists = (controllers || []).some(
+              (c: any) => c.controller_id === change.controller_id
+            );
+            if (!controllerExists) {
+              console.log(`⚠️ Skipping change for unknown controller_id: ${change.controller_id}`);
               continue;
             }
 
@@ -365,10 +421,12 @@ Svara ENBART med JSON (inget annat).`;
             }, { onConflict: 'controller_id,parameter_name' });
             if (!error) {
               appliedChanges.push(change);
-              console.log(`✅ Updated learning ${change.parameter} for ${change.controller_id}: ${change.old_value} → ${change.new_value}`);
+              console.log(`✅ Updated learning ${change.parameter} for ${change.controller_id}: ${actualOldValue} → ${change.new_value}`);
             } else {
               console.error(`❌ Failed to update learning:`, error);
             }
+          } else {
+            console.log(`⚠️ Skipping change with unknown table: ${change.table}`);
           }
         } catch (e) {
           console.error(`Error applying change:`, e);
