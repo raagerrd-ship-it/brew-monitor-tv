@@ -475,6 +475,13 @@ export async function sendRasterJob(
     onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
     await delay(3000);
 
+    // Feed past the gap so next label is properly positioned
+    // ESC d 2 = print and feed 2 lines (from phomemo-filter.py footer)
+    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-1');
+    await delay(100);
+    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2');
+    await delay(300);
+
     // End-job + optional ACK wait
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
     notify?.clear();
