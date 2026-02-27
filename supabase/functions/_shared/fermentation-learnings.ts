@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { updateLearnedParam } from './learning-utils.ts'
 
 /**
  * Save fermentation learnings when a profile completes.
@@ -37,23 +38,10 @@ export async function saveFermentationLearnings(
       ? learnedComps.reduce((sum, c) => sum + Math.abs(parseFloat(String(c.latest_avg_error))), 0) / learnedComps.length
       : null
 
-    // Fix: wrap ?? 0 in parens before + 1 to avoid operator precedence bug
-    const { data: existing } = await supabase
-      .from('fermentation_learnings')
-      .select('sample_count')
-      .eq('controller_id', controllerId)
-      .eq('parameter_name', 'avg_convergence_error')
-      .maybeSingle()
-
-    const newSampleCount = (existing?.sample_count ?? 0) + 1
-
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: controllerId,
-      parameter_name: 'avg_convergence_error',
-      learned_value: avgError ?? 0,
-      sample_count: newSampleCount,
-      last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
+    // Use shared EMA learning (SSOT) instead of raw upsert
+    if (avgError !== null) {
+      await updateLearnedParam(supabase, controllerId, 'avg_convergence_error', avgError, 0, 10)
+    }
 
     console.log(`🎓 Fermentation learning for ${controllerId}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}, avg_error=${avgError?.toFixed(2) ?? 'N/A'}`)
   } catch (learnError) {

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // PID Pill Compensation & Thermal Learning
@@ -466,23 +467,12 @@ export async function learnThermalRate(
   const p80Index = Math.floor(rates.length * 0.8)
   const measuredRate = rates[p80Index]
 
-  const oldValue = existing ? parseFloat(String(existing.learned_value)) : 0
-  const oldCount = existing?.sample_count ?? 0
-  const alpha = oldCount < 5 ? 0.5 : 0.2
-  const newValue = oldValue > 0 ? oldValue * (1 - alpha) + measuredRate * alpha : measuredRate
-  const roundedValue = Math.round(newValue * 100) / 100
+  // Use shared EMA learning (SSOT)
+  const result = await updateLearnedParam(supabase, controllerId, paramName, measuredRate, 0.1, 20.0)
 
-  await supabase.from('fermentation_learnings').upsert({
-    controller_id: controllerId,
-    parameter_name: paramName,
-    learned_value: roundedValue,
-    sample_count: oldCount + rates.length,
-    last_updated_at: new Date().toISOString(),
-  }, { onConflict: 'controller_id,parameter_name' })
+  console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: ${result.newValue.toFixed(2)}°C/h (${rates.length} samples, p80=${measuredRate.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
 
-  console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: ${roundedValue.toFixed(2)}°C/h (${rates.length} samples, p80=${measuredRate.toFixed(2)}, prev=${oldValue.toFixed(2)})`)
-
-  return roundedValue
+  return Math.round(result.newValue * 100) / 100
 }
 
 // ============================================================
@@ -553,23 +543,13 @@ export async function learnGlycolCoolerRate(
   rates.sort((a, b) => a - b)
   const p80 = rates[Math.floor(rates.length * 0.8)]
 
-  const oldValue = existing ? parseFloat(String(existing.learned_value)) : 0
-  const oldCount = existing?.sample_count ?? 0
-  const alpha = oldCount < 5 ? 0.5 : 0.2
-  const newValue = oldValue > 0 ? oldValue * (1 - alpha) + p80 * alpha : p80
-  const rounded = Math.round(newValue * 100) / 100
+  // Use shared EMA learning (SSOT)
+  const result = await updateLearnedParam(supabase, coolerId, paramName, p80, 0.1, 20.0)
+  const rounded = Math.round(result.newValue * 100) / 100
 
-  await supabase.from('fermentation_learnings').upsert({
-    controller_id: coolerId,
-    parameter_name: paramName,
-    learned_value: rounded,
-    sample_count: oldCount + rates.length,
-    last_updated_at: new Date().toISOString(),
-  }, { onConflict: 'controller_id,parameter_name' })
+  console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: ${rounded.toFixed(2)}°C/h (${rates.length} samples, p80=${p80.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
 
-  console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: ${rounded.toFixed(2)}°C/h (${rates.length} samples, p80=${p80.toFixed(2)}, prev=${oldValue.toFixed(2)})`)
-
-  return { rate: rounded, sampleCount: oldCount + rates.length }
+  return { rate: rounded, sampleCount: result.sampleCount }
 }
 
 /**
