@@ -14,7 +14,15 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const brewId = url.searchParams.get('brew_id');
+    const rawBrewId = url.searchParams.get('brew_id');
+    // Sanitize: only allow alphanumeric, hyphens, underscores (UUIDs, share_ids, batch_ids)
+    const brewId = rawBrewId && /^[a-zA-Z0-9_-]{1,100}$/.test(rawBrewId) ? rawBrewId : null;
+    if (rawBrewId && !brewId) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid brew_id format', success: false }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

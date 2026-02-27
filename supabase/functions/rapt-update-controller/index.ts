@@ -15,11 +15,32 @@ serve(async (req) => {
   try {
     const { controllerId, action, value } = await req.json();
     
-    if (!controllerId || !action) {
-      throw new Error('Controller ID and action are required');
+    if (!controllerId || typeof controllerId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(controllerId)) {
+      throw new Error('Valid Controller ID is required');
+    }
+    if (!action || typeof action !== 'string') {
+      throw new Error('Action is required');
+    }
+    const ALLOWED_ACTIONS = ['setTargetTemperature', 'setPIDEnabled', 'setPID'];
+    if (!ALLOWED_ACTIONS.includes(action)) {
+      throw new Error(`Unknown action: ${action}. Allowed: ${ALLOWED_ACTIONS.join(', ')}`);
+    }
+    // Validate value based on action
+    if (action === 'setTargetTemperature') {
+      if (typeof value !== 'number' || value < -10 || value > 40) {
+        throw new Error('Target temperature must be a number between -10 and 40');
+      }
+    } else if (action === 'setPIDEnabled') {
+      if (typeof value !== 'boolean') {
+        throw new Error('setPIDEnabled value must be a boolean');
+      }
+    } else if (action === 'setPID') {
+      if (!value || typeof value !== 'object' || typeof value.proportionalGain !== 'number' || typeof value.integralTime !== 'number' || typeof value.derivativeTime !== 'number') {
+        throw new Error('setPID requires proportionalGain, integralTime, and derivativeTime as numbers');
+      }
     }
 
-    console.log(`Updating RAPT controller ${controllerId}, action: ${action}, value:`, value);
+    console.log(`Updating RAPT controller ${controllerId}, action: ${action}`);
 
     // Get RAPT credentials
     const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
@@ -42,6 +63,7 @@ serve(async (req) => {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: formData.toString(),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!authResponse.ok) {
@@ -91,6 +113,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {

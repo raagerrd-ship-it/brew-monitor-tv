@@ -56,7 +56,7 @@ serve(async (req) => {
     }
 
     const pills = pillsResponse.data;
-    console.log(`Received ${pills.length} Pills`, JSON.stringify(pills, null, 2));
+    console.log(`Received ${pills.length} Pills`);
 
     // Get Temperature Controllers data
     console.log('Fetching Temperature Controllers data...');
@@ -72,7 +72,7 @@ serve(async (req) => {
     const controllers = controllersResponse.data || [];
     console.log(`Received ${controllers.length} Temperature Controllers`);
     if (controllers.length > 0) {
-      console.log('First controller full data:', JSON.stringify(controllers[0], null, 2));
+      console.log('First controller:', controllers[0]?.name || controllers[0]?.id);
     }
 
     // Map color names to hex colors (both English and Swedish)
