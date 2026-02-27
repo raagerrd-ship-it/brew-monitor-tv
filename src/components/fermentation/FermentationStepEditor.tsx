@@ -49,7 +49,7 @@ export function FermentationStepEditor({
   const [targetSg, setTargetSg] = useState<string>("");
   const [sgComparison, setSgComparison] = useState<SgComparison>("at_or_below");
   const [notes, setNotes] = useState<string>("");
-  const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg" | "gravity_stable" | "temp_reached">("time");
+  const [holdEndCondition, setHoldEndCondition] = useState<"time" | "sg" | "gravity_stable">("time");
   const [attenuationTrigger, setAttenuationTrigger] = useState<string>("75");
   const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
@@ -76,8 +76,9 @@ export function FermentationStepEditor({
         setStepType("hold");
         setHoldEndCondition("sg");
       } else if (step.step_type === "wait_for_temp") {
-        setStepType("hold");
-        setHoldEndCondition("temp_reached");
+        setStepType("ramp");
+        setDurationHours("0");
+        setHoldEndCondition("time");
       } else if (step.step_type === "hold" && step.target_sg !== null) {
         setHoldEndCondition("sg");
       } else {
@@ -131,8 +132,6 @@ export function FermentationStepEditor({
           stepData.step_type = "wait_for_gravity_stable";
           stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : null;
           stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : null;
-        } else if (holdEndCondition === "temp_reached") {
-          stepData.step_type = "wait_for_temp";
         }
         break;
       case "ramp":
@@ -178,7 +177,7 @@ export function FermentationStepEditor({
             
             <div className="space-y-2">
               <Label>Slutvillkor</Label>
-              <Select value={holdEndCondition} onValueChange={(v) => setHoldEndCondition(v as "time" | "sg" | "gravity_stable" | "temp_reached")}>
+              <Select value={holdEndCondition} onValueChange={(v) => setHoldEndCondition(v as "time" | "sg" | "gravity_stable")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -186,7 +185,7 @@ export function FermentationStepEditor({
                   <SelectItem value="time">Tid (antal timmar)</SelectItem>
                   <SelectItem value="sg">SG-värde uppnått</SelectItem>
                   <SelectItem value="gravity_stable">Stabil SG (antal dagar)</SelectItem>
-                  <SelectItem value="temp_reached">Temperatur nådd</SelectItem>
+                  
                 </SelectContent>
               </Select>
             </div>
@@ -261,7 +260,7 @@ export function FermentationStepEditor({
               {holdEndCondition === "time" && "Håll temperaturen under angiven tid innan nästa steg."}
               {holdEndCondition === "sg" && "Håll temperaturen tills SG-värdet når det angivna villkoret."}
               {holdEndCondition === "gravity_stable" && "Håll temperaturen tills SG-värdet har varit stabilt under det angivna antalet dagar."}
-              {holdEndCondition === "temp_reached" && "Steget fortsätter automatiskt när controllerns temperatur når målvärdet (±0.5°C)."}
+              
             </p>
           </>
         );
