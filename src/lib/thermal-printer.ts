@@ -486,12 +486,12 @@ export async function printBitmap(
 
       // Raster data: guaranteed delivery (with response)
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-      const BLE_CHUNK = 200;
+      const BLE_CHUNK = 100;
       const totalBytes = escapedData.length;
 
       for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
         const end = Math.min(offset + BLE_CHUNK, totalBytes);
-        await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`, 'forceWithResponse');
+        await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
 
         const pct = 20 + ((end) / totalBytes) * 70;
         onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
