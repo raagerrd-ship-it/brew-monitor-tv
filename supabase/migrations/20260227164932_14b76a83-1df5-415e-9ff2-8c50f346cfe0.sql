@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_profile_steps ADD COLUMN ramp_curve text DEFAULT NULL;

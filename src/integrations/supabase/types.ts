@@ -653,6 +653,7 @@ export type Database = {
           min_ramp_hours: number | null
           notes: string | null
           profile_id: string
+          ramp_curve: string | null
           ramp_type: string | null
           sg_comparison: string | null
           step_order: number
@@ -673,6 +674,7 @@ export type Database = {
           min_ramp_hours?: number | null
           notes?: string | null
           profile_id: string
+          ramp_curve?: string | null
           ramp_type?: string | null
           sg_comparison?: string | null
           step_order: number
@@ -693,6 +695,7 @@ export type Database = {
           min_ramp_hours?: number | null
           notes?: string | null
           profile_id?: string
+          ramp_curve?: string | null
           ramp_type?: string | null
           sg_comparison?: string | null
           step_order?: number

@@ -96,6 +96,7 @@ export function useActiveFermentationSession({
         activity_trigger: s.activity_trigger ?? null,
         temp_increase: s.temp_increase ?? null,
         min_ramp_hours: (s as any).min_ramp_hours ?? null,
+        ramp_curve: (s as any).ramp_curve ?? null,
         created_at: '',
         updated_at: '',
       })) as FermentationProfileStep[];
