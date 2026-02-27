@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v38-shared-raster-engine';
+export const PRINTER_VERSION = 'v39-shared-engine-tunable';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -449,14 +449,25 @@ export async function sendRasterJob(
     if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
   }
 
-  // Send raster data in chunks
+  // Send raster data in configurable chunks
   onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
   const CHUNK = Math.max(20, Math.min(500, settings.chunkSize || 100));
-  for (let off = 0; off < escapedData.length; off += CHUNK) {
-    await bleWrite(connection, escapedData.slice(off, Math.min(off + CHUNK, escapedData.length)), `r-${off}`);
-    const pct = 20 + ((off + CHUNK) / escapedData.length) * 70;
-    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-  }
+  const CHUNK_DELAY = Math.max(0, settings.chunkDelay ?? 0);
+  const THROTTLE_EVERY = Math.max(0, settings.throttleEvery ?? 0);
+  const THROTTLE_DELAY = Math.max(0, settings.throttleDelay ?? 0);
+
+  await sendChunked(
+    connection,
+    escapedData,
+    CHUNK,
+    CHUNK_DELAY,
+    THROTTLE_EVERY,
+    THROTTLE_DELAY,
+    (sent, total) => {
+      const pct = 20 + (sent / total) * 70;
+      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+    },
+  );
 
   // Wait for printer to process
   onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
@@ -534,6 +545,7 @@ export async function printBitmap(
 export async function printDebugTestPattern(
   connection: PrinterConnection,
   onProgress?: (p: PrintProgress) => void,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
 ): Promise<void> {
   const widthBytes = 48; // 384 pixels
   const patH = 520;
@@ -583,7 +595,7 @@ export async function printDebugTestPattern(
   }
 
   console.log(`[Printer] Debug pattern: ${w}x${height}, ${rasterData.length} bytes`);
-  await sendRasterJob(connection, rasterData, widthBytes, height, DEFAULT_PRINT_SETTINGS, onProgress);
+  await sendRasterJob(connection, rasterData, widthBytes, height, settings, onProgress);
 }
 
 /**

@@ -14,9 +14,12 @@ import {
   connectPrinter,
   disconnectPrinter,
   printDebugTestPattern,
+  DEFAULT_PRINT_SETTINGS,
   PRINTER_VERSION,
   type PrinterConnection,
 } from "@/lib/thermal-printer";
+
+const CHUNK_OPTIONS = [20, 50, 100, 200, 500];
 
 export default function PrinterDebug() {
   const navigate = useNavigate();
@@ -25,6 +28,7 @@ export default function PrinterDebug() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [chunkSize, setChunkSize] = useState(100);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = useCallback((msg: string) => {
@@ -59,11 +63,21 @@ export default function PrinterDebug() {
     if (!conn) return;
     setRunning(true);
     setError(null);
-    addLog(`── Kör debug-mönster via sendRasterJob (${PRINTER_VERSION}) ──`);
+    addLog(`── Kör debug-mönster (${PRINTER_VERSION}, chunk=${chunkSize}B) ──`);
     try {
-      await printDebugTestPattern(conn, (p) => {
-        addLog(`${p.phase} (${Math.round(p.percent)}%)`);
-      });
+      await printDebugTestPattern(
+        conn,
+        (p) => {
+          addLog(`${p.phase} (${Math.round(p.percent)}%)`);
+        },
+        {
+          ...DEFAULT_PRINT_SETTINGS,
+          chunkSize,
+          chunkDelay: 0,
+          throttleEvery: 0,
+          throttleDelay: 0,
+        },
+      );
       addLog("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns.");
     } catch (e: any) {
       setError(e.message);
@@ -86,7 +100,7 @@ export default function PrinterDebug() {
             <Printer className="h-5 w-5 text-primary" />
             Skrivar-debug
           </h1>
-          <p className="text-xs text-muted-foreground">{PRINTER_VERSION} — delar sendRasterJob med etiketter</p>
+          <p className="text-xs text-muted-foreground">{PRINTER_VERSION} — delad motor med justerbar chunk</p>
         </div>
       </div>
 
@@ -102,15 +116,38 @@ export default function PrinterDebug() {
             <Badge variant="outline" className="text-muted-foreground">Ej ansluten</Badge>
           )}
         </div>
+
         {!hasBle ? (
           <p className="text-xs text-destructive">Web Bluetooth stöds inte i denna webbläsare.</p>
         ) : conn ? (
-          <div className="flex gap-2 items-center">
-            <Button size="sm" onClick={handleRunTest} disabled={running}>
-              <Zap className="h-3.5 w-3.5 mr-1.5" />
-              {running ? "Kör..." : "Kör print-test"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Chunk:</span>
+              <div className="flex gap-1 flex-wrap">
+                {CHUNK_OPTIONS.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setChunkSize(size)}
+                    disabled={running}
+                    className={`h-7 px-2 rounded text-xs font-mono transition-colors ${
+                      chunkSize === size
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {size}B
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 items-center">
+              <Button size="sm" onClick={handleRunTest} disabled={running}>
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+                {running ? "Kör..." : `Kör print-test (${chunkSize}B)`}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
+            </div>
           </div>
         ) : (
           <Button size="sm" onClick={handleConnect} disabled={isConnecting}>
@@ -118,6 +155,7 @@ export default function PrinterDebug() {
             {isConnecting ? "Ansluter..." : "Anslut skrivare"}
           </Button>
         )}
+
         {error && <p className="text-xs text-destructive bg-destructive/10 rounded p-2">{error}</p>}
       </Card>
 
