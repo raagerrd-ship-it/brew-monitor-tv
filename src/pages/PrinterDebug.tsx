@@ -56,28 +56,37 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await send([0x1b, 0x4e, 0x0d, 0x03], "4. Speed=3");
   await send([0x1b, 0x4e, 0x04, 0x08], "5. Density=8");
 
-  // Left margin = 0
-  log("→ 6. GS L margin=0");
-  await bleWrite(conn, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), "margin-0");
+  // Left margin = 0 (GS L) + absolute position = 0 (ESC $)
+  log("→ 6. Margin/position = 0");
+  await bleWrite(conn, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), "GS-L-0");
+  await delay(50);
+  await bleWrite(conn, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), "ESC-$-0");
+  await delay(50);
+  // Set left margin via ESC B too (Phomemo-specific)
+  await bleWrite(conn, new Uint8Array([0x1b, 0x42, 0x00]), "ESC-B-0");
   await delay(100);
 
+  // Add 10 blank lead-in rows to avoid top artifact
   const widthBytes = 48; // 384 pixels
-  const height = 120;
-  log(`→ 7. Raster ${widthBytes * 8}×${height} (ram + kryss)...`);
+  const leadInRows = 10;
+  const height = 120 + leadInRows;
+  log(`→ 7. Raster ${widthBytes * 8}×${height} (${leadInRows} blank + ram + kryss)...`);
   await bleWrite(conn, new Uint8Array([
     0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff
   ]), "raster-hdr");
   await delay(100);
 
-  // Build test pattern: border frame + diagonal X + center cross
+  // Build test pattern: lead-in blank rows + border frame + diagonal X + center cross
   const rasterData = new Uint8Array(widthBytes * height);
-  rasterData.fill(0x00); // white
+  rasterData.fill(0x00); // white (lead-in rows are already white)
 
-  for (let y = 0; y < height; y++) {
+  const patH = 120; // actual pattern height
+  for (let py = 0; py < patH; py++) {
+    const y = py + leadInRows; // offset by lead-in
     const row = y * widthBytes;
 
     // Top & bottom border (2 rows solid black)
-    if (y < 2 || y >= height - 2) {
+    if (py < 2 || py >= patH - 2) {
       for (let x = 0; x < widthBytes; x++) rasterData[row + x] = 0xff;
       continue;
     }
@@ -89,8 +98,8 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
 
     // Diagonal X (2px wide)
     const w = widthBytes * 8;
-    const xA = Math.floor((y / (height - 1)) * (w - 1));
-    const xB = Math.floor(((height - 1 - y) / (height - 1)) * (w - 1));
+    const xA = Math.floor((py / (patH - 1)) * (w - 1));
+    const xB = Math.floor(((patH - 1 - py) / (patH - 1)) * (w - 1));
     for (const xPos of [xA, xB]) {
       for (let dx = -1; dx <= 1; dx++) {
         const px = xPos + dx;
@@ -104,9 +113,9 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
     rasterData[row + 24] |= 0x80;
   }
 
-  // Center horizontal line (2 rows solid)
+  // Center horizontal line of pattern (2 rows solid)
   for (let dy = -1; dy <= 0; dy++) {
-    const my = Math.floor(height / 2) + dy;
+    const my = leadInRows + Math.floor(patH / 2) + dy;
     for (let x = 0; x < widthBytes; x++) rasterData[my * widthBytes + x] = 0xff;
   }
 
