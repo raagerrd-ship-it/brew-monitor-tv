@@ -414,13 +414,11 @@ export async function printBitmap(
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
     }
 
-    // Print-execute (triggers actual printing + gap sensor)
-    await delay(300);
+    // Wait for printer to finish processing raster data
+    await delay(1500);
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
-    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x04, 0x00]), 'print-execute');
-    await delay(1000);
 
-    // End-job
+    // End-job (NO print-execute — printer prints automatically after raster data)
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
     await delay(500);
 

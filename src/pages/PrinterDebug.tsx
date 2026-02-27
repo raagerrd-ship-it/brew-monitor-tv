@@ -585,13 +585,13 @@ const STEPS: WizardStep[] = [
       for (let off = 0; off < rasterData.length; off += 20) {
         await bleWrite(conn, rasterData.slice(off, Math.min(off + 20, rasterData.length)), `r-${off}`);
       }
-      await delay(300);
+      await delay(500);
       log(`   Data skickad (${rasterData.length} bytes)`);
 
-      await send([0x1f, 0x11, 0x04, 0x00], "7. Print-execute");
-      await delay(1000);
+      log("→ 7. Väntar 3s på att skrivaren avslutar...");
+      await delay(3000);
 
-      await send([0x1f, 0x11, 0x03, 0x00], "8. End-job");
+      await send([0x1f, 0x11, 0x03, 0x00], "8. End-job (UTAN print-execute)");
       await delay(500);
 
       try { await notifyChar.stopNotifications(); } catch { /* ok */ }
