@@ -115,7 +115,7 @@ export function BrewingDashboard() {
 
   const getContainerHeight = () => {
     if (isAspectRatioLocked) return `${containerHeight}px`;
-    return showTimerFooter ? `calc(100vh - ${TIMER_FOOTER_HEIGHT}px)` : '100vh';
+    return '100vh';
   };
 
   const getContentHeight = () => {
