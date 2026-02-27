@@ -55,6 +55,7 @@ function BrewCardComponent({
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
+  const [sessionExpanded, setSessionExpanded] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -293,22 +294,6 @@ function BrewCardComponent({
         </div>
       </div>
       
-      {/* Active Fermentation Session - above chart, overflow-visible so shadow isn't clipped */}
-      <div className="flex-shrink-0 px-3 pt-1 overflow-visible">
-        <ActiveFermentationSession 
-          brewId={brew.id} 
-          compact 
-          preloadedSession={brew.fermentationSession}
-          isAuthenticated={showInteractiveElements}
-          currentSg={brew.currentSG}
-          originalGravity={brew.originalGravity}
-          sgData={brew.sgData}
-          activityScore={brew.fermentationMetrics?.activity_score ?? null}
-          fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
-          attenuation={brew.attenuation}
-        />
-      </div>
-
       {/* Chart Area - fills remaining space */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -341,26 +326,45 @@ function BrewCardComponent({
             />
           )}
         </div>
-      </div>
-
-      {/* Stats Grid - fixed height */}
-      <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px`, overflow: 'visible' }}>
-        <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full overflow-visible">
-          <GravityStat 
-            brew={brew} 
-            updatedFields={updatedFields} 
-            onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}
+        
+        {/* Active Fermentation Session - overflow-visible so shadow isn't clipped */}
+        <div className="mt-1 flex-shrink-0 px-1 overflow-visible">
+          <ActiveFermentationSession 
+            brewId={brew.id} 
+            compact 
+            preloadedSession={brew.fermentationSession}
+            isAuthenticated={showInteractiveElements}
+            currentSg={brew.currentSG}
+            originalGravity={brew.originalGravity}
+            sgData={brew.sgData}
+            activityScore={brew.fermentationMetrics?.activity_score ?? null}
+            fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
+            attenuation={brew.attenuation}
+            onExpandChange={setSessionExpanded}
           />
-          <AbvStat brew={brew} updatedFields={updatedFields} />
-          <TempStat 
-            brew={brew} 
-            devices={devices} 
-            updatedFields={updatedFields}
-            onControllerClick={onControllerClick}
-          />
-          <AttenuationStat brew={brew} updatedFields={updatedFields} />
         </div>
       </div>
+
+      {/* Stats Grid - hidden when session is expanded */}
+      {!sessionExpanded && (
+        <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px`, overflow: 'visible' }}>
+          <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full overflow-visible">
+            <GravityStat 
+              brew={brew} 
+              updatedFields={updatedFields} 
+              onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}
+            />
+            <AbvStat brew={brew} updatedFields={updatedFields} />
+            <TempStat 
+              brew={brew} 
+              devices={devices} 
+              updatedFields={updatedFields}
+              onControllerClick={onControllerClick}
+            />
+            <AttenuationStat brew={brew} updatedFields={updatedFields} />
+          </div>
+        </div>
+      )}
       
       {/* Synced Data Dialog for custom brews */}
       {brew.batch_id.startsWith('custom_') && (

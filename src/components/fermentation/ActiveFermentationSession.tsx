@@ -26,12 +26,13 @@ interface ActiveFermentationSessionProps {
   activityScore?: number | null;
   fermentationPhase?: string | null;
   attenuation?: number | null;
+  onExpandChange?: (expanded: boolean) => void;
 }
 
 export function ActiveFermentationSession({
   controllerId, brewId, compact = false, preloadedSession,
   isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
-  sgData, activityScore, fermentationPhase, attenuation,
+  sgData, activityScore, fermentationPhase, attenuation, onExpandChange,
 }: ActiveFermentationSessionProps) {
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
@@ -93,7 +94,7 @@ export function ActiveFermentationSession({
         <div className="space-y-2">
           {/* Collapse button */}
           <button
-            onClick={() => setExpanded(false)}
+            onClick={() => { setExpanded(false); onExpandChange?.(false); }}
             className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
           >
             <ChevronUp className="w-3 h-3" />
@@ -188,7 +189,7 @@ export function ActiveFermentationSession({
     }
 
     return (
-      <div onClick={isAuthenticated ? () => setExpanded(true) : undefined} className={isAuthenticated ? 'cursor-pointer' : ''}>
+      <div onClick={isAuthenticated ? () => { setExpanded(true); onExpandChange?.(true); } : undefined} className={isAuthenticated ? 'cursor-pointer' : ''}>
         <FermentationSessionCompact
           profileName={session.profile?.name || ''}
           status={session.status}
