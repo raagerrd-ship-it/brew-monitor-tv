@@ -78,11 +78,11 @@ export function FermentationStepDisplay({
       case 'wait_for_acknowledgement':
         return 'Väntar på kvittering';
       case 'diacetyl_rest':
-        return `Diacetylvila +${(step as any).temp_increase ?? 3}° vid ${(step as any).attenuation_trigger ?? 75}%`;
+        return `Diacetylvila +${step.temp_increase ?? 3}° vid ${step.attenuation_trigger ?? 75}%`;
       case 'gradual_ramp': {
-        const minRamp = (step as any).min_ramp_hours;
+        const minRamp = step.min_ramp_hours;
         const rampInfo = minRamp ? ` (≥${minRamp}h)` : '';
-        return `Smart vila +${(step as any).temp_increase ?? 3}°${rampInfo} vid aktivitet <${(step as any).activity_trigger ?? 35}%`;
+        return `Smart vila +${step.temp_increase ?? 3}°${rampInfo} vid aktivitet <${step.activity_trigger ?? 35}%`;
       }
       default:
         return '';

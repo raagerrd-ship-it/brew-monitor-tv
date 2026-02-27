@@ -111,8 +111,8 @@ export function FermentationSessionCompact({
   // Gradual ramp trigger status — for gradual_ramp: uses activity_trigger, for diacetyl_rest: uses attenuation_trigger
   const isGradualRampStep = currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest';
   const isActivityBased = currentStep?.step_type === 'gradual_ramp';
-  const activityTrigger = isActivityBased ? ((currentStep as any)?.activity_trigger ?? 35) : 0;
-  const attenuationTriggerVal = !isActivityBased && isGradualRampStep ? ((currentStep as any)?.attenuation_trigger ?? 75) : 0;
+  const activityTrigger = isActivityBased ? (currentStep?.activity_trigger ?? 35) : 0;
+  const attenuationTriggerVal = !isActivityBased && isGradualRampStep ? (currentStep?.attenuation_trigger ?? 75) : 0;
   
   // For gradual_ramp: triggered when activity drops below threshold OR backend already started ramping
   // (profile_target_temp elevated above base means backend has triggered, even if activity bounced back)
@@ -128,7 +128,7 @@ export function FermentationSessionCompact({
   
   // Progress for gradual_ramp: derived from ratcheted temperature target (never decreases)
   // Progress for diacetyl_rest: attenuation approaching trigger
-  const tempIncrease = isGradualRampStep ? ((currentStep as any)?.temp_increase ?? 3) : 0;
+  const tempIncrease = isGradualRampStep ? (currentStep?.temp_increase ?? 3) : 0;
   const gradualRampProgress = isGradualRampStep 
     ? gradualRampTriggered 
       ? isActivityBased
@@ -219,7 +219,7 @@ export function FermentationSessionCompact({
         return 'Väntar på kvittering';
       case 'diacetyl_rest':
       case 'gradual_ramp': {
-        const increase = (step as any).temp_increase ?? 3;
+        const increase = step.temp_increase ?? 3;
         if (gradualRampTriggered) {
           // Show stability countdown when ramping (backend requires gravity_stable_days + low activity to complete)
           const stableDays = step.gravity_stable_days ?? 2;
