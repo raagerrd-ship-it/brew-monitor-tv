@@ -91,39 +91,6 @@ const STEPS: WizardStep[] = [
     },
   },
   {
-    id: "speed",
-    title: "Hastighet (ESC N 0x0d 5)",
-    description: "Sätter utskriftshastighet till 5 (max). Bör inte ge synlig reaktion.",
-    run: async (conn, log) => {
-      log("Skickar speed=5...");
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x0d, 0x05]), "speed");
-      await delay(50);
-      log("Klart.");
-    },
-  },
-  {
-    id: "density",
-    title: "Densitet (ESC N 0x04 10)",
-    description: "Sätter utskriftsdensitet till 10. Bör inte ge synlig reaktion.",
-    run: async (conn, log) => {
-      log("Skickar density=10...");
-      await bleWrite(conn, new Uint8Array([0x1b, 0x4e, 0x04, 0x0a]), "density");
-      await delay(50);
-      log("Klart.");
-    },
-  },
-  {
-    id: "media-gap",
-    title: "Mediatyp: Gap (0x1f 0x11 0x0a)",
-    description: "Meddelar skrivaren att vi använder etiketter med mellanrum (gap).",
-    run: async (conn, log) => {
-      log("Skickar media=gap...");
-      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x0a]), "media");
-      await delay(50);
-      log("Klart.");
-    },
-  },
-  {
     id: "white-1line",
     title: "Raster: 1 vit rad (384px)",
     description: "Skickar GS v 0 header + 48 noll-bytes (en helt vit rad). Skrivaren kanske matar fram lite papper.",
