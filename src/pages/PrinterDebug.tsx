@@ -66,10 +66,11 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await bleWrite(conn, new Uint8Array([0x1b, 0x42, 0x00]), "ESC-B-0");
   await delay(100);
 
-  // Add 10 blank lead-in rows to avoid top artifact
+  // Add blank rows top/bottom for margin compensation
   const widthBytes = 48; // 384 pixels
   const leadInRows = 10;
-  const height = 120 + leadInRows;
+  const trailRows = 10;
+  const height = 120 + leadInRows + trailRows;
   log(`→ 7. Raster ${widthBytes * 8}×${height} (${leadInRows} blank + ram + kryss)...`);
   await bleWrite(conn, new Uint8Array([
     0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff
