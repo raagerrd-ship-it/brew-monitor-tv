@@ -410,6 +410,110 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "ble-notify-listener",
+    title: "🔔 Lyssna på skrivarens svar (notifications)",
+    description: "Aktiverar BLE notifications på 0xff01 och skickar status-kommandon. Visar allt skrivaren svarar i loggen – hjälper identifiera rätt protokoll.",
+    run: async (conn, log) => {
+      const service = await conn.device.gatt.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+
+      let notifyChar: any = null;
+      const NOTIFY_UUIDS = ['0000ff01-0000-1000-8000-00805f9b34fb', 0xff01];
+      for (const uuid of NOTIFY_UUIDS) {
+        try { notifyChar = await service.getCharacteristic(uuid as any); break; } catch { /* next */ }
+      }
+
+      if (!notifyChar) {
+        log("⚠ Kunde inte hitta notify-karakteristik (0xff01). Provar att lista alla...");
+        try {
+          const chars = await service.getCharacteristics();
+          for (const c of chars) {
+            log(`   Karakteristik: ${c.uuid} – notify=${c.properties.notify}, indicate=${c.properties.indicate}, write=${c.properties.write}, writeNoResp=${c.properties.writeWithoutResponse}`);
+          }
+        } catch (e: any) {
+          log(`   Fel vid listing: ${e.message}`);
+        }
+        return;
+      }
+
+      log(`✓ Hittade notify-karakteristik: ${notifyChar.uuid}`);
+      log("  Aktiverar notifications...");
+
+      notifyChar.addEventListener('characteristicvaluechanged', (event: any) => {
+        const value = new Uint8Array(event.target.value.buffer);
+        const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+        log(`  📨 SVAR: [${hex}] (${value.length} bytes)`);
+      });
+      await notifyChar.startNotifications();
+      log("  ✓ Notifications aktiva – skickar status-kommandon...");
+      await delay(200);
+
+      const cmds = [
+        { data: [0x1f, 0x11, 0x08, 0x00], label: "Status (0x08)" },
+        { data: [0x1f, 0x11, 0x07, 0x00], label: "Status (0x07)" },
+        { data: [0x1f, 0x11, 0x09, 0x00], label: "Status (0x09)" },
+        { data: [0x1f, 0x11, 0x0e, 0x00], label: "Status (0x0e)" },
+      ];
+      for (const cmd of cmds) {
+        log(`  → Skickar ${cmd.label}...`);
+        await bleWrite(conn, new Uint8Array(cmd.data), cmd.label);
+        await delay(500);
+      }
+
+      log("  Väntar 2s på fler svar...");
+      await delay(2000);
+
+      try { await notifyChar.stopNotifications(); } catch { /* ok */ }
+      log("Klart! Kontrollera SVAR-raderna ovan.");
+    },
+  },
+  {
+    id: "cpcl-test",
+    title: "🔤 CPCL-kommandotest (Q-serien)",
+    description: "Testar CPCL-kommandon som ofta används av Q-serie/nyare Phomemo-skrivare istället för ESC/POS. Skickar en minimal CPCL-etikett.",
+    run: async (conn, log) => {
+      const encoder = new TextEncoder();
+
+      // CPCL is text-based, each line terminated by \r\n
+      const cpcl = [
+        "! 0 200 200 100 1",       // Start: offset=0, 200dpi horiz, 200dpi vert, 100 dots height, 1 copy
+        "LABEL",                    // Label mode
+        "CONTRAST 0",              // Default contrast
+        "TONE 0",                  // Default tone
+        "SPEED 5",                 // Speed
+        "BAR-SENSE",               // Use gap sensor
+        "T 4 0 10 10 TEST",       // Text: font4, size0, x=10, y=10, "TEST"
+        "PRINT",                   // Execute print
+      ];
+
+      log("Skickar CPCL-kommandon:");
+      for (const line of cpcl) {
+        log(`  → ${line}`);
+        const data = encoder.encode(line + "\r\n");
+        await bleWrite(conn, data, `cpcl-${line.substring(0, 10)}`);
+        await delay(50);
+      }
+
+      log("");
+      log("Alternativ 2: TSPL-kommandon...");
+      const tspl = [
+        "SIZE 50 mm, 70 mm",
+        "GAP 2 mm, 0 mm",
+        "CLS",
+        "TEXT 50,50,\"3\",0,1,1,\"TEST\"",
+        "PRINT 1,1",
+      ];
+      for (const line of tspl) {
+        log(`  → ${line}`);
+        const data = encoder.encode(line + "\r\n");
+        await bleWrite(conn, data, `tspl-${line.substring(0, 10)}`);
+        await delay(50);
+      }
+
+      log("");
+      log("Klart! Om skrivaren stödjer CPCL eller TSPL bör den ha reagerat.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
