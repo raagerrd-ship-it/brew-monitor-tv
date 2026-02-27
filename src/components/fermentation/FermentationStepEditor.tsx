@@ -313,8 +313,8 @@ export function FermentationStepEditor({
         return (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Steget pausar profilen och väntar på att du kvitterar manuellt innan nästa steg startar. 
-              Använd t.ex. för torrhumling eller andra manuella moment.
+              Steget pausar profilen och väntar på att du kvitterar manuellt innan nästa steg startar.
+              Skriv i Anteckningar nedan vad som ska visas på TV:n, t.ex. "Torrhumla", "Klar" etc.
             </p>
           </div>
         );

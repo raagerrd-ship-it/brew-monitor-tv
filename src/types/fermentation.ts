@@ -62,7 +62,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'wait_for_gravity_stable': 'Vänta på stabil SG',
   'wait_for_sg': 'Vänta på SG-värde',
   'wait_for_temp': 'Vänta på temperatur',
-  'wait_for_acknowledgement': 'Torrhumla',
+  'wait_for_acknowledgement': 'Kvittering',
   'diacetyl_rest': 'Diacetylvila',
   'gradual_ramp': 'Smart diacetylvila',
 };
