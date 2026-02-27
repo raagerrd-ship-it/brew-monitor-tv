@@ -33,16 +33,25 @@ function determineFermentationPhase(
   const sgRatePerHour = sgDrop / hours;
   const sgRatePerDay = sgRatePerHour * 24;
 
-  // Calculate peak rate (over any 12h window)
+  // Calculate peak rate using sliding window (O(n) instead of O(n²))
+  // sorted is newest-first; we need oldest-first for the window
+  const chronological = [...sorted].reverse();
   let peakRatePerDay = 0;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    for (let j = i + 1; j < sorted.length; j++) {
-      const h = (new Date(sorted[i].date).getTime() - new Date(sorted[j].date).getTime()) / (1000 * 60 * 60);
-      if (h >= 6 && h <= 18) {
-        const drop = sorted[j].value - sorted[i].value;
-        const rate = (drop / h) * 24;
-        if (rate > peakRatePerDay) peakRatePerDay = rate;
-      }
+  let windowStart = 0;
+  for (let windowEnd = 1; windowEnd < chronological.length; windowEnd++) {
+    const endTime = new Date(chronological[windowEnd].date).getTime();
+    // Advance start pointer until window is <= 18h
+    while (windowStart < windowEnd) {
+      const spanH = (endTime - new Date(chronological[windowStart].date).getTime()) / (1000 * 60 * 60);
+      if (spanH <= 18) break;
+      windowStart++;
+    }
+    const startTime = new Date(chronological[windowStart].date).getTime();
+    const h = (endTime - startTime) / (1000 * 60 * 60);
+    if (h >= 6) {
+      const drop = chronological[windowStart].value - chronological[windowEnd].value;
+      const rate = (drop / h) * 24;
+      if (rate > peakRatePerDay) peakRatePerDay = rate;
     }
   }
 
