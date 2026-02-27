@@ -31,6 +31,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ========================================
+    // COOLDOWN: Prevent running more than once per 4 hours
+    // ========================================
+    const AUDIT_COOLDOWN_HOURS = 4;
+    const cooldownCutoff = new Date(Date.now() - AUDIT_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+    const { data: recentAudits } = await supabase
+      .from('ai_audit_log')
+      .select('id, created_at')
+      .gte('created_at', cooldownCutoff)
+      .limit(1);
+
+    if (recentAudits && recentAudits.length > 0) {
+      console.log(`🤖 AI audit cooldown active — last audit at ${recentAudits[0].created_at}, skipping (min ${AUDIT_COOLDOWN_HOURS}h between audits).`);
+      return new Response(JSON.stringify({ skipped: true, reason: `cooldown: last audit less than ${AUDIT_COOLDOWN_HOURS}h ago` }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('🤖 Starting AI automation audit...');
 
     // ========================================
@@ -151,7 +169,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
         .map((c: any) => ({
           id: c.controller_id,
-          name: c.name,
+          name: sanitize(c.name),
           current_temp: c.current_temp,
           target_temp: c.target_temp,
           pill_temp: c.pill_temp,
@@ -181,11 +199,11 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           : 0,
       },
       recent_adjustments: (recentAdjustments || []).slice(0, 20).map((a: any) => ({
-        controller: a.cooler_controller_name,
+        controller: sanitize(a.cooler_controller_name),
         from: a.old_target_temp,
         to: a.new_target_temp,
         original: a.original_target_temp,
-        reason: a.reason?.substring(0, 100),
+        reason: sanitize(a.reason?.substring(0, 100) ?? ''),
         at: a.created_at,
       })),
       boost_outcomes: boostOutcomes || [],
@@ -244,6 +262,11 @@ Svara ENBART med JSON (inget annat).`;
         recommendations: [rawContent.substring(0, 200)],
       };
     }
+
+    // ========================================
+    // SCHEMA VALIDATION: Sanitize AI response structure
+    // ========================================
+    analysis = validateAnalysisSchema(analysis);
 
     // ========================================
     // APPLY PARAMETER CHANGES
@@ -487,6 +510,56 @@ Svara ENBART med JSON (inget annat).`;
   }
 });
 
+/** Strip control characters and limit length to prevent prompt injection */
+function sanitize(input: string | null | undefined, maxLen = 80): string {
+  if (!input) return '';
+  // Remove control chars, newlines, and common injection patterns
+  return input
+    .replace(/[\x00-\x1f\x7f]/g, '') // control chars
+    .replace(/\n|\r/g, ' ')          // newlines
+    .substring(0, maxLen)
+    .trim();
+}
+
+/** Validate and sanitize the AI response schema to prevent malformed data */
+function validateAnalysisSchema(raw: any): {
+  summary: string;
+  health_score: number;
+  anomalies: any[];
+  parameter_changes: any[];
+  recommendations: string[];
+} {
+  const safe = {
+    summary: typeof raw?.summary === 'string' ? raw.summary.substring(0, 500) : 'No summary',
+    health_score: typeof raw?.health_score === 'number' && raw.health_score >= 1 && raw.health_score <= 10
+      ? Math.round(raw.health_score)
+      : 5,
+    anomalies: Array.isArray(raw?.anomalies) ? raw.anomalies.filter((a: any) =>
+      typeof a?.type === 'string' &&
+      typeof a?.description === 'string' &&
+      ['low', 'medium', 'high'].includes(a?.severity)
+    ).slice(0, 20) : [],
+    parameter_changes: Array.isArray(raw?.parameter_changes) ? raw.parameter_changes.filter((c: any) =>
+      typeof c?.table === 'string' &&
+      typeof c?.parameter === 'string' &&
+      typeof c?.new_value === 'number' &&
+      typeof c?.reason === 'string' &&
+      ['auto_cooling_settings', 'fermentation_learnings'].includes(c.table)
+    ).slice(0, 10) : [],
+    recommendations: Array.isArray(raw?.recommendations) ? raw.recommendations
+      .filter((r: any) => typeof r === 'string')
+      .map((r: string) => r.substring(0, 300))
+      .slice(0, 10) : [],
+  };
+
+  const droppedChanges = (Array.isArray(raw?.parameter_changes) ? raw.parameter_changes.length : 0) - safe.parameter_changes.length;
+  if (droppedChanges > 0) {
+    console.log(`⚠️ Schema validation dropped ${droppedChanges} malformed parameter_changes`);
+  }
+
+  return safe;
+}
+
 /** Summarize delta trends per controller */
 function summarizeDeltaTrend(deltaHistory: any[]): Record<string, { avg_delta: number; trend: string; samples: number }> {
   const byController = new Map<string, number[]>();
@@ -499,7 +572,6 @@ function summarizeDeltaTrend(deltaHistory: any[]): Record<string, { avg_delta: n
   const result: Record<string, any> = {};
   for (const [cId, deltas] of byController) {
     const avg = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-    // Check trend: compare first half vs second half
     const mid = Math.floor(deltas.length / 2);
     const recentAvg = deltas.slice(0, mid).reduce((a, b) => a + b, 0) / (mid || 1);
     const olderAvg = deltas.slice(mid).reduce((a, b) => a + b, 0) / ((deltas.length - mid) || 1);
@@ -507,4 +579,5 @@ function summarizeDeltaTrend(deltaHistory: any[]): Record<string, { avg_delta: n
     result[cId] = { avg_delta: +avg.toFixed(2), trend, samples: deltas.length };
   }
   return result;
+}
 }
