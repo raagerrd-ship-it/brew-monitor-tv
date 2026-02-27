@@ -443,7 +443,7 @@ export function FermentationStepEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(['hold', 'ramp', 'wait_for_acknowledgement', 'diacetyl_rest', 'gradual_ramp'] as StepType[]).map((value) => (
+                {(['hold', 'ramp', 'wait_for_acknowledgement', 'gradual_ramp'] as StepType[]).map((value) => (
                   <SelectItem key={value} value={value}>
                     {STEP_TYPE_LABELS[value]}
                   </SelectItem>
