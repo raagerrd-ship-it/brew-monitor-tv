@@ -294,55 +294,57 @@ function BrewCardComponent({
         </div>
       </div>
       
-      {/* Chart Area - fills remaining space */}
-      <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {labelExpanded && brew.label_image_url ? (
-            <div
-              className="w-full h-full flex items-center justify-center bg-black/20 rounded-lg cursor-pointer"
-              onClick={() => setLabelExpanded(false)}
-            >
-              <img
-                src={brew.label_image_url}
-                alt={`${brew.name} etikett`}
-                className="max-h-full max-w-full object-contain rounded-lg"
+      {/* Chart Area - hidden when session is expanded */}
+      {!sessionExpanded && (
+        <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {labelExpanded && brew.label_image_url ? (
+              <div
+                className="w-full h-full flex items-center justify-center bg-black/20 rounded-lg cursor-pointer"
+                onClick={() => setLabelExpanded(false)}
+              >
+                <img
+                  src={brew.label_image_url}
+                  alt={`${brew.name} etikett`}
+                  className="max-h-full max-w-full object-contain rounded-lg"
+                />
+              </div>
+            ) : (
+              <LazyBrewChart 
+                data={brew.sgData} 
+                og={brew.originalGravity} 
+                fg={brew.finalGravity} 
+                singleView={true}
+                events={brew.events}
+                controllerId={brew.linked_controller_id}
+                chartIndex={cardIndex}
+                brewId={brew.id}
+                hasFermentationSession={!!brew.fermentationSession}
+                lastUpdateRaw={brew.lastUpdateRaw}
+                brewCount={brewCount}
+                smoothLines={smoothLines}
+                onSmoothLinesChange={setSmoothLines}
               />
-            </div>
-          ) : (
-            <LazyBrewChart 
-              data={brew.sgData} 
-              og={brew.originalGravity} 
-              fg={brew.finalGravity} 
-              singleView={true}
-              events={brew.events}
-              controllerId={brew.linked_controller_id}
-              chartIndex={cardIndex}
-              brewId={brew.id}
-              hasFermentationSession={!!brew.fermentationSession}
-              lastUpdateRaw={brew.lastUpdateRaw}
-              brewCount={brewCount}
-              smoothLines={smoothLines}
-              onSmoothLinesChange={setSmoothLines}
-            />
-          )}
+            )}
+          </div>
         </div>
+      )}
         
-        {/* Active Fermentation Session - overflow-visible so shadow isn't clipped */}
-        <div className="mt-1 flex-shrink-0 px-1 overflow-visible">
-          <ActiveFermentationSession 
-            brewId={brew.id} 
-            compact 
-            preloadedSession={brew.fermentationSession}
-            isAuthenticated={showInteractiveElements}
-            currentSg={brew.currentSG}
-            originalGravity={brew.originalGravity}
-            sgData={brew.sgData}
-            activityScore={brew.fermentationMetrics?.activity_score ?? null}
-            fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
-            attenuation={brew.attenuation}
-            onExpandChange={setSessionExpanded}
-          />
-        </div>
+      {/* Active Fermentation Session */}
+      <div className={`flex-shrink-0 px-3 overflow-visible ${sessionExpanded ? 'flex-1 py-2' : 'mt-1 px-3 pb-1'}`}>
+        <ActiveFermentationSession 
+          brewId={brew.id} 
+          compact 
+          preloadedSession={brew.fermentationSession}
+          isAuthenticated={showInteractiveElements}
+          currentSg={brew.currentSG}
+          originalGravity={brew.originalGravity}
+          sgData={brew.sgData}
+          activityScore={brew.fermentationMetrics?.activity_score ?? null}
+          fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
+          attenuation={brew.attenuation}
+          onExpandChange={setSessionExpanded}
+        />
       </div>
 
       {/* Stats Grid - hidden when session is expanded */}
