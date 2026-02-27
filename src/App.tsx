@@ -15,6 +15,7 @@ import Install from "./pages/Install";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import Brew from "./pages/Brew";
+import PrinterDebug from "./pages/PrinterDebug";
 import SonosCallback from "./pages/SonosCallback";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ function AppContent() {
           <Route path="/install" element={<Install />} />
           <Route path="/login" element={<Login />} />
           <Route path="/sonos-callback" element={<SonosCallback />} />
+          <Route path="/printer-debug" element={<PrinterDebug />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Route>
