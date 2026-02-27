@@ -235,7 +235,7 @@ export function AutoCoolingDecisionLogs() {
               <CollapsibleTrigger className="grid grid-cols-[72px_105px_1fr_20px] md:grid-cols-[72px_105px_1fr_minmax(0,140px)_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
                   {getCategoryBadge(category)}
                   <span className="text-muted-foreground whitespace-nowrap text-left">{formatTime(adj.created_at)}</span>
-                  <span className="font-medium whitespace-nowrap text-right" style={{ 
+                  <span className="font-medium whitespace-nowrap text-left" style={{ 
                     color: tempChange < 0 ? 'hsl(210 80% 60%)' : tempChange > 0 ? 'hsl(var(--ferment-green))' : undefined 
                   }}>
                     {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°
