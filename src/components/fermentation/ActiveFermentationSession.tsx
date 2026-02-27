@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FermentationProfileStep } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2, SkipForward } from "lucide-react";
+import { Play, Pause, Square, Loader2, SkipForward, ChevronUp } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -33,7 +34,7 @@ export function ActiveFermentationSession({
   sgData, activityScore, fermentationPhase, attenuation,
 }: ActiveFermentationSessionProps) {
   const shouldRender = useDeferredRender();
-
+  const [expanded, setExpanded] = useState(false);
   const {
     session, controllerData, loading, actionLoading, skipLoading, acknowledgeLoading,
     showCancelDialog, setShowCancelDialog, showSkipConfirm, setShowSkipConfirm,
@@ -86,34 +87,136 @@ export function ActiveFermentationSession({
       return null;
     })();
 
+    if (expanded && isAuthenticated) {
+      // Inline expanded view
+      return (
+        <div className="space-y-2">
+          {/* Collapse button */}
+          <button
+            onClick={() => setExpanded(false)}
+            className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
+          >
+            <ChevronUp className="w-3 h-3" />
+            <span>Dölj</span>
+          </button>
+
+          <div className="rounded-lg border bg-card/80 backdrop-blur-sm p-3 space-y-3">
+            <FermentationSessionHeader
+              profileName={session.profile?.name || ''}
+              status={session.status}
+              startedAt={session.started_at}
+            />
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Övergripande progress</span>
+                <span className="font-medium">{session.current_step_index + 1} av {session.steps?.length || 0} steg</span>
+              </div>
+              <Progress value={progress} className="h-1.5" />
+            </div>
+
+            {currentStep && (
+              <FermentationStepDisplay
+                currentStep={currentStep}
+                steps={session.steps || []}
+                currentStepIndex={session.current_step_index}
+                stepStartedAt={session.step_started_at}
+                stepStartTemp={session.step_start_temp}
+                targetTemp={controllerData?.target_temp ?? null}
+                currentTemp={controllerData?.current_temp ?? null}
+                isRamping={isRamping}
+                rampProgress={rampProgress}
+                stepProgress={stepProgress}
+                currentSg={currentSg}
+                targetSg={currentStep.target_sg ?? null}
+                sgComparison={currentStep.sg_comparison ?? null}
+                originalGravity={originalGravity}
+              />
+            )}
+
+            {session.steps && session.steps.length > 0 && (
+              <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" size="sm" className="flex-1" onClick={handlePauseResume} disabled={actionLoading}>
+                {actionLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3 h-3 mr-1" />Återuppta</> : <><Pause className="w-3 h-3 mr-1" />Pausa</>}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}>
+                {skipLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <SkipForward className="w-3 h-3" />}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(true)} disabled={actionLoading}>
+                <Square className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Dialogs for skip/cancel confirmation */}
+          <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Avbryt fermenteringsprofil?</AlertDialogTitle>
+                <AlertDialogDescription>Den automatiska temperaturstyrningen kommer att stoppas.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                <AlertDialogAction onClick={handleCancel}>Ja, stoppa profilen</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
+            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför fermenteringsprofil?' : 'Hoppa till nästa steg?'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Profilen kommer markeras som slutförd.' : `Steg ${session.current_step_index + 1} hoppas över och steg ${session.current_step_index + 2} startar.`}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
+                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      );
+    }
+
     return (
-      <FermentationSessionCompact
-        profileName={session.profile?.name || ''}
-        status={session.status}
-        currentStepIndex={session.current_step_index}
-        totalSteps={session.steps?.length || 0}
-        currentStep={currentStep}
-        stepStartedAt={session.step_started_at}
-        stepStartTemp={session.step_start_temp}
-        targetTemp={controllerData?.target_temp ?? null}
-        profileStepTarget={profileStepTarget}
-        currentTemp={controllerData?.current_temp ?? null}
-        isRamping={isRamping}
-        rampProgress={rampProgress}
-        currentSg={currentSg}
-        targetSg={stepTargetSg}
-        sgComparison={stepSgComparison}
-        originalGravity={originalGravity}
-        sgData={sgData}
-        isWaitingForGravityStable={isWaitingForGravityStable}
-        onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
-        onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
-        acknowledgeLoading={acknowledgeLoading}
-        activityScore={activityScore}
-        fermentationPhase={fermentationPhase}
-        attenuation={attenuation}
-        controllerProfileTarget={controllerData?.profile_target_temp ?? null}
-      />
+      <div onClick={isAuthenticated ? () => setExpanded(true) : undefined} className={isAuthenticated ? 'cursor-pointer' : ''}>
+        <FermentationSessionCompact
+          profileName={session.profile?.name || ''}
+          status={session.status}
+          currentStepIndex={session.current_step_index}
+          totalSteps={session.steps?.length || 0}
+          currentStep={currentStep}
+          stepStartedAt={session.step_started_at}
+          stepStartTemp={session.step_start_temp}
+          targetTemp={controllerData?.target_temp ?? null}
+          profileStepTarget={profileStepTarget}
+          currentTemp={controllerData?.current_temp ?? null}
+          isRamping={isRamping}
+          rampProgress={rampProgress}
+          currentSg={currentSg}
+          targetSg={stepTargetSg}
+          sgComparison={stepSgComparison}
+          originalGravity={originalGravity}
+          sgData={sgData}
+          isWaitingForGravityStable={isWaitingForGravityStable}
+          onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
+          onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
+          acknowledgeLoading={acknowledgeLoading}
+          activityScore={activityScore}
+          fermentationPhase={fermentationPhase}
+          attenuation={attenuation}
+          controllerProfileTarget={controllerData?.profile_target_temp ?? null}
+        />
+      </div>
     );
   }
 
