@@ -110,18 +110,38 @@ export function ActiveFermentationSession({
         if (isWaitingForTemp) return 'hsl(200 90% 55%)';
         if (isRamping) return 'hsl(38 92% 55%)';
         if (isWaitingForGravityStable) return 'hsl(280 70% 60%)';
+        if (currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') return 'hsl(38 92% 55%)';
         return 'hsl(142 70% 50%)';
       };
 
       const getStepGaugeValue = () => {
         if (isRamping && rampProgress != null) return rampProgress;
         if (stepTimeProgress != null) return stepTimeProgress;
+        // For activity-based steps, show activity approaching trigger
+        if (currentStep?.step_type === 'gradual_ramp' && activityScore != null) {
+          const trigger = currentStep.activity_trigger ?? 35;
+          return Math.max(0, Math.min(1, 1 - activityScore / 100));
+        }
+        if (currentStep?.step_type === 'diacetyl_rest' && attenuation != null) {
+          const trigger = currentStep.attenuation_trigger ?? 75;
+          return Math.min(1, (attenuation ?? 0) / trigger);
+        }
+        if (isWaitingForGravityStable && sgData) {
+          // Use rough stability estimate
+          return stepProgress > 0 ? stepProgress / 100 : 0.1;
+        }
         return stepProgress / 100;
       };
 
       const getStepGaugeLabel = () => {
         if (isRamping && rampProgress != null) return `${Math.round(rampProgress * 100)}%`;
         if (stepTimeProgress != null) return `${Math.round(stepTimeProgress * 100)}%`;
+        if (currentStep?.step_type === 'gradual_ramp' && activityScore != null) {
+          return `${Math.round(activityScore)}%`;
+        }
+        if (currentStep?.step_type === 'diacetyl_rest' && attenuation != null) {
+          return `${Math.round(attenuation)}%`;
+        }
         return `${Math.round(stepProgress)}%`;
       };
 
@@ -129,6 +149,8 @@ export function ActiveFermentationSession({
         if (stepRemainingTime != null && stepRemainingTime > 0) return formatRemainingTime(stepRemainingTime);
         if (isWaitingForTemp) return 'Väntar temp';
         if (isWaitingForGravityStable) return 'SG stabil';
+        if (currentStep?.step_type === 'gradual_ramp') return `Akt. → ${currentStep.activity_trigger ?? 35}%`;
+        if (currentStep?.step_type === 'diacetyl_rest') return `Att. → ${currentStep.attenuation_trigger ?? 75}%`;
         return getStepTypeLabel(currentStep?.step_type || 'hold');
       };
 
@@ -238,20 +260,42 @@ export function ActiveFermentationSession({
               <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
             )}
 
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" size="sm" className="flex-1" onClick={handlePauseResume} disabled={actionLoading}>
-                {actionLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3 h-3 mr-1" />Återuppta</> : <><Pause className="w-3 h-3 mr-1" />Pausa</>}
+            <div className="flex gap-1.5 pt-1">
+              <Button 
+                variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5"
+                style={{
+                  background: 'hsl(var(--primary) / 0.08)',
+                  borderColor: 'hsl(var(--primary) / 0.25)',
+                }}
+                onClick={handlePauseResume} disabled={actionLoading}
+              >
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3.5 h-3.5" />Återuppta</> : <><Pause className="w-3.5 h-3.5" />Pausa</>}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}>
-                {skipLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <SkipForward className="w-3 h-3" />}
+              <Button 
+                variant="outline" size="icon" className="h-8 w-8 shrink-0"
+                style={{
+                  background: 'hsl(var(--primary) / 0.05)',
+                  borderColor: 'hsl(var(--primary) / 0.2)',
+                }}
+                onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} 
+                title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
+              >
+                {skipLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SkipForward className="w-3.5 h-3.5" />}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(true)} disabled={actionLoading}>
-                <Square className="w-3 h-3" />
+              <Button 
+                variant="outline" size="icon" className="h-8 w-8 shrink-0"
+                style={{
+                  background: 'hsl(0 70% 50% / 0.06)',
+                  borderColor: 'hsl(0 70% 50% / 0.2)',
+                }}
+                onClick={() => setShowCancelDialog(true)} disabled={actionLoading}
+              >
+                <Square className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
 
-          {/* Dialogs for skip/cancel confirmation */}
+          {/* Dialogs */}
           <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -393,15 +437,37 @@ export function ActiveFermentationSession({
         )}
 
         {isAuthenticated && (
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="flex-1" onClick={handlePauseResume} disabled={actionLoading}>
-              {actionLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3 h-3 mr-1" />Återuppta</> : <><Pause className="w-3 h-3 mr-1" />Pausa</>}
+          <div className="flex gap-1.5 pt-1">
+            <Button 
+              variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5"
+              style={{
+                background: 'hsl(var(--primary) / 0.08)',
+                borderColor: 'hsl(var(--primary) / 0.25)',
+              }}
+              onClick={handlePauseResume} disabled={actionLoading}
+            >
+              {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3.5 h-3.5" />Återuppta</> : <><Pause className="w-3.5 h-3.5" />Pausa</>}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}>
-              {skipLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <SkipForward className="w-3 h-3" />}
+            <Button 
+              variant="outline" size="icon" className="h-8 w-8 shrink-0"
+              style={{
+                background: 'hsl(var(--primary) / 0.05)',
+                borderColor: 'hsl(var(--primary) / 0.2)',
+              }}
+              onClick={() => setShowSkipConfirm(true)} disabled={skipLoading}
+              title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
+            >
+              {skipLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SkipForward className="w-3.5 h-3.5" />}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(true)} disabled={actionLoading}>
-              <Square className="w-3 h-3" />
+            <Button 
+              variant="outline" size="icon" className="h-8 w-8 shrink-0"
+              style={{
+                background: 'hsl(0 70% 50% / 0.06)',
+                borderColor: 'hsl(0 70% 50% / 0.2)',
+              }}
+              onClick={() => setShowCancelDialog(true)} disabled={actionLoading}
+            >
+              <Square className="w-3.5 h-3.5" />
             </Button>
           </div>
         )}
@@ -450,39 +516,63 @@ interface StepsOverviewProps {
 }
 
 function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverviewProps) {
-  const getStepIcon = (stepType: string) => {
-    switch (stepType) {
-      case 'ramp': return '↘';
-      case 'hold': return '🌡';
-      case 'wait_for_temp': return '⏳';
-      case 'wait_for_gravity_stable': return '📊';
-      case 'wait_for_sg': return '📈';
-      case 'wait_for_acknowledgement': return '✋';
-      default: return '⏱';
+  const getStepIcon = (step: FermentationProfileStep, index: number) => {
+    const isUp = step.step_type === 'ramp' && step.target_temp != null && stepStartTemp != null && index === currentStepIndex && step.target_temp > stepStartTemp;
+    switch (step.step_type) {
+      case 'ramp': return isUp ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />;
+      case 'hold': return <Thermometer className="w-2.5 h-2.5" />;
+      case 'wait_for_gravity_stable': case 'wait_for_sg': case 'gradual_ramp': case 'diacetyl_rest': return <Activity className="w-2.5 h-2.5" />;
+      default: return <Clock className="w-2.5 h-2.5" />;
     }
   };
 
-  const getStepTempDisplay = (step: FermentationProfileStep, index: number) => {
+  const getStepTemp = (step: FermentationProfileStep, index: number) => {
     if (step.step_type === 'ramp' && step.target_temp != null) {
       if (index === currentStepIndex && stepStartTemp != null) return `${Math.round(stepStartTemp)}→${step.target_temp}°`;
       return `→${step.target_temp}°`;
+    }
+    if (step.step_type === 'gradual_ramp' || step.step_type === 'diacetyl_rest') {
+      return `+${step.temp_increase ?? 3}°`;
     }
     if (step.target_temp != null) return `${step.target_temp}°`;
     return null;
   };
 
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex items-center gap-0.5 overflow-x-auto py-1">
       {steps.map((step, index) => {
-        const tempDisplay = getStepTempDisplay(step, index);
+        const isDone = index < currentStepIndex;
+        const isCurrent = index === currentStepIndex;
+        const tempDisplay = getStepTemp(step, index);
+        
         return (
-          <div key={step.id} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
-            index < currentStepIndex ? 'bg-primary/20 border-primary/30 text-primary'
-            : index === currentStepIndex ? 'bg-primary border-primary text-primary-foreground'
-            : 'bg-muted border-border text-muted-foreground'
-          }`}>
-            <span className="text-[10px]">{getStepIcon(step.step_type)}</span>
-            <span>{index + 1}{tempDisplay && ` (${tempDisplay})`}</span>
+          <div key={step.id} className="flex items-center">
+            {index > 0 && (
+              <div 
+                className="w-2 h-px mx-0.5"
+                style={{ background: isDone ? 'hsl(var(--primary) / 0.5)' : 'hsl(0 0% 100% / 0.1)' }}
+              />
+            )}
+            <div 
+              className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-all"
+              style={{
+                background: isCurrent 
+                  ? 'hsl(var(--primary) / 0.2)' 
+                  : isDone 
+                  ? 'hsl(var(--primary) / 0.08)' 
+                  : 'hsl(0 0% 100% / 0.04)',
+                border: `1px solid ${isCurrent ? 'hsl(var(--primary) / 0.4)' : isDone ? 'hsl(var(--primary) / 0.15)' : 'hsl(0 0% 100% / 0.06)'}`,
+                color: isCurrent 
+                  ? 'hsl(var(--primary))' 
+                  : isDone 
+                  ? 'hsl(var(--primary) / 0.7)' 
+                  : 'hsl(var(--muted-foreground))',
+                boxShadow: isCurrent ? '0 0 8px hsl(var(--primary) / 0.15)' : undefined,
+              }}
+            >
+              {getStepIcon(step, index)}
+              <span className="whitespace-nowrap">{index + 1}{tempDisplay && ` ${tempDisplay}`}</span>
+            </div>
           </div>
         );
       })}
