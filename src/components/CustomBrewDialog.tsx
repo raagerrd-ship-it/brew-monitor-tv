@@ -23,7 +23,7 @@ import { Loader2, X, ImageIcon } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
-import type { PillData, TempController } from "@/types/brew";
+
 
 export interface CustomBrewData {
   id: string;
@@ -33,8 +33,6 @@ export interface CustomBrewData {
   batch_number: string;
   original_gravity: number;
   final_gravity: number;
-  linked_controller_id: string | null;
-  linked_pill_id: string | null;
   status: string;
   fermentation_start: string | null;
   label_image_url: string | null;
@@ -61,8 +59,6 @@ export interface CustomBrewPrefill {
 interface CustomBrewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  pills: PillData[];
-  controllers: TempController[];
   onBrewSaved: () => void;
   editBrew?: CustomBrewData | null;
   prefill?: CustomBrewPrefill | null;
@@ -71,8 +67,6 @@ interface CustomBrewDialogProps {
 export function CustomBrewDialog({
   open,
   onOpenChange,
-  pills,
-  controllers,
   onBrewSaved,
   editBrew,
   prefill,
@@ -82,8 +76,8 @@ export function CustomBrewDialog({
   const [batchNumber, setBatchNumber] = useState("");
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
-  const [selectedControllerId, setSelectedControllerId] = useState<string>("");
-  const [selectedPillId, setSelectedPillId] = useState<string>("");
+
+
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
@@ -170,8 +164,6 @@ export function CustomBrewDialog({
         setBatchNumber(editBrew.batch_number || "");
         setOriginalGravity(editBrew.original_gravity?.toString() || "1.050");
         setFinalGravity(editBrew.final_gravity?.toString() || "1.010");
-        setSelectedControllerId(editBrew.linked_controller_id || "");
-        setSelectedPillId(editBrew.linked_pill_id || "");
         setStatus(editBrew.status || "Jäsning");
         setOriginalStatus(editBrew.status || "Jäsning");
         setLabelImageUrl(editBrew.label_image_url || null);
@@ -200,8 +192,6 @@ export function CustomBrewDialog({
         setStyle(prefill?.style || "");
         setOriginalGravity("1.050");
         setFinalGravity("1.010");
-        setSelectedControllerId("");
-        setSelectedPillId("");
         setStatus("Jäsning");
         setOriginalStatus("Jäsning");
         setSgData([]);
@@ -352,8 +342,6 @@ export function CustomBrewDialog({
           final_gravity: fg,
           attenuation: attenuation,
           abv: abv,
-          linked_controller_id: selectedControllerId || null,
-          linked_pill_id: selectedPillId || null,
           status: status,
           fermentation_start: fermStart,
           label_image_url: labelImageUrl,
@@ -406,15 +394,6 @@ export function CustomBrewDialog({
         // Generate a unique batch_id for custom brews
         const customBatchId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-        // Auto-resolve pill_id from selected controller if no pill explicitly selected
-        let resolvedPillId = selectedPillId || null;
-        if (!resolvedPillId && selectedControllerId) {
-          const selectedController = controllers.find(c => c.controller_id === selectedControllerId);
-          if (selectedController?.linked_pill_id) {
-            resolvedPillId = selectedController.linked_pill_id;
-          }
-        }
-
         // Insert into brew_readings
         const { error: insertError } = await supabase
           .from("brew_readings")
@@ -431,8 +410,6 @@ export function CustomBrewDialog({
             attenuation: 0, // No fermentation yet
             abv: 0, // No fermentation yet
             sg_data: [],
-            linked_controller_id: selectedControllerId || null,
-            linked_pill_id: resolvedPillId,
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
             description: description.trim() || null,
@@ -603,45 +580,8 @@ export function CustomBrewDialog({
             </div>
           )}
 
-          <div className="grid gap-2">
-            <Label>RAPT Controller</Label>
-            <Select
-              value={selectedControllerId || "none"}
-              onValueChange={(val) => setSelectedControllerId(val === "none" ? "" : val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Välj controller (valfritt)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Ingen</SelectItem>
-                {controllers.map((controller) => (
-                  <SelectItem
-                    key={controller.id}
-                    value={controller.controller_id}
-                  >
-                    {controller.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Show linked pill info when controller is selected */}
-          {selectedControllerId && (() => {
-            const ctrl = controllers.find(c => c.controller_id === selectedControllerId);
-            const linkedPill = ctrl?.linked_pill_id ? pills.find(p => p.pill_id === ctrl.linked_pill_id) : null;
-            return linkedPill ? (
-              <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: linkedPill.color }} />
-                <span className="text-muted-foreground">Pill:</span>
-                <span className="font-medium">{linkedPill.name}</span>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Ingen pill kopplad till denna controller.
-              </p>
-            );
-          })()}
+
 
           {/* Label Image Upload */}
           <div className="grid gap-2">

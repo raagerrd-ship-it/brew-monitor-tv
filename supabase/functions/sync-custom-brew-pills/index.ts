@@ -30,36 +30,38 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get custom brews that are actively fermenting
-    // Include brews with linked pill OR linked controller (pill can be resolved via controller)
-    // Only sync data for brews in "Jäsning" status - other statuses should not add new data points
     const { data: customBrews, error: brewsError } = await supabase
       .from('brew_readings')
       .select('*')
       .like('batch_id', 'custom\\_%')
       .in('status', ['Jäsning', 'Fermenting']);
 
-    // Filter to brews that have either a linked pill or a linked controller
-    const brewsWithLinks = (customBrews || []).filter(
-      (b) => b.linked_pill_id || b.linked_controller_id
-    );
-
     if (brewsError) {
       throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);
     }
 
-    if (!brewsWithLinks || brewsWithLinks.length === 0) {
-      console.log('No custom brews with linked pills/controllers found');
+    if (!customBrews || customBrews.length === 0) {
+      console.log('No custom brews in fermentation found');
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No custom brews with linked pills or controllers',
+          message: 'No custom brews in fermentation',
           brewsUpdated: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${brewsWithLinks.length} custom brews with linked pills/controllers`);
+    console.log(`Found ${customBrews.length} custom brews in fermentation`);
+
+    // Get all pills with paired_device_id and controllers for auto-matching
+    const { data: allPills } = await supabase
+      .from('rapt_pills')
+      .select('pill_id, name, paired_device_id');
+    
+    const { data: allControllers } = await supabase
+      .from('rapt_temp_controllers')
+      .select('controller_id, linked_pill_id, pill_temp');
 
     // Get auth token
     console.log('Getting RAPT auth token...');
@@ -72,29 +74,29 @@ serve(async (req) => {
     const { access_token } = authData;
     let brewsUpdated = 0;
 
-    for (const brew of brewsWithLinks) {
+    for (const brew of customBrews) {
       try {
-        // Resolve pill_id: use linked_pill_id directly, or look it up via linked controller
+        // Auto-resolve pill_id via paired_device_id matching
+        // Priority: 1) linked_pill_id on brew (legacy), 2) linked_controller_id → controller's linked_pill_id, 3) paired_device_id temp matching
         let pillId = brew.linked_pill_id;
         
         if (!pillId && brew.linked_controller_id) {
-          const { data: controller } = await supabase
-            .from('rapt_temp_controllers')
-            .select('linked_pill_id')
-            .eq('controller_id', brew.linked_controller_id)
-            .maybeSingle();
-          
+          const controller = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
           if (controller?.linked_pill_id) {
             pillId = controller.linked_pill_id;
-            // Also update the brew record so future syncs are faster
-            await supabase
-              .from('brew_readings')
-              .update({ linked_pill_id: pillId })
-              .eq('id', brew.id);
-            console.log(`Resolved pill_id ${pillId} from controller ${brew.linked_controller_id} for brew ${brew.name}`);
-          } else {
-            console.log(`Controller ${brew.linked_controller_id} has no linked pill for brew ${brew.name}, skipping`);
-            continue;
+          }
+        }
+
+        if (!pillId) {
+          // Try paired_device_id: find a pill paired to a controller whose pill_temp matches brew temp
+          for (const pill of (allPills || [])) {
+            if (!pill.paired_device_id) continue;
+            const controller = allControllers?.find(c => c.controller_id === pill.paired_device_id);
+            if (controller?.pill_temp != null && Math.abs(controller.pill_temp - brew.current_temp) <= 3) {
+              pillId = pill.pill_id;
+              console.log(`Auto-matched pill ${pill.name} to brew ${brew.name} via paired_device_id + temp matching`);
+              break;
+            }
           }
         }
         
@@ -277,13 +279,13 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Custom brew pill sync complete. Updated ${brewsUpdated}/${brewsWithLinks.length} brews`);
+    console.log(`Custom brew pill sync complete. Updated ${brewsUpdated}/${customBrews.length} brews`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         brewsUpdated,
-        totalBrews: brewsWithLinks.length
+        totalBrews: customBrews.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

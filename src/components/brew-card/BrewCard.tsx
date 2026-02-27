@@ -81,7 +81,7 @@ function BrewCardComponent({
   // Memoize expensive calculations
   const devices = useMemo(() => 
     findDevicesForBrew(brew, pills, controllers), 
-    [brew.linked_controller_id, brew.linked_pill_id, pills, controllers]
+    [brew.id, pills, controllers]
   );
   
 
@@ -235,11 +235,11 @@ function BrewCardComponent({
                           batchNumber={brew.batchNumber}
                           fermentationStart={brew.sgData?.[0]?.date ?? null}
                           status={brew.status}
-                          controllerId={brew.linked_controller_id ?? null}
+                          controllerId={devices.controller?.controller_id ?? null}
                         />
                       </div>
                     )}
-                    {brew.status === "Jäsning" && brew.linked_controller_id && !brew.fermentationSession && (
+                    {brew.status === "Jäsning" && devices.controller && !brew.fermentationSession && (
                       <button
                         className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
                         onClick={() => { setStartSessionOpen(true); setMenuOpen(false); }}
@@ -316,7 +316,7 @@ function BrewCardComponent({
                 fg={brew.finalGravity} 
                 singleView={true}
                 events={brew.events}
-                controllerId={brew.linked_controller_id}
+                controllerId={devices.controller?.controller_id ?? null}
                 chartIndex={cardIndex}
                 brewId={brew.id}
                 hasFermentationSession={!!brew.fermentationSession}
@@ -375,7 +375,7 @@ function BrewCardComponent({
           onOpenChange={setSyncedDataOpen}
           brewName={brew.name}
           brewId={brew.id}
-          controllerId={brew.linked_controller_id}
+          controllerId={devices.controller?.controller_id ?? null}
         />
       )}
       
@@ -387,11 +387,11 @@ function BrewCardComponent({
       />
 
       {/* Start Fermentation Session Dialog */}
-      {brew.linked_controller_id && (
+      {devices.controller && (
         <StartFermentationSessionDialog
           open={startSessionOpen}
           onOpenChange={setStartSessionOpen}
-          preselectedControllerId={brew.linked_controller_id}
+          preselectedControllerId={devices.controller.controller_id}
           preselectedBrewId={brew.id}
         />
       )}
