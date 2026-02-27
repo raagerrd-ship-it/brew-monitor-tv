@@ -1,3 +1,4 @@
+import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
@@ -193,7 +194,7 @@ export default function Settings() {
                         </div>
                       </div>
                       <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                        onClick={() => settings.handleForceTvRefresh()}>
+                        onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina Brewfather API-nycklar i backend-inställningarna." })}>
                         <Pencil className="h-3 w-3" /> Ändra API-uppgifter
                       </button>
                     </CollapsibleContent>
@@ -238,7 +239,7 @@ export default function Settings() {
                         </div>
                       )}
                       <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                        onClick={() => settings.handleForceTvRefresh()}>
+                        onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina RAPT API-nycklar i backend-inställningarna." })}>
                         <Pencil className="h-3 w-3" /> Ändra API-uppgifter
                       </button>
                     </CollapsibleContent>
