@@ -183,60 +183,7 @@ export function ActiveFermentationSession({
               startedAt={session.started_at}
             />
 
-            {/* Gauges row */}
-            <div 
-              className="flex items-center justify-around py-3 px-2 rounded-lg"
-              style={{
-                background: 'hsl(0 0% 0% / 0.2)',
-                border: '1px solid hsl(0 0% 100% / 0.04)',
-              }}
-            >
-              {/* Overall profile gauge */}
-              <div className="flex flex-col items-center gap-1">
-                <RadialGauge
-                  value={overallProgress}
-                  size={76}
-                  strokeWidth={5}
-                  fillColor="hsl(var(--primary))"
-                  label={`${session.current_step_index + 1}/${session.steps?.length || 0}`}
-                  subLabel="Profil"
-                />
-              </div>
-
-              {/* Current step gauge */}
-              {currentStep && (
-                <div className="flex flex-col items-center gap-1">
-                  <RadialGauge
-                    value={getStepGaugeValue()}
-                    size={76}
-                    strokeWidth={5}
-                    fillColor={getStepGaugeColor()}
-                    label={getStepGaugeLabel()}
-                    subLabel={getStepGaugeSubLabel()}
-                  />
-                </div>
-              )}
-
-              {/* Temperature gauge */}
-              {controllerData?.current_temp != null && currentStep?.target_temp != null && (
-                <div className="flex flex-col items-center gap-1">
-                  <RadialGauge
-                    value={Math.max(0, Math.min(1, 1 - Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) / 5))}
-                    size={76}
-                    strokeWidth={5}
-                    fillColor={
-                      Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 0.5
-                        ? 'hsl(142 70% 50%)'
-                        : Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 2
-                        ? 'hsl(38 92% 55%)'
-                        : 'hsl(0 80% 55%)'
-                    }
-                    label={`${controllerData.current_temp.toFixed(1)}°`}
-                    subLabel={`Mål ${(controllerData?.profile_target_temp ?? currentStep.target_temp).toFixed(1)}°`}
-                  />
-                </div>
-              )}
-            </div>
+            {/* Removed gauges - conditions display shows progress */}
 
             {currentStep && (
               <>
