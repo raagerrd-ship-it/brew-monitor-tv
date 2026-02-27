@@ -2,12 +2,13 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
+import { Printer, FileText, Bluetooth, BluetoothOff, Loader2, Settings } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { PRINTER_VERSION } from "@/lib/thermal-printer";
 import { usePrinterConnection } from "@/hooks";
 import { printCanvasInWindow, downloadCanvasAsPdf } from "@/lib/label-utils";
+import { useNavigate } from "react-router-dom";
 
 type LabelType = 'tank' | 'keg';
 interface PrintLabelDialogProps {
@@ -20,11 +21,12 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [labelType, setLabelType] = useState<LabelType>('tank');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copies, setCopies] = useState(1);
+  const navigate = useNavigate();
 
   const {
     hasBle, bleConn, isConnecting, isPrinting, printProgress,
     autoConnectFailed, targetPrinterName,
-    connect, disconnect, print,
+    retry, print,
   } = usePrinterConnection(open);
 
   // Render label preview whenever type or brew changes
@@ -58,6 +60,11 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const handleDownloadPdf = async () => {
     if (!canvasRef.current) return;
     await downloadCanvasAsPdf(canvasRef.current, brew.name, labelType);
+  };
+
+  const goToSettings = () => {
+    onOpenChange(false);
+    navigate("/settings?tab=devices");
   };
 
   return (
@@ -132,23 +139,20 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
                     <Bluetooth className="h-4 w-4 text-primary" />
                     <span className="text-foreground">{bleConn.device.name || 'Skrivare'}</span>
                   </>
+                ) : isConnecting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">Ansluter till {targetPrinterName || 'skrivare'}...</span>
+                  </>
                 ) : (
                   <>
                     <BluetoothOff className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Ej ansluten</span>
+                    <span className="text-muted-foreground">
+                      {targetPrinterName ? `${targetPrinterName} – ej ansluten` : 'Ingen skrivare vald'}
+                    </span>
                   </>
                 )}
               </div>
-              {bleConn ? (
-                <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 text-xs">
-                  Koppla från
-                </Button>
-              ) : (
-                <Button variant="ghost" size="sm" onClick={connect} disabled={isConnecting} className="h-7 text-xs">
-                  {isConnecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                  Anslut
-                </Button>
-              )}
             </div>
 
             {/* Print progress */}
@@ -159,22 +163,22 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               </div>
             )}
 
-            {/* BLE Print / Reconnect button */}
-            {autoConnectFailed && !bleConn ? (
-              <Button
-                onClick={connect}
-                className="w-full gap-2"
-                size="lg"
-                variant="outline"
-                disabled={isConnecting}
-              >
-                {isConnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Bluetooth className="h-4 w-4" />
-                )}
-                {isConnecting ? 'Ansluter...' : `Återanslut till ${targetPrinterName}`}
+            {/* Action buttons */}
+            {!targetPrinterName ? (
+              <Button onClick={goToSettings} className="w-full gap-2" size="lg" variant="outline">
+                <Settings className="h-4 w-4" />
+                Gå till Inställningar → Enheter
               </Button>
+            ) : autoConnectFailed && !bleConn ? (
+              <div className="space-y-2">
+                <Button onClick={retry} className="w-full gap-2" size="lg" variant="outline" disabled={isConnecting}>
+                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
+                  {isConnecting ? 'Ansluter...' : `Återanslut till ${targetPrinterName}`}
+                </Button>
+                <button onClick={goToSettings} className="w-full text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Ändra skrivare i Inställningar
+                </button>
+              </div>
             ) : (
               <Button
                 onClick={handleBlePrint}
@@ -182,9 +186,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
                 size="lg"
                 disabled={isPrinting || isConnecting}
               >
-                {isPrinting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isConnecting ? (
+                {isPrinting || isConnecting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Bluetooth className="h-4 w-4" />
