@@ -78,7 +78,7 @@ export function useBrewManagement() {
         supabase.from('brew_readings')
           .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description')
           .like('batch_id', 'custom_%'),
-        supabase.from('rapt_pills').select('id, pill_id, name, color, battery_level, last_update'),
+        supabase.from('rapt_pills').select('id, pill_id, name, color, battery_level, last_update, paired_device_id'),
         supabase.from('rapt_temp_controllers')
           .select('id, controller_id, name, current_temp, pill_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, cooling_hysteresis, heating_hysteresis, cooling_run_time, cooling_starts, heating_run_time, heating_starts')
       ]);
