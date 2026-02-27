@@ -232,19 +232,17 @@ export function AutoCoolingDecisionLogs() {
 
           return (
             <Collapsible key={`adj-${adj.id}`}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2 text-xs">
+              <CollapsibleTrigger className="grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[auto_1fr_1fr_1fr_auto] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
                   {getCategoryBadge(category)}
-                  <span className="text-muted-foreground">{formatTime(adj.created_at)}</span>
-                  <span className="font-medium" style={{ 
+                  <span className="text-muted-foreground whitespace-nowrap">{formatTime(adj.created_at)}</span>
+                  <span className="font-medium whitespace-nowrap" style={{ 
                     color: tempChange < 0 ? 'hsl(210 80% 60%)' : tempChange > 0 ? 'hsl(var(--ferment-green))' : undefined 
                   }}>
                     {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°
                   </span>
-                  <span className="text-muted-foreground truncate max-w-[100px]">
+                  <span className="text-muted-foreground truncate hidden md:block">
                     {category === 'glykol' ? adj.cooler_controller_name : (adj.followed_controller_name || adj.cooler_controller_name)}
                   </span>
-                </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200" />
               </CollapsibleTrigger>
               <CollapsibleContent>
