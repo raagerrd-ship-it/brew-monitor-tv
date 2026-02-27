@@ -484,19 +484,14 @@ export async function printBitmap(
         if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
       }
 
-      // Raster data: high-throughput but paced
+      // Raster data: guaranteed delivery (with response)
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-      const BLE_CHUNK = 244;
+      const BLE_CHUNK = 200;
       const totalBytes = escapedData.length;
-      let chunkIdx = 0;
 
       for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
         const end = Math.min(offset + BLE_CHUNK, totalBytes);
-        await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`, 'forceNoResponse');
-        chunkIdx++;
-
-        // Let the printer BLE buffer drain periodically
-        if (chunkIdx % 8 === 0 && end < totalBytes) await delay(8);
+        await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`, 'forceWithResponse');
 
         const pct = 20 + ((end) / totalBytes) * 70;
         onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
@@ -504,9 +499,9 @@ export async function printBitmap(
 
       // Wait for printer ACK/status after raster payload
       notify?.clear();
-      await delay(250);
+      await delay(300);
       await notify?.waitForPacket(`efter bilddata${copyLabel}`, 5000);
-      await delay(1200);
+      await delay(1800);
       onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
 
       // End-job and wait for ACK/status
