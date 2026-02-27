@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep, getEffectiveTargetTemp } from './temp-utils.ts'
+import { insertNotification } from './notifications.ts'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -371,8 +372,8 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
   let actionTaken = 'checked'
   let actionDetails: any = {}
 
-  const attenuationTrigger = (currentStep as any).attenuation_trigger ?? 75
-  const tempIncrease = (currentStep as any).temp_increase ?? 3
+  const attenuationTrigger = currentStep.attenuation_trigger ?? 75
+  const tempIncrease = currentStep.temp_increase ?? 3
 
   if (!brewData) {
     return { stepCompleted, actionTaken, actionDetails }
@@ -440,9 +441,9 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   let actionTaken = 'checked'
   let actionDetails: any = {}
 
-  const activityTrigger = (currentStep as any).activity_trigger ?? 35
-  const tempIncrease = (currentStep as any).temp_increase ?? 3
-  const minRampHours = (currentStep as any).min_ramp_hours ?? null
+  const activityTrigger = currentStep.activity_trigger ?? 35
+  const tempIncrease = currentStep.temp_increase ?? 3
+  const minRampHours = currentStep.min_ramp_hours ?? null
   const activityScore = metrics?.activity_score ?? 100
 
   if (!brewData) {
@@ -500,7 +501,15 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       },
     })
     console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C`)
-  }
+
+    // Notify user that the smart diacetyl rest has started
+    await insertNotification(supabase, {
+      type: 'gradual_ramp_triggered',
+      title: 'Smart diacetylvila startad',
+      body: `Aktivitet sjunkit till ${Math.round(activityScore)}% — temperaturhöjning påbörjas från ${baseTemp}°C (+${tempIncrease}°C)`,
+      controller_id: session.controller_id,
+      brew_id: session.brew_id,
+    })
 
   // Phase 2: Ramping (always exponential curve for gentler start)
   let rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
@@ -559,6 +568,15 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       final_target: rampedTarget,
     }
     console.log(`✅ Gradual ramp complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
+
+    // Notify user that the smart diacetyl rest is complete
+    await insertNotification(supabase, {
+      type: 'gradual_ramp_completed',
+      title: 'Smart diacetylvila klar',
+      body: `SG stabil i ${stableDays} dagar och aktivitet ${Math.round(metrics?.activity_score ?? 0)}% — redo för nästa steg`,
+      controller_id: session.controller_id,
+      brew_id: session.brew_id,
+    })
   } else if (sgStable && !activityLow) {
     console.log(`Gradual ramp: SG stable but activity still ${metrics?.activity_score}% (need <15) - continuing`)
     actionDetails = { ...actionDetails, phase: 'gradual_ramping_waiting', sg_stable: true, activity_score: metrics?.activity_score }

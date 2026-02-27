@@ -8,7 +8,7 @@ export interface ProfileStep {
   id: string
   profile_id: string
   step_order: number
-  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement'
+  step_type: 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'diacetyl_rest' | 'gradual_ramp'
   target_temp: number | null
   duration_hours: number | null
   ramp_type: 'linear' | 'immediate' | null
@@ -17,6 +17,11 @@ export interface ProfileStep {
   target_sg: number | null
   sg_comparison: 'at_or_below' | 'at_or_above' | null
   notes: string | null
+  attenuation_trigger: number | null
+  activity_trigger: number | null
+  temp_increase: number | null
+  min_ramp_hours: number | null
+  ramp_curve: string | null
 }
 
 export interface TempController {
