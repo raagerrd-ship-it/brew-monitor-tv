@@ -293,6 +293,22 @@ function BrewCardComponent({
         </div>
       </div>
       
+      {/* Active Fermentation Session - above chart, overflow-visible so shadow isn't clipped */}
+      <div className="flex-shrink-0 px-3 pt-1 overflow-visible">
+        <ActiveFermentationSession 
+          brewId={brew.id} 
+          compact 
+          preloadedSession={brew.fermentationSession}
+          isAuthenticated={showInteractiveElements}
+          currentSg={brew.currentSG}
+          originalGravity={brew.originalGravity}
+          sgData={brew.sgData}
+          activityScore={brew.fermentationMetrics?.activity_score ?? null}
+          fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
+          attenuation={brew.attenuation}
+        />
+      </div>
+
       {/* Chart Area - fills remaining space */}
       <div className="flex-1 min-h-0 p-2 pb-1 flex flex-col">
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -324,22 +340,6 @@ function BrewCardComponent({
               onSmoothLinesChange={setSmoothLines}
             />
           )}
-        </div>
-        
-        {/* Active Fermentation Session - overflow-visible so shadow isn't clipped */}
-        <div className="mt-1 flex-shrink-0 px-1 overflow-visible">
-          <ActiveFermentationSession 
-            brewId={brew.id} 
-            compact 
-            preloadedSession={brew.fermentationSession}
-            isAuthenticated={showInteractiveElements}
-            currentSg={brew.currentSG}
-            originalGravity={brew.originalGravity}
-            sgData={brew.sgData}
-            activityScore={brew.fermentationMetrics?.activity_score ?? null}
-            fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
-            attenuation={brew.attenuation}
-          />
         </div>
       </div>
 
