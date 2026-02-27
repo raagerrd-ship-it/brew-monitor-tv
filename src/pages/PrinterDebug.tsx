@@ -13,7 +13,7 @@ import {
   isBluetoothSupported,
   connectPrinter,
   disconnectPrinter,
-  printTestPage,
+  printDebugTestPattern,
   PRINTER_VERSION,
   type PrinterConnection,
 } from "@/lib/thermal-printer";
@@ -59,9 +59,9 @@ export default function PrinterDebug() {
     if (!conn) return;
     setRunning(true);
     setError(null);
-    addLog(`── Kör print-test via unified engine (${PRINTER_VERSION}) ──`);
+    addLog(`── Kör debug-mönster via sendRasterJob (${PRINTER_VERSION}) ──`);
     try {
-      await printTestPage(conn, (p) => {
+      await printDebugTestPattern(conn, (p) => {
         addLog(`${p.phase} (${Math.round(p.percent)}%)`);
       });
       addLog("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns.");
@@ -86,7 +86,7 @@ export default function PrinterDebug() {
             <Printer className="h-5 w-5 text-primary" />
             Skrivar-debug
           </h1>
-          <p className="text-xs text-muted-foreground">{PRINTER_VERSION} — samma motor som etikettutskrift</p>
+          <p className="text-xs text-muted-foreground">{PRINTER_VERSION} — delar sendRasterJob med etiketter</p>
         </div>
       </div>
 
