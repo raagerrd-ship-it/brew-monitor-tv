@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v33-phomymo-m110-exact';
+export const PRINTER_VERSION = 'v34-single-block-100B';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
