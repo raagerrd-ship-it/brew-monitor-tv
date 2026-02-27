@@ -99,8 +99,8 @@ export function clearLastDevice(): void {
 // ── Types ───────────────────────────────────────────────────────
 
 export interface PrinterConnection {
-  device: any;
-  characteristic: any;
+  device: BluetoothDevice;
+  characteristic: BluetoothRemoteGATTCharacteristic;
   writeMethod: 'withoutResponse' | 'withResponse';
 }
 
@@ -112,10 +112,10 @@ export interface PrintProgress {
 // ── Bluetooth helpers ───────────────────────────────────────────
 
 export function isBluetoothSupported(): boolean {
-  return typeof navigator !== 'undefined' && 'bluetooth' in (navigator as any);
+  return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
 }
 
-function saveLastDevice(device: any) {
+function saveLastDevice(device: BluetoothDevice) {
   try {
     if (device?.name) localStorage.setItem(LAST_PRINTER_NAME_KEY, device.name);
     if (device?.id) localStorage.setItem(LAST_PRINTER_ID_KEY, device.id);
@@ -132,21 +132,21 @@ function getLastDeviceId(): string | null {
 
 // ── Connection ──────────────────────────────────────────────────
 
-async function connectDevice(device: any): Promise<PrinterConnection> {
+async function connectDevice(device: BluetoothDevice): Promise<PrinterConnection> {
   const server = await connectWithRetry(device);
 
-  let service: any = null;
-  let matchedServiceUuid: any = null;
+  let service: BluetoothRemoteGATTService | null = null;
+  let matchedServiceUuid: BluetoothServiceUUID | null = null;
   for (const uuid of SERVICE_UUIDS) {
-    try { service = await server.getPrimaryService(uuid as any); matchedServiceUuid = uuid; break; } catch { /* next */ }
+    try { service = await server.getPrimaryService(uuid); matchedServiceUuid = uuid; break; } catch { /* next */ }
   }
   if (!service) throw new Error('Kunde inte hitta skrivarens BLE-tjänst.');
   console.log(`[Printer] Matched service: ${matchedServiceUuid}`);
 
-  let characteristic: any = null;
-  let matchedCharUuid: any = null;
+  let characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  let matchedCharUuid: BluetoothCharacteristicUUID | null = null;
   for (const uuid of WRITE_CHAR_UUIDS) {
-    try { characteristic = await service.getCharacteristic(uuid as any); matchedCharUuid = uuid; break; } catch { /* next */ }
+    try { characteristic = await service.getCharacteristic(uuid); matchedCharUuid = uuid; break; } catch { /* next */ }
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
@@ -165,12 +165,11 @@ export async function reconnectLastPrinter(): Promise<PrinterConnection | null> 
   if (!lastDeviceName && !lastDeviceId) return null;
 
   try {
-    const bt = navigator as any;
-    if (!bt.bluetooth?.getDevices) return null;
+    if (!navigator.bluetooth?.getDevices) return null;
 
-    const devices = await bt.bluetooth.getDevices();
+    const devices = await navigator.bluetooth.getDevices();
     const target = devices.find(
-      (d: any) => (lastDeviceId && d.id === lastDeviceId) || (lastDeviceName && d.name === lastDeviceName),
+      (d) => (lastDeviceId && d.id === lastDeviceId) || (lastDeviceName && d.name === lastDeviceName),
     );
     if (!target) return null;
     if (target.gatt?.connected) return await connectDevice(target);
@@ -200,26 +199,26 @@ export async function connectPrinter(): Promise<PrinterConnection> {
   if (!isBluetoothSupported()) {
     throw new Error('Web Bluetooth stöds inte i denna webbläsare. Använd Chrome eller Edge.');
   }
-  let device: any;
+  let device: BluetoothDevice;
   try {
-    device = await (navigator as any).bluetooth.requestDevice({
+    device = await navigator.bluetooth!.requestDevice({
       filters: [
         { namePrefix: 'M' }, { namePrefix: 'D' }, { namePrefix: 'P' },
         { namePrefix: 'Q' }, { namePrefix: 'T' }, { namePrefix: 'A' },
         { namePrefix: 'Mr.in' }, { namePrefix: 'Phomemo' },
       ],
-      optionalServices: SERVICE_UUIDS as any,
+      optionalServices: [...SERVICE_UUIDS],
     });
   } catch {
-    device = await (navigator as any).bluetooth.requestDevice({
+    device = await navigator.bluetooth!.requestDevice({
       acceptAllDevices: true,
-      optionalServices: SERVICE_UUIDS as any,
+      optionalServices: [...SERVICE_UUIDS],
     });
   }
   return connectDevice(device);
 }
 
-async function connectWithRetry(device: any, retries = 3): Promise<any> {
+async function connectWithRetry(device: BluetoothDevice, retries = 3): Promise<BluetoothRemoteGATTServer> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       if (attempt > 0) await delay(800 * attempt);
@@ -312,7 +311,7 @@ async function setupNotifyChannel(
     const queue: Uint8Array[] = [];
 
     const onNotify = (event: Event) => {
-      const target = event.target as any;
+      const target = event.target as BluetoothRemoteGATTCharacteristic;
       const value = target?.value;
       if (!value) return;
       const bytes = new Uint8Array(value.buffer.slice(0));
