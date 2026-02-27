@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v36-stable-block-chunk20';
+export const PRINTER_VERSION = 'v37-escape-lf-byte';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -357,7 +357,10 @@ export async function printBitmap(
     }
   }
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
+  // phomemo-tools quirk: 0x0a in payload is interpreted as LF by printer transport
+  const escapedBitmapData = escapeBleUnsafeBytes(bitmapData);
+
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${escapedBitmapData.length} bytes bitmap, copies=${copies}`);
 
   // ── 4. Send using confirmed M110 BLE protocol ──
   // Sequence: ESC@ → start-job → gap → speed → density → GS v 0 → data (20B chunks) → print-execute → end-job
@@ -402,7 +405,7 @@ export async function printBitmap(
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
     const BLE_CHUNK = settings.chunkSize;
     const MAX_LINES_PER_BLOCK = 256;
-    const totalBytes = bitmapData.length;
+    const totalBytes = escapedBitmapData.length;
 
     for (let blockStartLine = 0; blockStartLine < height; blockStartLine += MAX_LINES_PER_BLOCK) {
       const blockLines = Math.min(MAX_LINES_PER_BLOCK, height - blockStartLine);
@@ -422,7 +425,7 @@ export async function printBitmap(
         const end = Math.min(offset + BLE_CHUNK, blockSizeBytes);
         await bleWrite(
           connection,
-          bitmapData.slice(blockOffsetBytes + offset, blockOffsetBytes + end),
+          escapedBitmapData.slice(blockOffsetBytes + offset, blockOffsetBytes + end),
           `data@${blockOffsetBytes + offset}`,
         );
         if (end < blockSizeBytes) await delay(writeDelayMs);
@@ -478,6 +481,31 @@ export async function printTestPage(
   ctx.fillRect(132, 100, 120, 40);
 
   await printBitmap(connection, canvas, 1, DEFAULT_PRINT_SETTINGS, onProgress);
+}
+
+/**
+ * Replaces bytes that conflict with printer transport control characters.
+ * Phomemo BLE transport treats 0x0a as line-feed inside payload.
+ */
+function escapeBleUnsafeBytes(data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(data.length);
+  let replaced = 0;
+
+  for (let i = 0; i < data.length; i++) {
+    const b = data[i];
+    if (b === 0x0a) {
+      out[i] = 0x14;
+      replaced++;
+    } else {
+      out[i] = b;
+    }
+  }
+
+  if (replaced > 0) {
+    console.log(`[Printer] Escaped ${replaced} payload byte(s): 0x0a -> 0x14`);
+  }
+
+  return out;
 }
 
 /**
