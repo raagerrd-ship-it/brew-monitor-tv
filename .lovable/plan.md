@@ -1,51 +1,33 @@
 
 
-## Analysis of Smart Diacetyl Rest (`gradual_ramp`) Logic
+## Add exponential ramp curve to gradual_ramp
 
-### Current Issues Found
+### Current behavior
+Line 506: `rampProgress = (activityTrigger - activityScore) / activityTrigger` — linear mapping from activity drop to temperature increase.
 
-**1. min_ramp_hours constraint is broken**
-The time constraint uses `session.step_started_at` as its start reference, but the ramp may not trigger until days after the step starts (waiting for activity to drop below the trigger). By the time activity drops to e.g. 35%, `elapsedSinceStep` could already be 72+ hours, making a 48h min_ramp_hours constraint completely ineffective — the full temperature increase would be allowed immediately.
-
-**2. No tracking of when the ramp actually triggered**
-There is no field to record when activity first dropped below the trigger threshold. This is needed for both the min_ramp_hours constraint and for accurate progress reporting.
-
-**3. step_start_temp not utilized for gradual_ramp**
-The ramp uses `getEffectiveTargetTemp()` (looking back through steps) as the base temperature, but never saves `step_start_temp`. This means the base temp reference could shift if previous steps are modified, though this is a minor concern.
-
-### Plan
-
-**Step 1: Add `ramp_triggered_at` column to `fermentation_sessions`**
-- Nullable timestamp, defaults to null
-- Records when a gradual_ramp step's activity trigger first fires
-- Reset to null on step transitions (already handled by existing step advance logic which resets `step_start_temp`)
-
-**Step 2: Update `processGradualRampStep` in `step-handlers.ts`**
-- On first trigger (activity <= threshold AND `ramp_triggered_at` is null): set `ramp_triggered_at = now()` and `step_start_temp = baseTemp` on the session
-- Use `ramp_triggered_at` (not `step_started_at`) for the min_ramp_hours elapsed time calculation
-- If `ramp_triggered_at` is not yet set and trigger hasn't fired, skip the time constraint entirely
-
-**Step 3: Update session type and step advance logic**
-- Add `ramp_triggered_at` to the Session interface in `process-fermentation-profiles/index.ts`
-- Ensure step transitions reset `ramp_triggered_at` to null (add to the existing update query)
-- Update `src/types/fermentation.ts` FermentationSession type
-
-### Technical Details
+### Change
+Add a `ramp_curve` field (`'linear' | 'exponential'`) to fermentation profile steps. When set to `exponential`, apply a power curve: `rampProgress^2` — this makes the temperature increase slow at first and accelerate as activity drops further.
 
 ```text
-Timeline (current - broken):
-  step_started_at ──── 72h waiting ──── trigger fires ──── min_ramp_hours already elapsed!
-                                                           constraint is useless
+Linear:       activity 35→0%  →  temp +0→3°C  (constant rate)
+Exponential:  activity 35→0%  →  temp +0→3°C  (slow start, fast finish)
 
-Timeline (fixed):
-  step_started_at ──── 72h waiting ──── ramp_triggered_at ──── min_ramp_hours starts here
-                                                                constraint works correctly
+Example at 50% progress (activity ~17.5%):
+  Linear:      +1.5°C
+  Exponential: +0.75°C  (only half as much)
 ```
 
-Files to modify:
-- `supabase/migrations/` — new migration adding `ramp_triggered_at`
-- `supabase/functions/_shared/step-handlers.ts` — fix timing logic in `processGradualRampStep`
-- `supabase/functions/process-fermentation-profiles/index.ts` — add field to Session interface, reset on step advance
-- `src/types/fermentation.ts` — add field to FermentationSession type
-- `src/integrations/supabase/types.ts` — auto-updated
+### Files to change
+
+1. **Database migration** — Add `ramp_curve text` column to `fermentation_profile_steps` (nullable, default null = linear for backward compat).
+
+2. **`src/types/fermentation.ts`** — Add `ramp_curve` to `FermentationProfileStep` and `FermentationStepData`.
+
+3. **`src/components/fermentation/FermentationStepEditor.tsx`** — Add a Select for ramp curve (Linjär / Exponentiell) in the `gradual_ramp` section.
+
+4. **`src/components/fermentation/FermentationStepDisplay.tsx`** — Show curve type in display text.
+
+5. **`supabase/functions/_shared/step-handlers.ts`** — In `processGradualRampStep`, read `ramp_curve` from step and apply `rampProgress = rampProgress ** 2` when exponential.
+
+6. **Hooks** (`use-fermentation-profiles.ts`, `use-active-fermentation-session.ts`, `use-brew-data.ts`, `use-brew-page.ts`) — Include `ramp_curve` in queries.
 
