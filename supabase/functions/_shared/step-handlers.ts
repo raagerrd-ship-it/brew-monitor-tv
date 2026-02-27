@@ -532,7 +532,8 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
   // Apply min ramp hours constraint using ramp_triggered_at (not step_started_at)
-  if (minRampHours && minRampHours > 0) {
+  // Skip time constraint when activity is 0% — fermentation is done, no reason to wait
+  if (minRampHours && minRampHours > 0 && activityScore > 0) {
     const now = new Date()
     const elapsedSinceTrigger = (now.getTime() - rampTriggeredAt.getTime()) / (1000 * 60 * 60)
     const maxAllowedIncrease = (tempIncrease / minRampHours) * elapsedSinceTrigger
@@ -541,6 +542,8 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       console.log(`⏱️ Min ramp constraint: activity wants ${calculatedTarget}°C but time allows max ${timeConstrainedTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h since trigger)`)
       calculatedTarget = timeConstrainedTarget
     }
+  } else if (minRampHours && activityScore === 0) {
+    console.log(`⏱️ Min ramp constraint skipped: activity=0% (fermentation done), allowing full target ${calculatedTarget}°C`)
   }
 
   const maxTarget = Math.round((baseTemp + tempIncrease) * 10) / 10
