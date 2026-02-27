@@ -272,45 +272,43 @@ serve(async (req) => {
       dataChanged = controllersUpdated > 0;
     }
 
-    // Record temperature history for auto-cooling adjustment
-    try {
-      console.log('Recording temperature history...');
-      await supabase.functions.invoke('record-temp-history');
-    } catch (historyError) {
-      console.error('Error recording temperature history:', historyError);
-    }
-
-    // Sync custom brews with linked RAPT Pills
+    // Run temp history, custom brew sync, and automation in parallel
     let customBrewsUpdated = 0;
-    try {
-      console.log('Syncing custom brews with linked RAPT Pills...');
-      const { data: customBrewResult, error: customBrewError } = await supabase.functions.invoke('sync-custom-brew-pills');
-      
-      if (customBrewError) {
-        console.error('Error syncing custom brews:', customBrewError);
-      } else {
-        customBrewsUpdated = customBrewResult?.brewsUpdated || 0;
-        console.log(`Custom brew sync complete: ${customBrewsUpdated} brews updated`);
-      }
-    } catch (customBrewSyncError) {
-      console.error('Error syncing custom brews:', customBrewSyncError);
+    let automationResult = null;
+
+    const parallelStart = Date.now();
+    const [historyResult, customBrewResult, autoResult] = await Promise.allSettled([
+      supabase.functions.invoke('record-temp-history'),
+      supabase.functions.invoke('sync-custom-brew-pills'),
+      supabase.functions.invoke('run-automation'),
+    ]);
+
+    // Process results
+    if (historyResult.status === 'rejected') {
+      console.error('Error recording temperature history:', historyResult.reason);
     }
 
-    // Run automation orchestrator every cycle
-    let automationResult = null;
-    try {
-      console.log(`Running automation orchestrator (dataChanged=${dataChanged})...`);
-      const { data: autoResult, error: autoError } = await supabase.functions.invoke('run-automation');
-      
-      if (autoError) {
-        console.error('Error running automation:', autoError);
+    if (customBrewResult.status === 'fulfilled') {
+      if (customBrewResult.value.error) {
+        console.error('Error syncing custom brews:', customBrewResult.value.error);
       } else {
-        automationResult = autoResult;
-        console.log('Automation complete:', JSON.stringify(autoResult));
+        customBrewsUpdated = customBrewResult.value.data?.brewsUpdated || 0;
       }
-    } catch (automationError) {
-      console.error('Error running automation:', automationError);
+    } else {
+      console.error('Error syncing custom brews:', customBrewResult.reason);
     }
+
+    if (autoResult.status === 'fulfilled') {
+      if (autoResult.value.error) {
+        console.error('Error running automation:', autoResult.value.error);
+      } else {
+        automationResult = autoResult.value.data;
+      }
+    } else {
+      console.error('Error running automation:', autoResult.reason);
+    }
+
+    console.log(`Parallel tasks completed in ${Date.now() - parallelStart}ms (history=${historyResult.status}, customBrews=${customBrewsUpdated}, automation=${autoResult.status})`);
 
     // ---- Log RAPT API outage if detected ----
     try {

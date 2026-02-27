@@ -77,40 +77,43 @@ Deno.serve(async (req) => {
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
 
   // ============================================================
-  // STEP 1: Fermentation Profiles (15s timeout)
+  // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
+  // Both are independent — profiles sets target temps,
+  // metrics computes SG rates. Both needed before step 3.
   // ============================================================
+  const parallelSteps: Promise<any>[] = [];
+
   if (runningSessions && runningSessions.length > 0) {
     console.log("Step 1: Running fermentation profiles...");
-    await runStep("fermentation-profiles", "process-fermentation-profiles", {}, 15000);
+    parallelSteps.push(runStep("fermentation-profiles", "process-fermentation-profiles", {}, 15000));
   } else {
     results.push({ step: "fermentation-profiles", status: "skipped", duration_ms: 0 });
+    parallelSteps.push(Promise.resolve(null));
   }
 
-  // ============================================================
-  // STEP 2: Fermentation Metrics (15s timeout)
-  // Must run BEFORE auto-adjust-cooling since stall detection
-  // depends on pre-computed activity_score and sg_rate_per_hour
-  // ============================================================
   console.log("Step 2: Computing fermentation metrics...");
-  await runStep("fermentation-metrics", "compute-fermentation-metrics", {}, 15000);
+  parallelSteps.push(runStep("fermentation-metrics", "compute-fermentation-metrics", {}, 15000));
+
+  await Promise.all(parallelSteps);
 
   // ============================================================
-  // STEP 3: PID Pill Compensation + Glycol Cooler (20s timeout)
-  // Both handled by auto-adjust-cooling in a single call
+  // STEP 3+4: PID/Glycol + Health Check (PARALLEL)
+  // Health check is independent and can run alongside cooling.
   // ============================================================
+  const step3and4: Promise<any>[] = [];
+
   if ((hasPillComp || hasCooling) && hasActiveControllers) {
     console.log("Step 3: Running PID compensation + glycol cooler...");
-    await runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000);
+    step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000));
   } else {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
+    step3and4.push(Promise.resolve(null));
   }
 
-  // ============================================================
-  // STEP 4: System Health Check (10s timeout)
-  // Runs after all automation — logs system status
-  // ============================================================
   console.log("Step 4: Running system health check...");
-  const healthData = await runStep("system-health-check", "system-health-check", {}, 10000);
+  step3and4.push(runStep("system-health-check", "system-health-check", {}, 10000));
+
+  const [, healthData] = await Promise.all(step3and4);
 
   // Log health summary to pending_notifications if critical
   if (healthData?.overall_status === 'critical') {
