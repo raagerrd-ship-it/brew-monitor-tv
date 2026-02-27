@@ -10,7 +10,7 @@ import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
 import { StartFermentationSessionDialog, ActiveFermentationSession } from './fermentation';
 import { getControllerColor } from '@/lib/brew-utils';
-import { useControllerDialog } from '@/hooks/use-controller-dialog';
+import { useControllerDialog } from '@/hooks';
 
 interface TempController {
   id: string;

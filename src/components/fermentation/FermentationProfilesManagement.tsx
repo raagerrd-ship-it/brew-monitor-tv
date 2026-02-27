@@ -14,7 +14,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useFermentationProfiles } from "@/hooks/use-fermentation-profiles";
+import { useFermentationProfiles } from "@/hooks";
 import { FermentationProfileStep } from "@/types/fermentation";
 
 export function FermentationProfilesManagement() {

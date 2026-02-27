@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 function LogoComponent() {

@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState, createContext, useContext } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 // Reference resolution - layout is designed for 720p TV

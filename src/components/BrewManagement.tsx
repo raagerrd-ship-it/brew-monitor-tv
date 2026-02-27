@@ -4,7 +4,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
-import { useBrewManagement } from "@/hooks/use-brew-management";
+import { useBrewManagement } from "@/hooks";
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {

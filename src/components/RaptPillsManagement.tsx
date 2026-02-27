@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill, ChevronUp, ChevronDown, Link2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 
