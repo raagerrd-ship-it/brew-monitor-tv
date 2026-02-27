@@ -52,6 +52,7 @@ export function FermentationStepEditor({
   const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
   const [minRampHours, setMinRampHours] = useState<string>("");
+  const [rampCurve, setRampCurve] = useState<string>("linear");
 
   useEffect(() => {
     if (step) {
@@ -68,6 +69,7 @@ export function FermentationStepEditor({
       setActivityTrigger((step as any).activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
       setMinRampHours((step as any).min_ramp_hours?.toString() || "");
+      setRampCurve((step as any).ramp_curve || "linear");
       // Determine hold end condition based on existing step_type
       if (step.step_type === "wait_for_gravity_stable") {
         setStepType("hold");
@@ -103,6 +105,7 @@ export function FermentationStepEditor({
     setAttenuationTrigger("75");
     setTempIncrease("3");
     setMinRampHours("");
+    setRampCurve("linear");
   };
 
   const handleSave = () => {
@@ -155,6 +158,7 @@ export function FermentationStepEditor({
         stepData.gravity_stable_days = gravityStableDays ? parseInt(gravityStableDays) : 2;
         stepData.gravity_threshold = gravityThreshold ? parseFloat(gravityThreshold) : 0.001;
         (stepData as any).min_ramp_hours = minRampHours ? parseInt(minRampHours) : null;
+        (stepData as any).ramp_curve = rampCurve || 'linear';
         break;
     }
 
@@ -344,14 +348,17 @@ export function FermentationStepEditor({
                 <p className="text-xs text-muted-foreground">Minsta tid för full temperaturökning (begränsar rampningshastigheten)</p>
               </div>
               <div className="space-y-2">
-                <Label>Temperaturhöjning (°C)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={tempIncrease}
-                  onChange={(e) => setTempIncrease(e.target.value)}
-                  placeholder="3"
-                />
+                <Label>Rampkurva</Label>
+                <Select value={rampCurve} onValueChange={setRampCurve}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border z-50">
+                    <SelectItem value="linear">Linjär</SelectItem>
+                    <SelectItem value="exponential">Exponentiell</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Exponentiell: försiktigare start, snabbare avslut</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

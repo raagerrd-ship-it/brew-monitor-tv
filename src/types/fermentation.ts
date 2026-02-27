@@ -29,6 +29,7 @@ export interface FermentationProfileStep {
   activity_trigger: number | null;
   temp_increase: number | null;
   min_ramp_hours: number | null;
+  ramp_curve: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -125,4 +126,5 @@ export interface FermentationStepData {
   temp_increase?: number | null;
   gravity_threshold?: number | null;
   min_ramp_hours?: number | null;
+  ramp_curve?: string | null;
 }
