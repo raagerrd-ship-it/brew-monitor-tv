@@ -227,9 +227,10 @@ export function disconnectPrinter(connection: PrinterConnection): void {
 
 // ── BLE write primitives ────────────────────────────────────────
 
-async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string): Promise<void> {
+async function bleWrite(conn: PrinterConnection, data: Uint8Array, ctx: string, forceNoResponse = false): Promise<void> {
   const buffer = new Uint8Array(data).buffer;
-  const p = conn.writeMethod === 'withoutResponse'
+  const useNoResponse = forceNoResponse && conn.characteristic.properties.writeWithoutResponse;
+  const p = (useNoResponse || conn.writeMethod === 'withoutResponse')
     ? conn.characteristic.writeValueWithoutResponse(buffer)
     : conn.characteristic.writeValue(buffer);
   await Promise.race([p, delay(BLE_WRITE_TIMEOUT_MS).then(() => { throw new Error(`BLE timeout: ${ctx}`); })]);
@@ -411,14 +412,18 @@ export async function printBitmap(
       if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
     }
 
-    // Raster data in 20-byte chunks (BLE MTU safe)
+    // Raster data in 500-byte chunks using writeWithoutResponse for speed
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-    const BLE_CHUNK = 20;
+    const BLE_CHUNK = 500;
     const totalBytes = escapedData.length;
+    let chunkIdx = 0;
 
     for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
       const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
+      await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`, true);
+      chunkIdx++;
+      // Small yield every 10 chunks to let BLE buffer drain
+      if (chunkIdx % 10 === 0 && end < totalBytes) await delay(5);
 
       const pct = 20 + ((end) / totalBytes) * 70;
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
