@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v37-unified-engine';
+export const PRINTER_VERSION = 'v38-shared-raster-engine';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -383,8 +383,94 @@ function mediaTypeCode(mt: string): number | null {
 }
 
 /**
- * Print canvas to Phomemo M110 using the exact phomymo protocol.
- * Each command sent as a separate BLE write, matching the working implementation.
+ * Shared raster protocol engine — sends pre-built bitmap data to printer.
+ * This is the SINGLE protocol path used by both label printing and debug tests.
+ * Timing matches the proven debug flow (300ms between setup commands).
+ */
+export async function sendRasterJob(
+  connection: PrinterConnection,
+  rasterData: Uint8Array,
+  widthBytes: number,
+  height: number,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+  onProgress?: (p: PrintProgress) => void,
+  copyLabel: string = '',
+): Promise<void> {
+  onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
+
+  // ── Setup commands with 300ms delays (proven debug timing) ──
+  await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
+  await delay(300);
+
+  await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
+  await delay(300);
+
+  if (settings.mediaType === 'gap') {
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
+    await delay(300);
+  } else {
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
+      await delay(300);
+    }
+  }
+
+  if (settings.sendSpeed) {
+    await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
+    await delay(300);
+  }
+
+  if (settings.sendDensity) {
+    await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
+    await delay(300);
+  }
+
+  // Margin/position reset
+  await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
+  await delay(50);
+  await bleWrite(connection, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), 'abs-pos-0');
+  await delay(50);
+  await bleWrite(connection, new Uint8Array([0x1b, 0x42, 0x00]), 'esc-b-0');
+  await delay(100);
+
+  // Raster header
+  onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
+  await bleWrite(connection, new Uint8Array([
+    0x1d, 0x76, 0x30, 0x00,
+    widthBytes & 0xff, 0x00,
+    height & 0xff, (height >> 8) & 0xff,
+  ]), 'raster-header');
+  await delay(100);
+
+  // Escape 0x0a → 0x14
+  const escapedData = new Uint8Array(rasterData);
+  for (let i = 0; i < escapedData.length; i++) {
+    if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
+  }
+
+  // Send raster data in chunks
+  onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
+  const CHUNK = Math.max(20, Math.min(500, settings.chunkSize || 100));
+  for (let off = 0; off < escapedData.length; off += CHUNK) {
+    await bleWrite(connection, escapedData.slice(off, Math.min(off + CHUNK, escapedData.length)), `r-${off}`);
+    const pct = 20 + ((off + CHUNK) / escapedData.length) * 70;
+    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+  }
+
+  // Wait for printer to process
+  onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
+  await delay(3000);
+
+  // End-job
+  onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
+  await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
+  await delay(600);
+}
+
+/**
+ * Print canvas to Phomemo M110.
+ * Converts canvas → dithered monochrome bitmap → sendRasterJob.
  */
 export async function printBitmap(
   connection: PrinterConnection,
@@ -418,109 +504,22 @@ export async function printBitmap(
   onProgress?.({ phase: 'Förbereder bild...', percent: 5 });
   const pixels = ditherToMonochrome(imageData);
 
-  // ── 3. Convert to packed bitmap (1 bit per pixel, MSB first, 1=black) ──
-  const widthBytes = Math.ceil(width / 8); // 384/8 = 48
+  // ── 3. Pack to bitmap (1 bit/pixel, MSB first, 1=black) ──
+  const widthBytes = Math.ceil(width / 8);
   const bitmapData = new Uint8Array(widthBytes * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (pixels[y * width + x] === 0) { // black pixel
+      if (pixels[y * width + x] === 0) {
         bitmapData[y * widthBytes + Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
       }
     }
   }
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}, writeMethod=${connection.writeMethod}`);
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes, copies=${copies}`);
 
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
-    onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
-
-    // ── Setup commands with 300ms delays (matching proven debug timing) ──
-
-    // ESC @ (initialize)
-    await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
-    await delay(300);
-
-    // Start-job
-    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
-    await delay(300);
-
-    // Media mode — sync with proven debug flow
-    if (settings.mediaType === 'gap') {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
-      await delay(300);
-    } else {
-      const mc = mediaTypeCode(settings.mediaType);
-      if (mc !== null) {
-        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-        await delay(300);
-      }
-    }
-
-    // Speed: ESC N 0x0d <speed>
-    if (settings.sendSpeed) {
-      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-      await delay(300);
-    }
-
-    // Density: ESC N 0x04 <density>
-    if (settings.sendDensity) {
-      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-      await delay(300);
-    }
-
-    // Left margin / position reset
-    await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
-    await delay(50);
-    await bleWrite(connection, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), 'abs-pos-0');
-    await delay(50);
-    await bleWrite(connection, new Uint8Array([0x1b, 0x42, 0x00]), 'esc-b-0');
-    await delay(100);
-
-    // Raster header: GS v 0 (single block)
-    onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
-    await bleWrite(connection, new Uint8Array([
-      0x1d, 0x76, 0x30, 0x00,
-      widthBytes & 0xff, 0x00,
-      height & 0xff, (height >> 8) & 0xff,
-    ]), 'raster-header');
-    await delay(100);
-
-    // Escape 0x0a (LF) → 0x14 in bitmap data
-    const escapedData = new Uint8Array(bitmapData);
-    for (let i = 0; i < escapedData.length; i++) {
-      if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
-    }
-
-    // Raster data in configured chunks (debug-matched defaults: 100B, no delay)
-    onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-    const BLE_CHUNK = Math.max(20, Math.min(500, settings.chunkSize || 100));
-    const CHUNK_DELAY = Math.max(0, settings.chunkDelay ?? 0);
-    const THROTTLE_EVERY = Math.max(0, settings.throttleEvery ?? 0);
-    const THROTTLE_DELAY = Math.max(0, settings.throttleDelay ?? 0);
-
-    await sendChunked(
-      connection,
-      escapedData,
-      BLE_CHUNK,
-      CHUNK_DELAY,
-      THROTTLE_EVERY,
-      THROTTLE_DELAY,
-      (sent, total) => {
-        const pct = 20 + (sent / total) * 70;
-        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-      },
-    );
-
-    // Wait for printer to process and start printing
-    onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
-    await delay(3000);
-    onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
-
-    // End-job
-    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
-    await delay(500);
-
+    await sendRasterJob(connection, bitmapData, widthBytes, height, settings, onProgress, copyLabel);
     if (copy < copies - 1) await delay(800);
   }
 
@@ -528,7 +527,67 @@ export async function printBitmap(
 }
 
 /**
- * Print a visible test page.
+ * Print the exact debug test pattern (frame + cross) using raw bitmap data.
+ * This is the PROVEN working pattern — no canvas, no dithering.
+ * Uses the shared sendRasterJob engine.
+ */
+export async function printDebugTestPattern(
+  connection: PrinterConnection,
+  onProgress?: (p: PrintProgress) => void,
+): Promise<void> {
+  const widthBytes = 48; // 384 pixels
+  const patH = 520;
+  const leadInRows = 10;
+  const trailRows = 25;
+  const height = patH + leadInRows + trailRows; // 555
+
+  const rasterData = new Uint8Array(widthBytes * height);
+  rasterData.fill(0x00);
+
+  const w = widthBytes * 8; // 384
+  const xMin = 0;
+  const rightMargin = 16;
+  const xMax = w - 1 - rightMargin;
+  const contentW = xMax - xMin;
+
+  const setPixel = (row: number, px: number) => {
+    if (px < 0 || px >= w) return;
+    rasterData[row + Math.floor(px / 8)] |= (1 << (7 - (px % 8)));
+  };
+
+  for (let py = 0; py < patH; py++) {
+    const y = py + leadInRows;
+    const row = y * widthBytes;
+    if (py < 2 || py >= patH - 2) {
+      for (let px = xMin; px <= xMax; px++) setPixel(row, px);
+      continue;
+    }
+    for (let dx = 0; dx < 2; dx++) {
+      setPixel(row, xMin + dx);
+      setPixel(row, xMax - dx);
+    }
+    const xA = xMin + Math.floor((py / (patH - 1)) * contentW);
+    const xB = xMin + Math.floor(((patH - 1 - py) / (patH - 1)) * contentW);
+    for (const xPos of [xA, xB]) {
+      for (let dx = -1; dx <= 1; dx++) setPixel(row, xPos + dx);
+    }
+    const cx = Math.floor((xMin + xMax) / 2);
+    setPixel(row, cx);
+    setPixel(row, cx + 1);
+  }
+  // Midline
+  for (let dy = -1; dy <= 0; dy++) {
+    const my = leadInRows + Math.floor(patH / 2) + dy;
+    const row = my * widthBytes;
+    for (let px = xMin; px <= xMax; px++) setPixel(row, px);
+  }
+
+  console.log(`[Printer] Debug pattern: ${w}x${height}, ${rasterData.length} bytes`);
+  await sendRasterJob(connection, rasterData, widthBytes, height, DEFAULT_PRINT_SETTINGS, onProgress);
+}
+
+/**
+ * Print a test page using canvas (goes through dithering pipeline).
  */
 export async function printTestPage(
   connection: PrinterConnection,
