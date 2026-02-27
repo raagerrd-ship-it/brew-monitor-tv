@@ -591,13 +591,17 @@ const STEPS: WizardStep[] = [
       log(`→ GS v 0 raster (${widthBytes*8}×${height})...`);
       await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00], "raster-hdr");
 
-      // 10 rows of solid black
+      // 10 rows of solid black, sent in 20-byte chunks
       const rasterData = new Uint8Array(widthBytes * height);
       rasterData.fill(0xff);
-      // Send as one chunk (480 bytes is small enough)
-      await bleWrite(conn, rasterData, "raster-data");
+      const CHUNK = 20;
+      let chunks = 0;
+      for (let off = 0; off < rasterData.length; off += CHUNK) {
+        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `raster-${off}`);
+        chunks++;
+      }
       await delay(500);
-      log(`   Rasterdata skickad (${rasterData.length} bytes, helsvart)`);
+      log(`   Rasterdata skickad (${rasterData.length} bytes i ${chunks} chunks à ${CHUNK}B, helsvart)`);
 
       // 7. Print-execute
       await send([0x1f, 0x11, 0x04, 0x00], "print-execute");
