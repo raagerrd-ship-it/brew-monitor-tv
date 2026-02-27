@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Printer, FileText, Bluetooth, BluetoothOff, Loader2 } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
-import { PRINTER_VERSION } from "@/lib/thermal-printer";
+import { PRINTER_VERSION, printTestPage } from "@/lib/thermal-printer";
 import { usePrinterConnection } from "@/hooks";
 import { printCanvasInWindow, downloadCanvasAsPdf } from "@/lib/label-utils";
 
@@ -20,11 +20,26 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [labelType, setLabelType] = useState<LabelType>('tank');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copies, setCopies] = useState(1);
+  const [isTesting, setIsTesting] = useState(false);
 
   const {
     hasBle, bleConn, isConnecting, isPrinting, printProgress,
     connect, disconnect, print,
   } = usePrinterConnection(open);
+
+  const handleTestPrint = async () => {
+    if (!bleConn) return;
+    setIsTesting(true);
+    try {
+      await printTestPage(bleConn, (p) => {
+        console.log(`[Test] ${p.phase} ${p.percent}%`);
+      });
+    } catch (e: any) {
+      console.error('[Test] Failed:', e);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   // Render label preview whenever type or brew changes
   const renderPreview = useCallback(async () => {
@@ -174,10 +189,23 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
               )}
               {isPrinting ? 'Skriver ut...' : isConnecting ? 'Ansluter...' : 'Skriv ut via Bluetooth'}
             </Button>
+          {/* Test button */}
+            {bleConn && (
+              <Button
+                onClick={handleTestPrint}
+                variant="outline"
+                className="w-full gap-2"
+                size="sm"
+                disabled={isPrinting || isTesting}
+              >
+                {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                {isTesting ? 'Testar...' : '🧪 Testsida (rektanglar)'}
+              </Button>
+            )}
           </div>
         )}
 
-        {/* Secondary actions - hidden on mobile */}
+
         <div className="hidden sm:flex gap-2">
           <Button onClick={handleDownloadPdf} variant="outline" className="flex-1 gap-2" size="lg">
             <FileText className="h-4 w-4" />
