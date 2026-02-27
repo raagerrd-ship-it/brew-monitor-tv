@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit2, Trash2, Thermometer, Clock, ArrowDown, ArrowUp, Activity } from "lucide-react";
-import { STEP_TYPE_LABELS } from "@/types/fermentation";
+import { STEP_TYPE_LABELS, getStepTypeLabel } from "@/types/fermentation";
 import { FermentationStepEditor } from "./FermentationStepEditor";
 import { FermentationProfileChart } from "./FermentationProfileChart";
 import {
@@ -134,7 +134,7 @@ export function FermentationProfilesManagement() {
                   )}
                   <div className="p-2 rounded-full bg-muted shrink-0">{getStepIcon(step.step_type)}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(step.step_type) ? 'Håll temperatur' : STEP_TYPE_LABELS[step.step_type]}</div>
+                    <div className="font-medium text-sm">{getStepTypeLabel(step.step_type)}</div>
                     <div className="text-sm text-muted-foreground">{getStepDescription(step)}</div>
                     {step.notes && <div className="text-xs text-muted-foreground italic mt-1">{step.notes}</div>}
                   </div>

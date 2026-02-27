@@ -77,6 +77,13 @@ export const SG_COMPARISON_LABELS: Record<SgComparison, string> = {
   'at_or_above': '≥ (lika med eller över)',
 };
 
+export const getStepTypeLabel = (stepType: string): string => {
+  if (['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(stepType)) {
+    return 'Håll temperatur';
+  }
+  return STEP_TYPE_LABELS[stepType as StepType] ?? stepType;
+};
+
 export const SESSION_STATUS_LABELS: Record<SessionStatus, string> = {
   'running': 'Körs',
   'paused': 'Pausad',

@@ -1,5 +1,5 @@
 import { Thermometer, Clock, Activity, ArrowDown, ArrowUp, ChevronRight, Loader2, AlertCircle, Hand } from "lucide-react";
-import { FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
+import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/types/fermentation";
 
 interface FermentationStepDisplayProps {
   currentStep: FermentationProfileStep;
@@ -206,9 +206,7 @@ export function FermentationStepDisplay({
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <div className="text-xs font-medium">
-                {['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(currentStep.step_type) 
-                  ? 'Håll temperatur' 
-                  : STEP_TYPE_LABELS[currentStep.step_type]}
+                {getStepTypeLabel(currentStep.step_type)}
               </div>
               {waitingForTemp ? (
                 <span className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
@@ -288,7 +286,7 @@ export function FermentationStepDisplay({
       {nextStep && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
           <ChevronRight className="w-3 h-3" />
-          <span>Nästa: {['hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp'].includes(nextStep.step_type) ? 'Håll temperatur' : STEP_TYPE_LABELS[nextStep.step_type]}</span>
+          <span>Nästa: {getStepTypeLabel(nextStep.step_type)}</span>
           <span className="opacity-60">({getStepDescription(nextStep)})</span>
         </div>
       )}
