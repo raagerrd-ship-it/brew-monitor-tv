@@ -545,95 +545,57 @@ const STEPS: WizardStep[] = [
   },
   {
     id: "print-with-listener",
-    title: "🎯 Print med svarslyssnare (mini-raster)",
-    description: "Aktiverar notify på 0xff03, skickar sedan hela print-sekvensen steg för steg och visar skrivarens svar/felkoder efter varje kommando.",
+    title: "🎯 Ren print-sekvens (bekräftad fungerande)",
+    description: "Start-job → gap → speed → density → raster (20B chunks) → print-execute → end-job. Ingen extra footer. Skriver 20 svarta rader.",
     run: async (conn, log) => {
-      // 1. Activate listener on 0xff03
+      // Activate listener on 0xff03
       const service = await conn.device.gatt.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
       const notifyChar = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
-      const responses: string[] = [];
       notifyChar.addEventListener('characteristicvaluechanged', (event: any) => {
         const value = new Uint8Array(event.target.value.buffer);
         const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-        const ascii = Array.from(value).map((b: number) => b >= 32 && b < 127 ? String.fromCharCode(b) : '.').join('');
-        const msg = `📨 [${hex}] "${ascii}"`;
-        responses.push(msg);
-        log(`   ${msg}`);
+        log(`   📨 [${hex}]`);
       });
       await notifyChar.startNotifications();
-      log("✓ Lyssnare aktiv på 0xff03");
+      log("✓ Lyssnare aktiv");
       await delay(200);
 
       const send = async (data: number[], label: string) => {
-        log(`→ ${label}: [${data.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}]`);
+        log(`→ ${label}`);
         await bleWrite(conn, new Uint8Array(data), label);
-        await delay(400); // Wait for response
+        await delay(300);
       };
 
-      // 2. Try ESC @ (initialize)
-      log("");
-      log("── A. ESC/POS-sekvens ──");
-      await send([0x1b, 0x40], "ESC @ (init)");
+      await send([0x1b, 0x40], "1. ESC @ (init)");
+      await send([0x1f, 0x11, 0x02, 0x00], "2. Start-job");
+      await send([0x1f, 0x11, 0x0e, 0x01], "3. GAP-mode");
+      await send([0x1b, 0x4e, 0x0d, 0x03], "4. Speed=3");
+      await send([0x1b, 0x4e, 0x04, 0x08], "5. Density=8");
 
-      // 3. Start-job
-      await send([0x1f, 0x11, 0x02, 0x00], "start-job");
-
-      // 4. Set gap mode
-      await send([0x1f, 0x11, 0x0e, 0x01], "set-gap");
-
-      // 5. Speed + density
-      await send([0x1b, 0x4e, 0x0d, 0x03], "speed=3");
-      await send([0x1b, 0x4e, 0x04, 0x08], "density=8");
-
-      // 6. Small raster: 384px wide × 10 rows
       const widthBytes = 48;
-      const height = 10;
-      log(`→ GS v 0 raster (${widthBytes*8}×${height})...`);
-      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00], "raster-hdr");
+      const height = 20;
+      log(`→ 6. Raster ${widthBytes*8}×${height}...`);
+      await bleWrite(conn, new Uint8Array([
+        0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00
+      ]), "raster-hdr");
+      await delay(100);
 
       const rasterData = new Uint8Array(widthBytes * height);
-      rasterData.fill(0xff);
-      const CHUNK = 20;
-      for (let off = 0; off < rasterData.length; off += CHUNK) {
-        await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`);
+      rasterData.fill(0xff); // All black
+      for (let off = 0; off < rasterData.length; off += 20) {
+        await bleWrite(conn, rasterData.slice(off, Math.min(off + 20, rasterData.length)), `r-${off}`);
       }
       await delay(300);
-      log(`   Rasterdata skickad (${rasterData.length} bytes)`);
+      log(`   Data skickad (${rasterData.length} bytes)`);
 
-      // 7. Try MULTIPLE end sequences — watch which one makes the printer finish
-      log("");
-      log("── Testar avslut-sekvenser (en i taget, 2s mellan) ──");
-
-      await send([0x1f, 0x11, 0x04, 0x00], "A: print-execute (0x04)");
-      await delay(2000);
-
-      await send([0x1f, 0xf0, 0x45, 0x00], "B: form-feed alt (0xf0 0x45)");
-      await delay(2000);
-
-      await send([0x0c], "C: FF (form feed, 0x0c)");
-      await delay(2000);
-
-      await send([0x1f, 0xf0, 0x05, 0x00], "D: cups-footer-1");
-      await send([0x1f, 0xf0, 0x03, 0x00], "E: cups-footer-2");
-      await delay(2000);
-
-      await send([0x1b, 0x64, 0x02], "F: ESC d 2 (feed)");
-      await send([0x1b, 0x64, 0x02], "G: ESC d 2 (feed x2)");
-      await delay(2000);
-
-      await send([0x1f, 0x11, 0x08, 0x00], "H: status (0x08)");
+      await send([0x1f, 0x11, 0x04, 0x00], "7. Print-execute");
       await delay(1000);
 
-      await send([0x1f, 0x11, 0x03, 0x00], "I: end-job (0x03)");
-      await delay(1000);
+      await send([0x1f, 0x11, 0x03, 0x00], "8. End-job");
+      await delay(500);
 
-      await send([0x1b, 0x40], "J: ESC @ (re-init)");
-      await delay(1000);
-
-      log("");
-      log(`Totalt ${responses.length} svar från skrivaren.`);
       try { await notifyChar.stopNotifications(); } catch { /* ok */ }
-      log("Klart! Analysera svaren ovan för felkoder.");
+      log("✓ Klart! Skrivaren bör ha skrivit 20 svarta rader och stannat.");
     },
   },
   {
