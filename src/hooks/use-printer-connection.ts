@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   isBluetoothSupported,
+  connectPrinter,
   reconnectLastPrinter,
   getLastDeviceName,
   disconnectPrinter,
@@ -57,17 +58,15 @@ export function usePrinterConnection(dialogOpen: boolean) {
     setIsConnecting(true);
     setAutoConnectFailed(false);
     try {
-      const conn = await reconnectLastPrinter();
-      if (conn) {
-        setBleConn(conn);
-        toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
-      } else {
-        setAutoConnectFailed(true);
-        toast({ title: "Kunde inte ansluta", description: "Kontrollera att skrivaren är på och nära.", variant: "destructive" });
-      }
-    } catch {
+      // Try silent reconnect, then fall back to BLE picker
+      let conn = await reconnectLastPrinter().catch(() => null);
+      if (!conn) conn = await connectPrinter();
+      setBleConn(conn);
+      toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+    } catch (e: any) {
+      if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') return;
       setAutoConnectFailed(true);
-      toast({ title: "Kunde inte ansluta", description: "Kontrollera att skrivaren är på och nära.", variant: "destructive" });
+      toast({ title: "Kunde inte ansluta", description: e.message, variant: "destructive" });
     } finally {
       setIsConnecting(false);
     }
@@ -79,14 +78,12 @@ export function usePrinterConnection(dialogOpen: boolean) {
     try {
       let conn = bleConn;
       if (!conn) {
-        setPrintProgress({ phase: `Återansluter till ${targetName || 'skrivare'}...`, percent: 2 });
+        setPrintProgress({ phase: `Ansluter till ${targetName || 'skrivare'}...`, percent: 2 });
         conn = await reconnectLastPrinter().catch(() => null);
-        if (!conn) {
-          throw new Error("Kunde inte ansluta till skrivaren. Gå till Inställningar → Enheter för att ansluta.");
-        }
+        if (!conn) conn = await connectPrinter();
         setBleConn(conn);
         setAutoConnectFailed(false);
-        toast({ title: "Återansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
+        toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
       }
       await printBitmapBypassProcessing(conn, canvas, copies, DEFAULT_PRINT_SETTINGS, setPrintProgress);
       toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
