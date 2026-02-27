@@ -51,34 +51,43 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   const stepLabel = getStepTypeLabel(stepType);
 
   // --- Temperature ---
-  // For gradual_ramp/diacetyl_rest, show final target (start + increase), not the intermediate profile target
   const isGradualOrDiacetyl = stepType === 'gradual_ramp' || stepType === 'diacetyl_rest';
   const finalTarget = isGradualOrDiacetyl && stepStartTemp != null && currentStep.temp_increase != null
     ? stepStartTemp + currentStep.temp_increase
     : null;
   const effectiveTarget = profileTargetTemp ?? targetTemp ?? currentStep.target_temp;
-  const displayTarget = finalTarget ?? effectiveTarget;
 
-  if (displayTarget != null) {
-    const tempItem: ExecutionItem = {
-      label: 'Måltemp',
+  if (isGradualOrDiacetyl && finalTarget != null && stepStartTemp != null) {
+    // Temp ramp: "19° → 22°" with "Mål nu 21.6°"
+    const tempProgress = effectiveTarget != null
+      ? Math.max(0, Math.min(1, (effectiveTarget - stepStartTemp) / (finalTarget - stepStartTemp)))
+      : 0;
+    items.push({
+      label: 'Temp.ramp',
       icon: <Thermometer className={iconClass} />,
-      value: `${displayTarget.toFixed(1)}°`,
-      color: 'hsl(var(--primary))',
-    };
-    
-    if (currentTemp != null) {
-      const diff = Math.abs(currentTemp - displayTarget);
-      // For gradual steps with intermediate target, show that too
-      if (isGradualOrDiacetyl && effectiveTarget != null && finalTarget != null && Math.abs(effectiveTarget - finalTarget) > 0.2) {
-        tempItem.detail = `Aktuell ${currentTemp.toFixed(1)}° · Mål nu ${effectiveTarget.toFixed(1)}°`;
-      } else {
+      value: `${Math.round(stepStartTemp)}° → ${Math.round(finalTarget)}°`,
+      detail: effectiveTarget != null ? `Mål nu ${effectiveTarget.toFixed(1)}°` : undefined,
+      progress: tempProgress,
+      color: 'hsl(38 92% 55%)',
+    });
+  } else {
+    // Standard temp display for non-gradual steps
+    const displayTarget = effectiveTarget ?? currentStep.target_temp;
+    if (displayTarget != null) {
+      const tempItem: ExecutionItem = {
+        label: 'Måltemp',
+        icon: <Thermometer className={iconClass} />,
+        value: `${displayTarget.toFixed(1)}°`,
+        color: 'hsl(var(--primary))',
+      };
+      if (currentTemp != null) {
+        const diff = Math.abs(currentTemp - displayTarget);
         tempItem.detail = `Aktuell ${currentTemp.toFixed(1)}°`;
+        tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
+        tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
       }
-      tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
-      tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
+      items.push(tempItem);
     }
-    items.push(tempItem);
   }
 
   // --- Ramp progress (for ramp steps) ---
@@ -129,27 +138,17 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
         color: 'hsl(280 70% 60%)',
       });
     } else if (triggered) {
-      // Show ramp info
-      const tempIncrease = currentStep.temp_increase ?? 3;
       const minHours = currentStep.min_ramp_hours;
-      
       if (minHours && rampTriggeredAt) {
         const rampStart = new Date(rampTriggeredAt);
         const rampElapsed = (Date.now() - rampStart.getTime()) / (1000 * 60 * 60);
         const rampProg = Math.min(rampElapsed / minHours, 1);
         items.push({
-          label: 'Ramp',
-          icon: <ArrowUp className={iconClass} />,
-          value: `+${tempIncrease}°`,
-          detail: `${Math.round(rampElapsed)}h av ≥${minHours}h`,
+          label: 'Tid.ramp',
+          icon: <Clock className={iconClass} />,
+          value: `≥${minHours}h`,
+          detail: `Tid nu ${Math.round(rampElapsed)}h`,
           progress: rampProg,
-          color: 'hsl(38 92% 55%)',
-        });
-      } else {
-        items.push({
-          label: 'Ramp',
-          icon: <ArrowUp className={iconClass} />,
-          value: `+${tempIncrease}° aktiv`,
           color: 'hsl(38 92% 55%)',
         });
       }
