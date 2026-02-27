@@ -5,7 +5,7 @@ import {
   reconnectLastPrinter,
   getLastDeviceName,
   disconnectPrinter,
-  printBitmap,
+  printBitmapBypassProcessing,
   DEFAULT_PRINT_SETTINGS,
   type PrinterConnection,
   type PrintProgress,
@@ -85,7 +85,7 @@ export function usePrinterConnection(dialogOpen: boolean) {
         setBleConn(conn);
         toast({ title: "Ansluten", description: `Ansluten till ${conn.device.name || 'skrivare'}` });
       }
-      await printBitmap(conn, canvas, copies, DEFAULT_PRINT_SETTINGS, setPrintProgress);
+      await printBitmapBypassProcessing(conn, canvas, copies, DEFAULT_PRINT_SETTINGS, setPrintProgress);
       toast({ title: "Utskrivet!", description: `${copies} etikett${copies > 1 ? 'er' : ''} skickade till skrivaren.` });
     } catch (e: any) {
       if (e?.message?.includes('cancelled') || e?.name === 'NotFoundError') {
