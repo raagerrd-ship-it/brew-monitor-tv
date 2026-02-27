@@ -106,7 +106,37 @@ Deno.serve(async (req) => {
   }
 
   const totalDuration = Date.now() - startTime;
+  const failedSteps = results.filter(r => r.status === "error" || r.status === "timeout");
   console.log(`Automation complete in ${totalDuration}ms: ${results.map(r => `${r.step}=${r.status}`).join(", ")}`);
+
+  // SAFETY: Alert on repeated automation failures
+  if (failedSteps.length > 0) {
+    try {
+      // Check if this is a repeated failure (2+ failures in last hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: recentNotifs } = await supabase
+        .from("pending_notifications")
+        .select("id")
+        .eq("type", "automation_failure")
+        .gte("created_at", oneHourAgo)
+        .limit(3);
+
+      const recentFailCount = recentNotifs?.length ?? 0;
+
+      // Always notify on first failure, then only if pattern continues
+      if (recentFailCount < 3) {
+        const failSummary = failedSteps.map(f => `${f.step}: ${f.error ?? f.status}`).join("; ");
+        await supabase.from("pending_notifications").insert({
+          type: "automation_failure",
+          title: "Automationsfel",
+          body: `${failedSteps.length} steg misslyckades: ${failSummary}. Total tid: ${totalDuration}ms.`,
+        });
+        console.log(`🚨 Automation failure notification sent (${recentFailCount + 1} in last hour)`);
+      }
+    } catch (notifError) {
+      console.error("Failed to send automation failure notification:", notifError);
+    }
+  }
 
   return new Response(
     JSON.stringify({ ok: true, total_duration_ms: totalDuration, steps: results }),

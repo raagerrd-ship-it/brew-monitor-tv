@@ -49,6 +49,52 @@ export function round1(v: number | null | undefined): number | null {
   return parseFloat(parseFloat(String(v)).toFixed(1))
 }
 
+// ============================================================
+// Stale Sensor Guard (Safety)
+// Prevents acting on sensor data older than a threshold.
+// ============================================================
+
+const STALE_SENSOR_THRESHOLD_MS = 30 * 60 * 1000 // 30 minutes
+
+/**
+ * Check if a controller's sensor data is stale (older than threshold).
+ * Returns { stale: true, ageMinutes } if data is too old.
+ */
+export function isSensorDataStale(
+  lastUpdate: string | null | undefined,
+  thresholdMs: number = STALE_SENSOR_THRESHOLD_MS
+): { stale: boolean; ageMinutes: number | null } {
+  if (!lastUpdate) return { stale: true, ageMinutes: null }
+  const ageMs = Date.now() - new Date(lastUpdate).getTime()
+  const ageMinutes = Math.round(ageMs / 60000)
+  return { stale: ageMs > thresholdMs, ageMinutes }
+}
+
+/**
+ * Filter controllers with stale data, logging warnings.
+ * Returns only controllers with fresh data.
+ */
+export function filterStaleControllers(
+  controllers: TempController[],
+  log?: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void,
+  thresholdMs: number = STALE_SENSOR_THRESHOLD_MS
+): { fresh: TempController[]; stale: TempController[] } {
+  const fresh: TempController[] = []
+  const stale: TempController[] = []
+  for (const c of controllers) {
+    const check = isSensorDataStale(c.last_update, thresholdMs)
+    if (check.stale) {
+      stale.push(c)
+      if (log) {
+        log('STALE_SENSOR', 'fail', `${c.name}: Sensor data is ${check.ageMinutes !== null ? `${check.ageMinutes}min old` : 'missing'} — SKIPPING for safety`)
+      }
+    } else {
+      fresh.push(c)
+    }
+  }
+  return { fresh, stale }
+}
+
 /** Find the effective target temp by looking back through previous steps */
 export function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: number): number | null {
   for (let i = currentStepIndex; i >= 0; i--) {
