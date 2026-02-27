@@ -429,7 +429,7 @@ export async function printBitmap(
     }
   }
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}, writeMethod=${connection.writeMethod}`);
 
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
