@@ -249,6 +249,7 @@ Svara ENBART med JSON (inget annat).`;
     // APPLY PARAMETER CHANGES
     // ========================================
     const appliedChanges: any[] = [];
+    const MAX_CHANGES_PER_AUDIT = 4; // Hard cap: max 4 parameter changes per cycle
 
     // Safety limits: max allowed change per parameter per audit cycle
     const MAX_STEP: Record<string, number> = {
@@ -270,10 +271,31 @@ Svara ENBART med JSON (inget annat).`;
       stall_rate_threshold: [0.0005, 0.005],
       temp_reduction_degrees: [1.0, 10.0],
       stall_boost_degrees: [0.5, 6.0],
+      'cooler_margin:cold': [0.5, 8.0],
+      'cooler_margin:cool': [0.5, 8.0],
+      'cooler_margin:warm': [0.5, 8.0],
+      'cooler_margin:hot': [0.5, 8.0],
     };
+
+    // Whitelist for fermentation_learnings parameter_name
+    const VALID_LEARNING_PARAMS = new Set([
+      'stall_boost_degrees',
+      'cooler_margin:cold',
+      'cooler_margin:cool',
+      'cooler_margin:warm',
+      'cooler_margin:hot',
+      'thermal_rate',
+      'glycol_cooler_rate',
+    ]);
 
     if (analysis.parameter_changes && Array.isArray(analysis.parameter_changes)) {
       for (const change of analysis.parameter_changes) {
+        // Hard cap on total changes per audit
+        if (appliedChanges.length >= MAX_CHANGES_PER_AUDIT) {
+          console.log(`🛑 Max changes per audit reached (${MAX_CHANGES_PER_AUDIT}), skipping remaining`);
+          break;
+        }
+
         try {
           const maxStep = MAX_STEP[change.parameter];
           const bounds = BOUNDS[change.parameter];
@@ -319,10 +341,26 @@ Svara ENBART med JSON (inget annat).`;
               console.error(`❌ Failed to update ${change.parameter}:`, error);
             }
           } else if (change.table === 'fermentation_learnings' && change.controller_id) {
+            // Validate parameter name against whitelist
+            if (!VALID_LEARNING_PARAMS.has(change.parameter)) {
+              console.log(`⚠️ Skipping invalid learning parameter: ${change.parameter}`);
+              continue;
+            }
+
+            // Fetch current record to preserve sample_count
+            const { data: existing } = await supabase.from('fermentation_learnings')
+              .select('sample_count')
+              .eq('controller_id', change.controller_id)
+              .eq('parameter_name', change.parameter)
+              .maybeSingle();
+
+            const currentSampleCount = existing?.sample_count ?? 0;
+
             const { error } = await supabase.from('fermentation_learnings').upsert({
               controller_id: change.controller_id,
               parameter_name: change.parameter,
               learned_value: change.new_value,
+              sample_count: currentSampleCount, // preserve existing count
               last_updated_at: new Date().toISOString(),
             }, { onConflict: 'controller_id,parameter_name' });
             if (!error) {
