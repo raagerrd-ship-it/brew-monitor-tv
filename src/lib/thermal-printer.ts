@@ -359,64 +359,70 @@ export async function printBitmap(
 
   console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
 
-  // ── 4. Send using phomymo M110 protocol ──
-  // Each command is sent as a separate BLE write with delays between.
+  // ── 4. Send using confirmed M110 BLE protocol ──
+  // Sequence: ESC@ → start-job → gap → speed → density → GS v 0 → data (20B chunks) → print-execute → end-job
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
-    // Speed: ESC N 0x0d <speed>
-    if (settings.sendSpeed) {
-      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-      await delay(30);
-    }
+    // ESC @ (initialize)
+    await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
+    await delay(50);
 
-    // Density: ESC N 0x04 <density>
-    if (settings.sendDensity) {
-      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-      await delay(30);
-    }
+    // Start-job
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
+    await delay(50);
 
     // Media type: 0x1f 0x11 <type>
     const mc = mediaTypeCode(settings.mediaType);
     if (mc !== null) {
       await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-      await delay(30);
+      await delay(50);
     }
 
-    // Raster header: GS v 0 (sent separately, NOT combined with data)
+    // Speed: ESC N 0x0d <speed>
+    if (settings.sendSpeed) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
+      await delay(50);
+    }
+
+    // Density: ESC N 0x04 <density>
+    if (settings.sendDensity) {
+      await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
+      await delay(50);
+    }
+
+    // Raster header: GS v 0
     onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
-    const rasterHeader = new Uint8Array([
+    await bleWrite(connection, new Uint8Array([
       0x1d, 0x76, 0x30, 0x00,
       widthBytes & 0xff, 0x00,
       height & 0xff, (height >> 8) & 0xff,
-    ]);
-    await bleWrite(connection, rasterHeader, 'raster-header');
+    ]), 'raster-header');
+    await delay(100);
 
-    // Raster data in 128-byte chunks with 20ms delay
+    // Raster data in 20-byte chunks (BLE MTU safe)
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-    const chunkSize = settings.chunkSize;
+    const BLE_CHUNK = 20;
     const totalBytes = bitmapData.length;
 
-    for (let offset = 0; offset < totalBytes; offset += chunkSize) {
-      const end = Math.min(offset + chunkSize, totalBytes);
-      const chunk = bitmapData.slice(offset, end);
-      await bleWrite(connection, chunk, `data@${offset}`);
-      if (end < totalBytes && settings.chunkDelay > 0) {
-        await delay(settings.chunkDelay);
-      }
+    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
+      const end = Math.min(offset + BLE_CHUNK, totalBytes);
+      await bleWrite(connection, bitmapData.slice(offset, end), `data@${offset}`);
 
-      const pct = 20 + ((offset + chunk.length) / totalBytes) * 70;
+      const pct = 20 + ((end) / totalBytes) * 70;
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
     }
 
-    // Footer
-    if (settings.sendFooter) {
-      await delay(300);
-      onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
-      await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00]), 'footer');
-      await delay(500);
-    }
+    // Print-execute (triggers actual printing + gap sensor)
+    await delay(300);
+    onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x04, 0x00]), 'print-execute');
+    await delay(1000);
+
+    // End-job
+    await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
+    await delay(500);
 
     if (copy < copies - 1) await delay(800);
   }
