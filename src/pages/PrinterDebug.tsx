@@ -344,6 +344,26 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "wakeup-status-feed",
+    title: "Wake + Status + ESC/POS Feed",
+    description: "Skickar 4 nollor (wakeup) → status-check (0x08) → ESC d 2 (feed). Testar om skrivaren reagerar på klassiska ESC/POS-kommandon.",
+    run: async (conn, log) => {
+      log("1. Wakeup (4× 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x00, 0x00, 0x00, 0x00]), "wakeup");
+      await delay(100);
+
+      log("2. Status check (0x1f 0x11 0x08 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x08, 0x00]), "get-status");
+      await delay(100);
+
+      log("3. ESC d 2 – feed 2 rader...");
+      await bleWrite(conn, new Uint8Array([0x1b, 0x64, 0x02]), "esc-pos-feed");
+      await delay(200);
+
+      log("Klart! Om skrivaren är vaken bör pappret ha matats lite.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
