@@ -95,6 +95,25 @@ Deno.serve(async (req) => {
     const typedSessions = sessions as FermentationSession[]
     const results: { sessionId: string; action: string; details: any }[] = []
 
+    // ---- SAFETY: Detect duplicate controllers (two sessions on same controller) ----
+    const controllerSessionMap = new Map<string, string[]>()
+    for (const s of typedSessions) {
+      const list = controllerSessionMap.get(s.controller_id) || []
+      list.push(s.id)
+      controllerSessionMap.set(s.controller_id, list)
+    }
+    for (const [controllerId, sessionIds] of controllerSessionMap) {
+      if (sessionIds.length > 1) {
+        console.error(`🚨 CONFLICT: ${sessionIds.length} sessions targeting controller ${controllerId}: ${sessionIds.join(', ')}`)
+        await supabase.from('pending_notifications').insert({
+          type: 'controller_conflict',
+          title: 'Controllerkollision',
+          body: `${sessionIds.length} aktiva sessioner styr samma controller (${controllerId}). Bara en session bör vara aktiv per controller.`,
+          controller_id: controllerId,
+        })
+      }
+    }
+
     // ---- Batch pre-fetch ----
     const uniqueProfileIds = [...new Set(typedSessions.map(s => s.profile_id))]
     const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
@@ -165,7 +184,22 @@ Deno.serve(async (req) => {
         // Build step context
         const brewData = session.brew_id ? (brewDataMap.get(session.brew_id) ?? null) : null
         const metrics = session.brew_id ? (metricsMap.get(session.brew_id) ?? null) : null
-        const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
+        const elapsedHours = Math.max(0, (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60))
+
+        // SAFETY: Max step duration guard (7 days) — prevent infinite stuck sessions
+        const MAX_STEP_HOURS = 7 * 24 // 7 days
+        if (elapsedHours > MAX_STEP_HOURS && currentStep.step_type !== 'wait_for_acknowledgement') {
+          console.error(`🚨 Session ${session.id}: Step ${session.current_step_index} (${currentStep.step_type}) has been running for ${Math.round(elapsedHours)}h — exceeds ${MAX_STEP_HOURS}h safety limit`)
+          await supabase.from('pending_notifications').insert({
+            type: 'step_timeout',
+            title: 'Steg fastnat',
+            body: `Steg ${session.current_step_index} (${currentStep.step_type}) har körts i ${Math.round(elapsedHours / 24)} dagar utan att slutföras. Kontrollera manuellt.`,
+            controller_id: session.controller_id,
+            brew_id: session.brew_id,
+          })
+          results.push({ sessionId: session.id, action: 'step_timeout_warning', details: { elapsed_hours: Math.round(elapsedHours), step_type: currentStep.step_type } })
+          // Don't skip — just alert. The operator decides.
+        }
 
         const ctx: StepContext = {
           supabase, session, currentStep,
