@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { ProfileStep, getEffectiveTargetTemp } from './temp-utils.ts'
+import { ProfileStep, TempController, getEffectiveTargetTemp } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -20,7 +20,7 @@ export interface StepContext {
   }
   currentStep: ProfileStep
   steps: ProfileStep[]
-  controller: any | null
+  controller: TempController | null
   brewData: { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number } | null
   metrics: { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean } | null
   elapsedHours: number
@@ -40,12 +40,34 @@ export interface SgDataPoint {
 
 // ─── Shared helpers ───────────────────────────────────────────────────
 
+/** Get the latest SG value from sg_data, sorted newest first */
+function getLatestSg(sgData: SgDataPoint[]): { value: number; date: string } | null {
+  if (!sgData || sgData.length === 0) return null
+  const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  return sorted[0]
+}
+
+/** Sort SG data newest first (returns new array) */
+function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
+  return [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+}
+
+/**
+ * Pick the correct sensor for temperature comparison based on direction.
+ * Warming up → pill (surface heats first, more responsive)
+ * Cooling down → probe (core cools first via glycol contact)
+ */
+function getDirectionalTemp(controller: TempController, targetTemp: number, referenceTemp: number): number | null {
+  const rampingUp = targetTemp > referenceTemp
+  return rampingUp
+    ? (controller.pill_temp ?? controller.current_temp ?? null)
+    : (controller.current_temp ?? controller.pill_temp ?? null)
+}
+
 export function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
   if (!sgData || sgData.length < 2) return false
 
-  const sortedData = [...sgData].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  )
+  const sortedData = sortSgDataDesc(sgData)
 
   const currentSg = sortedData[0].value
   let stableFromDate = new Date(sortedData[0].date)
@@ -68,15 +90,13 @@ export function isGravityStable(sgData: SgDataPoint[], stableDays: number, thres
 }
 
 export function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: string): boolean {
-  if (!sgData || sgData.length === 0) return false
-
-  const sortedData = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const latestSg = sortedData[0].value
+  const latest = getLatestSg(sgData)
+  if (!latest) return false
 
   if (comparison === 'at_or_below') {
-    return latestSg <= targetSg
+    return latest.value <= targetSg
   } else if (comparison === 'at_or_above') {
-    return latestSg >= targetSg
+    return latest.value >= targetSg
   }
 
   return false
@@ -127,20 +147,22 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
   if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
     sgTargetMet = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
     if (sgTargetMet) {
-      const sortedData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      const latest = getLatestSg(brewData.sg_data)
       actionDetails = {
         ...actionDetails,
         condition: 'sg_reached',
         target_sg: currentStep.target_sg,
-        current_sg: sortedData[0]?.value,
+        current_sg: latest?.value,
         comparison: currentStep.sg_comparison
       }
-      console.log(`Hold step: SG target met - current ${sortedData[0]?.value} ${currentStep.sg_comparison} ${currentStep.target_sg}`)
+      console.log(`Hold step: SG target met - current ${latest?.value} ${currentStep.sg_comparison} ${currentStep.target_sg}`)
     }
   }
 
   const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps, session.current_step_index)
-  const holdCheckTemp = controller?.pill_temp ?? controller?.current_temp ?? null
+  const holdCheckTemp = controller && holdEffectiveTarget
+    ? getDirectionalTemp(controller, holdEffectiveTarget, controller.current_temp ?? holdEffectiveTarget)
+    : (controller?.pill_temp ?? controller?.current_temp ?? null)
   const holdTempOk = !holdEffectiveTarget || !controller ||
     (holdCheckTemp !== null && Math.abs(holdCheckTemp - holdEffectiveTarget) <= 0.3)
 
@@ -245,20 +267,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
             progress: Math.min(1, elapsedHours / currentStep.duration_hours),
           }
 
-          await supabase
-            .from('auto_cooling_adjustments')
-            .insert({
-              cooler_controller_id: session.controller_id,
-              cooler_controller_name: controller.name || session.controller_id,
-              old_target_temp: currentProfileTarget ?? startTemp,
-              new_target_temp: roundedTarget,
-              original_target_temp: currentStep.target_temp,
-              lowest_followed_temp: roundedTarget,
-              followed_current_temp: controller.pill_temp ?? controller.current_temp,
-              followed_target_temp: controller.current_temp,
-              reason: `📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${roundedTarget.toFixed(1)}°C (${Math.round(Math.min(1, elapsedHours / currentStep.duration_hours) * 100)}%)`,
-              adjusted_against_timestamp: controller.last_update,
-            })
+          console.log(`📈 Ramp ${startTemp.toFixed(1)}→${currentStep.target_temp}°C: mellenmål=${roundedTarget.toFixed(1)}°C (${Math.round(Math.min(1, elapsedHours / currentStep.duration_hours) * 100)}%)`)
         }
 
         if (timeComplete) {
@@ -280,7 +289,8 @@ export async function processWaitForTempStep(ctx: StepContext): Promise<StepResu
   if (currentStep.target_temp !== null && controller) {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
-    const waitCheckTemp = controller.pill_temp ?? controller.current_temp ?? null
+    const referenceTemp = controller.current_temp ?? currentStep.target_temp
+    const waitCheckTemp = getDirectionalTemp(controller, currentStep.target_temp, referenceTemp)
     if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
       stepCompleted = true
       actionTaken = 'temp_reached'
@@ -342,11 +352,11 @@ export async function processWaitForSgStep(ctx: StepContext): Promise<StepResult
     if (met) {
       stepCompleted = true
       actionTaken = 'condition_met'
-      const sortedData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      const latest = getLatestSg(brewData.sg_data)
       actionDetails = {
         condition: 'sg_reached',
         target_sg: currentStep.target_sg,
-        current_sg: sortedData[0]?.value,
+        current_sg: latest?.value,
         comparison: currentStep.sg_comparison
       }
     }
@@ -379,8 +389,8 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
     return { stepCompleted, actionTaken, actionDetails }
   }
 
-  const sortedSgData = [...brewData.sg_data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const latestSg = sortedSgData[0]?.value
+  const latest = getLatestSg(brewData.sg_data)
+  const latestSg = latest?.value ?? 0
   const og = brewData.original_gravity
   const fg = brewData.final_gravity
   const attRange = og - fg
@@ -410,6 +420,16 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
   }
 
   console.log(`🍺 Diacetyl rest triggered: att=${Math.round(currentAtt)}%, phase=${metrics?.fermentation_phase ?? 'unknown'}, activity=${metrics?.activity_score ?? '?'}%`)
+
+  // Notify user that diacetyl rest has triggered
+  await insertNotification(supabase, {
+    type: 'diacetyl_rest_triggered',
+    title: 'Diacetylvila startad',
+    body: `Attenuation nått ${Math.round(currentAtt)}% — temperaturen höjs med ${tempIncrease}°C`,
+    controller_id: session.controller_id,
+    brew_id: session.brew_id,
+  })
+
   const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
   const diacetylTarget = (effectiveTarget ?? 18) + tempIncrease
 
@@ -427,6 +447,14 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
     actionTaken = 'condition_met'
     actionDetails = { ...actionDetails, condition: 'diacetyl_rest_complete', stable_days: stableDays, activity_score: metrics?.activity_score ?? null }
     console.log(`✅ Diacetyl rest complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
+
+    await insertNotification(supabase, {
+      type: 'diacetyl_rest_completed',
+      title: 'Diacetylvila klar',
+      body: `SG stabil i ${stableDays} dagar och aktivitet ${Math.round(metrics?.activity_score ?? 0)}% — redo för nästa steg`,
+      controller_id: session.controller_id,
+      brew_id: session.brew_id,
+    })
   } else if (sgStable && !activityLow) {
     console.log(`Diacetyl rest: SG stable but activity still high (${metrics?.activity_score}%) - waiting`)
     actionDetails = { ...actionDetails, phase: 'diacetyl_active_waiting', sg_stable: true, activity_score: metrics?.activity_score }
