@@ -88,6 +88,14 @@ export function setTargetPrinterName(name: string): void {
   try { localStorage.setItem(LAST_PRINTER_NAME_KEY, name); } catch { /* ignore */ }
 }
 
+/** Remove saved printer so label dialog won't try to reconnect */
+export function clearLastDevice(): void {
+  try {
+    localStorage.removeItem(LAST_PRINTER_NAME_KEY);
+    localStorage.removeItem(LAST_PRINTER_ID_KEY);
+  } catch { /* ignore */ }
+}
+
 // ── Types ───────────────────────────────────────────────────────
 
 export interface PrinterConnection {
