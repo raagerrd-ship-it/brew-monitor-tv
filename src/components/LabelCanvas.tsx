@@ -8,8 +8,10 @@ import QRCode from 'qrcode';
 
 export const LABEL_WIDTH = 384;
 export const LABEL_HEIGHT = 555;
-const PADDING = 8;      // (384-368)/2 = 8px per side → 368px content width
-// Content area: 368 × 520px (with ~17px top + ~18px bottom implicit)
+const PADDING = 8; // (384-368)/2 = 8px per side
+const CONTENT_TOP = 10;
+const CONTENT_BOTTOM = 25;
+const CONTENT_HEIGHT = LABEL_HEIGHT - CONTENT_TOP - CONTENT_BOTTOM; // 520px
 const LABEL_IMG_SIZE = 144;
 const QR_SIZE = 144;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
@@ -86,7 +88,7 @@ function drawLabelBase(ctx: CanvasRenderingContext2D) {
 function drawLabelImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null) {
   if (!img) return;
   const x = LABEL_WIDTH - PADDING - LABEL_IMG_SIZE;
-  const y = PADDING;
+  const y = CONTENT_TOP;
   
   // Draw with rounded corners
   ctx.save();
@@ -114,12 +116,12 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   // Title: JÄSTANK
   ctx.fillStyle = '#000000';
   ctx.font = 'bold 20px sans-serif';
-  ctx.fillText('JÄSTANK', PADDING, PADDING + 20);
+  ctx.fillText('JÄSTANK', PADDING, CONTENT_TOP + 20);
   
   // Separator line
   ctx.beginPath();
-  ctx.moveTo(PADDING, PADDING + 30);
-  ctx.lineTo(PADDING + textMaxWidth, PADDING + 30);
+  ctx.moveTo(PADDING, CONTENT_TOP + 30);
+  ctx.lineTo(PADDING + textMaxWidth, CONTENT_TOP + 30);
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1;
   ctx.stroke();
@@ -127,7 +129,7 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   // Brew name (large)
   ctx.fillStyle = '#000000';
   ctx.font = 'bold 44px sans-serif';
-  let y = PADDING + 78;
+  let y = CONTENT_TOP + 78;
   const name = brew.name || 'Okänd';
   
   // Word-wrap brew name (max 2 lines)
@@ -186,7 +188,7 @@ export async function renderTankLabel({ brew, canvas }: LabelOptions): Promise<v
   const qrImg = await generateQrImage(getBrewShareUrl(brew));
   if (qrImg) {
     const qrX = (LABEL_WIDTH - QR_SIZE) / 2;
-    const qrY = LABEL_HEIGHT - PADDING - QR_SIZE;
+    const qrY = CONTENT_TOP + CONTENT_HEIGHT - QR_SIZE;
     ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
   }
 }
@@ -208,19 +210,19 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   // Title: FAT / KEG
   ctx.fillStyle = '#000000';
   ctx.font = 'bold 20px sans-serif';
-  ctx.fillText('FAT / KEG', PADDING, PADDING + 20);
+  ctx.fillText('FAT / KEG', PADDING, CONTENT_TOP + 20);
   
   // Separator line
   ctx.beginPath();
-  ctx.moveTo(PADDING, PADDING + 30);
-  ctx.lineTo(PADDING + textMaxWidth, PADDING + 30);
+  ctx.moveTo(PADDING, CONTENT_TOP + 30);
+  ctx.lineTo(PADDING + textMaxWidth, CONTENT_TOP + 30);
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1;
   ctx.stroke();
   
   // Brew name (large)
   ctx.font = 'bold 44px sans-serif';
-  let y = PADDING + 78;
+  let y = CONTENT_TOP + 78;
   const name = brew.name || 'Okänd';
   
   // Word-wrap brew name (max 2 lines)
@@ -279,7 +281,7 @@ export async function renderKegLabel({ brew, canvas }: LabelOptions): Promise<vo
   const qrImg = await generateQrImage(getBrewShareUrl(brew));
   if (qrImg) {
     const qrX = (LABEL_WIDTH - QR_SIZE) / 2;
-    const qrY = LABEL_HEIGHT - PADDING - QR_SIZE;
+    const qrY = CONTENT_TOP + CONTENT_HEIGHT - QR_SIZE;
     ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
   }
 }
