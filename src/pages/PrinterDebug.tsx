@@ -544,6 +544,81 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "print-with-listener",
+    title: "🎯 Print med svarslyssnare (mini-raster)",
+    description: "Aktiverar notify på 0xff03, skickar sedan hela print-sekvensen steg för steg och visar skrivarens svar/felkoder efter varje kommando.",
+    run: async (conn, log) => {
+      // 1. Activate listener on 0xff03
+      const service = await conn.device.gatt.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+      const notifyChar = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
+      const responses: string[] = [];
+      notifyChar.addEventListener('characteristicvaluechanged', (event: any) => {
+        const value = new Uint8Array(event.target.value.buffer);
+        const hex = Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+        const ascii = Array.from(value).map((b: number) => b >= 32 && b < 127 ? String.fromCharCode(b) : '.').join('');
+        const msg = `📨 [${hex}] "${ascii}"`;
+        responses.push(msg);
+        log(`   ${msg}`);
+      });
+      await notifyChar.startNotifications();
+      log("✓ Lyssnare aktiv på 0xff03");
+      await delay(200);
+
+      const send = async (data: number[], label: string) => {
+        log(`→ ${label}: [${data.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}]`);
+        await bleWrite(conn, new Uint8Array(data), label);
+        await delay(400); // Wait for response
+      };
+
+      // 2. Try ESC @ (initialize)
+      log("");
+      log("── A. ESC/POS-sekvens ──");
+      await send([0x1b, 0x40], "ESC @ (init)");
+
+      // 3. Start-job
+      await send([0x1f, 0x11, 0x02, 0x00], "start-job");
+
+      // 4. Set gap mode
+      await send([0x1f, 0x11, 0x0e, 0x01], "set-gap");
+
+      // 5. Speed + density
+      await send([0x1b, 0x4e, 0x0d, 0x03], "speed=3");
+      await send([0x1b, 0x4e, 0x04, 0x08], "density=8");
+
+      // 6. Small raster: 384px wide × 10 rows = 480 bytes
+      const widthBytes = 48;
+      const height = 10;
+      log(`→ GS v 0 raster (${widthBytes*8}×${height})...`);
+      await send([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00], "raster-hdr");
+
+      // 10 rows of solid black
+      const rasterData = new Uint8Array(widthBytes * height);
+      rasterData.fill(0xff);
+      // Send as one chunk (480 bytes is small enough)
+      await bleWrite(conn, rasterData, "raster-data");
+      await delay(500);
+      log(`   Rasterdata skickad (${rasterData.length} bytes, helsvart)`);
+
+      // 7. Print-execute
+      await send([0x1f, 0x11, 0x04, 0x00], "print-execute");
+
+      // 8. CUPS footer
+      await send([0x1f, 0xf0, 0x05, 0x00], "cups-footer-1");
+      await send([0x1f, 0xf0, 0x03, 0x00], "cups-footer-2");
+
+      // 9. ESC d (feed)
+      await send([0x1b, 0x64, 0x02], "ESC d 2 (feed)");
+
+      // 10. End-job
+      await send([0x1f, 0x11, 0x03, 0x00], "end-job");
+
+      log("");
+      log(`Totalt ${responses.length} svar från skrivaren.`);
+      try { await notifyChar.stopNotifications(); } catch { /* ok */ }
+      log("Klart! Analysera svaren ovan för felkoder.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
