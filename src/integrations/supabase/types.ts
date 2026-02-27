@@ -157,6 +157,7 @@ export type Database = {
       }
       auto_cooling_settings: {
         Row: {
+          ai_audit_enabled: boolean
           auto_boost_degrees: number
           auto_boost_enabled: boolean
           check_interval_minutes: number
@@ -183,6 +184,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_audit_enabled?: boolean
           auto_boost_degrees?: number
           auto_boost_enabled?: boolean
           check_interval_minutes?: number
@@ -209,6 +211,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_audit_enabled?: boolean
           auto_boost_degrees?: number
           auto_boost_enabled?: boolean
           check_interval_minutes?: number

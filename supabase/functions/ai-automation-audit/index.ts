@@ -17,6 +17,20 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
+    // Check if AI audit is enabled
+    const { data: coolingSettings } = await supabase
+      .from('auto_cooling_settings')
+      .select('ai_audit_enabled')
+      .limit(1)
+      .maybeSingle();
+    
+    if (coolingSettings && coolingSettings.ai_audit_enabled === false) {
+      console.log('🤖 AI automation audit is disabled, skipping.');
+      return new Response(JSON.stringify({ skipped: true, reason: 'ai_audit_enabled is false' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('🤖 Starting AI automation audit...');
 
     // ========================================
