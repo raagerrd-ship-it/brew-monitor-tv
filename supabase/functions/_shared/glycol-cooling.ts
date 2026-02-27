@@ -1,0 +1,597 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { round1, TempController, setControllerTargetTemp, learnGlycolCoolerRate, getGlycolRatesSummary } from './temp-utils.ts'
+import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
+import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
+
+// ============================================================
+// Glycol Cooling Management (Feature 3)
+// Single Source of Truth for glycol cooler logic.
+// ============================================================
+
+export interface GlycolContext {
+  supabase: ReturnType<typeof createClient>
+  supabaseUrl: string
+  serviceRoleKey: string
+  allControllers: TempController[]
+  followedControllersFullData: TempController[]
+  followedControllerIds: string[]
+  settings: { id: string; last_check_at: string | null }
+  log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
+}
+
+export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentResult[]> {
+  const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, followedControllerIds, settings, log } = ctx
+  const adjustments: AdjustmentResult[] = []
+
+  log('COOLING', 'info', '--- Auto cooling adjustment check ---')
+
+  // Outcome evaluation: learn from past cooling adjustments
+  await evaluateCoolingOutcomes(ctx)
+
+  // Find glycol cooler
+  const coolerController = allControllers.find(c => (c as any).is_glycol_cooler) as TempController | undefined
+  if (!coolerController) {
+    log('COOLER_CONFIG', 'fail', 'No controller marked as glycol cooler (set under Enheter)')
+    return adjustments
+  }
+
+  if (!coolerController.cooling_enabled) {
+    log('COOLER_STATUS', 'fail', 'Glycol cooler has cooling disabled')
+    return adjustments
+  }
+
+  log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
+    target_temp: round1(coolerController.target_temp),
+    current_temp: round1(coolerController.current_temp),
+  })
+
+  const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
+
+  // Learn glycol cooler rate
+  const coolingLoadCount = followedControllersFullData.filter(c => {
+    if (!c.cooling_enabled) return false
+    const ct = parseFloat(String(c.current_temp ?? c.pill_temp ?? '0'))
+    const tt = parseFloat(String(c.target_temp ?? '999'))
+    const hyst = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
+    return ct > (tt + hyst)
+  }).length
+
+  const glycolRate = await learnGlycolCoolerRate(supabase, coolerController.controller_id, coolingLoadCount)
+  const allGlycolRates = await getGlycolRatesSummary(supabase, coolerController.controller_id)
+
+  if (glycolRate || Object.keys(allGlycolRates).length > 0) {
+    const rateDetails: Record<string, unknown> = { current_load: coolingLoadCount }
+    if (glycolRate) rateDetails.current_rate = `${glycolRate.rate.toFixed(2)}°C/h (n=${glycolRate.sampleCount})`
+    for (const [bucket, info] of Object.entries(allGlycolRates)) {
+      rateDetails[`rate_${bucket}`] = `${info.rate.toFixed(2)}°C/h (n=${info.sampleCount})`
+    }
+    log('GLYCOL_RATES', 'info', `Learned cooling rates by load`, rateDetails)
+  }
+
+  // Check if any followed controller has cooling enabled
+  const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true)
+
+  if (controllersWithCooling.length === 0) {
+    log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
+    await handleNoCooling(ctx, coolerController, currentCoolerTarget, adjustments)
+    return adjustments
+  }
+
+  log('COOLING_CAPABILITY', 'pass', `${controllersWithCooling.length} controller(s) have cooling enabled`)
+
+  // Find lowest target controller
+  const lowestTempController = controllersWithCooling.reduce((lowest, current) => {
+    const ct = parseFloat(String(current.target_temp ?? '999'))
+    const lt = parseFloat(String(lowest.target_temp ?? '999'))
+    return ct < lt ? current : lowest
+  })
+
+  const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'))
+  log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
+    target_temp: round1(lowestTargetTemp),
+    cooler_target: round1(currentCoolerTarget),
+    diff: round1(currentCoolerTarget - lowestTargetTemp),
+  })
+
+  // Check if cooler is >10° colder than needed
+  const tempDiff = currentCoolerTarget - lowestTargetTemp
+  if (tempDiff < -10) {
+    await handleOvercooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, tempDiff, adjustments)
+  }
+
+  // Check if lowest controller is actively cooling
+  const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'))
+  const lowestHysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'))
+  const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + lowestHysteresis)
+
+  log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info',
+    isActivelyCooling ? `${lowestTempController.name} IS actively cooling` : `${lowestTempController.name} is NOT actively cooling`, {
+      current_temp: round1(lowestCurrentTemp),
+      threshold: round1(lowestTargetTemp + lowestHysteresis),
+    })
+
+  if (isActivelyCooling) {
+    await handleActiveCooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+  } else {
+    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
+
+    // Learn margin is adequate
+    const tempBucketLearn = getTempBucket(lowestTargetTemp)
+    const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
+    const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp)
+    if (currentMargin > 2.0) {
+      const suggestedMargin = currentMargin * 0.95
+      const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`
+      const marginUpdate = await updateLearnedParam(supabase, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0)
+      const baseUpdate = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0)
+      log('MARGIN_LEARNING', 'info', `Tank at target → margin adequate [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}→${marginUpdate.newValue.toFixed(1)}°C (base: ${baseUpdate.oldValue.toFixed(1)}→${baseUpdate.newValue.toFixed(1)}°C)`)
+    }
+    log('TIMER', 'info', 'Reset timer - not actively cooling')
+  }
+
+  // Always: recovery check
+  await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+
+  return adjustments
+}
+
+// ─── Private helpers ──────────────────────────────────────────
+
+async function evaluateCoolingOutcomes(ctx: GlycolContext): Promise<void> {
+  const { supabase, followedControllersFullData, log } = ctx
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+
+  const { data: pastAdjustments } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('id, cooler_controller_id, new_target_temp, followed_controller_id, followed_current_temp, followed_target_temp, reason')
+    .like('reason', '%struggling to cool%')
+    .lt('created_at', thirtyMinAgo)
+    .gt('created_at', twoHoursAgo)
+
+  if (!pastAdjustments || pastAdjustments.length === 0) return
+
+  for (const adj of pastAdjustments) {
+    if (!adj.followed_controller_id || !adj.followed_target_temp) continue
+    const fc = followedControllersFullData.find(c => c.controller_id === adj.followed_controller_id)
+    if (!fc) continue
+
+    const currentTemp = parseFloat(String(fc.current_temp ?? fc.pill_temp ?? 999))
+    const targetTemp = parseFloat(String(fc.target_temp ?? adj.followed_target_temp))
+    const tempBucket = getTempBucket(targetTemp)
+    const hysteresis = parseFloat(String(fc.cooling_hysteresis ?? 0.2))
+
+    const reachedTarget = currentTemp <= targetTemp + hysteresis
+    const overshot = currentTemp < targetTemp - 1.0
+
+    if (reachedTarget && !overshot) {
+      const currentMargin = targetTemp - adj.new_target_temp
+      const result = await updateLearnedParam(supabase, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, currentMargin, 2.0, 15.0)
+      log('COOLING_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`)
+    } else if (overshot) {
+      const currentMargin = targetTemp - adj.new_target_temp
+      const reducedMargin = currentMargin * 0.75
+      const result = await updateLearnedParam(supabase, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
+      log('COOLING_LEARN', 'action', `[${tempBucket}] Overshoot! Reducing margin: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`)
+    } else {
+      const currentMargin = targetTemp - adj.new_target_temp
+      const increasedMargin = currentMargin * 1.25
+      const result = await updateLearnedParam(supabase, adj.cooler_controller_id, `cooler_margin:${tempBucket}`, increasedMargin, 2.0, 15.0)
+      log('COOLING_LEARN', 'action', `[${tempBucket}] Insufficient cooling! Increasing margin: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (n=${result.sampleCount})`)
+    }
+  }
+}
+
+async function handleNoCooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, adjustments: AdjustmentResult[]): Promise<void> {
+  const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
+  const defaultTemp = 18
+  if (Math.abs(currentCoolerTarget - defaultTemp) <= 0.1) return
+
+  const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
+  if (defaultTemp < coolerMinTemp || defaultTemp > coolerMaxTemp) return
+
+  log('ADJUSTMENT', 'action', `Setting cooler to default ${defaultTemp}°C`)
+  const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, defaultTemp)
+  if (success) {
+    log('ADJUSTMENT', 'pass', `Set cooler to ${defaultTemp}°C`)
+    await logAdjustment(supabase, {
+      cooler_controller_id: coolerController.controller_id,
+      cooler_controller_name: coolerController.name,
+      old_target_temp: currentCoolerTarget,
+      new_target_temp: defaultTemp,
+      lowest_followed_temp: 0,
+      reason: 'Ingen följd controller är aktiv med kyla',
+    })
+    adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: defaultTemp })
+  }
+}
+
+async function handleOvercooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, lowestTempController: TempController, lowestTargetTemp: number, tempDiff: number, adjustments: AdjustmentResult[]): Promise<void> {
+  const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
+  log('OVERCOOLING_CHECK', 'info', `Cooler is ${Math.abs(tempDiff).toFixed(1)}°C colder than lowest`)
+
+  const newTarget = lowestTargetTemp - 10
+  const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
+
+  if (newTarget <= currentCoolerTarget || newTarget < coolerMinTemp || newTarget > coolerMaxTemp) return
+
+  log('ADJUSTMENT', 'action', `Increasing cooler from ${currentCoolerTarget}°C to ${newTarget}°C`)
+  const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, newTarget)
+  if (success) {
+    log('ADJUSTMENT', 'pass', `Increased cooler to ${newTarget}°C`)
+    await logAdjustment(supabase, {
+      cooler_controller_id: coolerController.controller_id,
+      cooler_controller_name: coolerController.name,
+      old_target_temp: currentCoolerTarget,
+      new_target_temp: newTarget,
+      lowest_followed_temp: lowestTargetTemp,
+      followed_controller_id: lowestTempController.controller_id,
+      followed_controller_name: lowestTempController.name,
+      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+      followed_target_temp: lowestTargetTemp,
+      followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
+      reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`,
+    })
+    adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget })
+  }
+}
+
+async function handleActiveCooling(
+  ctx: GlycolContext,
+  coolerController: TempController,
+  currentCoolerTarget: number,
+  lowestTempController: TempController,
+  lowestTargetTemp: number,
+  lowestCurrentTemp: number,
+  coolingLoadCount: number,
+  adjustments: AdjustmentResult[]
+): Promise<void> {
+  const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, followedControllerIds, settings, log } = ctx
+
+  // Interval check
+  const now = new Date()
+  const checkIntervalMs = 30 * 60 * 1000
+  let intervalPassed = true
+  if (settings.last_check_at) {
+    const timeSinceLastCheck = now.getTime() - new Date(settings.last_check_at).getTime()
+    if (timeSinceLastCheck < checkIntervalMs) {
+      log('INTERVAL_CHECK', 'fail', `Must wait ${Math.ceil((checkIntervalMs - timeSinceLastCheck) / 60000)} more minutes`)
+      intervalPassed = false
+    }
+  }
+
+  if (!intervalPassed) return
+
+  // Sustained cooling check (2 of last 3 samples > threshold)
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: recentHistory } = await supabase
+    .from('temp_controller_history')
+    .select('recorded_at, current_temp, target_temp, cooling_enabled')
+    .eq('controller_id', lowestTempController.controller_id)
+    .gte('recorded_at', oneHourAgo)
+    .order('recorded_at', { ascending: false })
+    .limit(3)
+
+  if (!recentHistory || recentHistory.length < 2) {
+    log('SUSTAINED_CHECK', 'fail', 'Not enough history data')
+    return
+  }
+
+  const hysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'))
+  const aboveThresholdCount = recentHistory.filter(h => {
+    const ct = parseFloat(String(h.current_temp))
+    const tt = parseFloat(String(h.target_temp))
+    return ct > tt + hysteresis
+  }).length
+
+  if (aboveThresholdCount < 2) {
+    log('SUSTAINED_CHECK', 'fail', `Only ${aboveThresholdCount}/3 samples above threshold`)
+    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id)
+    return
+  }
+
+  log('SUSTAINED_CHECK', 'pass', `${aboveThresholdCount}/3 samples above threshold — sustained cooling need`)
+
+  // Smart glycol performance check
+  let skipReduction = false
+  const glycolRate = await learnGlycolCoolerRate(supabase, coolerController.controller_id, coolingLoadCount)
+  if (glycolRate && glycolRate.sampleCount >= 3) {
+    const expectedRate = glycolRate.rate
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { data: coolerHistory } = await supabase
+      .from('temp_controller_history')
+      .select('recorded_at, current_temp')
+      .eq('controller_id', coolerController.controller_id)
+      .gte('recorded_at', thirtyMinAgo)
+      .order('recorded_at', { ascending: false })
+      .limit(3)
+
+    if (coolerHistory && coolerHistory.length >= 2) {
+      const newest = coolerHistory[0]
+      const oldest = coolerHistory[coolerHistory.length - 1]
+      const hours = (new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()) / (1000 * 60 * 60)
+      if (hours > 0.08) {
+        const tempChange = parseFloat(String(newest.current_temp)) - parseFloat(String(oldest.current_temp))
+        const actualRate = Math.abs(tempChange) / hours
+        const isCoolingDown = tempChange < 0
+        const performanceRatio = expectedRate > 0 ? actualRate / expectedRate : 0
+
+        log('GLYCOL_PERFORMANCE', 'info', `Cooler performance check`, {
+          actual_rate: `${(isCoolingDown ? '-' : '+')}${actualRate.toFixed(2)}°C/h`,
+          expected_rate: `${expectedRate.toFixed(2)}°C/h`,
+          performance: `${(performanceRatio * 100).toFixed(0)}%`,
+          load: coolingLoadCount,
+        })
+
+        if (isCoolingDown && performanceRatio >= 0.6) {
+          const coolerTemp = parseFloat(String(coolerController.current_temp ?? '0'))
+          const etaHours = actualRate > 0.1 ? Math.abs(lowestCurrentTemp - lowestTargetTemp) / (actualRate * 0.3) : 99
+          const etaMinutes = Math.round(etaHours * 60)
+
+          log('GLYCOL_PERFORMANCE', 'pass', `Cooler performing at ${(performanceRatio * 100).toFixed(0)}% of expected — tank needs ~${etaMinutes}min more, skipping reduction`, {
+            cooler_temp: `${coolerTemp.toFixed(1)}°C`,
+            tank_temp: `${lowestCurrentTemp.toFixed(1)}°C → ${lowestTargetTemp.toFixed(1)}°C`,
+            eta_minutes: etaMinutes,
+          })
+          skipReduction = true
+        } else if (!isCoolingDown) {
+          log('GLYCOL_PERFORMANCE', 'fail', `Cooler temp is RISING (${tempChange.toFixed(2)}°C) despite cooling demand — needs lower target`)
+        } else {
+          log('GLYCOL_PERFORMANCE', 'info', `Cooler underperforming (${(performanceRatio * 100).toFixed(0)}% of expected) — proceeding with reduction`)
+        }
+      }
+    }
+  }
+
+  if (skipReduction) {
+    await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id)
+
+    // Learn bigger margin
+    const tempBucketLearn = getTempBucket(lowestTargetTemp)
+    const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
+    const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`
+    const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp)
+    const suggestedMargin = currentMargin * 1.2
+    const marginUpdate = await updateLearnedParam(supabase, coolerController.controller_id, marginParamName, suggestedMargin, 2.0, 12.0)
+    log('MARGIN_LEARNING', 'action', `Tank slow despite good glycol → learning bigger margin [${tempBucketLearn}/load_${loadBucket}]: ${marginUpdate.oldValue.toFixed(1)}°C → ${marginUpdate.newValue.toFixed(1)}°C (n=${marginUpdate.sampleCount})`, {
+      current_margin: `${currentMargin.toFixed(1)}°C`,
+      suggested: `${suggestedMargin.toFixed(1)}°C`,
+    })
+
+    const baseMarginUpdate = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketLearn}`, suggestedMargin, 2.0, 12.0)
+    log('MARGIN_LEARNING', 'info', `Base margin [${tempBucketLearn}]: ${baseMarginUpdate.oldValue.toFixed(1)}°C → ${baseMarginUpdate.newValue.toFixed(1)}°C`)
+
+    log('DECISION', 'info', `${lowestTempController.name} is cooling — glycol performing normally, keeping current target (learned bigger margin for next time)`)
+    return
+  }
+
+  // Proceed with reduction
+  log('DECISION', 'action', `${lowestTempController.name} has been struggling to cool`, {
+    current_temp: lowestCurrentTemp,
+    target_temp: lowestTargetTemp,
+  })
+
+  await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id)
+
+  // Delta analysis
+  let deltaMultiplier = 1.0
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: allDeltaHistory } = await supabase
+    .from('temp_delta_history')
+    .select('controller_id, delta, recorded_at')
+    .in('controller_id', followedControllerIds)
+    .gte('recorded_at', twentyFourHoursAgo)
+    .order('recorded_at', { ascending: false })
+
+  const batchDeltaMap = new Map<string, Array<{ delta: number; recorded_at: string }>>()
+  if (allDeltaHistory) {
+    for (const d of allDeltaHistory) {
+      const list = batchDeltaMap.get(d.controller_id) || []
+      if (list.length < 5) list.push(d)
+      batchDeltaMap.set(d.controller_id, list)
+    }
+  }
+
+  for (const fc of followedControllersFullData) {
+    if (fc.pill_temp === null || fc.pill_temp === undefined || fc.current_temp === null || fc.current_temp === undefined) continue
+
+    const pillTemp = parseFloat(String(fc.pill_temp))
+    const ctrlTemp = parseFloat(String(fc.current_temp))
+    const currentDelta = pillTemp - ctrlTemp
+
+    log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`)
+
+    const deltaHistory = batchDeltaMap.get(fc.controller_id)
+    if (deltaHistory && deltaHistory.length >= 2) {
+      const recentDeltas = deltaHistory.map(d => parseFloat(String(d.delta)))
+      const avgRecentDelta = recentDeltas.slice(0, 2).reduce((a, b) => a + b, 0) / 2
+      const avgOlderDelta = recentDeltas.slice(2).reduce((a, b) => a + b, 0) / Math.max(recentDeltas.length - 2, 1)
+      if (avgRecentDelta > avgOlderDelta + 0.1) {
+        deltaMultiplier = Math.max(deltaMultiplier, 1.5)
+        log('DELTA_TREND', 'action', `Delta RISING for ${fc.name} (${avgOlderDelta.toFixed(1)}° → ${avgRecentDelta.toFixed(1)}°)`)
+      }
+    }
+
+    if (currentDelta > 1.5) {
+      deltaMultiplier = Math.max(deltaMultiplier, 2.0)
+      log('DELTA_HIGH', 'action', `High delta (${currentDelta.toFixed(1)}°) for ${fc.name} — doubling reduction`)
+    }
+  }
+
+  // Context-aware margin
+  const tempBucket = getTempBucket(lowestTargetTemp)
+  const learnedMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
+  const baseTempReduction = learnedMargin.value
+  log('LEARNED_MARGIN', 'info', `Cooler margin [${tempBucket}]: ${baseTempReduction.toFixed(1)}°C (${learnedMargin.sampleCount} samples)`)
+  const effectiveTempReduction = baseTempReduction * deltaMultiplier
+
+  if (deltaMultiplier > 1.0) {
+    log('DELTA_ADJUSTMENT', 'action', `Delta multiplier: ${deltaMultiplier}x (${baseTempReduction}°C → ${effectiveTempReduction.toFixed(1)}°C reduction)`)
+  }
+
+  const proposedNewTarget = currentCoolerTarget - effectiveTempReduction
+  const maxAllowedTarget = lowestTargetTemp - 10.0
+  let finalTarget = proposedNewTarget < maxAllowedTarget ? maxAllowedTarget : proposedNewTarget
+
+  if (finalTarget < maxAllowedTarget) {
+    log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget.toFixed(1)}°C`)
+  }
+
+  if (finalTarget >= currentCoolerTarget) {
+    log('ADJUSTMENT', 'info', 'Cooler target would not be lowered')
+    return
+  }
+
+  // Rate-limit: 5 min
+  const COOLER_MIN_INTERVAL_MS = 5 * 60 * 1000
+  const { data: lastAdjust } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('created_at')
+    .eq('cooler_controller_id', coolerController.controller_id)
+    .order('created_at', { ascending: false }).limit(1)
+  const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0
+  const timeSinceLastAdjust = Date.now() - lastAdjustTime
+
+  if (timeSinceLastAdjust < COOLER_MIN_INTERVAL_MS) {
+    log('ADJUSTMENT', 'info', `Skipping - only ${Math.round(timeSinceLastAdjust / 60000)}min since last adjust (need 5min)`)
+    return
+  }
+
+  const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
+
+  if (finalTarget < coolerMinTemp) {
+    log('ADJUSTMENT', 'fail', `Cannot set cooler below minimum (${coolerMinTemp}°C)`)
+    return
+  }
+  if (finalTarget > coolerMaxTemp) {
+    log('ADJUSTMENT', 'fail', `Cannot set cooler above maximum (${coolerMaxTemp}°C)`)
+    return
+  }
+
+  log('ADJUSTMENT', 'action', `Lowering cooler from ${currentCoolerTarget}°C to ${finalTarget}°C`)
+  const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, finalTarget)
+
+  if (success) {
+    log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`)
+    adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget })
+
+    const lowestFollowedTemp = followedControllersFullData
+      .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
+      .reduce((min, temp) => Math.min(min, temp), 999)
+
+    await logAdjustment(supabase, {
+      cooler_controller_id: coolerController.controller_id,
+      cooler_controller_name: coolerController.name,
+      old_target_temp: currentCoolerTarget,
+      new_target_temp: finalTarget,
+      lowest_followed_temp: lowestFollowedTemp,
+      followed_controller_id: lowestTempController.controller_id,
+      followed_controller_name: lowestTempController.name,
+      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+      followed_target_temp: parseFloat(String(lowestTempController.target_temp ?? '0')),
+      followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
+      reason: `${lowestTempController.name} struggling to cool`,
+    })
+  } else {
+    log('ADJUSTMENT', 'fail', 'Failed to update cooler controller')
+  }
+}
+
+async function handleRecovery(
+  ctx: GlycolContext,
+  coolerController: TempController,
+  currentCoolerTarget: number,
+  lowestTempController: TempController,
+  lowestTargetTemp: number,
+  lowestCurrentTemp: number,
+  coolingLoadCount: number,
+  adjustments: AdjustmentResult[]
+): Promise<void> {
+  const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
+
+  const tempBucketRecovery = getTempBucket(lowestTargetTemp)
+  const loadBucketRecovery = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
+  const loadSpecificMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}:load_${loadBucketRecovery}`, 0)
+  const baseMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucketRecovery}`, 5.0)
+  const recoveryMarginValue = loadSpecificMargin.sampleCount >= 3 ? loadSpecificMargin.value : baseMargin.value
+  const idealTarget = lowestTargetTemp - recoveryMarginValue
+  log('RECOVERY_MARGIN', 'info', `Using margin: ${recoveryMarginValue.toFixed(1)}°C (load_${loadBucketRecovery}: ${loadSpecificMargin.value.toFixed(1)}°C n=${loadSpecificMargin.sampleCount}, base: ${baseMargin.value.toFixed(1)}°C n=${baseMargin.sampleCount})`)
+
+  const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
+
+  const needsLowering = currentCoolerTarget > idealTarget + 0.2
+  const needsRaising = currentCoolerTarget < idealTarget - 0.2
+
+  log('COOLING_RECOVERY_CHECK', 'info', `Glykolkylare`, {
+    cooler_current: `${currentCoolerTarget}°C`,
+    ideal_target: `${idealTarget.toFixed(1)}°C`,
+    needs_lowering: needsLowering,
+    needs_raising: needsRaising,
+  })
+
+  if (!needsLowering && !needsRaising) return
+
+  try {
+    const RECOVERY_INTERVAL_MS = 30 * 60 * 1000
+    const { data: lastRecovery, error: recoveryQueryError } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .like('reason', '%Cooling recovery%')
+      .order('created_at', { ascending: false }).limit(1)
+
+    if (recoveryQueryError) {
+      log('COOLING_RECOVERY', 'fail', `Query error: ${recoveryQueryError.message}`)
+      return
+    }
+
+    const lastRecoveryTime = lastRecovery?.[0]?.created_at ? new Date(lastRecovery[0].created_at).getTime() : 0
+    const timeSinceLastRecovery = Date.now() - lastRecoveryTime
+
+    log('COOLING_RECOVERY_INTERVAL', 'info', `Last recovery: ${lastRecoveryTime === 0 ? 'never' : `${Math.round(timeSinceLastRecovery / 60000)}min ago`}, need ${RECOVERY_INTERVAL_MS / 60000}min`)
+
+    if (timeSinceLastRecovery < RECOVERY_INTERVAL_MS) {
+      log('COOLING_RECOVERY', 'info', `Skipping recovery - only ${Math.round(timeSinceLastRecovery / 60000)}min since last (need ${RECOVERY_INTERVAL_MS / 60000}min)`)
+      return
+    }
+
+    let recoveryTarget = Math.round(idealTarget * 10) / 10
+    recoveryTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, recoveryTarget))
+
+    const significantChange = needsLowering
+      ? recoveryTarget <= currentCoolerTarget - 0.1
+      : recoveryTarget >= currentCoolerTarget + 0.1
+
+    if (!significantChange) return
+
+    const direction = needsLowering ? 'Sänker' : 'Höjer'
+    log('COOLING_RECOVERY', 'action', `${direction} cooler from ${currentCoolerTarget}°C toward ideal ${idealTarget.toFixed(1)}°C → ${recoveryTarget}°C`)
+
+    const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, recoveryTarget)
+    if (success) {
+      log('COOLING_RECOVERY', 'pass', `Set cooler to ${recoveryTarget}°C`)
+      adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget })
+
+      await logAdjustment(supabase, {
+        cooler_controller_id: coolerController.controller_id,
+        cooler_controller_name: coolerController.name,
+        old_target_temp: currentCoolerTarget,
+        new_target_temp: recoveryTarget,
+        lowest_followed_temp: lowestTargetTemp,
+        followed_controller_id: lowestTempController.controller_id,
+        followed_controller_name: lowestTempController.name,
+        followed_current_temp: lowestCurrentTemp,
+        followed_target_temp: lowestTargetTemp,
+        reason: `🔄 Cooling recovery: ${needsLowering ? 'kylbehov ökat' : 'kylbehov minskat'}, ${needsLowering ? 'sänker' : 'höjer'} mot ideal ${idealTarget.toFixed(1)}°C`,
+      })
+    } else {
+      log('COOLING_RECOVERY', 'fail', `Failed to update cooler`)
+    }
+  } catch (recoveryError) {
+    log('COOLING_RECOVERY', 'fail', `Recovery error: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`)
+  }
+}
