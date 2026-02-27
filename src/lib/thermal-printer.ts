@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v37-escape-lf-byte';
+export const PRINTER_VERSION = 'v38-wizard-match';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -357,28 +357,25 @@ export async function printBitmap(
     }
   }
 
-  // phomemo-tools quirk: 0x0a in payload is interpreted as LF by printer transport
-  const escapedBitmapData = escapeBleUnsafeBytes(bitmapData);
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${escapedBitmapData.length} bytes bitmap, copies=${copies}`);
-
-  // ── 4. Send using confirmed M110 BLE protocol ──
-  // Sequence: ESC@ → start-job → gap → speed → density → GS v 0 → data (20B chunks) → print-execute → end-job
+  // ── 4. Send using the confirmed working wizard protocol ──
+  // Matches "🎯 Ren print-sekvens" from debug wizard (the step that worked)
+  // Sequence: ESC@ → Start-job → GAP-mode → Speed → Density → single raster block → data (20B, no delay) → wait 3s → End-job
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
-    // ESC @ (initialize)
+    // 1. ESC @ (initialize)
     await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
     await delay(50);
 
-    // Start-job
+    // 2. Start-job
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(50);
 
-    // Media mode for label sensor behavior
+    // 3. GAP-mode
     if (settings.mediaType === 'gap') {
-      // Confirmed working on this device: explicit GAP/LABEL mode
       await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
       await delay(50);
     } else {
@@ -389,60 +386,43 @@ export async function printBitmap(
       }
     }
 
-    // Speed: ESC N 0x0d <speed>
+    // 4. Speed
     if (settings.sendSpeed) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
       await delay(50);
     }
 
-    // Density: ESC N 0x04 <density>
+    // 5. Density
     if (settings.sendDensity) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
       await delay(50);
     }
 
-    // Raster data in BLE-safe chunks, split into max 256-line blocks
+    // 6. Single raster header for full image (no 256-line blocking)
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-    const BLE_CHUNK = settings.chunkSize;
-    const MAX_LINES_PER_BLOCK = 256;
-    const totalBytes = escapedBitmapData.length;
+    await bleWrite(connection, new Uint8Array([
+      0x1d, 0x76, 0x30, 0x00,
+      widthBytes & 0xff, 0x00,
+      height & 0xff, (height >> 8) & 0xff,
+    ]), 'raster-hdr');
+    await delay(100);
 
-    for (let blockStartLine = 0; blockStartLine < height; blockStartLine += MAX_LINES_PER_BLOCK) {
-      const blockLines = Math.min(MAX_LINES_PER_BLOCK, height - blockStartLine);
-      const blockOffsetBytes = blockStartLine * widthBytes;
-      const blockSizeBytes = blockLines * widthBytes;
-
-      // Header for this raster block
-      await bleWrite(connection, new Uint8Array([
-        0x1d, 0x76, 0x30, 0x00,
-        widthBytes & 0xff, 0x00,
-        blockLines & 0xff, (blockLines >> 8) & 0xff,
-      ]), `raster-header@${blockStartLine}`);
-      await delay(80);
-
-      const writeDelayMs = Math.max(5, settings.chunkDelay);
-      for (let offset = 0; offset < blockSizeBytes; offset += BLE_CHUNK) {
-        const end = Math.min(offset + BLE_CHUNK, blockSizeBytes);
-        await bleWrite(
-          connection,
-          escapedBitmapData.slice(blockOffsetBytes + offset, blockOffsetBytes + end),
-          `data@${blockOffsetBytes + offset}`,
-        );
-        if (end < blockSizeBytes) await delay(writeDelayMs);
-
-        const globalEnd = blockOffsetBytes + end;
-        const pct = 20 + (globalEnd / totalBytes) * 70;
-        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-      }
-
-      await delay(120);
+    // 7. Send bitmap data in 20B chunks, NO delay between chunks (wizard had none)
+    const BLE_CHUNK = 20;
+    const totalBytes = bitmapData.length;
+    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
+      const end = Math.min(offset + BLE_CHUNK, totalBytes);
+      await bleWrite(connection, bitmapData.slice(offset, end), `r-${offset}`);
+      const pct = 20 + (end / totalBytes) * 70;
+      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
     }
+    console.log(`[Printer] Data sent (${totalBytes} bytes)`);
 
-    // Wait for printer to finish processing raster data
-    await delay(1500);
+    // 8. Wait for printer to finish (wizard used 3s)
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
+    await delay(3000);
 
-    // End-job (NO print-execute — printer prints automatically after raster data)
+    // 9. End-job (NO print-execute — wizard explicitly excluded it)
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
     await delay(500);
 
