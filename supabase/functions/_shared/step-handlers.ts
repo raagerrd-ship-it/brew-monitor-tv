@@ -502,12 +502,9 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C`)
   }
 
-  // Phase 2: Ramping
-  const rampCurve = (currentStep as any).ramp_curve ?? 'linear'
+  // Phase 2: Ramping (always exponential curve for gentler start)
   let rampProgress = Math.min(1, Math.max(0, (activityTrigger - activityScore) / activityTrigger))
-  if (rampCurve === 'exponential') {
-    rampProgress = rampProgress ** 2
-  }
+  rampProgress = rampProgress ** 2
   let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
   // Apply min ramp hours constraint using ramp_triggered_at (not step_started_at)
