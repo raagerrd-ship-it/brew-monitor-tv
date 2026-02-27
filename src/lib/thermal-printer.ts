@@ -39,9 +39,9 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   speed: 5,
   density: 10,
   chunkSize: 20,
-  chunkDelay: 5,
-  throttleEvery: 0,
-  throttleDelay: 0,
+  chunkDelay: 20,
+  throttleEvery: 25,
+  throttleDelay: 80,
   sendSpeed: true,
   sendDensity: true,
   sendFooter: false,
@@ -357,11 +357,11 @@ export async function printBitmap(
     }
   }
 
-  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${bitmapData.length} bytes bitmap, copies=${copies}`);
+  const safeBitmapData = escapeBleUnsafeBytes(bitmapData);
+  console.log(`[Printer] ${PRINTER_VERSION}: ${width}x${height}, ${safeBitmapData.length} bytes bitmap, copies=${copies}`);
 
   // ── 4. Send using the confirmed working wizard protocol ──
-  // Matches "🎯 Ren print-sekvens" from debug wizard (the step that worked)
-  // Sequence: ESC@ → Start-job → GAP-mode → Speed → Density → single raster block → data (20B, no delay) → wait 3s → End-job
+  // Sequence: ESC@ → Start-job → GAP-mode → Speed → Density → single raster block → data (chunked+throttled) → wait 3s → End-job
   for (let copy = 0; copy < copies; copy++) {
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
@@ -405,17 +405,22 @@ export async function printBitmap(
       widthBytes & 0xff, 0x00,
       height & 0xff, (height >> 8) & 0xff,
     ]), 'raster-hdr');
-    await delay(100);
+    await delay(120);
 
-    // 7. Send bitmap data in 20B chunks, NO delay between chunks (wizard had none)
-    const BLE_CHUNK = 20;
-    const totalBytes = bitmapData.length;
-    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
-      const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, bitmapData.slice(offset, end), `r-${offset}`);
-      const pct = 20 + (end / totalBytes) * 70;
-      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-    }
+    // 7. Send bitmap data with flow-control to avoid printer buffer overruns
+    const totalBytes = safeBitmapData.length;
+    await sendChunked(
+      connection,
+      safeBitmapData,
+      settings.chunkSize,
+      settings.chunkDelay,
+      settings.throttleEvery,
+      settings.throttleDelay,
+      (sent, total) => {
+        const pct = 20 + (sent / total) * 70;
+        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+      },
+    );
     console.log(`[Printer] Data sent (${totalBytes} bytes)`);
 
     // 8. Wait for printer to finish (wizard used 3s)
@@ -495,14 +500,11 @@ export async function printRawTest(
   ]), 'raster-hdr');
   await delay(100);
 
-  // 7. Send bitmap in 20B chunks, no delay
-  const CHUNK = 20;
-  for (let offset = 0; offset < totalBytes; offset += CHUNK) {
-    const end = Math.min(offset + CHUNK, totalBytes);
-    await bleWrite(connection, bitmap.slice(offset, end), `r-${offset}`);
-    const pct = 15 + (end / totalBytes) * 75;
+  // 7. Send bitmap with flow-control
+  await sendChunked(connection, bitmap, 20, 20, 25, 80, (sent, total) => {
+    const pct = 15 + (sent / total) * 75;
     onProgress?.({ phase: 'Skickar data...', percent: Math.min(95, pct) });
-  }
+  });
   console.log(`[Printer] RAW TEST data sent (${totalBytes} bytes)`);
 
   // 8. Wait 3s
