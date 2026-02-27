@@ -401,14 +401,20 @@ export async function printBitmap(
     ]), 'raster-header');
     await delay(100);
 
+    // Escape 0x0a (LF) → 0x14 in bitmap data (printer interprets 0x0a as line feed)
+    const escapedData = new Uint8Array(bitmapData);
+    for (let i = 0; i < escapedData.length; i++) {
+      if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
+    }
+
     // Raster data in 20-byte chunks (BLE MTU safe)
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
     const BLE_CHUNK = 20;
-    const totalBytes = bitmapData.length;
+    const totalBytes = escapedData.length;
 
     for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
       const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, bitmapData.slice(offset, end), `data@${offset}`);
+      await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
 
       const pct = 20 + ((end) / totalBytes) * 70;
       onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
