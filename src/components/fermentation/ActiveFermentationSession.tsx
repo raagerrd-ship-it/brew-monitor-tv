@@ -13,6 +13,7 @@ import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
 import { RadialGauge } from "./RadialGauge";
+import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { formatRemainingTime } from "./sessionStyles";
 
@@ -238,22 +239,36 @@ export function ActiveFermentationSession({
             </div>
 
             {currentStep && (
-              <FermentationStepDisplay
-                currentStep={currentStep}
-                steps={session.steps || []}
-                currentStepIndex={session.current_step_index}
-                stepStartedAt={session.step_started_at}
-                stepStartTemp={session.step_start_temp}
-                targetTemp={controllerData?.target_temp ?? null}
-                currentTemp={controllerData?.current_temp ?? null}
-                isRamping={isRamping}
-                rampProgress={rampProgress}
-                stepProgress={stepProgress}
-                currentSg={currentSg}
-                targetSg={currentStep.target_sg ?? null}
-                sgComparison={currentStep.sg_comparison ?? null}
-                originalGravity={originalGravity}
-              />
+              <>
+                <FermentationStepDisplay
+                  currentStep={currentStep}
+                  steps={session.steps || []}
+                  currentStepIndex={session.current_step_index}
+                  stepStartedAt={session.step_started_at}
+                  stepStartTemp={session.step_start_temp}
+                  targetTemp={controllerData?.target_temp ?? null}
+                  currentTemp={controllerData?.current_temp ?? null}
+                  isRamping={isRamping}
+                  rampProgress={rampProgress}
+                  stepProgress={stepProgress}
+                  currentSg={currentSg}
+                  targetSg={currentStep.target_sg ?? null}
+                  sgComparison={currentStep.sg_comparison ?? null}
+                  originalGravity={originalGravity}
+                />
+                <StepConditionsDisplay
+                  currentStep={currentStep}
+                  stepStartedAt={session.step_started_at}
+                  stepStartTemp={session.step_start_temp}
+                  currentTemp={controllerData?.current_temp ?? null}
+                  profileTargetTemp={controllerData?.profile_target_temp ?? null}
+                  currentSg={currentSg}
+                  originalGravity={originalGravity}
+                  activityScore={activityScore}
+                  attenuation={attenuation}
+                  sgData={sgData}
+                />
+              </>
             )}
 
             {session.steps && session.steps.length > 0 && (
@@ -554,7 +569,7 @@ function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverview
               />
             )}
             <div 
-              className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-all"
+              className="flex items-center gap-1 rounded-md px-1.5 py-1 transition-all"
               style={{
                 background: isCurrent 
                   ? 'hsl(var(--primary) / 0.2)' 
@@ -570,8 +585,27 @@ function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverview
                 boxShadow: isCurrent ? '0 0 8px hsl(var(--primary) / 0.15)' : undefined,
               }}
             >
-              {getStepIcon(step, index)}
-              <span className="whitespace-nowrap">{index + 1}{tempDisplay && ` ${tempDisplay}`}</span>
+              {/* Step number badge */}
+              <span 
+                className="flex items-center justify-center rounded text-[9px] font-bold leading-none shrink-0"
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  background: isCurrent 
+                    ? 'hsl(var(--primary) / 0.3)' 
+                    : isDone 
+                    ? 'hsl(var(--primary) / 0.15)' 
+                    : 'hsl(0 0% 100% / 0.08)',
+                  border: `1px solid ${isCurrent ? 'hsl(var(--primary) / 0.5)' : 'transparent'}`,
+                }}
+              >
+                {index + 1}
+              </span>
+              {/* Icon + temp info */}
+              <span className="flex items-center gap-0.5 text-[10px] font-medium opacity-80 whitespace-nowrap">
+                {getStepIcon(step, index)}
+                {tempDisplay && <span>{tempDisplay}</span>}
+              </span>
             </div>
           </div>
         );
