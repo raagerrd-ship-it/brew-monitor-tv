@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v35-debug-synced-gap-mode';
+export const PRINTER_VERSION = 'v36-debug-matched-settings';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -36,10 +36,10 @@ export interface PrintSettings {
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   mediaType: 'gap',
   landscape: false,
-  speed: 5,
-  density: 10,
-  chunkSize: 128,
-  chunkDelay: 20,
+  speed: 3,
+  density: 8,
+  chunkSize: 100,
+  chunkDelay: 0,
   throttleEvery: 0,
   throttleDelay: 0,
   sendSpeed: true,
@@ -490,18 +490,25 @@ export async function printBitmap(
       if (escapedData[i] === 0x0a) escapedData[i] = 0x14;
     }
 
-    // Raster data in 100-byte chunks (verified max for this printer)
+    // Raster data in configured chunks (debug-matched defaults: 100B, no delay)
     onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: 20 });
-    const BLE_CHUNK = 100;
-    const totalBytes = escapedData.length;
+    const BLE_CHUNK = Math.max(20, Math.min(500, settings.chunkSize || 100));
+    const CHUNK_DELAY = Math.max(0, settings.chunkDelay ?? 0);
+    const THROTTLE_EVERY = Math.max(0, settings.throttleEvery ?? 0);
+    const THROTTLE_DELAY = Math.max(0, settings.throttleDelay ?? 0);
 
-    for (let offset = 0; offset < totalBytes; offset += BLE_CHUNK) {
-      const end = Math.min(offset + BLE_CHUNK, totalBytes);
-      await bleWrite(connection, escapedData.slice(offset, end), `data@${offset}`);
-
-      const pct = 20 + ((end) / totalBytes) * 70;
-      onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
-    }
+    await sendChunked(
+      connection,
+      escapedData,
+      BLE_CHUNK,
+      CHUNK_DELAY,
+      THROTTLE_EVERY,
+      THROTTLE_DELAY,
+      (sent, total) => {
+        const pct = 20 + (sent / total) * 70;
+        onProgress?.({ phase: `Skriver ut${copyLabel}...`, percent: Math.min(95, pct) });
+      },
+    );
 
     // Wait for printer to process and start printing
     onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
