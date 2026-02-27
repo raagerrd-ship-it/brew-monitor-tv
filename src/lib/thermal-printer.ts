@@ -64,14 +64,15 @@ export function migrateSettingsIfNeeded(): boolean {
 // ── BLE Service & Characteristic UUIDs ──────────────────────────
 
 const SERVICE_UUIDS = [
+  '0000ff00-0000-1000-8000-00805f9b34fb',
   0xff00,
   0xffe0,
   0xae30,
   '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-  '0000ff00-0000-1000-8000-00805f9b34fb',
 ] as const;
 
 const WRITE_CHAR_UUIDS = [
+  '0000ff02-0000-1000-8000-00805f9b34fb',
   0xff02,
   'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
   '49535343-8841-43f4-a8d4-ecbe34729bb3',
@@ -122,21 +123,24 @@ async function connectDevice(device: any): Promise<PrinterConnection> {
   const server = await connectWithRetry(device);
 
   let service: any = null;
+  let matchedServiceUuid: any = null;
   for (const uuid of SERVICE_UUIDS) {
-    try { service = await server.getPrimaryService(uuid as any); break; } catch { /* next */ }
+    try { service = await server.getPrimaryService(uuid as any); matchedServiceUuid = uuid; break; } catch { /* next */ }
   }
   if (!service) throw new Error('Kunde inte hitta skrivarens BLE-tjänst.');
+  console.log(`[Printer] Matched service: ${matchedServiceUuid}`);
 
   let characteristic: any = null;
+  let matchedCharUuid: any = null;
   for (const uuid of WRITE_CHAR_UUIDS) {
-    try { characteristic = await service.getCharacteristic(uuid as any); break; } catch { /* next */ }
+    try { characteristic = await service.getCharacteristic(uuid as any); matchedCharUuid = uuid; break; } catch { /* next */ }
   }
   if (!characteristic) throw new Error('Kunde inte hitta skrivarens BLE-karaktäristik.');
 
   const writeMethod: 'withResponse' | 'withoutResponse' =
     characteristic.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
 
-  console.log(`[Printer] Connected: ${device.name}, write: ${writeMethod}`);
+  console.log(`[Printer] Connected: ${device.name}, service=${matchedServiceUuid}, char=${matchedCharUuid}, write=${writeMethod}`);
   saveLastDevice(device);
   return { device, characteristic, writeMethod };
 }
