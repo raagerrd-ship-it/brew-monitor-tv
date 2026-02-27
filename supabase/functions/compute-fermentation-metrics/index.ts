@@ -103,9 +103,10 @@ function calculateActivityScore(
     sgScore = relativeScore * absoluteFactor;
   }
 
-  // If SG is essentially stopped, cap regardless of delta
+  // If SG is essentially stopped, activity is 0 — delta only reflects
+  // thermal stratification (pill vs probe), not fermentation activity
   if (sgRatePerHour < SG_RATE_FLOOR) {
-    return Math.min(5, Math.round(deltaScore * 10));
+    return 0;
   }
 
   // Hybrid: take the higher of the two signals, but weight SG slightly more
