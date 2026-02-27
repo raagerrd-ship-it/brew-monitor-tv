@@ -330,6 +330,7 @@ export type Database = {
           fermentation_phase: string
           id: string
           peak_delta: number
+          peak_sg_rate_per_hour: number
           predicted_sg_curve: Json | null
           ready_to_crash: boolean
           ready_to_crash_at: string | null
@@ -344,6 +345,7 @@ export type Database = {
           fermentation_phase?: string
           id?: string
           peak_delta?: number
+          peak_sg_rate_per_hour?: number
           predicted_sg_curve?: Json | null
           ready_to_crash?: boolean
           ready_to_crash_at?: string | null
@@ -358,6 +360,7 @@ export type Database = {
           fermentation_phase?: string
           id?: string
           peak_delta?: number
+          peak_sg_rate_per_hour?: number
           predicted_sg_curve?: Json | null
           ready_to_crash?: boolean
           ready_to_crash_at?: string | null

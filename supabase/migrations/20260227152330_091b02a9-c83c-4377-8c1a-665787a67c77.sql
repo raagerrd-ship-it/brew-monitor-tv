@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_fermentation_metrics ADD COLUMN IF NOT EXISTS peak_sg_rate_per_hour numeric NOT NULL DEFAULT 0;

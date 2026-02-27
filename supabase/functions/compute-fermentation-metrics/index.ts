@@ -70,16 +70,30 @@ function determineFermentationPhase(
 }
 
 function calculateActivityScore(
-  controllerId: string,
   deltas: { delta: number }[],
   peakDelta: number,
+  sgRatePerHour: number,
+  peakSgRatePerHour: number,
 ): number {
   if (deltas.length === 0 || peakDelta <= 0) return 0;
 
+  // Delta-based score (how hard the controller is working relative to peak)
   const recentAvg = deltas.slice(0, Math.min(6, deltas.length))
     .reduce((sum, d) => sum + Math.abs(d.delta), 0) / Math.min(6, deltas.length);
+  const deltaScore = recentAvg / peakDelta;
 
-  return Math.max(0, Math.min(100, Math.round((recentAvg / peakDelta) * 100)));
+  // SG-rate weight: scales 0→1 based on current vs peak fermentation rate
+  // When SG is stable (no fermentation), this drives the score toward 0
+  let sgWeight = 0;
+  if (peakSgRatePerHour > 0.000001) {
+    sgWeight = Math.min(1, sgRatePerHour / peakSgRatePerHour);
+  }
+
+  // Blend: delta provides the base, SG rate gates it
+  // Use sqrt on sgWeight so it doesn't collapse too aggressively
+  const blended = deltaScore * Math.sqrt(Math.max(sgWeight, 0));
+
+  return Math.max(0, Math.min(100, Math.round(blended * 100)));
 }
 
 Deno.serve(async (req) => {
@@ -108,12 +122,15 @@ Deno.serve(async (req) => {
     const brewIds = brews.map(b => b.id);
     const { data: existingMetrics } = await supabase
       .from('brew_fermentation_metrics')
-      .select('brew_id, peak_delta')
+      .select('brew_id, peak_delta, peak_sg_rate_per_hour')
       .in('brew_id', brewIds);
 
-    const existingPeakMap = new Map<string, number>();
+    const existingPeakMap = new Map<string, { peakDelta: number; peakSgRate: number }>();
     (existingMetrics || []).forEach((m: any) => {
-      existingPeakMap.set(m.brew_id, parseFloat(String(m.peak_delta)));
+      existingPeakMap.set(m.brew_id, {
+        peakDelta: parseFloat(String(m.peak_delta)),
+        peakSgRate: parseFloat(String(m.peak_sg_rate_per_hour || 0)),
+      });
     });
 
     // Get delta history for all linked controllers
@@ -160,14 +177,15 @@ Deno.serve(async (req) => {
       // Phase & SG rate
       const { phase, sgRatePerHour } = determineFermentationPhase(sgData, fermentationStartMs);
 
-      // Activity score from delta history
+      // Activity score from delta history + SG rate
       const deltas = brew.linked_controller_id ? (deltaMap.get(brew.linked_controller_id) || []) : [];
-      const existingPeak = existingPeakMap.get(brew.id) || 0;
+      const existing = existingPeakMap.get(brew.id) || { peakDelta: 0, peakSgRate: 0 };
       const currentMaxDelta = deltas.length > 0
         ? Math.max(...deltas.map(d => Math.abs(d.delta)))
         : 0;
-      const peakDelta = Math.max(existingPeak, currentMaxDelta);
-      const activityScore = calculateActivityScore(brew.linked_controller_id || '', deltas, peakDelta);
+      const peakDelta = Math.max(existing.peakDelta, currentMaxDelta);
+      const peakSgRatePerHour = Math.max(existing.peakSgRate, sgRatePerHour);
+      const activityScore = calculateActivityScore(deltas, peakDelta, sgRatePerHour, peakSgRatePerHour);
 
       // ETA to FG
       const fg = parseFloat(String(brew.final_gravity));
@@ -237,6 +255,7 @@ Deno.serve(async (req) => {
         sg_rate_per_hour: Math.round(sgRatePerHour * 1000000) / 1000000,
         eta_to_fg_hours: etaToFgHours,
         peak_delta: peakDelta,
+        peak_sg_rate_per_hour: Math.round(peakSgRatePerHour * 1000000) / 1000000,
         ready_to_crash: readyToCrash,
         ready_to_crash_at: readyToCrash ? new Date().toISOString() : null,
         predicted_sg_curve: predictedSgCurve,
