@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v39-raw-test';
+export const PRINTER_VERSION = 'v38-wizard-match';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
