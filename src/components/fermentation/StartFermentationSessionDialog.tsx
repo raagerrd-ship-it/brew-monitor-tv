@@ -249,6 +249,8 @@ export function StartFermentationSessionDialog({
 
   const selectedProfile = profiles.find(p => p.id === selectedProfileId);
   const selectedController = controllers.find(c => c.controller_id === selectedControllerId);
+  const selectedBrew = brews.find(b => b.id === selectedBrewId);
+  const hasPreselection = !!preselectedControllerId && !!preselectedBrewId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -259,7 +261,9 @@ export function StartFermentationSessionDialog({
             Starta fermenteringsprofil
           </DialogTitle>
           <DialogDescription>
-            Välj en profil och controller för att starta automatisk temperaturstyrning.
+            {hasPreselection
+              ? 'Välj en profil för att starta automatisk temperaturstyrning.'
+              : 'Välj en profil och controller för att starta automatisk temperaturstyrning.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -309,26 +313,28 @@ export function StartFermentationSessionDialog({
               </div>
             )}
 
-            {/* Controller selection */}
-            <div className="space-y-2">
-              <Label>Temperature Controller</Label>
-              <Select value={selectedControllerId} onValueChange={setSelectedControllerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj controller..." />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border z-50">
-                  {controllers.length === 0 ? (
-                    <SelectItem value="none" disabled>Inga controllers tillgängliga</SelectItem>
-                  ) : (
-                    controllers.map((controller) => (
-                      <SelectItem key={controller.controller_id} value={controller.controller_id}>
-                        {controller.name} ({controller.current_temp?.toFixed(1) ?? '-'}° → {controller.target_temp?.toFixed(1) ?? '-'}°)
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Controller selection — hidden when preselected */}
+            {!hasPreselection && (
+              <div className="space-y-2">
+                <Label>Temperature Controller</Label>
+                <Select value={selectedControllerId} onValueChange={setSelectedControllerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Välj controller..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border z-50">
+                    {controllers.length === 0 ? (
+                      <SelectItem value="none" disabled>Inga controllers tillgängliga</SelectItem>
+                    ) : (
+                      controllers.map((controller) => (
+                        <SelectItem key={controller.controller_id} value={controller.controller_id}>
+                          {controller.name} ({controller.current_temp?.toFixed(1) ?? '-'}° → {controller.target_temp?.toFixed(1) ?? '-'}°)
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Existing session warning */}
             {existingSession && (
@@ -344,26 +350,28 @@ export function StartFermentationSessionDialog({
               </div>
             )}
 
-            {/* Brew selection (optional) */}
-            <div className="space-y-2">
-              <Label>Koppla till bryggning (valfritt)</Label>
-              <Select value={selectedBrewId || "none"} onValueChange={(value) => setSelectedBrewId(value === "none" ? "" : value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Ingen bryggning vald" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border z-50">
-                  <SelectItem value="none">Ingen bryggning</SelectItem>
-                  {brews.map((brew) => (
-                    <SelectItem key={brew.id} value={brew.id}>
-                      {brew.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Om du kopplar en bryggning kan profilen använda SG-data för villkorsstyrning.
-              </p>
-            </div>
+            {/* Brew selection — hidden when preselected */}
+            {!hasPreselection && (
+              <div className="space-y-2">
+                <Label>Koppla till bryggning (valfritt)</Label>
+                <Select value={selectedBrewId || "none"} onValueChange={(value) => setSelectedBrewId(value === "none" ? "" : value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ingen bryggning vald" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border z-50">
+                    <SelectItem value="none">Ingen bryggning</SelectItem>
+                    {brews.map((brew) => (
+                      <SelectItem key={brew.id} value={brew.id}>
+                        {brew.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Om du kopplar en bryggning kan profilen använda SG-data för villkorsstyrning.
+                </p>
+              </div>
+            )}
 
             {/* Summary */}
             {selectedProfile && selectedController && !existingSession && (
@@ -371,7 +379,8 @@ export function StartFermentationSessionDialog({
                 <div className="font-medium">Sammanfattning</div>
                 <div className="text-muted-foreground mt-1">
                   Profilen "{selectedProfile.name}" ({steps.length} steg) kommer att styra 
-                  temperaturen på {selectedController.name}.
+                  temperaturen på {selectedController.name}
+                  {selectedBrew ? ` för ${selectedBrew.name}` : ''}.
                 </div>
               </div>
             )}
