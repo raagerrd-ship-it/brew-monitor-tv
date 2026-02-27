@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { TempController } from '@/types/brew';
+import type { Tables } from '@/integrations/supabase/types';
+
+type RaptTempController = Tables<'rapt_temp_controllers'>;
 
 interface ControllerDialogOptions {
   controller: {
@@ -19,7 +22,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [targetTemp, setTargetTemp] = useState(controller.target_temp !== null ? Math.round(controller.target_temp) : 12);
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [currentController, setCurrentController] = useState(controller);
+  const [currentController, setCurrentController] = useState<RaptTempController | typeof controller>(controller);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [showTempAdjust, setShowTempAdjust] = useState(false);
 
@@ -79,7 +82,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         .single();
 
       if (data) {
-        const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean);
+        const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean) as string[];
         if (times.length > 0) {
           const mostRecent = times.reduce((latest, current) =>
             new Date(current) > new Date(latest) ? current : latest
@@ -91,7 +94,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
 
     if (open) {
       fetchLastSync();
-      setCurrentController(controller as any);
+      setCurrentController(controller);
 
       if (controller.target_temp !== null) {
         setTargetTemp(Math.round(controller.target_temp));
@@ -110,7 +113,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           (payload) => {
             console.log('Controller realtime update:', payload);
             if (payload.eventType === 'UPDATE' && payload.new) {
-              const updatedController = payload.new as any;
+              const updatedController = payload.new as RaptTempController;
               setCurrentController(updatedController);
               if (updatedController.target_temp !== null) {
                 setTargetTemp(Math.round(updatedController.target_temp));
@@ -132,7 +135,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           (payload) => {
             if (payload.new) {
               const data = payload.new as { last_rapt_sync_at: string | null; last_rapt_quick_sync_at: string | null };
-              const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean);
+              const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean) as string[];
               if (times.length > 0) {
                 const mostRecent = times.reduce((latest, current) =>
                   new Date(current) > new Date(latest) ? current : latest
@@ -193,19 +196,20 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     }
   }, [controller.controller_id, controller.name, targetTemp, onOpenChange, toast]);
 
-  // Derived state
-  const coolingHyst = (currentController as any).cooling_hysteresis ?? 0.2;
-  const heatingHyst = (currentController as any).heating_hysteresis ?? 0.2;
+  // Derived state — safely access fields that exist on the full controller type
+  const ctrl = currentController as Partial<RaptTempController>;
+  const coolingHyst = ctrl.cooling_hysteresis ?? 0.2;
+  const heatingHyst = ctrl.heating_hysteresis ?? 0.2;
 
-  const isActivelyCooling = (currentController as any).cooling_enabled &&
-    (currentController as any).current_temp !== null &&
-    (currentController as any).target_temp !== null &&
-    (currentController as any).current_temp > ((currentController as any).target_temp + coolingHyst);
+  const isActivelyCooling = ctrl.cooling_enabled === true &&
+    ctrl.current_temp != null &&
+    ctrl.target_temp != null &&
+    ctrl.current_temp > (ctrl.target_temp + coolingHyst);
 
-  const isActivelyHeating = (currentController as any).heating_enabled &&
-    (currentController as any).current_temp !== null &&
-    (currentController as any).target_temp !== null &&
-    (currentController as any).current_temp < ((currentController as any).target_temp - heatingHyst);
+  const isActivelyHeating = ctrl.heating_enabled === true &&
+    ctrl.current_temp != null &&
+    ctrl.target_temp != null &&
+    ctrl.current_temp < (ctrl.target_temp - heatingHyst);
 
   return {
     loading,
@@ -213,7 +217,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     targetTemp,
     setTargetTemp,
     lastSync,
-    currentController: currentController as any,
+    currentController: currentController as RaptTempController,
     hasActiveSession,
     showTempAdjust,
     setShowTempAdjust,

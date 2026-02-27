@@ -104,6 +104,7 @@ export interface FermentationSessionData {
   step_started_at: string;
   started_at: string;
   step_start_temp: number | null;
+  ramp_triggered_at: string | null;
   profile_name: string;
   steps: FermentationStepData[];
   controller_current_temp: number | null;

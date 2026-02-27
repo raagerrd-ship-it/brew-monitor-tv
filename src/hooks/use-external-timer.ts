@@ -250,15 +250,15 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
         totalSeconds: data.total_seconds,
         isPaused: data.is_paused,
         pausedByMilestone: data.paused_by_milestone,
-        pausedAt: (data as Record<string, unknown>).paused_at as string | null ?? null,
+        pausedAt: data.paused_at ?? null,
         milestones,
         nextMilestone,
         timeToNextMilestone: adjustedTimeToNext,
         progress: Math.min(100, Math.max(0, localProgress)),
         nextConfig,
-        wizardStep: (data as Record<string, unknown>).wizard_step as string | null ?? null,
-        recipeName: (data as Record<string, unknown>).recipe_name as string | null ?? null,
-        beerStyle: (data as Record<string, unknown>).beer_style as string | null ?? null,
+        wizardStep: data.wizard_step ?? null,
+        recipeName: data.recipe_name ?? null,
+        beerStyle: data.beer_style ?? null,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);

@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
-import { BrewData, BrewEvent, PillData, TempController } from '@/types/brew';
+import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData } from '@/types/brew';
+import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
 import { useTvMode } from '@/contexts/TvModeContext';
 
@@ -222,7 +223,7 @@ export function useBrewData(): UseBrewDataReturn {
     const sessionControllersMap = new Map((sessionControllersRes.data || []).map((c: any) => [c.controller_id, c]));
 
     // Build session data by brew_id
-    const sessionsByBrewId = new Map<string, any>();
+    const sessionsByBrewId = new Map<string, FermentationSessionData>();
     activeSessions.forEach(session => {
       if (session.brew_id) {
         const profile = profilesMap.get(session.profile_id);
@@ -237,8 +238,9 @@ export function useBrewData(): UseBrewDataReturn {
           step_started_at: session.step_started_at,
           started_at: session.started_at,
           step_start_temp: session.step_start_temp,
+          ramp_triggered_at: session.ramp_triggered_at ?? null,
           profile_name: profile?.name || '',
-          steps: steps.map((s: any) => ({
+          steps: steps.map((s: FermentationProfileStep) => ({
             id: s.id,
             step_type: s.step_type,
             target_temp: s.target_temp,
@@ -252,8 +254,8 @@ export function useBrewData(): UseBrewDataReturn {
             activity_trigger: s.activity_trigger,
             temp_increase: s.temp_increase,
             gravity_threshold: s.gravity_threshold,
-            min_ramp_hours: (s as any).min_ramp_hours ?? null,
-            ramp_curve: (s as any).ramp_curve ?? null,
+            min_ramp_hours: s.min_ramp_hours ?? null,
+            ramp_curve: s.ramp_curve ?? null,
           })),
           controller_current_temp: controller?.current_temp ?? null,
           controller_target_temp: controller?.target_temp ?? null,
@@ -491,7 +493,7 @@ export function useBrewData(): UseBrewDataReturn {
   }, [loadRaptDataInternal]);
 
   // Handle brew reading updates - direct state update
-  const handleBrewUpdate = useCallback((payload: any) => {
+  const handleBrewUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
     if (payload.eventType === 'UPDATE' && payload.new) {
       const updatedReading = payload.new;
       const currentBrew = brewsRef.current.find(b => b.batch_id === updatedReading.batch_id);
@@ -622,21 +624,21 @@ export function useBrewData(): UseBrewDataReturn {
   }, [loadBrews]);
 
   // Optimized realtime handlers - update in-place where possible
-  const handlePillUpdate = useCallback((payload: any) => {
+  const handlePillUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
     if (payload.eventType === 'UPDATE' && payload.new) {
       setPills(prev => prev.map(pill => 
-        pill.pill_id === payload.new.pill_id ? { ...pill, ...payload.new } : pill
+        pill.pill_id === payload.new!.pill_id ? { ...pill, ...payload.new! } : pill
       ));
     } else {
       loadRaptData();
     }
   }, [loadRaptData]);
 
-  const handleControllerUpdate = useCallback((payload: any) => {
+  const handleControllerUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
     if (payload.eventType === 'UPDATE' && payload.new) {
       setControllers(prev => prev.map(controller => 
-        controller.controller_id === payload.new.controller_id 
-          ? { ...controller, ...payload.new } 
+        controller.controller_id === payload.new!.controller_id 
+          ? { ...controller, ...payload.new! } 
           : controller
       ));
     } else {

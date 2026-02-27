@@ -5,6 +5,7 @@ import {
   FermentationSession,
   FermentationProfile,
   FermentationProfileStep,
+  SessionStatus,
 } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
 import { useTvMode } from "@/contexts/TvModeContext";
@@ -95,8 +96,8 @@ export function useActiveFermentationSession({
         attenuation_trigger: s.attenuation_trigger ?? null,
         activity_trigger: s.activity_trigger ?? null,
         temp_increase: s.temp_increase ?? null,
-        min_ramp_hours: (s as any).min_ramp_hours ?? null,
-        ramp_curve: (s as any).ramp_curve ?? null,
+        min_ramp_hours: s.min_ramp_hours ?? null,
+        ramp_curve: s.ramp_curve ?? null,
         created_at: '',
         updated_at: '',
       })) as FermentationProfileStep[];
@@ -114,7 +115,7 @@ export function useActiveFermentationSession({
         created_at: '',
         updated_at: '',
         step_start_temp: preloadedSession.step_start_temp,
-        ramp_triggered_at: (preloadedSession as any).ramp_triggered_at ?? null,
+        ramp_triggered_at: preloadedSession.ramp_triggered_at ?? null,
         profile: {
           id: preloadedSession.profile_id,
           name: preloadedSession.profile_name,
@@ -151,7 +152,7 @@ export function useActiveFermentationSession({
         event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers',
         filter: `controller_id=eq.${cId}`,
       }, (payload) => {
-        const newData = payload.new as any;
+        const newData = payload.new as Record<string, number | null>;
         setControllerData(prev => ({
           ...prev,
           current_temp: newData.current_temp ?? prev?.current_temp ?? null,
@@ -234,7 +235,7 @@ export function useActiveFermentationSession({
         description: newStatus === 'paused' ? "Fermenteringsprofilen har pausats" : "Fermenteringsprofilen fortsätter",
       });
       if (preloadedSession && compact) {
-        setSession(prev => prev ? { ...prev, status: newStatus as any } : null);
+        setSession(prev => prev ? { ...prev, status: newStatus as SessionStatus } : null);
       } else {
         loadSession();
       }
