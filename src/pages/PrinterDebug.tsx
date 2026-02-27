@@ -77,15 +77,15 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await delay(100);
 
   // Build test pattern with margin compensation
-  // Hardware has ~16px left margin, so we add same on right for symmetry
-  const margin = 16; // pixels of padding on each side
+  // Hardware adds ~16px left margin, so we only pad right side to match
+  const rightMargin = 16;
   const rasterData = new Uint8Array(widthBytes * height);
-  rasterData.fill(0x00); // white
+  rasterData.fill(0x00);
 
   const patH = 120;
   const w = widthBytes * 8; // 384
-  const xMin = margin;
-  const xMax = w - 1 - margin;
+  const xMin = 0;
+  const xMax = w - 1 - rightMargin;
   const contentW = xMax - xMin;
 
   const setPixel = (row: number, px: number) => {
