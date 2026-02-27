@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FermentationProfileStep } from "@/types/fermentation";
+import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2, SkipForward, ChevronUp } from "lucide-react";
+import { Play, Pause, Square, Loader2, SkipForward, ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -12,7 +12,9 @@ import {
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
+import { RadialGauge } from "./RadialGauge";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
+import { formatRemainingTime } from "./sessionStyles";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -89,6 +91,49 @@ export function ActiveFermentationSession({
     })();
 
     if (expanded && isAuthenticated) {
+      // Calculate step-level time progress for gauge
+      const stepTimeProgress = (() => {
+        if (!currentStep?.duration_hours) return null;
+        const stepStarted = new Date(session.step_started_at);
+        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+        return Math.min(elapsed / currentStep.duration_hours, 1);
+      })();
+
+      const stepRemainingTime = (() => {
+        if (!currentStep?.duration_hours) return null;
+        const stepStarted = new Date(session.step_started_at);
+        const elapsed = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
+        return Math.max(0, currentStep.duration_hours - elapsed);
+      })();
+
+      const getStepGaugeColor = () => {
+        if (isWaitingForTemp) return 'hsl(200 90% 55%)';
+        if (isRamping) return 'hsl(38 92% 55%)';
+        if (isWaitingForGravityStable) return 'hsl(280 70% 60%)';
+        return 'hsl(142 70% 50%)';
+      };
+
+      const getStepGaugeValue = () => {
+        if (isRamping && rampProgress != null) return rampProgress;
+        if (stepTimeProgress != null) return stepTimeProgress;
+        return stepProgress / 100;
+      };
+
+      const getStepGaugeLabel = () => {
+        if (isRamping && rampProgress != null) return `${Math.round(rampProgress * 100)}%`;
+        if (stepTimeProgress != null) return `${Math.round(stepTimeProgress * 100)}%`;
+        return `${Math.round(stepProgress)}%`;
+      };
+
+      const getStepGaugeSubLabel = () => {
+        if (stepRemainingTime != null && stepRemainingTime > 0) return formatRemainingTime(stepRemainingTime);
+        if (isWaitingForTemp) return 'Väntar temp';
+        if (isWaitingForGravityStable) return 'SG stabil';
+        return getStepTypeLabel(currentStep?.step_type || 'hold');
+      };
+
+      const overallProgress = progress / 100;
+
       // Inline expanded view
       return (
         <div className="space-y-2">
@@ -101,19 +146,73 @@ export function ActiveFermentationSession({
             <span>Dölj</span>
           </button>
 
-          <div className="rounded-lg border bg-card/80 backdrop-blur-sm p-3 space-y-3">
+          <div 
+            className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+            style={{
+              background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+              border: '1px solid hsl(var(--primary) / 0.15)',
+              boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+            }}
+          >
             <FermentationSessionHeader
               profileName={session.profile?.name || ''}
               status={session.status}
               startedAt={session.started_at}
             />
 
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Övergripande progress</span>
-                <span className="font-medium">{session.current_step_index + 1} av {session.steps?.length || 0} steg</span>
+            {/* Gauges row */}
+            <div 
+              className="flex items-center justify-around py-3 px-2 rounded-lg"
+              style={{
+                background: 'hsl(0 0% 0% / 0.2)',
+                border: '1px solid hsl(0 0% 100% / 0.04)',
+              }}
+            >
+              {/* Overall profile gauge */}
+              <div className="flex flex-col items-center gap-1">
+                <RadialGauge
+                  value={overallProgress}
+                  size={76}
+                  strokeWidth={5}
+                  fillColor="hsl(var(--primary))"
+                  label={`${session.current_step_index + 1}/${session.steps?.length || 0}`}
+                  subLabel="Profil"
+                />
               </div>
-              <Progress value={progress} className="h-1.5" />
+
+              {/* Current step gauge */}
+              {currentStep && (
+                <div className="flex flex-col items-center gap-1">
+                  <RadialGauge
+                    value={getStepGaugeValue()}
+                    size={76}
+                    strokeWidth={5}
+                    fillColor={getStepGaugeColor()}
+                    label={getStepGaugeLabel()}
+                    subLabel={getStepGaugeSubLabel()}
+                  />
+                </div>
+              )}
+
+              {/* Temperature gauge */}
+              {controllerData?.current_temp != null && currentStep?.target_temp != null && (
+                <div className="flex flex-col items-center gap-1">
+                  <RadialGauge
+                    value={Math.max(0, Math.min(1, 1 - Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) / 5))}
+                    size={76}
+                    strokeWidth={5}
+                    fillColor={
+                      Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 0.5
+                        ? 'hsl(142 70% 50%)'
+                        : Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 2
+                        ? 'hsl(38 92% 55%)'
+                        : 'hsl(0 80% 55%)'
+                    }
+                    label={`${controllerData.current_temp.toFixed(1)}°`}
+                    subLabel={`Mål ${(controllerData?.profile_target_temp ?? currentStep.target_temp).toFixed(1)}°`}
+                  />
+                </div>
+              )}
             </div>
 
             {currentStep && (
@@ -224,19 +323,50 @@ export function ActiveFermentationSession({
   // Full view
   return (
     <>
-      <div className="rounded-lg border bg-card p-3 space-y-3">
+      <div 
+        className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+        style={{
+          background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+          border: '1px solid hsl(var(--primary) / 0.15)',
+          boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+        }}
+      >
         <FermentationSessionHeader
           profileName={session.profile?.name || ''}
           status={session.status}
           startedAt={session.started_at}
         />
 
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Övergripande progress</span>
-            <span className="font-medium">{session.current_step_index + 1} av {session.steps?.length || 0} steg</span>
-          </div>
-          <Progress value={progress} className="h-1.5" />
+        {/* Gauges */}
+        <div 
+          className="flex items-center justify-around py-3 px-2 rounded-lg"
+          style={{
+            background: 'hsl(0 0% 0% / 0.2)',
+            border: '1px solid hsl(0 0% 100% / 0.04)',
+          }}
+        >
+          <RadialGauge
+            value={progress / 100}
+            size={76}
+            strokeWidth={5}
+            fillColor="hsl(var(--primary))"
+            label={`${session.current_step_index + 1}/${session.steps?.length || 0}`}
+            subLabel="Profil"
+          />
+          {controllerData?.current_temp != null && currentStep?.target_temp != null && (
+            <RadialGauge
+              value={Math.max(0, Math.min(1, 1 - Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) / 5))}
+              size={76}
+              strokeWidth={5}
+              fillColor={
+                Math.abs(controllerData.current_temp - (controllerData?.profile_target_temp ?? currentStep.target_temp)) <= 0.5
+                  ? 'hsl(142 70% 50%)'
+                  : 'hsl(38 92% 55%)'
+              }
+              label={`${controllerData.current_temp.toFixed(1)}°`}
+              subLabel={`Mål ${(controllerData?.profile_target_temp ?? currentStep.target_temp).toFixed(1)}°`}
+            />
+          )}
         </div>
 
         {currentStep && (
