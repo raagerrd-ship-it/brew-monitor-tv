@@ -13,177 +13,10 @@ import {
   isBluetoothSupported,
   connectPrinter,
   disconnectPrinter,
+  printTestPage,
+  PRINTER_VERSION,
   type PrinterConnection,
 } from "@/lib/thermal-printer";
-
-function delay(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms));
-}
-
-async function bleWrite(
-  conn: PrinterConnection,
-  data: Uint8Array,
-  ctx: string,
-  mode: "auto" | "forceNoResponse" | "forceWithResponse" = "auto",
-) {
-  const buffer = new Uint8Array(data).buffer;
-  const supportsNoResponse = !!conn.characteristic.properties.writeWithoutResponse;
-  const supportsWithResponse = !!conn.characteristic.properties.write;
-  const useNoResponse = mode === "forceNoResponse" ? supportsNoResponse : (mode === "forceWithResponse" ? false : (conn.writeMethod === "withoutResponse" && supportsNoResponse));
-  const useWithResponse = mode === "forceWithResponse" && supportsWithResponse;
-  const p = (useNoResponse && !useWithResponse)
-    ? conn.characteristic.writeValueWithoutResponse(buffer)
-    : conn.characteristic.writeValue(buffer);
-  await Promise.race([
-    p,
-    delay(7000).then(() => { throw new Error(`BLE timeout: ${ctx}`); }),
-  ]);
-}
-
-async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void, chunkSize: number = 20) {
-  const service = await conn.device.gatt!.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
-  const notifyChar = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
-  const notifyQueue: Uint8Array[] = [];
-  const toHex = (value: Uint8Array) => Array.from(value).map((b: number) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-
-  const onNotify = (event: any) => {
-    const value = new Uint8Array(event.target.value.buffer);
-    notifyQueue.push(value);
-    const hex = toHex(value);
-    const hasAck = value.some((b: number) => b === 0x06);
-    log(`   📨 ${hasAck ? '[ACK]' : '[notify]'} [${hex}]`);
-  };
-
-  const waitForAck = async (label: string, timeoutMs = 4000) => {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const packet = notifyQueue.shift();
-      if (packet) {
-        log(`✓ ${label}: ACK [${toHex(packet)}]`);
-        return true;
-      }
-      await delay(40);
-    }
-    log(`⚠ ${label}: inget ACK inom ${timeoutMs}ms`);
-    return false;
-  };
-
-  notifyChar.addEventListener('characteristicvaluechanged', onNotify);
-  await notifyChar.startNotifications();
-  log("✓ Lyssnare aktiv");
-  await delay(200);
-
-  const send = async (data: number[], label: string) => {
-    log(`→ ${label}`);
-    await bleWrite(conn, new Uint8Array(data), label);
-    await delay(300);
-  };
-
-  await send([0x1b, 0x40], "1. ESC @ (init)");
-  await send([0x1f, 0x11, 0x02, 0x00], "2. Start-job");
-  await send([0x1f, 0x11, 0x0e, 0x01], "3. GAP-mode");
-  await send([0x1b, 0x4e, 0x0d, 0x03], "4. Speed=3");
-  await send([0x1b, 0x4e, 0x04, 0x08], "5. Density=8");
-
-  // Left margin = 0 (GS L) + absolute position = 0 (ESC $)
-  log("→ 6. Margin/position = 0");
-  await bleWrite(conn, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), "GS-L-0");
-  await delay(50);
-  await bleWrite(conn, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), "ESC-$-0");
-  await delay(50);
-  // Set left margin via ESC B too (Phomemo-specific)
-  await bleWrite(conn, new Uint8Array([0x1b, 0x42, 0x00]), "ESC-B-0");
-  await delay(100);
-
-  // Label: 50×70mm @ 203dpi, printhead=384px wide
-  const widthBytes = 48; // 384 pixels
-  const patH = 520;
-  const leadInRows = 10;
-  const trailRows = 25;
-  const height = patH + leadInRows + trailRows;
-
-  // Build full raster in memory
-  const rasterData = new Uint8Array(widthBytes * height);
-  rasterData.fill(0x00);
-
-  const w = widthBytes * 8;
-  const xMin = 0;
-  const rightMargin = 16;
-  const xMax = w - 1 - rightMargin;
-  const contentW = xMax - xMin;
-
-  const setPixel = (row: number, px: number) => {
-    if (px < 0 || px >= w) return;
-    rasterData[row + Math.floor(px / 8)] |= (1 << (7 - (px % 8)));
-  };
-
-  for (let py = 0; py < patH; py++) {
-    const y = py + leadInRows;
-    const row = y * widthBytes;
-    if (py < 2 || py >= patH - 2) {
-      for (let px = xMin; px <= xMax; px++) setPixel(row, px);
-      continue;
-    }
-    for (let dx = 0; dx < 2; dx++) {
-      setPixel(row, xMin + dx);
-      setPixel(row, xMax - dx);
-    }
-    const xA = xMin + Math.floor((py / (patH - 1)) * contentW);
-    const xB = xMin + Math.floor(((patH - 1 - py) / (patH - 1)) * contentW);
-    for (const xPos of [xA, xB]) {
-      for (let dx = -1; dx <= 1; dx++) setPixel(row, xPos + dx);
-    }
-    const cx = Math.floor((xMin + xMax) / 2);
-    setPixel(row, cx);
-    setPixel(row, cx + 1);
-  }
-  for (let dy = -1; dy <= 0; dy++) {
-    const my = leadInRows + Math.floor(patH / 2) + dy;
-    const row = my * widthBytes;
-    for (let px = xMin; px <= xMax; px++) setPixel(row, px);
-  }
-
-  // Escape 0x0a → 0x14
-  for (let i = 0; i < rasterData.length; i++) {
-    if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
-  }
-
-  // ── Single raster block, 20-byte chunks (proven working) ──
-  log(`→ 7. Raster ${widthBytes * 8}×${height} (single block, 20B chunks)...`);
-  await bleWrite(conn, new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00,
-    widthBytes, 0x00,
-    height & 0xff, (height >> 8) & 0xff,
-  ]), "raster-hdr");
-  await delay(100);
-
-  const CHUNK = chunkSize;
-  const totalChunks = Math.ceil(rasterData.length / CHUNK);
-  log(`   Skickar ${rasterData.length} bytes i ${totalChunks} chunks à ${CHUNK}B...`);
-  const t0 = Date.now();
-  for (let off = 0; off < rasterData.length; off += CHUNK) {
-    await bleWrite(conn, rasterData.slice(off, Math.min(off + CHUNK, rasterData.length)), `r-${off}`);
-  }
-  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  log(`   ✓ Data skickad (${rasterData.length} bytes, ${elapsed}s)`);
-
-  // Wait then end-job
-  log("→ 8. Väntar 3s...");
-  await delay(3000);
-
-  notifyQueue.length = 0;
-  log("→ 9. End-job...");
-  await send([0x1f, 0x11, 0x03, 0x00], "End-job");
-  await waitForAck("ACK efter end-job", 5000);
-  await delay(600);
-
-  try { notifyChar.removeEventListener('characteristicvaluechanged', onNotify); } catch { /* ok */ }
-  try { await notifyChar.stopNotifications(); } catch { /* ok */ }
-  log("✓ Klart! Tid: " + elapsed + "s");
-  log("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns och krysset möts i mitten.");
-}
-
-const CHUNK_OPTIONS = [20, 50, 100, 200, 500];
 
 export default function PrinterDebug() {
   const navigate = useNavigate();
@@ -192,7 +25,6 @@ export default function PrinterDebug() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [chunkSize, setChunkSize] = useState(100);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = useCallback((msg: string) => {
@@ -227,9 +59,12 @@ export default function PrinterDebug() {
     if (!conn) return;
     setRunning(true);
     setError(null);
-    addLog(`── Kör print-test (chunk=${chunkSize}B) ──`);
+    addLog(`── Kör print-test via unified engine (${PRINTER_VERSION}) ──`);
     try {
-      await runPrintTest(conn, addLog, chunkSize);
+      await printTestPage(conn, (p) => {
+        addLog(`${p.phase} (${Math.round(p.percent)}%)`);
+      });
+      addLog("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns.");
     } catch (e: any) {
       setError(e.message);
       addLog(`✗ FEL: ${e.message}`);
@@ -251,7 +86,7 @@ export default function PrinterDebug() {
             <Printer className="h-5 w-5 text-primary" />
             Skrivar-debug
           </h1>
-          <p className="text-xs text-muted-foreground">Skriver 20 svarta rader som test</p>
+          <p className="text-xs text-muted-foreground">{PRINTER_VERSION} — samma motor som etikettutskrift</p>
         </div>
       </div>
 
@@ -270,33 +105,12 @@ export default function PrinterDebug() {
         {!hasBle ? (
           <p className="text-xs text-destructive">Web Bluetooth stöds inte i denna webbläsare.</p>
         ) : conn ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Chunk:</span>
-              <div className="flex gap-1">
-                {CHUNK_OPTIONS.map(size => (
-                  <button
-                    key={size}
-                    onClick={() => setChunkSize(size)}
-                    disabled={running}
-                    className={`h-7 px-2 rounded text-xs font-mono transition-colors ${
-                      chunkSize === size
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {size}B
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2 items-center">
-              <Button size="sm" onClick={handleRunTest} disabled={running}>
-                <Zap className="h-3.5 w-3.5 mr-1.5" />
-                {running ? "Kör..." : `Kör print-test (${chunkSize}B)`}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
-            </div>
+          <div className="flex gap-2 items-center">
+            <Button size="sm" onClick={handleRunTest} disabled={running}>
+              <Zap className="h-3.5 w-3.5 mr-1.5" />
+              {running ? "Kör..." : "Kör print-test"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDisconnect}>Koppla från</Button>
           </div>
         ) : (
           <Button size="sm" onClick={handleConnect} disabled={isConnecting}>

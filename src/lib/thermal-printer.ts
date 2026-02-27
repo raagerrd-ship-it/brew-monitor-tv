@@ -12,7 +12,7 @@
  * v27 - exact phomemo-tools protocol
  */
 
-export const PRINTER_VERSION = 'v36-debug-matched-settings';
+export const PRINTER_VERSION = 'v37-unified-engine';
 
 /** Settings version — bump to auto-reset aggressive user profiles */
 export const SETTINGS_VERSION = 8;
@@ -435,45 +435,47 @@ export async function printBitmap(
     const copyLabel = copies > 1 ? ` (${copy + 1}/${copies})` : '';
     onProgress?.({ phase: `Skickar inställningar${copyLabel}...`, percent: 10 });
 
+    // ── Setup commands with 300ms delays (matching proven debug timing) ──
+
     // ESC @ (initialize)
     await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
-    await delay(50);
+    await delay(300);
 
     // Start-job
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
-    await delay(50);
+    await delay(300);
 
     // Media mode — sync with proven debug flow
     if (settings.mediaType === 'gap') {
       await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
-      await delay(50);
+      await delay(300);
     } else {
       const mc = mediaTypeCode(settings.mediaType);
       if (mc !== null) {
         await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-        await delay(50);
+        await delay(300);
       }
     }
 
     // Speed: ESC N 0x0d <speed>
     if (settings.sendSpeed) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-      await delay(50);
+      await delay(300);
     }
 
     // Density: ESC N 0x04 <density>
     if (settings.sendDensity) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-      await delay(50);
+      await delay(300);
     }
 
-    // Left margin / position reset — sync with proven debug flow
+    // Left margin / position reset
     await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
     await delay(50);
     await bleWrite(connection, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), 'abs-pos-0');
     await delay(50);
     await bleWrite(connection, new Uint8Array([0x1b, 0x42, 0x00]), 'esc-b-0');
-    await delay(50);
+    await delay(100);
 
     // Raster header: GS v 0 (single block)
     onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
