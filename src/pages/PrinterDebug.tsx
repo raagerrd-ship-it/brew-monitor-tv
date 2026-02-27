@@ -53,8 +53,10 @@ interface WizardStep {
   id: string;
   title: string;
   description: string;
-  run: (conn: PrinterConnection, log: (msg: string) => void) => Promise<void>;
+  run: (conn: PrinterConnection, log: (msg: string) => void, chunkSize: number) => Promise<void>;
 }
+
+const CHUNK_OPTIONS = [20, 64, 128] as const;
 
 const STEPS: WizardStep[] = [
   {
@@ -151,7 +153,7 @@ const STEPS: WizardStep[] = [
     id: "stripe-pattern",
     title: "Raster: 20 rader randig (svart+vit)",
     description: "Skickar 20 rader som alternerar svart/vit. Du bör se horisontella ränder.",
-    run: async (conn, log) => {
+    run: async (conn, log, chunkSize) => {
       const widthBytes = 48;
       const height = 20;
       log("Skickar raster-header (20 rader)...");
@@ -166,10 +168,9 @@ const STEPS: WizardStep[] = [
           for (let x = 0; x < widthBytes; x++) data[y * widthBytes + x] = 0xff;
         }
       }
-      log(`Skickar ${data.length} bytes randigt mönster...`);
-      // Send in 128-byte chunks
-      for (let off = 0; off < data.length; off += 128) {
-        await bleWrite(conn, data.slice(off, Math.min(off + 128, data.length)), `stripe@${off}`);
+      log(`Skickar ${data.length} bytes randigt mönster (chunk=${chunkSize})...`);
+      for (let off = 0; off < data.length; off += chunkSize) {
+        await bleWrite(conn, data.slice(off, Math.min(off + chunkSize, data.length)), `stripe@${off}`);
         await delay(20);
       }
       await delay(300);
@@ -193,9 +194,9 @@ const STEPS: WizardStep[] = [
   },
   {
     id: "full-white-image",
-    title: "Full vit bild (384×100)",
-    description: "Skickar en komplett vit bild med alla protokollsteg (init → header → data → footer). Verifierar hela flödet.",
-    run: async (conn, log) => {
+    title: "Full vit bild med svart streck (384×100)",
+    description: "Skickar init → raster → data → footer. Första raden är svart så du kan se att den skriver. Resten är vitt.",
+    run: async (conn, log, chunkSize) => {
       const widthBytes = 48;
       const height = 100;
 
@@ -210,10 +211,15 @@ const STEPS: WizardStep[] = [
         "raster-hdr"
       );
 
-      log(`Skickar ${widthBytes * height} bytes vit data...`);
       const data = new Uint8Array(widthBytes * height);
-      for (let off = 0; off < data.length; off += 128) {
-        await bleWrite(conn, data.slice(off, Math.min(off + 128, data.length)), `wh@${off}`);
+      // Första raden svart så vi ser att den skriver
+      data.fill(0xff, 0, widthBytes);
+      // Sista raden också svart
+      data.fill(0xff, (height - 1) * widthBytes, height * widthBytes);
+
+      log(`Skickar ${data.length} bytes (chunk=${chunkSize})...`);
+      for (let off = 0; off < data.length; off += chunkSize) {
+        await bleWrite(conn, data.slice(off, Math.min(off + chunkSize, data.length)), `wh@${off}`);
         await delay(20);
       }
 
@@ -225,19 +231,18 @@ const STEPS: WizardStep[] = [
         "footer"
       );
       await delay(500);
-      log("Klart! En vit etikett bör ha matats ut.");
+      log("Klart! Du bör se två svarta streck med vitt emellan.");
     },
   },
   {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
-    run: async (conn, log) => {
+    run: async (conn, log, chunkSize) => {
       const width = 384;
       const height = 240;
       const widthBytes = 48;
 
-      // Generate test image
       log("Genererar testbild (384×240)...");
       const canvas = document.createElement("canvas");
       canvas.width = width;
@@ -247,12 +252,10 @@ const STEPS: WizardStep[] = [
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, width, height);
       ctx.fillStyle = "#000000";
-      // Border
       ctx.fillRect(0, 0, width, 6);
       ctx.fillRect(0, height - 6, width, 6);
       ctx.fillRect(0, 0, 6, height);
       ctx.fillRect(width - 6, 0, 6, height);
-      // Cross
       ctx.lineWidth = 4;
       ctx.strokeStyle = "#000000";
       ctx.beginPath();
@@ -261,14 +264,12 @@ const STEPS: WizardStep[] = [
       ctx.moveTo(width - 10, 10);
       ctx.lineTo(10, height - 10);
       ctx.stroke();
-      // Center text
       ctx.font = "bold 24px monospace";
       ctx.textAlign = "center";
       ctx.fillText("DEBUG OK", width / 2, height / 2 + 8);
 
       const imageData = ctx.getImageData(0, 0, width, height);
 
-      // Simple threshold (no dithering for debug)
       log("Konverterar till monokrom...");
       const bitmap = new Uint8Array(widthBytes * height);
       for (let y = 0; y < height; y++) {
@@ -292,9 +293,9 @@ const STEPS: WizardStep[] = [
         "raster-hdr"
       );
 
-      log(`Skickar ${bitmap.length} bytes bilddata i 128-byte chunks...`);
-      for (let off = 0; off < bitmap.length; off += 128) {
-        await bleWrite(conn, bitmap.slice(off, Math.min(off + 128, bitmap.length)), `img@${off}`);
+      log(`Skickar ${bitmap.length} bytes bilddata (chunk=${chunkSize})...`);
+      for (let off = 0; off < bitmap.length; off += chunkSize) {
+        await bleWrite(conn, bitmap.slice(off, Math.min(off + chunkSize, bitmap.length)), `img@${off}`);
         await delay(20);
       }
 
@@ -322,6 +323,7 @@ export default function PrinterDebug() {
   const [log, setLog] = useState<string[]>([]);
   const [results, setResults] = useState<Map<string, StepResult>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [chunkSize, setChunkSize] = useState<number>(128);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = useCallback((msg: string) => {
@@ -359,7 +361,7 @@ export default function PrinterDebug() {
     setError(null);
     addLog(`── Steg ${currentStep + 1}: ${step.title} ──`);
     try {
-      await step.run(conn, addLog);
+      await step.run(conn, addLog, chunkSize);
       addLog("✓ Steg skickat utan BLE-fel.");
     } catch (e: any) {
       setError(e.message);
@@ -445,6 +447,29 @@ export default function PrinterDebug() {
           </Button>
         )}
       </Card>
+
+      {/* Chunk size selector */}
+      {conn && (
+        <Card className="p-3 flex items-center gap-3">
+          <span className="text-xs font-medium text-muted-foreground">BLE chunk-storlek:</span>
+          <div className="flex gap-1">
+            {CHUNK_OPTIONS.map((size) => (
+              <Button
+                key={size}
+                variant={chunkSize === size ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-7 px-2.5"
+                onClick={() => { setChunkSize(size); addLog(`Chunk-storlek ändrad till ${size} bytes`); }}
+              >
+                {size}B
+              </Button>
+            ))}
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            (Geminis tips: prova 20 om 128 tappar paket)
+          </span>
+        </Card>
+      )}
 
       {/* Progress overview */}
       {conn && (
