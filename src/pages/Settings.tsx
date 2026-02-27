@@ -517,6 +517,14 @@ export default function Settings() {
                   </div>
                   <Switch checked={settings.overshootPreventionEnabled} onCheckedChange={settings.handleOvershootPreventionChange} />
                 </div>
+                <SettingsDivider />
+                <div className="flex items-center justify-between py-2.5 px-1">
+                  <div className="flex items-center gap-2.5">
+                    <Brain className="h-4 w-4 text-accent" />
+                    <p className="text-sm font-medium">AI-optimering</p>
+                  </div>
+                  <Switch checked={settings.aiAuditEnabled} onCheckedChange={settings.handleAiAuditEnabledChange} />
+                </div>
               </div>
             </SettingsSection>
 

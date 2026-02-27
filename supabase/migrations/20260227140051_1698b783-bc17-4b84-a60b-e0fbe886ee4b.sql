@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_cooling_settings ADD COLUMN ai_audit_enabled boolean NOT NULL DEFAULT true;
