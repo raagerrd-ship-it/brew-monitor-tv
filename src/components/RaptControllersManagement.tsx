@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill, Link2, Unlink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { useControllersManagement } from "@/hooks/use-controllers-management";
+import { useControllersManagement } from "@/hooks";
 
 export function RaptControllersManagement() {
   const {

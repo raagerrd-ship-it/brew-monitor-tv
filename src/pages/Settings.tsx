@@ -24,14 +24,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useToast, useExternalUserSettings } from "@/hooks";
 import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
-import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
 import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
 import { TempController } from "@/types/brew";
 

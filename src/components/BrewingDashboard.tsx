@@ -11,13 +11,7 @@ import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
-import { useBrewData } from "@/hooks/use-brew-data";
-import { useExternalTimer } from "@/hooks/use-external-timer";
-import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
-import { useSplashScreen } from "@/hooks/use-splash-screen";
-import { useBrewCarousel } from "@/hooks/use-brew-carousel";
-import { useAlbumArtBackground } from "@/hooks/use-album-art-background";
-import { useTvRefresh } from "@/hooks/use-tv-refresh";
+import { useBrewData, useExternalTimer, useExternalUserSettings, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";

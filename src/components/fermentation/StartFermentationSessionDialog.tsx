@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks";
 import { FermentationProfile, FermentationProfileStep, STEP_TYPE_LABELS } from "@/types/fermentation";
 import { Thermometer, Clock, Activity, ArrowDown, Play, AlertCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";

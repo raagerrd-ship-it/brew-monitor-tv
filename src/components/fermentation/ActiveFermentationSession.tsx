@@ -11,8 +11,7 @@ import {
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { FermentationStepDisplay } from "./FermentationStepDisplay";
-import { useDeferredRender } from "@/hooks/use-deferred-render";
-import { useActiveFermentationSession } from "@/hooks/use-active-fermentation-session";
+import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;

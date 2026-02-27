@@ -5,7 +5,7 @@ export { useBrewData } from "./use-brew-data";
 export { useBrewManagement } from "./use-brew-management";
 export { useControllerDialog } from "./use-controller-dialog";
 export { useControllersManagement } from "./use-controllers-management";
-export { useDeferredRender } from "./use-deferred-render";
+export { useDeferredRender, useStaggeredRender } from "./use-deferred-render";
 export { useExternalTimer } from "./use-external-timer";
 export { useExternalUserSettings } from "./use-external-user-settings";
 export { useFermentationProfiles } from "./use-fermentation-profiles";

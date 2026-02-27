@@ -5,7 +5,7 @@ import { Clock } from "./Clock";
 import { memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { getControllerColor } from "@/lib/brew-utils";
