@@ -76,47 +76,57 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   ]), "raster-hdr");
   await delay(100);
 
-  // Build test pattern: lead-in blank rows + border frame + diagonal X + center cross
+  // Build test pattern with margin compensation
+  // Hardware has ~16px left margin, so we add same on right for symmetry
+  const margin = 16; // pixels of padding on each side
   const rasterData = new Uint8Array(widthBytes * height);
-  rasterData.fill(0x00); // white (lead-in rows are already white)
+  rasterData.fill(0x00); // white
 
-  const patH = 120; // actual pattern height
+  const patH = 120;
+  const w = widthBytes * 8; // 384
+  const xMin = margin;
+  const xMax = w - 1 - margin;
+  const contentW = xMax - xMin;
+
+  const setPixel = (row: number, px: number) => {
+    if (px < 0 || px >= w) return;
+    rasterData[row + Math.floor(px / 8)] |= (1 << (7 - (px % 8)));
+  };
+
   for (let py = 0; py < patH; py++) {
-    const y = py + leadInRows; // offset by lead-in
+    const y = py + leadInRows;
     const row = y * widthBytes;
 
-    // Top & bottom border (2 rows solid black)
+    // Top & bottom border (2 rows)
     if (py < 2 || py >= patH - 2) {
-      for (let x = 0; x < widthBytes; x++) rasterData[row + x] = 0xff;
+      for (let px = xMin; px <= xMax; px++) setPixel(row, px);
       continue;
     }
 
-    // Left border: 2 pixels (bits 7-6 of byte 0)
-    rasterData[row] |= 0xc0;
-    // Right border: 2 pixels (bits 1-0 of last byte)
-    rasterData[row + widthBytes - 1] |= 0x03;
-
-    // Diagonal X (2px wide)
-    const w = widthBytes * 8;
-    const xA = Math.floor((py / (patH - 1)) * (w - 1));
-    const xB = Math.floor(((patH - 1 - py) / (patH - 1)) * (w - 1));
-    for (const xPos of [xA, xB]) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const px = xPos + dx;
-        if (px < 0 || px >= w) continue;
-        rasterData[row + Math.floor(px / 8)] |= (1 << (7 - (px % 8)));
-      }
+    // Left & right border (2px each)
+    for (let dx = 0; dx < 2; dx++) {
+      setPixel(row, xMin + dx);
+      setPixel(row, xMax - dx);
     }
 
-    // Center vertical line (2px at pixel 191-192)
-    rasterData[row + 23] |= 0x01;
-    rasterData[row + 24] |= 0x80;
+    // Diagonal X (3px wide)
+    const xA = xMin + Math.floor((py / (patH - 1)) * contentW);
+    const xB = xMin + Math.floor(((patH - 1 - py) / (patH - 1)) * contentW);
+    for (const xPos of [xA, xB]) {
+      for (let dx = -1; dx <= 1; dx++) setPixel(row, xPos + dx);
+    }
+
+    // Center vertical line (2px)
+    const cx = Math.floor((xMin + xMax) / 2);
+    setPixel(row, cx);
+    setPixel(row, cx + 1);
   }
 
-  // Center horizontal line of pattern (2 rows solid)
+  // Center horizontal line (2 rows)
   for (let dy = -1; dy <= 0; dy++) {
     const my = leadInRows + Math.floor(patH / 2) + dy;
-    for (let x = 0; x < widthBytes; x++) rasterData[my * widthBytes + x] = 0xff;
+    const row = my * widthBytes;
+    for (let px = xMin; px <= xMax; px++) setPixel(row, px);
   }
 
   // Escape 0x0a → 0x14
