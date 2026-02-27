@@ -235,6 +235,45 @@ const STEPS: WizardStep[] = [
     },
   },
   {
+    id: "gemini-protocol",
+    title: "Gemini-protokoll (0x1f 0x11 start/stop)",
+    description: "Alternativt flöde: start-job → raster → 10 svarta rader + 90 vita → print-execute → end-job. Använder 0x1f 0x11-kommandon istället för ESC @ / CUPS-footer.",
+    run: async (conn, log, chunkSize) => {
+      log("1. Start-job (0x1f 0x11 0x02 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), "start-job");
+      await delay(50);
+
+      const widthBytes = 48;
+      const height = 100;
+
+      log("2. Raster header (GS v 0, 384×100)...");
+      await bleWrite(conn, new Uint8Array([
+        0x1d, 0x76, 0x30, 0x00,
+        0x30, 0x00,
+        0x64, 0x00,
+      ]), "raster-hdr");
+
+      log("3. Genererar data (10 svarta + 90 vita rader)...");
+      const data = new Uint8Array(widthBytes * height);
+      data.fill(0xff, 0, widthBytes * 10);
+
+      log(`   Skickar ${data.length} bytes (chunk=${chunkSize})...`);
+      for (let off = 0; off < data.length; off += chunkSize) {
+        await bleWrite(conn, data.slice(off, Math.min(off + chunkSize, data.length)), `data-${off}`);
+      }
+
+      log("4. Print-execute (0x1f 0x11 0x04 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x04, 0x00]), "print-execute");
+      await delay(100);
+
+      log("5. End-job (0x1f 0x11 0x03 0x00)...");
+      await bleWrite(conn, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), "end-job");
+      await delay(200);
+
+      log("Klart! Du bör se en svart rektangel (10 rader) följt av vitt.");
+    },
+  },
+  {
     id: "full-test-image",
     title: "Full testbild (ram + kryss)",
     description: "Skickar en komplett testbild med svart ram och kryss. Verifierar bildutskrift.",
