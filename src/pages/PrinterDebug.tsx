@@ -61,33 +61,74 @@ async function runPrintTest(conn: PrinterConnection, log: (msg: string) => void)
   await bleWrite(conn, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), "margin-0");
   await delay(100);
 
-  const widthBytes = 48;
-  const height = 20;
-  log(`→ 7. Raster ${widthBytes * 8}×${height}...`);
+  const widthBytes = 48; // 384 pixels
+  const height = 120;
+  log(`→ 7. Raster ${widthBytes * 8}×${height} (ram + kryss)...`);
   await bleWrite(conn, new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height, 0x00
+    0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff
   ]), "raster-hdr");
   await delay(100);
 
+  // Build test pattern: border frame + diagonal X + center cross
   const rasterData = new Uint8Array(widthBytes * height);
-  rasterData.fill(0xff);
+  rasterData.fill(0x00); // white
+
+  for (let y = 0; y < height; y++) {
+    const row = y * widthBytes;
+
+    // Top & bottom border (2 rows solid black)
+    if (y < 2 || y >= height - 2) {
+      for (let x = 0; x < widthBytes; x++) rasterData[row + x] = 0xff;
+      continue;
+    }
+
+    // Left border: 2 pixels (bits 7-6 of byte 0)
+    rasterData[row] |= 0xc0;
+    // Right border: 2 pixels (bits 1-0 of last byte)
+    rasterData[row + widthBytes - 1] |= 0x03;
+
+    // Diagonal X (2px wide)
+    const w = widthBytes * 8;
+    const xA = Math.floor((y / (height - 1)) * (w - 1));
+    const xB = Math.floor(((height - 1 - y) / (height - 1)) * (w - 1));
+    for (const xPos of [xA, xB]) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const px = xPos + dx;
+        if (px < 0 || px >= w) continue;
+        rasterData[row + Math.floor(px / 8)] |= (1 << (7 - (px % 8)));
+      }
+    }
+
+    // Center vertical line (2px at pixel 191-192)
+    rasterData[row + 23] |= 0x01;
+    rasterData[row + 24] |= 0x80;
+  }
+
+  // Center horizontal line (2 rows solid)
+  for (let dy = -1; dy <= 0; dy++) {
+    const my = Math.floor(height / 2) + dy;
+    for (let x = 0; x < widthBytes; x++) rasterData[my * widthBytes + x] = 0xff;
+  }
+
+  // Escape 0x0a → 0x14
   for (let i = 0; i < rasterData.length; i++) {
     if (rasterData[i] === 0x0a) rasterData[i] = 0x14;
   }
+
   for (let off = 0; off < rasterData.length; off += 20) {
     await bleWrite(conn, rasterData.slice(off, Math.min(off + 20, rasterData.length)), `r-${off}`);
   }
   await delay(500);
   log(`   Data skickad (${rasterData.length} bytes)`);
 
-  log("→ 7. Väntar 3s...");
+  log("→ 8. Väntar 3s...");
   await delay(3000);
 
-  await send([0x1f, 0x11, 0x03, 0x00], "8. End-job");
+  await send([0x1f, 0x11, 0x03, 0x00], "9. End-job");
   await delay(500);
 
   try { await notifyChar.stopNotifications(); } catch { /* ok */ }
-  log("✓ Klart! Skrivaren bör ha skrivit 20 svarta rader och stannat.");
+  log("✓ Klart! Ram + kryss – kontrollera att alla 4 kanter syns och krysset möts i mitten.");
 }
 
 export default function PrinterDebug() {
