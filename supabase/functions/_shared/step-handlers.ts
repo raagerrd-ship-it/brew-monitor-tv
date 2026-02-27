@@ -1,42 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep, TempController, getEffectiveTargetTemp } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
+import {
+  SgDataPoint, BrewData, FermentationMetrics, FermentationSession,
+  StepContext, StepResult, setProfileTarget,
+} from './types.ts'
 
-// ─── Types ────────────────────────────────────────────────────────────
-
-export interface StepContext {
-  supabase: ReturnType<typeof createClient>
-  session: {
-    id: string
-    profile_id: string
-    brew_id: string | null
-    controller_id: string
-    status: string
-    current_step_index: number
-    step_started_at: string
-    step_start_temp: number | null
-    started_at: string
-    ramp_triggered_at: string | null
-  }
-  currentStep: ProfileStep
-  steps: ProfileStep[]
-  controller: TempController | null
-  brewData: { sg_data: SgDataPoint[]; original_gravity: number; final_gravity: number } | null
-  metrics: { fermentation_phase: string; activity_score: number; sg_rate_per_hour: number; eta_to_fg_hours: number | null; ready_to_crash: boolean } | null
-  elapsedHours: number
-}
-
-export interface StepResult {
-  stepCompleted: boolean
-  actionTaken: string
-  actionDetails: any
-}
-
-export interface SgDataPoint {
-  date: string
-  value: number
-  temp: number
-}
+// Re-export types used by consumers
+export type { SgDataPoint, StepContext, StepResult }
 
 // ─── Shared helpers ───────────────────────────────────────────────────
 
@@ -112,18 +83,8 @@ function calculateRampTemp(startTemp: number, endTemp: number, durationHours: nu
   const progress = elapsedHours / durationHours
   return Math.round((startTemp + (endTemp - startTemp) * progress) * 10) / 10
 }
+// setProfileTarget is imported from ./types.ts (Single Source of Truth)
 
-async function setProfileTarget(
-  supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-  profileTarget: number,
-) {
-  await supabase
-    .from('rapt_temp_controllers')
-    .update({ profile_target_temp: profileTarget, updated_at: new Date().toISOString() })
-    .eq('controller_id', controllerId)
-  console.log(`📋 Profile target set: ${profileTarget}°C for ${controllerId} (PID will enforce)`)
-}
 
 // ─── Step handlers ────────────────────────────────────────────────────
 

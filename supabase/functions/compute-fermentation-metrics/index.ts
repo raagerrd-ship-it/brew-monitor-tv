@@ -6,11 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface SgDataPoint {
-  date: string;
-  value: number;
-  temp: number;
-}
+import type { SgDataPoint } from '../_shared/types.ts'
 
 type FermentationPhase = 'unknown' | 'lag' | 'exponential' | 'stationary' | 'declining';
 

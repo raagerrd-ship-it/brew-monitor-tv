@@ -15,11 +15,7 @@ interface TelemetryRecord {
   battery: number;
 }
 
-interface SgDataPoint {
-  date: string;
-  value: number;
-  temp: number;
-}
+import type { SgDataPoint } from '../_shared/types.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

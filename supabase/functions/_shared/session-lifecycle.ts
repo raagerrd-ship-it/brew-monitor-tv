@@ -2,13 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep, getEffectiveTargetTemp } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
 import { saveFermentationLearnings } from './fermentation-learnings.ts'
-
-interface SessionRef {
-  id: string
-  controller_id: string
-  brew_id: string | null
-  started_at: string
-}
+import { SessionRef, setProfileTarget, clearProfileTarget } from './types.ts'
 
 /**
  * Complete a fermentation profile session.
@@ -33,11 +27,8 @@ export async function completeProfile(
     details: { message: 'Profile completed' },
   })
 
-  // Clear profile_target_temp
-  await supabase
-    .from('rapt_temp_controllers')
-    .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
-    .eq('controller_id', session.controller_id)
+  // Clear profile_target_temp (via shared helper — SSOT)
+  await clearProfileTarget(supabase, session.controller_id)
 
   // Notification
   await insertNotification(supabase, {
@@ -75,17 +66,14 @@ export async function advanceToNextStep(
     })
     .eq('id', sessionId)
 
-  // Set profile_target_temp for the new step
+  // Set profile_target_temp for the new step (via shared helper — SSOT)
   const nextStep = steps[nextStepIndex]
   if (nextStep) {
     const target = nextStep.target_temp ?? getEffectiveTargetTemp(steps, nextStepIndex)
     if (target !== null) {
-      await supabase
-        .from('rapt_temp_controllers')
-        .update({ profile_target_temp: target, updated_at: new Date().toISOString() })
-        .eq('controller_id', controllerId)
+      await setProfileTarget(supabase, controllerId, target)
       const source = nextStep.target_temp !== null ? 'explicit' : 'inherited'
-      console.log(`🎯 Step transition: set profile_target_temp=${target}°C (${source}) for step ${nextStepIndex} (${nextStep.step_type})`)
+      console.log(`🎯 Step transition: ${source} target=${target}°C for step ${nextStepIndex} (${nextStep.step_type})`)
     }
   }
 
