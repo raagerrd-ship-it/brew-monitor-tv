@@ -597,6 +597,14 @@ export async function processStep(ctx: StepContext): Promise<StepResult> {
     case 'gradual_ramp':
       return processGradualRampStep(ctx)
     default:
-      return defaultResult()
+      console.error(`🚨 Unknown step_type "${ctx.currentStep.step_type}" in session ${ctx.session.id}, step ${ctx.session.current_step_index} — skipping step for safety`)
+      await insertNotification(ctx.supabase, {
+        type: 'unknown_step_type',
+        title: 'Okänd stegtyp i profil',
+        body: `Steg ${ctx.session.current_step_index} har okänd typ "${ctx.currentStep.step_type}" — sessionen kan inte fortsätta automatiskt`,
+        controller_id: ctx.session.controller_id,
+        brew_id: ctx.session.brew_id,
+      })
+      return { stepCompleted: false, actionTaken: 'unknown_step_type', actionDetails: { step_type: ctx.currentStep.step_type } }
   }
 }
