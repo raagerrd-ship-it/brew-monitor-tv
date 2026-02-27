@@ -499,11 +499,17 @@ serve(async (req) => {
           continue;
         }
 
-        // Same-data guard
+        // Same-data guard: skip if RAPT data hasn't changed AND profile target matches controller target.
+        // If profile target has diverged (e.g. ramp advanced), we MUST still run PID to enforce it.
         const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id);
-        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
+        const profileTargetNow = isProfileOwned ? parseFloat(String((fc as any).profile_target_temp ?? '0')) : null;
+        const profileMatchesCurrent = profileTargetNow === null || Math.abs(profileTargetNow - targetTemp) < 0.15;
+        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update && profileMatchesCurrent) {
           log('PILL_COMP_SKIP', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`);
           continue;
+        }
+        if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update && !profileMatchesCurrent) {
+          log('PILL_COMP', 'info', `${fc.name}: Samma RAPT-data men profilmål ändrat (${profileTargetNow?.toFixed(1)}° vs ctrl ${targetTemp.toFixed(1)}°) — kör PID ändå`);
         }
 
         const targetTemp = parseFloat(String(fc.target_temp ?? '20'));
