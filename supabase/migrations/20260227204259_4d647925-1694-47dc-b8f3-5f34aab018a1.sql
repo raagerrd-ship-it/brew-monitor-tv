@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_pills ADD COLUMN paired_device_id text DEFAULT NULL;

@@ -60,6 +60,7 @@ export interface PillData {
   color: string;
   battery_level: number;
   last_update: string | null;
+  paired_device_id?: string | null;
 }
 
 export interface TempController {

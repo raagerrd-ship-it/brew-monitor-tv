@@ -111,6 +111,7 @@ serve(async (req) => {
           .update({
             battery_level: battery,
             last_update: lastUpdate,
+            paired_device_id: pill.pairedDeviceId || null,
             updated_at: new Date().toISOString()
           })
           .eq('pill_id', pill.id);
