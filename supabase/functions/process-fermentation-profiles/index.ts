@@ -128,74 +128,109 @@ Deno.serve(async (req) => {
     const brewDataMap = buildBrewDataMap(allBrewData as any[] | null)
     const metricsMap = buildMetricsMap(allMetrics as any[] | null)
 
-    // ---- Process each session ----
+    // ---- Process each session (with per-session error isolation) ----
     for (const session of typedSessions) {
-      const steps = stepsMap.get(session.profile_id)
-      if (!steps || steps.length === 0) {
-        console.error(`No steps found for profile ${session.profile_id}`)
-        continue
-      }
+      try {
+        const steps = stepsMap.get(session.profile_id)
+        if (!steps || steps.length === 0) {
+          console.error(`No steps found for profile ${session.profile_id}`)
+          continue
+        }
 
-      const currentStep = steps[session.current_step_index] as ProfileStep
+        const currentStep = steps[session.current_step_index] as ProfileStep
 
-      // All steps completed (index past end)
-      if (!currentStep) {
-        await completeProfile(supabase, session, session.current_step_index)
-        results.push({ sessionId: session.id, action: 'completed', details: {} })
-        continue
-      }
+        // All steps completed (index past end)
+        if (!currentStep) {
+          await completeProfile(supabase, session, session.current_step_index)
+          results.push({ sessionId: session.id, action: 'completed', details: {} })
+          continue
+        }
 
-      // Build step context
-      const controller = controllerMap.get(session.controller_id) ?? null
-      const brewData = session.brew_id ? (brewDataMap.get(session.brew_id) ?? null) : null
-      const metrics = session.brew_id ? (metricsMap.get(session.brew_id) ?? null) : null
-      const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
+        // SAFETY: Check if controller data is stale before processing
+        const controller = controllerMap.get(session.controller_id) ?? null
+        if (controller) {
+          const lastUpdate = controller.last_update
+          if (lastUpdate) {
+            const ageMs = Date.now() - new Date(lastUpdate).getTime()
+            const ageMinutes = Math.round(ageMs / 60000)
+            if (ageMs > 60 * 60 * 1000) {
+              // More than 60 min stale — skip step transitions that depend on temp
+              console.warn(`⚠️ Session ${session.id}: Controller ${controller.name} data is ${ageMinutes}min old — skipping temp-dependent transitions`)
+              results.push({ sessionId: session.id, action: 'stale_sensor_skip', details: { age_minutes: ageMinutes, controller: controller.name } })
+              continue
+            }
+          }
+        }
 
-      const ctx: StepContext = {
-        supabase, session, currentStep,
-        steps: steps as ProfileStep[],
-        controller, brewData, metrics, elapsedHours,
-      }
+        // Build step context
+        const brewData = session.brew_id ? (brewDataMap.get(session.brew_id) ?? null) : null
+        const metrics = session.brew_id ? (metricsMap.get(session.brew_id) ?? null) : null
+        const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
 
-      // Process the current step
-      const { stepCompleted, actionTaken, actionDetails } = await processStep(ctx)
+        const ctx: StepContext = {
+          supabase, session, currentStep,
+          steps: steps as ProfileStep[],
+          controller, brewData, metrics, elapsedHours,
+        }
 
-      // Log action if something happened
-      if (actionTaken !== 'checked') {
-        await supabase.from('fermentation_step_log').insert({
-          session_id: session.id,
-          step_index: session.current_step_index,
-          action: actionTaken,
-          details: actionDetails,
-        })
-      }
+        // Process the current step
+        const { stepCompleted, actionTaken, actionDetails } = await processStep(ctx)
 
-      // Advance to next step if completed
-      if (stepCompleted) {
-        const nextStepIndex = session.current_step_index + 1
-
-        if (nextStepIndex >= steps.length) {
-          // Profile complete
-          await completeProfile(supabase, session, nextStepIndex)
-          results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
-        } else {
-          // Advance
-          await advanceToNextStep(
-            supabase, session.id, session.controller_id,
-            nextStepIndex, steps as ProfileStep[], currentStep.step_type,
-          )
-          results.push({
-            sessionId: session.id,
-            action: 'step_advanced',
-            details: {
-              from: session.current_step_index,
-              to: nextStepIndex,
-              new_step_type: steps[nextStepIndex]?.step_type || 'unknown',
-            },
+        // Log action if something happened
+        if (actionTaken !== 'checked') {
+          await supabase.from('fermentation_step_log').insert({
+            session_id: session.id,
+            step_index: session.current_step_index,
+            action: actionTaken,
+            details: actionDetails,
           })
         }
-      } else {
-        results.push({ sessionId: session.id, action: actionTaken, details: actionDetails })
+
+        // Advance to next step if completed
+        if (stepCompleted) {
+          const nextStepIndex = session.current_step_index + 1
+
+          if (nextStepIndex >= steps.length) {
+            // Profile complete
+            await completeProfile(supabase, session, nextStepIndex)
+            results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
+          } else {
+            // SAFETY: Verify target temp jump is within reasonable bounds before advancing
+            const nextStep = steps[nextStepIndex] as ProfileStep | undefined
+            const currentTarget = controller?.target_temp ? parseFloat(String(controller.target_temp)) : null
+            const nextTarget = nextStep?.target_temp ?? null
+            if (currentTarget !== null && nextTarget !== null) {
+              const tempJump = Math.abs(nextTarget - currentTarget)
+              if (tempJump > 15) {
+                console.error(`🚨 SAFETY BLOCK: Step ${session.current_step_index}→${nextStepIndex} would jump ${tempJump.toFixed(1)}°C (${currentTarget}→${nextTarget}°C). Blocking for safety.`)
+                results.push({ sessionId: session.id, action: 'safety_blocked', details: { temp_jump: tempJump, from: currentTarget, to: nextTarget } })
+                continue
+              }
+            }
+
+            // Advance
+            await advanceToNextStep(
+              supabase, session.id, session.controller_id,
+              nextStepIndex, steps as ProfileStep[], currentStep.step_type,
+            )
+            results.push({
+              sessionId: session.id,
+              action: 'step_advanced',
+              details: {
+                from: session.current_step_index,
+                to: nextStepIndex,
+                new_step_type: steps[nextStepIndex]?.step_type || 'unknown',
+              },
+            })
+          }
+        } else {
+          results.push({ sessionId: session.id, action: actionTaken, details: actionDetails })
+        }
+      } catch (sessionError) {
+        // Per-session error isolation: log and continue with other sessions
+        const errorMsg = sessionError instanceof Error ? sessionError.message : String(sessionError)
+        console.error(`🚨 Session ${session.id} error (controller ${session.controller_id}): ${errorMsg}`)
+        results.push({ sessionId: session.id, action: 'error', details: { error: errorMsg } })
       }
     }
 

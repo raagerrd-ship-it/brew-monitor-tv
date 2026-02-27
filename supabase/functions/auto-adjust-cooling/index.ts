@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget } from '../_shared/temp-utils.ts';
+import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, isSensorDataStale, filterStaleControllers } from '../_shared/temp-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { logAdjustment, AdjustmentResult } from '../_shared/adjustment-logger.ts';
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from '../_shared/stall-detection.ts';
@@ -102,15 +102,31 @@ serve(async (req) => {
     }
 
     // Auto-follow: all controllers with active cooling or heating, excluding the glycol cooler
-    const followedControllersFullData = allControllers.filter(c =>
+    const allActiveControllers = allControllers.filter(c =>
       !(c as any).is_glycol_cooler && (c.cooling_enabled || c.heating_enabled)
     ) as TempController[];
+
+    // SAFETY: Filter out controllers with stale sensor data
+    const { fresh: followedControllersFullData, stale: staleControllers } = filterStaleControllers(allActiveControllers, log);
     const followedControllerIds = followedControllersFullData.map(c => c.controller_id);
 
+    if (staleControllers.length > 0) {
+      // Notify about stale sensors — this is a safety concern
+      for (const sc of staleControllers) {
+        const age = isSensorDataStale(sc.last_update);
+        await insertNotification(supabase, {
+          type: 'stale_sensor',
+          title: 'Sensor offline',
+          body: `${sc.name}: Ingen sensordata på ${age.ageMinutes ?? '?'} minuter. Automatisk styrning pausad för denna enhet.`,
+          controller_id: sc.controller_id,
+        });
+      }
+    }
+
     if (followedControllerIds.length === 0) {
-      log('FOLLOWED_CONTROLLERS', 'info', 'No controllers with active cooling or heating found');
+      log('FOLLOWED_CONTROLLERS', 'info', 'No controllers with fresh data and active cooling/heating found');
     } else {
-      log('FOLLOWED_CONTROLLERS', 'pass', `Auto-detected ${followedControllerIds.length} active controller(s)`);
+      log('FOLLOWED_CONTROLLERS', 'pass', `Auto-detected ${followedControllerIds.length} active controller(s) with fresh data`);
     }
 
     // ── Build context maps ───────────────────────────────────────
