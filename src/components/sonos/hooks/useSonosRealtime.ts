@@ -42,6 +42,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       // Guard: ignore realtime with null track_name (API hiccup)
       if (!incoming.track_name) {
         console.log('[Sonos:RT] ⚠️ Ignored realtime with null track_name');
+        tvDebug('sonos', '⚠️ RT: ignorerade null track_name');
         return;
       }
       
@@ -57,6 +58,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       setNowPlaying(prev => {
         if (!prev) {
           console.log('[Sonos:RT] ✅ No previous state — accepting incoming');
+          tvDebug('sonos', `✅ RT: första state → "${incoming.track_name}" (bg=${!!incoming.bg_image_url})`);
           acceptedRef.current = true;
           return incoming;
         }
@@ -64,6 +66,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // When currently IDLE and incoming is PLAYING with a track, accept it to wake up the widget
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING' && incoming.track_name) {
           console.log(`[Sonos:RT] ✅ Waking from IDLE: "${incoming.track_name}"`);
+          tvDebug('sonos', `✅ RT: vaknar från IDLE → "${incoming.track_name}" (bg=${!!incoming.bg_image_url})`);
           addDebugLog?.(`📻 RT: wake from IDLE → ${incoming.track_name}`);
           acceptedRef.current = true;
           if (incoming.bg_image_url) {
@@ -80,8 +83,6 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         if (msSinceTrackChange < 15000) {
           // Only accept art/next-track updates during cooldown
           if (incoming.track_name === prev.track_name) {
-            // During cooldown, only accept bg/widget if we DON'T already have one
-            // (preloaded images were already applied by the track change handler)
             const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url && !prev.bg_image_url;
             const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url && !prev.widget_art_url;
             const nextTrackChanged = incoming.next_track_name && incoming.next_track_name !== prev.next_track_name;
@@ -90,11 +91,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             const hasChanges = bgChanged || widgetChanged || nextTrackChanged || nextBgChanged || nextWidgetChanged;
             if (hasChanges) {
               console.log(`[Sonos:RT] 🖼️ Art/next update during cooldown (${Math.round(msSinceTrackChange / 1000)}s): bg=${!!bgChanged} widget=${!!widgetChanged} next=${!!nextTrackChanged}`);
+              tvDebug('sonos', `🖼️ RT: cooldown-uppdatering (${Math.round(msSinceTrackChange / 1000)}s) bg=${!!bgChanged} widget=${!!widgetChanged} next=${!!nextTrackChanged}`);
               if (bgChanged) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
                 onAlbumArtChangeRef.current?.(incoming.bg_image_url);
               }
-              // Preload next-track images into browser cache immediately
               if (nextBgChanged && incoming.next_bg_image_url) {
                 tvDebug('sonos', `🖼️ RT: förladdar next_bg_image`);
                 const img = new Image(); img.src = incoming.next_bg_image_url;
@@ -115,12 +116,13 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             }
           }
           console.log(`[Sonos:RT] ⏳ Ignored during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}" (local: "${prev.track_name}")`);
+          tvDebug('sonos', `⏳ RT: cooldown-ignorerad (${Math.round(msSinceTrackChange / 1000)}s) "${incoming.track_name}" (lokal: "${prev.track_name}")`);
           return prev;
         }
 
         if (incoming.track_name !== prev.track_name) {
-          // Outside cooldown: legitimate track change detected via Realtime
           console.log(`[Sonos:RT] 🎵 Track change via RT: "${prev.track_name}" → "${incoming.track_name}"`);
+          tvDebug('sonos', `🎵 RT: låtbyte "${prev.track_name}" → "${incoming.track_name}" (bg=${!!incoming.bg_image_url})`);
           addDebugLog?.(`📻 RT: låtbyte → ${incoming.track_name}`);
           acceptedRef.current = true;
           trackChangedAtRef.current = Date.now();
@@ -135,6 +137,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Don't let realtime overwrite local IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE') {
           console.log(`[Sonos:RT] ⚠️ Ignored ${incoming.playback_state} — already IDLE`);
+          tvDebug('sonos', `⚠️ RT: ignorerad — redan IDLE`);
           return prev;
         }
 
@@ -144,6 +147,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const bgChanged = updatedBg !== prev.bg_image_url;
         if (bgChanged) {
           console.log(`[Sonos:RT] 🖼️ New BG for same track: ${updatedBg?.slice(-60)}`);
+          tvDebug('sonos', `🖼️ RT: ny bg för samma låt`);
           pushToBgBuffer(validBgBufferRef.current, updatedBg);
           onAlbumArtChangeRef.current?.(updatedBg);
         }
@@ -152,7 +156,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           console.log(`[Sonos:RT] 🖼️ New widget art: ${incoming.widget_art_url?.slice(-60)}`);
         }
         console.log(`[Sonos:RT] ✅ Merged update for "${incoming.track_name}" (bg=${bgChanged}, widget=${!!widgetChanged}, state=${incoming.playback_state})`);
-        // Preload next-track images if they arrived with this update
+        tvDebug('sonos', `✅ RT: merge "${incoming.track_name}" bg=${bgChanged} widget=${!!widgetChanged} state=${incoming.playback_state}`);
         if (incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url) {
           tvDebug('sonos', `🖼️ RT: förladdar next_bg (merge)`);
           const img = new Image(); img.src = incoming.next_bg_image_url;
