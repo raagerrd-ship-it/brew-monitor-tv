@@ -67,14 +67,17 @@ export async function advanceToNextStep(
     .eq('id', sessionId)
 
   // Set profile_target_temp for the new step (via shared helper — SSOT)
+  // For ramp steps, DON'T set the final target immediately — let processRampStep handle interpolation
   const nextStep = steps[nextStepIndex]
-  if (nextStep) {
+  if (nextStep && nextStep.step_type !== 'ramp') {
     const target = nextStep.target_temp ?? getEffectiveTargetTemp(steps, nextStepIndex)
     if (target !== null) {
       await setProfileTarget(supabase, controllerId, target)
-      const source = nextStep.target_temp !== null ? 'explicit' : 'inherited'
-      console.log(`🎯 Step transition: ${source} target=${target}°C for step ${nextStepIndex} (${nextStep.step_type})`)
+      console.log(`🎯 Step transition: target=${target}°C for step ${nextStepIndex} (${nextStep.step_type})`)
     }
+  } else if (nextStep?.step_type === 'ramp') {
+    // For ramp steps, keep current profile target — processRampStep will interpolate from step_start_temp
+    console.log(`🎯 Step transition: ramp step ${nextStepIndex} — deferring target to processRampStep`)
   }
 
   // Log step start
