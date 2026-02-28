@@ -23,7 +23,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   const mountedRef = useRef(false);
 
   // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
-  const doFetch = useCallback(async (signal?: AbortSignal) => {
+  const doFetch = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const t0 = performance.now();
     const flowId = `chart-${brewId}`;
     tvDebug('chart', `📊 Hämtar diagram ${brewId.slice(0, 8)}...`, flowId);
@@ -58,17 +58,20 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
         setVisibleSvg(svgText);
         setError(false);
         setRetryCount(0);
+        return true;
       } else {
         console.log(`[TvModeChart] ⚠️ ${brewId} aborted after ${Math.round(performance.now() - t0)}ms`);
+        return false;
       }
     } catch (e: any) {
       if (signal?.aborted) {
         console.log(`[TvModeChart] ⚠️ ${brewId} fetch aborted (cleanup)`);
-        return;
+        return false;
       }
       console.error(`[TvModeChart] ❌ ${brewId} failed after ${Math.round(performance.now() - t0)}ms:`, e?.message || e);
       tvDebug('chart', `❌ ${brewId.slice(0, 8)}: ${e?.message || 'okänt'}`, flowId);
       setError(true);
+      return false;
     }
   }, [brewId, compact, brewCount]);
 
@@ -77,7 +80,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     console.log(`[TvModeChart] Mount — starting fetch for ${brewId}`);
     mountedRef.current = false;
     const controller = new AbortController();
-    doFetch(controller.signal).then(() => { mountedRef.current = true; });
+    doFetch(controller.signal).then((ok) => { if (ok) mountedRef.current = true; });
     return () => {
       console.log(`[TvModeChart] Unmount — aborting fetch for ${brewId}`);
       controller.abort();
