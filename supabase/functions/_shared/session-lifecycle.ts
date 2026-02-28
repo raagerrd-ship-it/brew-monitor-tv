@@ -54,14 +54,20 @@ export async function advanceToNextStep(
   nextStepIndex: number,
   steps: ProfileStep[],
   previousStepType: string,
+  currentProfileTarget?: number | null,
 ): Promise<void> {
+  // For ramp steps, preserve current controller temp as start point
+  // to prevent the ramp from using an already-adjusted target as its start
+  const nextStep = steps[nextStepIndex]
+  const isRampStep = nextStep?.step_type === 'ramp'
+
   // Update session to next step
   await supabase
     .from('fermentation_sessions')
     .update({
       current_step_index: nextStepIndex,
       step_started_at: new Date().toISOString(),
-      step_start_temp: null,
+      step_start_temp: isRampStep ? (currentProfileTarget ?? null) : null,
       ramp_triggered_at: null,
     })
     .eq('id', sessionId)

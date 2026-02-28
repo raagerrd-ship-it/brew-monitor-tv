@@ -241,10 +241,10 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Advance
+            const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
             await advanceToNextStep(
               supabase, session.id, session.controller_id,
-              nextStepIndex, steps as ProfileStep[], currentStep.step_type,
+              nextStepIndex, steps as ProfileStep[], currentStep.step_type, currentProfileTarget,
             )
             results.push({
               sessionId: session.id,
