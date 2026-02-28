@@ -78,13 +78,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // After a local track change, ignore ALL realtime for 15s to let server catch up
         const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
         if (msSinceTrackChange < 15000) {
-          // Only accept bg_image_url if it's genuinely new for the current track
+          // Only accept art/next-track updates during cooldown
           if (incoming.track_name === prev.track_name) {
             const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
             const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
-            if (bgChanged || widgetChanged) {
-              console.log(`[Sonos:RT] 🖼️ Art update during cooldown (${Math.round(msSinceTrackChange / 1000)}s): bg=${!!bgChanged} widget=${!!widgetChanged}`);
-              addDebugLog?.(`📻 RT: art update during cooldown (bg=${!!bgChanged}, widget=${!!widgetChanged})`);
+            const nextTrackChanged = incoming.next_track_name && incoming.next_track_name !== prev.next_track_name;
+            const nextBgChanged = incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url;
+            const nextWidgetChanged = incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url;
+            const hasChanges = bgChanged || widgetChanged || nextTrackChanged || nextBgChanged || nextWidgetChanged;
+            if (hasChanges) {
+              console.log(`[Sonos:RT] 🖼️ Art/next update during cooldown (${Math.round(msSinceTrackChange / 1000)}s): bg=${!!bgChanged} widget=${!!widgetChanged} next=${!!nextTrackChanged}`);
               if (bgChanged) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
                 onAlbumArtChangeRef.current?.(incoming.bg_image_url);
@@ -93,6 +96,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
                 ...prev,
                 ...(bgChanged ? { bg_image_url: incoming.bg_image_url } : {}),
                 ...(widgetChanged ? { widget_art_url: incoming.widget_art_url } : {}),
+                ...(nextTrackChanged ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
+                ...(nextBgChanged ? { next_bg_image_url: incoming.next_bg_image_url } : {}),
+                ...(nextWidgetChanged ? { next_widget_art_url: incoming.next_widget_art_url } : {}),
+                ...(incoming.next_album_art_url ? { next_album_art_url: incoming.next_album_art_url } : {}),
               };
             }
           }
