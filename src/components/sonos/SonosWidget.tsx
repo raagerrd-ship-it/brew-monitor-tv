@@ -9,7 +9,6 @@ import { tvDebug } from "@/lib/tv-debug-log";
 
 interface SonosWidgetProps {
   isMobile?: boolean;
-  isTvMode?: boolean;
   variant?: "floating" | "header";
   onAlbumArtChange?: (url: string | null, trackName?: string) => void;
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
@@ -17,7 +16,6 @@ interface SonosWidgetProps {
 
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
-  isTvMode = false,
   variant = "floating",
   onAlbumArtChange,
   onRealtimeRef,
@@ -79,7 +77,7 @@ export const SonosWidget = memo(function SonosWidget({
     onRealtimeRef, isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef, addDebugLog, isTvMode,
+    progressBarRef, debugTimeRef, addDebugLog,
   });
 
   const { shouldHide } = useSonosVisibility({

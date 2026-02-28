@@ -173,7 +173,7 @@ export function BrewingDashboard() {
         hasAlbumArtBackground={!!visibleBgUrl}
         onRefresh={isMobile ? handleManualRefresh : undefined}
         sonosSlot={(!isMobile || isTvMode) ? (
-          <SonosWidget isMobile={false} isTvMode={isTvMode} variant="header" onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
+          <SonosWidget isMobile={false} variant="header" onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
         ) : undefined}
       />
 

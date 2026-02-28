@@ -15,7 +15,6 @@ interface UseSonosRealtimeParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
-  isTvMode?: boolean;
 }
 
 /**
@@ -27,7 +26,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
     onRealtimeRef, isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
-    onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog, isTvMode,
+    onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
   useEffect(() => {
