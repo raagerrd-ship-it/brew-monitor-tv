@@ -246,10 +246,10 @@ export type Database = {
           controller_temp: number | null
           created_at: string
           id: string
-          pill_temp: number
+          pill_temp: number | null
           profile_target_temp: number | null
           recorded_at: string
-          sg: number
+          sg: number | null
         }
         Insert: {
           auto_target_temp?: number | null
@@ -257,10 +257,10 @@ export type Database = {
           controller_temp?: number | null
           created_at?: string
           id?: string
-          pill_temp: number
+          pill_temp?: number | null
           profile_target_temp?: number | null
           recorded_at: string
-          sg: number
+          sg?: number | null
         }
         Update: {
           auto_target_temp?: number | null
@@ -268,10 +268,10 @@ export type Database = {
           controller_temp?: number | null
           created_at?: string
           id?: string
-          pill_temp?: number
+          pill_temp?: number | null
           profile_target_temp?: number | null
           recorded_at?: string
-          sg?: number
+          sg?: number | null
         }
         Relationships: [
           {
