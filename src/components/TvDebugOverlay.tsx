@@ -40,7 +40,7 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
         bottom: 0,
         right: 0,
         width: '100vw',
-        maxHeight: '50vh',
+        maxHeight: '80vh',
         overflowY: 'auto',
         background: 'rgba(0,0,0,0.9)',
         padding: '12px 16px',
