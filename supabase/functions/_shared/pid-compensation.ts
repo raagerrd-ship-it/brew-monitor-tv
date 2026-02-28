@@ -74,7 +74,8 @@ export async function calculateCompensatedTarget(
     .limit(8)
 
   if (!deltaHistory || deltaHistory.length === 0) {
-    return null
+    console.log(`⚠️ PID ${controllerName}: ingen deltahistorik — returnerar compensation=0`)
+    return { compensatedTarget: profileTarget, compensation: 0, avgDelta: 0 }
   }
 
   const deltas = deltaHistory.map((d: any) => parseFloat(String(d.delta)))
