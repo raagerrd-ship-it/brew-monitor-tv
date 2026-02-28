@@ -593,6 +593,46 @@ async function handleRecovery(
 
   if (!needsLowering && !needsRaising) return
 
+  // Block raising the cooler during active downward ramps — cooling need is increasing
+  if (needsRaising) {
+    const { data: rampSessions } = await supabase
+      .from('fermentation_sessions')
+      .select('id, controller_id, profile_id, current_step_index, step_start_temp')
+      .eq('status', 'running')
+      .in('controller_id', ctx.followedControllersFullData.map(c => c.controller_id))
+
+    if (rampSessions && rampSessions.length > 0) {
+      const profileIds = [...new Set(rampSessions.map(s => s.profile_id))]
+      const { data: steps } = await supabase
+        .from('fermentation_profile_steps')
+        .select('profile_id, step_order, step_type, target_temp')
+        .in('profile_id', profileIds)
+        .order('step_order', { ascending: true })
+
+      const stepsMap = new Map<string, any[]>()
+      if (steps) for (const s of steps) {
+        const list = stepsMap.get(s.profile_id) || []
+        list.push(s)
+        stepsMap.set(s.profile_id, list)
+      }
+
+      for (const session of rampSessions) {
+        const pSteps = stepsMap.get(session.profile_id)
+        if (!pSteps) continue
+        const currentStep = pSteps[session.current_step_index]
+        if (!currentStep) continue
+        const isDownwardRamp = ['ramp', 'gradual_ramp'].includes(currentStep.step_type)
+          && currentStep.target_temp != null
+          && session.step_start_temp != null
+          && parseFloat(String(currentStep.target_temp)) < parseFloat(String(session.step_start_temp))
+        if (isDownwardRamp) {
+          log('COOLING_RECOVERY', 'info', `Skipping raise — active downward ramp detected (${currentStep.step_type} → ${currentStep.target_temp}°C)`)
+          return
+        }
+      }
+    }
+  }
+
   try {
     const RECOVERY_INTERVAL_MS = 30 * 60 * 1000
     const { data: lastRecovery, error: recoveryQueryError } = await supabase
