@@ -17,6 +17,7 @@ interface UseBrewDataReturn {
   updatedFields: Record<string, Record<string, boolean>>;
   brewEvents: Record<string, BrewEvent[]>;
   isAuthenticated: boolean;
+  pillCompEnabled: boolean;
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
@@ -62,6 +63,7 @@ export function useBrewData(): UseBrewDataReturn {
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pillCompEnabled, setPillCompEnabled] = useState(false);
   const { toast } = useToast();
   const { isTvMode } = useTvMode();
 
@@ -106,6 +108,30 @@ export function useBrewData(): UseBrewDataReturn {
       cloudSub.unsubscribe();
       extSub.unsubscribe();
     };
+  }, []);
+
+  // Fetch pill_compensation_enabled from auto_cooling_settings
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from('auto_cooling_settings')
+        .select('pill_compensation_enabled')
+        .limit(1)
+        .maybeSingle();
+      if (data) setPillCompEnabled(data.pill_compensation_enabled);
+    };
+    load();
+
+    const channel = supabase
+      .channel('pill-comp-setting')
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'auto_cooling_settings' }, (p: any) => {
+        if (p.new?.pill_compensation_enabled !== undefined) {
+          setPillCompEnabled(p.new.pill_compensation_enabled);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const loadBrewEvents = useCallback(async () => {
@@ -779,6 +805,7 @@ export function useBrewData(): UseBrewDataReturn {
     updatedFields,
     brewEvents,
     isAuthenticated,
+    pillCompEnabled,
     loadBrews,
     loadRaptData,
     loadBrewEvents,

@@ -51,6 +51,7 @@ function BrewCardComponent({
   cardIndex = 0,
   hasAlbumArtBackground = false,
   brewCount,
+  pillCompEnabled = false,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
@@ -362,6 +363,7 @@ function BrewCardComponent({
               devices={devices} 
               updatedFields={updatedFields}
               onControllerClick={onControllerClick}
+              pillCompEnabled={pillCompEnabled}
             />
             <AttenuationStat brew={brew} updatedFields={updatedFields} />
           </div>

@@ -4,6 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getActualTemp, getActualTempLabel } from "@/lib/temp-display";
 
 
 interface TempStatProps {
@@ -11,18 +12,19 @@ interface TempStatProps {
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
   onControllerClick?: (controller: import("@/types/brew").TempController) => void;
+  pillCompEnabled?: boolean;
 }
 
-function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pillCompEnabled = false }: TempStatProps) {
   const { pill, controller } = devices;
   const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
 
-  // Use average of pill and controller if both available, otherwise fallback
-  const hasBothForAvg = controller?.current_temp !== null && controller?.current_temp !== undefined && pill;
-  const displayTemp = hasBothForAvg 
-    ? (controller.current_temp! + brew.currentTemp) / 2 
-    : controller?.current_temp ?? brew.currentTemp;
+  // Use centralized actual temp calculation
+  const pillTemp = pill ? brew.currentTemp : null;
+  const probeTemp = controller?.current_temp ?? null;
+  const displayTemp = getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
+  const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
 
   // Calculate delta: pill (surface) - controller (core)
   const hasBothSensors = pill && controller?.current_temp !== null && controller?.current_temp !== undefined;
@@ -30,11 +32,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
 
   // Overshoot detection: pill >= target AND controller < target (heater is pushing, pill overshooting)
   const targetTemp = controller?.target_temp;
-  const pillTemp = brew.currentTemp;
+  const surfaceTemp = brew.currentTemp;
   const ctrlTemp = controller?.current_temp;
   const isOvershoot = !isInactive && targetTemp !== null && targetTemp !== undefined
     && ctrlTemp !== null && ctrlTemp !== undefined
-    && pillTemp >= targetTemp + 0.3
+    && surfaceTemp >= targetTemp + 0.3
     && (delta ?? 0) > 2.0;
 
   // Overshoot data now comes pre-fetched from the hook (no per-card DB query)
