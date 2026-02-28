@@ -9,10 +9,15 @@ import { Badge } from "@/components/ui/badge";
 interface ParsedField { label: string; value: string; color?: string }
 
 function parsePillCompMessage(msg: string): ParsedField[] | null {
-  // "Temp Controller Gul: PID 16.0°C → 14.7°C (delta=3.51, komp=0.53°C, D-term: rate=-0.35°/h, damp=1.0)"
-  const pidMatch = msg.match(/^(.+?):\s*PID\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*\(delta=([\d.]+),\s*komp=([\d.]+)°C(?:,\s*D-term:\s*rate=([-\d.]+)°\/h,\s*damp=([\d.]+))?\)/);
+  // Match: "Controller: PID X°C → Y°C (delta=D, komp=K°C, D-term: rate=R°/h, damp=D, PI=...)"
+  // Use flexible regex that doesn't require matching closing paren
+  const pidMatch = msg.match(/^(.+?):\s*PID\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*\(delta=([\d.]+),\s*komp=([\d.]+)°C/);
   if (pidMatch) {
-    const [, name, from, to, delta, komp, rate, damp] = pidMatch;
+    const [, name, from, to, delta, komp] = pidMatch;
+    const rateMatch = msg.match(/rate=([-\d.]+)°\/h/);
+    const dampMatch = msg.match(/damp=([\d.]+)/);
+    const rate = rateMatch ? rateMatch[1] : null;
+    const damp = dampMatch ? dampMatch[1] : null;
     const fields: ParsedField[] = [
       { label: 'Styrenhet', value: name },
       { label: 'Profilmål → Börvärde', value: `${from}° → ${to}°` },
@@ -24,9 +29,17 @@ function parsePillCompMessage(msg: string): ParsedField[] | null {
     return fields;
   }
 
-  // "Samma RAPT-data men avvikelse..." or similar skip messages
+  // "Set Controller to X°C" success messages
+  if (msg.startsWith('Set ')) {
+    return [{ label: 'Status', value: msg, color: 'hsl(var(--ferment-green))' }];
+  }
+
+  // Skip header lines like "--- PID pill compensation check ---"
+  if (msg.startsWith('---')) return null;
+
+  // "Samma RAPT-data..." or similar skip/info messages
   const skipMatch = msg.match(/^(.+?):\s*(.+)/);
-  if (skipMatch && msg.length > 60) {
+  if (skipMatch && msg.length > 30) {
     return [
       { label: 'Styrenhet', value: skipMatch[1] },
       { label: 'Status', value: skipMatch[2] },
