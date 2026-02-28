@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Snowflake, Wrench, AlertTriangle, Shield, Brain, ArrowDown, ArrowUp, History, Clock } from "lucide-react";
+import { Snowflake, Wrench, AlertTriangle, Shield, Brain, ArrowDown, ArrowUp, History, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { AutoCoolingCountdown } from "./AutoCoolingCountdown";
@@ -260,9 +260,18 @@ function buildFeatureBlocks(
   return blocks;
 }
 
+interface RampInfo {
+  controllerName: string;
+  currentTarget: number;
+  upcomingTarget: number;
+  rampRate: number;
+  direction: "down" | "up";
+}
+
 export function AutomationFeatureStatus(props: Props) {
   const [blocks, setBlocks] = useState<FeatureBlock[]>([]);
   const [logTime, setLogTime] = useState<string | null>(null);
+  const [activeRamps, setActiveRamps] = useState<RampInfo[]>([]);
 
   const { autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment } = props;
 
@@ -282,6 +291,27 @@ export function AutomationFeatureStatus(props: Props) {
 
       const decisions = logData ? (logData.decisions as unknown as DecisionEntry[]) || [] : [];
       const results = buildFeatureBlocks(decisions, props);
+
+      // Extract active ramp info from PROACTIVE_NEED decisions
+      const ramps: RampInfo[] = [];
+      for (const d of decisions) {
+        if (d.step === "PROACTIVE_NEED" && d.result === "info") {
+          // Parse: "ControllerName: 19.5°C → 18.0°C @ 0.30°C/h (gradual_ramp, pågår nu)"
+          const match = d.message.match(/^(.+?):\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*@\s*([\d.]+)°C\/h\s*\((\w+),\s*pågår nu\)/);
+          if (match) {
+            const current = parseFloat(match[2]);
+            const upcoming = parseFloat(match[3]);
+            ramps.push({
+              controllerName: match[1].trim(),
+              currentTarget: current,
+              upcomingTarget: upcoming,
+              rampRate: parseFloat(match[4]),
+              direction: upcoming < current ? "down" : "up",
+            });
+          }
+        }
+      }
+      setActiveRamps(ramps);
 
       // Enrich AI
       if (aiAuditEnabled) {
@@ -392,6 +422,23 @@ export function AutomationFeatureStatus(props: Props) {
               />
             </div>
           )}
+
+          {/* Active ramp indicators — under Glykolkylare */}
+          {block.label === "Glykolkylare" && activeRamps.length > 0 && activeRamps.map((ramp, i) => (
+            <div key={`ramp-${i}`} className="flex items-center justify-between text-[11px] pl-6 pr-1 pt-0.5">
+              <div className="flex items-center gap-1 text-accent">
+                {ramp.direction === "down" ? (
+                  <TrendingDown className="h-2.5 w-2.5" />
+                ) : (
+                  <TrendingUp className="h-2.5 w-2.5" />
+                )}
+                <span>Ramp aktiv</span>
+              </div>
+              <span className="text-accent font-medium">
+                {ramp.controllerName} {ramp.direction === "down" ? "↓" : "↑"} {ramp.rampRate.toFixed(1)}°C/h
+              </span>
+            </div>
+          ))}
         </div>
       ))}
     </div>
