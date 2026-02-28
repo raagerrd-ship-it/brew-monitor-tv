@@ -1,26 +1,38 @@
 
 
-## Problem
+## Analys: Överlappning mellan Glykolkylare och PID-kompensation
 
-The last fix incorrectly changed `followed_current_temp` to use sensor data (`current_temp`/`pill_temp`). Per the architecture, the **interpolated profile target** is the Single Source of Truth for tank temperature outside of PID/decision logs. Sensor temps should only appear in the PID bar and decision logs.
+### Problemet
+Under **Glykolkylare** visas redan `profilmål → börvärde (+kompensation)` per controller — t.ex. `21.0° → 21.2° (+0.2°)`. Detta är exakt samma sak som PID-kompensationen visar: skillnaden mellan det interpolerade profilmålet och det faktiska börvärdet som skickats till controllern.
 
-## Fix
+Resultatet är att samma information visas på två ställen, vilket skapar förvirring.
 
-In `supabase/functions/_shared/glycol-cooling.ts` (lines 863-877):
+### Vad som faktiskt händer
+1. **Profilmotorn** interpolerar måltemperaturen (t.ex. under en ramp: 21.0°C just nu)
+2. **PID/Pill-kompensationen** justerar börvärdet baserat på pill-probe-delta (t.ex. +0.2° → börvärde 21.2°C)
+3. Glykolkylare-blocket visar redan båda: `profilmål → börvärde (diff)`
 
-- Remove the `realController` lookup
-- Set `followed_current_temp` back to `worstNeed.currentTarget` (the interpolated ramp position)
-- Set `followed_target_temp` to `worstNeed.upcomingTarget` (the 1-hour look-ahead interpolated target)
+### Förslag till förtydligande
 
-These values already contain the correct interpolated temperatures from the ramp calculation earlier in the function. This is consistent with the SSOT principle: profile_target_temp is the authoritative tank temperature everywhere except PID internals.
+**Alternativ A — Separera informationen tydligare:**
+- **Glykolkylare**: Visa bara profilmål och kylstatus (inte börvärde/kompensation)
+- **PID-kompensation**: Visa `profilmål → börvärde` med pill/probe-detaljer
 
-### Concrete change
+**Alternativ B — Slå ihop till ett block:**
+- Visa allt under en sektion, t.ex. "Temperaturreglering", med profilmål, kompensation och kylstatus samlat
 
-```typescript
-// REMOVE lines 863-866 (realController lookup)
+**Alternativ C — Behåll strukturen men ändra vad som visas:**
+- **Glykolkylare**: Visa bara kylarens status och kylbehov (inte tank-controllers)
+- **PID-kompensation**: Visa per tank-controller: profilmål → börvärde med kompensationsdetalj (pill/probe temps)
 
-// REVERT to:
-followed_current_temp: worstNeed.currentTarget,   // interpolated current ramp position
-followed_target_temp: worstNeed.upcomingTarget,    // interpolated 1h look-ahead
-```
+### Rekommendation: Alternativ C
+Det är mest logiskt att:
+- **Glykolkylare** fokuserar på själva kylaggregatet: dess temp, mål, om den kyler aktivt, och kylbehovet
+- **PID-kompensation** äger all per-tank info: profilmål, kompensation, pill vs probe
+
+### Implementationsplan
+
+1. **Glykolkylare-blocket** — ta bort tank-controller-raderna, behåll bara kylarens egen rad + ramp-indikatorer + synk-nedräkning
+2. **PID-kompensation-blocket** — flytta hit `profilmål → börvärde (komp)` visningen som idag ligger under Glykolkylare, plus befintlig PID-action/skip-info
+3. Justera labels/texter för tydlighet
 
