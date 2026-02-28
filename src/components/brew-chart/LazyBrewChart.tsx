@@ -17,31 +17,54 @@ const BrewChartLazy = lazy(() =>
 function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
   const [chartUrl, setChartUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const fetchChart = useCallback(async () => {
+  const fetchChart = useCallback(async (signal?: AbortSignal) => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brewId, compact, brewCount }),
+        signal,
       });
 
       if (!response.ok) throw new Error('Failed to render chart');
       
       const data = await response.json();
-      setChartUrl(`${data.chartUrl}?t=${Date.now()}`);
+      // Use lastUpdateRaw as stable cache-buster so browser can cache between renders
+      const cacheKey = lastUpdateRaw ? new Date(lastUpdateRaw).getTime() : Date.now();
+      setChartUrl(`${data.chartUrl}?v=${cacheKey}`);
       setError(false);
     } catch (e) {
+      if (signal?.aborted) return;
       console.error('[TvModeChart] Error:', e);
       setError(true);
     }
-  }, [brewId, compact, brewCount]);
+  }, [brewId, compact, brewCount, lastUpdateRaw]);
 
-  // Refresh when data changes (lastUpdateRaw) - no polling needed
+  // Refresh when data changes (lastUpdateRaw)
   useEffect(() => {
-    fetchChart();
-  }, [fetchChart, lastUpdateRaw]);
+    const controller = new AbortController();
+    fetchChart(controller.signal);
+    return () => controller.abort();
+  }, [fetchChart]);
+
+  // Auto-retry on error (up to 3 times, with increasing delay)
+  useEffect(() => {
+    if (!error || retryCount >= 3) return;
+    const delay = (retryCount + 1) * 10000; // 10s, 20s, 30s
+    const timer = setTimeout(() => {
+      setError(false);
+      setRetryCount(prev => prev + 1);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [error, retryCount]);
+
+  // Reset retry count on successful load or data change
+  useEffect(() => {
+    if (chartUrl) setRetryCount(0);
+  }, [chartUrl]);
 
   if (error || !chartUrl) {
     return (
