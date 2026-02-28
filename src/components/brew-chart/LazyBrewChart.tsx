@@ -54,9 +54,10 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
           setError(true);
           return;
         }
-        tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${ms}ms, ${svgSize}b)`, flowId);
         setVisibleSvg(svgText);
         setError(false);
+        setRetryCount(0);
+        tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${svgSize}b)`, flowId);
         setRetryCount(0);
         return true;
       } else {
