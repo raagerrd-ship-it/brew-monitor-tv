@@ -14,7 +14,7 @@ export interface NowPlaying {
 export type ArtStatus = 'displayed' | 'detecting' | 'loading';
 
 export const PLAYBACK_POLL_INTERVAL = 5000;
-export const PLAYBACK_POLL_TIMEOUT = 8000;
+export const PLAYBACK_POLL_TIMEOUT = 12000;
 export const PREDICTIVE_THRESHOLD_MS = 10000;
 export const PREDICTIVE_MARGIN_MS = 500;
 export const PREDICTIVE_RETRY_INTERVAL_MS = 1000;
