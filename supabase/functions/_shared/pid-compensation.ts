@@ -408,11 +408,20 @@ export async function calculateCompensatedTarget(
     const isTowardTarget = newDistToProfile < currentDistToProfile
     
     // When in approach zone AND moving toward profile, allow faster release
-    // so the controller target converges quickly and doesn't keep heater/cooler active unnecessarily
-    const approachRelease = approachScale < 1.0 && isTowardTarget
+    // BUT: during ramp steps, don't release AGAINST the ramp direction.
+    // E.g. during a downward ramp (cooling), don't push target UP — let the ramp catch up.
+    const rampDirectionConflict = isRampStep && (
+      (mode === 'cooling' && isIncreasing) ||  // downward ramp but pushing target up
+      (mode === 'heating' && !isIncreasing)     // upward ramp but pushing target down
+    )
+    const approachRelease = approachScale < 1.0 && isTowardTarget && !rampDirectionConflict
     const bypassLimit = approachRelease ? Math.max(baseLimit, effectiveMaxRate * 0.8) : baseLimit
     
-    if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
+    if (rampDirectionConflict && isTowardTarget && approachScale < 1.0) {
+      // During ramp: hold current target, let ramp bring profile down/up naturally
+      compensatedTarget = currentControllerTarget
+      console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${currentControllerTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
+    } else if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
       if (distanceFromIdeal <= bypassLimit) {
         console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
       } else {
