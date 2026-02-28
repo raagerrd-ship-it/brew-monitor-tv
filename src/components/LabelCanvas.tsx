@@ -71,6 +71,10 @@ function getBrewDate(brew: BrewData): string {
 
 /** Get fermentation temp from current data */
 function getFermentationTemp(brew: BrewData): string {
+  // SSOT: profile target is the authoritative fermentation temperature
+  if (brew.fermentationSession?.controller_profile_target_temp != null) {
+    return `${brew.fermentationSession.controller_profile_target_temp.toFixed(1)}°C`;
+  }
   if (brew.fermentationSession?.controller_target_temp != null) {
     return `${brew.fermentationSession.controller_target_temp.toFixed(1)}°C`;
   }

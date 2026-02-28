@@ -36,3 +36,32 @@ export function getActualTempLabel(
   if (hasPill) return "(pill)";
   return "";
 }
+
+/**
+ * Centralized "display target" calculation.
+ *
+ * Rules:
+ *  - Profile target (SSOT) is the primary display value
+ *  - Falls back to controller target (PID-adjusted) if no profile target
+ *  - Also exposes compensation delta for UI indicators
+ */
+export function getDisplayTarget(
+  profileTarget: number | null | undefined,
+  controllerTarget: number | null | undefined,
+): {
+  /** The target to show the user (profile target preferred) */
+  target: number | null;
+  /** PID compensation: controllerTarget − profileTarget */
+  compensation: number | null;
+} {
+  const pTarget = profileTarget ?? null;
+  const cTarget = controllerTarget ?? null;
+
+  return {
+    target: pTarget ?? cTarget,
+    compensation:
+      pTarget != null && cTarget != null
+        ? Math.round((cTarget - pTarget) * 100) / 100
+        : null,
+  };
+}

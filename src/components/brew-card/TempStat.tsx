@@ -4,7 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getActualTemp, getActualTempLabel } from "@/lib/temp-display";
+import { getActualTemp, getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
 
 interface TempStatProps {
@@ -44,15 +44,16 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   const originalTarget = brew.originalTarget;
 
 
-  // Single source of truth: backend-computed profile target stored on controller
+  // SSOT: centralized target temp calculation
   const currentProfileTarget = brew.fermentationSession?.controller_profile_target_temp ?? null;
-
-  // Show both targets if profile target differs from current (auto-adjusted)
+  const { target: displayTarget, compensation } = getDisplayTarget(
+    currentProfileTarget ?? originalTarget,
+    targetTemp
+  );
   const profileTarget = currentProfileTarget ?? originalTarget;
-  const showBothTargets = profileTarget !== null && targetTemp !== null && targetTemp !== undefined
-    && Math.abs(profileTarget - targetTemp) >= 0.1;
+  const showBothTargets = compensation !== null && Math.abs(compensation) >= 0.1;
   
-  const profileGoal = profileTarget?.toFixed(1);
+  const profileGoal = displayTarget?.toFixed(1);
   const label: React.ReactNode = profileGoal
     ? <>Temp <span className="text-muted-foreground/50">({profileGoal}°)</span></>
     : targetTemp !== null && targetTemp !== undefined
