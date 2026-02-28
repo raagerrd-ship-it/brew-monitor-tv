@@ -11,7 +11,7 @@ interface UseSonosRealtimeParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
@@ -71,7 +71,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           acceptedRef.current = true;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-            onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
           trackChangedAtRef.current = Date.now();
@@ -94,7 +94,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
               tvDebug('sonos', `🖼️ RT: cooldown-uppdatering (${Math.round(msSinceTrackChange / 1000)}s) bg=${!!bgChanged} widget=${!!widgetChanged} next=${!!nextTrackChanged}`);
               if (bgChanged) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-                onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+                onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
               }
               if (nextBgChanged && incoming.next_bg_image_url) {
                 tvDebug('sonos', `🖼️ RT: förladdar next_bg_image`);
@@ -128,7 +128,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           trackChangedAtRef.current = Date.now();
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-            onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
           return incoming;
@@ -148,9 +148,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const bgAlreadySent = updatedBg === bgSentRef.current;
         if (bgChanged && !bgAlreadySent) {
           console.log(`[Sonos:RT] 🖼️ New BG for same track: ${updatedBg?.slice(-60)}`);
-          tvDebug('sonos', `🖼️ RT: ny bg för samma låt`);
+          tvDebug('sonos', `🖼️ RT: ny bg för samma låt "${incoming.track_name}"`);
           pushToBgBuffer(validBgBufferRef.current, updatedBg);
-          onAlbumArtChangeRef.current?.(updatedBg);
+          onAlbumArtChangeRef.current?.(updatedBg, incoming.track_name);
           bgSentRef.current = updatedBg;
         } else if (bgChanged && bgAlreadySent) {
           console.log(`[Sonos:RT] 🖼️ BG already sent, skipping: ${updatedBg?.slice(-60)}`);

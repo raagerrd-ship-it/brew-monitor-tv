@@ -12,7 +12,8 @@ export function useAlbumArtBackground() {
   const visibleBgBaseRef = useRef<string | null>(null);
   const preloadingUrlRef = useRef<string | null>(null);
 
-  const handleAlbumArtChange = useCallback((url: string | null) => {
+  const handleAlbumArtChange = useCallback((url: string | null, trackName?: string) => {
+    const label = trackName ? `"${trackName}"` : '(okänd)';
     if (!url) {
       setVisibleBgUrl(null);
       visibleBgBaseRef.current = null;
@@ -24,17 +25,17 @@ export function useAlbumArtBackground() {
     if (url === preloadingUrlRef.current) return;
     const flowId = `bg-swap-${++bgSwapCounter}`;
     preloadingUrlRef.current = url;
-    tvDebug('bg', `⏳ Laddar ny bakgrundsbild...`, flowId);
+    tvDebug('bg', `⏳ Laddar bakgrund för ${label}...`, flowId);
     const img = new Image();
     img.onload = () => {
       visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
-      tvDebug('bg', `✅ Bakgrundsbild laddad — bytt`, flowId);
+      tvDebug('bg', `✅ Bakgrund laddad för ${label} — bytt`, flowId);
     };
     img.onerror = () => {
       preloadingUrlRef.current = null;
-      tvDebug('bg', `❌ Bakgrundsbild misslyckades`, flowId);
+      tvDebug('bg', `❌ Bakgrund misslyckades för ${label}`, flowId);
     };
     img.src = url;
   }, []);
