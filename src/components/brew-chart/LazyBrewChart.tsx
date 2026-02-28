@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTvMode } from '@/contexts/TvModeContext';
-import { tvDebug } from '@/lib/tv-debug-log';
 import type { BrewChartProps } from './types';
 
 // Lazy load the heavy recharts-based BrewChart component
@@ -30,8 +29,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
   // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
   const doFetch = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const t0 = performance.now();
-    const flowId = `chart-${brewId}-${Date.now()}`;
-    tvDebug('chart', `📊 Hämtar diagram ${brewId.slice(0, 8)}...`, flowId);
     console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount})`);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -55,7 +52,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
         console.log(`[TvModeChart] ✅ ${brewId} loaded in ${ms}ms (${svgSize} bytes, valid=${hasSvgTag})`);
         if (!hasSvgTag) {
           console.error(`[TvModeChart] ❌ Response is not SVG:`, svgText.slice(0, 300));
-          tvDebug('chart', `❌ ${brewId.slice(0, 8)}: ej SVG (${svgSize}b)`, flowId);
           setError(true);
           return;
         }
@@ -63,7 +59,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
         try { localStorage.setItem(cacheKey, svgText); } catch { /* quota */ }
         setError(false);
         setRetryCount(0);
-        tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${svgSize}b)`, flowId);
         return true;
       } else {
         console.log(`[TvModeChart] ⚠️ ${brewId} aborted after ${Math.round(performance.now() - t0)}ms`);
@@ -75,7 +70,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
         return false;
       }
       console.error(`[TvModeChart] ❌ ${brewId} failed after ${Math.round(performance.now() - t0)}ms:`, e?.message || e);
-      tvDebug('chart', `❌ ${brewId.slice(0, 8)}: ${e?.message || 'okänt'}`, flowId);
       setError(true);
       return false;
     }
@@ -85,7 +79,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
   useEffect(() => {
     if (isInactive && hasCachedSvg) {
       console.log(`[TvModeChart] ⏭️ Skipping fetch for inactive brew ${brewId} (using cached SVG)`);
-      tvDebug('chart', `⏭️ ${brewId.slice(0, 8)} inaktiv — använder cachad SVG`);
       mountedRef.current = true;
       return;
     }
@@ -108,7 +101,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
     const timer = setTimeout(() => {
       if (id !== fetchIdRef.current) return;
       console.log(`[TvModeChart] 🔄 Data updated — refreshing chart for ${brewId} (lastUpdate=${lastUpdateRaw})`);
-      tvDebug('chart', `🔄 Uppdaterar diagram ${brewId.slice(0, 8)}...`);
       doFetch();
     }, 2000);
     return () => clearTimeout(timer);
