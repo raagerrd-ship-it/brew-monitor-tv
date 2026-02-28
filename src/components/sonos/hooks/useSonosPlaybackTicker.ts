@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
@@ -75,6 +76,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         if (data.trackName && data.trackName !== trackName) {
           addDebugLog?.(`🔄 Predictive poll confirmed: ${data.trackName}`);
+          tvDebug('sonos', `🔮 Predictive poll bekräftade nytt spår: "${data.trackName}"`);
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
@@ -109,8 +111,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
           predictiveScheduledRef.current = true;
-          // Schedule poll: fire offsetMs BEFORE track end (negative = earlier)
           const delay = Math.max(timeRemaining - offsetMs, 100);
+          tvDebug('sonos', `🔮 Predictive poll om ${(delay / 1000).toFixed(1)}s (${(timeRemaining / 1000).toFixed(0)}s kvar, offset: ${trackChangeOffsetRef.current}s)`);
           addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
           predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
         }
