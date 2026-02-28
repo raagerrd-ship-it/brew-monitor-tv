@@ -116,6 +116,18 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           const delay = Math.max(timeRemaining - offsetMs, 100);
           tvDebug('sonos', `🔮 Predictive poll om ${(delay / 1000).toFixed(1)}s (${(timeRemaining / 1000).toFixed(0)}s kvar, offset: ${trackChangeOffsetRef.current}s)`);
           addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
+
+          // Preload next track's images if available
+          const current = nowPlayingRef?.current;
+          if (current?.next_widget_art_url || current?.next_bg_image_url) {
+            const urls = [current.next_widget_art_url, current.next_bg_image_url].filter(Boolean) as string[];
+            tvDebug('sonos', `🖼️ Förladdar ${urls.length} bilder för nästa låt`);
+            urls.forEach(url => {
+              const img = new Image();
+              img.src = url;
+            });
+          }
+
           predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
         }
       } catch (err) {
