@@ -60,6 +60,7 @@ serve(async (req) => {
     ]);
 
     const track = metadata?.currentItem?.track;
+    const nextTrack = metadata?.nextItem?.track;
 
     return new Response(JSON.stringify({
       ok: true,
@@ -69,6 +70,9 @@ serve(async (req) => {
       trackName: track?.name || null,
       artistName: track?.artist?.name || null,
       albumName: track?.album?.name || null,
+      nextTrackName: nextTrack?.name || null,
+      nextArtistName: nextTrack?.artist?.name || null,
+      nextAlbumArtUrl: nextTrack?.imageUrl || null,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
