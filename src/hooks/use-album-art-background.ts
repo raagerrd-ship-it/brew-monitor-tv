@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { tvDebug } from '@/lib/tv-debug-log';
 
 /**
  * Preloads album art before setting as visible background
@@ -20,13 +21,18 @@ export function useAlbumArtBackground() {
     if (baseUrl === visibleBgBaseRef.current) return;
     if (url === preloadingUrlRef.current) return;
     preloadingUrlRef.current = url;
+    tvDebug('bg', `⏳ Laddar ny bakgrundsbild...`, 'bg-swap');
     const img = new Image();
     img.onload = () => {
       visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
+      tvDebug('bg', `✅ Bakgrundsbild laddad — bytt`, 'bg-swap');
     };
-    img.onerror = () => { preloadingUrlRef.current = null; };
+    img.onerror = () => {
+      preloadingUrlRef.current = null;
+      tvDebug('bg', `❌ Bakgrundsbild misslyckades`, 'bg-swap');
+    };
     img.src = url;
   }, []);
 
