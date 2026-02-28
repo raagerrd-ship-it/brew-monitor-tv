@@ -79,8 +79,10 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           tvDebug('sonos', `🔮 Predictive poll bekräftade nytt spår: "${data.trackName}"`);
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
+          tvDebug('sonos', `🔮 Retry ${PREDICTIVE_MAX_RETRIES - retriesLeft + 1}/${PREDICTIVE_MAX_RETRIES} — samma spår, försöker igen om ${PREDICTIVE_RETRY_INTERVAL_MS/1000}s`);
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
+          tvDebug('sonos', `🔮 Retries slut — ingen ny låt detekterad`);
           localProgressRef.current = data.positionMillis;
           updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, duration);
         }
