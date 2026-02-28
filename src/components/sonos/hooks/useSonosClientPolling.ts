@@ -22,6 +22,7 @@ interface UseSonosClientPollingParams {
   handleTrackChange: (data: TrackChangeData) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   lastPredictivePollRef: React.MutableRefObject<number>;
+  trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
@@ -35,7 +36,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef,
+    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
@@ -80,9 +81,14 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         if (data.trackName) {
           const currentNpSnap = nowPlayingRef.current;
           const trackChanged = (currentNpSnap?.track_name ?? nowPlaying.track_name) !== data.trackName;
-          if (trackChanged) {
+          const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
+          const inCooldown = msSinceTrackChange < 15000;
+          if (trackChanged && !inCooldown) {
             addDebugLog?.(`📡 Poll: track changed → ${data.trackName}`);
             handleTrackChange(data);
+          } else if (trackChanged && inCooldown) {
+            // Server still reports old track during predictive swap cooldown — ignore
+            console.log(`[Sonos:Poll] ⏳ Ignored stale track during cooldown (${Math.round(msSinceTrackChange / 1000)}s): server="${data.trackName}", local="${currentNpSnap?.track_name}"`);
           } else {
              // Same track — update metadata, state, and next-track info (art URLs come from init + realtime)
             setNowPlaying(prev => {
