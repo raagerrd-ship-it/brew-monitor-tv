@@ -19,6 +19,12 @@ function formatTime(ts: number) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
+function formatElapsed(ms: number | null): string {
+  if (ms === null) return '';
+  if (ms < 1000) return `+${ms}ms`;
+  return `+${(ms / 1000).toFixed(1)}s`;
+}
+
 export const TvDebugOverlay = memo(function TvDebugOverlay() {
   const entries = useSyncExternalStore(subscribeTvDebug, getTvDebugEntries);
 
@@ -28,7 +34,7 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
         position: 'fixed',
         bottom: 8,
         right: 8,
-        width: 420,
+        width: 480,
         maxHeight: 320,
         overflow: 'hidden',
         background: 'rgba(0,0,0,0.8)',
@@ -49,12 +55,13 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
       {entries.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column-reverse' }}>
           {[...entries].reverse().map((entry, i) => (
-            <div key={`${entry.ts}-${i}`} style={{ opacity: i < 3 ? 1 : 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              <span style={{ color: '#64748b' }}>{formatTime(entry.ts)}</span>
-              {' '}
-              <span>{categoryLabels[entry.category]}</span>
-              {' '}
-              <span style={{ color: categoryColors[entry.category] }}>{entry.message}</span>
+            <div key={`${entry.ts}-${i}`} style={{ opacity: i < 3 ? 1 : 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', gap: 4 }}>
+              <span style={{ color: '#64748b', flexShrink: 0 }}>{formatTime(entry.ts)}</span>
+              <span style={{ flexShrink: 0 }}>{categoryLabels[entry.category]}</span>
+              <span style={{ color: categoryColors[entry.category], flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.message}</span>
+              {entry.elapsed !== null && (
+                <span style={{ color: '#a78bfa', flexShrink: 0, fontSize: 10 }}>{formatElapsed(entry.elapsed)}</span>
+              )}
             </div>
           ))}
         </div>
