@@ -58,7 +58,6 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
         setError(false);
         setRetryCount(0);
         tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${svgSize}b)`, flowId);
-        setRetryCount(0);
         return true;
       } else {
         console.log(`[TvModeChart] ⚠️ ${brewId} aborted after ${Math.round(performance.now() - t0)}ms`);
