@@ -15,8 +15,7 @@ const BrewChartLazy = lazy(() =>
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
 function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
-  // Two-slot approach: visibleUrl is what's shown, pendingUrl is being preloaded
-  const [visibleUrl, setVisibleUrl] = useState<string | null>(null);
+  const [visibleSvg, setVisibleSvg] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -32,25 +31,12 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
 
       if (!response.ok) throw new Error('Failed to render chart');
       
-      const data = await response.json();
-      const cacheKey = lastUpdateRaw ? new Date(lastUpdateRaw).getTime() : Date.now();
-      const newUrl = `${data.chartUrl}?v=${cacheKey}`;
-
-      // Preload the image before swapping — old image stays visible
-      const img = new Image();
-      img.onload = () => {
-        if (!signal?.aborted) {
-          setVisibleUrl(newUrl);
-          setError(false);
-        }
-      };
-      img.onerror = () => {
-        if (!signal?.aborted) {
-          console.error('[TvModeChart] Image preload failed');
-          setError(true);
-        }
-      };
-      img.src = newUrl;
+      // SVG returned inline — single round trip, no second fetch
+      const svgText = await response.text();
+      if (!signal?.aborted) {
+        setVisibleSvg(svgText);
+        setError(false);
+      }
     } catch (e) {
       if (signal?.aborted) return;
       console.error('[TvModeChart] Error:', e);
@@ -58,17 +44,15 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     }
   }, [brewId, compact, brewCount, lastUpdateRaw]);
 
-  // Refresh when data changes (lastUpdateRaw)
   useEffect(() => {
     const controller = new AbortController();
     fetchChart(controller.signal);
     return () => controller.abort();
   }, [fetchChart]);
 
-  // Auto-retry on error (up to 3 times, with increasing delay)
   useEffect(() => {
     if (!error || retryCount >= 3) return;
-    const delay = (retryCount + 1) * 10000; // 10s, 20s, 30s
+    const delay = (retryCount + 1) * 10000;
     const timer = setTimeout(() => {
       setError(false);
       setRetryCount(prev => prev + 1);
@@ -76,13 +60,11 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     return () => clearTimeout(timer);
   }, [error, retryCount]);
 
-  // Reset retry count on successful load or data change
   useEffect(() => {
-    if (visibleUrl) setRetryCount(0);
-  }, [visibleUrl]);
+    if (visibleSvg) setRetryCount(0);
+  }, [visibleSvg]);
 
-  // Show skeleton only on initial load (no image yet)
-  if (!visibleUrl) {
+  if (!visibleSvg) {
     return (
       <div className="relative w-full h-full">
         <Skeleton className="absolute inset-0 rounded-lg" />
@@ -91,15 +73,10 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   }
 
   return (
-    <div className="relative w-full h-full">
-      <img
-        src={visibleUrl}
-        alt="Brew chart"
-        className="absolute inset-0 w-full h-full rounded-lg"
-        style={{ objectFit: 'fill' }}
-        loading="lazy"
-      />
-    </div>
+    <div
+      className="relative w-full h-full rounded-lg [&>svg]:w-full [&>svg]:h-full"
+      dangerouslySetInnerHTML={{ __html: visibleSvg }}
+    />
   );
 }
 

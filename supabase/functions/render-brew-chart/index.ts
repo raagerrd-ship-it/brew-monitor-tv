@@ -352,11 +352,9 @@ serve(async (req) => {
 
     const bc = brewCount ?? 2;
     const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/chart-images/${fileName}`;
 
-    // ── Step 1: Parallel fetch — cache check + latest snapshot + brew metadata ──
-    const [cacheResult, latestSnapResult, brewResult] = await Promise.all([
-      supabase.storage.from('chart-images').list('', { search: fileName, limit: 1 }),
+    // ── Step 1: Parallel fetch — latest snapshot + brew metadata ──
+    const [latestSnapResult, brewResult] = await Promise.all([
       supabase.from('brew_data_snapshots')
         .select('recorded_at')
         .eq('brew_id', brewId)
@@ -368,22 +366,6 @@ serve(async (req) => {
         .eq('id', brewId)
         .single(),
     ]);
-
-    const latestTs = latestSnapResult.data?.recorded_at ?? '';
-    const existingFile = cacheResult.data?.find(f => f.name === fileName);
-
-    // Cache hit: SVG updated after latest snapshot
-    if (existingFile && latestTs) {
-      const svgUpdated = new Date(existingFile.updated_at).getTime();
-      const snapTime = new Date(latestTs).getTime();
-      if (svgUpdated > snapTime) {
-        console.log(`[RenderChart] Cache hit for ${brewId} (${Date.now() - startTime}ms)`);
-        return new Response(
-          JSON.stringify({ chartUrl: publicUrl }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
 
     if (brewResult.error || !brewResult.data) {
       return new Response(
@@ -412,31 +394,24 @@ serve(async (req) => {
       profile_target_temp: null,
     }));
 
-    // ── Step 3: Generate SVG + upload ──
+    // ── Step 3: Generate SVG and return inline ──
     const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
-    const svgBytes = new TextEncoder().encode(svg);
 
-    const { error: uploadError } = await supabase.storage
+    console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${rawSnapshots?.length ?? 0}→${chartRows.length} pts)`);
+
+    // Upload to storage in background (fire-and-forget for cache)
+    const svgBytes = new TextEncoder().encode(svg);
+    supabase.storage
       .from('chart-images')
-      .upload(fileName, svgBytes, {
-        contentType: 'image/svg+xml',
-        upsert: true,
+      .upload(fileName, svgBytes, { contentType: 'image/svg+xml', upsert: true })
+      .then(({ error: uploadError }) => {
+        if (uploadError) console.error('[RenderChart] Background upload error:', uploadError);
       });
 
-    if (uploadError) {
-      console.error('[RenderChart] Upload error:', uploadError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to upload chart image' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${rawSnapshots?.length ?? 0}→${chartRows.length} pts, ${svgBytes.length} bytes)`);
-
-    return new Response(
-      JSON.stringify({ chartUrl: publicUrl }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // Return SVG directly — eliminates second round trip
+    return new Response(svg, {
+      headers: { ...corsHeaders, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache' },
+    });
 
   } catch (error) {
     console.error('[RenderChart] Error:', error);
