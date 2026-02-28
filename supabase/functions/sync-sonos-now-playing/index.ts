@@ -152,7 +152,7 @@ serve(async (req) => {
         });
       }
       const trackId = track?.id?.objectId || track?.name || existingRow.track_name || '';
-      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null, true);
+      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null, true, existingRow.track_name);
       if (result.bgUrl || result.widgetUrl) {
         const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
         if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
@@ -279,7 +279,7 @@ serve(async (req) => {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const reuseCurrentWidget = sameTrack && existingRow?.widget_art_url;
 
-      const currentResult = await resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null);
+      const currentResult = await resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null, false, currentTrackName);
 
       bgImageUrl = currentResult.bgUrl;
       widgetArtUrl = currentResult.widgetUrl;
@@ -314,7 +314,7 @@ serve(async (req) => {
         if (nextArt.medium) {
           nextAlbumArtMedium = nextArt.medium;
           const nextTrackId = nextTrack?.id?.objectId || nextTrackName || '';
-          const nextResult = await resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, null);
+          const nextResult = await resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, null, false, nextTrackName);
           nextBgUrl = nextResult.bgUrl;
           nextWidgetUrl = nextResult.widgetUrl;
           console.log(`[SonosSync] Next track "${nextTrackName}" images ready (bg: ${!!nextBgUrl}, widget: ${!!nextWidgetUrl})`);

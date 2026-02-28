@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosTrackChangeParams {
@@ -50,14 +50,14 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const hasPreloaded = preloadMatchesTrack && !!(nextWidget || nextBg);
 
       if (hasPreloaded) {
-        tvDebug('sonos', `🎵 → "${data.trackName}" (förladdat ✅)`);
+        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${extractFileName(nextBg)}`);
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
           onAlbumArtChangeRef.current?.(nextBg, data.trackName);
           bgSentRef.current = nextBg;
         }
       } else {
-        tvDebug('sonos', `🎵 → "${data.trackName}" (väntar på RT...)`);
+        tvDebug('sonos', `🎵 → "${data.trackName}" (väntar på bilder...)`);
         // Wait 2s for RT to deliver images before expensive fallback
         (async () => {
           await new Promise(r => setTimeout(r, 2000));

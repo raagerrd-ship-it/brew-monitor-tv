@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NowPlaying, pushToBgBuffer, updateProgressDOM } from './types';
+import { NowPlaying, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
@@ -103,7 +103,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         if (nextBgNew || nextWidgetNew) {
-          tvDebug('sonos', `📡 RT next: bg=${!!nextBgNew} widget=${!!nextWidgetNew}`);
+          tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
         }
 
         const hasChanges = nextBgNew || nextWidgetNew || needsBg || needsWidget

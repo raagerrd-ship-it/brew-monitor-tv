@@ -31,6 +31,14 @@ export function stripQuery(url: string): string {
   return url.split('?')[0];
 }
 
+/** Extract filename from storage URL for debug display */
+export function extractFileName(url: string | null | undefined): string {
+  if (!url) return '?';
+  const path = url.split('?')[0];
+  const parts = path.split('/');
+  return parts[parts.length - 1] || '?';
+}
+
 export function pushToBgBuffer(buf: string[], url: string | null | undefined): void {
   if (!url) return;
   const stripped = stripQuery(url);
