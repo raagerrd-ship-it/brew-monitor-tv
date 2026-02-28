@@ -224,13 +224,12 @@ serve(async (req) => {
       });
     }
 
-    // --- PHASE 1: Write metadata immediately (triggers realtime for fast UI update) ---
     // Extract next track info from Sonos metadata
     const nextTrackName = nextTrack?.name || null;
     const nextArtistName = nextTrack?.artist?.name || null;
     const rawNextArt = nextTrack?.imageUrl || null;
 
-    const metadataPayload = {
+    const metadataPayload: Record<string, any> = {
       group_id: groupId,
       track_name: currentTrackName,
       artist_name: track?.artist?.name || null,
@@ -250,19 +249,26 @@ serve(async (req) => {
       }),
     };
 
+    // --- For NEW tracks: write metadata immediately (fast UI text update), then images separately ---
+    // --- For SAME track: process images first (cache hit = fast), then do ONE single write ---
     let rowId: string;
-    if (existingRow) {
-      await supabase.from('sonos_now_playing').update(metadataPayload).eq('id', existingRow.id);
-      rowId = existingRow.id;
+
+    if (!sameTrack) {
+      // NEW TRACK: Phase 1 write for immediate text update via Realtime
+      if (existingRow) {
+        await supabase.from('sonos_now_playing').update(metadataPayload).eq('id', existingRow.id);
+        rowId = existingRow.id;
+      } else {
+        const { data: inserted } = await supabase.from('sonos_now_playing').insert(metadataPayload).select('id').single();
+        rowId = inserted?.id;
+      }
+      const phase1Ms = Date.now() - startTime;
+      console.log(`[SonosSync] Phase 1 (metadata) done in ${phase1Ms}ms - NEW track "${currentTrackName}"`);
     } else {
-      const { data: inserted } = await supabase.from('sonos_now_playing').insert(metadataPayload).select('id').single();
-      rowId = inserted?.id;
+      rowId = existingRow!.id;
     }
 
-    const phase1Ms = Date.now() - startTime;
-    console.log(`[SonosSync] Phase 1 (metadata) done in ${phase1Ms}ms - "${currentTrackName}"`);
-
-    // --- PHASE 2: Process images and update DB again ---
+    // --- Process current track images ---
     let bgImageUrl: string | null = sameTrack ? (existingRow?.bg_image_url || null) : null;
     let widgetArtUrl: string | null = sameTrack ? (existingRow?.widget_art_url || null) : null;
 
@@ -288,7 +294,7 @@ serve(async (req) => {
       }
     }
 
-    // --- PHASE 3: Process next track images ---
+    // --- Process next track images ---
     let nextBgUrl: string | null = null;
     let nextWidgetUrl: string | null = null;
     let nextAlbumArtMedium: string | null = null;
@@ -301,30 +307,43 @@ serve(async (req) => {
           const nextResult = await resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, null);
           nextBgUrl = nextResult.bgUrl;
           nextWidgetUrl = nextResult.widgetUrl;
-          console.log(`[SonosSync] Phase 3: next track "${nextTrackName}" images ready (bg: ${!!nextBgUrl}, widget: ${!!nextWidgetUrl})`);
+          console.log(`[SonosSync] Next track "${nextTrackName}" images ready (bg: ${!!nextBgUrl}, widget: ${!!nextWidgetUrl})`);
         }
       } catch (e) {
-        console.error(`[SonosSync] Phase 3 error (next track images):`, e);
+        console.error(`[SonosSync] Next track images error:`, e);
       }
     }
 
-    // --- Single combined write for Phase 2+3 (one realtime event instead of two) ---
+    // --- Final DB write ---
     if (rowId) {
-      const combinedUpdate: Record<string, any> = {};
-      if (bgImageUrl) combinedUpdate.bg_image_url = bgImageUrl;
-      if (widgetArtUrl) combinedUpdate.widget_art_url = widgetArtUrl;
-      if (nextAlbumArtMedium) combinedUpdate.next_album_art_url = nextAlbumArtMedium;
-      if (nextBgUrl) combinedUpdate.next_bg_image_url = nextBgUrl;
-      if (nextWidgetUrl) combinedUpdate.next_widget_art_url = nextWidgetUrl;
-      if (Object.keys(combinedUpdate).length > 0) {
-        await supabase.from('sonos_now_playing').update(combinedUpdate).eq('id', rowId);
+      if (sameTrack) {
+        // SAME TRACK: single combined write (metadata + all images = 1 Realtime event)
+        const fullPayload = { ...metadataPayload };
+        if (bgImageUrl) fullPayload.bg_image_url = bgImageUrl;
+        if (widgetArtUrl) fullPayload.widget_art_url = widgetArtUrl;
+        if (nextAlbumArtMedium) fullPayload.next_album_art_url = nextAlbumArtMedium;
+        if (nextBgUrl) fullPayload.next_bg_image_url = nextBgUrl;
+        if (nextWidgetUrl) fullPayload.next_widget_art_url = nextWidgetUrl;
+        await supabase.from('sonos_now_playing').update(fullPayload).eq('id', rowId);
+      } else {
+        // NEW TRACK: Phase 1 already written, now write images (2nd Realtime event)
+        const imageUpdate: Record<string, any> = {};
+        if (bgImageUrl) imageUpdate.bg_image_url = bgImageUrl;
+        if (widgetArtUrl) imageUpdate.widget_art_url = widgetArtUrl;
+        if (nextAlbumArtMedium) imageUpdate.next_album_art_url = nextAlbumArtMedium;
+        if (nextBgUrl) imageUpdate.next_bg_image_url = nextBgUrl;
+        if (nextWidgetUrl) imageUpdate.next_widget_art_url = nextWidgetUrl;
+        if (Object.keys(imageUpdate).length > 0) {
+          await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
+        }
       }
     }
 
-    const phase2Ms = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${phase2Ms}ms (p1=${phase1Ms}ms, p2+3=${phase2Ms - phase1Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
+    const totalMs = Date.now() - startTime;
+    const writeCount = sameTrack ? 1 : 2;
+    console.log(`[SonosSync] Done in ${totalMs}ms (${writeCount} write${writeCount > 1 ? 's' : ''}) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
 
-    return new Response(JSON.stringify({ ok: true, duration_ms: phase2Ms, phase1_ms: phase1Ms }), {
+    return new Response(JSON.stringify({ ok: true, duration_ms: totalMs, writes: writeCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
