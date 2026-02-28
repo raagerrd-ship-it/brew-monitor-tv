@@ -56,29 +56,49 @@ export function findDevicesForBrew(
   pills: PillData[],
   controllers: TempController[]
 ): DeviceMatch {
-  // Automatic matching
   let matchingPill: PillData | null = null;
   let matchingController: TempController | null = null;
 
-  // Try paired_device_id matching first (RAPT hardware pairing)
-  const pairedPill = pills.find(p => p.paired_device_id && controllers.some(c => c.controller_id === p.paired_device_id));
-  if (pairedPill) {
-    const pairedController = controllers.find(c => c.controller_id === pairedPill.paired_device_id) || null;
-    if (pairedController) {
-      // Check if this pill's temp matches the brew temp (±3°C) to confirm it's the right brew
-      const pillTemp = pairedController.pill_temp;
-      if (pillTemp !== null && Math.abs(pillTemp - brew.currentTemp) <= 3) {
-        return { pill: pairedPill, controller: pairedController };
-      }
+  // 1. Direct link: brew has an explicit linked_pill_id (set by sync)
+  if (brew.linked_pill_id) {
+    matchingPill = pills.find(p => p.pill_id === brew.linked_pill_id) || null;
+    // Find controller via pill's paired_device_id
+    if (matchingPill?.paired_device_id) {
+      matchingController = controllers.find(c => c.controller_id === matchingPill!.paired_device_id) || null;
+    }
+    // Or via controller's linked_pill_id
+    if (!matchingController) {
+      matchingController = controllers.find(c => c.linked_pill_id === brew.linked_pill_id) || null;
+    }
+    if (matchingController) return { pill: matchingPill, controller: matchingController };
+  }
+
+  // 2. Direct link: brew has an explicit linked_controller_id
+  if (brew.linked_controller_id) {
+    matchingController = controllers.find(c => c.controller_id === brew.linked_controller_id) || null;
+    if (matchingController?.linked_pill_id) {
+      matchingPill = pills.find(p => p.pill_id === matchingController!.linked_pill_id) || null;
+    }
+    if (matchingController) return { pill: matchingPill, controller: matchingController };
+  }
+
+  // 3. paired_device_id matching — find pill whose hardware pairing matches a controller,
+  //    and whose temperature matches THIS brew (±3°C)
+  for (const pill of pills) {
+    if (!pill.paired_device_id) continue;
+    const pairedController = controllers.find(c => c.controller_id === pill.paired_device_id);
+    if (!pairedController) continue;
+    const pillTemp = pairedController.pill_temp;
+    if (pillTemp !== null && Math.abs(pillTemp - brew.currentTemp) <= 3) {
+      return { pill, controller: pairedController };
     }
   }
 
+  // 4. Color name matching (with synonym groups)
   const brewNameLower = brew.name.toLowerCase();
   const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
-  // Expand to include synonym groups (e.g. "gyllene" → also match "gul")
   const expandedBrewColors = expandColorGroup(brewColors);
 
-  // Try to match controller by color first
   if (expandedBrewColors.length > 0) {
     matchingController = controllers.find(ctrl => {
       const ctrlNameLower = ctrl.name.toLowerCase();
@@ -86,15 +106,13 @@ export function findDevicesForBrew(
     }) || null;
   }
 
-  // If we found a controller, get its linked pill
   if (matchingController && matchingController.linked_pill_id) {
     matchingPill = pills.find(p => p.pill_id === matchingController!.linked_pill_id) || null;
   }
 
-  // If no color match, try temperature matching (±3°C tolerance)
+  // 5. Temperature matching fallback (±3°C tolerance)
   if (!matchingController && !matchingPill) {
     const brewTemp = brew.currentTemp;
-    
     matchingController = controllers.find(ctrl => {
       if (ctrl.pill_temp !== null) {
         return Math.abs(ctrl.pill_temp - brewTemp) <= 3;
