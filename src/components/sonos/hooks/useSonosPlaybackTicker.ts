@@ -120,13 +120,19 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const EAGER_SYNC_THRESHOLD_MS = 15000;
         if (timeRemaining <= EAGER_SYNC_THRESHOLD_MS && timeRemaining > 0 && !eagerSyncDoneRef.current) {
           const current = nowPlayingRef?.current;
-          if (!current?.next_track_name) {
+          if (current?.next_track_name && !current?.next_bg_image_url) {
+            // Have metadata from 5s poll but no processed images — trigger image processing only
+            eagerSyncDoneRef.current = true;
+            tvDebug('sonos', `🔮 ${(timeRemaining / 1000).toFixed(0)}s kvar, har next_track men saknar bilder — triggar server sync`);
+            console.log(`[Sonos:Ticker] Eager sync: ${(timeRemaining / 1000).toFixed(0)}s remaining, have next_track but no images — triggering server sync`);
+            triggerServerSync().catch(() => {});
+          } else if (!current?.next_track_name) {
+            // No metadata at all — still trigger full sync as fallback
             eagerSyncDoneRef.current = true;
             tvDebug('sonos', `🔮 ${(timeRemaining / 1000).toFixed(0)}s kvar, ingen next_track — triggar server sync`);
-            console.log(`[Sonos:Ticker] Eager sync: ${(timeRemaining / 1000).toFixed(0)}s remaining, no next_track — triggering server sync`);
             triggerServerSync().catch(() => {});
           } else {
-            eagerSyncDoneRef.current = true; // Already have data, no need to sync
+            eagerSyncDoneRef.current = true; // Have both metadata and images
           }
         }
 

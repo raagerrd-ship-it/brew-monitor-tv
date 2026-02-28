@@ -84,15 +84,20 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
             addDebugLog?.(`📡 Poll: track changed → ${data.trackName}`);
             handleTrackChange(data);
           } else {
-             // Same track — update metadata and state only (art URLs come from init + realtime)
+             // Same track — update metadata, state, and next-track info (art URLs come from init + realtime)
             setNowPlaying(prev => {
               if (!prev) return prev;
               const artistChanged = prev.artist_name !== data.artistName;
               const albumChanged = prev.album_name !== data.albumName;
               const stateChanged = prev.playback_state !== data.playbackState;
               const durationChanged = duration && prev.duration_ms !== duration;
+              const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
 
-              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged) return prev;
+              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !nextChanged) return prev;
+
+              if (nextChanged) {
+                addDebugLog?.(`📡 Poll: next track → ${data.nextTrackName}`);
+              }
 
               return {
                 ...prev,
@@ -101,6 +106,11 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
                 duration_ms: duration ?? prev.duration_ms,
+                ...(nextChanged ? {
+                  next_track_name: data.nextTrackName,
+                  next_artist_name: data.nextArtistName ?? null,
+                  next_album_art_url: data.nextAlbumArtUrl ?? null,
+                } : {}),
               };
             });
           }
