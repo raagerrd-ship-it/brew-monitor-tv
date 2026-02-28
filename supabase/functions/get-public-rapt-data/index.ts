@@ -76,7 +76,7 @@ serve(async (req) => {
       }
 
       // Fetch related data in parallel
-      const [eventsRes, pillsRes, controllersRes, sessionRes] = await Promise.all([
+      const [eventsRes, pillsRes, controllersRes, sessionRes, coolingSettingsRes] = await Promise.all([
         supabase
           .from('brew_events')
           .select('*')
@@ -122,7 +122,12 @@ serve(async (req) => {
           `)
           .eq('brew_id', brew.id)
           .eq('status', 'running')
-          .maybeSingle()
+          .maybeSingle(),
+        supabase
+          .from('auto_cooling_settings')
+          .select('pill_compensation_enabled')
+          .limit(1)
+          .single()
       ]);
 
       console.log(`Successfully fetched brew: ${brew.name}`);
@@ -134,6 +139,7 @@ serve(async (req) => {
           pills: pillsRes.data || [],
           controllers: controllersRes.data || [],
           fermentationSession: sessionRes.data || null,
+          pillCompEnabled: coolingSettingsRes.data?.pill_compensation_enabled ?? false,
           success: true
         }),
         {
