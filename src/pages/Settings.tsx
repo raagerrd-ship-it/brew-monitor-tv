@@ -5,6 +5,7 @@ import { RaptControllersManagement } from "@/components/RaptControllersManagemen
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
+import { AiAuditHistory } from "@/components/AiAuditHistory";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
@@ -23,7 +24,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
@@ -578,6 +579,9 @@ export default function Settings() {
             <CategorySeparator icon={History} label="Historik" />
             <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar">
               <AutoCoolingDecisionLogs />
+            </SettingsSection>
+            <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar">
+              <AiAuditHistory />
             </SettingsSection>
           </TabsContent>
 
