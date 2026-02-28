@@ -145,11 +145,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         acceptedRef.current = true;
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
         const bgChanged = updatedBg !== prev.bg_image_url;
-        if (bgChanged) {
+        const bgAlreadySent = updatedBg === bgSentRef.current;
+        if (bgChanged && !bgAlreadySent) {
           console.log(`[Sonos:RT] 🖼️ New BG for same track: ${updatedBg?.slice(-60)}`);
           tvDebug('sonos', `🖼️ RT: ny bg för samma låt`);
           pushToBgBuffer(validBgBufferRef.current, updatedBg);
           onAlbumArtChangeRef.current?.(updatedBg);
+          bgSentRef.current = updatedBg;
+        } else if (bgChanged && bgAlreadySent) {
+          console.log(`[Sonos:RT] 🖼️ BG already sent, skipping: ${updatedBg?.slice(-60)}`);
+          tvDebug('sonos', `⏭️ RT: bg redan skickad, skippar`);
         }
         const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
         if (widgetChanged) {
