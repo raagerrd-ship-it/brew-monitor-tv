@@ -15,11 +15,13 @@ const BrewChartLazy = lazy(() =>
  * Server-rendered chart image for TV mode.
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
-function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
+function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, brewStatus }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number; brewStatus?: string }) {
   const cacheKey = `tv-chart-${brewId}-${compact ? 'c' : 'f'}-${brewCount}`;
+  const isInactive = brewStatus === 'Konditionering' || brewStatus === 'Klar';
   const [visibleSvg, setVisibleSvg] = useState<string | null>(() => {
     try { return localStorage.getItem(cacheKey); } catch { return null; }
   });
+  const hasCachedSvg = !!visibleSvg;
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const fetchIdRef = useRef(0);
@@ -79,8 +81,14 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     }
   }, [brewId, compact, brewCount]);
 
-  // Initial fetch on mount — only depends on brewId/compact/brewCount (stable)
+  // Initial fetch on mount — skip if inactive brew with cached SVG
   useEffect(() => {
+    if (isInactive && hasCachedSvg) {
+      console.log(`[TvModeChart] ⏭️ Skipping fetch for inactive brew ${brewId} (using cached SVG)`);
+      tvDebug('chart', `⏭️ ${brewId.slice(0, 8)} inaktiv — använder cachad SVG`);
+      mountedRef.current = true;
+      return;
+    }
     console.log(`[TvModeChart] Mount — starting fetch for ${brewId}`);
     mountedRef.current = false;
     const controller = new AbortController();
@@ -89,12 +97,13 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
       console.log(`[TvModeChart] Unmount — aborting fetch for ${brewId}`);
       controller.abort();
     };
-  }, [doFetch]);
+  }, [doFetch, isInactive, hasCachedSvg]);
 
-  // Debounced refresh when lastUpdateRaw changes — does NOT abort the previous fetch
+  // Debounced refresh when lastUpdateRaw changes — skip for inactive brews
   useEffect(() => {
     if (!lastUpdateRaw) return;
     if (!mountedRef.current) return; // skip initial — mount handles it
+    if (isInactive) return; // no new data expected for inactive brews
     const id = ++fetchIdRef.current;
     const timer = setTimeout(() => {
       if (id !== fetchIdRef.current) return;
@@ -103,7 +112,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
       doFetch();
     }, 2000);
     return () => clearTimeout(timer);
-  }, [lastUpdateRaw, doFetch]);
+  }, [lastUpdateRaw, doFetch, isInactive]);
 
   // Retry on error
   useEffect(() => {
@@ -146,7 +155,7 @@ export function LazyBrewChart(props: BrewChartProps) {
 
   // TV mode: use server-rendered chart images for hardware performance
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} />;
+    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} brewStatus={props.brewStatus} />;
   }
 
   // Desktop & Mobile: interactive Recharts
