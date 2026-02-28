@@ -10,7 +10,6 @@ interface UseSonosInitParams {
 
 /**
  * Parallel fetch of settings + now playing on mount.
- * Returns connection state and widget visibility.
  */
 export function useSonosInit(params: UseSonosInitParams) {
   const { setNowPlaying, localProgressRef, trackChangeOffsetRef } = params;
@@ -20,7 +19,6 @@ export function useSonosInit(params: UseSonosInitParams) {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('[Sonos] Init starting...');
         const [settingsResult, nowPlayingResult] = await Promise.all([
           supabase
             .from('sonos_settings')
@@ -35,44 +33,28 @@ export function useSonosInit(params: UseSonosInitParams) {
         ]);
 
         const { data: settings, error: settingsError } = settingsResult;
-
-        if (settingsError) {
-          console.error('[Sonos] Settings query error:', settingsError);
+        if (settingsError || !settings?.selected_group_id) {
           setIsConnected(false);
           return;
         }
 
-        if (!settings?.selected_group_id) {
-          console.warn('[Sonos] No selected_group_id in settings:', settings);
-          setIsConnected(false);
-          return;
-        }
-
-        console.log('[Sonos] Init connected, group:', settings.selected_group_id);
         setIsConnected(true);
         const show = settings?.show_on_dashboard ?? true;
         setShowWidget(show);
         trackChangeOffsetRef.current = Number(settings?.track_change_offset_seconds) || 0;
 
         const { data: npData, error: npError } = nowPlayingResult;
-        if (npError) {
-          console.warn('[Sonos] Now playing query error:', npError);
-        }
         if (npData && !npError && show) {
           const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
           const isPausedOrIdle = npData.playback_state === 'PLAYBACK_STATE_PAUSED' || npData.playback_state === 'PLAYBACK_STATE_IDLE';
           const stalePause = isPausedOrIdle && npData.updated_at && (Date.now() - new Date(npData.updated_at).getTime()) > PAUSE_TIMEOUT_MS;
 
-          if (npData.playback_state === 'PLAYBACK_STATE_IDLE' || stalePause) {
-            console.log('[Sonos] Init: state is', npData.playback_state, `(stale: ${stalePause}) — not showing widget`);
-          } else {
-            console.log('[Sonos] Init now playing:', npData.track_name, '- state:', npData.playback_state);
+          if (npData.playback_state !== 'PLAYBACK_STATE_IDLE' && !stalePause) {
             setNowPlaying(npData);
             localProgressRef.current = npData.position_ms;
           }
         }
-      } catch (error) {
-        console.error('[Sonos] Failed to init:', error);
+      } catch {
         setIsConnected(false);
       }
     };
