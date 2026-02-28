@@ -55,9 +55,15 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
           bgSentRef.current = nextBg;
         }
       } else {
-        tvDebug('sonos', `🎵 → "${data.trackName}" (hämtar bilder...)`);
-        // Async: server sync → DB fetch → apply images
+        tvDebug('sonos', `🎵 → "${data.trackName}" (väntar på RT...)`);
+        // Wait 2s for RT to deliver images before expensive fallback
         (async () => {
+          await new Promise(r => setTimeout(r, 2000));
+          // Check if bg was already set by RT during the wait
+          if (bgSentRef.current && bgSentRef.current !== prev.bg_image_url) {
+            tvDebug('sonos', `✅ RT levererade bilder under väntan`);
+            return;
+          }
           try {
             await triggerServerSync();
             const result = await fetchNowPlayingImages();
@@ -73,11 +79,8 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                 ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
               } : cur);
-              tvDebug('sonos', `🖼️ Bilder hämtade för "${data.trackName}"`);
             }
-          } catch {
-            tvDebug('sonos', `❌ Bildhämtning misslyckades för "${data.trackName}"`);
-          }
+          } catch { /* ignore */ }
         })();
       }
 
