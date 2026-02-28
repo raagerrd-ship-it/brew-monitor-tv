@@ -70,7 +70,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         }
       })();
 
-      console.log(`[Sonos:TC] State update applied in ${Math.round(performance.now() - t0)}ms`);
+      const ms = Math.round(performance.now() - t0);
+      console.log(`[Sonos:TC] State update applied in ${ms}ms`);
+      tvDebug('sonos', `📝 Widget-text bytt: "${data.trackName}" (${ms}ms)`, 'track-change');
       return {
         ...prev,
         track_name: data.trackName,
