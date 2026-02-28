@@ -38,13 +38,16 @@ serve(async (req) => {
   } catch { /* no body */ }
 
   try {
-    // Fetch settings
-    const { data: settings } = await supabase
-      .from('sonos_settings')
-      .select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
-      .limit(1)
-      .single();
+    // Parallel fetch: settings + token (biggest latency win)
+    const [settingsResult, tokenResult] = await Promise.all([
+      supabase.from('sonos_settings')
+        .select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+        .limit(1)
+        .single(),
+      getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
+    ]);
 
+    const settings = settingsResult.data;
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
       brightness: settings?.bg_brightness ?? 90,
@@ -53,9 +56,6 @@ serve(async (req) => {
       topGradientOpacity: settings?.bg_top_gradient_opacity ?? 0.45,
       topGradientHeight: settings?.bg_top_gradient_height ?? 85,
     };
-
-    // Get valid access token (refresh if expired)
-    const tokenResult = await getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!);
 
     if (!tokenResult) {
       console.error('[SonosSync] Failed to get valid token');

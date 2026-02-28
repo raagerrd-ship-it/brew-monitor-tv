@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchPlaybackStatus, pushToBgBuffer, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, pushToBgBuffer, updateProgressDOM } from './types';
 
 interface UseSonosTrackChangeParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
@@ -47,27 +47,13 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
-      // Trigger server sync + refetch for correct art
-      console.log('[Sonos:BG] Track change — triggering server sync + refetch');
+      // Trigger server sync — images arrive via realtime subscription, no extra fetch needed
+      console.log('[Sonos:BG] Track change — triggering server sync');
       addDebugLog?.(`🔄 Track change: ${data.trackName} — syncing server...`);
       (async () => {
         addDebugLog?.(`🖥️ Server img processing started`);
         await triggerServerSync();
-        addDebugLog?.(`🖥️ Server img processing done`);
-        const fresh = await fetchPlaybackStatus();
-        if (fresh?.bgImageUrl) {
-          console.log('[Sonos:BG] Post-sync refetch got bg:', fresh.bgImageUrl.slice(-60));
-          addDebugLog?.(`🖼️ Post-sync: got new BG URL`);
-          pushToBgBuffer(validBgBufferRef.current, fresh.bgImageUrl);
-          onAlbumArtChangeRef.current?.(fresh.bgImageUrl);
-          bgSentRef.current = fresh.bgImageUrl;
-          setNowPlaying(cur => cur ? {
-            ...cur,
-            bg_image_url: fresh.bgImageUrl,
-            widget_art_url: fresh.widgetArtUrl || cur.widget_art_url,
-            album_art_url: fresh.albumArtUrl || cur.album_art_url,
-          } : cur);
-        }
+        addDebugLog?.(`🖥️ Server img processing done — waiting for realtime update`);
       })();
 
       return {
