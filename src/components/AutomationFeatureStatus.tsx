@@ -360,16 +360,20 @@ export function AutomationFeatureStatus(props: Props) {
             aiBlock.controllers.push({ name: "Resultat", status: "Inga ändringar", variant: "idle" });
           }
 
-          // Show first line of analysis as summary
+          // Expandable analysis
           if (aiData.analysis) {
-            const firstLine = String(aiData.analysis).split('\n')[0].slice(0, 80);
-            if (firstLine) {
-              aiBlock.extra = (
-                <div className="text-[10px] text-muted-foreground/50 pl-6 pr-1 pt-0.5 italic leading-tight">
-                  {firstLine}{String(aiData.analysis).length > 80 ? "…" : ""}
-                </div>
-              );
-            }
+            const full = String(aiData.analysis).trim();
+            const firstLine = full.split('\n')[0].slice(0, 80);
+            aiBlock.extra = (
+              <details className="pl-6 pr-1 pt-0.5">
+                <summary className="text-[10px] text-muted-foreground/50 italic leading-tight cursor-pointer hover:text-muted-foreground/70 select-none">
+                  {firstLine}{full.length > 80 ? "…" : ""}
+                </summary>
+                <pre className="text-[10px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap mt-1 font-sans">
+                  {full}
+                </pre>
+              </details>
+            );
           }
         } else if (aiBlock) {
           aiBlock.controllers = [{ name: "Status", status: "Ingen audit ännu", variant: "skip" }];
