@@ -108,6 +108,7 @@ export interface FermentationSessionData {
   profile_name: string;
   steps: FermentationStepData[];
   controller_current_temp: number | null;
+  controller_pill_temp: number | null;
   controller_target_temp: number | null;
   controller_profile_target_temp?: number | null;
 }

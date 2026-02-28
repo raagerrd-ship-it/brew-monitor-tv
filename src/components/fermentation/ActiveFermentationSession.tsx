@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import { StepExecutionDisplay } from "./StepExecutionDisplay";
 import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { formatRemainingTime } from "./sessionStyles";
+import { getActualTemp } from "@/lib/temp-display";
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -29,12 +30,14 @@ interface ActiveFermentationSessionProps {
   fermentationPhase?: string | null;
   attenuation?: number | null;
   onExpandChange?: (expanded: boolean) => void;
+  pillCompEnabled?: boolean;
 }
 
 export function ActiveFermentationSession({
   controllerId, brewId, compact = false, preloadedSession,
   isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
   sgData, activityScore, fermentationPhase, attenuation, onExpandChange,
+  pillCompEnabled = false,
 }: ActiveFermentationSessionProps) {
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
@@ -58,6 +61,9 @@ export function ActiveFermentationSession({
 
   if (loading || !session) return null;
 
+  // Compute actual temp using SSOT logic (average of pill+probe when pillComp enabled)
+  const actualTemp = getActualTemp(controllerData?.pill_temp, controllerData?.current_temp, pillCompEnabled);
+
   const currentStep = session.steps?.[session.current_step_index];
   const progress = calculateProgress();
   const stepProgress = calculateStepProgress();
@@ -69,8 +75,8 @@ export function ActiveFermentationSession({
     const stepStarted = new Date(session.step_started_at);
     const elapsedHours = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
     const timeComplete = elapsedHours >= currentStep.duration_hours;
-    const tempReached = currentStep.target_temp != null && controllerData?.current_temp != null &&
-      Math.abs(controllerData.current_temp - currentStep.target_temp) <= 0.5;
+    const tempReached = currentStep.target_temp != null && actualTemp != null &&
+      Math.abs(actualTemp - currentStep.target_temp) <= 0.5;
     return timeComplete && !tempReached;
   })();
 
@@ -190,7 +196,7 @@ export function ActiveFermentationSession({
                   currentStep={currentStep}
                   stepStartedAt={session.step_started_at}
                   stepStartTemp={session.step_start_temp}
-                  currentTemp={controllerData?.current_temp ?? null}
+                  currentTemp={actualTemp}
                   targetTemp={controllerData?.target_temp ?? null}
                   profileTargetTemp={controllerData?.profile_target_temp ?? null}
                   isRamping={isRamping}
@@ -205,7 +211,7 @@ export function ActiveFermentationSession({
                   currentStep={currentStep}
                   stepStartedAt={session.step_started_at}
                   stepStartTemp={session.step_start_temp}
-                  currentTemp={controllerData?.current_temp ?? null}
+                  currentTemp={actualTemp}
                   profileTargetTemp={controllerData?.profile_target_temp ?? null}
                   currentSg={currentSg}
                   originalGravity={originalGravity}
@@ -303,7 +309,7 @@ export function ActiveFermentationSession({
           stepStartTemp={session.step_start_temp}
           targetTemp={controllerData?.target_temp ?? null}
           profileStepTarget={profileStepTarget}
-          currentTemp={controllerData?.current_temp ?? null}
+          currentTemp={actualTemp}
           isRamping={isRamping}
           rampProgress={rampProgress}
           currentSg={currentSg}
@@ -347,7 +353,7 @@ export function ActiveFermentationSession({
               currentStep={currentStep}
               stepStartedAt={session.step_started_at}
               stepStartTemp={session.step_start_temp}
-              currentTemp={controllerData?.current_temp ?? null}
+              currentTemp={actualTemp}
               targetTemp={controllerData?.target_temp ?? null}
               profileTargetTemp={controllerData?.profile_target_temp ?? null}
               isRamping={isRamping}
@@ -362,7 +368,7 @@ export function ActiveFermentationSession({
               currentStep={currentStep}
               stepStartedAt={session.step_started_at}
               stepStartTemp={session.step_start_temp}
-              currentTemp={controllerData?.current_temp ?? null}
+              currentTemp={actualTemp}
               profileTargetTemp={controllerData?.profile_target_temp ?? null}
               currentSg={currentSg}
               originalGravity={originalGravity}
