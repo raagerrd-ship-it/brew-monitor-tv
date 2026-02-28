@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import {
   NowPlaying,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
-  stripQuery, pushToBgBuffer, updateProgressDOM,
+  updateProgressDOM,
 } from './types';
 
 interface TrackChangeData {
@@ -18,16 +18,10 @@ interface UseSonosClientPollingParams {
   showWidget: boolean;
   nowPlaying: NowPlaying | null;
   nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
-  displayedArtUrl: string | null;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   handleTrackChange: (data: TrackChangeData) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   lastPredictivePollRef: React.MutableRefObject<number>;
-  trackChangedAtRef: React.MutableRefObject<number>;
-  trackChangeOffsetRef: React.MutableRefObject<number>;
-  bgSentRef: React.MutableRefObject<string | null>;
-  validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
@@ -35,15 +29,13 @@ interface UseSonosClientPollingParams {
 
 /**
  * 5-second polling of sonos-playback-status for position sync and metadata updates.
- * Runs during PLAYING and PAUSED (stops only for IDLE).
- * Includes background sync safeguard.
+ * Runs during PLAYING only. Art URLs come from init + realtime, not polling.
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
-    isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
+    isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef, trackChangeOffsetRef,
-    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
+    localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
@@ -92,11 +84,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
             addDebugLog?.(`📡 Poll: track changed → ${data.trackName}`);
             handleTrackChange(data);
           } else {
-            // Same track — update metadata, state, and art URLs if changed
-            const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
-            const cooldownMs = Math.max(15000, trackChangeOffsetRef.current * 1000 + 15000);
-            const inCooldown = msSinceTrackChange < cooldownMs;
-
+             // Same track — update metadata and state only (art URLs come from init + realtime)
             setNowPlaying(prev => {
               if (!prev) return prev;
               const artistChanged = prev.artist_name !== data.artistName;
@@ -104,23 +92,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
               const stateChanged = prev.playback_state !== data.playbackState;
               const durationChanged = duration && prev.duration_ms !== duration;
 
-              // During cooldown, don't accept art URLs from DB — they may be stale
-              const bgChanged = !inCooldown && data.bgImageUrl && data.bgImageUrl !== prev.bg_image_url;
-              const widgetChanged = !inCooldown && data.widgetArtUrl && data.widgetArtUrl !== prev.widget_art_url;
-              const artChanged = !inCooldown && data.albumArtUrl && data.albumArtUrl !== prev.album_art_url;
-              
-              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !bgChanged && !widgetChanged && !artChanged) return prev;
-
-              if (inCooldown) {
-                console.log(`[Sonos:BG] Poll: skipping art URLs during cooldown (${Math.round(msSinceTrackChange / 1000)}s)`);
-              }
-
-              // Push new bg to buffer if changed
-              if (bgChanged && data.bgImageUrl) {
-                pushToBgBuffer(validBgBufferRef.current, data.bgImageUrl);
-                onAlbumArtChangeRef.current?.(data.bgImageUrl);
-                bgSentRef.current = data.bgImageUrl;
-              }
+              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged) return prev;
 
               return {
                 ...prev,
@@ -129,9 +101,6 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
                 playback_state: data.playbackState,
                 position_ms: data.positionMillis,
                 duration_ms: duration ?? prev.duration_ms,
-                ...(bgChanged ? { bg_image_url: data.bgImageUrl } : {}),
-                ...(widgetChanged ? { widget_art_url: data.widgetArtUrl } : {}),
-                ...(artChanged ? { album_art_url: data.albumArtUrl } : {}),
               };
             });
           }
@@ -139,23 +108,6 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
         }
 
-        // Background sync safeguard — use ref to avoid stale closure
-        const currentNp = nowPlayingRef.current;
-        const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
-        const isKnownValid = sentStripped && validBgBufferRef.current.some(u => stripQuery(u) === sentStripped);
-        if (bgSentRef.current && !isKnownValid) {
-          const expectedBgUrl = currentNp?.bg_image_url || displayedArtUrl;
-          if (expectedBgUrl) {
-            pushToBgBuffer(validBgBufferRef.current, expectedBgUrl);
-            onAlbumArtChangeRef.current?.(expectedBgUrl);
-            bgSentRef.current = expectedBgUrl;
-          }
-        } else if (!bgSentRef.current && displayedArtUrl) {
-          const bgUrl = currentNp?.bg_image_url || displayedArtUrl;
-          pushToBgBuffer(validBgBufferRef.current, bgUrl);
-          onAlbumArtChangeRef.current?.(bgUrl);
-          bgSentRef.current = bgUrl;
-        }
       } catch {
         // ignore
       } finally {

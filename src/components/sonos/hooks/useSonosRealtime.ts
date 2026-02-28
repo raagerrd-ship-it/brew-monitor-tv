@@ -59,16 +59,21 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
         if (msSinceTrackChange < 15000) {
           // Only accept bg_image_url if it's genuinely new for the current track
-          if (incoming.track_name === prev.track_name && incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url) {
-            addDebugLog?.(`📻 RT: new BG during cooldown`);
-            const updatedBg = incoming.bg_image_url;
-            pushToBgBuffer(validBgBufferRef.current, updatedBg);
-            onAlbumArtChangeRef.current?.(updatedBg);
-            return {
-              ...prev,
-              bg_image_url: updatedBg,
-              widget_art_url: incoming.widget_art_url || prev.widget_art_url,
-            };
+          if (incoming.track_name === prev.track_name) {
+            const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
+            const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
+            if (bgChanged || widgetChanged) {
+              addDebugLog?.(`📻 RT: art update during cooldown (bg=${!!bgChanged}, widget=${!!widgetChanged})`);
+              if (bgChanged) {
+                pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
+                onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+              }
+              return {
+                ...prev,
+                ...(bgChanged ? { bg_image_url: incoming.bg_image_url } : {}),
+                ...(widgetChanged ? { widget_art_url: incoming.widget_art_url } : {}),
+              };
+            }
           }
           console.log(`[Sonos] Ignoring realtime during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}"`);
           return prev;
