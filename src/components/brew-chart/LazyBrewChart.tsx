@@ -16,7 +16,10 @@ const BrewChartLazy = lazy(() =>
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
 function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
-  const [visibleSvg, setVisibleSvg] = useState<string | null>(null);
+  const cacheKey = `tv-chart-${brewId}-${compact ? 'c' : 'f'}-${brewCount}`;
+  const [visibleSvg, setVisibleSvg] = useState<string | null>(() => {
+    try { return localStorage.getItem(cacheKey); } catch { return null; }
+  });
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const fetchIdRef = useRef(0);
@@ -55,6 +58,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
           return;
         }
         setVisibleSvg(svgText);
+        try { localStorage.setItem(cacheKey, svgText); } catch { /* quota */ }
         setError(false);
         setRetryCount(0);
         tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${svgSize}b)`, flowId);
