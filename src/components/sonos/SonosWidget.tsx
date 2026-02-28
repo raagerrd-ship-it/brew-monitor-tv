@@ -1,11 +1,11 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { NowPlaying, ArtStatus, pushToBgBuffer, stripQuery } from "./hooks/types";
+import { NowPlaying, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
 import { Logo } from "../Logo";
-import { tvDebug } from "@/lib/tv-debug-log";
+
 
 interface SonosWidgetProps {
   isMobile?: boolean;
@@ -84,18 +84,9 @@ export const SonosWidget = memo(function SonosWidget({
   const isNewArtPending = incomingArtUrl && (!displayedArtUrl || stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl)) && !imageError;
 
   const handleNewImageLoaded = useCallback(() => {
-    const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
-    const newBgStripped = bgUrl ? stripQuery(bgUrl) : null;
-    const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
-    if (bgUrl && (newBgStripped !== sentStripped || !bgSentRef.current)) {
-      pushToBgBuffer(validBgBufferRef.current, bgUrl);
-      onAlbumArtChangeRef.current?.(bgUrl, nowPlaying?.track_name ?? undefined);
-      bgSentRef.current = bgUrl;
-      tvDebug('bg', `🖼️ Bakgrund → "${nowPlaying?.track_name}"`);
-    }
-  }, [incomingArtUrl, nowPlaying?.bg_image_url]);
+  }, [incomingArtUrl]);
 
   if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
 
