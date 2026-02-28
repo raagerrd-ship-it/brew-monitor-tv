@@ -15,7 +15,8 @@ const BrewChartLazy = lazy(() =>
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
 function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number }) {
-  const [chartUrl, setChartUrl] = useState<string | null>(null);
+  // Two-slot approach: visibleUrl is what's shown, pendingUrl is being preloaded
+  const [visibleUrl, setVisibleUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -32,10 +33,24 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
       if (!response.ok) throw new Error('Failed to render chart');
       
       const data = await response.json();
-      // Use lastUpdateRaw as stable cache-buster so browser can cache between renders
       const cacheKey = lastUpdateRaw ? new Date(lastUpdateRaw).getTime() : Date.now();
-      setChartUrl(`${data.chartUrl}?v=${cacheKey}`);
-      setError(false);
+      const newUrl = `${data.chartUrl}?v=${cacheKey}`;
+
+      // Preload the image before swapping — old image stays visible
+      const img = new Image();
+      img.onload = () => {
+        if (!signal?.aborted) {
+          setVisibleUrl(newUrl);
+          setError(false);
+        }
+      };
+      img.onerror = () => {
+        if (!signal?.aborted) {
+          console.error('[TvModeChart] Image preload failed');
+          setError(true);
+        }
+      };
+      img.src = newUrl;
     } catch (e) {
       if (signal?.aborted) return;
       console.error('[TvModeChart] Error:', e);
@@ -63,10 +78,11 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
 
   // Reset retry count on successful load or data change
   useEffect(() => {
-    if (chartUrl) setRetryCount(0);
-  }, [chartUrl]);
+    if (visibleUrl) setRetryCount(0);
+  }, [visibleUrl]);
 
-  if (error || !chartUrl) {
+  // Show skeleton only on initial load (no image yet)
+  if (!visibleUrl) {
     return (
       <div className="relative w-full h-full">
         <Skeleton className="absolute inset-0 rounded-lg" />
@@ -77,7 +93,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   return (
     <div className="relative w-full h-full">
       <img
-        src={chartUrl}
+        src={visibleUrl}
         alt="Brew chart"
         className="absolute inset-0 w-full h-full rounded-lg"
         style={{ objectFit: 'fill' }}
