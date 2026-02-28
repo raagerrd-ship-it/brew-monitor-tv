@@ -146,14 +146,22 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
         const bgChanged = updatedBg !== prev.bg_image_url;
         const bgAlreadySent = updatedBg === bgSentRef.current;
-        if (bgChanged && !bgAlreadySent) {
+        // Guard against stale bg from server Fas 1 (track name updated but bg still from old track).
+        // If we already have a bg (bgSentRef set) and are within 30s of track change, only accept
+        // the bg if it's the same we already sent (no-op) — skip stale ones.
+        const msSinceTC = Date.now() - trackChangedAtRef.current;
+        const bgIsStale = bgChanged && !bgAlreadySent && !!bgSentRef.current && msSinceTC < 30000;
+        if (bgChanged && !bgAlreadySent && !bgIsStale) {
           console.log(`[Sonos:RT] 🖼️ New BG for same track: ${updatedBg?.slice(-60)}`);
           tvDebug('sonos', `🖼️ RT: ny bg för samma låt "${incoming.track_name}"`);
           pushToBgBuffer(validBgBufferRef.current, updatedBg);
           onAlbumArtChangeRef.current?.(updatedBg, incoming.track_name);
           bgSentRef.current = updatedBg;
+        } else if (bgIsStale) {
+          console.log(`[Sonos:RT] ⏭️ Stale BG ignored (${Math.round(msSinceTC / 1000)}s since TC, already have bg): ${updatedBg?.slice(-60)}`);
+          tvDebug('sonos', `⏭️ RT: stale bg ignorerad (${Math.round(msSinceTC / 1000)}s, har redan bg)`);
         } else if (bgChanged && bgAlreadySent) {
-          console.log(`[Sonos:RT] 🖼️ BG already sent, skipping: ${updatedBg?.slice(-60)}`);
+          console.log(`[Sonos:RT] ⏭️ BG already sent, skipping: ${updatedBg?.slice(-60)}`);
           tvDebug('sonos', `⏭️ RT: bg redan skickad, skippar`);
         }
         const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
