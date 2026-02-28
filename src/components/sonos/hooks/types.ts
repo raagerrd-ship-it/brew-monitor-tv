@@ -56,6 +56,8 @@ export async function triggerServerSync(): Promise<void> {
 
 export async function fetchPlaybackStatus(): Promise<{
   bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+  trackName?: string; artistName?: string; albumName?: string;
+  playbackState?: string; positionMillis?: number; durationMillis?: number;
 } | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
@@ -75,6 +77,29 @@ export async function fetchPlaybackStatus(): Promise<{
     const data = await res.json();
     return data.ok ? data : null;
   } catch { return null; } finally { clearTimeout(timeout); }
+}
+
+/**
+ * Fetch processed image URLs directly from the DB (sonos_now_playing row).
+ * Used after triggerServerSync to get bg/widget images without waiting for realtime.
+ */
+export async function fetchNowPlayingImages(): Promise<{
+  bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+} | null> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data } = await supabase
+      .from('sonos_now_playing')
+      .select('bg_image_url, widget_art_url, album_art_url')
+      .limit(1)
+      .single();
+    if (!data) return null;
+    return {
+      bgImageUrl: data.bg_image_url ?? undefined,
+      widgetArtUrl: data.widget_art_url ?? undefined,
+      albumArtUrl: data.album_art_url ?? undefined,
+    };
+  } catch { return null; }
 }
 
 export function updateProgressDOM(

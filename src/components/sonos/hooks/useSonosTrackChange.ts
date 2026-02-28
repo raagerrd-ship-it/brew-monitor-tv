@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchPlaybackStatus, pushToBgBuffer, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosTrackChangeParams {
@@ -73,12 +73,12 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
           if (!hasPreloadedImages) {
             const fetchT0 = performance.now();
             const directId = `art-direct-${trackChangeCounter}`;
-            tvDebug('sonos', `🖼️ Hämtar bilder direkt...`, directId);
-            const result = await fetchPlaybackStatus();
+            tvDebug('sonos', `🖼️ Hämtar bilder från DB...`, directId);
+            const result = await fetchNowPlayingImages();
             const fetchMs = Math.round(performance.now() - fetchT0);
             if (result) {
-              tvDebug('sonos', `✅ Bilder hämtade`, directId);
-              console.log(`[Sonos:TC] ✅ Direct art fetch in ${fetchMs}ms`);
+              tvDebug('sonos', `✅ Bilder hämtade (${fetchMs}ms)`, directId);
+              console.log(`[Sonos:TC] ✅ Direct DB art fetch in ${fetchMs}ms`);
               setNowPlaying(cur => cur ? {
                 ...cur,
                 ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
@@ -90,7 +90,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                 onAlbumArtChangeRef.current?.(result.bgImageUrl);
                 bgSentRef.current = result.bgImageUrl;
-                tvDebug('sonos', `🖼️ Bakgrund triggad från direkt-hämtning`);
+                tvDebug('sonos', `🖼️ Bakgrund triggad från DB-hämtning`);
               }
             }
           }
