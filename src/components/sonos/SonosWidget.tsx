@@ -79,7 +79,7 @@ export const SonosWidget = memo(function SonosWidget({
     onRealtimeRef, isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef, addDebugLog,
+    progressBarRef, debugTimeRef, addDebugLog, isTvMode,
   });
 
   const { shouldHide } = useSonosVisibility({
