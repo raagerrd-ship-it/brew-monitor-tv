@@ -94,7 +94,7 @@ export const SonosWidget = memo(function SonosWidget({
   useEffect(() => {
     if (incomingArtUrl) {
       console.log(`[Sonos:IMG] 🖼️ New art URL received: ${incomingArtUrl.slice(-60)}`);
-      tvDebug('sonos', `⏳ Ny bild-URL mottagen — laddar...`);
+      tvDebug('sonos', `⏳ Bild-URL mottagen — laddar...`, 'img-load');
       setImageError(false);
     }
   }, [incomingArtUrl]);
@@ -112,7 +112,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   const handleNewImageLoaded = useCallback(() => {
     console.log(`[Sonos:IMG] ✅ Widget art loaded: ${incomingArtUrl?.slice(-60)}`);
-    tvDebug('sonos', `✅ Låtbild laddad — visas i widget`);
+    tvDebug('sonos', `✅ Låtbild laddad — visas i widget`, 'img-load');
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
@@ -121,7 +121,7 @@ export const SonosWidget = memo(function SonosWidget({
     const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
     if (bgUrl && (newBgStripped !== sentStripped || !bgSentRef.current)) {
       console.log(`[Sonos:IMG] 🖼️ Sending BG to dashboard: ${bgUrl.slice(-60)}`);
-      tvDebug('bg', `🖼️ Ny sidbakgrund skickad till dashboard`);
+      tvDebug('bg', `🖼️ Ny sidbakgrund skickad`, 'bg-update');
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;

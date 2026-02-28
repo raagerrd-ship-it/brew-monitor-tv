@@ -25,7 +25,8 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
   const doFetch = useCallback(async (signal?: AbortSignal) => {
     const t0 = performance.now();
-    tvDebug('chart', `📊 Hämtar diagram för ${brewId}...`);
+    const flowId = `chart-${brewId}`;
+    tvDebug('chart', `📊 Hämtar diagram ${brewId.slice(0, 8)}...`, flowId);
     console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount})`);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -49,11 +50,11 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
         console.log(`[TvModeChart] ✅ ${brewId} loaded in ${ms}ms (${svgSize} bytes, valid=${hasSvgTag})`);
         if (!hasSvgTag) {
           console.error(`[TvModeChart] ❌ Response is not SVG:`, svgText.slice(0, 300));
-          tvDebug('chart', `❌ ${brewId}: Svar är ej SVG (${svgSize} bytes)`);
+          tvDebug('chart', `❌ ${brewId.slice(0, 8)}: ej SVG (${svgSize}b)`, flowId);
           setError(true);
           return;
         }
-        tvDebug('chart', `✅ ${brewId} diagram laddat (${ms}ms, ${svgSize}b) — visas nu`);
+        tvDebug('chart', `✅ ${brewId.slice(0, 8)} laddat (${ms}ms, ${svgSize}b)`, flowId);
         setVisibleSvg(svgText);
         setError(false);
         setRetryCount(0);
@@ -66,7 +67,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
         return;
       }
       console.error(`[TvModeChart] ❌ ${brewId} failed after ${Math.round(performance.now() - t0)}ms:`, e?.message || e);
-      tvDebug('chart', `❌ ${brewId} misslyckades: ${e?.message || 'okänt fel'}`);
+      tvDebug('chart', `❌ ${brewId.slice(0, 8)}: ${e?.message || 'okänt'}`, flowId);
       setError(true);
     }
   }, [brewId, compact, brewCount]);
