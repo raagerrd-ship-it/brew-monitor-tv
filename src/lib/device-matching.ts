@@ -1,6 +1,45 @@
 import { BrewData, PillData, TempController } from "@/types/brew";
 import { colorKeywords } from "./color-utils";
 
+/**
+ * Color groups: keywords that should cross-match each other.
+ * If a brew name contains "gyllene", it should match a controller named "gul".
+ */
+const colorGroups: string[][] = [
+  ['gul', 'gyllene', 'guld', 'golden', 'yellow'],
+  ['röd', 'red'],
+  ['blå', 'blue'],
+  ['grön', 'green'],
+  ['lila', 'purple'],
+  ['rosa', 'pink'],
+  ['orange'],
+  ['cyan'],
+  ['lime'],
+  ['amber', 'bärnsten'],
+  ['turkos', 'teal'],
+  ['indigo'],
+  ['violet', 'violett'],
+  ['fuchsia'],
+  ['rose'],
+  ['himmel', 'sky'],
+  ['smaragd', 'emerald'],
+];
+
+/**
+ * Given a list of matched color keywords from the brew name,
+ * expand them to include all synonyms from the same color group.
+ */
+function expandColorGroup(matchedColors: string[]): string[] {
+  const expanded = new Set(matchedColors);
+  for (const color of matchedColors) {
+    const group = colorGroups.find(g => g.includes(color));
+    if (group) {
+      group.forEach(c => expanded.add(c));
+    }
+  }
+  return Array.from(expanded);
+}
+
 export interface DeviceMatch {
   pill: PillData | null;
   controller: TempController | null;
@@ -9,7 +48,7 @@ export interface DeviceMatch {
 /**
  * Find matching pill and controller for a brew based on:
  * 1. paired_device_id from RAPT hardware pairing (pill → controller)
- * 2. Color name matching
+ * 2. Color name matching (with synonym groups)
  * 3. Temperature matching (±3°C tolerance)
  */
 export function findDevicesForBrew(
@@ -36,12 +75,14 @@ export function findDevicesForBrew(
 
   const brewNameLower = brew.name.toLowerCase();
   const brewColors = colorKeywords.filter(color => brewNameLower.includes(color));
+  // Expand to include synonym groups (e.g. "gyllene" → also match "gul")
+  const expandedBrewColors = expandColorGroup(brewColors);
 
   // Try to match controller by color first
-  if (brewColors.length > 0) {
+  if (expandedBrewColors.length > 0) {
     matchingController = controllers.find(ctrl => {
       const ctrlNameLower = ctrl.name.toLowerCase();
-      return brewColors.some(color => ctrlNameLower.includes(color));
+      return expandedBrewColors.some(color => ctrlNameLower.includes(color));
     }) || null;
   }
 
