@@ -266,7 +266,7 @@ export function BrewingDashboard() {
       <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
 
       {/* TV Debug Overlay */}
-      {isTvMode && <TvDebugOverlay />}
+      <TvDebugOverlay />
     </div>
   </>;
 }
