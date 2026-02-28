@@ -711,11 +711,21 @@ async function handleProactiveCooling(
         const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
         const remainingHours = Math.max(0, currentStep.duration_hours - elapsedHours)
         if (remainingHours > 0) {
+          // Use the INTERPOLATED current ramp position as the target for glycol,
+          // not the ramp's final destination. Otherwise glycol pre-cools way too aggressively.
+          const progress = Math.min(elapsedHours / currentStep.duration_hours, 1)
+          const interpolatedTarget = startTemp + (stepTarget - startTemp) * progress
+
+          // Look ahead: where will the ramp be in ~1 hour? That's what glycol needs to support.
+          const lookAheadHours = Math.min(1.0, remainingHours)
+          const futureProgress = Math.min((elapsedHours + lookAheadHours) / currentStep.duration_hours, 1)
+          const futureTarget = startTemp + (stepTarget - startTemp) * futureProgress
+
           upcomingNeeds.push({
             controllerId: session.controller_id,
             controllerName: controller.name,
-            currentTarget: currentEffectiveTarget,
-            upcomingTarget: stepTarget,
+            currentTarget: Math.round(interpolatedTarget * 10) / 10,
+            upcomingTarget: Math.round(futureTarget * 10) / 10,
             rampRateNeeded: rampRate,
             hoursUntilNeeded: 0, // already happening
             stepType: 'active_ramp',
