@@ -288,41 +288,43 @@ serve(async (req) => {
       }
     }
 
-    // Write images to DB (triggers second realtime event with images)
-    if (rowId && (bgImageUrl || widgetArtUrl)) {
-      const imageUpdate: Record<string, any> = {};
-      if (bgImageUrl) imageUpdate.bg_image_url = bgImageUrl;
-      if (widgetArtUrl) imageUpdate.widget_art_url = widgetArtUrl;
-      await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
-    }
-
-    const phase2Ms = Date.now() - startTime;
-
-    // --- PHASE 3: Process next track images (non-blocking for current track display) ---
-    if (rowId && rawNextArt && nextTrackName) {
+    // --- PHASE 3: Process next track images ---
+    let nextBgUrl: string | null = null;
+    let nextWidgetUrl: string | null = null;
+    let nextAlbumArtMedium: string | null = null;
+    if (rawNextArt && nextTrackName) {
       try {
         const nextArt = await resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId);
         if (nextArt.medium) {
+          nextAlbumArtMedium = nextArt.medium;
           const nextTrackId = nextTrack?.id?.objectId || nextTrackName || '';
           const nextResult = await resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, null);
-          const nextUpdate: Record<string, any> = {};
-          if (nextArt.medium) nextUpdate.next_album_art_url = nextArt.medium;
-          if (nextResult.bgUrl) nextUpdate.next_bg_image_url = nextResult.bgUrl;
-          if (nextResult.widgetUrl) nextUpdate.next_widget_art_url = nextResult.widgetUrl;
-          if (Object.keys(nextUpdate).length > 0) {
-            await supabase.from('sonos_now_playing').update(nextUpdate).eq('id', rowId);
-            console.log(`[SonosSync] Phase 3: next track "${nextTrackName}" images ready (bg: ${!!nextResult.bgUrl}, widget: ${!!nextResult.widgetUrl})`);
-          }
+          nextBgUrl = nextResult.bgUrl;
+          nextWidgetUrl = nextResult.widgetUrl;
+          console.log(`[SonosSync] Phase 3: next track "${nextTrackName}" images ready (bg: ${!!nextBgUrl}, widget: ${!!nextWidgetUrl})`);
         }
       } catch (e) {
         console.error(`[SonosSync] Phase 3 error (next track images):`, e);
       }
     }
 
-    const duration = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${duration}ms (p1=${phase1Ms}ms, p2=${phase2Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
+    // --- Single combined write for Phase 2+3 (one realtime event instead of two) ---
+    if (rowId) {
+      const combinedUpdate: Record<string, any> = {};
+      if (bgImageUrl) combinedUpdate.bg_image_url = bgImageUrl;
+      if (widgetArtUrl) combinedUpdate.widget_art_url = widgetArtUrl;
+      if (nextAlbumArtMedium) combinedUpdate.next_album_art_url = nextAlbumArtMedium;
+      if (nextBgUrl) combinedUpdate.next_bg_image_url = nextBgUrl;
+      if (nextWidgetUrl) combinedUpdate.next_widget_art_url = nextWidgetUrl;
+      if (Object.keys(combinedUpdate).length > 0) {
+        await supabase.from('sonos_now_playing').update(combinedUpdate).eq('id', rowId);
+      }
+    }
 
-    return new Response(JSON.stringify({ ok: true, duration_ms: duration, phase1_ms: phase1Ms }), {
+    const phase2Ms = Date.now() - startTime;
+    console.log(`[SonosSync] Done in ${phase2Ms}ms (p1=${phase1Ms}ms, p2+3=${phase2Ms - phase1Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
+
+    return new Response(JSON.stringify({ ok: true, duration_ms: phase2Ms, phase1_ms: phase1Ms }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
