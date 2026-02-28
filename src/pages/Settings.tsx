@@ -533,57 +533,6 @@ export default function Settings() {
             {settings.autoCoolingEnabled && settings.coolerControllerId && (
               <SettingsSection icon={Thermometer} title="Live-status" variant="muted">
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Cooler */}
-                    <div className="rounded-lg bg-muted/30 border border-border/40 p-3 space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Kylare</span>
-                      {(() => {
-                        const cooler = settings.availableControllers.find(c => c.id === settings.coolerControllerId);
-                        if (!cooler) return <p className="text-xs text-muted-foreground">Ej hittad</p>;
-                        const current = cooler.current_temp != null ? Number(cooler.current_temp).toFixed(1) : null;
-                        const target = cooler.target_temp != null ? Number(cooler.target_temp).toFixed(1) : null;
-                        const isActivelyCooling = cooler.cooling_enabled && cooler.current_temp != null && cooler.target_temp != null && cooler.current_temp > cooler.target_temp;
-                        return (
-                          <>
-                            <p className="text-sm font-medium truncate">{cooler.name}</p>
-                            <div className="text-xs text-muted-foreground">
-                              {current && <span>{current}°</span>}
-                              {current && target && <span className="mx-1">→</span>}
-                              {target && <span className="text-foreground">{target}°</span>}
-                            </div>
-                            <div className={`text-[10px] flex items-center gap-1 ${isActivelyCooling ? 'text-accent' : 'text-muted-foreground/60'}`}>
-                              <Snowflake className="h-3 w-3" />
-                              {isActivelyCooling ? 'Kyler ↓' : cooler.cooling_enabled ? 'Vid mål' : 'Av'}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Followed */}
-                    <div className="rounded-lg bg-muted/30 border border-border/40 p-3 space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Följda ({settings.followedControllerIds.length})
-                      </span>
-                      {(() => {
-                        const followed = settings.availableControllers.filter(c => settings.followedControllerIds.includes(c.id));
-                        if (followed.length === 0) return <p className="text-xs text-muted-foreground">Inga</p>;
-                        return followed.map(fc => {
-                          const temp = fc.current_temp ?? fc.pill_temp;
-                          return (
-                            <div key={fc.id} className="flex items-center justify-between text-xs">
-                              <span className="truncate font-medium">{fc.name}</span>
-                              <span className="text-muted-foreground shrink-0 ml-2">
-                                {temp != null ? `${Number(temp).toFixed(1)}°` : '—'}
-                                {fc.target_temp != null && <span className="text-foreground ml-0.5">→{fc.target_temp.toFixed(1)}°</span>}
-                              </span>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-
                   <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3 w-3" />
@@ -628,28 +577,16 @@ export default function Settings() {
                       })()}
                     />
                   </div>
-
-                  {settings.lastAdjustment && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
-                      <History className="h-3 w-3 shrink-0" />
-                      <span>
-                        Senast: {parseFloat(Number(settings.lastAdjustment.old_target_temp).toFixed(1))}° → {parseFloat(Number(settings.lastAdjustment.new_target_temp).toFixed(1))}°
-                        {settings.lastAdjustment.new_target_temp < settings.lastAdjustment.old_target_temp 
-                          ? <ArrowDown className="h-3 w-3 text-accent inline ml-0.5" />
-                          : <ArrowUp className="h-3 w-3 text-primary inline ml-0.5" />
-                        }
-                        <span className="ml-1 text-muted-foreground/60">
-                          {formatDistanceToNow(new Date(settings.lastAdjustment.created_at), { addSuffix: true, locale: sv })}
-                        </span>
-                      </span>
-                    </div>
-                  )}
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
                     pillCompEnabled={settings.pillCompEnabled}
                     stallDetectionEnabled={settings.stallDetectionEnabled}
                     overshootPreventionEnabled={settings.overshootPreventionEnabled}
                     aiAuditEnabled={settings.aiAuditEnabled}
+                    availableControllers={settings.availableControllers}
+                    coolerControllerId={settings.coolerControllerId}
+                    followedControllerIds={settings.followedControllerIds}
+                    lastAdjustment={settings.lastAdjustment}
                   />
                 </div>
               </SettingsSection>
