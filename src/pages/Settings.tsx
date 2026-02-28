@@ -3,7 +3,6 @@ import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
-import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
 import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
@@ -533,50 +532,6 @@ export default function Settings() {
             {settings.autoCoolingEnabled && settings.coolerControllerId && (
               <SettingsSection icon={Thermometer} title="Live-status" variant="muted">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3 w-3" />
-                      <span>Nästa kontroll</span>
-                    </div>
-                    <AutoCoolingCountdown 
-                      lastAdjustmentTime={settings.lastAutoCoolingCheck}
-                      checkIntervalMinutes={parseInt(settings.autoCoolingInterval)}
-                      enabled={settings.autoCoolingEnabled}
-                      coolingActive={(() => {
-                        const cooler = settings.availableControllers.find(c => c.id === settings.coolerControllerId);
-                        return cooler?.cooling_enabled ?? false;
-                      })()}
-                      currentTemp={(() => {
-                        const followedControllers = settings.availableControllers.filter(c => 
-                          settings.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                        );
-                        if (followedControllers.length === 0) return null;
-                        const withTarget = followedControllers.filter(c => c.target_temp != null);
-                        if (withTarget.length === 0) return null;
-                        const lowest = withTarget.reduce((min, c) => c.target_temp! < min.target_temp! ? c : min);
-                        return lowest.current_temp ?? lowest.pill_temp ?? null;
-                      })()}
-                      targetTemp={(() => {
-                        const followedControllers = settings.availableControllers.filter(c => 
-                          settings.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                        );
-                        if (followedControllers.length === 0) return null;
-                        const withTarget = followedControllers.filter(c => c.target_temp != null);
-                        if (withTarget.length === 0) return null;
-                        return Math.min(...withTarget.map(c => c.target_temp!));
-                      })()}
-                      coolingHysteresis={(() => {
-                        const followedControllers = settings.availableControllers.filter(c => 
-                          settings.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                        );
-                        if (followedControllers.length === 0) return null;
-                        const withTarget = followedControllers.filter(c => c.target_temp != null);
-                        if (withTarget.length === 0) return null;
-                        const lowest = withTarget.reduce((min, c) => c.target_temp! < min.target_temp! ? c : min);
-                        return lowest.cooling_hysteresis ?? null;
-                      })()}
-                    />
-                  </div>
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
                     pillCompEnabled={settings.pillCompEnabled}
@@ -587,6 +542,8 @@ export default function Settings() {
                     coolerControllerId={settings.coolerControllerId}
                     followedControllerIds={settings.followedControllerIds}
                     lastAdjustment={settings.lastAdjustment}
+                    lastAutoCoolingCheck={settings.lastAutoCoolingCheck}
+                    autoCoolingInterval={settings.autoCoolingInterval}
                   />
                 </div>
               </SettingsSection>
