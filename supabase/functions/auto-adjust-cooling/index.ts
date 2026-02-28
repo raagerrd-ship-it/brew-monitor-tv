@@ -428,43 +428,8 @@ serve(async (req) => {
         );
 
         if (!compensation) {
-          // Profile-owned: enforce profile target directly — but ONLY if no significant pill delta
-          // exists. If pill delta is large, PID should handle it next cycle rather than blindly
-          // resetting the controller target and undoing PID compensation.
-          if (isProfileOwned) {
-            const pillTemp = fc.pill_temp != null ? parseFloat(String(fc.pill_temp)) : null;
-            const probeTemp = fc.current_temp != null ? parseFloat(String(fc.current_temp)) : null;
-            const pillDelta = (pillTemp != null && probeTemp != null) ? Math.abs(pillTemp - probeTemp) : 0;
-
-            if (pillDelta > 0.5) {
-              log('PROFILE_ENFORCE', 'info', `${fc.name}: skipping enforce — pill delta ${pillDelta.toFixed(1)}°C exists, PID will handle next cycle`);
-              continue;
-            }
-
-            const diff = Math.abs(targetTemp - baseTarget);
-            if (diff >= 0.15) {
-              log('PROFILE_ENFORCE', 'action', `${fc.name}: enforcing profile target ${baseTarget}°C (current controller=${targetTemp}°C)`);
-              const success = await setControllerTargetTemp(supabaseUrl, supabaseKey, fc.controller_id, baseTarget);
-              if (success) {
-                allAdjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget: baseTarget });
-                await supabase.from('rapt_temp_controllers')
-                  .update({ target_temp: baseTarget, updated_at: new Date().toISOString() })
-                  .eq('controller_id', fc.controller_id);
-                await logAdjustment(supabase, {
-                  cooler_controller_id: fc.controller_id,
-                  cooler_controller_name: fc.name,
-                  old_target_temp: targetTemp,
-                  new_target_temp: baseTarget,
-                  original_target_temp: baseTarget,
-                  lowest_followed_temp: baseTarget,
-                  followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
-                  followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
-                  reason: `🔧 Profil-enforce: ${baseTarget.toFixed(1)}°C (ingen pill-komp behövs)`,
-                  adjusted_against_timestamp: fc.last_update,
-                });
-              }
-            }
-          }
+          // null = genuinely no delta history data at all — skip, nothing we can do
+          log('PILL_COMP_SKIP', 'info', `${fc.name}: no delta history available — skipping PID`);
           continue;
         }
 
