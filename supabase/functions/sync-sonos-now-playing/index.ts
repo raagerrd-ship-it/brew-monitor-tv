@@ -213,18 +213,57 @@ serve(async (req) => {
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
 
-    // Generate background image + widget thumbnail
-    let bgImageUrl: string | null = null;
-    let widgetArtUrl: string | null = null;
+    // Guard: don't overwrite valid track data with null from API hiccup
+    if (!currentTrackName && existingRow?.track_name) {
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] No track from API but DB has "${existingRow.track_name}" → skip write (${duration}ms)`);
+      return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- PHASE 1: Write metadata immediately (triggers realtime for fast UI update) ---
+    const metadataPayload = {
+      group_id: groupId,
+      track_name: currentTrackName,
+      artist_name: track?.artist?.name || null,
+      album_name: track?.album?.name || null,
+      album_art_url: currentArt.medium,
+      album_art_url_small: currentArt.small,
+      next_album_art_url: null,
+      next_track_name: null,
+      next_artist_name: null,
+      playback_state: playbackState,
+      duration_ms: track?.durationMillis || null,
+      position_ms: positionMs,
+      // Keep existing images if same track, clear if new track
+      ...(sameTrack ? {} : {
+        next_bg_image_url: null,
+        next_widget_art_url: null,
+      }),
+    };
+
+    let rowId: string;
+    if (existingRow) {
+      await supabase.from('sonos_now_playing').update(metadataPayload).eq('id', existingRow.id);
+      rowId = existingRow.id;
+    } else {
+      const { data: inserted } = await supabase.from('sonos_now_playing').insert(metadataPayload).select('id').single();
+      rowId = inserted?.id;
+    }
+
+    const phase1Ms = Date.now() - startTime;
+    console.log(`[SonosSync] Phase 1 (metadata) done in ${phase1Ms}ms - "${currentTrackName}"`);
+
+    // --- PHASE 2: Process images and update DB again ---
+    let bgImageUrl: string | null = sameTrack ? (existingRow?.bg_image_url || null) : null;
+    let widgetArtUrl: string | null = sameTrack ? (existingRow?.widget_art_url || null) : null;
 
     if (currentArt.medium) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
+      const reuseCurrentWidget = sameTrack && existingRow?.widget_art_url;
 
-      const reuseCurrentWidget = sameTrack && existingRow.widget_art_url;
-
-      const currentResult = currentArt.medium
-        ? await resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null)
-        : { bgUrl: null, widgetUrl: reuseCurrentWidget || null };
+      const currentResult = await resolveBackgroundAndWidget(supabase, currentArt.medium, currentTrackId, bgSettings, viewportW, viewportH, reuseCurrentWidget || null);
 
       bgImageUrl = currentResult.bgUrl;
       widgetArtUrl = currentResult.widgetUrl;
@@ -242,44 +281,18 @@ serve(async (req) => {
       }
     }
 
-    const nowPlaying = {
-      group_id: groupId,
-      track_name: track?.name || container?.name || null,
-      artist_name: track?.artist?.name || null,
-      album_name: track?.album?.name || null,
-      album_art_url: currentArt.medium,
-      album_art_url_small: currentArt.small,
-      next_album_art_url: null,
-      next_track_name: null,
-      next_artist_name: null,
-      playback_state: playbackState,
-      duration_ms: track?.durationMillis || null,
-      position_ms: positionMs,
-      bg_image_url: bgImageUrl,
-      next_bg_image_url: null,
-      widget_art_url: widgetArtUrl,
-      next_widget_art_url: null,
-    };
-
-    // Guard: don't overwrite valid track data with null from API hiccup
-    if (!nowPlaying.track_name && existingRow?.track_name) {
-      const duration = Date.now() - startTime;
-      console.log(`[SonosSync] No track from API but DB has "${existingRow.track_name}" → skip write (${duration}ms)`);
-      return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (existingRow) {
-      await supabase.from('sonos_now_playing').update(nowPlaying).eq('id', existingRow.id);
-    } else {
-      await supabase.from('sonos_now_playing').insert(nowPlaying);
+    // Write images to DB (triggers second realtime event with images)
+    if (rowId && (bgImageUrl || widgetArtUrl)) {
+      const imageUpdate: Record<string, any> = {};
+      if (bgImageUrl) imageUpdate.bg_image_url = bgImageUrl;
+      if (widgetArtUrl) imageUpdate.widget_art_url = widgetArtUrl;
+      await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${duration}ms - ${track?.name || 'no track'} (bg: ${bgImageUrl ? `${viewportW}x${viewportH}` : 'no'}, widget: ${widgetArtUrl ? 'yes' : 'no'})`);
+    console.log(`[SonosSync] Done in ${duration}ms (phase1=${phase1Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? `${viewportW}x${viewportH}` : 'no'}, widget: ${widgetArtUrl ? 'yes' : 'no'})`);
 
-    return new Response(JSON.stringify({ ok: true, duration_ms: duration }), {
+    return new Response(JSON.stringify({ ok: true, duration_ms: duration, phase1_ms: phase1Ms }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
