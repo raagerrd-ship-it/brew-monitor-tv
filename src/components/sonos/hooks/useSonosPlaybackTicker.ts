@@ -97,11 +97,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       const remaining = duration - next;
 
       // Single preload point: ≤10s remaining, schedule swap
+      // Skip if we just did a track change (prevents re-swap after predictive swap)
+      const msSinceTC = Date.now() - trackChangedAtRef.current;
       const offsetMs = trackChangeOffsetRef.current > 0
         ? trackChangeOffsetRef.current * 1000
         : PREDICTIVE_MARGIN_MS;
 
-      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
+      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && msSinceTC > 15000) {
         predictiveScheduledRef.current = true;
 
         // Preload available next images (server sync only happens in handleTrackChange fallback if needed)
