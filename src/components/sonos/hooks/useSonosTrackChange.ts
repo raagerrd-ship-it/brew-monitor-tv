@@ -85,6 +85,13 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                 ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
               } : cur);
+              // Trigger background preload immediately
+              if (result.bgImageUrl) {
+                pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+                onAlbumArtChangeRef.current?.(result.bgImageUrl);
+                bgSentRef.current = result.bgImageUrl;
+                tvDebug('sonos', `🖼️ Bakgrund triggad från direkt-hämtning`);
+              }
             }
           }
         } catch (e: any) {
