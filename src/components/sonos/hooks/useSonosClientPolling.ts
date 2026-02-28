@@ -97,27 +97,19 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         } else if (trackChanged && isTransientIdle) {
           // Skip in progress — ignore stale data, keep polling
         } else if (!trackChanged) {
-          // Same track — update metadata + next track info (but never set IDLE from transient)
+          // Same track — only sync state + duration (next_* comes from RT)
           setNowPlaying(prev => {
             if (!prev) return prev;
             const effectiveState = isTransientIdle ? prev.playback_state : data.playbackState;
-            const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
             const stateChanged = prev.playback_state !== effectiveState;
             const durationChanged = duration && prev.duration_ms !== duration;
 
-            if (!nextChanged && !stateChanged && !durationChanged) return prev;
+            if (!stateChanged && !durationChanged) return prev;
 
             return {
               ...prev,
-              artist_name: data.artistName ?? prev.artist_name,
-              album_name: data.albumName ?? prev.album_name,
               playback_state: effectiveState,
               duration_ms: duration ?? prev.duration_ms,
-              ...(nextChanged ? {
-                next_track_name: data.nextTrackName,
-                next_artist_name: data.nextArtistName ?? null,
-                next_album_art_url: data.nextAlbumArtUrl ?? null,
-              } : {}),
             };
           });
         }
