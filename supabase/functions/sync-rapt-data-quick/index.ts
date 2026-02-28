@@ -73,11 +73,15 @@ serve(async (req) => {
         : { data: [], error: null },
     ]);
 
-    if (pillsResult.error) throw pillsResult.error;
-    if (controllersResult.error) throw controllersResult.error;
+    if (pillsResult.error) {
+      console.error('Error fetching pills (continuing with controllers):', pillsResult.error);
+    }
+    if (controllersResult.error) {
+      console.error('Error fetching controllers (continuing with pills):', controllersResult.error);
+    }
 
-    const allPills: any[] = pillsResult.data || [];
-    const allControllers: any[] = controllersResult.data || [];
+    const allPills: any[] = pillsResult.error ? [] : (pillsResult.data || []);
+    const allControllers: any[] = controllersResult.error ? [] : (controllersResult.data || []);
 
     // ---- Build pill temperature map from pill data ----
     // pill.temperature holds the latest reading from the hydrometer
