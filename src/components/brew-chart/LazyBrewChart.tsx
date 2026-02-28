@@ -36,6 +36,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
       if (!signal?.aborted) {
         setVisibleSvg(svgText);
         setError(false);
+        setRetryCount(0);
       }
     } catch (e) {
       if (signal?.aborted) return;
@@ -44,25 +45,25 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     }
   }, [brewId, compact, brewCount, lastUpdateRaw]);
 
+  // Fetch on mount and when deps change
   useEffect(() => {
     const controller = new AbortController();
     fetchChart(controller.signal);
     return () => controller.abort();
   }, [fetchChart]);
 
+  // Retry on error — retryCount triggers a new fetch via this effect
   useEffect(() => {
     if (!error || retryCount >= 3) return;
     const delay = (retryCount + 1) * 10000;
     const timer = setTimeout(() => {
       setError(false);
       setRetryCount(prev => prev + 1);
+      // Trigger a new fetch directly
+      fetchChart();
     }, delay);
     return () => clearTimeout(timer);
-  }, [error, retryCount]);
-
-  useEffect(() => {
-    if (visibleSvg) setRetryCount(0);
-  }, [visibleSvg]);
+  }, [error, retryCount, fetchChart]);
 
   if (!visibleSvg) {
     return (
