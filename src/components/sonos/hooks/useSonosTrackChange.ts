@@ -73,6 +73,14 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const ms = Math.round(performance.now() - t0);
       console.log(`[Sonos:TC] State update applied in ${ms}ms`);
       tvDebug('sonos', `📝 Widget-text bytt: "${data.trackName}" (${ms}ms)`, 'track-change');
+      // Use preloaded next-track images if available
+      const nextWidget = prev.next_widget_art_url;
+      const nextBg = prev.next_bg_image_url;
+      const nextArt = prev.next_album_art_url;
+      if (nextWidget || nextBg) {
+        tvDebug('sonos', `🖼️ Använder förladdat: widget=${!!nextWidget}, bg=${!!nextBg}`);
+      }
+
       return {
         ...prev,
         track_name: data.trackName,
@@ -80,6 +88,16 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
+        // Apply preloaded next-track images immediately
+        ...(nextWidget ? { widget_art_url: nextWidget } : {}),
+        ...(nextBg ? { bg_image_url: nextBg } : {}),
+        ...(nextArt ? { album_art_url: nextArt } : {}),
+        // Clear next-track fields
+        next_widget_art_url: null,
+        next_bg_image_url: null,
+        next_album_art_url: null,
+        next_track_name: null,
+        next_artist_name: null,
       };
     });
   }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog]);
