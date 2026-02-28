@@ -349,38 +349,64 @@ export function AutomationFeatureStatus(props: Props) {
             { name: "Senaste audit", status: ago, variant: "idle" },
           ];
 
+          const summaryParts: string[] = [];
           if (hadActions) {
-            for (const action of actions.slice(0, 3)) {
-              const actionStr = typeof action === 'object' && action !== null
-                ? ((action as any).description || (action as any).action || (action as any).name || JSON.stringify(action))
-                : String(action);
-              aiBlock.controllers.push({ name: "↳ Åtgärd", status: actionStr, variant: "action" });
+            // Build a combined summary for extra instead of controller rows
+            for (const action of actions.slice(0, 4)) {
+              if (typeof action === 'object' && action !== null) {
+                const a = action as any;
+                summaryParts.push(a.reason || a.description || a.action || a.name || JSON.stringify(action));
+              } else {
+                summaryParts.push(String(action));
+              }
             }
-            for (const param of params.slice(0, 2)) {
-              const paramStr = typeof param === 'object' && param !== null
-                ? `${(param as any).name || (param as any).parameter || '?'}: ${(param as any).old_value ?? ''} → ${(param as any).new_value ?? (param as any).value ?? ''}`
-                : String(param);
-              aiBlock.controllers.push({ name: "↳ Parameter", status: paramStr, variant: "action" });
+            for (const param of params.slice(0, 3)) {
+              if (typeof param === 'object' && param !== null) {
+                const p = param as any;
+                const name = p.name || p.parameter || p.field || '?';
+                const oldVal = p.old_value ?? p.from ?? '';
+                const newVal = p.new_value ?? p.to ?? p.value ?? '';
+                summaryParts.push(`${name}: ${oldVal} → ${newVal}`);
+              } else {
+                summaryParts.push(String(param));
+              }
             }
+            aiBlock.controllers.push({ name: "Ändringar", status: `${actions.length + params.length} st`, variant: "action" });
           } else {
             aiBlock.controllers.push({ name: "Resultat", status: "Inga ändringar", variant: "idle" });
           }
 
-          // Expandable analysis
-          if (aiData.analysis) {
-            const full = String(aiData.analysis).trim();
-            const firstLine = full.split('\n')[0].slice(0, 80);
-            aiBlock.extra = (
-              <details className="pl-6 pr-1 pt-0.5">
-                <summary className="text-[10px] text-muted-foreground/50 italic leading-tight cursor-pointer hover:text-muted-foreground/70 select-none">
-                  {firstLine}{full.length > 80 ? "…" : ""}
-                </summary>
-                <pre className="text-[10px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap mt-1 font-sans">
-                  {full}
-                </pre>
-              </details>
-            );
-          }
+          // Build extra block with changes + analysis
+          const full = aiData.analysis ? String(aiData.analysis).trim() : '';
+          const firstLine = full ? full.split('\n')[0].slice(0, 80) : '';
+          const hasSummary = hadActions && summaryParts.length > 0;
+
+          aiBlock.extra = (
+            <div className="pl-6 pr-1 pt-0.5 space-y-1">
+              {hasSummary && (
+                <details>
+                  <summary className="text-[10px] text-accent/70 cursor-pointer hover:text-accent select-none">
+                    Visa {summaryParts.length} ändringar…
+                  </summary>
+                  <ul className="text-[10px] text-muted-foreground/70 leading-relaxed mt-1 space-y-0.5 list-none">
+                    {summaryParts.map((s, i) => (
+                      <li key={i} className="break-words">• {s}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {full && (
+                <details>
+                  <summary className="text-[10px] text-muted-foreground/50 italic leading-tight cursor-pointer hover:text-muted-foreground/70 select-none">
+                    {firstLine}{full.length > 80 ? "…" : ""}
+                  </summary>
+                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap mt-1">
+                    {full}
+                  </p>
+                </details>
+              )}
+            </div>
+          );
         } else if (aiBlock) {
           aiBlock.controllers = [{ name: "Status", status: "Ingen audit ännu", variant: "skip" }];
         }
