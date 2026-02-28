@@ -35,9 +35,13 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
+  let trackChangeCounter = 0;
+
   const handleTrackChange = useCallback((data: TrackChangeData) => {
+    const tcId = `tc-${++trackChangeCounter}`;
+    const artId = `art-${trackChangeCounter}`;
     const t0 = performance.now();
-    tvDebug('sonos', `🎵 Låtbyte: "${data.trackName}"`, 'track-change');
+    tvDebug('sonos', `🎵 Låtbyte: "${data.trackName}"`, tcId);
     console.log('[Sonos:TC] 🎵 Track change detected:', {
       newTrack: data.trackName,
       artist: data.artistName,
@@ -55,24 +59,25 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       // Trigger server sync — images arrive via realtime subscription
       const hasPreloadedImages = !!(prev.next_widget_art_url || prev.next_bg_image_url);
-      tvDebug('sonos', hasPreloadedImages ? `✅ Förladdade bilder finns` : `🔄 Hämtar låtbild...`, 'art-fetch');
+      tvDebug('sonos', hasPreloadedImages ? `✅ Förladdade bilder finns` : `🔄 Hämtar låtbild...`, artId);
       console.log(`[Sonos:TC] ${hasPreloadedImages ? '✅ Using preloaded images' : '🔄 Triggering server sync for new art...'}`);
       (async () => {
         const syncT0 = performance.now();
         try {
           await triggerServerSync();
           const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `✅ Server sync klar (${ms}ms)`, 'art-fetch');
+          tvDebug('sonos', `✅ Server sync klar`, artId);
           console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms`);
 
           // If no preloaded images were available, fetch them now directly
           if (!hasPreloadedImages) {
             const fetchT0 = performance.now();
-            tvDebug('sonos', `🖼️ Hämtar bilder direkt...`, 'art-direct');
+            const directId = `art-direct-${trackChangeCounter}`;
+            tvDebug('sonos', `🖼️ Hämtar bilder direkt...`, directId);
             const result = await fetchPlaybackStatus();
             const fetchMs = Math.round(performance.now() - fetchT0);
             if (result) {
-              tvDebug('sonos', `✅ Bilder hämtade (${fetchMs}ms)`, 'art-direct');
+              tvDebug('sonos', `✅ Bilder hämtade`, directId);
               console.log(`[Sonos:TC] ✅ Direct art fetch in ${fetchMs}ms`);
               setNowPlaying(cur => cur ? {
                 ...cur,
@@ -84,14 +89,14 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
           }
         } catch (e: any) {
           const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `❌ Server sync fail (${ms}ms)`, 'art-fetch');
+          tvDebug('sonos', `❌ Server sync fail`, artId);
           console.error(`[Sonos:TC] ❌ Server sync failed after ${ms}ms:`, e?.message || e);
         }
       })();
 
       const ms = Math.round(performance.now() - t0);
       console.log(`[Sonos:TC] State update applied in ${ms}ms`);
-      tvDebug('sonos', `📝 Widget-text bytt: "${data.trackName}" (${ms}ms)`, 'track-change');
+      tvDebug('sonos', `📝 Widget-text bytt: "${data.trackName}"`, tcId);
       // Use preloaded next-track images if available
       const nextWidget = prev.next_widget_art_url;
       const nextBg = prev.next_bg_image_url;

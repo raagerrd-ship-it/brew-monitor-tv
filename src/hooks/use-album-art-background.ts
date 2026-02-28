@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 
+let bgSwapCounter = 0;
+
 /**
  * Preloads album art before setting as visible background
  * to prevent black flashes during transitions.
@@ -20,18 +22,19 @@ export function useAlbumArtBackground() {
     const baseUrl = url.split('?')[0];
     if (baseUrl === visibleBgBaseRef.current) return;
     if (url === preloadingUrlRef.current) return;
+    const flowId = `bg-swap-${++bgSwapCounter}`;
     preloadingUrlRef.current = url;
-    tvDebug('bg', `⏳ Laddar ny bakgrundsbild...`, 'bg-swap');
+    tvDebug('bg', `⏳ Laddar ny bakgrundsbild...`, flowId);
     const img = new Image();
     img.onload = () => {
       visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
-      tvDebug('bg', `✅ Bakgrundsbild laddad — bytt`, 'bg-swap');
+      tvDebug('bg', `✅ Bakgrundsbild laddad — bytt`, flowId);
     };
     img.onerror = () => {
       preloadingUrlRef.current = null;
-      tvDebug('bg', `❌ Bakgrundsbild misslyckades`, 'bg-swap');
+      tvDebug('bg', `❌ Bakgrundsbild misslyckades`, flowId);
     };
     img.src = url;
   }, []);
