@@ -351,10 +351,16 @@ export function AutomationFeatureStatus(props: Props) {
 
           if (hadActions) {
             for (const action of actions.slice(0, 3)) {
-              aiBlock.controllers.push({ name: "↳ Åtgärd", status: String(action), variant: "action" });
+              const actionStr = typeof action === 'object' && action !== null
+                ? ((action as any).description || (action as any).action || (action as any).name || JSON.stringify(action))
+                : String(action);
+              aiBlock.controllers.push({ name: "↳ Åtgärd", status: actionStr, variant: "action" });
             }
             for (const param of params.slice(0, 2)) {
-              aiBlock.controllers.push({ name: "↳ Parameter", status: String(param), variant: "action" });
+              const paramStr = typeof param === 'object' && param !== null
+                ? `${(param as any).name || (param as any).parameter || '?'}: ${(param as any).old_value ?? ''} → ${(param as any).new_value ?? (param as any).value ?? ''}`
+                : String(param);
+              aiBlock.controllers.push({ name: "↳ Parameter", status: paramStr, variant: "action" });
             }
           } else {
             aiBlock.controllers.push({ name: "Resultat", status: "Inga ändringar", variant: "idle" });
