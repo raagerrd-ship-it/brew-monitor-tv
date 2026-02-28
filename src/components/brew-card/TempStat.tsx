@@ -17,14 +17,19 @@ interface TempStatProps {
 
 function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pillCompEnabled = false }: TempStatProps) {
   const { pill, controller } = devices;
-  const tempColor = pill?.color || 'hsl(var(--primary))';
   const isInactive = isBrewInactive(brew.status);
 
-  // Use centralized actual temp calculation
-  const pillTemp = pill ? brew.currentTemp : null;
+  // Detect stale pill data (>30 minutes old)
+  const pillLastUpdate = pill?.last_update ? new Date(pill.last_update).getTime() : 0;
+  const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
+
+  // Use pill temp only if pill exists AND data is fresh; otherwise fall back to controller probe
+  const pillTemp = (pill && !isPillStale) ? brew.currentTemp : null;
   const probeTemp = controller?.current_temp ?? null;
   const displayTemp = getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
+  const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
+  const showStaleWarning = pill && isPillStale && !isInactive;
 
   // Calculate delta: pill (surface) - controller (core)
   const hasBothSensors = pill && controller?.current_temp !== null && controller?.current_temp !== undefined;
@@ -66,10 +71,14 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     tooltipParts.push(`Inbyggd: ${controller.current_temp.toFixed(1)}°`);
   }
   if (pill) {
-    tooltipParts.push(`Pill: ${brew.currentTemp.toFixed(1)}°`);
+    tooltipParts.push(`Pill: ${brew.currentTemp.toFixed(1)}°${isPillStale ? ' ⚠ gammal' : ''}`);
   }
-  if (delta !== null) {
+  if (delta !== null && !isPillStale) {
     tooltipParts.push(`Delta: ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°`);
+  }
+  if (showStaleWarning) {
+    const minutesAgo = Math.round((Date.now() - pillLastUpdate) / 60000);
+    tooltipParts.push(`Pill offline ${minutesAgo}min — visar probe`);
   }
 
   const handleClick = controller && onControllerClick 
@@ -77,7 +86,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     : undefined;
 
   // Temperature span bar: visual range showing pill↔controller with target marker
-  const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
+  const spanBar = hasBothSensors && !isPillStale && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
     const pTemp = brew.currentTemp;       // pill (surface)
     const cTemp = controller.current_temp!; // controller (core)
     const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
