@@ -68,10 +68,9 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosClientPolling({
-    isConnected, showWidget, nowPlaying, nowPlayingRef, displayedArtUrl,
+    isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef, trackChangeOffsetRef,
-    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
+    localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef, addDebugLog,
   });
 

@@ -26,8 +26,15 @@ async function uploadBackground(
       .from('sonos-backgrounds')
       .getPublicUrl(fileName);
 
-    // Use upload timestamp as stable cache-buster (not Date.now() on every call)
-    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
+    if (!urlData?.publicUrl) return null;
+
+    // Get file metadata for stable cache-buster (consistent with backgroundExists)
+    const { data: files } = await supabase.storage
+      .from('sonos-backgrounds')
+      .list('', { search: fileName, limit: 1 });
+    const file = files?.find((f: any) => f.name === fileName);
+    const fileTs = file ? new Date(file.updated_at || file.created_at).getTime() : Date.now();
+    return `${urlData.publicUrl}?v=${fileTs}`;
   } catch (error) {
     console.error('[SonosSync] Upload failed:', error);
     return null;
