@@ -12,9 +12,10 @@ export interface TvDebugEntry {
 }
 
 const MAX_ENTRIES = 40;
-const entries: TvDebugEntry[] = [];
+let entries: TvDebugEntry[] = [];
 const listeners = new Set<() => void>();
 const lastTs: Record<string, number> = {};
+let version = 0;
 
 export function tvDebug(category: TvDebugEntry['category'], message: string) {
   const now = Date.now();
@@ -23,11 +24,13 @@ export function tvDebug(category: TvDebugEntry['category'], message: string) {
   lastTs[category] = now;
 
   const entry: TvDebugEntry = { ts: now, category, message, elapsed };
-  entries.push(entry);
-  if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES);
+  entries = [...entries, entry];
+  if (entries.length > MAX_ENTRIES) entries = entries.slice(-MAX_ENTRIES);
+  version++;
   listeners.forEach(fn => fn());
 }
 
+/** Returns a new snapshot reference each time entries change */
 export function getTvDebugEntries(): readonly TvDebugEntry[] {
   return entries;
 }
