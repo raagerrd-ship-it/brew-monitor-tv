@@ -13,6 +13,7 @@ interface AvailableController {
   current_temp: number | null;
   pill_temp: number | null;
   target_temp: number | null;
+  profile_target_temp: number | null;
   cooling_enabled: boolean | null;
   heating_enabled: boolean | null;
   cooling_hysteresis: number | null;
@@ -206,12 +207,13 @@ export function useSettingsData() {
       if (selected && selected.length > 0) {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase.from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler')
           .in('controller_id', controllerIds);
         if (controllers) {
           setAvailableControllers(controllers.map(c => ({
             id: c.controller_id, controller_id: c.controller_id, name: c.name,
             current_temp: c.current_temp, pill_temp: c.pill_temp, target_temp: c.target_temp,
+            profile_target_temp: c.profile_target_temp,
             cooling_enabled: c.cooling_enabled, heating_enabled: c.heating_enabled,
             cooling_hysteresis: c.cooling_hysteresis, linked_pill_id: c.linked_pill_id,
             is_glycol_cooler: c.is_glycol_cooler ?? false
@@ -326,6 +328,7 @@ export function useSettingsData() {
               current_temp: newData.current_temp ?? c.current_temp,
               pill_temp: newData.pill_temp ?? c.pill_temp,
               target_temp: newData.target_temp ?? c.target_temp,
+              profile_target_temp: newData.profile_target_temp ?? c.profile_target_temp,
               cooling_enabled: newData.cooling_enabled ?? c.cooling_enabled,
               heating_enabled: newData.heating_enabled ?? c.heating_enabled,
               cooling_hysteresis: newData.cooling_hysteresis ?? c.cooling_hysteresis,

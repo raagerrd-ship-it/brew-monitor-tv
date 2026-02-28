@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Snowflake, Wrench, AlertTriangle, Shield, Brain, ArrowDown, ArrowUp, History, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { Snowflake, Wrench, AlertTriangle, Shield, Brain, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 
@@ -69,6 +69,7 @@ interface AvailableController {
   current_temp: number | null;
   pill_temp?: number | null;
   target_temp: number | null;
+  profile_target_temp?: number | null;
   cooling_enabled: boolean | null;
   heating_enabled: boolean | null;
   is_glycol_cooler: boolean;
@@ -128,45 +129,31 @@ function buildFeatureBlocks(
       });
     }
 
-    // All other controllers
+    // Followed controllers — show profile_target_temp (interpolated) and target_temp (actual setpoint)
     for (const c of allNonCooler) {
       const isFollowed = followedControllerIds.includes(c.controller_id);
-      const temp = c.current_temp ?? c.pill_temp;
-      const tempStr = temp != null ? `${Number(temp).toFixed(1)}°` : "—";
-      const targetStr = c.target_temp != null ? `→ ${Number(c.target_temp).toFixed(1)}°` : "";
 
       if (!isFollowed) {
         controllers.push({ name: c.name, status: "Ej följd", variant: "skip" });
       } else if (!c.cooling_enabled && !c.heating_enabled) {
-        controllers.push({ name: c.name, status: `${tempStr} ${targetStr} (inaktiv)`, variant: "skip" });
+        controllers.push({ name: c.name, status: "Inaktiv", variant: "skip" });
       } else {
-        controllers.push({ name: c.name, status: `${tempStr} ${targetStr}`, variant: "idle" });
+        const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
+        const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
+
+        if (profileTemp && setpoint) {
+          const diff = Number(setpoint) - Number(profileTemp);
+          const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
+          controllers.push({ name: c.name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
+        } else if (setpoint) {
+          controllers.push({ name: c.name, status: `mål ${setpoint}°`, variant: "idle" });
+        } else {
+          controllers.push({ name: c.name, status: "—", variant: "idle" });
+        }
       }
     }
 
-    // Last adjustment as extra
-    let extra: React.ReactNode = null;
-    if (props.lastAdjustment) {
-      const adj = props.lastAdjustment;
-      const oldT = parseFloat(Number(adj.old_target_temp).toFixed(1));
-      const newT = parseFloat(Number(adj.new_target_temp).toFixed(1));
-      extra = (
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 pl-6 pt-0.5">
-          <History className="h-2.5 w-2.5 shrink-0" />
-          <span>
-            Senast: {oldT}° → {newT}°
-            {newT < oldT
-              ? <ArrowDown className="h-2.5 w-2.5 text-accent inline ml-0.5" />
-              : <ArrowUp className="h-2.5 w-2.5 text-primary inline ml-0.5" />}
-            <span className="ml-1 text-muted-foreground/50">
-              {formatDistanceToNow(new Date(adj.created_at), { addSuffix: true, locale: sv })}
-            </span>
-          </span>
-        </div>
-      );
-    }
-
-    blocks.push({ icon: Snowflake, label: "Glykolkylare", controllers, hasAction: glycolActions.length > 0, extra });
+    blocks.push({ icon: Snowflake, label: "Glykolkylare", controllers, hasAction: glycolActions.length > 0 });
   }
 
   // 2. PID / Pill compensation — show ALL controllers
