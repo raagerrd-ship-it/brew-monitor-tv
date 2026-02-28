@@ -26,6 +26,7 @@ async function uploadBackground(
       .from('sonos-backgrounds')
       .getPublicUrl(fileName);
 
+    // Use upload timestamp as stable cache-buster (not Date.now() on every call)
     return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
   } catch (error) {
     console.error('[SonosSync] Upload failed:', error);
@@ -39,11 +40,14 @@ async function backgroundExists(supabase: any, fileName: string): Promise<string
     .from('sonos-backgrounds')
     .list('', { search: fileName, limit: 1 });
 
-  if (data && data.length > 0 && data[0].name === fileName) {
+  const file = data?.find((f: any) => f.name === fileName);
+  if (file) {
     const { data: urlData } = supabase.storage
       .from('sonos-backgrounds')
       .getPublicUrl(fileName);
-    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : null;
+    // Use file's updated_at as stable cache-buster so browsers can cache the image
+    const fileTs = new Date(file.updated_at || file.created_at).getTime();
+    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${fileTs}` : null;
   }
   return null;
 }
