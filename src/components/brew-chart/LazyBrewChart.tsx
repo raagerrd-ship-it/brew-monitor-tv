@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTvMode } from '@/contexts/TvModeContext';
 import type { BrewChartProps } from './types';
@@ -18,10 +18,12 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   const [visibleSvg, setVisibleSvg] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const fetchIdRef = useRef(0);
 
-  const fetchChart = useCallback(async (signal?: AbortSignal) => {
+  // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
+  const doFetch = useCallback(async (signal?: AbortSignal) => {
     const t0 = performance.now();
-    console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount}, lastUpdate=${lastUpdateRaw})`);
+    console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount})`);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
@@ -60,18 +62,31 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
       console.error(`[TvModeChart] ❌ ${brewId} failed after ${Math.round(performance.now() - t0)}ms:`, e?.message || e);
       setError(true);
     }
-  }, [brewId, compact, brewCount, lastUpdateRaw]);
+  }, [brewId, compact, brewCount]);
 
-  // Fetch on mount and when deps change
+  // Initial fetch on mount — only depends on brewId/compact/brewCount (stable)
   useEffect(() => {
-    console.log(`[TvModeChart] Mount/deps changed for ${brewId} — starting fetch`);
+    console.log(`[TvModeChart] Mount — starting fetch for ${brewId}`);
     const controller = new AbortController();
-    fetchChart(controller.signal);
+    doFetch(controller.signal);
     return () => {
-      console.log(`[TvModeChart] Cleanup — aborting fetch for ${brewId}`);
+      console.log(`[TvModeChart] Unmount — aborting fetch for ${brewId}`);
       controller.abort();
     };
-  }, [fetchChart]);
+  }, [doFetch]);
+
+  // Debounced refresh when lastUpdateRaw changes — does NOT abort the previous fetch
+  useEffect(() => {
+    if (!lastUpdateRaw) return;
+    // Skip the initial mount trigger (handled above)
+    const id = ++fetchIdRef.current;
+    const timer = setTimeout(() => {
+      if (id !== fetchIdRef.current) return; // stale
+      console.log(`[TvModeChart] 🔄 Data updated — refreshing chart for ${brewId} (lastUpdate=${lastUpdateRaw})`);
+      doFetch();
+    }, 2000); // 2s debounce to let multiple data updates settle
+    return () => clearTimeout(timer);
+  }, [lastUpdateRaw, doFetch]);
 
   // Retry on error
   useEffect(() => {
@@ -84,10 +99,10 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
     const timer = setTimeout(() => {
       setError(false);
       setRetryCount(prev => prev + 1);
-      fetchChart();
+      doFetch();
     }, delay);
     return () => clearTimeout(timer);
-  }, [error, retryCount, fetchChart]);
+  }, [error, retryCount, doFetch]);
 
   if (!visibleSvg) {
     return (
