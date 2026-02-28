@@ -11,11 +11,17 @@ interface DecisionEntry {
   details?: Record<string, unknown>;
 }
 
-interface FeatureSummary {
+interface ControllerLine {
+  name: string;
+  status: string;
+  variant: "action" | "idle" | "skip";
+}
+
+interface FeatureBlock {
   icon: React.ElementType;
   label: string;
-  status: string;
-  variant: "action" | "idle" | "off";
+  controllers: ControllerLine[];
+  hasAction: boolean;
 }
 
 interface Props {
@@ -26,107 +32,191 @@ interface Props {
   aiAuditEnabled: boolean;
 }
 
-function summarizeFeatures(decisions: DecisionEntry[], props: Props): FeatureSummary[] {
-  const summaries: FeatureSummary[] = [];
+/** Extract controller name from start of message like "Temp Controller X: ..." */
+function extractName(msg: string): string {
+  const colonIdx = msg.indexOf(":");
+  if (colonIdx > 0 && colonIdx < 50) return msg.substring(0, colonIdx).trim();
+  return msg;
+}
+
+function buildFeatureBlocks(decisions: DecisionEntry[], props: Props): FeatureBlock[] {
+  const blocks: FeatureBlock[] = [];
+
+  // Collect all followed controller names from FOLLOWED_DATA
+  const followedNames = decisions
+    .filter(d => d.step === "FOLLOWED_DATA")
+    .map(d => {
+      const match = d.message.match(/^Controller:\s*(.+)$/);
+      return match ? match[1].trim() : null;
+    })
+    .filter(Boolean) as string[];
 
   // 1. Glycol cooling
   if (props.autoCoolingEnabled) {
-    const glycolActions = decisions.filter(d =>
-      d.step.startsWith("ADJUSTMENT") && d.result === "action"
-    );
+    const glycolActions = decisions.filter(d => d.step === "ADJUSTMENT" && d.result === "action");
     const coolerStatus = decisions.find(d => d.step === "COOLER_STATUS" && d.result === "pass");
-    const coolLearn = decisions.filter(d => d.step === "COOLING_LEARN" && d.result === "action");
-    
-    let status = "Ingen justering";
+    const coolerName = coolerStatus?.details?.name as string
+      ?? (coolerStatus ? extractName(coolerStatus.message.replace("Cooler: ", "")) : "Kylare");
+
+    const controllers: ControllerLine[] = [];
     if (glycolActions.length > 0) {
-      // Extract temp change from message like "Setting cooler to default 14.7°C" or "Increasing cooler from X to Y"
-      const lastAction = glycolActions[glycolActions.length - 1];
-      status = lastAction.message.length > 50 
-        ? lastAction.message.substring(0, 47) + "…" 
-        : lastAction.message;
-    } else if (coolLearn.length > 0) {
-      status = "Lärde sig marginal";
-    } else if (coolerStatus) {
-      status = "Vid mål";
+      const last = glycolActions[glycolActions.length - 1];
+      const match = last.message.match(/([\d.]+)°C.*?([\d.]+)°C/);
+      controllers.push({
+        name: coolerName,
+        status: match ? `${match[1]}° → ${match[2]}°` : last.message.substring(0, 40),
+        variant: "action",
+      });
+    } else {
+      controllers.push({ name: coolerName, status: "Vid mål", variant: "idle" });
     }
-    summaries.push({ icon: Snowflake, label: "Glykolkylare", status, variant: glycolActions.length > 0 ? "action" : "idle" });
+
+    // Show followed controllers' demand
+    for (const name of followedNames) {
+      const data = decisions.find(d => d.step === "FOLLOWED_DATA" && d.message.includes(name));
+      if (data?.details) {
+        const target = data.details.target_temp as number | undefined;
+        const profileTarget = data.details.profile_target_temp as number | undefined;
+        const cooling = data.details.cooling_enabled as boolean | undefined;
+        if (!cooling) {
+          controllers.push({ name, status: "Kylning av", variant: "skip" });
+        } else {
+          const t = target != null ? `${Number(target).toFixed(1)}°` : "—";
+          const pt = profileTarget != null ? `mål ${Number(profileTarget).toFixed(1)}°` : "";
+          controllers.push({ name, status: `${t}${pt ? ` (${pt})` : ""}`, variant: "idle" });
+        }
+      }
+    }
+
+    blocks.push({ icon: Snowflake, label: "Glykolkylare", controllers, hasAction: glycolActions.length > 0 });
   }
 
   // 2. PID / Pill compensation
   if (props.pillCompEnabled) {
-    const pidActions = decisions.filter(d =>
-      d.step === "PILL_COMP_ACTION" && (d.result === "action" || d.result === "pass")
-    );
-    const pidSkips = decisions.filter(d => d.step === "PILL_COMP_SKIP");
-    
-    let status = "Ingen justering";
-    if (pidActions.length > 0) {
-      // Extract from message like "Controller: PID 19.1°C → 19.0°C (delta=0.32, komp=..."
-      const actionMsgs = pidActions.filter(d => d.result === "action");
-      if (actionMsgs.length > 0) {
-        const msg = actionMsgs[0].message;
-        const match = msg.match(/PID\s+([\d.]+)°C\s*→\s*([\d.]+)°C.*komp=([-\d.]+)/);
+    const controllers: ControllerLine[] = [];
+
+    for (const name of followedNames) {
+      // Check for action
+      const action = decisions.find(d =>
+        d.step === "PILL_COMP_ACTION" && d.result === "action" && d.message.startsWith(name)
+      );
+      const skip = decisions.find(d =>
+        d.step === "PILL_COMP_SKIP" && d.message.startsWith(name)
+      );
+      const noSession = decisions.find(d =>
+        d.step === "PILL_COMP_SKIP" && d.message.includes(name) && d.message.includes("profile-owned but no profile_target_temp")
+      );
+
+      if (action) {
+        const match = action.message.match(/PID\s+([\d.]+)°C\s*→\s*([\d.]+)°C.*komp=([-\d.]+)/);
         if (match) {
-          status = `${match[1]}° → ${match[2]}° (${parseFloat(match[3]) >= 0 ? "+" : ""}${match[3]}°)`;
+          const komp = parseFloat(match[3]);
+          controllers.push({
+            name,
+            status: `${match[1]}° → ${match[2]}° (${komp >= 0 ? "+" : ""}${match[3]}°)`,
+            variant: "action",
+          });
         } else {
-          status = msg.length > 45 ? msg.substring(0, 42) + "…" : msg;
+          controllers.push({ name, status: "Justerad", variant: "action" });
+        }
+      } else if (noSession) {
+        controllers.push({ name, status: "Ingen profil", variant: "skip" });
+      } else if (skip) {
+        if (skip.message.includes("Samma data")) {
+          controllers.push({ name, status: "Ingen ny data", variant: "idle" });
+        } else if (skip.message.includes("cooloff")) {
+          controllers.push({ name, status: "Cooloff aktiv", variant: "skip" });
+        } else if (skip.message.includes("no active session")) {
+          controllers.push({ name, status: "Ingen session", variant: "skip" });
+        } else {
+          controllers.push({ name, status: "Skippade", variant: "idle" });
         }
       } else {
-        status = `${pidActions.length} justering(ar)`;
-      }
-    } else if (pidSkips.length > 0) {
-      const skipReasons = pidSkips.map(d => d.message);
-      if (skipReasons.some(r => r.includes("Samma data"))) {
-        status = "Ingen ny data";
-      } else if (skipReasons.some(r => r.includes("cooloff"))) {
-        status = "Cooloff aktiv";
-      } else {
-        status = "Skippade (ingen ändring)";
+        // Check if controller has no session at all
+        const hasSessionData = decisions.find(d =>
+          d.step === "PILL_COMP" && d.message.includes(name)
+        );
+        controllers.push({ name, status: hasSessionData ? "Ingen ändring" : "Ej aktiv", variant: "skip" });
       }
     }
-    summaries.push({ icon: Wrench, label: "PID-kompensation", status, variant: pidActions.some(d => d.result === "action") ? "action" : "idle" });
+
+    blocks.push({
+      icon: Wrench,
+      label: "PID-kompensation",
+      controllers,
+      hasAction: controllers.some(c => c.variant === "action"),
+    });
   }
 
   // 3. Stall detection
   if (props.stallDetectionEnabled) {
-    const stallBoost = decisions.filter(d => d.step === "STALL_BOOST" && d.result === "action");
-    const stallUnboost = decisions.filter(d => d.step === "STALL_UNBOOST" && d.result === "action");
-    const stallCheck = decisions.filter(d => d.step.startsWith("STALL"));
-    
-    let status = "Ingen stall";
-    if (stallBoost.length > 0) {
-      const msg = stallBoost[0].message;
-      const match = msg.match(/boost \+([\d.]+)°C/i);
-      status = match ? `Boost +${match[1]}°C` : "Boost applicerad";
-    } else if (stallUnboost.length > 0) {
-      status = "Un-boost (återhämtad)";
-    } else if (stallCheck.length === 0) {
-      status = "Inga tankar att kontrollera";
+    const controllers: ControllerLine[] = [];
+
+    for (const name of followedNames) {
+      const boost = decisions.find(d =>
+        d.step === "STALL_BOOST" && d.result === "action" && d.message.startsWith(name)
+      );
+      const unboost = decisions.find(d =>
+        d.step === "STALL_UNBOOST" && d.result === "action" && d.message.startsWith(name)
+      );
+      const stallCheck = decisions.find(d =>
+        d.step.startsWith("STALL") && d.message.includes(name)
+      );
+
+      if (boost) {
+        const match = boost.message.match(/boost \+([\d.]+)°C/i);
+        controllers.push({ name, status: match ? `Boost +${match[1]}°` : "Boost", variant: "action" });
+      } else if (unboost) {
+        controllers.push({ name, status: "Un-boost (återhämtad)", variant: "action" });
+      } else if (stallCheck) {
+        controllers.push({ name, status: "Ingen stall", variant: "idle" });
+      } else {
+        controllers.push({ name, status: "Ej kontrollerad", variant: "skip" });
+      }
     }
-    summaries.push({ icon: AlertTriangle, label: "Stall-detektering", status, variant: stallBoost.length > 0 ? "action" : "idle" });
+
+    blocks.push({
+      icon: AlertTriangle,
+      label: "Stall-detektering",
+      controllers,
+      hasAction: controllers.some(c => c.variant === "action"),
+    });
   }
 
-  // 4. Overshoot prevention (runs inside PID)
+  // 4. Overshoot prevention
   if (props.overshootPreventionEnabled) {
-    const overshootEntries = decisions.filter(d => 
-      d.message.toLowerCase().includes("overshoot") && d.result === "action"
-    );
-    const status = overshootEntries.length > 0 ? "Förebyggande åtgärd" : "Ingen overshoot";
-    summaries.push({ icon: Shield, label: "Overshoot-prevention", status, variant: overshootEntries.length > 0 ? "action" : "idle" });
+    const controllers: ControllerLine[] = [];
+
+    for (const name of followedNames) {
+      const overshoot = decisions.find(d =>
+        d.message.toLowerCase().includes("overshoot") && d.result === "action" && d.message.includes(name)
+      );
+      controllers.push({
+        name,
+        status: overshoot ? "Förebyggande åtgärd" : "OK",
+        variant: overshoot ? "action" : "idle",
+      });
+    }
+
+    blocks.push({
+      icon: Shield,
+      label: "Overshoot-prevention",
+      controllers,
+      hasAction: controllers.some(c => c.variant === "action"),
+    });
   }
 
-  // 5. AI audit (separate from decision log — check ai_audit_log)
+  // 5. AI audit
   if (props.aiAuditEnabled) {
-    summaries.push({ icon: Brain, label: "AI-optimering", status: "", variant: "idle" });
+    blocks.push({ icon: Brain, label: "AI-optimering", controllers: [], hasAction: false });
   }
 
-  return summaries;
+  return blocks;
 }
 
 export function AutomationFeatureStatus({ autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled }: Props) {
-  const [summaries, setSummaries] = useState<FeatureSummary[]>([]);
+  const [blocks, setBlocks] = useState<FeatureBlock[]>([]);
   const [logTime, setLogTime] = useState<string | null>(null);
-  const [aiLastAudit, setAiLastAudit] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchLatest() {
@@ -140,7 +230,7 @@ export function AutomationFeatureStatus({ autoCoolingEnabled, pillCompEnabled, s
         aiAuditEnabled
           ? supabase
               .from("ai_audit_log")
-              .select("created_at, analysis")
+              .select("created_at")
               .order("created_at", { ascending: false })
               .limit(1)
               .maybeSingle()
@@ -149,51 +239,44 @@ export function AutomationFeatureStatus({ autoCoolingEnabled, pillCompEnabled, s
 
       if (logData) {
         const decisions = (logData.decisions as unknown as DecisionEntry[]) || [];
-        const results = summarizeFeatures(decisions, {
-          autoCoolingEnabled,
-          pillCompEnabled,
-          stallDetectionEnabled,
-          overshootPreventionEnabled,
-          aiAuditEnabled,
+        const results = buildFeatureBlocks(decisions, {
+          autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled,
         });
 
-        // Enrich AI audit status
+        // Enrich AI
         if (aiAuditEnabled) {
-          const aiEntry = results.find(r => r.label === "AI-optimering");
-          if (aiEntry && aiData) {
+          const aiBlock = results.find(r => r.label === "AI-optimering");
+          if (aiBlock && aiData) {
             const ago = formatDistanceToNow(new Date(aiData.created_at), { addSuffix: true, locale: sv });
-            aiEntry.status = `Senaste audit ${ago}`;
-            setAiLastAudit(aiData.created_at);
-          } else if (aiEntry) {
-            aiEntry.status = "Ingen audit ännu";
+            aiBlock.controllers = [{ name: "Senaste audit", status: ago, variant: "idle" }];
+          } else if (aiBlock) {
+            aiBlock.controllers = [{ name: "Status", status: "Ingen audit ännu", variant: "skip" }];
           }
         }
 
-        setSummaries(results);
+        setBlocks(results);
         setLogTime(logData.created_at);
       }
     }
 
     fetchLatest();
 
-    // Listen for new decision logs
     const channel = supabase
       .channel("automation-feature-status")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "auto_cooling_decision_logs" }, () => {
-        fetchLatest();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "auto_cooling_decision_logs" }, () => {
-        fetchLatest();
-      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "auto_cooling_decision_logs" }, () => fetchLatest())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "auto_cooling_decision_logs" }, () => fetchLatest())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled]);
 
-  if (summaries.length === 0) return null;
+  if (blocks.length === 0) return null;
+
+  const variantColor = (v: ControllerLine["variant"]) =>
+    v === "action" ? "text-accent" : v === "skip" ? "text-muted-foreground/40" : "text-muted-foreground/70";
 
   return (
-    <div className="space-y-1.5 pt-1">
+    <div className="space-y-3 pt-2">
       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
         Senaste cykel
         {logTime && (
@@ -202,13 +285,26 @@ export function AutomationFeatureStatus({ autoCoolingEnabled, pillCompEnabled, s
           </span>
         )}
       </span>
-      {summaries.map((s) => (
-        <div key={s.label} className="flex items-center gap-2 text-xs px-1 py-0.5">
-          <s.icon className={`h-3 w-3 shrink-0 ${s.variant === "action" ? "text-accent" : "text-muted-foreground/60"}`} />
-          <span className="text-muted-foreground shrink-0">{s.label}</span>
-          <span className={`ml-auto text-right truncate ${s.variant === "action" ? "text-accent font-medium" : "text-muted-foreground/80"}`}>
-            {s.status}
-          </span>
+
+      {blocks.map((block) => (
+        <div key={block.label} className="space-y-0.5">
+          {/* Feature header */}
+          <div className="flex items-center gap-2 text-xs px-1">
+            <block.icon className={`h-3 w-3 shrink-0 ${block.hasAction ? "text-accent" : "text-muted-foreground/60"}`} />
+            <span className={`font-medium ${block.hasAction ? "text-accent" : "text-muted-foreground"}`}>
+              {block.label}
+            </span>
+          </div>
+
+          {/* Per-controller lines */}
+          {block.controllers.map((ctrl) => (
+            <div key={`${block.label}-${ctrl.name}`} className="flex items-center justify-between text-[11px] pl-6 pr-1 py-px">
+              <span className={`truncate ${variantColor(ctrl.variant)}`}>{ctrl.name}</span>
+              <span className={`shrink-0 ml-2 text-right ${ctrl.variant === "action" ? "text-accent font-medium" : variantColor(ctrl.variant)}`}>
+                {ctrl.status}
+              </span>
+            </div>
+          ))}
         </div>
       ))}
     </div>
