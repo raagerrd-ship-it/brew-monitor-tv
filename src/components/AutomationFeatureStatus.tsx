@@ -308,7 +308,7 @@ export function AutomationFeatureStatus(props: Props) {
           .limit(1)
           .maybeSingle(),
         aiAuditEnabled
-          ? supabase.from("ai_audit_log").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle()
+          ? supabase.from("ai_audit_log").select("created_at, actions_taken, parameters_changed, analysis").order("created_at", { ascending: false }).limit(1).maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
 
@@ -341,7 +341,36 @@ export function AutomationFeatureStatus(props: Props) {
         const aiBlock = results.find(r => r.label === "AI-optimering");
         if (aiBlock && aiData) {
           const ago = formatDistanceToNow(new Date(aiData.created_at), { addSuffix: true, locale: sv });
-          aiBlock.controllers = [{ name: "Senaste audit", status: ago, variant: "idle" }];
+          const actions = (aiData.actions_taken as unknown as string[]) || [];
+          const params = (aiData.parameters_changed as unknown as string[]) || [];
+          const hadActions = actions.length > 0 || params.length > 0;
+
+          aiBlock.controllers = [
+            { name: "Senaste audit", status: ago, variant: "idle" },
+          ];
+
+          if (hadActions) {
+            for (const action of actions.slice(0, 3)) {
+              aiBlock.controllers.push({ name: "↳ Åtgärd", status: String(action), variant: "action" });
+            }
+            for (const param of params.slice(0, 2)) {
+              aiBlock.controllers.push({ name: "↳ Parameter", status: String(param), variant: "action" });
+            }
+          } else {
+            aiBlock.controllers.push({ name: "Resultat", status: "Inga ändringar", variant: "idle" });
+          }
+
+          // Show first line of analysis as summary
+          if (aiData.analysis) {
+            const firstLine = String(aiData.analysis).split('\n')[0].slice(0, 80);
+            if (firstLine) {
+              aiBlock.extra = (
+                <div className="text-[10px] text-muted-foreground/50 pl-6 pr-1 pt-0.5 italic leading-tight">
+                  {firstLine}{String(aiData.analysis).length > 80 ? "…" : ""}
+                </div>
+              );
+            }
+          }
         } else if (aiBlock) {
           aiBlock.controllers = [{ name: "Status", status: "Ingen audit ännu", variant: "skip" }];
         }
