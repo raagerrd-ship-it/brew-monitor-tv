@@ -4,6 +4,7 @@ import {
   NowPlaying,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
+  triggerServerSync,
   updateProgressDOM,
 } from './types';
 
@@ -33,7 +34,12 @@ interface UseSonosPlaybackTickerParams {
 /**
  * 1-second ticker handling:
  * - Progress bar updates via DOM ref (zero re-renders)
- * - Predictive polling near track end
+ * - Predictive track swap near track end
+ *
+ * Flow:
+ * 1. When ≤15s remain: trigger server sync if next_track_name missing (so cron doesn't need to)
+ * 2. When ≤10s remain: schedule swap timer at (timeRemaining - offset)
+ * 3. When swap timer fires: use next_* data if available, else poll
  */
 export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
@@ -46,12 +52,16 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const handleTrackChangeRef = useRef(handleTrackChange);
   handleTrackChangeRef.current = handleTrackChange;
 
+  // Track whether we've already triggered eager sync for this track
+  const eagerSyncDoneRef = useRef(false);
+
   useEffect(() => {
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || !nowPlaying.duration_ms) return;
 
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
     let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
+    eagerSyncDoneRef.current = false;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
@@ -105,8 +115,22 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         const timeRemaining = duration - next;
 
-        // Predictive swap: schedule when <10s remain (once per track)
-        // Use track change offset from settings (seconds → ms), fallback to PREDICTIVE_MARGIN_MS
+        // --- Eager sync: when ≤15s remain and no next_track_name, trigger server sync ---
+        // This ensures the server populates next_* fields regardless of cron timing
+        const EAGER_SYNC_THRESHOLD_MS = 15000;
+        if (timeRemaining <= EAGER_SYNC_THRESHOLD_MS && timeRemaining > 0 && !eagerSyncDoneRef.current) {
+          const current = nowPlayingRef?.current;
+          if (!current?.next_track_name) {
+            eagerSyncDoneRef.current = true;
+            tvDebug('sonos', `🔮 ${(timeRemaining / 1000).toFixed(0)}s kvar, ingen next_track — triggar server sync`);
+            console.log(`[Sonos:Ticker] Eager sync: ${(timeRemaining / 1000).toFixed(0)}s remaining, no next_track — triggering server sync`);
+            triggerServerSync().catch(() => {});
+          } else {
+            eagerSyncDoneRef.current = true; // Already have data, no need to sync
+          }
+        }
+
+        // --- Predictive swap: schedule when ≤10s remain ---
         const offsetMs = trackChangeOffsetRef.current > 0
           ? trackChangeOffsetRef.current * 1000
           : PREDICTIVE_MARGIN_MS;
@@ -129,11 +153,19 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           }
 
           predictiveTimer = setTimeout(() => {
-            // If we have pre-populated next track data, apply it immediately
+            // Re-check for next track data (might have arrived via realtime from eager sync)
             const snap = nowPlayingRef?.current;
             if (snap?.next_track_name) {
-              tvDebug('sonos', `🔮 Predictive swap: byter till "${snap.next_track_name}" (${trackChangeOffsetRef.current}s före låtslut)`);
+              tvDebug('sonos', `🔮 Predictive swap NU: byter till "${snap.next_track_name}" (${trackChangeOffsetRef.current}s före låtslut)`);
               addDebugLog?.(`🔮 Predictive swap → ${snap.next_track_name}`);
+              console.log(`[Sonos:Ticker] 🔮 Predictive swap NOW: "${snap.next_track_name}"`);
+
+              // Preload images one more time right before swap (in case they arrived late)
+              if (snap.next_bg_image_url) {
+                const img = new Image();
+                img.src = snap.next_bg_image_url;
+              }
+
               handleTrackChangeRef.current({
                 trackName: snap.next_track_name,
                 artistName: snap.next_artist_name,
@@ -142,7 +174,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               });
             } else {
               // No next track data available — fall back to polling
-              tvDebug('sonos', `🔮 Ingen nästa-låt-data — pollar istället`);
+              tvDebug('sonos', `🔮 Ingen nästa-låt-data efter sync — pollar istället`);
+              console.log(`[Sonos:Ticker] 🔮 No next_track after eager sync — falling back to poll`);
               pollForNewTrack(PREDICTIVE_MAX_RETRIES);
             }
           }, delay);
