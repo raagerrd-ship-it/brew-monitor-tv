@@ -15,6 +15,7 @@ interface UseSonosRealtimeParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
+  isTvMode?: boolean;
 }
 
 /**
@@ -26,7 +27,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
     onRealtimeRef, isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
-    onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog,
+    onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog, isTvMode,
   } = params;
 
   useEffect(() => {
@@ -96,11 +97,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
                 onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
               }
-              if (nextBgChanged && incoming.next_bg_image_url) {
+              if (nextBgChanged && incoming.next_bg_image_url && isTvMode) {
                 tvDebug('sonos', `🖼️ RT: förladdar next_bg_image`);
                 const img = new Image(); img.src = incoming.next_bg_image_url;
               }
-              if (nextWidgetChanged && incoming.next_widget_art_url) {
+              if (nextWidgetChanged && incoming.next_widget_art_url && isTvMode) {
                 tvDebug('sonos', `🖼️ RT: förladdar next_widget_art`);
                 const img = new Image(); img.src = incoming.next_widget_art_url;
               }
@@ -162,11 +163,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
         console.log(`[Sonos:RT] ✅ Merged update for "${incoming.track_name}" (bg=${bgChanged}, widget=${!!widgetChanged}, state=${incoming.playback_state})`);
         tvDebug('sonos', `✅ RT: merge "${incoming.track_name}" bg=${bgChanged} widget=${!!widgetChanged} state=${incoming.playback_state}`);
-        if (incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url) {
+        if (incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url && isTvMode) {
           tvDebug('sonos', `🖼️ RT: förladdar next_bg (merge)`);
           const img = new Image(); img.src = incoming.next_bg_image_url;
         }
-        if (incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url) {
+        if (incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url && isTvMode) {
           const img = new Image(); img.src = incoming.next_widget_art_url;
         }
         return {
