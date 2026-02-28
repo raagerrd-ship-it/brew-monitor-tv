@@ -45,7 +45,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const nextBg = prev.next_bg_image_url;
       const nextWidget = prev.next_widget_art_url;
       const nextArt = prev.next_album_art_url;
-      const hasPreloaded = !!(nextWidget || nextBg);
+      // Only use preloaded images if they match the incoming track
+      const preloadMatchesTrack = prev.next_track_name === data.trackName;
+      const hasPreloaded = preloadMatchesTrack && !!(nextWidget || nextBg);
 
       if (hasPreloaded) {
         tvDebug('sonos', `🎵 → "${data.trackName}" (förladdat ✅)`);
