@@ -229,15 +229,14 @@ Deno.serve(async (req) => {
             await completeProfile(supabase, session, nextStepIndex)
             results.push({ sessionId: session.id, action: 'profile_completed', details: {} })
           } else {
-            // SAFETY: Verify target temp jump is within reasonable bounds before advancing
+            // SAFETY: Clamp next step target to controller's min/max range
             const nextStep = steps[nextStepIndex] as ProfileStep | undefined
-            const currentTarget = controller?.target_temp ? parseFloat(String(controller.target_temp)) : null
-            const nextTarget = nextStep?.target_temp ?? null
-            if (currentTarget !== null && nextTarget !== null) {
-              const tempJump = Math.abs(nextTarget - currentTarget)
-              if (tempJump > 25) {
-                console.error(`🚨 SAFETY BLOCK: Step ${session.current_step_index}→${nextStepIndex} would jump ${tempJump.toFixed(1)}°C (${currentTarget}→${nextTarget}°C). Blocking for safety.`)
-                results.push({ sessionId: session.id, action: 'safety_blocked', details: { temp_jump: tempJump, from: currentTarget, to: nextTarget } })
+            if (nextStep?.target_temp != null && controller) {
+              const minTemp = controller.min_target_temp != null ? parseFloat(String(controller.min_target_temp)) : -5
+              const maxTemp = controller.max_target_temp != null ? parseFloat(String(controller.max_target_temp)) : 25
+              if (nextStep.target_temp < minTemp || nextStep.target_temp > maxTemp) {
+                console.error(`🚨 SAFETY BLOCK: Step ${nextStepIndex} target ${nextStep.target_temp}°C is outside controller range [${minTemp}, ${maxTemp}°C]. Blocking.`)
+                results.push({ sessionId: session.id, action: 'safety_blocked', details: { target: nextStep.target_temp, min: minTemp, max: maxTemp } })
                 continue
               }
             }
