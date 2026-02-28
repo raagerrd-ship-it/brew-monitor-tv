@@ -141,10 +141,10 @@ export function SyncedDataDialog({
                       <td className="py-1.5 text-muted-foreground">
                         {format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
                       </td>
-                      <td className="py-1.5 text-right font-mono text-beer-amber">
+                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-beer-amber' : 'text-muted-foreground/40'}`}>
                         {point.sg != null ? point.sg.toFixed(4) : "-"}
                       </td>
-                      <td className="py-1.5 text-right font-mono text-temp-blue">
+                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
                         {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
                       </td>
                       {hasControllerData && (
