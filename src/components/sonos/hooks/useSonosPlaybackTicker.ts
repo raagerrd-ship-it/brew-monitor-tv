@@ -45,7 +45,6 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
   const handleTrackChangeRef = useRef(handleTrackChange);
   handleTrackChangeRef.current = handleTrackChange;
-  const eagerSyncDoneRef = useRef(false);
 
   useEffect(() => {
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || !nowPlaying.duration_ms) return;
@@ -53,7 +52,6 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
     let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
-    eagerSyncDoneRef.current = false;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
@@ -99,31 +97,28 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
       const remaining = duration - next;
 
-      // Eager sync: ≤15s, trigger server sync if next images missing
-      if (remaining <= 15000 && remaining > 0 && !eagerSyncDoneRef.current) {
-        eagerSyncDoneRef.current = true;
-        const current = nowPlayingRef?.current;
-        if (!current?.next_bg_image_url) {
-          tvDebug('sonos', `🔮 ${Math.round(remaining / 1000)}s kvar — eager sync`);
-          triggerServerSync().catch(() => {});
-        }
-      }
-
-      // Predictive swap: ≤10s, schedule
+      // Single preload point: ≤10s remaining, schedule swap
       const offsetMs = trackChangeOffsetRef.current > 0
         ? trackChangeOffsetRef.current * 1000
         : PREDICTIVE_MARGIN_MS;
 
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
         predictiveScheduledRef.current = true;
-        const delay = Math.max(remaining - offsetMs, 100);
-        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s`);
 
-        // Preload next images
+        // If next images missing, trigger server sync now
         const current = nowPlayingRef?.current;
+        if (!current?.next_bg_image_url) {
+          tvDebug('sonos', `🔮 ${Math.round(remaining / 1000)}s kvar — hämtar next-bilder`);
+          triggerServerSync().catch(() => {});
+        }
+
+        // Preload available next images
         [current?.next_widget_art_url, current?.next_bg_image_url]
           .filter(Boolean)
           .forEach(url => { const img = new Image(); img.src = url!; });
+
+        const delay = Math.max(remaining - offsetMs, 100);
+        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s`);
 
         predictiveTimer = setTimeout(() => {
           const snap = nowPlayingRef?.current;
