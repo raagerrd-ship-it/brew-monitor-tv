@@ -542,8 +542,8 @@ export default function Settings() {
                     coolerControllerId={settings.coolerControllerId}
                     followedControllerIds={settings.followedControllerIds}
                     lastAdjustment={settings.lastAdjustment}
-                    lastAutoCoolingCheck={settings.lastAutoCoolingCheck}
-                    autoCoolingInterval={settings.autoCoolingInterval}
+                    lastAutoCoolingCheck={settings.lastRaptQuickSync}
+                    autoCoolingInterval={settings.raptSyncInterval}
                   />
                 </div>
               </SettingsSection>

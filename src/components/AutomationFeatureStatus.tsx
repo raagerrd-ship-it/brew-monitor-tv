@@ -380,11 +380,11 @@ export function AutomationFeatureStatus(props: Props) {
             <div className="flex items-center justify-between text-[11px] pl-6 pr-1 pt-1">
               <div className="flex items-center gap-1 text-muted-foreground/60">
                 <Clock className="h-2.5 w-2.5" />
-                <span>Nästa glykol-kontroll</span>
+                <span>Nästa cykel</span>
               </div>
               <AutoCoolingCountdown
                 lastAdjustmentTime={props.lastAutoCoolingCheck}
-                checkIntervalMinutes={parseInt(props.autoCoolingInterval)}
+                checkIntervalMinutes={Math.ceil(parseInt(props.autoCoolingInterval) / 60)}
                 enabled={props.autoCoolingEnabled}
                 coolingActive={(() => {
                   const cooler = props.availableControllers.find(c => c.controller_id === props.coolerControllerId || c.is_glycol_cooler);
