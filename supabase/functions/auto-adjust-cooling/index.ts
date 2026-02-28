@@ -504,6 +504,16 @@ serve(async (req) => {
       log('PILL_COMP', 'info', 'Pill compensation disabled');
     }
 
+    // ── Sync in-memory data after PID adjustments ──────────────
+    // PID may have changed controller target_temps via RAPT API + DB.
+    // Update followedControllersFullData so glycol/stall see current values.
+    for (const adj of allAdjustments) {
+      const fc = followedControllersFullData.find(c => c.name === adj.cooler);
+      if (fc) {
+        (fc as any).target_temp = adj.newTarget;
+      }
+    }
+
     // ══════════════════════════════════════════════════════════════
     // FEATURE 2: STALL DETECTION (delegated to _shared/stall-detection.ts)
     // ══════════════════════════════════════════════════════════════
