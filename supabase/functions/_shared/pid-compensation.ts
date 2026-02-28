@@ -346,6 +346,17 @@ export async function calculateCompensatedTarget(
   // Safety bounds
   compensatedTarget = Math.max(profileTarget - effectiveMaxComp, Math.min(profileTarget + effectiveMaxComp, compensatedTarget))
 
+  // Directional clamp: never push target past profileTarget in the wrong direction.
+  // In cooling mode (ramp down), controller target must stay at or below profileTarget.
+  // In heating mode (ramp up), controller target must stay at or above profileTarget.
+  if (mode === 'cooling' && compensatedTarget > profileTarget) {
+    console.log(`🔒 Directional clamp [cooling]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte överskrida profilmål vid kylning)`)
+    compensatedTarget = profileTarget
+  } else if (mode === 'heating' && compensatedTarget < profileTarget) {
+    console.log(`🔒 Directional clamp [heating]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte understiga profilmål vid uppvärmning)`)
+    compensatedTarget = profileTarget
+  }
+
   // Asymmetric rate limit
   const diff = compensatedTarget - currentControllerTarget
   const distanceFromIdeal = Math.abs(diff)
