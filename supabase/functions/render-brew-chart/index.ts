@@ -353,8 +353,8 @@ serve(async (req) => {
     const bc = brewCount ?? 2;
     const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
 
-    // ── Step 1: Parallel fetch — latest snapshot + brew metadata ──
-    const [latestSnapResult, brewResult] = await Promise.all([
+    // ── Step 1: Parallel fetch — latest snapshot timestamp + brew metadata + cached SVG ──
+    const [latestSnapResult, brewResult, cachedFile] = await Promise.all([
       supabase.from('brew_data_snapshots')
         .select('recorded_at')
         .eq('brew_id', brewId)
@@ -365,6 +365,11 @@ serve(async (req) => {
         .select('id, sg_data, original_gravity, final_gravity')
         .eq('id', brewId)
         .single(),
+      supabase.storage
+        .from('chart-images')
+        .download(fileName)
+        .then(({ data, error }) => error ? null : data)
+        .catch(() => null),
     ]);
 
     if (brewResult.error || !brewResult.data) {
@@ -374,6 +379,27 @@ serve(async (req) => {
       );
     }
     const brew = brewResult.data;
+
+    // ── Step 1b: Check if cached SVG is still valid ──
+    // The cached SVG filename encodes brew+compact+count. If we have it and the
+    // latest snapshot hasn't changed, we can return it directly.
+    if (cachedFile) {
+      // Check the storage object's metadata to see when it was last updated
+      const { data: fileList } = await supabase.storage.from('chart-images').list('', { search: fileName });
+      const fileMeta = fileList?.find(f => f.name === fileName);
+      if (fileMeta && latestSnapResult.data) {
+        const fileUpdated = new Date(fileMeta.updated_at ?? fileMeta.created_at).getTime();
+        const latestSnap = new Date(latestSnapResult.data.recorded_at).getTime();
+        // If file was updated AFTER the latest snapshot, it's still valid
+        if (fileUpdated > latestSnap) {
+          const cachedSvg = await cachedFile.text();
+          console.log(`[RenderChart] ⚡ Cache hit for ${brewId} in ${Date.now() - startTime}ms (${cachedSvg.length}b)`);
+          return new Response(cachedSvg, {
+            headers: { ...corsHeaders, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache' },
+          });
+        }
+      }
+    }
 
     // ── Step 2: Fetch snapshots — single query, max 1000, then downsample to 100 ──
     const { data: rawSnapshots } = await supabase
