@@ -87,8 +87,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
         // Same track → only next_* + state + fill missing art
         accepted = true;
-        const nextBgNew = incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url;
-        const nextWidgetNew = incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url;
+        const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
+        const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
+        const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
         const needsBg = !prev.bg_image_url && incoming.bg_image_url;
         const needsWidget = !prev.widget_art_url && incoming.widget_art_url;
 
@@ -102,7 +103,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           bgSentRef.current = incoming.bg_image_url;
         }
 
-        if (nextBgNew || nextWidgetNew) {
+        if (nextBgNew) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
         }
 
