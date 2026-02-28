@@ -1,10 +1,46 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+interface ParsedField { label: string; value: string; color?: string }
+
+function parsePillCompMessage(msg: string): ParsedField[] | null {
+  // "Temp Controller Gul: PID 16.0°C → 14.7°C (delta=3.51, komp=0.53°C, D-term: rate=-0.35°/h, damp=1.0)"
+  const pidMatch = msg.match(/^(.+?):\s*PID\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*\(delta=([\d.]+),\s*komp=([\d.]+)°C(?:,\s*D-term:\s*rate=([-\d.]+)°\/h,\s*damp=([\d.]+))?\)/);
+  if (pidMatch) {
+    const [, name, from, to, delta, komp, rate, damp] = pidMatch;
+    const fields: ParsedField[] = [
+      { label: 'Styrenhet', value: name },
+      { label: 'Profilmål → Börvärde', value: `${from}° → ${to}°` },
+      { label: 'Delta', value: `${delta}°`, color: parseFloat(delta) > 2 ? 'hsl(38 92% 50%)' : undefined },
+      { label: 'Kompensation', value: `${komp}°` },
+    ];
+    if (rate) fields.push({ label: 'Pill-hastighet', value: `${rate}°C/h`, color: parseFloat(rate) < 0 ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)' });
+    if (damp) fields.push({ label: 'Dämpning', value: parseFloat(damp) < 1.0 ? `${(parseFloat(damp) * 100).toFixed(0)}%` : '100%' });
+    return fields;
+  }
+
+  // "Samma RAPT-data men avvikelse..." or similar skip messages
+  const skipMatch = msg.match(/^(.+?):\s*(.+)/);
+  if (skipMatch && msg.length > 60) {
+    return [
+      { label: 'Styrenhet', value: skipMatch[1] },
+      { label: 'Status', value: skipMatch[2] },
+    ];
+  }
+
+  // "Failed to update ..." 
+  if (msg.startsWith('Failed to update')) {
+    return [{ label: 'Fel', value: msg, color: 'hsl(0 80% 60%)' }];
+  }
+
+  return null;
+}
+
 
 const r1 = (v: number | null | undefined): string => {
   if (v === null || v === undefined) return '—';
@@ -484,25 +520,39 @@ export function AutoCoolingDecisionLogs() {
                   <span>Tid: {log.duration_ms}ms</span>
                   <span>Resultat: {log.final_result}</span>
                 </div>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {log.decisions.map((decision, index) => (
-                    <div key={index} className="flex items-start gap-2 text-[11px]">
-                      <div className="mt-0.5 flex-shrink-0">{getResultIcon(decision.result)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex gap-2">
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {log.decisions.map((decision, index) => {
+                    const isPillComp = decision.step.startsWith('PILL_COMP');
+                    const parsed = isPillComp ? parsePillCompMessage(decision.message) : null;
+                    
+                    return (
+                      <div key={index} className="flex items-start gap-2 text-[11px]">
+                        <div className="mt-0.5 flex-shrink-0">{getResultIcon(decision.result)}</div>
+                        <div className="flex-1 min-w-0">
                           <span className="font-mono text-muted-foreground text-[10px]">{decision.step}</span>
-                          <span className="text-foreground truncate">{decision.message}</span>
+                          {parsed ? (
+                            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10px] mt-0.5 pl-1">
+                              {parsed.map(({ label, value, color }, i) => (
+                                <React.Fragment key={i}>
+                                  <span className="text-muted-foreground">{label}:</span>
+                                  <span className="font-medium" style={color ? { color } : undefined}>{value}</span>
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-foreground ml-2 break-words">{decision.message}</span>
+                          )}
+                          {decision.details && Object.keys(decision.details).length > 0 && (
+                            <div className="mt-0.5 text-[10px] text-muted-foreground font-mono pl-2 border-l border-border ml-1">
+                              {Object.entries(decision.details).map(([key, value]) => (
+                                <div key={key}>{key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}</div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {decision.details && Object.keys(decision.details).length > 0 && (
-                          <div className="mt-0.5 text-[10px] text-muted-foreground font-mono pl-2 border-l border-border ml-1">
-                            {Object.entries(decision.details).map(([key, value]) => (
-                              <div key={key}>{key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}</div>
-                            ))}
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </CollapsibleContent>
