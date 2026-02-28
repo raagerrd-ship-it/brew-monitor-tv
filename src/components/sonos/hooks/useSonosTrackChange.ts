@@ -37,7 +37,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
   const handleTrackChange = useCallback((data: TrackChangeData) => {
     const t0 = performance.now();
-    tvDebug('sonos', `🎵 Låtbyte: "${data.trackName}" (${data.artistName ?? '?'})`);
+    tvDebug('sonos', `🎵 Låtbyte: "${data.trackName}"`, 'track-change');
     console.log('[Sonos:TC] 🎵 Track change detected:', {
       newTrack: data.trackName,
       artist: data.artistName,
@@ -54,18 +54,18 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
       // Trigger server sync — images arrive via realtime subscription
-      tvDebug('sonos', `🔄 Hämtar låtbild från server...`);
+      tvDebug('sonos', `🔄 Hämtar låtbild...`, 'art-fetch');
       console.log('[Sonos:TC] 🔄 Triggering server sync for new art...');
       (async () => {
         const syncT0 = performance.now();
         try {
           await triggerServerSync();
           const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `✅ Server sync klar (${ms}ms) — väntar på bild via realtime`);
+          tvDebug('sonos', `✅ Server sync klar (${ms}ms)`, 'art-fetch');
           console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms — waiting for realtime art update`);
         } catch (e: any) {
           const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `❌ Server sync misslyckades (${ms}ms)`);
+          tvDebug('sonos', `❌ Server sync fail (${ms}ms)`, 'art-fetch');
           console.error(`[Sonos:TC] ❌ Server sync failed after ${ms}ms:`, e?.message || e);
         }
       })();
