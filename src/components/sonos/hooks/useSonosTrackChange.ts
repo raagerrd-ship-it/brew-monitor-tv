@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, pushToBgBuffer, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, fetchPlaybackStatus, pushToBgBuffer, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosTrackChangeParams {
@@ -54,15 +54,34 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
       // Trigger server sync — images arrive via realtime subscription
-      tvDebug('sonos', `🔄 Hämtar låtbild...`, 'art-fetch');
-      console.log('[Sonos:TC] 🔄 Triggering server sync for new art...');
+      const hasPreloadedImages = !!(prev.next_widget_art_url || prev.next_bg_image_url);
+      tvDebug('sonos', hasPreloadedImages ? `✅ Förladdade bilder finns` : `🔄 Hämtar låtbild...`, 'art-fetch');
+      console.log(`[Sonos:TC] ${hasPreloadedImages ? '✅ Using preloaded images' : '🔄 Triggering server sync for new art...'}`);
       (async () => {
         const syncT0 = performance.now();
         try {
           await triggerServerSync();
           const ms = Math.round(performance.now() - syncT0);
           tvDebug('sonos', `✅ Server sync klar (${ms}ms)`, 'art-fetch');
-          console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms — waiting for realtime art update`);
+          console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms`);
+
+          // If no preloaded images were available, fetch them now directly
+          if (!hasPreloadedImages) {
+            const fetchT0 = performance.now();
+            tvDebug('sonos', `🖼️ Hämtar bilder direkt...`, 'art-direct');
+            const result = await fetchPlaybackStatus();
+            const fetchMs = Math.round(performance.now() - fetchT0);
+            if (result) {
+              tvDebug('sonos', `✅ Bilder hämtade (${fetchMs}ms)`, 'art-direct');
+              console.log(`[Sonos:TC] ✅ Direct art fetch in ${fetchMs}ms`);
+              setNowPlaying(cur => cur ? {
+                ...cur,
+                ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
+                ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
+                ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
+              } : cur);
+            }
+          }
         } catch (e: any) {
           const ms = Math.round(performance.now() - syncT0);
           tvDebug('sonos', `❌ Server sync fail (${ms}ms)`, 'art-fetch');
