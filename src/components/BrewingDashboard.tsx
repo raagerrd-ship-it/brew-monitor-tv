@@ -18,6 +18,7 @@ import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
+import { TvDebugOverlay } from "./TvDebugOverlay";
 
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
@@ -263,6 +264,9 @@ export function BrewingDashboard() {
 
       {/* Timer Footer */}
       <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
+
+      {/* TV Debug Overlay */}
+      {isTvMode && <TvDebugOverlay />}
     </div>
   </>;
 }
