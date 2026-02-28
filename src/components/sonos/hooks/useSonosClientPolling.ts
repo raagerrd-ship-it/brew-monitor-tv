@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
@@ -88,6 +89,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
             handleTrackChange(data);
           } else if (trackChanged && inCooldown) {
             // Server still reports old track during predictive swap cooldown — ignore
+            tvDebug('sonos', `⏳ Poll ignorerad under cooldown (${Math.round(msSinceTrackChange / 1000)}s): server="${data.trackName}", lokal="${currentNpSnap?.track_name}"`);
             console.log(`[Sonos:Poll] ⏳ Ignored stale track during cooldown (${Math.round(msSinceTrackChange / 1000)}s): server="${data.trackName}", local="${currentNpSnap?.track_name}"`);
           } else {
              // Same track — update metadata, state, and next-track info (art URLs come from init + realtime)
