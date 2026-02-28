@@ -26,6 +26,8 @@ export const SonosWidget = memo(function SonosWidget({
 
   const progressBarRef = useRef<HTMLDivElement>(null);
   const debugTimeRef = useRef<HTMLSpanElement>(null);
+  const trackNameRef = useRef<HTMLDivElement>(null);
+  const artistNameRef = useRef<HTMLDivElement>(null);
   const localProgressRef = useRef<number | null>(null);
   const trackChangedAtRef = useRef<number>(0);
   const bgSentRef = useRef<string | null>(null);
@@ -45,7 +47,7 @@ export const SonosWidget = memo(function SonosWidget({
   const { handleTrackChange } = useSonosTrackChange({
     setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
   });
 
   useSonosPlaybackTicker({
@@ -146,19 +148,19 @@ export const SonosWidget = memo(function SonosWidget({
       <div className={`relative h-full flex flex-col justify-center ${isHeader ? "px-3 py-1" : isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         {isHeader ? (
           <div className="truncate text-white" style={{ fontSize: trackFontSize, textShadow: "0 1px 4px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.6)" }}>
-            {nowPlaying.artist_name && <span className="font-semibold">{nowPlaying.artist_name}</span>}
+            {nowPlaying.artist_name && <span ref={artistNameRef} className="font-semibold">{nowPlaying.artist_name}</span>}
             {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-white/70 font-normal"> — </span>}
-            <span className="text-white/70 font-normal">{nowPlaying.track_name}</span>
+            <span ref={trackNameRef} className="text-white/70 font-normal">{nowPlaying.track_name}</span>
           </div>
         ) : (
           <>
             <div className="overflow-hidden">
-              <div className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+              <div ref={trackNameRef} className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
                 {nowPlaying.track_name}
               </div>
             </div>
             {nowPlaying.artist_name && (
-              <div className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
+              <div ref={artistNameRef} className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
                 {nowPlaying.artist_name}
               </div>
             )}

@@ -11,6 +11,8 @@ interface UseSonosTrackChangeParams {
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  trackNameRef: React.RefObject<HTMLDivElement | null>;
+  artistNameRef: React.RefObject<HTMLDivElement | null>;
 }
 
 interface TrackChangeData {
@@ -30,12 +32,16 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
   const {
     setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
   } = params;
 
   const handleTrackChange = useCallback((data: TrackChangeData) => {
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
+
+    // Immediate DOM text swap (bypasses React render lag on weak hardware)
+    if (trackNameRef.current) trackNameRef.current.textContent = data.trackName;
+    if (artistNameRef.current) artistNameRef.current.textContent = data.artistName ?? '';
 
     setNowPlaying(prev => {
       if (!prev) return prev;
@@ -103,7 +109,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_artist_name: null,
       };
     });
-  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef]);
+  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef]);
 
   return { handleTrackChange };
 }
