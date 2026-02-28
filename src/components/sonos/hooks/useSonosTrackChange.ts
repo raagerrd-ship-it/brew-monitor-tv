@@ -57,20 +57,23 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
-      // Trigger server sync — images arrive via realtime subscription
+      // Check if preloaded images exist — skip server sync entirely if so
       const hasPreloadedImages = !!(prev.next_widget_art_url || prev.next_bg_image_url);
-      tvDebug('sonos', hasPreloadedImages ? `✅ Förladdade bilder finns` : `🔄 Hämtar låtbild...`, artId);
-      console.log(`[Sonos:TC] ${hasPreloadedImages ? '✅ Using preloaded images' : '🔄 Triggering server sync for new art...'}`);
-      (async () => {
-        const syncT0 = performance.now();
-        try {
-          await triggerServerSync();
-          const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `✅ Server sync klar`, artId);
-          console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms`);
+      if (hasPreloadedImages) {
+        tvDebug('sonos', `✅ Förladdade bilder finns — skippar server sync`, artId);
+        console.log('[Sonos:TC] ✅ Using preloaded images — skipping server sync');
+      } else {
+        // No preloaded images — trigger server sync + fetch from DB
+        tvDebug('sonos', `🔄 Ingen prefetch — triggar server sync...`, artId);
+        console.log('[Sonos:TC] 🔄 No preloaded images — triggering server sync...');
+        (async () => {
+          const syncT0 = performance.now();
+          try {
+            await triggerServerSync();
+            const ms = Math.round(performance.now() - syncT0);
+            tvDebug('sonos', `✅ Server sync klar (${ms}ms)`, artId);
+            console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms`);
 
-          // If no preloaded images were available, fetch them now directly
-          if (!hasPreloadedImages) {
             const fetchT0 = performance.now();
             const directId = `art-direct-${trackChangeCounter}`;
             tvDebug('sonos', `🖼️ Hämtar bilder från DB...`, directId);
@@ -85,7 +88,6 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                 ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
               } : cur);
-              // Trigger background preload immediately
               if (result.bgImageUrl) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                 onAlbumArtChangeRef.current?.(result.bgImageUrl);
@@ -93,13 +95,13 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 tvDebug('sonos', `🖼️ Bakgrund triggad från DB-hämtning`);
               }
             }
+          } catch (e: any) {
+            const ms = Math.round(performance.now() - syncT0);
+            tvDebug('sonos', `❌ Server sync fail (${ms}ms)`, artId);
+            console.error(`[Sonos:TC] ❌ Server sync failed after ${ms}ms:`, e?.message || e);
           }
-        } catch (e: any) {
-          const ms = Math.round(performance.now() - syncT0);
-          tvDebug('sonos', `❌ Server sync fail`, artId);
-          console.error(`[Sonos:TC] ❌ Server sync failed after ${ms}ms:`, e?.message || e);
-        }
-      })();
+        })();
+      }
 
       const ms = Math.round(performance.now() - t0);
       console.log(`[Sonos:TC] State update applied in ${ms}ms`);
