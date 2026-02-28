@@ -163,7 +163,36 @@ serve(async (req) => {
         }
 
         if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
-          console.log(`No new telemetry data for brew ${brew.name}`);
+          console.log(`No new telemetry data for brew ${brew.name}, checking controller fallback...`);
+          
+          // Fallback: update current_temp from controller probe when pill is offline
+          if (brew.linked_controller_id) {
+            const controller = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
+            if (controller?.pill_temp != null || controller) {
+              // Prefer pill_temp on controller (if controller still has cached pill reading),
+              // otherwise use controller's own probe temp
+              const { data: ctrlFull } = await supabase
+                .from('rapt_temp_controllers')
+                .select('current_temp, pill_temp, last_update')
+                .eq('controller_id', brew.linked_controller_id)
+                .maybeSingle();
+              
+              if (ctrlFull) {
+                const fallbackTemp = ctrlFull.current_temp;
+                if (fallbackTemp != null) {
+                  console.log(`Updating ${brew.name} with controller probe temp: ${fallbackTemp}°C (pill offline)`);
+                  await supabase
+                    .from('brew_readings')
+                    .update({
+                      current_temp: fallbackTemp,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', brew.id);
+                  brewsUpdated++;
+                }
+              }
+            }
+          }
           continue;
         }
 
