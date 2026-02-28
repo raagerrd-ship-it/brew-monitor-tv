@@ -4,7 +4,6 @@ import {
   NowPlaying,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
-  triggerServerSync,
   updateProgressDOM,
 } from './types';
 
@@ -105,14 +104,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
         predictiveScheduledRef.current = true;
 
-        // If next images missing, trigger server sync now
+        // Preload available next images (server sync only happens in handleTrackChange fallback if needed)
         const current = nowPlayingRef?.current;
-        if (!current?.next_bg_image_url) {
-          tvDebug('sonos', `🔮 ${Math.round(remaining / 1000)}s kvar — hämtar next-bilder`);
-          triggerServerSync().catch(() => {});
-        }
-
-        // Preload available next images
         [current?.next_widget_art_url, current?.next_bg_image_url]
           .filter(Boolean)
           .forEach(url => { const img = new Image(); img.src = url!; });
