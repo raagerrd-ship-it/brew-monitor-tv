@@ -119,9 +119,17 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         if (incoming.track_name !== prev.track_name) {
-          console.log(`[Sonos:RT] ⚠️ Stale track ignored: DB="${incoming.track_name}", local="${prev.track_name}"`);
-          addDebugLog?.(`📻 RT: ignored stale (${incoming.track_name})`);
-          return prev;
+          // Outside cooldown: legitimate track change detected via Realtime
+          console.log(`[Sonos:RT] 🎵 Track change via RT: "${prev.track_name}" → "${incoming.track_name}"`);
+          addDebugLog?.(`📻 RT: låtbyte → ${incoming.track_name}`);
+          acceptedRef.current = true;
+          trackChangedAtRef.current = Date.now();
+          if (incoming.bg_image_url) {
+            pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url);
+            bgSentRef.current = incoming.bg_image_url;
+          }
+          return incoming;
         }
 
         // Don't let realtime overwrite local IDLE
