@@ -289,11 +289,16 @@ export function AutoCoolingDecisionLogs() {
                             const sign = change >= 0 ? '+' : '';
                             return `${sign}${change.toFixed(1)}°`;
                           })()}
-                          {adj.original_target_temp != null && (
-                            <span className="text-muted-foreground ml-1">
-                              (totalt {(adj.original_target_temp - adj.new_target_temp).toFixed(1)}° under profil)
-                            </span>
-                          )}
+                          {adj.original_target_temp != null && (() => {
+                            const diff = adj.new_target_temp - adj.original_target_temp;
+                            const absDiff = Math.abs(diff).toFixed(1);
+                            const direction = diff > 0.04 ? 'över' : diff < -0.04 ? 'under' : 'på';
+                            return (
+                              <span className="text-muted-foreground ml-1">
+                                (totalt {absDiff}° {direction} profil)
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                       {/* D-term data parsed from reason string */}
