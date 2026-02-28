@@ -32,24 +32,22 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
     <div
       style={{
         position: 'fixed',
-        bottom: 8,
-        right: 8,
-        width: 480,
-        maxHeight: 320,
+        bottom: 0,
+        right: 0,
+        width: '100vw',
+        maxHeight: '50vh',
         overflow: 'hidden',
-        background: 'rgba(0,0,0,0.8)',
-        borderRadius: 8,
-        padding: '6px 8px',
+        background: 'rgba(0,0,0,0.9)',
+        padding: '12px 16px',
         zIndex: 99999,
         fontFamily: 'monospace',
-        fontSize: 11,
-        lineHeight: 1.4,
+        fontSize: 18,
+        lineHeight: 1.5,
         color: '#e2e8f0',
         pointerEvents: 'none',
-        border: '1px solid rgba(255,255,255,0.15)',
       }}
     >
-      <div style={{ color: '#94a3b8', marginBottom: 2, fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
+      <div style={{ color: '#94a3b8', marginBottom: 4, fontSize: 14, fontWeight: 600, letterSpacing: 1 }}>
         TV DEBUG {entries.length === 0 && '(waiting for events…)'}
       </div>
       {entries.length > 0 && (
@@ -60,7 +58,7 @@ export const TvDebugOverlay = memo(function TvDebugOverlay() {
               <span style={{ flexShrink: 0 }}>{categoryLabels[entry.category]}</span>
               <span style={{ color: categoryColors[entry.category], flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.message}</span>
               {entry.elapsed !== null && (
-                <span style={{ color: '#a78bfa', flexShrink: 0, fontSize: 10 }}>{formatElapsed(entry.elapsed)}</span>
+                <span style={{ color: '#a78bfa', flexShrink: 0, fontSize: 16 }}>{formatElapsed(entry.elapsed)}</span>
               )}
             </div>
           ))}
