@@ -91,10 +91,12 @@ export const SonosWidget = memo(function SonosWidget({
   const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
 
   // Reset imageError when a new art URL arrives
+  const imgFlowRef = useRef(0);
   useEffect(() => {
     if (incomingArtUrl) {
       console.log(`[Sonos:IMG] 🖼️ New art URL received: ${incomingArtUrl.slice(-60)}`);
-      tvDebug('sonos', `⏳ Bild-URL mottagen — laddar...`, 'img-load');
+      imgFlowRef.current++;
+      tvDebug('sonos', `⏳ Bild-URL mottagen — laddar...`, `img-${imgFlowRef.current}`);
       setImageError(false);
     }
   }, [incomingArtUrl]);
@@ -112,7 +114,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   const handleNewImageLoaded = useCallback(() => {
     console.log(`[Sonos:IMG] ✅ Widget art loaded: ${incomingArtUrl?.slice(-60)}`);
-    tvDebug('sonos', `✅ Låtbild laddad — visas i widget`, 'img-load');
+    tvDebug('sonos', `✅ Låtbild laddad — visas i widget`, `img-${imgFlowRef.current}`);
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
