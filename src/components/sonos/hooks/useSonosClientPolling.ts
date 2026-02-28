@@ -74,24 +74,35 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         updateProgressDOM(progressBarRef, debugTimeRef, localProgressRef.current ?? data.positionMillis, duration);
 
         if (!data.trackName) {
+          // No track name — only update state if not a transient IDLE (skip in progress)
+          if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return; // skip in progress
           if (data.playbackState !== nowPlaying.playback_state) {
             setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState } : prev);
           }
           return;
         }
 
+        // Transient IDLE during skip: position=0 + same or different track → keep polling, don't set IDLE
+        const isTransientIdle = data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0;
+
         const current = nowPlayingRef.current;
         const trackChanged = (current?.track_name ?? nowPlaying.track_name) !== data.trackName;
         const msSinceTC = Date.now() - trackChangedAtRef.current;
 
         if (trackChanged && msSinceTC >= 15000) {
-          handleTrackChange(data);
+          // Only handle if not transient idle
+          if (!isTransientIdle) {
+            handleTrackChange(data);
+          }
+        } else if (trackChanged && isTransientIdle) {
+          // Skip in progress — ignore stale data, keep polling
         } else if (!trackChanged) {
-          // Same track — update metadata + next track info
+          // Same track — update metadata + next track info (but never set IDLE from transient)
           setNowPlaying(prev => {
             if (!prev) return prev;
+            const effectiveState = isTransientIdle ? prev.playback_state : data.playbackState;
             const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
-            const stateChanged = prev.playback_state !== data.playbackState;
+            const stateChanged = prev.playback_state !== effectiveState;
             const durationChanged = duration && prev.duration_ms !== duration;
 
             if (!nextChanged && !stateChanged && !durationChanged) return prev;
@@ -100,7 +111,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
               ...prev,
               artist_name: data.artistName ?? prev.artist_name,
               album_name: data.albumName ?? prev.album_name,
-              playback_state: data.playbackState,
+              playback_state: effectiveState,
               duration_ms: duration ?? prev.duration_ms,
               ...(nextChanged ? {
                 next_track_name: data.nextTrackName,
