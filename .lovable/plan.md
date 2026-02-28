@@ -1,48 +1,89 @@
 
 
-## Problem
+## Analysis: Current Flow & Bottlenecks
 
-The debug log shows `Realtime: "undefined" (bg=false, widget=false)` entries while music is playing. This happens because:
+```text
+Current predictive swap timeline (worst case):
+────────────────────────────────────────────────────────
+-60s   Cron runs sync-sonos-now-playing (Phase 1+2+3)
+       → May or may not populate next_track_* fields
+       → Phase 3 (next images) takes 2-8s
+       
+-15s   Eager sync: client triggers FULL sync-sonos-now-playing
+       → Token refresh + Sonos API × 2 + image processing
+       → Total: 3-15s (often too slow for the 3.5s deadline!)
+       
+-10s   Predictive timer scheduled
+       
+-3.5s  SWAP POINT: needs next_track_name + images ready
+       → Often missing because eager sync hasn't finished
+       → Falls back to pollForNewTrack (another 2s+ per retry)
+```
 
-1. **Server-side**: The `sync-sonos-now-playing` edge function (called by cron) sometimes gets a response from the Sonos API where `track?.name` is momentarily null (API hiccup or transition). It writes this null value to the DB along with `bg_image_url: null` and `widget_art_url: null`, which triggers a realtime event that overwrites the valid data on the client.
+### Root cause
+The 5-second `sonos-playback-status` poll **already fetches `playbackMetadata`** from Sonos (which contains `nextItem`) but **throws it away** — it only returns current track info. This means the client has no idea what the next track is until either cron or eager sync populates the DB.
 
-2. **Client-side**: The realtime handler in `useSonosRealtime.ts` doesn't filter out incoming updates where `track_name` is null/undefined when we already have a valid track displayed.
+## Plan: 3 Changes
 
-The sequence visible in the log:
-- 12:50:01 — Cron writes null track → realtime fires with "undefined"
-- 12:50:35 — Cron writes "Every Little Thing" with images → realtime fires correctly
-- 12:50:36 — Another write clears it again → "undefined"
+### 1. Return next track data from `sonos-playback-status` (server)
+The metadata response from Sonos already contains `nextItem`. Add `nextTrackName`, `nextArtistName`, `nextAlbumArtUrl` to the response. **Zero extra API calls — data is already there.**
 
-## Plan
+File: `supabase/functions/sonos-playback-status/index.ts`
 
-### 1. Server-side guard in `sync-sonos-now-playing/index.ts`
-- Before writing to DB (lines 264-268): if `track_name` is null but an existing row has a valid `track_name` and playback state is PLAYING, **skip the write entirely** (return early with `{ ok: true, skipped: true }`).
-- This prevents the cron from overwriting good data with empty data during momentary API gaps.
+### 2. Client stores next-track metadata from every 5s poll (client)
+When `useSonosClientPolling` receives poll data with `nextTrackName`, merge it into state immediately. This means by the time we're 15s from the end, `next_track_name` is already in state (populated continuously every 5s).
 
-### 2. Client-side guard in `useSonosRealtime.ts`
-- At the top of the `onRealtimeRef.current` callback (after line 39): if `incoming.track_name` is null/undefined **and** we already have a `prev` with a valid `track_name`, ignore the update entirely.
-- This is a safety net in case the server-side guard doesn't catch all cases.
+File: `src/components/sonos/hooks/useSonosClientPolling.ts`
+
+### 3. Eager sync becomes image-only trigger (client)
+At 15s remaining, instead of checking for `next_track_name` (which is already there from polling), check for `next_bg_image_url`. If images are missing, trigger sync with the existing `triggerServerSync()` — but only for image processing. The metadata is already in place.
+
+File: `src/components/sonos/hooks/useSonosPlaybackTicker.ts`
+
+```text
+Improved timeline:
+────────────────────────────────────────────────────────
+-∞     Every 5s poll: next_track_name populated from Sonos API
+       → Client always knows what's coming next
+       
+-15s   Check: images missing? → trigger sync (image processing only)
+       → Realtime delivers next_bg/widget URLs
+       → Browser preloads immediately on arrival
+       
+-3.5s  SWAP POINT: text + images ready → instant transition
+       → No polling fallback needed
+```
 
 ### Technical details
 
-**Server** (`supabase/functions/sync-sonos-now-playing/index.ts`):
+**sonos-playback-status** — add 3 fields to response:
 ```typescript
-// After line 262, before the upsert block:
-if (!nowPlaying.track_name && existingRow?.track_name) {
-  const duration = Date.now() - startTime;
-  console.log(`[SonosSync] No track from API but DB has "${existingRow.track_name}" → skip write (${duration}ms)`);
-  return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+const nextTrack = metadata?.nextItem?.track;
+return { 
+  ...existing,
+  nextTrackName: nextTrack?.name || null,
+  nextArtistName: nextTrack?.artist?.name || null,
+  nextAlbumArtUrl: nextTrack?.imageUrl || null,
+};
+```
+
+**useSonosClientPolling** — merge next-track data from poll:
+```typescript
+// In same-track update path:
+const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
+if (nextChanged) {
+  return { ...prev, next_track_name: data.nextTrackName, 
+           next_artist_name: data.nextArtistName,
+           next_album_art_url: data.nextAlbumArtUrl };
 }
 ```
 
-**Client** (`src/components/sonos/hooks/useSonosRealtime.ts`):
+**useSonosPlaybackTicker** — eager sync checks images, not metadata:
 ```typescript
-// After line 39, before logging:
-if (!incoming.track_name) {
-  console.log('[Sonos:RT] ⚠️ Ignored realtime with null track_name');
-  return;
+// At 15s remaining:
+if (!current?.next_bg_image_url && current?.next_track_name) {
+  // Have metadata but no images — trigger image processing
+  triggerServerSync();
 }
 ```
 
