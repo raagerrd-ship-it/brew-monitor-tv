@@ -9,6 +9,7 @@ import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBa
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedGlycolRates } from "@/components/LearnedGlycolRates";
+import { LearnedGlycolHeadroom } from "@/components/LearnedGlycolHeadroom";
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -659,6 +660,8 @@ export default function Settings() {
                   <LearnedCoolerMarginValues />
                   <SettingsDivider />
                   <LearnedGlycolRates />
+                  <SettingsDivider />
+                  <LearnedGlycolHeadroom />
                   <SettingsDivider />
                   <LearnedThermalRates />
                 </SettingsSection>
