@@ -130,6 +130,8 @@ serve(async (req) => {
     const container = metadata.container;
     const currentItem = metadata.currentItem;
     const track = currentItem?.track;
+    const nextItem = metadata.nextItem;
+    const nextTrack = nextItem?.track;
 
     // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
@@ -223,6 +225,11 @@ serve(async (req) => {
     }
 
     // --- PHASE 1: Write metadata immediately (triggers realtime for fast UI update) ---
+    // Extract next track info from Sonos metadata
+    const nextTrackName = nextTrack?.name || null;
+    const nextArtistName = nextTrack?.artist?.name || null;
+    const rawNextArt = nextTrack?.imageUrl || null;
+
     const metadataPayload = {
       group_id: groupId,
       track_name: currentTrackName,
@@ -230,13 +237,13 @@ serve(async (req) => {
       album_name: track?.album?.name || null,
       album_art_url: currentArt.medium,
       album_art_url_small: currentArt.small,
-      next_album_art_url: null,
-      next_track_name: null,
-      next_artist_name: null,
+      next_track_name: nextTrackName,
+      next_artist_name: nextArtistName,
+      next_album_art_url: rawNextArt,
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
-      // Keep existing images if same track, clear if new track
+      // Keep existing next-images if same track (they may already be processed), clear if new track
       ...(sameTrack ? {} : {
         next_bg_image_url: null,
         next_widget_art_url: null,
@@ -289,8 +296,31 @@ serve(async (req) => {
       await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
     }
 
+    const phase2Ms = Date.now() - startTime;
+
+    // --- PHASE 3: Process next track images (non-blocking for current track display) ---
+    if (rowId && rawNextArt && nextTrackName) {
+      try {
+        const nextArt = await resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId);
+        if (nextArt.medium) {
+          const nextTrackId = nextTrack?.id?.objectId || nextTrackName || '';
+          const nextResult = await resolveBackgroundAndWidget(supabase, nextArt.medium, nextTrackId, bgSettings, viewportW, viewportH, null);
+          const nextUpdate: Record<string, any> = {};
+          if (nextArt.medium) nextUpdate.next_album_art_url = nextArt.medium;
+          if (nextResult.bgUrl) nextUpdate.next_bg_image_url = nextResult.bgUrl;
+          if (nextResult.widgetUrl) nextUpdate.next_widget_art_url = nextResult.widgetUrl;
+          if (Object.keys(nextUpdate).length > 0) {
+            await supabase.from('sonos_now_playing').update(nextUpdate).eq('id', rowId);
+            console.log(`[SonosSync] Phase 3: next track "${nextTrackName}" images ready (bg: ${!!nextResult.bgUrl}, widget: ${!!nextResult.widgetUrl})`);
+          }
+        }
+      } catch (e) {
+        console.error(`[SonosSync] Phase 3 error (next track images):`, e);
+      }
+    }
+
     const duration = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${duration}ms (phase1=${phase1Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? `${viewportW}x${viewportH}` : 'no'}, widget: ${widgetArtUrl ? 'yes' : 'no'})`);
+    console.log(`[SonosSync] Done in ${duration}ms (p1=${phase1Ms}ms, p2=${phase2Ms}ms) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
 
     return new Response(JSON.stringify({ ok: true, duration_ms: duration, phase1_ms: phase1Ms }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

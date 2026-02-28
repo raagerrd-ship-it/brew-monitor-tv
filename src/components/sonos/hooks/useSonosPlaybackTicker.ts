@@ -105,7 +105,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         const timeRemaining = duration - next;
 
-        // Predictive poll: schedule when <10s remain (once per track)
+        // Predictive swap: schedule when <10s remain (once per track)
         // Use track change offset from settings (seconds → ms), fallback to PREDICTIVE_MARGIN_MS
         const offsetMs = trackChangeOffsetRef.current > 0
           ? trackChangeOffsetRef.current * 1000
@@ -114,8 +114,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
           predictiveScheduledRef.current = true;
           const delay = Math.max(timeRemaining - offsetMs, 100);
-          tvDebug('sonos', `🔮 Predictive poll om ${(delay / 1000).toFixed(1)}s (${(timeRemaining / 1000).toFixed(0)}s kvar, offset: ${trackChangeOffsetRef.current}s)`);
-          addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
+          tvDebug('sonos', `🔮 Predictive swap om ${(delay / 1000).toFixed(1)}s (${(timeRemaining / 1000).toFixed(0)}s kvar, offset: ${trackChangeOffsetRef.current}s)`);
+          addDebugLog?.(`🔮 Predictive swap scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
 
           // Preload next track's images if available
           const current = nowPlayingRef?.current;
@@ -128,7 +128,24 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             });
           }
 
-          predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
+          predictiveTimer = setTimeout(() => {
+            // If we have pre-populated next track data, apply it immediately
+            const snap = nowPlayingRef?.current;
+            if (snap?.next_track_name) {
+              tvDebug('sonos', `🔮 Predictive swap: byter till "${snap.next_track_name}" (${trackChangeOffsetRef.current}s före låtslut)`);
+              addDebugLog?.(`🔮 Predictive swap → ${snap.next_track_name}`);
+              handleTrackChangeRef.current({
+                trackName: snap.next_track_name,
+                artistName: snap.next_artist_name,
+                playbackState: 'PLAYBACK_STATE_PLAYING',
+                positionMillis: 0,
+              });
+            } else {
+              // No next track data available — fall back to polling
+              tvDebug('sonos', `🔮 Ingen nästa-låt-data — pollar istället`);
+              pollForNewTrack(PREDICTIVE_MAX_RETRIES);
+            }
+          }, delay);
         }
       } catch (err) {
         console.error('[Sonos] Ticker error:', err);
