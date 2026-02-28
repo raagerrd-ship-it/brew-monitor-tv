@@ -130,11 +130,23 @@ export async function calculateCompensatedTarget(
   }
 
   // Target average: compensate by half the delta, scaled by damping factor
+  // === Approach Zone: anticipate that delta will shrink as we near the target ===
+  // When far from target (e.g. 10°C away), cooling/heating effort is high → delta is inflated.
+  // As we approach, effort decreases → delta will naturally shrink.
+  // Scale down delta-compensation proportionally to avoid over-correcting.
   const latestPillForComp = parseFloat(String(deltaHistory[0].pill_temp))
   const latestCtrlForComp = parseFloat(String(deltaHistory[0].controller_temp))
   const currentAvgForComp = (latestPillForComp + latestCtrlForComp) / 2
+  const distanceToTarget = Math.abs(currentAvgForComp - profileTarget)
+  const APPROACH_ZONE_SIZE = 5.0 // °C — within this range, start scaling down delta compensation
+  const approachScale = Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
+  
   const rawCompensation = avgDelta / 2
-  let compensation = rawCompensation * dampingFactor
+  let compensation = rawCompensation * dampingFactor * approachScale
+  
+  if (approachScale < 1.0) {
+    console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${profileTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
+  }
   
   if (currentAvgForComp > profileTarget + 0.05 && compensation < 0) {
     console.log(`🚫 Delta-komp undertryckt: medel=${currentAvgForComp.toFixed(1)}° redan över mål=${profileTarget}°, komp=${compensation.toFixed(2)}° skulle höja mål ytterligare`)
