@@ -92,13 +92,18 @@ export async function resolveBackgroundAndWidget(
   targetH: number,
   cachedWidgetUrl?: string | null,
   forceRegenerate?: boolean,
+  trackName?: string | null,
 ): Promise<{ bgUrl: string | null; widgetUrl: string | null }> {
   if (!artUrl) return { bgUrl: null, widgetUrl: null };
 
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
-  const bgFileName = `${trackHash}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
-  const widgetFileName = `${trackHash}-widget-v1.jpg`;
+  // Sanitize track name for filename: lowercase, replace non-alphanum with dash, trim
+  const namePart = trackName
+    ? '-' + trackName.toLowerCase().replace(/[^a-z0-9åäöü]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+    : '';
+  const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
+  const widgetFileName = `${trackHash}${namePart}-widget-v1.jpg`;
 
   // Check cache: skip if forceRegenerate for bg (always regenerate bg on demand)
   const [existingBg, existingWidget] = await Promise.all([
