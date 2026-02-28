@@ -371,7 +371,7 @@ export function AutomationFeatureStatus(props: Props) {
                 summaryParts.push(String(param));
               }
             }
-            aiBlock.controllers.push({ name: "Ändringar", status: `${actions.length + params.length} st`, variant: "action" });
+            aiBlock.controllers.push({ name: "Ändringar", status: `${params.length} st`, variant: "action" });
           } else {
             aiBlock.controllers.push({ name: "Resultat", status: "Inga ändringar", variant: "idle" });
           }
@@ -386,11 +386,14 @@ export function AutomationFeatureStatus(props: Props) {
               {hasSummary && (
                 <details>
                   <summary className="text-[10px] text-accent/70 cursor-pointer hover:text-accent select-none">
-                    Visa {summaryParts.length} ändringar…
+                    Visa {params.length} ändringar…
                   </summary>
                   <ul className="text-[10px] text-muted-foreground/70 leading-relaxed mt-1 space-y-0.5 list-none">
                     {summaryParts.map((s, i) => (
-                      <li key={i} className="break-words">• {s}</li>
+                      <li key={i} className="break-words flex items-start gap-1">
+                        <span className="text-green-400 shrink-0">✓</span>
+                        <span>{s}</span>
+                      </li>
                     ))}
                   </ul>
                 </details>
