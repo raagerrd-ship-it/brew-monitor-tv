@@ -37,13 +37,25 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
       acceptedRef.current = false;
+      
+      console.log('[Sonos:RT] 📡 Realtime update received:', {
+        track: incoming.track_name,
+        state: incoming.playback_state,
+        hasBg: !!incoming.bg_image_url,
+        hasWidget: !!incoming.widget_art_url,
+        bgUrl: incoming.bg_image_url?.slice(-60),
+      });
 
       setNowPlaying(prev => {
-        if (!prev) { acceptedRef.current = true; return incoming; }
+        if (!prev) {
+          console.log('[Sonos:RT] ✅ No previous state — accepting incoming');
+          acceptedRef.current = true;
+          return incoming;
+        }
 
         // When currently IDLE and incoming is PLAYING with a track, accept it to wake up the widget
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING' && incoming.track_name) {
-          console.log(`[Sonos] Waking from IDLE via realtime: "${incoming.track_name}"`);
+          console.log(`[Sonos:RT] ✅ Waking from IDLE: "${incoming.track_name}"`);
           addDebugLog?.(`📻 RT: wake from IDLE → ${incoming.track_name}`);
           acceptedRef.current = true;
           if (incoming.bg_image_url) {
@@ -63,6 +75,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
             const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
             if (bgChanged || widgetChanged) {
+              console.log(`[Sonos:RT] 🖼️ Art update during cooldown (${Math.round(msSinceTrackChange / 1000)}s): bg=${!!bgChanged} widget=${!!widgetChanged}`);
               addDebugLog?.(`📻 RT: art update during cooldown (bg=${!!bgChanged}, widget=${!!widgetChanged})`);
               if (bgChanged) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
@@ -75,19 +88,19 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
               };
             }
           }
-          console.log(`[Sonos] Ignoring realtime during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}"`);
+          console.log(`[Sonos:RT] ⏳ Ignored during cooldown (${Math.round(msSinceTrackChange / 1000)}s): "${incoming.track_name}" (local: "${prev.track_name}")`);
           return prev;
         }
 
         if (incoming.track_name !== prev.track_name) {
-          console.log(`[Sonos] Ignoring stale realtime: DB has "${incoming.track_name}", local has "${prev.track_name}"`);
+          console.log(`[Sonos:RT] ⚠️ Stale track ignored: DB="${incoming.track_name}", local="${prev.track_name}"`);
           addDebugLog?.(`📻 RT: ignored stale (${incoming.track_name})`);
           return prev;
         }
 
-        // Don't let realtime overwrite local IDLE (set by pause timeout) — only PLAYING wake (handled above) can exit IDLE
+        // Don't let realtime overwrite local IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE') {
-          console.log(`[Sonos] Ignoring realtime ${incoming.playback_state} — already transitioned to IDLE`);
+          console.log(`[Sonos:RT] ⚠️ Ignored ${incoming.playback_state} — already IDLE`);
           return prev;
         }
 
@@ -96,9 +109,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const updatedBg = incoming.bg_image_url || prev.bg_image_url;
         const bgChanged = updatedBg !== prev.bg_image_url;
         if (bgChanged) {
+          console.log(`[Sonos:RT] 🖼️ New BG for same track: ${updatedBg?.slice(-60)}`);
           pushToBgBuffer(validBgBufferRef.current, updatedBg);
           onAlbumArtChangeRef.current?.(updatedBg);
         }
+        const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
+        if (widgetChanged) {
+          console.log(`[Sonos:RT] 🖼️ New widget art: ${incoming.widget_art_url?.slice(-60)}`);
+        }
+        console.log(`[Sonos:RT] ✅ Merged update for "${incoming.track_name}" (bg=${bgChanged}, widget=${!!widgetChanged}, state=${incoming.playback_state})`);
         return {
           ...prev,
           ...incoming,

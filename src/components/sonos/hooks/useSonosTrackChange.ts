@@ -35,27 +35,35 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
   } = params;
 
   const handleTrackChange = useCallback((data: TrackChangeData) => {
-    console.log('[Sonos:BG] handleTrackChange', {
+    const t0 = performance.now();
+    console.log('[Sonos:TC] 🎵 Track change detected:', {
       newTrack: data.trackName,
+      artist: data.artistName,
       positionMs: data.positionMillis,
+      state: data.playbackState,
     });
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
 
     setNowPlaying(prev => {
       if (!prev) return prev;
+      console.log(`[Sonos:TC] Previous track: "${prev.track_name}" → "${data.trackName}"`);
 
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
-      // Trigger server sync — images arrive via realtime subscription, no extra fetch needed
-      console.log('[Sonos:BG] Track change — triggering server sync');
-      addDebugLog?.(`🔄 Track change: ${data.trackName} — syncing server...`);
+      // Trigger server sync — images arrive via realtime subscription
+      console.log('[Sonos:TC] 🔄 Triggering server sync for new art...');
       (async () => {
-        addDebugLog?.(`🖥️ Server img processing started`);
-        await triggerServerSync();
-        addDebugLog?.(`🖥️ Server img processing done — waiting for realtime update`);
+        const syncT0 = performance.now();
+        try {
+          await triggerServerSync();
+          console.log(`[Sonos:TC] ✅ Server sync completed in ${Math.round(performance.now() - syncT0)}ms — waiting for realtime art update`);
+        } catch (e: any) {
+          console.error(`[Sonos:TC] ❌ Server sync failed after ${Math.round(performance.now() - syncT0)}ms:`, e?.message || e);
+        }
       })();
 
+      console.log(`[Sonos:TC] State update applied in ${Math.round(performance.now() - t0)}ms`);
       return {
         ...prev,
         track_name: data.trackName,
