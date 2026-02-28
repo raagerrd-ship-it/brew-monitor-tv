@@ -20,6 +20,8 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   const [retryCount, setRetryCount] = useState(0);
 
   const fetchChart = useCallback(async (signal?: AbortSignal) => {
+    const t0 = performance.now();
+    console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount}, lastUpdate=${lastUpdateRaw})`);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
@@ -29,37 +31,59 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
         signal,
       });
 
-      if (!response.ok) throw new Error('Failed to render chart');
+      if (!response.ok) {
+        const body = await response.text().catch(() => '(unreadable)');
+        throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`);
+      }
       
-      // SVG returned inline — single round trip, no second fetch
       const svgText = await response.text();
       if (!signal?.aborted) {
+        const svgSize = svgText.length;
+        const hasSvgTag = svgText.trimStart().startsWith('<svg');
+        console.log(`[TvModeChart] ✅ ${brewId} loaded in ${Math.round(performance.now() - t0)}ms (${svgSize} bytes, valid=${hasSvgTag})`);
+        if (!hasSvgTag) {
+          console.error(`[TvModeChart] ❌ Response is not SVG:`, svgText.slice(0, 300));
+          setError(true);
+          return;
+        }
         setVisibleSvg(svgText);
         setError(false);
         setRetryCount(0);
+      } else {
+        console.log(`[TvModeChart] ⚠️ ${brewId} aborted after ${Math.round(performance.now() - t0)}ms`);
       }
-    } catch (e) {
-      if (signal?.aborted) return;
-      console.error('[TvModeChart] Error:', e);
+    } catch (e: any) {
+      if (signal?.aborted) {
+        console.log(`[TvModeChart] ⚠️ ${brewId} fetch aborted (cleanup)`);
+        return;
+      }
+      console.error(`[TvModeChart] ❌ ${brewId} failed after ${Math.round(performance.now() - t0)}ms:`, e?.message || e);
       setError(true);
     }
   }, [brewId, compact, brewCount, lastUpdateRaw]);
 
   // Fetch on mount and when deps change
   useEffect(() => {
+    console.log(`[TvModeChart] Mount/deps changed for ${brewId} — starting fetch`);
     const controller = new AbortController();
     fetchChart(controller.signal);
-    return () => controller.abort();
+    return () => {
+      console.log(`[TvModeChart] Cleanup — aborting fetch for ${brewId}`);
+      controller.abort();
+    };
   }, [fetchChart]);
 
-  // Retry on error — retryCount triggers a new fetch via this effect
+  // Retry on error
   useEffect(() => {
-    if (!error || retryCount >= 3) return;
+    if (!error || retryCount >= 3) {
+      if (error && retryCount >= 3) console.error(`[TvModeChart] ❌ ${brewId} gave up after ${retryCount} retries`);
+      return;
+    }
     const delay = (retryCount + 1) * 10000;
+    console.log(`[TvModeChart] 🔄 ${brewId} retry ${retryCount + 1}/3 in ${delay / 1000}s`);
     const timer = setTimeout(() => {
       setError(false);
       setRetryCount(prev => prev + 1);
-      // Trigger a new fetch directly
       fetchChart();
     }, delay);
     return () => clearTimeout(timer);

@@ -91,7 +91,10 @@ export const SonosWidget = memo(function SonosWidget({
 
   // Reset imageError when a new art URL arrives
   useEffect(() => {
-    if (incomingArtUrl) setImageError(false);
+    if (incomingArtUrl) {
+      console.log(`[Sonos:IMG] 🖼️ New art URL received: ${incomingArtUrl.slice(-60)}`);
+      setImageError(false);
+    }
   }, [incomingArtUrl]);
 
   const isNewArtPending = incomingArtUrl && (!displayedArtUrl || stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl)) && !imageError;
@@ -99,12 +102,14 @@ export const SonosWidget = memo(function SonosWidget({
   // Track art loading status
   useEffect(() => {
     if (isNewArtPending && currentArtStatus !== "detecting") {
+      console.log(`[Sonos:IMG] ⏳ Preloading new art: ${incomingArtUrl?.slice(-60)}`);
       setCurrentArtStatus("loading");
     }
   }, [isNewArtPending, currentArtStatus]);
 
 
   const handleNewImageLoaded = useCallback(() => {
+    console.log(`[Sonos:IMG] ✅ Widget art loaded: ${incomingArtUrl?.slice(-60)}`);
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
@@ -112,6 +117,7 @@ export const SonosWidget = memo(function SonosWidget({
     const newBgStripped = bgUrl ? stripQuery(bgUrl) : null;
     const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
     if (bgUrl && (newBgStripped !== sentStripped || !bgSentRef.current)) {
+      console.log(`[Sonos:IMG] 🖼️ Sending BG to dashboard: ${bgUrl.slice(-60)}`);
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;
@@ -164,7 +170,7 @@ export const SonosWidget = memo(function SonosWidget({
           className="absolute inset-0 w-full h-full object-cover"
           style={{ opacity: 0, pointerEvents: "none" }}
           onLoad={handleNewImageLoaded}
-          onError={() => setImageError(true)}
+          onError={() => { console.error(`[Sonos:IMG] ❌ Failed to load art: ${incomingArtUrl?.slice(-60)}`); setImageError(true); }}
         />
       )}
 
