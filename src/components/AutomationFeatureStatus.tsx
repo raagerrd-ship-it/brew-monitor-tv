@@ -173,7 +173,9 @@ function buildFeatureBlocks(
           controllers.push({ name, status: "Skippade", variant: "idle" });
         }
       } else {
-        controllers.push({ name, status: "Ej aktiv", variant: "skip" });
+        // Check if controller has cooling/heating active — if so it's running, just no PID change
+        const isActive = c.cooling_enabled || c.heating_enabled;
+        controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip" });
       }
     }
 
