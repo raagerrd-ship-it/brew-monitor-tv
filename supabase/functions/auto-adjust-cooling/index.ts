@@ -174,7 +174,7 @@ serve(async (req) => {
     const profileTargetMap = new Map<string, number>();
     const sessionBrewIdMap = new Map<string, string>();
     const cooloffControllerIds = new Set<string>();
-    const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null }>();
+    const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string }>();
 
     // Batch: last adjusted timestamps
     {
@@ -292,6 +292,7 @@ serve(async (req) => {
             stepIndex: session.current_step_index,
             hasCooloff: cooloffControllerIds.has(session.controller_id),
             activeTarget,
+            currentStepType: currentStep?.step_type ?? undefined,
           });
         }
       }
@@ -418,7 +419,8 @@ serve(async (req) => {
 
         const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp;
         const pidMode: 'heating' | 'cooling' = actualTemp < baseTarget ? 'heating' : 'cooling';
-        const stepType = isProfileOwned ? (profileStatusMap.get(fc.controller_id) ? 'profile' : 'unknown') : 'standalone';
+        const profileStatus = profileStatusMap.get(fc.controller_id);
+        const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone';
 
         const compensation = await calculateCompensatedTarget(
           supabase, fc.controller_id, baseTarget, targetTemp,
