@@ -80,8 +80,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         if (msSinceTrackChange < 15000) {
           // Only accept art/next-track updates during cooldown
           if (incoming.track_name === prev.track_name) {
-            const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
-            const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url;
+            // During cooldown, only accept bg/widget if we DON'T already have one
+            // (preloaded images were already applied by the track change handler)
+            const bgChanged = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url && !prev.bg_image_url;
+            const widgetChanged = incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url && !prev.widget_art_url;
             const nextTrackChanged = incoming.next_track_name && incoming.next_track_name !== prev.next_track_name;
             const nextBgChanged = incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url;
             const nextWidgetChanged = incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url;
