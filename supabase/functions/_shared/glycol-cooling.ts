@@ -19,6 +19,17 @@ export interface GlycolContext {
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
 }
 
+// ─── Proactive pre-cooling types ──────────────────────────────
+interface UpcomingCoolingNeed {
+  controllerId: string
+  controllerName: string
+  currentTarget: number
+  upcomingTarget: number
+  rampRateNeeded: number // °C/h needed
+  hoursUntilNeeded: number // how soon the ramp starts/is happening
+  stepType: string
+}
+
 export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentResult[]> {
   const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, followedControllerIds, settings, log } = ctx
   const adjustments: AdjustmentResult[] = []
@@ -145,6 +156,14 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   } catch (coolingError) {
     const errorMsg = coolingError instanceof Error ? coolingError.message : String(coolingError)
     log('COOLING_ERROR', 'fail', `Active cooling handler crashed: ${errorMsg}`)
+  }
+
+  // Always: proactive pre-cooling check (look-ahead at fermentation profiles)
+  try {
+    await handleProactiveCooling(ctx, coolerController, currentCoolerTarget, coolingLoadCount, adjustments)
+  } catch (proactiveError) {
+    const errorMsg = proactiveError instanceof Error ? proactiveError.message : String(proactiveError)
+    log('PROACTIVE_ERROR', 'fail', `Proactive cooling handler crashed: ${errorMsg}`)
   }
 
   // Always: recovery check (even if handleActiveCooling crashed)
@@ -616,5 +635,239 @@ async function handleRecovery(
     }
   } catch (recoveryError) {
     log('COOLING_RECOVERY', 'fail', `Recovery error: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`)
+  }
+}
+
+// ─── Proactive Pre-Cooling (Forward-Looking) ─────────────────
+
+async function handleProactiveCooling(
+  ctx: GlycolContext,
+  coolerController: TempController,
+  currentCoolerTarget: number,
+  coolingLoadCount: number,
+  adjustments: AdjustmentResult[]
+): Promise<void> {
+  const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, log } = ctx
+
+  // 1. Fetch running fermentation sessions on followed controllers
+  const followedIds = followedControllersFullData.map(c => c.controller_id)
+  if (followedIds.length === 0) return
+
+  const { data: sessions } = await supabase
+    .from('fermentation_sessions')
+    .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
+    .eq('status', 'running')
+    .in('controller_id', followedIds)
+
+  if (!sessions || sessions.length === 0) return
+
+  // 2. Batch fetch profile steps
+  const uniqueProfileIds = [...new Set(sessions.map(s => s.profile_id))]
+  const { data: allSteps } = await supabase
+    .from('fermentation_profile_steps')
+    .select('profile_id, step_order, step_type, target_temp, duration_hours, ramp_type')
+    .in('profile_id', uniqueProfileIds)
+    .order('step_order', { ascending: true })
+
+  if (!allSteps || allSteps.length === 0) return
+
+  const stepsMap = new Map<string, any[]>()
+  for (const step of allSteps) {
+    const list = stepsMap.get(step.profile_id) || []
+    list.push(step)
+    stepsMap.set(step.profile_id, list)
+  }
+
+  // 3. Analyze upcoming cooling needs
+  const upcomingNeeds: UpcomingCoolingNeed[] = []
+
+  for (const session of sessions) {
+    const steps = stepsMap.get(session.profile_id)
+    if (!steps || steps.length === 0) continue
+
+    const controller = followedControllersFullData.find(c => c.controller_id === session.controller_id)
+    if (!controller) continue
+
+    const currentStepIdx = session.current_step_index
+    const currentStep = steps[currentStepIdx]
+    if (!currentStep) continue
+
+    // Find effective current target temp
+    let currentEffectiveTarget: number | null = null
+    for (let i = currentStepIdx; i >= 0; i--) {
+      if (steps[i].target_temp != null) {
+        currentEffectiveTarget = parseFloat(String(steps[i].target_temp))
+        break
+      }
+    }
+    if (currentEffectiveTarget === null) continue
+
+    // Check current step: is it an active ramp going down?
+    if (currentStep.step_type === 'ramp' && currentStep.target_temp != null && currentStep.duration_hours > 0) {
+      const stepTarget = parseFloat(String(currentStep.target_temp))
+      const startTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : currentEffectiveTarget
+      if (stepTarget < startTemp) {
+        const rampRate = Math.abs(stepTarget - startTemp) / currentStep.duration_hours
+        const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
+        const remainingHours = Math.max(0, currentStep.duration_hours - elapsedHours)
+        if (remainingHours > 0) {
+          upcomingNeeds.push({
+            controllerId: session.controller_id,
+            controllerName: controller.name,
+            currentTarget: currentEffectiveTarget,
+            upcomingTarget: stepTarget,
+            rampRateNeeded: rampRate,
+            hoursUntilNeeded: 0, // already happening
+            stepType: 'active_ramp',
+          })
+        }
+      }
+    }
+
+    // Check next step: will it require cooling?
+    const nextStepIdx = currentStepIdx + 1
+    if (nextStepIdx < steps.length) {
+      const nextStep = steps[nextStepIdx]
+      if (nextStep.target_temp != null) {
+        const nextTarget = parseFloat(String(nextStep.target_temp))
+        if (nextTarget < currentEffectiveTarget - 0.5) {
+          // Next step goes lower — calculate rate needed
+          const durationHours = nextStep.duration_hours || 24 // default 24h if no duration
+          const rampRate = Math.abs(nextTarget - currentEffectiveTarget) / durationHours
+
+          // Estimate hours until this step starts
+          let hoursUntilNeeded = 0
+          if (currentStep.duration_hours) {
+            const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
+            hoursUntilNeeded = Math.max(0, currentStep.duration_hours - elapsedHours)
+          }
+
+          upcomingNeeds.push({
+            controllerId: session.controller_id,
+            controllerName: controller.name,
+            currentTarget: currentEffectiveTarget,
+            upcomingTarget: nextTarget,
+            rampRateNeeded: rampRate,
+            hoursUntilNeeded,
+            stepType: nextStep.step_type,
+          })
+        }
+      }
+    }
+  }
+
+  if (upcomingNeeds.length === 0) {
+    log('PROACTIVE_COOLING', 'info', 'No upcoming cooling needs detected in profiles')
+    return
+  }
+
+  // 4. For each upcoming need, check if glycol can support the rate
+  const glycolRate = await learnGlycolCoolerRate(supabase, coolerController.controller_id, coolingLoadCount)
+  const learnedGlycolRate = glycolRate?.rate ?? 1.0 // default 1°C/h if unknown
+  const glycolSamples = glycolRate?.sampleCount ?? 0
+
+  log('PROACTIVE_COOLING', 'info', `Found ${upcomingNeeds.length} upcoming cooling need(s), glycol rate: ${learnedGlycolRate.toFixed(2)}°C/h (n=${glycolSamples})`)
+
+  // Find the most demanding need (lowest upcoming target)
+  let worstNeed: UpcomingCoolingNeed | null = null
+  for (const need of upcomingNeeds) {
+    log('PROACTIVE_NEED', 'info', `${need.controllerName}: ${need.currentTarget}°C → ${need.upcomingTarget}°C @ ${need.rampRateNeeded.toFixed(2)}°C/h (${need.stepType}, ${need.hoursUntilNeeded > 0 ? `om ${need.hoursUntilNeeded.toFixed(1)}h` : 'pågår nu'})`)
+
+    if (!worstNeed || need.upcomingTarget < worstNeed.upcomingTarget) {
+      worstNeed = need
+    }
+  }
+
+  if (!worstNeed) return
+
+  // 5. Calculate required headroom
+  const tempBucket = getTempBucket(worstNeed.upcomingTarget)
+  const learnedHeadroom = await getLearnedParam(supabase, coolerController.controller_id, `glycol_headroom:${tempBucket}`, 5.0)
+
+  // Dynamic headroom: scale based on ramp rate vs glycol capacity
+  const utilizationRatio = learnedGlycolRate > 0.01 ? worstNeed.rampRateNeeded / learnedGlycolRate : 1.0
+  const dynamicHeadroom = learnedHeadroom.value * Math.max(0.8, Math.min(1.5, utilizationRatio))
+  const requiredGlycolTarget = worstNeed.upcomingTarget - dynamicHeadroom
+
+  log('PROACTIVE_HEADROOM', 'info', `Headroom calc [${tempBucket}]`, {
+    learned_headroom: `${learnedHeadroom.value.toFixed(1)}°C (n=${learnedHeadroom.sampleCount})`,
+    utilization: `${(utilizationRatio * 100).toFixed(0)}%`,
+    dynamic_headroom: `${dynamicHeadroom.toFixed(1)}°C`,
+    required_glycol_target: `${requiredGlycolTarget.toFixed(1)}°C`,
+    current_glycol_target: `${currentCoolerTarget.toFixed(1)}°C`,
+  })
+
+  // 6. Should we pre-cool?
+  const PRE_COOL_HORIZON_HOURS = 2.0
+  const isImminent = worstNeed.hoursUntilNeeded <= PRE_COOL_HORIZON_HOURS
+  const glycolNotColdEnough = currentCoolerTarget > requiredGlycolTarget + 0.5
+
+  if (!isImminent) {
+    log('PROACTIVE_COOLING', 'info', `Next cooling need in ${worstNeed.hoursUntilNeeded.toFixed(1)}h — not yet imminent (horizon: ${PRE_COOL_HORIZON_HOURS}h)`)
+    return
+  }
+
+  if (!glycolNotColdEnough) {
+    log('PROACTIVE_COOLING', 'pass', `Glycol already at ${currentCoolerTarget.toFixed(1)}°C, cold enough for upcoming ${worstNeed.upcomingTarget}°C target`)
+
+    // Learn: headroom was adequate — tighten slightly
+    if (learnedHeadroom.sampleCount >= 1) {
+      const actualHeadroom = Math.abs(currentCoolerTarget - worstNeed.upcomingTarget)
+      await updateLearnedParam(supabase, coolerController.controller_id, `glycol_headroom:${tempBucket}`, actualHeadroom, 3.0, 15.0)
+    }
+    return
+  }
+
+  // 7. Pre-cool!
+  const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
+  let finalTarget = Math.round(Math.max(coolerMinTemp, Math.min(coolerMaxTemp, requiredGlycolTarget)) * 10) / 10
+
+  // Rate-limit: 15 min for proactive adjustments
+  const PROACTIVE_INTERVAL_MS = 15 * 60 * 1000
+  const { data: lastProactive } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('created_at')
+    .eq('cooler_controller_id', coolerController.controller_id)
+    .like('reason', '%Proaktiv%')
+    .order('created_at', { ascending: false }).limit(1)
+
+  const lastProactiveTime = lastProactive?.[0]?.created_at ? new Date(lastProactive[0].created_at).getTime() : 0
+  if (Date.now() - lastProactiveTime < PROACTIVE_INTERVAL_MS) {
+    log('PROACTIVE_COOLING', 'info', `Proactive cooldown active — ${Math.round((PROACTIVE_INTERVAL_MS - (Date.now() - lastProactiveTime)) / 60000)}min left`)
+    return
+  }
+
+  if (finalTarget >= currentCoolerTarget - 0.2) {
+    log('PROACTIVE_COOLING', 'info', `Target change too small (${currentCoolerTarget}°C → ${finalTarget}°C)`)
+    return
+  }
+
+  log('PROACTIVE_COOLING', 'action', `Pre-cooling glycol: ${currentCoolerTarget}°C → ${finalTarget}°C for upcoming ${worstNeed.controllerName} ramp to ${worstNeed.upcomingTarget}°C`)
+
+  const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, finalTarget)
+  if (success) {
+    log('PROACTIVE_COOLING', 'pass', `Set glycol to ${finalTarget}°C`)
+    adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget })
+
+    await logAdjustment(supabase, {
+      cooler_controller_id: coolerController.controller_id,
+      cooler_controller_name: coolerController.name,
+      old_target_temp: currentCoolerTarget,
+      new_target_temp: finalTarget,
+      lowest_followed_temp: worstNeed.upcomingTarget,
+      followed_controller_id: worstNeed.controllerId,
+      followed_controller_name: worstNeed.controllerName,
+      followed_current_temp: worstNeed.currentTarget,
+      followed_target_temp: worstNeed.upcomingTarget,
+      reason: `🔮 Proaktiv förkylning: ${worstNeed.controllerName} behöver ${worstNeed.upcomingTarget}°C (${worstNeed.stepType}, ${worstNeed.hoursUntilNeeded > 0 ? `om ${worstNeed.hoursUntilNeeded.toFixed(1)}h` : 'pågår nu'}), headroom ${dynamicHeadroom.toFixed(1)}°C`,
+    })
+
+    // Learn: update headroom
+    const appliedHeadroom = Math.abs(finalTarget - worstNeed.upcomingTarget)
+    await updateLearnedParam(supabase, coolerController.controller_id, `glycol_headroom:${tempBucket}`, appliedHeadroom, 3.0, 15.0)
+    log('HEADROOM_LEARNING', 'info', `Updated headroom [${tempBucket}]: ${appliedHeadroom.toFixed(1)}°C`)
+  } else {
+    log('PROACTIVE_COOLING', 'fail', 'Failed to update glycol target')
   }
 }
