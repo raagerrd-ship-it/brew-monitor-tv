@@ -82,7 +82,10 @@ export async function calculateCompensatedTarget(
   const absDelta = Math.abs(avgDelta)
 
   if (absDelta < 0.1) {
-    return null
+    // Pill and probe are synced — no compensation needed, but return 0 explicitly
+    // so the caller knows PID is active (not missing data)
+    console.log(`✅ PID ${controllerName}: pill-probe delta ${avgDelta.toFixed(2)}°C < 0.1 — ingen kompensation behövs`)
+    return { compensatedTarget: profileTarget, compensation: 0, avgDelta }
   }
 
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
