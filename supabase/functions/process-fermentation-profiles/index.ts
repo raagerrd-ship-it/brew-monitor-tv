@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
             const nextTarget = nextStep?.target_temp ?? null
             if (currentTarget !== null && nextTarget !== null) {
               const tempJump = Math.abs(nextTarget - currentTarget)
-              if (tempJump > 15) {
+              if (tempJump > 25) {
                 console.error(`🚨 SAFETY BLOCK: Step ${session.current_step_index}→${nextStepIndex} would jump ${tempJump.toFixed(1)}°C (${currentTarget}→${nextTarget}°C). Blocking for safety.`)
                 results.push({ sessionId: session.id, action: 'safety_blocked', details: { temp_jump: tempJump, from: currentTarget, to: nextTarget } })
                 continue
