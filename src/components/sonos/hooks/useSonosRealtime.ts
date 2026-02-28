@@ -92,6 +92,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
                 pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
                 onAlbumArtChangeRef.current?.(incoming.bg_image_url);
               }
+              // Preload next-track images into browser cache immediately
+              if (nextBgChanged && incoming.next_bg_image_url) {
+                tvDebug('sonos', `🖼️ RT: förladdar next_bg_image`);
+                const img = new Image(); img.src = incoming.next_bg_image_url;
+              }
+              if (nextWidgetChanged && incoming.next_widget_art_url) {
+                tvDebug('sonos', `🖼️ RT: förladdar next_widget_art`);
+                const img = new Image(); img.src = incoming.next_widget_art_url;
+              }
               return {
                 ...prev,
                 ...(bgChanged ? { bg_image_url: incoming.bg_image_url } : {}),
@@ -133,6 +142,14 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           console.log(`[Sonos:RT] 🖼️ New widget art: ${incoming.widget_art_url?.slice(-60)}`);
         }
         console.log(`[Sonos:RT] ✅ Merged update for "${incoming.track_name}" (bg=${bgChanged}, widget=${!!widgetChanged}, state=${incoming.playback_state})`);
+        // Preload next-track images if they arrived with this update
+        if (incoming.next_bg_image_url && incoming.next_bg_image_url !== prev.next_bg_image_url) {
+          tvDebug('sonos', `🖼️ RT: förladdar next_bg (merge)`);
+          const img = new Image(); img.src = incoming.next_bg_image_url;
+        }
+        if (incoming.next_widget_art_url && incoming.next_widget_art_url !== prev.next_widget_art_url) {
+          const img = new Image(); img.src = incoming.next_widget_art_url;
+        }
         return {
           ...prev,
           ...incoming,
