@@ -351,25 +351,18 @@ serve(async (req) => {
     }
 
     const bc = brewCount ?? 2;
-    const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
 
-    // ── Step 1: Parallel fetch — latest snapshot timestamp + brew metadata + cached SVG ──
-    const [latestSnapResult, brewResult, cachedFile] = await Promise.all([
-      supabase.from('brew_data_snapshots')
-        .select('recorded_at')
-        .eq('brew_id', brewId)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .single(),
+    // ── Step 1: Fetch brew metadata + snapshots in parallel ──
+    const [brewResult, rawSnapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
         .select('id, sg_data, original_gravity, final_gravity')
         .eq('id', brewId)
         .single(),
-      supabase.storage
-        .from('chart-images')
-        .download(fileName)
-        .then(({ data, error }) => error ? null : data)
-        .catch(() => null),
+      supabase.from('brew_data_snapshots')
+        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+        .eq('brew_id', brewId)
+        .order('recorded_at', { ascending: true })
+        .limit(1000),
     ]);
 
     if (brewResult.error || !brewResult.data) {
@@ -379,35 +372,7 @@ serve(async (req) => {
       );
     }
     const brew = brewResult.data;
-
-    // ── Step 1b: Check if cached SVG is still valid ──
-    // The cached SVG filename encodes brew+compact+count. If we have it and the
-    // latest snapshot hasn't changed, we can return it directly.
-    if (cachedFile) {
-      // Check the storage object's metadata to see when it was last updated
-      const { data: fileList } = await supabase.storage.from('chart-images').list('', { search: fileName });
-      const fileMeta = fileList?.find(f => f.name === fileName);
-      if (fileMeta && latestSnapResult.data) {
-        const fileUpdated = new Date(fileMeta.updated_at ?? fileMeta.created_at).getTime();
-        const latestSnap = new Date(latestSnapResult.data.recorded_at).getTime();
-        // If file was updated AFTER the latest snapshot, it's still valid
-        if (fileUpdated > latestSnap) {
-          const cachedSvg = await cachedFile.text();
-          console.log(`[RenderChart] ⚡ Cache hit for ${brewId} in ${Date.now() - startTime}ms (${cachedSvg.length}b)`);
-          return new Response(cachedSvg, {
-            headers: { ...corsHeaders, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache' },
-          });
-        }
-      }
-    }
-
-    // ── Step 2: Fetch snapshots — single query, max 1000, then downsample to 100 ──
-    const { data: rawSnapshots } = await supabase
-      .from('brew_data_snapshots')
-      .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-      .eq('brew_id', brewId)
-      .order('recorded_at', { ascending: true })
-      .limit(1000);
+    const rawSnapshots = rawSnapshotsResult.data;
 
     const snapshotRows = downsample((rawSnapshots ?? []) as SnapshotPoint[], MAX_CHART_POINTS);
 
@@ -420,19 +385,10 @@ serve(async (req) => {
       profile_target_temp: null,
     }));
 
-    // ── Step 3: Generate SVG and return inline ──
+    // ── Step 2: Generate SVG and return inline ──
     const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
 
     console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${rawSnapshots?.length ?? 0}→${chartRows.length} pts)`);
-
-    // Upload to storage in background (fire-and-forget for cache)
-    const svgBytes = new TextEncoder().encode(svg);
-    supabase.storage
-      .from('chart-images')
-      .upload(fileName, svgBytes, { contentType: 'image/svg+xml', upsert: true })
-      .then(({ error: uploadError }) => {
-        if (uploadError) console.error('[RenderChart] Background upload error:', uploadError);
-      });
 
     // Return SVG directly — eliminates second round trip
     return new Response(svg, {
