@@ -5,6 +5,7 @@ import {
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
 import { Logo } from "../Logo";
+import { tvDebug } from "@/lib/tv-debug-log";
 
 interface SonosWidgetProps {
   isMobile?: boolean;
@@ -93,6 +94,7 @@ export const SonosWidget = memo(function SonosWidget({
   useEffect(() => {
     if (incomingArtUrl) {
       console.log(`[Sonos:IMG] 🖼️ New art URL received: ${incomingArtUrl.slice(-60)}`);
+      tvDebug('sonos', `⏳ Ny bild-URL mottagen — laddar...`);
       setImageError(false);
     }
   }, [incomingArtUrl]);
@@ -110,6 +112,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   const handleNewImageLoaded = useCallback(() => {
     console.log(`[Sonos:IMG] ✅ Widget art loaded: ${incomingArtUrl?.slice(-60)}`);
+    tvDebug('sonos', `✅ Låtbild laddad — visas i widget`);
     const bgUrl = nowPlaying?.bg_image_url || incomingArtUrl;
     setDisplayedArtUrl(incomingArtUrl);
     setImageError(false);
@@ -118,6 +121,7 @@ export const SonosWidget = memo(function SonosWidget({
     const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
     if (bgUrl && (newBgStripped !== sentStripped || !bgSentRef.current)) {
       console.log(`[Sonos:IMG] 🖼️ Sending BG to dashboard: ${bgUrl.slice(-60)}`);
+      tvDebug('bg', `🖼️ Ny sidbakgrund skickad till dashboard`);
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
       onAlbumArtChangeRef.current?.(bgUrl);
       bgSentRef.current = bgUrl;

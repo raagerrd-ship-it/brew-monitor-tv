@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NowPlaying, pushToBgBuffer, updateProgressDOM } from './types';
+import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
@@ -45,6 +46,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         hasWidget: !!incoming.widget_art_url,
         bgUrl: incoming.bg_image_url?.slice(-60),
       });
+      tvDebug('sonos', `📡 Realtime: "${incoming.track_name}" (bg=${!!incoming.bg_image_url}, widget=${!!incoming.widget_art_url})`);
 
       setNowPlaying(prev => {
         if (!prev) {
