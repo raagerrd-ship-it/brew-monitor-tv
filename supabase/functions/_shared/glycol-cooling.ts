@@ -860,11 +860,6 @@ async function handleProactiveCooling(
     log('PROACTIVE_COOLING', 'pass', `Set glycol to ${finalTarget}°C`)
     adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget })
 
-    // Use real sensor temp for logging, not the interpolated ramp position
-    const realController = followedControllersFullData.find(c => c.controller_id === worstNeed.controllerId)
-    const realCurrentTemp = realController ? parseFloat(String(realController.current_temp ?? realController.pill_temp ?? '0')) : 0
-    const realTargetTemp = realController ? parseFloat(String(realController.target_temp ?? '0')) : worstNeed.currentTarget
-
     await logAdjustment(supabase, {
       cooler_controller_id: coolerController.controller_id,
       cooler_controller_name: coolerController.name,
@@ -873,8 +868,8 @@ async function handleProactiveCooling(
       lowest_followed_temp: worstNeed.upcomingTarget,
       followed_controller_id: worstNeed.controllerId,
       followed_controller_name: worstNeed.controllerName,
-      followed_current_temp: realCurrentTemp,
-      followed_target_temp: realTargetTemp,
+      followed_current_temp: worstNeed.currentTarget,    // interpolated current ramp position (SSOT)
+      followed_target_temp: worstNeed.upcomingTarget,    // interpolated 1h look-ahead (SSOT)
       reason: `🔮 Proaktiv förkylning: ${worstNeed.controllerName} rampar mot ${worstNeed.upcomingTarget}°C (${worstNeed.stepType}, ${worstNeed.hoursUntilNeeded > 0 ? `om ${worstNeed.hoursUntilNeeded.toFixed(1)}h` : 'pågår nu'}), headroom ${dynamicHeadroom.toFixed(1)}°C`,
     })
 
