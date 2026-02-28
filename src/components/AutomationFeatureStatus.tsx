@@ -106,12 +106,12 @@ function buildFeatureBlocks(
   const allNonCooler = availableControllers.filter(c => c.controller_id !== coolerControllerId && !c.is_glycol_cooler);
   const cooler = availableControllers.find(c => c.controller_id === coolerControllerId || c.is_glycol_cooler);
 
-  // 1. Glycol cooling — show cooler + ALL controllers
+  // 1. Glycol cooling — show ONLY the cooler unit (not tank controllers)
   if (props.autoCoolingEnabled) {
     const glycolActions = decisions.filter(d => d.step === "ADJUSTMENT" && d.result === "action");
     const controllers: ControllerLine[] = [];
 
-    // Cooler line
+    // Cooler line only
     if (cooler) {
       const current = cooler.current_temp != null ? Number(cooler.current_temp).toFixed(1) : null;
       const target = cooler.target_temp != null ? Number(cooler.target_temp).toFixed(1) : null;
@@ -129,34 +129,10 @@ function buildFeatureBlocks(
       });
     }
 
-    // Followed controllers — show profile_target_temp (interpolated) and target_temp (actual setpoint)
-    for (const c of allNonCooler) {
-      const isFollowed = followedControllerIds.includes(c.controller_id);
-
-      if (!isFollowed) {
-        controllers.push({ name: c.name, status: "Ej följd", variant: "skip" });
-      } else if (!c.cooling_enabled && !c.heating_enabled) {
-        controllers.push({ name: c.name, status: "Inaktiv", variant: "skip" });
-      } else {
-        const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
-        const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
-
-        if (profileTemp && setpoint) {
-          const diff = Number(setpoint) - Number(profileTemp);
-          const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
-          controllers.push({ name: c.name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
-        } else if (setpoint) {
-          controllers.push({ name: c.name, status: `mål ${setpoint}°`, variant: "idle" });
-        } else {
-          controllers.push({ name: c.name, status: "—", variant: "idle" });
-        }
-      }
-    }
-
     blocks.push({ icon: Snowflake, label: "Glykolkylare", controllers, hasAction: glycolActions.length > 0 });
   }
 
-  // 2. PID / Pill compensation — show ALL controllers
+  // 2. PID / Pill compensation — show ALL controllers with profilmål → börvärde
   if (props.pillCompEnabled) {
     const controllers: ControllerLine[] = [];
 
@@ -190,7 +166,16 @@ function buildFeatureBlocks(
         }
       } else if (skip) {
         if (skip.message.includes("Samma data")) {
-          controllers.push({ name, status: "Ingen ny data", variant: "idle" });
+          // Show current profile→setpoint even when no change
+          const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
+          const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
+          if (profileTemp && setpoint) {
+            const diff = Number(setpoint) - Number(profileTemp);
+            const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
+            controllers.push({ name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
+          } else {
+            controllers.push({ name, status: "Ingen ny data", variant: "idle" });
+          }
         } else if (skip.message.includes("cooloff")) {
           controllers.push({ name, status: "Cooloff aktiv", variant: "skip" });
         } else if (skip.message.includes("no active session") || skip.message.includes("profile-owned but no")) {
@@ -199,9 +184,17 @@ function buildFeatureBlocks(
           controllers.push({ name, status: "Skippade", variant: "idle" });
         }
       } else {
-        // Check if controller has cooling/heating active — if so it's running, just no PID change
-        const isActive = c.cooling_enabled || c.heating_enabled;
-        controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip" });
+        // No PID decision — show current profile→setpoint if available
+        const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
+        const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
+        if (profileTemp && setpoint) {
+          const diff = Number(setpoint) - Number(profileTemp);
+          const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
+          controllers.push({ name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
+        } else {
+          const isActive = c.cooling_enabled || c.heating_enabled;
+          controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip" });
+        }
       }
     }
 
