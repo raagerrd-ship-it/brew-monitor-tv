@@ -4,6 +4,7 @@ import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutoCoolingCountdown } from "@/components/AutoCoolingCountdown";
+import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
@@ -643,6 +644,13 @@ export default function Settings() {
                       </span>
                     </div>
                   )}
+                  <AutomationFeatureStatus
+                    autoCoolingEnabled={settings.autoCoolingEnabled}
+                    pillCompEnabled={settings.pillCompEnabled}
+                    stallDetectionEnabled={settings.stallDetectionEnabled}
+                    overshootPreventionEnabled={settings.overshootPreventionEnabled}
+                    aiAuditEnabled={settings.aiAuditEnabled}
+                  />
                 </div>
               </SettingsSection>
             )}
