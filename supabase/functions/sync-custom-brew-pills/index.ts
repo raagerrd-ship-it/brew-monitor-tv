@@ -174,19 +174,22 @@ serve(async (req) => {
               .eq('controller_id', brew.linked_controller_id)
               .maybeSingle();
             
-            if (ctrlFull && ctrlFull.current_temp != null) {
+            if (ctrlFull) {
               const fallbackTemp = ctrlFull.current_temp;
-              console.log(`Updating ${brew.name} with controller probe temp: ${fallbackTemp}°C (pill offline)`);
-              await supabase
-                .from('brew_readings')
-                .update({
-                  current_temp: fallbackTemp,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', brew.id);
-              brewsUpdated++;
+              if (fallbackTemp != null) {
+                console.log(`Updating ${brew.name} with controller probe temp: ${fallbackTemp}°C (pill offline)`);
+                await supabase
+                  .from('brew_readings')
+                  .update({
+                    current_temp: fallbackTemp,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', brew.id);
+                brewsUpdated++;
+              }
 
               // Create a controller-only snapshot: SG = last known, pill_temp = null
+              // Always log whatever controller data is available (Ctrl, Mål, PID)
               const now = new Date().toISOString();
               const lastSg = brew.current_sg ?? null;
               const snapshot = {
@@ -194,7 +197,7 @@ serve(async (req) => {
                 recorded_at: now,
                 sg: lastSg,
                 pill_temp: null as number | null,
-                controller_temp: ctrlFull.current_temp,
+                controller_temp: ctrlFull.current_temp ?? null,
                 profile_target_temp: ctrlFull.profile_target_temp ?? null,
                 auto_target_temp: ctrlFull.target_temp ?? null,
               };
@@ -204,7 +207,7 @@ serve(async (req) => {
               if (snapErr) {
                 console.error(`Failed to insert controller-only snapshot for ${brew.name}:`, snapErr);
               } else {
-                console.log(`Created controller-only snapshot for ${brew.name} (SG=${lastSg}, Ctrl=${fallbackTemp}°)`);
+                console.log(`Created controller-only snapshot for ${brew.name} (SG=${lastSg}, Ctrl=${fallbackTemp ?? 'null'}°)`);
               }
             }
           }
