@@ -136,7 +136,7 @@ serve(async (req) => {
     // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, widget_art_url, updated_at, playback_state, album_art_url')
+      .select('id, track_name, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, updated_at, playback_state, album_art_url')
       .eq('group_id', groupId)
       .limit(1)
       .single();
@@ -272,7 +272,10 @@ serve(async (req) => {
     let bgImageUrl: string | null = sameTrack ? (existingRow?.bg_image_url || null) : null;
     let widgetArtUrl: string | null = sameTrack ? (existingRow?.widget_art_url || null) : null;
 
-    if (currentArt.medium) {
+    // Only process images if we don't already have them
+    const needCurrentImages = !bgImageUrl || !widgetArtUrl;
+
+    if (currentArt.medium && needCurrentImages) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
       const reuseCurrentWidget = sameTrack && existingRow?.widget_art_url;
 
@@ -298,7 +301,14 @@ serve(async (req) => {
     let nextBgUrl: string | null = null;
     let nextWidgetUrl: string | null = null;
     let nextAlbumArtMedium: string | null = null;
-    if (rawNextArt && nextTrackName) {
+
+    // Skip if same next track with images already in DB
+    const sameNextTrack = sameTrack && existingRow?.next_track_name === nextTrackName && existingRow?.next_bg_image_url && existingRow?.next_widget_art_url;
+    if (sameNextTrack) {
+      nextBgUrl = existingRow.next_bg_image_url;
+      nextWidgetUrl = existingRow.next_widget_art_url;
+      nextAlbumArtMedium = rawNextArt;
+    } else if (rawNextArt && nextTrackName) {
       try {
         const nextArt = await resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId);
         if (nextArt.medium) {
@@ -341,7 +351,8 @@ serve(async (req) => {
 
     const totalMs = Date.now() - startTime;
     const writeCount = sameTrack ? 1 : 2;
-    console.log(`[SonosSync] Done in ${totalMs}ms (${writeCount} write${writeCount > 1 ? 's' : ''}) - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
+    const imgSkipped = sameTrack && !needCurrentImages ? ' [images cached]' : '';
+    console.log(`[SonosSync] Done in ${totalMs}ms (${writeCount} write${writeCount > 1 ? 's' : ''})${imgSkipped} - ${currentTrackName || 'no track'} (bg: ${bgImageUrl ? 'yes' : 'no'}, next: ${nextTrackName || 'none'})`);
 
     return new Response(JSON.stringify({ ok: true, duration_ms: totalMs, writes: writeCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
