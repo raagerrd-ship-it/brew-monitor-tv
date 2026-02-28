@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Wrench, AlertTriangle, Shield, Brain, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { getActualTemp } from "@/lib/temp-display";
+import { getActualTemp, getDisplayTarget } from "@/lib/temp-display";
 
 function SyncCountdown({ lastSyncTime, intervalSeconds }: { lastSyncTime: string; intervalSeconds: number }) {
   const [text, setText] = useState("");
@@ -168,12 +168,10 @@ function buildFeatureBlocks(
       } else if (skip) {
         if (skip.message.includes("Samma data")) {
           // Show current profile→setpoint even when no change
-          const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
-          const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
-          if (profileTemp && setpoint) {
-            const diff = Number(setpoint) - Number(profileTemp);
-            const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
-            controllers.push({ name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
+          const { target: dt, compensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
+          if (dt != null && c.target_temp != null) {
+            const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
+            controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
           } else {
             controllers.push({ name, status: "Ingen ny data", variant: "idle" });
           }
@@ -186,12 +184,10 @@ function buildFeatureBlocks(
         }
       } else {
         // No PID decision — show current profile→setpoint if available
-        const profileTemp = c.profile_target_temp != null ? Number(c.profile_target_temp).toFixed(1) : null;
-        const setpoint = c.target_temp != null ? Number(c.target_temp).toFixed(1) : null;
-        if (profileTemp && setpoint) {
-          const diff = Number(setpoint) - Number(profileTemp);
-          const kompStr = Math.abs(diff) >= 0.1 ? ` (${diff >= 0 ? "+" : ""}${diff.toFixed(1)}°)` : "";
-          controllers.push({ name, status: `${profileTemp}° → ${setpoint}°${kompStr}`, variant: "idle" });
+        const { target: dt, compensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
+        if (dt != null && c.target_temp != null) {
+          const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
+          controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
         } else {
           const isActive = c.cooling_enabled || c.heating_enabled;
           controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip" });
