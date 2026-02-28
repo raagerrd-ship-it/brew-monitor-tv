@@ -72,6 +72,17 @@ export async function createBrewSnapshots(
       controllerData = allRows;
     }
 
+    // Fetch current controller state as fallback when no history match exists
+    let currentControllerState: { current_temp: number | null; target_temp: number | null; profile_target_temp: number | null } | null = null;
+    if (controllerId) {
+      const { data: ctrlCurrent } = await supabase
+        .from('rapt_temp_controllers')
+        .select('current_temp, target_temp, profile_target_temp')
+        .eq('controller_id', controllerId)
+        .maybeSingle();
+      currentControllerState = ctrlCurrent;
+    }
+
     // Build sorted controller data for nearest-neighbor lookup
     const sortedCtrl = controllerData
       .map((c: any) => ({ ...c, ts: new Date(c.recorded_at).getTime() }))
@@ -100,6 +111,7 @@ export async function createBrewSnapshots(
     };
 
     // Create snapshot records — all values taken directly from stored data
+    // Falls back to current controller state when no history match (controller offline/gap)
     const snapshots = newPoints.map((point) => {
       const pointMs = new Date(point.date).getTime();
       const closest = findClosest(pointMs);
@@ -109,9 +121,9 @@ export async function createBrewSnapshots(
         recorded_at: point.date,
         sg: point.value,
         pill_temp: point.temp,
-        controller_temp: closest?.current_temp ?? null,
-        profile_target_temp: closest?.profile_target_temp ?? null,
-        auto_target_temp: closest?.target_temp ?? null,
+        controller_temp: closest?.current_temp ?? currentControllerState?.current_temp ?? null,
+        profile_target_temp: closest?.profile_target_temp ?? currentControllerState?.profile_target_temp ?? null,
+        auto_target_temp: closest?.target_temp ?? currentControllerState?.target_temp ?? null,
       };
     });
 
