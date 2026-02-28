@@ -1,9 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Wrench, AlertTriangle, Shield, Brain, ArrowDown, ArrowUp, History, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { AutoCoolingCountdown } from "./AutoCoolingCountdown";
+
+function SyncCountdown({ lastSyncTime, intervalSeconds }: { lastSyncTime: string; intervalSeconds: number }) {
+  const [text, setText] = useState("");
+  const lastSecondRef = useRef(-1);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      const sec = Math.floor(now / 1000);
+      if (sec === lastSecondRef.current) return;
+      lastSecondRef.current = sec;
+
+      const next = new Date(lastSyncTime).getTime() + intervalSeconds * 1000;
+      const diff = Math.max(0, Math.ceil((next - now) / 1000));
+      if (diff <= 0) {
+        setText("Synkar...");
+      } else {
+        const m = Math.floor(diff / 60);
+        const s = diff % 60;
+        setText(m > 0 ? `${m}m ${s}s` : `${s}s`);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [lastSyncTime, intervalSeconds]);
+
+  return (
+    <div className="flex items-center justify-between text-[10px] pl-6 pr-1 pt-1.5 text-muted-foreground/50">
+      <div className="flex items-center gap-1">
+        <Clock className="h-2.5 w-2.5" />
+        <span>Nästa synk</span>
+      </div>
+      <span className="font-mono">{text}</span>
+    </div>
+  );
+}
 
 interface DecisionEntry {
   step: string;
@@ -375,54 +411,6 @@ export function AutomationFeatureStatus(props: Props) {
 
           {block.extra}
 
-          {/* Glycol countdown — under Glykolkylare */}
-          {block.label === "Glykolkylare" && props.autoCoolingEnabled && (
-            <div className="flex items-center justify-between text-[11px] pl-6 pr-1 pt-1">
-              <div className="flex items-center gap-1 text-muted-foreground/60">
-                <Clock className="h-2.5 w-2.5" />
-                <span>Nästa cykel</span>
-              </div>
-              <AutoCoolingCountdown
-                lastAdjustmentTime={props.lastAutoCoolingCheck}
-                checkIntervalMinutes={Math.ceil(parseInt(props.autoCoolingInterval) / 60)}
-                enabled={props.autoCoolingEnabled}
-                coolingActive={(() => {
-                  const cooler = props.availableControllers.find(c => c.controller_id === props.coolerControllerId || c.is_glycol_cooler);
-                  return cooler?.cooling_enabled ?? false;
-                })()}
-                currentTemp={(() => {
-                  const followed = props.availableControllers.filter(c =>
-                    props.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                  );
-                  if (followed.length === 0) return null;
-                  const withTarget = followed.filter(c => c.target_temp != null);
-                  if (withTarget.length === 0) return null;
-                  const lowest = withTarget.reduce((min, c) => c.target_temp! < min.target_temp! ? c : min);
-                  return lowest.current_temp ?? (lowest as any).pill_temp ?? null;
-                })()}
-                targetTemp={(() => {
-                  const followed = props.availableControllers.filter(c =>
-                    props.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                  );
-                  if (followed.length === 0) return null;
-                  const withTarget = followed.filter(c => c.target_temp != null);
-                  if (withTarget.length === 0) return null;
-                  return Math.min(...withTarget.map(c => c.target_temp!));
-                })()}
-                coolingHysteresis={(() => {
-                  const followed = props.availableControllers.filter(c =>
-                    props.followedControllerIds.includes(c.controller_id) && c.cooling_enabled === true
-                  );
-                  if (followed.length === 0) return null;
-                  const withTarget = followed.filter(c => c.target_temp != null);
-                  if (withTarget.length === 0) return null;
-                  const lowest = withTarget.reduce((min, c) => c.target_temp! < min.target_temp! ? c : min);
-                  return (lowest as any).cooling_hysteresis ?? null;
-                })()}
-              />
-            </div>
-          )}
-
           {/* Active ramp indicators — under Glykolkylare */}
           {block.label === "Glykolkylare" && activeRamps.length > 0 && activeRamps.map((ramp, i) => (
             <div key={`ramp-${i}`} className="flex items-center justify-between text-[11px] pl-6 pr-1 pt-0.5">
@@ -439,6 +427,14 @@ export function AutomationFeatureStatus(props: Props) {
               </span>
             </div>
           ))}
+
+          {/* Sync countdown — bottom of Glykolkylare */}
+          {block.label === "Glykolkylare" && props.autoCoolingEnabled && props.lastAutoCoolingCheck && (
+            <SyncCountdown
+              lastSyncTime={props.lastAutoCoolingCheck}
+              intervalSeconds={parseInt(props.autoCoolingInterval)}
+            />
+          )}
         </div>
       ))}
     </div>
