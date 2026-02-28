@@ -8,8 +8,13 @@ import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flam
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
+import { getActualTemp } from "@/lib/temp-display";
 
-export function RaptControllersManagement() {
+interface RaptControllersManagementProps {
+  pillCompEnabled?: boolean;
+}
+
+export function RaptControllersManagement({ pillCompEnabled = false }: RaptControllersManagementProps) {
   const {
     controllers, pills, selectedControllers, selectedControllersData,
     coolerControllerId, loading, editingLimitsId,
@@ -45,7 +50,7 @@ export function RaptControllersManagement() {
           const isLast = controllerIndex === selectedControllersData.length - 1;
           const isSelected = selectedControllers[controller.controller_id];
           const isCooler = coolerControllerId === controller.controller_id;
-          const displayTemp = controller.pill_temp ?? controller.current_temp;
+          const displayTemp = getActualTemp(controller.pill_temp, controller.current_temp, pillCompEnabled);
           const isActivelyCooling = controller.cooling_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + (controller.cooling_hysteresis ?? 0.2));
           const isActivelyHeating = controller.heating_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp < (controller.target_temp - (controller.heating_hysteresis ?? 0.2));
           

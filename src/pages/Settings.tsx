@@ -588,7 +588,7 @@ export default function Settings() {
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
             <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
-              <RaptControllersManagement />
+              <RaptControllersManagement pillCompEnabled={settings.pillCompEnabled} />
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
               <RaptPillsManagement />

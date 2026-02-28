@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Wrench, AlertTriangle, Shield, Brain, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
+import { getActualTemp } from "@/lib/temp-display";
 
 function SyncCountdown({ lastSyncTime, intervalSeconds }: { lastSyncTime: string; intervalSeconds: number }) {
   const [text, setText] = useState("");
