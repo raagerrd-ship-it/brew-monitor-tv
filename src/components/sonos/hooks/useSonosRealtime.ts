@@ -38,6 +38,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
       acceptedRef.current = false;
+
+      // Guard: ignore realtime with null track_name (API hiccup)
+      if (!incoming.track_name) {
+        console.log('[Sonos:RT] ⚠️ Ignored realtime with null track_name');
+        return;
+      }
       
       console.log('[Sonos:RT] 📡 Realtime update received:', {
         track: incoming.track_name,

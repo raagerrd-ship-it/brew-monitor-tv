@@ -261,6 +261,15 @@ serve(async (req) => {
       next_widget_art_url: null,
     };
 
+    // Guard: don't overwrite valid track data with null from API hiccup
+    if (!nowPlaying.track_name && existingRow?.track_name) {
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] No track from API but DB has "${existingRow.track_name}" → skip write (${duration}ms)`);
+      return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (existingRow) {
       await supabase.from('sonos_now_playing').update(nowPlaying).eq('id', existingRow.id);
     } else {
