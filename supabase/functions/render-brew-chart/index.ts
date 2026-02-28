@@ -326,7 +326,13 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      // Client disconnected before body was read
+      return new Response(null, { status: 499, headers: corsHeaders });
+    }
     const { brewId, compact, brewCount, action } = body;
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
