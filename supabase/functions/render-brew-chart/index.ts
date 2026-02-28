@@ -315,8 +315,8 @@ function generateChartSvg(
   </svg>`;
 }
 
-/** Max chart points – enough for visual fidelity at 600px wide */
-const MAX_CHART_POINTS = 200;
+/** Max chart points – 100 is plenty for 600px wide SVG */
+const MAX_CHART_POINTS = 100;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -326,7 +326,8 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { brewId, compact, brewCount, action } = await req.json();
+    const body = await req.json();
+    const { brewId, compact, brewCount, action } = body;
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -337,11 +338,9 @@ serve(async (req) => {
       const { data: files } = await supabase.storage.from('chart-images').list('', { search: `chart_${brewId}` });
       if (files && files.length > 0) {
         const paths = files.map(f => f.name);
-        const { error } = await supabase.storage.from('chart-images').remove(paths);
-        if (error) console.error('[RenderChart] Delete error:', error);
-        return new Response(JSON.stringify({ deleted: paths }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        await supabase.storage.from('chart-images').remove(paths);
       }
-      return new Response(JSON.stringify({ deleted: [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ deleted: files?.map(f => f.name) ?? [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!brewId) {
@@ -355,26 +354,26 @@ serve(async (req) => {
     const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/chart-images/${fileName}`;
 
-    // ── Cache check: compare latest snapshot timestamp with stored SVG ──
-    // Fetch latest snapshot timestamp for this brew
-    const { data: latestSnap } = await supabase
-      .from('brew_data_snapshots')
-      .select('recorded_at')
-      .eq('brew_id', brewId)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .single();
+    // ── Step 1: Parallel fetch — cache check + latest snapshot + brew metadata ──
+    const [cacheResult, latestSnapResult, brewResult] = await Promise.all([
+      supabase.storage.from('chart-images').list('', { search: fileName, limit: 1 }),
+      supabase.from('brew_data_snapshots')
+        .select('recorded_at')
+        .eq('brew_id', brewId)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .single(),
+      supabase.from('brew_readings')
+        .select('id, sg_data, original_gravity, final_gravity')
+        .eq('id', brewId)
+        .single(),
+    ]);
 
-    const latestTs = latestSnap?.recorded_at ?? '';
+    const latestTs = latestSnapResult.data?.recorded_at ?? '';
+    const existingFile = cacheResult.data?.find(f => f.name === fileName);
 
-    // Check if cached SVG exists (by listing with exact name match)
-    const { data: existingFiles } = await supabase.storage
-      .from('chart-images')
-      .list('', { search: fileName, limit: 1 });
-
-    const existingFile = existingFiles?.find(f => f.name === fileName);
+    // Cache hit: SVG updated after latest snapshot
     if (existingFile && latestTs) {
-      // Compare: if SVG was updated AFTER the latest snapshot, it's still fresh
       const svgUpdated = new Date(existingFile.updated_at).getTime();
       const snapTime = new Date(latestTs).getTime();
       if (svgUpdated > snapTime) {
@@ -386,71 +385,26 @@ serve(async (req) => {
       }
     }
 
-    // ── Fetch brew metadata ──
-    const { data: brew, error: brewError } = await supabase
-      .from('brew_readings')
-      .select('id, sg_data, original_gravity, final_gravity')
-      .eq('id', brewId)
-      .single();
-
-    if (brewError || !brew) {
-      console.error('[RenderChart] Brew not found:', brewError);
+    if (brewResult.error || !brewResult.data) {
       return new Response(
         JSON.stringify({ error: 'Brew not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const brew = brewResult.data;
 
-    // ── Fetch snapshot count and sample efficiently ──
-    const { count: totalCount } = await supabase
+    // ── Step 2: Fetch snapshots — single query, max 1000, then downsample to 100 ──
+    const { data: rawSnapshots } = await supabase
       .from('brew_data_snapshots')
-      .select('id', { count: 'exact', head: true })
-      .eq('brew_id', brewId);
+      .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+      .eq('brew_id', brewId)
+      .order('recorded_at', { ascending: true })
+      .limit(1000);
 
-    let snapshotRows: SnapshotPoint[] = [];
-    const total = totalCount ?? 0;
-
-    if (total <= MAX_CHART_POINTS) {
-      // Few enough points — fetch all in one query
-      const { data: batch } = await supabase
-        .from('brew_data_snapshots')
-        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-        .eq('brew_id', brewId)
-        .order('recorded_at', { ascending: true })
-        .limit(MAX_CHART_POINTS);
-
-      snapshotRows = (batch ?? []) as SnapshotPoint[];
-    } else {
-      // Many points — fetch all but downsample after
-      // Use a single large fetch (Supabase max 1000) then sample
-      const allSnapshots: SnapshotPoint[] = [];
-      let offset = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .from('brew_data_snapshots')
-          .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-          .eq('brew_id', brewId)
-          .order('recorded_at', { ascending: true })
-          .range(offset, offset + batchSize - 1);
-
-        if (error || !batch || batch.length === 0) {
-          hasMore = false;
-        } else {
-          allSnapshots.push(...(batch as SnapshotPoint[]));
-          offset += batchSize;
-          hasMore = batch.length === batchSize;
-        }
-      }
-
-      // Downsample to MAX_CHART_POINTS for rendering
-      snapshotRows = downsample(allSnapshots, MAX_CHART_POINTS);
-    }
+    const snapshotRows = downsample((rawSnapshots ?? []) as SnapshotPoint[], MAX_CHART_POINTS);
 
     // Fallback to SG log if snapshots are not yet available
-    const fallbackRows = ((brew.sg_data || []) as SgDataPoint[]).map((p) => ({
+    const chartRows = snapshotRows.length > 0 ? snapshotRows : ((brew.sg_data || []) as SgDataPoint[]).map((p) => ({
       recorded_at: p.date,
       sg: p.value,
       pill_temp: p.temp ?? null,
@@ -458,12 +412,10 @@ serve(async (req) => {
       profile_target_temp: null,
     }));
 
-    const chartRows = snapshotRows.length > 0 ? snapshotRows : fallbackRows;
-
-    // Generate SVG
+    // ── Step 3: Generate SVG + upload ──
     const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
-
     const svgBytes = new TextEncoder().encode(svg);
+
     const { error: uploadError } = await supabase.storage
       .from('chart-images')
       .upload(fileName, svgBytes, {
@@ -479,7 +431,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[RenderChart] Generated chart for ${brewId} in ${Date.now() - startTime}ms (${snapshotRows.length}→${chartRows.length} pts, ${svgBytes.length} bytes)`);
+    console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${rawSnapshots?.length ?? 0}→${chartRows.length} pts, ${svgBytes.length} bytes)`);
 
     return new Response(
       JSON.stringify({ chartUrl: publicUrl }),
