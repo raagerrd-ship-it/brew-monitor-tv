@@ -76,13 +76,21 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         if (incoming.track_name !== prev.track_name) {
           accepted = true;
           trackChangedAtRef.current = Date.now();
-          if (incoming.bg_image_url) {
+          // Only push bg if it's actually NEW (not stale from Phase 1 where server kept old bg)
+          const bgIsNew = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
+          if (bgIsNew) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}"`);
-          return incoming;
+          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" (bg: ${bgIsNew ? 'ny' : 'väntar'})`);
+          return {
+            ...incoming,
+            // Keep current bg/widget if server hasn't updated them yet (Phase 1)
+            bg_image_url: bgIsNew ? incoming.bg_image_url : prev.bg_image_url,
+            widget_art_url: incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url
+              ? incoming.widget_art_url : prev.widget_art_url,
+          };
         }
 
         // Same track → only next_* + state + fill missing art
