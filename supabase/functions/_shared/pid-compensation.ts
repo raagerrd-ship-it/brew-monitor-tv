@@ -348,7 +348,7 @@ export async function calculateCompensatedTarget(
 
   // Directional clamp: during ramp/gradual_ramp steps, never push target past profileTarget
   // in the wrong direction. Hold steps need bidirectional compensation to hit exact average.
-  const isRampStep = ['ramp', 'gradual_ramp', 'diacetyl_rest'].includes(stepType)
+  const isRampStep = ['ramp', 'gradual_ramp'].includes(stepType)
   if (isRampStep) {
     if (mode === 'cooling' && compensatedTarget > profileTarget) {
       console.log(`🔒 Directional clamp [cooling/${stepType}]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte överskrida profilmål under ramp)`)
