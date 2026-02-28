@@ -406,9 +406,19 @@ export async function calculateCompensatedTarget(
     const currentDistToProfile = Math.abs(currentControllerTarget - profileTarget)
     const newDistToProfile = Math.abs(compensatedTarget - profileTarget)
     const isTowardTarget = newDistToProfile < currentDistToProfile
-    if (isTowardTarget && distanceFromIdeal <= 0.5) {
-      // Allow faster convergence toward profile target — bypass rate-limit for steps up to 0.5°
-      console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)`)
+    
+    // When in approach zone AND moving toward profile, allow faster release
+    // so the controller target converges quickly and doesn't keep heater/cooler active unnecessarily
+    const approachRelease = approachScale < 1.0 && isTowardTarget
+    const bypassLimit = approachRelease ? Math.max(baseLimit, effectiveMaxRate * 0.8) : baseLimit
+    
+    if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
+      if (distanceFromIdeal <= bypassLimit) {
+        console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
+      } else {
+        compensatedTarget = currentControllerTarget + (isIncreasing ? bypassLimit : -bypassLimit)
+        console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot profil ${profileTarget}°C (approach zone fast-release)`)
+      }
     } else if (distanceFromIdeal > baseLimit) {
       // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
