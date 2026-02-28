@@ -428,8 +428,19 @@ serve(async (req) => {
         );
 
         if (!compensation) {
-          // Profile-owned: enforce profile target directly
+          // Profile-owned: enforce profile target directly — but ONLY if no significant pill delta
+          // exists. If pill delta is large, PID should handle it next cycle rather than blindly
+          // resetting the controller target and undoing PID compensation.
           if (isProfileOwned) {
+            const pillTemp = fc.pill_temp != null ? parseFloat(String(fc.pill_temp)) : null;
+            const probeTemp = fc.current_temp != null ? parseFloat(String(fc.current_temp)) : null;
+            const pillDelta = (pillTemp != null && probeTemp != null) ? Math.abs(pillTemp - probeTemp) : 0;
+
+            if (pillDelta > 0.5) {
+              log('PROFILE_ENFORCE', 'info', `${fc.name}: skipping enforce — pill delta ${pillDelta.toFixed(1)}°C exists, PID will handle next cycle`);
+              continue;
+            }
+
             const diff = Math.abs(targetTemp - baseTarget);
             if (diff >= 0.15) {
               log('PROFILE_ENFORCE', 'action', `${fc.name}: enforcing profile target ${baseTarget}°C (current controller=${targetTemp}°C)`);
