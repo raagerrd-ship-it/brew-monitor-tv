@@ -158,6 +158,9 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     log('COOLING_ERROR', 'fail', `Active cooling handler crashed: ${errorMsg}`)
   }
 
+  // Track adjustments count before proactive cooling
+  const adjustmentsBeforeProactive = adjustments.length
+
   // Always: proactive pre-cooling check (look-ahead at fermentation profiles)
   try {
     await handleProactiveCooling(ctx, coolerController, currentCoolerTarget, coolingLoadCount, adjustments)
@@ -166,12 +169,17 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     log('PROACTIVE_ERROR', 'fail', `Proactive cooling handler crashed: ${errorMsg}`)
   }
 
-  // Always: recovery check (even if handleActiveCooling crashed)
-  try {
-    await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
-  } catch (recoveryError) {
-    const errorMsg = recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
-    log('RECOVERY_ERROR', 'fail', `Recovery handler crashed: ${errorMsg}`)
+  // Recovery check — skip if proactive already adjusted this cycle to avoid double-writes
+  const proactiveMadeAdjustment = adjustments.length > adjustmentsBeforeProactive
+  if (proactiveMadeAdjustment) {
+    log('COOLING_RECOVERY', 'info', 'Skipping recovery — proactive cooling already adjusted this cycle')
+  } else {
+    try {
+      await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+    } catch (recoveryError) {
+      const errorMsg = recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+      log('RECOVERY_ERROR', 'fail', `Recovery handler crashed: ${errorMsg}`)
+    }
   }
 
   return adjustments
