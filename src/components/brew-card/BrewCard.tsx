@@ -325,6 +325,7 @@ function BrewCardComponent({
                 brewCount={brewCount}
                 smoothLines={smoothLines}
                 onSmoothLinesChange={setSmoothLines}
+                brewStatus={brew.status}
               />
             )}
           </div>
