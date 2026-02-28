@@ -33,6 +33,8 @@ interface UpcomingCoolingNeed {
 export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentResult[]> {
   const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, followedControllerIds, settings, log } = ctx
   const adjustments: AdjustmentResult[] = []
+  // Mutable ref so all handlers see the latest cooler target after adjustments
+  const coolerTargetRef = { value: 0 } // initialized after cooler is found
 
   log('COOLING', 'info', '--- Auto cooling adjustment check ---')
 
@@ -70,6 +72,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   })
 
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
+  coolerTargetRef.value = currentCoolerTarget
 
   // Learn glycol cooler rate
   const coolingLoadCount = followedControllersFullData.filter(c => {
@@ -97,7 +100,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   if (controllersWithCooling.length === 0) {
     log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
-    await handleNoCooling(ctx, coolerController, currentCoolerTarget, adjustments)
+    await handleNoCooling(ctx, coolerController, coolerTargetRef.value, adjustments, coolerTargetRef)
     return adjustments
   }
 
@@ -113,14 +116,14 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   const lowestTargetTemp = parseFloat(String(lowestTempController.target_temp ?? '999'))
   log('LOWEST_CONTROLLER', 'info', `Lowest target with cooling: ${lowestTempController.name}`, {
     target_temp: round1(lowestTargetTemp),
-    cooler_target: round1(currentCoolerTarget),
-    diff: round1(currentCoolerTarget - lowestTargetTemp),
+    cooler_target: round1(coolerTargetRef.value),
+    diff: round1(coolerTargetRef.value - lowestTargetTemp),
   })
 
   // Check if cooler is >10° colder than needed
-  const tempDiff = currentCoolerTarget - lowestTargetTemp
+  const tempDiff = coolerTargetRef.value - lowestTargetTemp
   if (tempDiff < -10) {
-    await handleOvercooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, tempDiff, adjustments)
+    await handleOvercooling(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, tempDiff, adjustments, coolerTargetRef)
   }
 
   // Check if lowest controller is actively cooling
@@ -136,14 +139,14 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   try {
     if (isActivelyCooling) {
-      await handleActiveCooling(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+      await handleActiveCooling(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments, coolerTargetRef)
     } else {
       await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
 
       // Learn margin is adequate
       const tempBucketLearn = getTempBucket(lowestTargetTemp)
       const loadBucket = coolingLoadCount >= 2 ? '2plus' : String(coolingLoadCount)
-      const currentMargin = Math.abs(currentCoolerTarget - lowestTargetTemp)
+      const currentMargin = Math.abs(coolerTargetRef.value - lowestTargetTemp)
       if (currentMargin > 2.0) {
         const suggestedMargin = currentMargin * 0.95
         const marginParamName = `cooler_margin:${tempBucketLearn}:load_${loadBucket}`
@@ -163,19 +166,19 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   // Always: proactive pre-cooling check (look-ahead at fermentation profiles)
   try {
-    await handleProactiveCooling(ctx, coolerController, currentCoolerTarget, coolingLoadCount, adjustments)
+    await handleProactiveCooling(ctx, coolerController, coolerTargetRef.value, coolingLoadCount, adjustments, coolerTargetRef)
   } catch (proactiveError) {
     const errorMsg = proactiveError instanceof Error ? proactiveError.message : String(proactiveError)
     log('PROACTIVE_ERROR', 'fail', `Proactive cooling handler crashed: ${errorMsg}`)
   }
 
-  // Recovery check — skip if proactive already adjusted this cycle to avoid double-writes
-  const proactiveMadeAdjustment = adjustments.length > adjustmentsBeforeProactive
-  if (proactiveMadeAdjustment) {
-    log('COOLING_RECOVERY', 'info', 'Skipping recovery — proactive cooling already adjusted this cycle')
+  // Recovery check — skip if ANY earlier handler already adjusted this cycle
+  const anyPriorAdjustment = adjustments.length > 0
+  if (anyPriorAdjustment) {
+    log('COOLING_RECOVERY', 'info', `Skipping recovery — glycol already adjusted this cycle (${adjustments.length} adjustment(s))`)
   } else {
     try {
-      await handleRecovery(ctx, coolerController, currentCoolerTarget, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments)
+      await handleRecovery(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments, coolerTargetRef)
     } catch (recoveryError) {
       const errorMsg = recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
       log('RECOVERY_ERROR', 'fail', `Recovery handler crashed: ${errorMsg}`)
@@ -232,7 +235,7 @@ async function evaluateCoolingOutcomes(ctx: GlycolContext): Promise<void> {
   }
 }
 
-async function handleNoCooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, adjustments: AdjustmentResult[]): Promise<void> {
+async function handleNoCooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, adjustments: AdjustmentResult[], coolerTargetRef: { value: number }): Promise<void> {
   const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
   const defaultTemp = 18
   if (Math.abs(currentCoolerTarget - defaultTemp) <= 0.1) return
@@ -254,10 +257,11 @@ async function handleNoCooling(ctx: GlycolContext, coolerController: TempControl
       reason: 'Ingen följd controller är aktiv med kyla',
     })
     adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: defaultTemp })
+    coolerTargetRef.value = defaultTemp
   }
 }
 
-async function handleOvercooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, lowestTempController: TempController, lowestTargetTemp: number, tempDiff: number, adjustments: AdjustmentResult[]): Promise<void> {
+async function handleOvercooling(ctx: GlycolContext, coolerController: TempController, currentCoolerTarget: number, lowestTempController: TempController, lowestTargetTemp: number, tempDiff: number, adjustments: AdjustmentResult[], coolerTargetRef: { value: number }): Promise<void> {
   const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
   log('OVERCOOLING_CHECK', 'info', `Cooler is ${Math.abs(tempDiff).toFixed(1)}°C colder than lowest`)
 
@@ -285,6 +289,7 @@ async function handleOvercooling(ctx: GlycolContext, coolerController: TempContr
       reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`,
     })
     adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget })
+    coolerTargetRef.value = newTarget
   }
 }
 
@@ -296,7 +301,8 @@ async function handleActiveCooling(
   lowestTargetTemp: number,
   lowestCurrentTemp: number,
   coolingLoadCount: number,
-  adjustments: AdjustmentResult[]
+  adjustments: AdjustmentResult[],
+  coolerTargetRef: { value: number }
 ): Promise<void> {
   const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, followedControllerIds, settings, log } = ctx
 
@@ -527,6 +533,7 @@ async function handleActiveCooling(
   if (success) {
     log('ADJUSTMENT', 'pass', `Updated cooler to ${finalTarget}°C`)
     adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget })
+    coolerTargetRef.value = finalTarget
 
     const lowestFollowedTemp = followedControllersFullData
       .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
@@ -558,7 +565,8 @@ async function handleRecovery(
   lowestTargetTemp: number,
   lowestCurrentTemp: number,
   coolingLoadCount: number,
-  adjustments: AdjustmentResult[]
+  adjustments: AdjustmentResult[],
+  coolerTargetRef: { value: number }
 ): Promise<void> {
   const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
 
@@ -625,6 +633,7 @@ async function handleRecovery(
     if (success) {
       log('COOLING_RECOVERY', 'pass', `Set cooler to ${recoveryTarget}°C`)
       adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: recoveryTarget })
+      coolerTargetRef.value = recoveryTarget
 
       await logAdjustment(supabase, {
         cooler_controller_id: coolerController.controller_id,
@@ -653,7 +662,8 @@ async function handleProactiveCooling(
   coolerController: TempController,
   currentCoolerTarget: number,
   coolingLoadCount: number,
-  adjustments: AdjustmentResult[]
+  adjustments: AdjustmentResult[],
+  coolerTargetRef: { value: number }
 ): Promise<void> {
   const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, log } = ctx
 
@@ -867,6 +877,7 @@ async function handleProactiveCooling(
   if (success) {
     log('PROACTIVE_COOLING', 'pass', `Set glycol to ${finalTarget}°C`)
     adjustments.push({ cooler: coolerController.name, oldTarget: currentCoolerTarget, newTarget: finalTarget })
+    coolerTargetRef.value = finalTarget
 
     await logAdjustment(supabase, {
       cooler_controller_id: coolerController.controller_id,
