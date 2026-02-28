@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect } from "react";
+import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { NowPlaying, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
@@ -76,6 +76,15 @@ export const SonosWidget = memo(function SonosWidget({
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
   });
 
+  // Safety net: clear background whenever widget is hidden
+  const isHidden = shouldHide || !nowPlaying;
+  useEffect(() => {
+    if (isHidden) {
+      onAlbumArtChangeRef.current?.(null);
+      bgSentRef.current = null;
+    }
+  }, [isHidden]);
+
   // --- Image preloading ---
   const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
 
@@ -90,7 +99,7 @@ export const SonosWidget = memo(function SonosWidget({
     setImageError(false);
   }, [incomingArtUrl]);
 
-  if (shouldHide || !nowPlaying) return variant === "header" ? <Logo /> : null;
+  if (isHidden) return variant === "header" ? <Logo /> : null;
 
   const isHeader = variant === "header";
   const trackFontSize = isHeader ? "18px" : isMobile ? "0.8rem" : "18px";
