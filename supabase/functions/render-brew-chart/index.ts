@@ -6,26 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Chart dimensions - viewBox proportions matched to actual card layout
-// 1-2 beers: cards are ~50% viewport width → wider aspect ratio
-// 3 beers: cards are ~33% viewport width → narrower/squarer
+// Chart dimensions
 const WIDTHS: Record<number, number> = { 1: 600, 2: 600, 3: 400 };
-const HEIGHT_FULL = 340;    // No fermentation session visible
-const HEIGHT_COMPACT = 260; // With fermentation session (less vertical space)
+const HEIGHT_FULL = 340;
+const HEIGHT_COMPACT = 260;
 const MARGIN = { top: 8, right: 15, bottom: 30, left: 35 };
 
-// Colors matching desktop chartConfig.ts (CSS variables resolved)
-// --beer-amber: 38 90% 60% → #e8a225
-// --temp-blue: 200 70% 50% → #268bd2
 const COLORS = {
-  sgLine: '#e8a225',         // beer-amber
-  sgGlow: '#e8a22599',       // beer-amber glow
-  controllerArea: '#268bd214', // temp-blue 0.08
-  controllerLine: '#268bd24d',   // temp-blue 0.3 (faint, like desktop)
-  avgTempLine: '#268bd2',        // temp-blue (main temp line)
-  avgTempFill: '#268bd215',      // temp-blue ~0.08 (subtle span fill)
-  targetLine: '#268bd280',     // temp-blue 0.5
-  pillTempLine: '#268bd24d',   // temp-blue 0.3
+  sgLine: '#e8a225',
+  sgGlow: '#e8a22599',
+  controllerArea: '#268bd214',
+  controllerLine: '#268bd24d',
+  avgTempLine: '#268bd2',
+  avgTempFill: '#268bd215',
+  targetLine: '#268bd280',
+  pillTempLine: '#268bd24d',
   grid: '#3a3d4e',
   axisText: '#6b7280',
 };
@@ -100,7 +95,7 @@ function buildSmoothPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
-// Moving average smoothing (like frontend's calculateMovingAverage)
+// Moving average smoothing
 function smoothValues(values: (number | null)[], windowSize: number): (number | null)[] {
   return values.map((val, i) => {
     if (val === null) return null;
@@ -115,7 +110,6 @@ function smoothValues(values: (number | null)[], windowSize: number): (number | 
   });
 }
 
-// Determine optimal window size based on data length
 function getWindowSize(dataLength: number): number {
   if (dataLength > 200) return 9;
   if (dataLength > 100) return 7;
@@ -123,10 +117,24 @@ function getWindowSize(dataLength: number): number {
   return 3;
 }
 
-// Format day label
 function formatDay(dateStr: string): string {
   const d = new Date(dateStr);
   return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/**
+ * Downsample an array to at most maxPoints using LTTB-like uniform sampling,
+ * always keeping first and last points.
+ */
+function downsample<T>(data: T[], maxPoints: number): T[] {
+  if (data.length <= maxPoints) return data;
+  const result: T[] = [data[0]];
+  const step = (data.length - 1) / (maxPoints - 1);
+  for (let i = 1; i < maxPoints - 1; i++) {
+    result.push(data[Math.round(i * step)]);
+  }
+  result.push(data[data.length - 1]);
+  return result;
 }
 
 function generateChartSvg(
@@ -173,7 +181,6 @@ function generateChartSvg(
     sg: smoothedSg[i] ?? p.sg,
     pill: smoothedPill[i],
     controller: smoothedCtrl[i],
-    // target is NOT smoothed — it should stay as step/ramp values
   }));
 
   if (parsed.length === 0) {
@@ -308,8 +315,8 @@ function generateChartSvg(
   </svg>`;
 }
 
-
-
+/** Max chart points – enough for visual fidelity at 600px wide */
+const MAX_CHART_POINTS = 200;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -321,20 +328,22 @@ serve(async (req) => {
   try {
     const { brewId, compact, brewCount, action } = await req.json();
 
-    // Handle delete action – removes all cached SVGs for a brew
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Handle delete action
     if (action === 'delete' && brewId) {
-      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-      const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      const { data: files } = await sb.storage.from('chart-images').list('', { search: `chart_${brewId}` });
+      const { data: files } = await supabase.storage.from('chart-images').list('', { search: `chart_${brewId}` });
       if (files && files.length > 0) {
         const paths = files.map(f => f.name);
-        const { error } = await sb.storage.from('chart-images').remove(paths);
+        const { error } = await supabase.storage.from('chart-images').remove(paths);
         if (error) console.error('[RenderChart] Delete error:', error);
         return new Response(JSON.stringify({ deleted: paths }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       return new Response(JSON.stringify({ deleted: [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
     if (!brewId) {
       return new Response(
         JSON.stringify({ error: 'brewId is required' }),
@@ -342,11 +351,42 @@ serve(async (req) => {
       );
     }
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const bc = brewCount ?? 2;
+    const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/chart-images/${fileName}`;
 
-    // Fetch brew metadata
+    // ── Cache check: compare latest snapshot timestamp with stored SVG ──
+    // Fetch latest snapshot timestamp for this brew
+    const { data: latestSnap } = await supabase
+      .from('brew_data_snapshots')
+      .select('recorded_at')
+      .eq('brew_id', brewId)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const latestTs = latestSnap?.recorded_at ?? '';
+
+    // Check if cached SVG exists (by listing with exact name match)
+    const { data: existingFiles } = await supabase.storage
+      .from('chart-images')
+      .list('', { search: fileName, limit: 1 });
+
+    const existingFile = existingFiles?.find(f => f.name === fileName);
+    if (existingFile && latestTs) {
+      // Compare: if SVG was updated AFTER the latest snapshot, it's still fresh
+      const svgUpdated = new Date(existingFile.updated_at).getTime();
+      const snapTime = new Date(latestTs).getTime();
+      if (svgUpdated > snapTime) {
+        console.log(`[RenderChart] Cache hit for ${brewId} (${Date.now() - startTime}ms)`);
+        return new Response(
+          JSON.stringify({ chartUrl: publicUrl }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // ── Fetch brew metadata ──
     const { data: brew, error: brewError } = await supabase
       .from('brew_readings')
       .select('id, sg_data, original_gravity, final_gravity')
@@ -361,9 +401,29 @@ serve(async (req) => {
       );
     }
 
-    // Read static snapshot log (paginated)
-    const snapshotRows: SnapshotPoint[] = [];
-    {
+    // ── Fetch snapshot count and sample efficiently ──
+    const { count: totalCount } = await supabase
+      .from('brew_data_snapshots')
+      .select('id', { count: 'exact', head: true })
+      .eq('brew_id', brewId);
+
+    let snapshotRows: SnapshotPoint[] = [];
+    const total = totalCount ?? 0;
+
+    if (total <= MAX_CHART_POINTS) {
+      // Few enough points — fetch all in one query
+      const { data: batch } = await supabase
+        .from('brew_data_snapshots')
+        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+        .eq('brew_id', brewId)
+        .order('recorded_at', { ascending: true })
+        .limit(MAX_CHART_POINTS);
+
+      snapshotRows = (batch ?? []) as SnapshotPoint[];
+    } else {
+      // Many points — fetch all but downsample after
+      // Use a single large fetch (Supabase max 1000) then sample
+      const allSnapshots: SnapshotPoint[] = [];
       let offset = 0;
       const batchSize = 1000;
       let hasMore = true;
@@ -376,17 +436,17 @@ serve(async (req) => {
           .order('recorded_at', { ascending: true })
           .range(offset, offset + batchSize - 1);
 
-        if (error) {
-          console.error('[RenderChart] Snapshot fetch error:', error);
-          hasMore = false;
-        } else if (!batch || batch.length === 0) {
+        if (error || !batch || batch.length === 0) {
           hasMore = false;
         } else {
-          snapshotRows.push(...(batch as SnapshotPoint[]));
+          allSnapshots.push(...(batch as SnapshotPoint[]));
           offset += batchSize;
           hasMore = batch.length === batchSize;
         }
       }
+
+      // Downsample to MAX_CHART_POINTS for rendering
+      snapshotRows = downsample(allSnapshots, MAX_CHART_POINTS);
     }
 
     // Fallback to SG log if snapshots are not yet available
@@ -400,13 +460,10 @@ serve(async (req) => {
 
     const chartRows = snapshotRows.length > 0 ? snapshotRows : fallbackRows;
 
-    // Generate SVG from static log values only
-    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, brewCount ?? 2);
+    // Generate SVG
+    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
 
-    // Upload SVG directly to chart-images bucket (static SVG in <img> is rasterized once, no GPU overhead)
     const svgBytes = new TextEncoder().encode(svg);
-    const bc = brewCount ?? 2;
-    const fileName = `chart_${brewId}${compact ? '_compact' : ''}_${bc}b.svg`;
     const { error: uploadError } = await supabase.storage
       .from('chart-images')
       .upload(fileName, svgBytes, {
@@ -422,8 +479,7 @@ serve(async (req) => {
       );
     }
 
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/chart-images/${fileName}`;
-    console.log(`[RenderChart] Generated chart for ${brewId} in ${Date.now() - startTime}ms (${svgBytes.length} bytes)`);
+    console.log(`[RenderChart] Generated chart for ${brewId} in ${Date.now() - startTime}ms (${snapshotRows.length}→${chartRows.length} pts, ${svgBytes.length} bytes)`);
 
     return new Response(
       JSON.stringify({ chartUrl: publicUrl }),
