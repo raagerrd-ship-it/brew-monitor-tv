@@ -11,7 +11,7 @@ interface SonosWidgetProps {
   isMobile?: boolean;
   isTvMode?: boolean;
   variant?: "floating" | "header";
-  onAlbumArtChange?: (url: string | null) => void;
+  onAlbumArtChange?: (url: string | null, trackName?: string) => void;
   onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
@@ -123,9 +123,9 @@ export const SonosWidget = memo(function SonosWidget({
     const sentStripped = bgSentRef.current ? stripQuery(bgSentRef.current) : null;
     if (bgUrl && (newBgStripped !== sentStripped || !bgSentRef.current)) {
       console.log(`[Sonos:IMG] 🖼️ Sending BG to dashboard: ${bgUrl.slice(-60)}`);
-      tvDebug('bg', `🖼️ Ny sidbakgrund skickad`, 'bg-update');
+      tvDebug('bg', `🖼️ Ny sidbakgrund skickad för "${nowPlaying?.track_name}"`, 'bg-update');
       pushToBgBuffer(validBgBufferRef.current, bgUrl);
-      onAlbumArtChangeRef.current?.(bgUrl);
+      onAlbumArtChangeRef.current?.(bgUrl, nowPlaying?.track_name ?? undefined);
       bgSentRef.current = bgUrl;
     }
   }, [incomingArtUrl, nowPlaying?.bg_image_url]);

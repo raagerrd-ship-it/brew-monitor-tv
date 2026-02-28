@@ -9,7 +9,7 @@ interface UseSonosTrackChangeParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   addDebugLog?: (event: string) => void;
@@ -90,9 +90,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               } : cur);
               if (result.bgImageUrl) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-                onAlbumArtChangeRef.current?.(result.bgImageUrl);
+                onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
                 bgSentRef.current = result.bgImageUrl;
-                tvDebug('sonos', `🖼️ Bakgrund triggad från DB-hämtning`);
+                tvDebug('sonos', `🖼️ Bakgrund triggad från DB-hämtning för "${data.trackName}"`);
               }
             }
           } catch (e: any) {
@@ -116,9 +116,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       // Trigger background preload for preloaded next-track images immediately
       if (nextBg) {
         pushToBgBuffer(validBgBufferRef.current, nextBg);
-        onAlbumArtChangeRef.current?.(nextBg);
+        onAlbumArtChangeRef.current?.(nextBg, data.trackName);
         bgSentRef.current = nextBg;
-        tvDebug('sonos', `🖼️ Bakgrund triggad från förladdat`);
+        tvDebug('sonos', `🖼️ Bakgrund triggad från förladdat för "${data.trackName}"`);
       }
 
       return {
