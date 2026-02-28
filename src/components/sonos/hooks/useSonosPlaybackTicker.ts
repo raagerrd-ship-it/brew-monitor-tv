@@ -24,6 +24,7 @@ interface UseSonosPlaybackTickerParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
   predictiveScheduledRef: React.MutableRefObject<boolean>;
+  trackChangeOffsetRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
 }
@@ -37,7 +38,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
     nowPlaying, nowPlayingRef, setNowPlaying, handleTrackChange,
     localProgressRef, trackChangedAtRef,
-    lastPredictivePollRef, predictiveScheduledRef,
+    lastPredictivePollRef, predictiveScheduledRef, trackChangeOffsetRef,
     progressBarRef, debugTimeRef, addDebugLog,
   } = params;
 
@@ -101,10 +102,16 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const timeRemaining = duration - next;
 
         // Predictive poll: schedule when <10s remain (once per track)
+        // Use track change offset from settings (seconds → ms), fallback to PREDICTIVE_MARGIN_MS
+        const offsetMs = trackChangeOffsetRef.current > 0
+          ? trackChangeOffsetRef.current * 1000
+          : PREDICTIVE_MARGIN_MS;
+
         if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
           predictiveScheduledRef.current = true;
-          const delay = Math.max(timeRemaining + PREDICTIVE_MARGIN_MS, 100);
-          addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s`);
+          // Schedule poll: fire offsetMs BEFORE track end (negative = earlier)
+          const delay = Math.max(timeRemaining - offsetMs, 100);
+          addDebugLog?.(`🔮 Predictive poll scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
           predictiveTimer = setTimeout(() => pollForNewTrack(PREDICTIVE_MAX_RETRIES), delay);
         }
       } catch (err) {
