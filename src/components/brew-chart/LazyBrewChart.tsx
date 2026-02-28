@@ -25,7 +25,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
   const doFetch = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const t0 = performance.now();
-    const flowId = `chart-${brewId}`;
+    const flowId = `chart-${brewId}-${Date.now()}`;
     tvDebug('chart', `📊 Hämtar diagram ${brewId.slice(0, 8)}...`, flowId);
     console.log(`[TvModeChart] Fetching chart for ${brewId} (compact=${compact}, brewCount=${brewCount})`);
     try {
