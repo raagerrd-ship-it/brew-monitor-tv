@@ -19,9 +19,7 @@ interface TrackChangeData {
 interface UseSonosPlaybackTickerParams {
   nowPlaying: NowPlaying | null;
   nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
-  setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   handleTrackChange: (data: TrackChangeData) => void;
-  addDebugLog?: (event: string) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
@@ -32,27 +30,21 @@ interface UseSonosPlaybackTickerParams {
 }
 
 /**
- * 1-second ticker handling:
- * - Progress bar updates via DOM ref (zero re-renders)
- * - Predictive track swap near track end
- *
- * Flow:
- * 1. When ≤15s remain: trigger server sync if next_track_name missing (so cron doesn't need to)
- * 2. When ≤10s remain: schedule swap timer at (timeRemaining - offset)
- * 3. When swap timer fires: use next_* data if available, else poll
+ * 1s ticker: progress bar + predictive swap.
+ * ≤15s: eager sync if next images missing
+ * ≤10s: schedule swap
+ * Swap: use next_* if available, else poll
  */
 export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
-    nowPlaying, nowPlayingRef, setNowPlaying, handleTrackChange,
+    nowPlaying, nowPlayingRef, handleTrackChange,
     localProgressRef, trackChangedAtRef,
     lastPredictivePollRef, predictiveScheduledRef, trackChangeOffsetRef,
-    progressBarRef, debugTimeRef, addDebugLog,
+    progressBarRef, debugTimeRef,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
   handleTrackChangeRef.current = handleTrackChange;
-
-  // Track whether we've already triggered eager sync for this track
   const eagerSyncDoneRef = useRef(false);
 
   useEffect(() => {
@@ -85,109 +77,70 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         lastPredictivePollRef.current = Date.now();
 
         if (data.trackName && data.trackName !== trackName) {
-          addDebugLog?.(`🔄 Predictive poll confirmed: ${data.trackName}`);
-          tvDebug('sonos', `🔮 Predictive poll bekräftade nytt spår: "${data.trackName}"`);
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
-          tvDebug('sonos', `🔮 Retry ${PREDICTIVE_MAX_RETRIES - retriesLeft + 1}/${PREDICTIVE_MAX_RETRIES} — samma spår, försöker igen om ${PREDICTIVE_RETRY_INTERVAL_MS/1000}s`);
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
         } else {
-          tvDebug('sonos', `🔮 Retries slut — ingen ny låt detekterad`);
           localProgressRef.current = data.positionMillis;
           updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, duration);
         }
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     };
 
     const ticker = window.setInterval(() => {
-      try {
-        const prev = localProgressRef.current;
-        if (prev === null) return;
+      const prev = localProgressRef.current;
+      if (prev === null) return;
 
-        const currentState = nowPlayingRef?.current?.playback_state ?? nowPlaying.playback_state;
-        const isPlaying = currentState === 'PLAYBACK_STATE_PLAYING';
-        const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
-        localProgressRef.current = next;
+      const currentState = nowPlayingRef?.current?.playback_state ?? nowPlaying.playback_state;
+      const isPlaying = currentState === 'PLAYBACK_STATE_PLAYING';
+      const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
+      localProgressRef.current = next;
+      updateProgressDOM(progressBarRef, debugTimeRef, next, duration);
 
-        updateProgressDOM(progressBarRef, debugTimeRef, next, duration);
+      const remaining = duration - next;
 
-        const timeRemaining = duration - next;
-
-        // --- Eager sync: when ≤15s remain and no next_track_name, trigger server sync ---
-        // This ensures the server populates next_* fields regardless of cron timing
-        const EAGER_SYNC_THRESHOLD_MS = 15000;
-        if (timeRemaining <= EAGER_SYNC_THRESHOLD_MS && timeRemaining > 0 && !eagerSyncDoneRef.current) {
-          const current = nowPlayingRef?.current;
-          if (current?.next_track_name && !current?.next_bg_image_url) {
-            // Have metadata from 5s poll but no processed images — trigger image processing only
-            eagerSyncDoneRef.current = true;
-            tvDebug('sonos', `🔮 ${(timeRemaining / 1000).toFixed(0)}s kvar, har next_track men saknar bilder — triggar server sync`);
-            console.log(`[Sonos:Ticker] Eager sync: ${(timeRemaining / 1000).toFixed(0)}s remaining, have next_track but no images — triggering server sync`);
-            triggerServerSync().catch(() => {});
-          } else if (!current?.next_track_name) {
-            // No metadata at all — still trigger full sync as fallback
-            eagerSyncDoneRef.current = true;
-            tvDebug('sonos', `🔮 ${(timeRemaining / 1000).toFixed(0)}s kvar, ingen next_track — triggar server sync`);
-            triggerServerSync().catch(() => {});
-          } else {
-            eagerSyncDoneRef.current = true; // Have both metadata and images
-          }
+      // Eager sync: ≤15s, trigger server sync if next images missing
+      if (remaining <= 15000 && remaining > 0 && !eagerSyncDoneRef.current) {
+        eagerSyncDoneRef.current = true;
+        const current = nowPlayingRef?.current;
+        if (!current?.next_bg_image_url) {
+          tvDebug('sonos', `🔮 ${Math.round(remaining / 1000)}s kvar — eager sync`);
+          triggerServerSync().catch(() => {});
         }
+      }
 
-        // --- Predictive swap: schedule when ≤10s remain ---
-        const offsetMs = trackChangeOffsetRef.current > 0
-          ? trackChangeOffsetRef.current * 1000
-          : PREDICTIVE_MARGIN_MS;
+      // Predictive swap: ≤10s, schedule
+      const offsetMs = trackChangeOffsetRef.current > 0
+        ? trackChangeOffsetRef.current * 1000
+        : PREDICTIVE_MARGIN_MS;
 
-        if (timeRemaining <= PREDICTIVE_THRESHOLD_MS && timeRemaining > 0 && !predictiveScheduledRef.current) {
-          predictiveScheduledRef.current = true;
-          const delay = Math.max(timeRemaining - offsetMs, 100);
-          tvDebug('sonos', `🔮 Predictive swap om ${(delay / 1000).toFixed(1)}s (${(timeRemaining / 1000).toFixed(0)}s kvar, offset: ${trackChangeOffsetRef.current}s)`);
-          addDebugLog?.(`🔮 Predictive swap scheduled in ${(delay / 1000).toFixed(1)}s (offset: ${trackChangeOffsetRef.current}s)`);
+      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
+        predictiveScheduledRef.current = true;
+        const delay = Math.max(remaining - offsetMs, 100);
+        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s`);
 
-          // Preload next track's images if available
-          const current = nowPlayingRef?.current;
-          if (current?.next_widget_art_url || current?.next_bg_image_url) {
-            const urls = [current.next_widget_art_url, current.next_bg_image_url].filter(Boolean) as string[];
-            tvDebug('sonos', `🖼️ Förladdar ${urls.length} bilder för nästa låt`);
-            urls.forEach(url => {
-              const img = new Image();
-              img.src = url;
+        // Preload next images
+        const current = nowPlayingRef?.current;
+        [current?.next_widget_art_url, current?.next_bg_image_url]
+          .filter(Boolean)
+          .forEach(url => { const img = new Image(); img.src = url!; });
+
+        predictiveTimer = setTimeout(() => {
+          const snap = nowPlayingRef?.current;
+          if (snap?.next_track_name) {
+            tvDebug('sonos', `🔮 Swap → "${snap.next_track_name}"`);
+            if (snap.next_bg_image_url) { const img = new Image(); img.src = snap.next_bg_image_url; }
+            handleTrackChangeRef.current({
+              trackName: snap.next_track_name,
+              artistName: snap.next_artist_name,
+              playbackState: 'PLAYBACK_STATE_PLAYING',
+              positionMillis: 0,
             });
+          } else {
+            tvDebug('sonos', `🔮 Ingen next-data — pollar`);
+            pollForNewTrack(PREDICTIVE_MAX_RETRIES);
           }
-
-          predictiveTimer = setTimeout(() => {
-            // Re-check for next track data (might have arrived via realtime from eager sync)
-            const snap = nowPlayingRef?.current;
-            if (snap?.next_track_name) {
-              tvDebug('sonos', `🔮 Predictive swap NU: byter till "${snap.next_track_name}" (${trackChangeOffsetRef.current}s före låtslut)`);
-              addDebugLog?.(`🔮 Predictive swap → ${snap.next_track_name}`);
-              console.log(`[Sonos:Ticker] 🔮 Predictive swap NOW: "${snap.next_track_name}"`);
-
-              // Preload images one more time right before swap (in case they arrived late)
-              if (snap.next_bg_image_url) {
-                const img = new Image();
-                img.src = snap.next_bg_image_url;
-              }
-
-              handleTrackChangeRef.current({
-                trackName: snap.next_track_name,
-                artistName: snap.next_artist_name,
-                playbackState: 'PLAYBACK_STATE_PLAYING',
-                positionMillis: 0,
-              });
-            } else {
-              // No next track data available — fall back to polling
-              tvDebug('sonos', `🔮 Ingen nästa-låt-data efter sync — pollar istället`);
-              console.log(`[Sonos:Ticker] 🔮 No next_track after eager sync — falling back to poll`);
-              pollForNewTrack(PREDICTIVE_MAX_RETRIES);
-            }
-          }, delay);
-        }
-      } catch (err) {
-        console.error('[Sonos] Ticker error:', err);
+        }, delay);
       }
     }, 1000);
 

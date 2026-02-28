@@ -4,7 +4,6 @@ import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosTrackChangeParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
-  setCurrentArtStatus: (status: 'displayed' | 'detecting' | 'loading') => void;
   localProgressRef: React.MutableRefObject<number | null>;
   trackChangedAtRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
@@ -12,7 +11,6 @@ interface UseSonosTrackChangeParams {
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
-  addDebugLog?: (event: string) => void;
 }
 
 interface TrackChangeData {
@@ -24,101 +22,63 @@ interface TrackChangeData {
 }
 
 /**
- * Consolidated track-change handler used by predictive poll and 5s poll.
- * Immediately updates text/metadata, then triggers server sync + refetch for images.
+ * Track change handler. Two paths:
+ * 1. Preloaded images exist → instant swap, zero network
+ * 2. No preloaded images → server sync + DB fetch (fallback)
  */
 export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
   const {
-    setNowPlaying, setCurrentArtStatus,
-    localProgressRef, trackChangedAtRef,
+    setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
-    progressBarRef, debugTimeRef, addDebugLog,
+    progressBarRef, debugTimeRef,
   } = params;
 
-  let trackChangeCounter = 0;
-
   const handleTrackChange = useCallback((data: TrackChangeData) => {
-    const tcId = `tc-${++trackChangeCounter}`;
-    const artId = `art-${trackChangeCounter}`;
-    const t0 = performance.now();
-    tvDebug('sonos', `🎵 Låtbyte: "${data.trackName}"`, tcId);
-    console.log('[Sonos:TC] 🎵 Track change detected:', {
-      newTrack: data.trackName,
-      artist: data.artistName,
-      positionMs: data.positionMillis,
-      state: data.playbackState,
-    });
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
 
     setNowPlaying(prev => {
       if (!prev) return prev;
-      console.log(`[Sonos:TC] Previous track: "${prev.track_name}" → "${data.trackName}"`);
 
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
-      // Check if preloaded images exist — skip server sync entirely if so
-      const hasPreloadedImages = !!(prev.next_widget_art_url || prev.next_bg_image_url);
-      if (hasPreloadedImages) {
-        tvDebug('sonos', `✅ Förladdade bilder finns — skippar server sync`, artId);
-        console.log('[Sonos:TC] ✅ Using preloaded images — skipping server sync');
+      const nextBg = prev.next_bg_image_url;
+      const nextWidget = prev.next_widget_art_url;
+      const nextArt = prev.next_album_art_url;
+      const hasPreloaded = !!(nextWidget || nextBg);
+
+      if (hasPreloaded) {
+        tvDebug('sonos', `🎵 → "${data.trackName}" (förladdat ✅)`);
+        if (nextBg) {
+          pushToBgBuffer(validBgBufferRef.current, nextBg);
+          onAlbumArtChangeRef.current?.(nextBg, data.trackName);
+          bgSentRef.current = nextBg;
+        }
       } else {
-        // No preloaded images — trigger server sync + fetch from DB
-        tvDebug('sonos', `🔄 Ingen prefetch — triggar server sync...`, artId);
-        console.log('[Sonos:TC] 🔄 No preloaded images — triggering server sync...');
+        tvDebug('sonos', `🎵 → "${data.trackName}" (hämtar bilder...)`);
+        // Async: server sync → DB fetch → apply images
         (async () => {
-          const syncT0 = performance.now();
           try {
             await triggerServerSync();
-            const ms = Math.round(performance.now() - syncT0);
-            tvDebug('sonos', `✅ Server sync klar (${ms}ms)`, artId);
-            console.log(`[Sonos:TC] ✅ Server sync completed in ${ms}ms`);
-
-            const fetchT0 = performance.now();
-            const directId = `art-direct-${trackChangeCounter}`;
-            tvDebug('sonos', `🖼️ Hämtar bilder från DB...`, directId);
             const result = await fetchNowPlayingImages();
-            const fetchMs = Math.round(performance.now() - fetchT0);
+            if (result?.bgImageUrl) {
+              pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+              onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
+              bgSentRef.current = result.bgImageUrl;
+            }
             if (result) {
-              tvDebug('sonos', `✅ Bilder hämtade (${fetchMs}ms)`, directId);
-              console.log(`[Sonos:TC] ✅ Direct DB art fetch in ${fetchMs}ms`);
               setNowPlaying(cur => cur ? {
                 ...cur,
                 ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
                 ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                 ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
               } : cur);
-              if (result.bgImageUrl) {
-                pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-                onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
-                bgSentRef.current = result.bgImageUrl;
-                tvDebug('sonos', `🖼️ Bakgrund triggad från DB-hämtning för "${data.trackName}"`);
-              }
+              tvDebug('sonos', `🖼️ Bilder hämtade för "${data.trackName}"`);
             }
-          } catch (e: any) {
-            const ms = Math.round(performance.now() - syncT0);
-            tvDebug('sonos', `❌ Server sync fail (${ms}ms)`, artId);
-            console.error(`[Sonos:TC] ❌ Server sync failed after ${ms}ms:`, e?.message || e);
+          } catch {
+            tvDebug('sonos', `❌ Bildhämtning misslyckades för "${data.trackName}"`);
           }
         })();
-      }
-
-      const ms = Math.round(performance.now() - t0);
-      console.log(`[Sonos:TC] State update applied in ${ms}ms`);
-      tvDebug('sonos', `📝 Widget-text bytt: "${data.trackName}"`, tcId);
-      // Use preloaded next-track images if available
-      const nextWidget = prev.next_widget_art_url;
-      const nextBg = prev.next_bg_image_url;
-      const nextArt = prev.next_album_art_url;
-      if (nextWidget || nextBg) {
-        tvDebug('sonos', `🖼️ Använder förladdat: widget=${!!nextWidget}, bg=${!!nextBg}`);
-      }
-      // Trigger background preload for preloaded next-track images immediately
-      if (nextBg) {
-        pushToBgBuffer(validBgBufferRef.current, nextBg);
-        onAlbumArtChangeRef.current?.(nextBg, data.trackName);
-        bgSentRef.current = nextBg;
-        tvDebug('sonos', `🖼️ Bakgrund triggad från förladdat för "${data.trackName}"`);
       }
 
       return {
@@ -128,11 +88,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
-        // Apply preloaded next-track images immediately
         ...(nextWidget ? { widget_art_url: nextWidget } : {}),
         ...(nextBg ? { bg_image_url: nextBg } : {}),
         ...(nextArt ? { album_art_url: nextArt } : {}),
-        // Clear next-track fields
         next_widget_art_url: null,
         next_bg_image_url: null,
         next_album_art_url: null,
@@ -140,7 +98,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_artist_name: null,
       };
     });
-  }, [setNowPlaying, setCurrentArtStatus, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, addDebugLog]);
+  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef]);
 
   return { handleTrackChange };
 }

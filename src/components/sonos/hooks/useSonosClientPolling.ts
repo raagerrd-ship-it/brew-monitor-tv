@@ -26,19 +26,18 @@ interface UseSonosClientPollingParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
-  addDebugLog?: (event: string) => void;
 }
 
 /**
- * 5-second polling of sonos-playback-status for position sync and metadata updates.
- * Runs during PLAYING only. Art URLs come from init + realtime, not polling.
+ * 5s poll for position sync + next track metadata.
+ * No art URLs — those come from RT.
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
-    progressBarRef, debugTimeRef, addDebugLog,
+    progressBarRef, debugTimeRef,
   } = params;
 
   useEffect(() => {
@@ -46,7 +45,6 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
 
     const poll = async () => {
-      // Skip if a predictive poll just ran
       if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
 
       const controller = new AbortController();
@@ -64,68 +62,54 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           }
         );
         clearTimeout(timeout);
-
         if (!response.ok) return;
         const data = await response.json();
         if (!data.ok) return;
 
-        // Update position — only hard-reset if drift > 3s to avoid visible jumps
-        const localPos = localProgressRef.current ?? 0;
-        const drift = Math.abs(data.positionMillis - localPos);
-        if (drift > 3000) {
-          localProgressRef.current = data.positionMillis;
-        }
+        // Position drift correction (>3s)
+        const drift = Math.abs(data.positionMillis - (localProgressRef.current ?? 0));
+        if (drift > 3000) localProgressRef.current = data.positionMillis;
+
         const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        const displayPos = localProgressRef.current ?? data.positionMillis;
-        updateProgressDOM(progressBarRef, debugTimeRef, displayPos, duration);
+        updateProgressDOM(progressBarRef, debugTimeRef, localProgressRef.current ?? data.positionMillis, duration);
 
-        if (data.trackName) {
-          const currentNpSnap = nowPlayingRef.current;
-          const trackChanged = (currentNpSnap?.track_name ?? nowPlaying.track_name) !== data.trackName;
-          const msSinceTrackChange = Date.now() - trackChangedAtRef.current;
-          const inCooldown = msSinceTrackChange < 15000;
-          if (trackChanged && !inCooldown) {
-            addDebugLog?.(`📡 Poll: track changed → ${data.trackName}`);
-            handleTrackChange(data);
-          } else if (trackChanged && inCooldown) {
-            // Server still reports old track during predictive swap cooldown — ignore
-            tvDebug('sonos', `⏳ Poll ignorerad under cooldown (${Math.round(msSinceTrackChange / 1000)}s): server="${data.trackName}", lokal="${currentNpSnap?.track_name}"`);
-            console.log(`[Sonos:Poll] ⏳ Ignored stale track during cooldown (${Math.round(msSinceTrackChange / 1000)}s): server="${data.trackName}", local="${currentNpSnap?.track_name}"`);
-          } else {
-             // Same track — update metadata, state, and next-track info (art URLs come from init + realtime)
-            setNowPlaying(prev => {
-              if (!prev) return prev;
-              const artistChanged = prev.artist_name !== data.artistName;
-              const albumChanged = prev.album_name !== data.albumName;
-              const stateChanged = prev.playback_state !== data.playbackState;
-              const durationChanged = duration && prev.duration_ms !== duration;
-              const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
-
-              if (!artistChanged && !albumChanged && !stateChanged && !durationChanged && !nextChanged) return prev;
-
-              if (nextChanged) {
-                addDebugLog?.(`📡 Poll: next track → ${data.nextTrackName}`);
-              }
-
-              return {
-                ...prev,
-                artist_name: data.artistName ?? prev.artist_name,
-                album_name: data.albumName ?? prev.album_name,
-                playback_state: data.playbackState,
-                position_ms: data.positionMillis,
-                duration_ms: duration ?? prev.duration_ms,
-                ...(nextChanged ? {
-                  next_track_name: data.nextTrackName,
-                  next_artist_name: data.nextArtistName ?? null,
-                  next_album_art_url: data.nextAlbumArtUrl ?? null,
-                } : {}),
-              };
-            });
+        if (!data.trackName) {
+          if (data.playbackState !== nowPlaying.playback_state) {
+            setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState } : prev);
           }
-        } else if (data.playbackState !== nowPlaying.playback_state) {
-          setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState, position_ms: data.positionMillis } : prev);
+          return;
         }
 
+        const current = nowPlayingRef.current;
+        const trackChanged = (current?.track_name ?? nowPlaying.track_name) !== data.trackName;
+        const msSinceTC = Date.now() - trackChangedAtRef.current;
+
+        if (trackChanged && msSinceTC >= 15000) {
+          handleTrackChange(data);
+        } else if (!trackChanged) {
+          // Same track — update metadata + next track info
+          setNowPlaying(prev => {
+            if (!prev) return prev;
+            const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
+            const stateChanged = prev.playback_state !== data.playbackState;
+            const durationChanged = duration && prev.duration_ms !== duration;
+
+            if (!nextChanged && !stateChanged && !durationChanged) return prev;
+
+            return {
+              ...prev,
+              artist_name: data.artistName ?? prev.artist_name,
+              album_name: data.albumName ?? prev.album_name,
+              playback_state: data.playbackState,
+              duration_ms: duration ?? prev.duration_ms,
+              ...(nextChanged ? {
+                next_track_name: data.nextTrackName,
+                next_artist_name: data.nextArtistName ?? null,
+                next_album_art_url: data.nextAlbumArtUrl ?? null,
+              } : {}),
+            };
+          });
+        }
       } catch {
         // ignore
       } finally {
