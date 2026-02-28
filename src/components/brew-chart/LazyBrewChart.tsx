@@ -20,6 +20,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const fetchIdRef = useRef(0);
+  const mountedRef = useRef(false);
 
   // Stable fetch function — does NOT depend on lastUpdateRaw to avoid abort chains
   const doFetch = useCallback(async (signal?: AbortSignal) => {
@@ -73,8 +74,9 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   // Initial fetch on mount — only depends on brewId/compact/brewCount (stable)
   useEffect(() => {
     console.log(`[TvModeChart] Mount — starting fetch for ${brewId}`);
+    mountedRef.current = false;
     const controller = new AbortController();
-    doFetch(controller.signal);
+    doFetch(controller.signal).then(() => { mountedRef.current = true; });
     return () => {
       console.log(`[TvModeChart] Unmount — aborting fetch for ${brewId}`);
       controller.abort();
@@ -84,13 +86,14 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2 }: 
   // Debounced refresh when lastUpdateRaw changes — does NOT abort the previous fetch
   useEffect(() => {
     if (!lastUpdateRaw) return;
-    // Skip the initial mount trigger (handled above)
+    if (!mountedRef.current) return; // skip initial — mount handles it
     const id = ++fetchIdRef.current;
     const timer = setTimeout(() => {
-      if (id !== fetchIdRef.current) return; // stale
+      if (id !== fetchIdRef.current) return;
       console.log(`[TvModeChart] 🔄 Data updated — refreshing chart for ${brewId} (lastUpdate=${lastUpdateRaw})`);
+      tvDebug('chart', `🔄 Uppdaterar diagram ${brewId.slice(0, 8)}...`);
       doFetch();
-    }, 2000); // 2s debounce to let multiple data updates settle
+    }, 2000);
     return () => clearTimeout(timer);
   }, [lastUpdateRaw, doFetch]);
 
