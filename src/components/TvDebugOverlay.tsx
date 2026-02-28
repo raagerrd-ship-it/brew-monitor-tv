@@ -4,13 +4,11 @@ import { getTvDebugEntries, subscribeTvDebug, TvDebugEntry } from '@/lib/tv-debu
 
 const categoryColors: Record<TvDebugEntry['category'], string> = {
   sonos: '#4ade80',
-  chart: '#60a5fa',
   bg: '#f59e0b',
 };
 
 const categoryLabels: Record<TvDebugEntry['category'], string> = {
   sonos: '♫',
-  chart: '📊',
   bg: '🖼️',
 };
 
