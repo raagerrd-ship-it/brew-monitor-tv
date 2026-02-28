@@ -111,6 +111,13 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       if (nextWidget || nextBg) {
         tvDebug('sonos', `🖼️ Använder förladdat: widget=${!!nextWidget}, bg=${!!nextBg}`);
       }
+      // Trigger background preload for preloaded next-track images immediately
+      if (nextBg) {
+        pushToBgBuffer(validBgBufferRef.current, nextBg);
+        onAlbumArtChangeRef.current?.(nextBg);
+        bgSentRef.current = nextBg;
+        tvDebug('sonos', `🖼️ Bakgrund triggad från förladdat`);
+      }
 
       return {
         ...prev,
