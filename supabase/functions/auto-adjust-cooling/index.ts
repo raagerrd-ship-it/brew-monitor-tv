@@ -427,12 +427,6 @@ serve(async (req) => {
           fc.name || fc.controller_id, pillCompSettings, pidMode, stepType
         );
 
-        if (!compensation) {
-          // null = genuinely no delta history data at all — skip, nothing we can do
-          log('PILL_COMP_SKIP', 'info', `${fc.name}: no delta history available — skipping PID`);
-          continue;
-        }
-
         // Safety bounds
         const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'));
         const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'));
