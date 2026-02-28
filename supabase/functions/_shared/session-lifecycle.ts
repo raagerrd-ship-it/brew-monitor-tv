@@ -56,7 +56,7 @@ export async function advanceToNextStep(
   previousStepType: string,
   currentProfileTarget?: number | null,
 ): Promise<void> {
-  // For ramp steps, preserve current controller temp as start point
+  // For ramp steps, preserve current profile target as start point
   // to prevent the ramp from using an already-adjusted target as its start
   const nextStep = steps[nextStepIndex]
   const isRampStep = nextStep?.step_type === 'ramp'
@@ -73,12 +73,11 @@ export async function advanceToNextStep(
     .eq('id', sessionId)
 
   // Set profile_target_temp for the new step (via shared helper — SSOT)
-  const nextStep = steps[nextStepIndex]
   if (nextStep) {
     const target = nextStep.target_temp ?? getEffectiveTargetTemp(steps, nextStepIndex)
     if (target !== null) {
       await setProfileTarget(supabase, controllerId, target)
-      console.log(`🎯 Step transition: target=${target}°C for step ${nextStepIndex} (${nextStep.step_type})`)
+      console.log(`🎯 Step transition: target=${target}°C for step ${nextStepIndex} (${nextStep.step_type})${isRampStep ? ` [ramp start_temp=${currentProfileTarget ?? '?'}°C]` : ''}`)
     }
   }
 
