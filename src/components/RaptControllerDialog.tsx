@@ -48,11 +48,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     loading, isAuthenticated, targetTemp, setTargetTemp,
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
-    isActivelyCooling, isActivelyHeating, pillCompEnabled,
+    isActivelyCooling, isActivelyHeating, pillCompEnabled, originalTarget,
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = pillCompEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
   const avgTemp = isPillCompActive ? getActualTemp(currentController.pill_temp, currentController.current_temp, true) : null;
+  const displayTarget = isPillCompActive ? (originalTarget ?? currentController.target_temp) : currentController.target_temp;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,13 +115,13 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 )}
               </div>
               <p className="text-2xl font-bold tabular-nums text-primary">
-                {currentController.target_temp !== null ? `${currentController.target_temp.toFixed(1)}°` : '—'}
+                {displayTarget !== null ? `${displayTarget.toFixed(1)}°` : '—'}
               </p>
-              {isPillCompActive && currentController.target_temp !== null ? (
+              {isPillCompActive && currentController.target_temp !== null && originalTarget !== null ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
-                  Probe-mål (PID)
+                  Ctrl-mål (PID): {currentController.target_temp.toFixed(1)}°
                 </p>
-              ) : currentController.pill_temp !== null ? (
+              ) : currentController.pill_temp !== null && !isPillCompActive ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
                   Pill: {currentController.pill_temp.toFixed(1)}°
                 </p>

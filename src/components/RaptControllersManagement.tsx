@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
 import { getActualTemp } from "@/lib/temp-display";
+import { supabase } from "@/integrations/supabase/client";
 
 interface RaptControllersManagementProps {
   pillCompEnabled?: boolean;
@@ -24,6 +26,60 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
     handleLinkPill, handleToggleCooler, getLinkedPillIds, getSyncIntervalText,
     handleUpdatePillColor,
   } = useControllersManagement();
+
+  // Fetch original targets for all followed controllers
+  const [originalTargets, setOriginalTargets] = useState<Record<string, number>>({});
+  
+  useEffect(() => {
+    if (!pillCompEnabled || controllers.length === 0) {
+      setOriginalTargets({});
+      return;
+    }
+    
+    const fetchOriginalTargets = async () => {
+      const targets: Record<string, number> = {};
+      const nonCoolerIds = controllers
+        .filter(c => !c.is_glycol_cooler)
+        .map(c => c.controller_id);
+      
+      if (nonCoolerIds.length === 0) return;
+
+      // Check profile targets from rapt_temp_controllers
+      const { data: ctrlRows } = await supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, profile_target_temp')
+        .in('controller_id', nonCoolerIds)
+        .not('profile_target_temp', 'is', null);
+
+      if (ctrlRows) {
+        for (const row of ctrlRows) {
+          if (row.profile_target_temp != null) {
+            targets[row.controller_id] = row.profile_target_temp;
+          }
+        }
+      }
+      
+      // For controllers without profile target, check adjustments
+      const remaining = nonCoolerIds.filter(id => targets[id] == null);
+      for (const cid of remaining) {
+        const { data } = await supabase
+          .from('auto_cooling_adjustments')
+          .select('original_target_temp')
+          .eq('followed_controller_id', cid)
+          .not('original_target_temp', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.original_target_temp != null) {
+          targets[cid] = data.original_target_temp;
+        }
+      }
+      
+      setOriginalTargets(targets);
+    };
+    
+    fetchOriginalTargets();
+  }, [pillCompEnabled, controllers]);
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;
@@ -131,8 +187,15 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">{pillCompEnabled ? 'Mål (snitt)' : 'Mål (ctrl)'}</p>
                     <p className="text-xl font-bold tabular-nums text-primary">
-                      {controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
+                      {pillCompEnabled && originalTargets[controller.controller_id] != null
+                        ? `${originalTargets[controller.controller_id].toFixed(1)}°`
+                        : controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
                     </p>
+                    {pillCompEnabled && originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        Ctrl-mål (PID): {controller.target_temp.toFixed(1)}°
+                      </p>
+                    )}
                   </div>
                   <div className={`rounded-lg p-3 text-center transition-all ${isActivelyHeating ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-muted/30'}`}>
                     <p className="text-xs text-muted-foreground mb-1">Värme</p>
