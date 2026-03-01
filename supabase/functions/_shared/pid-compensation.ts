@@ -392,19 +392,32 @@ export async function calculateCompensatedTarget(
     const latestPill = parseFloat(String(deltaHistory[0].pill_temp))
     const latestCtrl = parseFloat(String(deltaHistory[0].controller_temp))
     const currentAvg = (latestPill + latestCtrl) / 2
+
+    // High-delta damping: when pill-probe delta is very large, reduce max rate
+    // to prevent aggressive changes that cause oscillation in a thermally stratified system
+    const HIGH_DELTA_THRESHOLD = 3.0 // °C — above this, start reducing rate
+    const deltaRateScale = absDelta > HIGH_DELTA_THRESHOLD
+      ? Math.max(0.3, 1.0 - (absDelta - HIGH_DELTA_THRESHOLD) * 0.15)
+      : 1.0
+    const deltaScaledMaxRate = effectiveMaxRate * deltaRateScale
+    if (deltaRateScale < 1.0) {
+      constraints.push(`delta-damp=${deltaRateScale.toFixed(2)}`)
+      console.log(`🌊 High-delta damping ${controllerName}: delta=${absDelta.toFixed(1)}°C > ${HIGH_DELTA_THRESHOLD}°C, rate ${effectiveMaxRate}→${deltaScaledMaxRate.toFixed(2)}°C/cykel (×${deltaRateScale.toFixed(2)})`)
+    }
     
     let baseLimit: number
     if (mode === 'cooling') {
       const avgBelowTarget = currentAvg < profileTarget - 0.2
-      const upwardLimit = avgBelowTarget ? effectiveMaxRate : mp.upwardRelease
-      baseLimit = isIncreasing ? Math.min(effectiveMaxRate * scaleFactor, upwardLimit) : effectiveMaxRate * scaleFactor
+      const upwardLimit = avgBelowTarget ? deltaScaledMaxRate : mp.upwardRelease
+      baseLimit = isIncreasing ? Math.min(deltaScaledMaxRate * scaleFactor, upwardLimit) : deltaScaledMaxRate * scaleFactor
       if (avgBelowTarget && isIncreasing) {
         console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
       }
+      }
     } else {
       const avgAboveTarget = currentAvg > profileTarget + 0.2
-      const downwardLimit = avgAboveTarget ? effectiveMaxRate : mp.upwardRelease
-      baseLimit = isIncreasing ? effectiveMaxRate * scaleFactor : Math.min(effectiveMaxRate * scaleFactor, downwardLimit)
+      const downwardLimit = avgAboveTarget ? deltaScaledMaxRate : mp.upwardRelease
+      baseLimit = isIncreasing ? deltaScaledMaxRate * scaleFactor : Math.min(deltaScaledMaxRate * scaleFactor, downwardLimit)
       if (avgAboveTarget && !isIncreasing) {
         console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${profileTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
       }
