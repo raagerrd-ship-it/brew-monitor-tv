@@ -4,7 +4,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Music, ExternalLink, Unlink, RefreshCw } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Music, ExternalLink, Unlink, RefreshCw, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -365,14 +366,18 @@ export function SonosSettings() {
             </div>
           </div>
 
-          {/* Background Image Processing Section */}
-          <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
-            <div className="space-y-1">
-              <p className="settings-label">Bakgrundsbildbehandling (TV-läge)</p>
-              <p className="text-xs text-muted-foreground">
-                Dessa inställningar styr hur albumomslaget bearbetas till bakgrundsbild
-              </p>
-            </div>
+          <Collapsible>
+            <div className="p-4 rounded-lg border border-border/60 bg-muted/20">
+              <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                <div className="space-y-0.5 text-left">
+                  <p className="settings-label">Bakgrundsbildbehandling (TV-läge)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Styr hur albumomslaget bearbetas till bakgrundsbild
+                  </p>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
 
             {/* Background Blur */}
             <div className="space-y-3">
@@ -450,7 +455,9 @@ export function SonosSettings() {
               ) : null}
               Spara & generera om bakgrund
             </Button>
-          </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </>
       )}
 
