@@ -81,9 +81,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
-              <p className="text-xs text-muted-foreground mb-1">
-                {isPillCompActive ? 'Aktuell (snitt)' : 'Aktuell (ctrl)'}
-              </p>
+              <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
               <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
                 {isPillCompActive && avgTemp !== null
                   ? `${avgTemp.toFixed(1)}°`
@@ -107,9 +105,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               }}
             >
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-muted-foreground">
-                  {isPillCompActive ? 'Mål (snitt)' : 'Mål (ctrl)'}
-                </p>
+                <p className="text-xs text-muted-foreground">Mål</p>
                 {isAuthenticated && !hasActiveSession && (
                   <Pencil className="w-3 h-3 text-muted-foreground/50" />
                 )}
@@ -134,7 +130,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30 animate-fade-in">
               <div className="flex items-center justify-between">
                 <Label htmlFor="target-temp" className="text-xs font-medium text-muted-foreground">
-                  {isPillCompActive ? 'Ändra snittmål' : 'Ändra ctrl-mål'}
+                  Ändra mål
                 </Label>
                 <span className="text-lg font-bold text-primary tabular-nums">
                   {targetTemp}°
@@ -161,7 +157,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 className="w-full"
                 size="sm"
               >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isPillCompActive ? 'Sätt snittmål' : 'Sätt ctrl-mål'}
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Sätt mål'}
               </Button>
             </div>
           )}

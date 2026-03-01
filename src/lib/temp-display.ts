@@ -23,17 +23,12 @@ export function getActualTemp(
 /**
  * Returns a short label describing the temperature source.
  */
+/** @deprecated No longer shown in UI — kept for backward compat */
 export function getActualTempLabel(
-  pillTemp: number | null | undefined,
-  probeTemp: number | null | undefined,
-  pillCompEnabled: boolean,
+  _pillTemp: number | null | undefined,
+  _probeTemp: number | null | undefined,
+  _pillCompEnabled: boolean,
 ): string {
-  const hasPill = pillTemp != null;
-  const hasProbe = probeTemp != null;
-
-  if (pillCompEnabled && hasPill && hasProbe) return "(snitt)";
-  if (hasProbe) return "(ctrl)";
-  if (hasPill) return "(pill)";
   return "";
 }
 
