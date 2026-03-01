@@ -80,6 +80,11 @@ Deno.serve(async (req) => {
     }
 
     // Auto-manage selected_brews
+    let existingBrewsArr: any[] = []
+    const toShow: string[] = []
+    const toHide: string[] = []
+    const toInsert: { batch_id: string; display_order: number; is_visible: boolean }[] = []
+
     if (batchesData.length > 0) {
       const fermentingBatches = batchesData
         .filter((b: any) => b.status === 'Fermenting')
@@ -87,13 +92,10 @@ Deno.serve(async (req) => {
       const top3FermentingIds = fermentingBatches.slice(0, 3).map((b: any) => b._id)
 
       const allBatchIds = batchesData.map((b: any) => b._id)
-      const { data: existingBrewsArr } = await supabase
+      const { data: ebArr } = await supabase
         .from('selected_brews').select('*').in('batch_id', allBatchIds)
-      const existingBrewsMap = new Map((existingBrewsArr || []).map(b => [b.batch_id, b]))
-
-      const toShow: string[] = []
-      const toHide: string[] = []
-      const toInsert: { batch_id: string; display_order: number; is_visible: boolean }[] = []
+      existingBrewsArr = ebArr || []
+      const existingBrewsMap = new Map(existingBrewsArr.map(b => [b.batch_id, b]))
 
       const { data: maxOrder } = await supabase.from('selected_brews')
         .select('display_order').order('display_order', { ascending: false }).limit(1).maybeSingle()
@@ -135,14 +137,24 @@ Deno.serve(async (req) => {
       if (visibilityOps.length > 0) await Promise.all(visibilityOps)
     }
 
-    // Get visible brews for full detail sync
-    const { data: selectedBrews } = await supabase
-      .from('selected_brews').select('*').eq('is_visible', true).order('display_order')
+    // Build visible brews list from existing state (no extra DB query needed)
+    const visibleBatchIds = new Set<string>()
+    if (batchesData.length > 0) {
+      for (const b of existingBrewsArr) {
+        if (b.is_visible && !toHide.includes(b.batch_id)) visibleBatchIds.add(b.batch_id)
+      }
+      for (const id of toShow) visibleBatchIds.add(id)
+      for (const ins of toInsert) visibleBatchIds.add(ins.batch_id)
+    } else {
+      const { data: dbSelected } = await supabase
+        .from('selected_brews').select('batch_id').eq('is_visible', true)
+      for (const b of (dbSelected || [])) visibleBatchIds.add(b.batch_id)
+    }
 
     let brewUpdatesCount = 0
 
-    if (brewfatherEnabled && selectedBrews && selectedBrews.length > 0) {
-      const brewfatherBatchIds = selectedBrews.map(b => b.batch_id).filter(id => !id.startsWith('custom_'))
+    if (brewfatherEnabled && visibleBatchIds.size > 0) {
+      const brewfatherBatchIds = [...visibleBatchIds].filter(id => !id.startsWith('custom_'))
 
       if (brewfatherBatchIds.length > 0) {
         // Reuse batchesData from first fetch (eliminates Problem 4: double fetch)
