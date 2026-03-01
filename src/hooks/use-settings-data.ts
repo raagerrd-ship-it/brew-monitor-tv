@@ -56,6 +56,7 @@ export function useSettingsData() {
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
+  const [brewfatherEnabled, setBrewfatherEnabled] = useState(true);
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
@@ -143,6 +144,7 @@ export function useSettingsData() {
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
+        setBrewfatherEnabled((data as any).brewfather_enabled ?? true);
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
@@ -372,8 +374,18 @@ export function useSettingsData() {
       case 'auto_hide_conditioning': setAutoHideConditioning(value); break;
       case 'auto_hide_archived': setAutoHideArchived(value); break;
       case 'auto_activate_fermenting': setAutoActivateFermenting(value); break;
+      case 'brewfather_enabled': setBrewfatherEnabled(value); break;
     }
     await updateSyncSetting(field, value);
+
+    // When Brewfather is disabled, hide all non-custom brews from dashboard
+    if (field === 'brewfather_enabled' && !value) {
+      await supabase.from('selected_brews')
+        .update({ is_visible: false })
+        .not('batch_id', 'like', 'custom\\_%');
+    }
+    // When re-enabled, let next full sync auto-activate fermenting brews
+
   }, [updateSyncSetting]);
 
   const handleSplashDelayChange = useCallback(async (value: string) => {
@@ -526,7 +538,7 @@ export function useSettingsData() {
     syncSteps,
     apiSettings,
     settingsId,
-    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
+    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting, brewfatherEnabled,
     // Auto-cooling
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,

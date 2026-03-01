@@ -144,19 +144,32 @@ export default function Settings() {
                           </div>
                         </div>
                         <span className="text-sm font-semibold">Brewfather</span>
-                        {settings.apiSettings?.brewfather?.configured ? (
-                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
-                            <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                          </Badge>
+                        {settings.brewfatherEnabled ? (
+                          settings.apiSettings?.brewfather?.configured ? (
+                            <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
+                              <Check className="h-2.5 w-2.5 mr-0.5" /> OK
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
+                              <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
+                            </Badge>
+                          )
                         ) : (
-                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
-                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
+                          <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground px-1.5 py-0">
+                            Avstängd
                           </Badge>
                         )}
                       </div>
                       <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4 space-y-3">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/40">
+                        <div className="flex items-center gap-2">
+                          <Beer className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs">Aktivera Brewfather</span>
+                        </div>
+                        <Switch checked={settings.brewfatherEnabled} onCheckedChange={(checked) => settings.handleAutoSettingChange('brewfather_enabled', !!checked)} />
+                      </div>
                       {settings.apiSettings?.brewfather && (
                         <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
                           <div className="flex justify-between">
@@ -169,6 +182,7 @@ export default function Settings() {
                           </div>
                         </div>
                       )}
+                      {settings.brewfatherEnabled && <>
                       <SettingsDivider />
                       <div className="space-y-3">
                         <span className="text-xs font-medium text-muted-foreground">Automatisk hantering</span>
@@ -199,6 +213,7 @@ export default function Settings() {
                         onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina Brewfather API-nycklar i backend-inställningarna." })}>
                         <Pencil className="h-3 w-3" /> Ändra API-uppgifter
                       </button>
+                      </>}
                     </CollapsibleContent>
                   </div>
                 </Collapsible>
