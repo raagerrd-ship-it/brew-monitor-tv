@@ -151,19 +151,17 @@ serve(async (req) => {
 
     // Update Controllers with enriched pill_temp
     if (selectedControllerIds.length > 0) {
-      const { data: activeSessions } = await supabase.from('fermentation_sessions')
-        .select('controller_id').in('status', ['running', 'paused']);
-      const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-
-      const { data: autoCoolingSettings } = await supabase.from('auto_cooling_settings')
-        .select('cooler_controller_id, enabled').single();
-      const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
-
       const selectedControllersData = allControllers.filter((c: any) => selectedControllerIds.includes(c.id));
 
-      const { data: existingControllers } = await supabase.from('rapt_temp_controllers')
-        .select('controller_id, linked_pill_id, target_temp')
-        .in('controller_id', selectedControllersData.map((c: any) => c.id));
+      // Fetch all 3 DB queries in parallel
+      const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
+        supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
+        supabase.from('auto_cooling_settings').select('cooler_controller_id, enabled').single(),
+        supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp')
+          .in('controller_id', selectedControllersData.map((c: any) => c.id)),
+      ]);
+      const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
+      const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
       const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
 
       const controllerUpdates: Record<string, any>[] = [];
