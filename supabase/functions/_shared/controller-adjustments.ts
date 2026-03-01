@@ -150,7 +150,18 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
     const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
     const pidFloor = isProfileOwned ? Math.min(hwMinTemp, baseTarget - (pillCompSettings.maxCompensation ?? 5)) : hwMinTemp
-    let newTarget = Math.max(pidFloor, Math.min(maxTemp, compensation.compensatedTarget))
+    const unclamped = compensation.compensatedTarget
+    let newTarget = Math.max(pidFloor, Math.min(maxTemp, unclamped))
+
+    // Track if hardware min/max clamped the target
+    if (unclamped < hwMinTemp && newTarget >= hwMinTemp - 0.05) {
+      compensation.constraints = compensation.constraints ?? []
+      compensation.constraints.push(`hw-min=${hwMinTemp}`)
+    }
+    if (unclamped > maxTemp && newTarget <= maxTemp + 0.05) {
+      compensation.constraints = compensation.constraints ?? []
+      compensation.constraints.push(`hw-max=${maxTemp}`)
+    }
 
     if (Math.abs(newTarget - targetTemp) < 0.1) {
       // Log active constraints even when change is too small to apply
