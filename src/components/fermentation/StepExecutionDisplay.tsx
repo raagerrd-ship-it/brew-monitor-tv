@@ -77,14 +77,14 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
     const displayTarget = effectiveTarget ?? currentStep.target_temp;
     if (displayTarget != null) {
       const tempItem: ExecutionItem = {
-        label: pillCompEnabled ? 'Mål (snitt)' : 'Mål (ctrl)',
+        label: 'Mål',
         icon: <Thermometer className={iconClass} />,
         value: `${displayTarget.toFixed(1)}°`,
         color: 'hsl(var(--primary))',
       };
       if (currentTemp != null) {
         const diff = Math.abs(currentTemp - displayTarget);
-        tempItem.detail = `${pillCompEnabled ? 'Snitt' : 'Ctrl'} ${currentTemp.toFixed(1)}°`;
+        tempItem.detail = `${currentTemp.toFixed(1)}°`;
         tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
         tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
       }
