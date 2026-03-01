@@ -1,46 +1,50 @@
 
 
-## Analys av båda pillernas SG-drift
+## Analysis: Sonos Image Storage Cleanup
 
-```text
-Pill              Start           Cold crash       Drift     Drift/°C
-─────────────────────────────────────────────────────────────────────
-Falkens Flykt     1.0121 @ 21.8°C  1.0108 @ 10.8°C  -0.0013   0.000118/°C
-Pomona Kust       1.0121 @ 22.0°C  1.0094 @  7.8°C  -0.0027   0.000190/°C
+### Current Problems
 
-Standardformel (polynom):
-  Falkens Flykt:  korr ~+0.0006  →  täcker ~46%
-  Pomona Kust:    korr ~+0.0008  →  täcker ~30%
+1. **`cleanupOldBackgrounds` is too conservative**: Won't clean until >10 files exist, then keeps 5 minimum — meaning up to 10 orphan files linger permanently.
 
-Pill-residual (det som återstår efter standardformeln):
-  Falkens Flykt:  ~0.000064/°C
-  Pomona Kust:    ~0.000134/°C   ← dubbelt så stor!
-```
+2. **Next-track images excluded from keep-list**: The `keepFiles` array only includes current track's bg + widget. Next-track bg + widget are never protected, risking deletion of files still referenced in DB.
 
-Slutsats: Varje pill har sin egen drift-signatur. Standardformeln räcker inte ensam, och residualen skiljer sig kraftigt mellan pills. Per-pill-inlärning är nödvändigt.
+3. **No cleanup on bg_only regeneration**: When settings change and bg is regenerated with a new settings hash, the old bg file is never removed.
 
-## Implementationsplan
+4. **No cleanup on IDLE transition**: When playback stops and state goes IDLE, all images become orphans but nothing is cleaned.
 
-### 1. Ny shared utility: `supabase/functions/_shared/sg-temp-correction.ts`
-- `standardSgCorrection(sg, tempC, refTemp=20)` — polynom (ASBC-baserad)
-- `applySgCorrection(sg, tempC, residualPerDegree)` — standard + inlärd residual
-- `detectAnchorPoint(sgHistory)` — hittar stabil SG + fallande temp
+5. **Cleanup only fires during image generation**: If the current track has cached images (cache hit), cleanup never runs at all.
 
-### 2. Ny databastabell: `pill_sg_calibration`
-- `pill_id` (text, unique) — pill-identifierare
-- `anchor_sg` (numeric) — SG vid stabil jäsningsslutt
-- `anchor_temp` (numeric) — temperatur vid ankare
-- `anchor_recorded_at` (timestamptz)
-- `status` (text: idle/anchored/learning/calibrated)
-- `created_at`, `updated_at`
-- Residual-värdet sparas i befintlig `fermentation_learnings` med parameter `sg_residual_per_degree:{pill_id}`
+### What's Actually Needed
 
-### 3. Integrera i `sync-rapt-data-quick`
-- Vid SG-konvertering: applicera `standardSgCorrection` + hämta `residual_per_degree` från `fermentation_learnings`
-- Ankardetektion: om SG stabil (< 0.001/h, 12h) och temp sjunker > 2°C → skapa ankare
-- Under cold crash: beräkna residual, uppdatera via EMA i `fermentation_learnings`
-- Clamp residual: [0, 0.0003] per °C
+At any moment, at most **4 files** are actively referenced:
+- Current track: 1 bg + 1 widget
+- Next track: 1 bg + 1 widget
 
-### 4. Frontend-diagnostik (minimal)
-- Visa kalibreringsstatus per pill i Settings eller brew-kort (ankare, sample count, residual)
+Everything else is waste.
+
+### Plan
+
+**1. Rewrite `cleanupOldBackgrounds` to be aggressive and reference-based**
+
+Instead of a conservative "keep N files" approach, collect all actively-referenced URLs from the `sonos_now_playing` row (bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url), extract filenames, and delete everything else. No threshold, no minimum — if it's not referenced, it goes.
+
+**2. Run cleanup after every sync that writes to DB** (not only during image generation)
+
+Move the cleanup call to after the final DB write, using the actual URLs written to the row as the keep-list. This covers:
+- New track (images just generated)
+- Same track with cache hit (keep existing references)
+- bg_only regeneration (new bg replaces old, old gets cleaned)
+
+**3. Clean images on IDLE transition**
+
+When stale-pause triggers IDLE state, also delete all files in the bucket since nothing is displayed.
+
+**4. Include next-track images in keep-list**
+
+Collect filenames from all 4 image URL fields (current bg, current widget, next bg, next widget) before cleanup.
+
+### Files to Edit
+
+- `supabase/functions/_shared/sonos-storage.ts` — Rewrite `cleanupOldBackgrounds` to accept referenced URLs and delete everything else, remove the ≤10 threshold
+- `supabase/functions/sync-sonos-now-playing/index.ts` — Move cleanup to after final DB write with all 4 image URLs; add cleanup on IDLE transition
 
