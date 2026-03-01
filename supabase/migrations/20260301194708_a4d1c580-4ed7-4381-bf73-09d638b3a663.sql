@@ -1,0 +1,1 @@
+CREATE POLICY "Service role can delete adjustments" ON public.auto_cooling_adjustments FOR DELETE USING (true);
