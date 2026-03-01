@@ -307,25 +307,28 @@ export function useBrewData(): UseBrewDataReturn {
     
     const overshootMap = new Map<string, { reason: string | null; original_target: number | null }>();
     if (allControllerIds.length > 0) {
-      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
       const { data: adjData } = await supabase
         .from('auto_cooling_adjustments')
         .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
         .or(allControllerIds.map((id: string) => `followed_controller_id.eq.${id},cooler_controller_id.eq.${id}`).join(','))
-        .like('reason', '🌡️%')
+        .or('reason.like.🌡️%,reason.like.🎯%')
         .order('created_at', { ascending: false });
       
-      // For each controller, find the most recent overshoot adjustment
+      // For each controller, find the most recent overshoot + PID adjustment
       const uniqueIds = [...new Set(allControllerIds)] as string[];
       for (const cid of uniqueIds) {
-        const match = (adjData || []).find((a: any) => 
+        const records = (adjData || []).filter((a: any) => 
           a.followed_controller_id === cid || a.cooler_controller_id === cid
         );
-        if (match) {
-          const age = Date.now() - new Date(match.created_at).getTime();
+        const overshootMatch = records.find((a: any) => a.reason?.startsWith('🌡️'));
+        const pidMatch = records.find((a: any) => a.reason?.startsWith('🎯'));
+        const overshootAge = overshootMatch ? Date.now() - new Date(overshootMatch.created_at).getTime() : Infinity;
+        
+        if (overshootMatch || pidMatch) {
           overshootMap.set(cid, {
-            reason: age < 6 * 60 * 60 * 1000 ? match.reason.replace('🌡️ ', '') : null,
-            original_target: match.original_target_temp ?? null,
+            reason: overshootMatch && overshootAge < 6 * 60 * 60 * 1000 
+              ? overshootMatch.reason.replace('🌡️ ', '') : null,
+            original_target: pidMatch?.original_target_temp ?? overshootMatch?.original_target_temp ?? null,
           });
         }
       }
