@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Workflow, Gauge } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ParsedField { label: string; value: string; color?: string }
@@ -90,7 +90,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'profil' | 'glykol';
+type AdjustmentCategory = 'pill-comp' | 'glykol';
 
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
@@ -99,8 +99,6 @@ type HistoryEntry =
 function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('🎯')) return 'pill-comp';
   if (reason.startsWith('🔥')) return 'pill-comp'; // Stall boost
-  if (reason.startsWith('🔧')) return 'profil';
-  if (reason.startsWith('📈')) return 'profil';
   // Legacy overshoot/stall entries still categorize to pill-comp
   if (reason.startsWith('🌡️')) return 'pill-comp';
   if (reason.startsWith('🧠')) return 'pill-comp';
@@ -120,17 +118,6 @@ function getCategoryBadge(category: AdjustmentCategory) {
         }}>
           <Pill className="h-2.5 w-2.5 mr-0.5" />
           PID
-        </Badge>
-      );
-    case 'profil':
-      return (
-        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
-          background: 'hsl(160 60% 45% / 0.2)', 
-          color: 'hsl(160 60% 45%)', 
-          borderColor: 'hsl(160 60% 45% / 0.3)' 
-        }}>
-          <Workflow className="h-2.5 w-2.5 mr-0.5" />
-          Profil
         </Badge>
       );
     case 'glykol':
@@ -501,26 +488,6 @@ export function AutoCoolingDecisionLogs() {
                     );
                   })()}
 
-                  {category === 'profil' && (
-                    <div className="text-xs space-y-1.5">
-                      <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(160 60% 45%)' }}>
-                        🔧 Fermenteringsprofil
-                      </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                        <div className="text-muted-foreground">Controller:</div>
-                        <div className="font-medium">{adj.cooler_controller_name}</div>
-                        {adj.original_target_temp !== null && (
-                          <>
-                            <div className="text-muted-foreground">Profilmål:</div>
-                            <div className="font-medium">{adj.original_target_temp.toFixed(1)}°</div>
-                          </>
-                        )}
-                        <div className="text-muted-foreground">Tankmål:</div>
-                        <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
-                    </div>
-                  )}
 
                   {category === 'glykol' && (() => {
                     const isRaising = adj.new_target_temp > adj.old_target_temp;
