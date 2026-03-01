@@ -2,72 +2,51 @@
 
 ## Robusthetsgranskning: Kvarvarande problem
 
-Efter genomgång av hela synkkedjan identifieras **6 kvarvarande robusthets- och effektivitetsproblem**.
+Efter genomgång av alla synkfunktioner hittar jag **4 kvarvarande problem**:
 
 ---
 
-### Problem 1: Saknade timeouts på RAPT API-anrop (quick-sync)
-`fetchRaptPills` och `fetchRaptControllers` i `sync-rapt-data-quick` saknar `AbortSignal.timeout`. Om RAPT Cloud hänger sig blockeras hela synkcykeln på obestämd tid.
+### Problem 1: `sync-custom-brew-pills` — controller-fallback gör alltid DB-query (rad 218-234)
+Trots att `allControllers` passas in från quick-sync, gör fallback-koden (rad 218-234) **alltid** en DB-query mot `rapt_temp_controllers` — även när `ctrlFromMemory` redan finns. Båda if/else-grenarna gör exakt samma query. Den passade datan har dock bara `controller_id`, `linked_pill_id`, `pill_temp` — inte `current_temp`, `target_temp`, `profile_target_temp` som behövs för snapshots.
 
-**Fix**: Lägg till `signal: AbortSignal.timeout(15000)` på båda fetch-anropen (rad 42-46, 51-55).
-
----
-
-### Problem 2: `sync-rapt-data` (full) är ooptimerad
-Denna funktion (anropas av `full-sync-brew-data` Step 2) gör:
-- 3 sekventiella edge-function-anrop (`rapt-auth`, `rapt-pills`, `rapt-temp-controllers`) istället för inlinade fetcher
-- Sekventiella per-controller DB-uppdateringar (select + update/insert loop) istället för batch-upsert
-- Sekventiella queries för `fermentation_sessions` och `auto_cooling_settings`
-
-**Fix**: Refaktorera till samma mönster som quick-sync: inlinade API-anrop, `Promise.all` för DB-queries, batch-upsert.
+**Fix**: Passa med fler fält från quick-sync (`current_temp`, `target_temp`, `profile_target_temp`) i `controllerDataForCustomBrews`, och använd dem direkt i fallbacken utan DB-query.
 
 ---
 
-### Problem 3: `full-sync-brew-data` anropar Brewfather via edge functions (N extra HTTP-hopp)
-Rad 138-143: Varje brew anropar `brewfather-readings` som en separat edge-function-invokation. Quick-sync löste detta genom att inlina fetchen. Full-sync bör göra samma sak.
+### Problem 2: `sync-rapt-data` (full) duplicerar data-upserts som quick-sync redan gör
+`full-sync-brew-data` anropar `sync-rapt-data` (Step 2) som gör full pill+controller upsert, och sedan `sync-rapt-data-quick` (Step 3) som gör exakt samma upsert igen. Alla pills och controllers skrivs till DB **två gånger**.
 
-**Fix**: Inlina Brewfather-readings-fetchen direkt i `full-sync-brew-data` istället för att gå via edge function.
-
----
-
-### Problem 4: `full-sync-brew-data` hämtar batches två gånger
-- Rad 52: Hämtar alla batches (för auto-manage)
-- Rad 132-134: Hämtar samma batches igen med `batchIds` (för detaljer)
-
-**Fix**: Återanvänd data från första anropet. Om `complete: true` behövs för detaljer, gör bara ett enda anrop med `complete: true` och använd det för båda syftena.
+**Fix**: `sync-rapt-data` bör **enbart** göra auto-discovery (hitta nya pills/controllers och lägga till dem i `selected_rapt_pills`/`selected_rapt_temp_controllers`). Ta bort pill/controller upsert-logiken (rad 111-192) — den är redundant med quick-sync.
 
 ---
 
-### Problem 5: `sync-custom-brew-pills` — sekventiell controller-fallback per brew
-Rad 213-255: När en pill är offline görs en individuell DB-query per brew för controller-data, trots att all controller-data redan finns i `allControllers`. Dessutom görs enskilda DB-inserts för varje snapshot.
+### Problem 3: `full-sync-brew-data` gör onödig `selected_brews` query (rad 139-140)
+Rad 139 hämtar alla synliga brews igen, trots att auto-manage-blocket (rad 83-136) redan vet exakt vilka brews som ska vara synliga. Resultatet kan byggas från `batchesData` + `toShow`/`toInsert`-listorna.
 
-**Fix**: Slå upp controller-data från den redan hämtade `allControllers`-arrayen istället för att querien DB:n. Batcha snapshot-inserts.
-
----
-
-### Problem 6: `sync-rapt-data` (full) är delvis redundant med quick-sync
-`full-sync-brew-data` anropar först `sync-rapt-data` (Step 2) och sedan `sync-rapt-data-quick` (Step 3). Båda hämtar RAPT-data från API:et och uppdaterar samma tabeller. Den enda unika funktionen i full-sync är auto-discovery av nya controllers/pills.
-
-**Fix**: Extrahera enbart auto-discovery-logiken (auto-add till `selected_rapt_pills`/`selected_rapt_temp_controllers`) och kör den inline i `full-sync-brew-data`. Ta bort det separata `sync-rapt-data`-anropet, eftersom quick-sync redan hanterar all data-uppdatering.
+**Fix**: Bygg `selectedBrews`-listan direkt från det befintliga statet istället för en ny DB-query.
 
 ---
 
-### Sammanfattning av effekt
+### Problem 4: `brewfather-batches` ignorerar `complete: true` parameter (rad 68)
+`full-sync-brew-data` skickar `{ complete: true }` (rad 70) men `brewfather-batches` har hårdkodat `complete: false` (rad 68). Resultatet är att `measuredOg`, `measuredFg` och andra detaljfält saknas — batch-detaljerna är ofullständiga.
+
+**Fix**: Respektera den inskickade `complete`-parametern i `brewfather-batches` istället för att hårdkoda `false`.
+
+---
+
+### Sammanfattning
 
 | Problem | Typ | Besparing |
 |---------|-----|-----------|
-| 1. Saknade timeouts | Stabilitet | Förhindrar oändlig blockering |
-| 2. sync-rapt-data ooptimerad | Latens | ~3-5 sekventiella HTTP-hopp eliminerade |
-| 3. Brewfather via edge fn | Latens + stabilitet | N extra HTTP-hopp per brew |
-| 4. Dubbla batch-hämtningar | Latens | 1 extern API-anrop eliminerat |
-| 5. Sekventiell fallback | Latens | N DB-queries eliminerade |
-| 6. Redundant full RAPT sync | Latens + stabilitet | 1 komplett RAPT-cykel eliminerad |
+| 1. Controller-fallback DB-query | Latens | 1 DB-query per offline-pill brew |
+| 2. Dubbel pill/controller upsert | Latens + DB-belastning | N upserts eliminerade |
+| 3. Onödig selected_brews query | Latens | 1 DB-query eliminerad |
+| 4. complete-param ignoreras | Datakvalitet | Korrekta OG/FG-värden |
 
-### Teknisk detalj
-
-Alla ändringar berör enbart edge functions:
-- `supabase/functions/sync-rapt-data-quick/index.ts` (problem 1)
-- `supabase/functions/sync-rapt-data/index.ts` (problem 2, 6)
-- `supabase/functions/full-sync-brew-data/index.ts` (problem 3, 4, 6)
-- `supabase/functions/sync-custom-brew-pills/index.ts` (problem 5)
+### Berörda filer
+- `supabase/functions/sync-rapt-data-quick/index.ts` (problem 1: utöka passad data)
+- `supabase/functions/sync-custom-brew-pills/index.ts` (problem 1: eliminera DB-query)
+- `supabase/functions/sync-rapt-data/index.ts` (problem 2: strip till enbart discovery)
+- `supabase/functions/full-sync-brew-data/index.ts` (problem 3: eliminera extra query)
+- `supabase/functions/brewfather-batches/index.ts` (problem 4: respektera complete-param)
 
