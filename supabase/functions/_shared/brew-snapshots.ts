@@ -111,19 +111,28 @@ export async function createBrewSnapshots(
     };
 
     // Create snapshot records — all values taken directly from stored data
-    // Falls back to current controller state when no history match (controller offline/gap)
+    // For recent points (< 5 min old), prefer live controller state since
+    // temp history may not have been written yet in the sync cycle.
+    const nowMs = Date.now();
+    const RECENT_THRESHOLD_MS = 5 * 60 * 1000;
+
     const snapshots = newPoints.map((point) => {
       const pointMs = new Date(point.date).getTime();
+      const isRecent = (nowMs - pointMs) < RECENT_THRESHOLD_MS;
+
+      // For recent points, prefer live state; for older points, prefer history
       const closest = findClosest(pointMs);
+
+      const useLive = isRecent && currentControllerState;
 
       return {
         brew_id: brewId,
         recorded_at: point.date,
         sg: point.value,
         pill_temp: point.temp,
-        controller_temp: closest?.current_temp ?? currentControllerState?.current_temp ?? null,
-        profile_target_temp: closest?.profile_target_temp ?? currentControllerState?.profile_target_temp ?? null,
-        auto_target_temp: closest?.target_temp ?? currentControllerState?.target_temp ?? null,
+        controller_temp: useLive ? (currentControllerState.current_temp ?? closest?.current_temp ?? null) : (closest?.current_temp ?? currentControllerState?.current_temp ?? null),
+        profile_target_temp: useLive ? (currentControllerState.profile_target_temp ?? closest?.profile_target_temp ?? null) : (closest?.profile_target_temp ?? currentControllerState?.profile_target_temp ?? null),
+        auto_target_temp: useLive ? (currentControllerState.target_temp ?? closest?.target_temp ?? null) : (closest?.target_temp ?? currentControllerState?.target_temp ?? null),
       };
     });
 
