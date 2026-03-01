@@ -41,6 +41,7 @@ async function fetchRaptPills(accessToken: string): Promise<any[]> {
   const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
   const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetHydrometers`, {
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`RAPT pills API error: ${res.status} ${t}`); }
   return res.json();
@@ -50,6 +51,7 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
   const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
   const res = await fetch(`${apiBaseUrl}/api/TemperatureControllers/GetTemperatureControllers`, {
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`RAPT controllers API error: ${res.status} ${t}`); }
   return res.json();
