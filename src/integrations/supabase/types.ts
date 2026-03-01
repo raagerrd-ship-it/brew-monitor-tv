@@ -878,6 +878,39 @@ export type Database = {
           },
         ]
       }
+      pill_sg_calibration: {
+        Row: {
+          anchor_recorded_at: string | null
+          anchor_sg: number | null
+          anchor_temp: number | null
+          created_at: string
+          id: string
+          pill_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          anchor_recorded_at?: string | null
+          anchor_sg?: number | null
+          anchor_temp?: number | null
+          created_at?: string
+          id?: string
+          pill_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          anchor_recorded_at?: string | null
+          anchor_sg?: number | null
+          anchor_temp?: number | null
+          created_at?: string
+          id?: string
+          pill_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
