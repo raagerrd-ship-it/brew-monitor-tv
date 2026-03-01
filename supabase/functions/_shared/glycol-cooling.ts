@@ -77,7 +77,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   // Learn glycol cooler rate
   const coolingLoadCount = followedControllersFullData.filter(c => {
     if (!c.cooling_enabled) return false
-    const ct = parseFloat(String(c.current_temp ?? c.pill_temp ?? '0'))
+    const ct = parseFloat(String(c.current_temp ?? '0'))
     const tt = parseFloat(String(c.target_temp ?? '999'))
     const hyst = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     return ct > (tt + hyst)
@@ -127,7 +127,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   }
 
   // Check if lowest controller is actively cooling
-  const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0'))
+  const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? '0'))
   const lowestHysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'))
   const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + lowestHysteresis)
 
@@ -209,7 +209,7 @@ async function evaluateCoolingOutcomes(ctx: GlycolContext): Promise<void> {
     const fc = followedControllersFullData.find(c => c.controller_id === adj.followed_controller_id)
     if (!fc) continue
 
-    const currentTemp = parseFloat(String(fc.current_temp ?? fc.pill_temp ?? 999))
+    const currentTemp = parseFloat(String(fc.current_temp ?? 999))
     const targetTemp = parseFloat(String(fc.target_temp ?? adj.followed_target_temp))
     const tempBucket = getTempBucket(targetTemp)
     const hysteresis = parseFloat(String(fc.cooling_hysteresis ?? 0.2))
@@ -283,7 +283,7 @@ async function handleOvercooling(ctx: GlycolContext, coolerController: TempContr
       lowest_followed_temp: lowestTargetTemp,
       followed_controller_id: lowestTempController.controller_id,
       followed_controller_name: lowestTempController.name,
-      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? '0')),
       followed_target_temp: lowestTargetTemp,
       followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
       reason: `Cooler was ${Math.abs(tempDiff).toFixed(1)}°C colder than needed`,
@@ -536,7 +536,7 @@ async function handleActiveCooling(
     coolerTargetRef.value = finalTarget
 
     const lowestFollowedTemp = followedControllersFullData
-      .map(c => parseFloat(String(c.current_temp ?? c.pill_temp ?? '999')))
+      .map(c => parseFloat(String(c.current_temp ?? '999')))
       .reduce((min, temp) => Math.min(min, temp), 999)
 
     await logAdjustment(supabase, {
@@ -547,7 +547,7 @@ async function handleActiveCooling(
       lowest_followed_temp: lowestFollowedTemp,
       followed_controller_id: lowestTempController.controller_id,
       followed_controller_name: lowestTempController.name,
-      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? lowestTempController.pill_temp ?? '0')),
+      followed_current_temp: parseFloat(String(lowestTempController.current_temp ?? '0')),
       followed_target_temp: parseFloat(String(lowestTempController.target_temp ?? '0')),
       followed_hysteresis: parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2')),
       reason: `${lowestTempController.name} struggling to cool`,
