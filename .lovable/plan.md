@@ -1,89 +1,53 @@
 
 
-## Analysis: Current Flow & Bottlenecks
+## Plan: Rate-based glycol learning + max cooling floor
+
+### Current state
+The margin learning (`learnFromCurrentState`) only checks binary: "at target? overshoot? not reaching?" — it doesn't consider *how fast* the probe is cooling or whether extra glycol margin actually helps.
+
+### Two new learned parameters
+
+1. **`cooling_rate_margin:{bucket}`** — What margin is needed to achieve a specific cooling rate (°C/h)
+   - During active ramps: measure actual probe cooling rate from `temp_controller_history` (last 15-30 min)
+   - Compare to required rate (e.g., ramp needs 2°C/h drop)
+   - If rate is too slow → increase margin. If rate is adequate → tighten margin slightly
+   - This replaces the current static "at target / not at target" logic during ramps
+
+2. **`max_effective_margin:{bucket}`** — The floor beyond which more glycol doesn't help
+   - Track pairs of (margin, observed cooling rate)
+   - If margin was increased but cooling rate didn't improve → we've hit the floor
+   - Learn this ceiling so we never set glycol margin beyond it (waste of energy)
+   - Stored per cooler controller + temp bucket
+
+### Implementation steps
+
+1. **Extend `learnFromCurrentState`** to fetch recent probe history (last 30 min) and calculate actual cooling rate (°C/h)
+
+2. **Add ramp-aware margin learning**: When a ramp is active, compare actual rate vs required rate, and adjust margin proportionally instead of binary 3%/15% nudges
+
+3. **Add max-effective-margin learning**: After each adjustment, compare previous and current cooling rates. If a bigger margin didn't yield a faster rate, update the `max_effective_margin` floor. Clamp the desired glycol target so it never goes below `effectiveTarget - maxEffectiveMargin`
+
+4. **Update `resolveEffectiveLowestTarget`** to expose the required cooling rate (°C/h) from active ramps so the learning function can use it
+
+5. **Update `LearnedGlycolRates.tsx`** (or create new UI) to display the new learned parameters — max effective margin per zone
+
+### Technical detail
 
 ```text
-Current predictive swap timeline (worst case):
-────────────────────────────────────────────────────────
--60s   Cron runs sync-sonos-now-playing (Phase 1+2+3)
-       → May or may not populate next_track_* fields
-       → Phase 3 (next images) takes 2-8s
-       
--15s   Eager sync: client triggers FULL sync-sonos-now-playing
-       → Token refresh + Sonos API × 2 + image processing
-       → Total: 3-15s (often too slow for the 3.5s deadline!)
-       
--10s   Predictive timer scheduled
-       
--3.5s  SWAP POINT: needs next_track_name + images ready
-       → Often missing because eager sync hasn't finished
-       → Falls back to pollForNewTrack (another 2s+ per retry)
+During ramp (probe 20°C → 18°C in 1h):
+  requiredRate = 2.0 °C/h
+  actualRate   = measured from history (e.g., 1.2 °C/h)
+  ratio        = requiredRate / actualRate = 1.67
+  → increase margin by ratio (clamped)
+
+Max floor learning:
+  Previous cycle: margin=8, rate=1.5°C/h
+  Current cycle:  margin=10, rate=1.5°C/h
+  → margin went up 2°C but rate unchanged
+  → learn max_effective_margin ≈ 8°C for this bucket
 ```
 
-### Root cause
-The 5-second `sonos-playback-status` poll **already fetches `playbackMetadata`** from Sonos (which contains `nextItem`) but **throws it away** — it only returns current track info. This means the client has no idea what the next track is until either cron or eager sync populates the DB.
-
-## Plan: 3 Changes
-
-### 1. Return next track data from `sonos-playback-status` (server)
-The metadata response from Sonos already contains `nextItem`. Add `nextTrackName`, `nextArtistName`, `nextAlbumArtUrl` to the response. **Zero extra API calls — data is already there.**
-
-File: `supabase/functions/sonos-playback-status/index.ts`
-
-### 2. Client stores next-track metadata from every 5s poll (client)
-When `useSonosClientPolling` receives poll data with `nextTrackName`, merge it into state immediately. This means by the time we're 15s from the end, `next_track_name` is already in state (populated continuously every 5s).
-
-File: `src/components/sonos/hooks/useSonosClientPolling.ts`
-
-### 3. Eager sync becomes image-only trigger (client)
-At 15s remaining, instead of checking for `next_track_name` (which is already there from polling), check for `next_bg_image_url`. If images are missing, trigger sync with the existing `triggerServerSync()` — but only for image processing. The metadata is already in place.
-
-File: `src/components/sonos/hooks/useSonosPlaybackTicker.ts`
-
-```text
-Improved timeline:
-────────────────────────────────────────────────────────
--∞     Every 5s poll: next_track_name populated from Sonos API
-       → Client always knows what's coming next
-       
--15s   Check: images missing? → trigger sync (image processing only)
-       → Realtime delivers next_bg/widget URLs
-       → Browser preloads immediately on arrival
-       
--3.5s  SWAP POINT: text + images ready → instant transition
-       → No polling fallback needed
-```
-
-### Technical details
-
-**sonos-playback-status** — add 3 fields to response:
-```typescript
-const nextTrack = metadata?.nextItem?.track;
-return { 
-  ...existing,
-  nextTrackName: nextTrack?.name || null,
-  nextArtistName: nextTrack?.artist?.name || null,
-  nextAlbumArtUrl: nextTrack?.imageUrl || null,
-};
-```
-
-**useSonosClientPolling** — merge next-track data from poll:
-```typescript
-// In same-track update path:
-const nextChanged = data.nextTrackName && data.nextTrackName !== prev.next_track_name;
-if (nextChanged) {
-  return { ...prev, next_track_name: data.nextTrackName, 
-           next_artist_name: data.nextArtistName,
-           next_album_art_url: data.nextAlbumArtUrl };
-}
-```
-
-**useSonosPlaybackTicker** — eager sync checks images, not metadata:
-```typescript
-// At 15s remaining:
-if (!current?.next_bg_image_url && current?.next_track_name) {
-  // Have metadata but no images — trigger image processing
-  triggerServerSync();
-}
-```
+### Files to modify
+- `supabase/functions/_shared/glycol-cooling.ts` — main logic changes
+- `src/components/LearnedCoolerMarginValues.tsx` — show max effective margin in UI (if it exists)
 
