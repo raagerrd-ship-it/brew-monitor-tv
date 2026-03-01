@@ -558,10 +558,10 @@ export default function Settings() {
             </SettingsSection>
 
             <CategorySeparator icon={History} label="Historik" />
-            <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar">
+            <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar" collapsible defaultOpen={false}>
               <AutoCoolingDecisionLogs />
             </SettingsSection>
-            <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar">
+            <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar" collapsible defaultOpen={false}>
               <AiAuditHistory />
             </SettingsSection>
           </TabsContent>
