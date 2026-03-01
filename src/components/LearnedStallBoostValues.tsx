@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Flame, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { formatRecency } from "@/lib/format-recency";
 
 interface LearnedBoost {
   controller_id: string;
@@ -99,7 +98,7 @@ export function LearnedStallBoostValues() {
               <td className="py-1.5 font-medium">{entry.controller_name}</td>
               <td className="py-1.5 text-right font-mono text-orange-400">+{entry.learned_value.toFixed(1)}°C</td>
               <td className="py-1.5 text-right text-muted-foreground">{entry.sample_count}</td>
-              <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(entry.last_updated_at), { locale: sv, addSuffix: true })}</td>
+              <td className="py-1.5 text-right text-muted-foreground">{formatRecency(entry.last_updated_at)}</td>
             </tr>
           ))}
         </tbody>

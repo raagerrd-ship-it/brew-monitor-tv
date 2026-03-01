@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { formatRecency } from "@/lib/format-recency";
 
 interface LearnedMargin {
   controller_id: string;
@@ -169,7 +168,7 @@ export function LearnedCoolerMarginValues() {
                     {item.max_effective != null ? `${item.max_effective.toFixed(1)}°C` : "–"}
                   </td>
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
-                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
                 </tr>
               ))}
             </tbody>

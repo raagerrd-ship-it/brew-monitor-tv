@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { formatRecency } from "@/lib/format-recency";
 
 interface LearnedRate {
   controller_id: string;
@@ -122,7 +121,7 @@ export function LearnedPidCoolingRates() {
                   <td className="py-1.5">{LOAD_LABELS[item.load_bucket] ?? item.load_bucket}</td>
                   <td className="py-1.5 text-right font-mono text-cyan-400">{item.rate.toFixed(2)}°C/h</td>
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
-                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
                 </tr>
               ))}
             </tbody>

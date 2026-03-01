@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { formatRecency } from "@/lib/format-recency";
 
 interface HeadroomEntry {
   controller_id: string;
@@ -126,7 +125,7 @@ export function LearnedPidHeadroom() {
                   <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
                   <td className="py-1.5 text-right font-mono text-violet-400">{item.headroom.toFixed(1)}°C</td>
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
-                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
                 </tr>
               ))}
             </tbody>

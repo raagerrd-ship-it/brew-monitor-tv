@@ -8,8 +8,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { formatRecency } from "@/lib/format-recency";
 
 interface LearnedEntry {
   id: string;
@@ -217,7 +216,7 @@ export function LearnedCompensationBaselines() {
                       <span className="text-[10px] text-muted-foreground">
                         ({item.convergence_count} konv.
                         {item.last_converged_at && (
-                          <>, {formatDistanceToNow(new Date(item.last_converged_at), { locale: sv, addSuffix: true })}</>
+                          <>, {formatRecency(item.last_converged_at)}</>
                         )}
                         )
                       </span>
