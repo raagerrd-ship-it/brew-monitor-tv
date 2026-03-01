@@ -1,35 +1,88 @@
 
 
-## Ändra `get_temp_history_sampled`: AVG → senaste värde för `current_temp`
+## Förenklad synkarkitektur: 2 cron-jobb istället för 4+
 
-### Analys
+### Nuläge
 
-Du har helt rätt. AVG inom en 15-minutersbucket ger ett utjämnat värde som inte matchar det faktiska live-värdet vid en given tidpunkt. Under en cold crash där temperaturen sjunker snabbt blir genomsnittet missvisande — det ligger alltid "efter" det senaste riktiga värdet. Det finns inget bra skäl att använda AVG för `current_temp` i detta system:
+Idag finns det **4 separata synk-flöden** med individuella intervall:
 
-- **target_temp** och **profile_target_temp** använder redan `ARRAY_AGG(...ORDER BY recorded_at DESC)[1]` (senaste värdet) — korrekt
-- **cooling_enabled** använder `BOOL_OR` — rimligt (om kylning var på någon gång i bucketen)
-- **current_temp** borde följa samma mönster som target_temp: senaste värdet i bucketen
+1. **Brewfather snabb-synk** (`sync-brew-data`) — cron `brew-data-sync`, intervall `sync_interval`
+2. **Brewfather full synk** (`full-sync-brew-data`) — cron via `trigger_full_brew_sync`, intervall `full_sync_interval`
+3. **RAPT snabb-synk** (`sync-rapt-data-quick`) — cron `rapt-quick-sync`, intervall `rapt_sync_interval`
+4. **RAPT full synk** (`sync-rapt-data`) — intervall `rapt_full_sync_interval`
 
-### Ändring
+Plus AI-audit som triggas inuti `run-automation` med en 4h cooldown.
 
-En databasmigration som ersätter funktionen `get_temp_history_sampled`:
+### Ny arkitektur
 
-```sql
--- Ändra current_temp från ROUND(AVG(...)) till senaste värdet i bucketen
-SELECT
-  bucket AS recorded_at,
-  (ARRAY_AGG(current_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS current_temp,  -- ← ändrad
-  (ARRAY_AGG(target_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS target_temp,
-  BOOL_OR(cooling_enabled) AS cooling_enabled,
-  (ARRAY_AGG(profile_target_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS profile_target_temp
-FROM bucketed
-GROUP BY bucket
-ORDER BY bucket;
+**2 synk-jobb:**
+
+```text
+┌─────────────────────────────────────────────────┐
+│  SNABB-SYNK (var 5:e min)                       │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 1. RAPT pills + controllers (quick)      │   │
+│  │ 2. Brewfather readings (quick)            │   │
+│  │ 3. Custom brew pills                     │   │
+│  │ 4. Temp history                           │   │
+│  │ 5. Automation (PID, profiler, kylning)   │   │
+│  └──────────────────────────────────────────┘   │
+│  = Dagens sync-rapt-data-quick + sync-brew-data │
+│    i ett enda anrop                              │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│  FULL SYNK (var 6:e timme)                      │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 1. Brewfather alla batchar + auto-manage │   │
+│  │ 2. RAPT full (alla enheter + nya)        │   │
+│  │ 3. AI-audit (om enabled)                 │   │
+│  │ 4. Snabb-synk (som ovan)                 │   │
+│  └──────────────────────────────────────────┘   │
+│  = Dagens full-sync-brew-data + sync-rapt-data  │
+│    + ai-automation-audit i ett enda anrop        │
+└─────────────────────────────────────────────────┘
 ```
 
-### Påverkan
+### Ändringar
 
-- **brew_data_snapshots**: `createBrewSnapshots` använder denna funktion — snapshots kommer nu matcha live-värdet från automationsloggen
-- **Controller-chart**: Använder samma RPC för att rita grafer — ingen visuell skillnad i praktiken (skillnaden inom en 15-min bucket är minimal i normalfall, men korrekt under snabba ändringar)
-- **Ingen kodändring** behövs i frontend eller edge functions — bara SQL-funktionen uppdateras
+#### 1. Edge function: `sync-rapt-data-quick` — Lägg till Brewfather readings
+- Importera Brewfather readings-logiken (från `sync-brew-data`)
+- Kör RAPT + Brewfather readings + automation parallellt
+- `sync-brew-data` blir onödig men behålls för manuell trigger
+
+#### 2. Edge function: `full-sync-brew-data` — Lägg till RAPT full + AI audit
+- Anropa `sync-rapt-data` (full) istället för `sync-rapt-data-quick`
+- Anropa `ai-automation-audit` explicit
+- Redan idag orkestratorn — utökas
+
+#### 3. Databas: Förenkla `sync_settings`
+- Behåll bara **2 intervall-kolumner**: `quick_sync_interval` (default 300) och `full_sync_interval` (default 21600)
+- Markera gamla kolumner (`sync_interval`, `rapt_sync_interval`, `rapt_full_sync_interval`) som deprecated
+- Uppdatera trigger-funktionerna: `update_rapt_sync_cron_schedule` → en ny `update_sync_cron_schedules` som hanterar båda
+
+#### 4. Cron-jobb
+- **Ta bort** `brew-data-sync` cron
+- **Byt namn** `rapt-quick-sync` → `quick-sync` (konceptuellt, samma jobb)
+- **Lägg till/uppdatera** full-sync cron (var 6h)
+
+#### 5. Settings UI: Förenkla frekvens-sektionen
+- Ersätt 4 rader (Brewfather snabb/full + RAPT snabb/full) med **2 rader**:
+  - "Snabb-synk" (RAPT + Brewfather readings) — dropdown + manuell knapp
+  - "Full synk" (allt + AI) — dropdown + manuell knapp
+- Behåll manuella synk-knappar
+- Uppdatera `use-settings-data.ts`: ta bort separata handlers, förenkla state
+
+#### 6. `use-settings-data.ts`
+- Ta bort: `syncInterval`, `raptSyncInterval`, `raptFullSyncInterval`, `quickSyncing`, `raptQuickSyncing`, `raptSyncing`
+- Lägg till: `quickSyncInterval` (ersätter båda), förenklade handlers
+- `handleQuickSync` → anropar `sync-rapt-data-quick` (som nu gör allt)
+- `handleFullSync` → anropar `full-sync-brew-data` (som nu gör allt)
+
+### Filer som ändras
+- `supabase/functions/sync-rapt-data-quick/index.ts` — lägg till Brewfather readings
+- `supabase/functions/full-sync-brew-data/index.ts` — lägg till RAPT full + AI audit
+- `src/hooks/use-settings-data.ts` — förenkla state + handlers
+- `src/pages/Settings.tsx` — förenkla frekvens-UI
+- Ny databasmigration — nya kolumner, nya triggers, cron-uppdatering
 
