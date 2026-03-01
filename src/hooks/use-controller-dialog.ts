@@ -46,10 +46,10 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     return () => subscription.unsubscribe();
   }, []);
 
-  // Check for active fermentation session + fetch original target
+  // Check for active fermentation session + fetch original target (SSOT: profile_target_temp)
   useEffect(() => {
     const loadSessionAndTarget = async () => {
-      // Check active session first
+      // Check active session
       const { data: sessionData } = await supabase
         .from('fermentation_sessions')
         .select('id')
@@ -57,25 +57,20 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         .in('status', ['running', 'paused'])
         .maybeSingle();
 
-      const activeSession = !!sessionData;
-      setHasActiveSession(activeSession);
+      setHasActiveSession(!!sessionData);
 
-      // Only use profile_target_temp if there's an active session
-      if (activeSession) {
-        const { data: ctrlData } = await supabase
-          .from('rapt_temp_controllers')
-          .select('profile_target_temp')
-          .eq('controller_id', controller.controller_id)
-          .single();
+      // SSOT: profile_target_temp is always the user's desired target
+      const { data: ctrlData } = await supabase
+        .from('rapt_temp_controllers')
+        .select('profile_target_temp')
+        .eq('controller_id', controller.controller_id)
+        .single();
 
-        if (ctrlData?.profile_target_temp != null) {
-          setOriginalTarget(ctrlData.profile_target_temp);
-          return;
-        }
+      if (ctrlData?.profile_target_temp != null) {
+        setOriginalTarget(ctrlData.profile_target_temp);
+      } else {
+        setOriginalTarget(null);
       }
-
-      // No active session = no separate snitt-mål; target_temp IS the target
-      setOriginalTarget(null);
     };
 
     if (open) {

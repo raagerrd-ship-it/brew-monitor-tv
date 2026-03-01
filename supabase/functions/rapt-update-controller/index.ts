@@ -131,6 +131,8 @@ serve(async (req) => {
     console.log('RAPT API response:', result);
 
     // Update database with new value immediately
+    // SSOT: profile_target_temp = user's desired target (for both manual and profile modes)
+    //       target_temp = what PID sends to hardware (may differ when pill-comp is active)
     if (action === 'setTargetTemperature' && result === true) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -141,6 +143,7 @@ serve(async (req) => {
           .from('rapt_temp_controllers')
           .update({ 
             target_temp: value,
+            profile_target_temp: value,
             updated_at: new Date().toISOString()
           })
           .eq('controller_id', controllerId);
@@ -148,7 +151,7 @@ serve(async (req) => {
         if (dbError) {
           console.error('Error updating database:', dbError);
         } else {
-          console.log(`Updated database: controller ${controllerId} target_temp = ${value}`);
+          console.log(`Updated database: controller ${controllerId} target_temp = ${value}, profile_target_temp = ${value}`);
         }
       } catch (dbUpdateError) {
         console.error('Database update error:', dbUpdateError);

@@ -10,6 +10,7 @@ export interface ControllerData {
   current_temp: number | null;
   pill_temp: number | null;
   target_temp: number | null;
+  profile_target_temp: number | null;
   last_update: string | null;
   cooling_enabled: boolean;
   heating_enabled: boolean;
