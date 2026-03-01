@@ -170,7 +170,7 @@ serve(async (req) => {
     }
 
     // ── Build context maps ───────────────────────────────────────
-    const originalTargetMap = new Map<string, number>();
+    // originalTargetMap removed — profile_target_temp is SSOT
     const lastAdjTimestampMap = new Map<string, string>();
     const profileOwnedControllerIds = new Set<string>();
     const profileTargetMap = new Map<string, number>();
@@ -300,27 +300,7 @@ serve(async (req) => {
       }
     }
 
-    // Populate originalTargetMap for non-profile controllers
-    {
-      const nonProfileIds = followedControllersFullData
-        .filter(c => !profileOwnedControllerIds.has(c.controller_id))
-        .map(c => c.controller_id);
-      if (nonProfileIds.length > 0) {
-        const { data: allPrevAdj } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('cooler_controller_id, old_target_temp, original_target_temp, created_at')
-          .in('cooler_controller_id', nonProfileIds)
-          .like('reason', '🌡️%')
-          .order('created_at', { ascending: true });
-        if (allPrevAdj) {
-          for (const adj of allPrevAdj) {
-            if (!originalTargetMap.has(adj.cooler_controller_id)) {
-              originalTargetMap.set(adj.cooler_controller_id, adj.original_target_temp ?? adj.old_target_temp);
-            }
-          }
-        }
-      }
-    }
+    // originalTargetMap removed — profile_target_temp is now SSOT for all controllers
 
     // Log followed controller data
     for (const controller of followedControllersFullData) {
@@ -331,9 +311,10 @@ serve(async (req) => {
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
       const pillDelta = pillTemp !== null ? round1(pillTemp - currentTemp) : null;
       const profileTarget = profileTargetMap.get(controller.controller_id);
-      const originalTarget = profileTarget !== undefined
-        ? profileTarget
-        : (round1(originalTargetMap.get(controller.controller_id) ?? null) ?? targetTemp);
+      const controllerProfileTarget = (controller as any).profile_target_temp != null
+        ? round1(parseFloat(String((controller as any).profile_target_temp)))
+        : null;
+      const originalTarget = profileTarget ?? controllerProfileTarget ?? targetTemp;
 
       const details: Record<string, unknown> = {
         original_target: originalTarget,

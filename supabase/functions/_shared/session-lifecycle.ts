@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep, getEffectiveTargetTemp } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
 import { saveFermentationLearnings } from './fermentation-learnings.ts'
-import { SessionRef, setProfileTarget, clearProfileTarget } from './types.ts'
+import { SessionRef, setProfileTarget, preserveProfileTarget } from './types.ts'
 
 /**
  * Complete a fermentation profile session.
@@ -27,8 +27,8 @@ export async function completeProfile(
     details: { message: 'Profile completed' },
   })
 
-  // Clear profile_target_temp (via shared helper — SSOT)
-  await clearProfileTarget(supabase, session.controller_id)
+  // Preserve profile_target_temp for manual mode (copies target_temp → profile_target_temp)
+  await preserveProfileTarget(supabase, session.controller_id)
 
   // Clear stale PID adjustment history so non-profile PID uses the
   // user's manual target_temp as baseline instead of the old profile target

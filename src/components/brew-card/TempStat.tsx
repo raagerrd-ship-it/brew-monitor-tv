@@ -50,8 +50,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
 
 
   // SSOT: centralized target temp calculation
-  // Only use profile target from active session, not stale adjustment data
-  const currentProfileTarget = brew.fermentationSession?.controller_profile_target_temp ?? null;
+  // Read profile_target_temp from controller directly (SSOT for both manual and profile modes)
+  const currentProfileTarget = controller?.profile_target_temp
+    ?? brew.fermentationSession?.controller_profile_target_temp
+    ?? null;
   const { target: displayTarget, compensation } = getDisplayTarget(
     currentProfileTarget,
     targetTemp
