@@ -417,7 +417,12 @@ export async function calculateCompensatedTarget(
     // When in approach zone AND moving toward profile, allow faster release
     // BUT: during ramp steps, don't release AGAINST the ramp direction.
     // E.g. during a downward ramp (cooling), don't push target UP — let the ramp catch up.
-    const rampDirectionConflict = isRampStep && (
+    // Overshoot-release: disable ramp hold when probe is within 1°C of profile target
+    // to allow PID to react and prevent overshoot past the target
+    const probeDistToTarget = Math.abs(latestCtrlForComp - profileTarget)
+    const overshootRelease = probeDistToTarget <= 1.0
+    
+    const rampDirectionConflict = isRampStep && !overshootRelease && (
       (mode === 'cooling' && isIncreasing) ||  // downward ramp but pushing target up
       (mode === 'heating' && !isIncreasing)     // upward ramp but pushing target down
     )
