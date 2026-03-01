@@ -13,6 +13,7 @@ interface LearnedMargin {
   learned_value: number;
   sample_count: number;
   last_updated_at: string;
+  max_effective?: number | null;
 }
 
 const BUCKET_LABELS: Record<string, string> = {
@@ -59,6 +60,18 @@ export function LearnedCoolerMarginValues() {
         return;
       }
 
+      // Also fetch max_effective_margin learnings
+      const { data: maxEffectives } = await supabase
+        .from("fermentation_learnings")
+        .select("controller_id, parameter_name, learned_value")
+        .like("parameter_name", "max_effective_margin:%");
+
+      const maxEffMap = new Map<string, number>();
+      maxEffectives?.forEach((m) => {
+        const bucket = m.parameter_name.replace("max_effective_margin:", "");
+        maxEffMap.set(`${m.controller_id}:${bucket}`, parseFloat(String(m.learned_value)));
+      });
+
       const controllerIds = [...new Set(learnings.map((l) => l.controller_id))];
       const { data: controllers } = await supabase
         .from("rapt_temp_controllers")
@@ -77,6 +90,7 @@ export function LearnedCoolerMarginValues() {
             learned_value: l.learned_value,
             sample_count: l.sample_count,
             last_updated_at: l.last_updated_at,
+            max_effective: maxEffMap.get(`${l.controller_id}:${raw}`) ?? null,
           };
         })
       );
@@ -151,6 +165,11 @@ export function LearnedCoolerMarginValues() {
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-400 border-blue-500/30">
                   {item.learned_value.toFixed(1)}°C
                 </Badge>
+                {item.max_effective != null && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-400 border-amber-500/30">
+                    max {item.max_effective.toFixed(1)}°C
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
                 <span>{item.sample_count} mätningar</span>

@@ -96,21 +96,27 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   // ── Get learned margin for this temperature zone ──────────
   const tempBucket = getTempBucket(effectiveTarget.temp)
   const learnedMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
+  const maxEffective = await getLearnedParam(supabase, coolerController.controller_id, `max_effective_margin:${tempBucket}`, 15.0)
 
-  const desiredGlycolTarget = Math.round((effectiveTarget.temp - learnedMargin.value) * 10) / 10
+  // Clamp margin to max effective (no point going beyond diminishing returns)
+  const effectiveMargin = Math.min(learnedMargin.value, maxEffective.value)
+  const desiredGlycolTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredGlycolTarget))
 
-  log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${learnedMargin.value.toFixed(1)}°C = glycol ${clampedTarget.toFixed(1)}°C`, {
+  log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = glycol ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
     margin_samples: learnedMargin.sampleCount,
+    learned_margin: learnedMargin.value,
+    max_effective: maxEffective.value,
     current_glycol: currentCoolerTarget,
+    required_rate: effectiveTarget.requiredRatePerHour,
   })
 
   // ── Apply if different enough ─────────────────────────────
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.3) {
     log('GLYCOL_OK', 'pass', `Glycol at ${currentCoolerTarget}°C, target ${clampedTarget}°C — close enough (${diff.toFixed(1)}°C diff)`)
-    await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget.temp, tempBucket)
+    await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket)
     return adjustments
   }
 
@@ -187,6 +193,7 @@ interface EffectiveTarget {
   controllerId: string
   source: string
   isRampingDown: boolean
+  requiredRatePerHour: number | null // °C/h needed for active ramp
 }
 
 function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling: TempController[], cache: ProfileCache): EffectiveTarget {
@@ -205,6 +212,7 @@ function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling
     controllerId: lowestStatic.controller_id,
     source: 'probe target',
     isRampingDown: false,
+    requiredRatePerHour: null,
   }
 
   for (const session of cache.sessions) {
@@ -232,6 +240,10 @@ function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling
         const futureProgress = Math.min((elapsedHours + lookAhead) / currentStep.duration_hours, 1)
         const futureTarget = Math.round((startTemp + (stepTarget - startTemp) * futureProgress) * 10) / 10
 
+        // Calculate required cooling rate for this ramp
+        const totalDrop = startTemp - stepTarget
+        const rampRequiredRate = totalDrop / currentStep.duration_hours // °C/h
+
         if (futureTarget < result.temp) {
           result = {
             temp: futureTarget,
@@ -239,6 +251,7 @@ function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling
             controllerId: controller.controller_id,
             source: `ramp look-ahead 1h (→ ${stepTarget}°C)`,
             isRampingDown: true,
+            requiredRatePerHour: rampRequiredRate,
           }
         }
       }
@@ -270,6 +283,7 @@ function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling
             controllerId: controller.controller_id,
             source: `upcoming step (om ${hoursUntil.toFixed(1)}h → ${nextTarget}°C)`,
             isRampingDown: result.isRampingDown,
+            requiredRatePerHour: result.requiredRatePerHour,
           }
           log('PROACTIVE', 'info', `${controller.name}: nästa steg om ${hoursUntil.toFixed(1)}h → ${nextTarget}°C`)
         }
@@ -286,12 +300,12 @@ async function learnFromCurrentState(
   ctx: GlycolContext,
   coolerController: TempController,
   controllersWithCooling: TempController[],
-  effectiveTarget: number,
+  effectiveTarget: EffectiveTarget,
   tempBucket: string,
 ): Promise<void> {
   const { supabase, log } = ctx
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
-  const currentMargin = Math.abs(effectiveTarget - currentCoolerTarget)
+  const currentMargin = Math.abs(effectiveTarget.temp - currentCoolerTarget)
 
   const lowestController = controllersWithCooling.reduce((lowest, c) => {
     const t = parseFloat(String(c.target_temp ?? '999'))
@@ -303,6 +317,34 @@ async function learnFromCurrentState(
   const targetTemp = parseFloat(String(lowestController.target_temp ?? '999'))
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
+  // ── Measure actual cooling rate from history (last 30 min) ──
+  const actualRate = await measureCoolingRate(supabase, lowestController.controller_id)
+
+  // ── Rate-based learning during active ramps ──
+  if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
+    const requiredRate = effectiveTarget.requiredRatePerHour
+    const ratio = actualRate > 0.05 ? requiredRate / actualRate : 2.0 // avoid div-by-zero
+
+    log('RATE_LEARN', 'info', `Ramp rate: actual ${actualRate.toFixed(2)}°C/h vs required ${requiredRate.toFixed(2)}°C/h (ratio ${ratio.toFixed(2)})`)
+
+    if (ratio > 1.1) {
+      // Too slow — increase margin proportionally (clamped)
+      const scaledMargin = currentMargin * Math.min(ratio, 1.5) // max 50% increase per cycle
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'action', `[${tempBucket}] Rate too slow — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    } else if (ratio < 0.85) {
+      // Faster than needed — tighten margin
+      const tighterMargin = currentMargin * 0.95
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    }
+
+    // ── Max-effective-margin learning ──
+    await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+    return
+  }
+
+  // ── Fallback: static target-based learning (hold steps) ──
   const atTarget = probeTemp <= targetTemp + hysteresis
   const overshot = probeTemp < targetTemp - 1.0
 
@@ -319,9 +361,85 @@ async function learnFromCurrentState(
     const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, biggerMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Not reaching target — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   }
+
+  // Also learn max effective during hold if we have rate data
+  if (actualRate !== null) {
+    await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+  }
 }
 
-// ─── Apply glycol target ─────────────────────────────────────
+// ─── Measure actual probe cooling rate ───────────────────────
+
+async function measureCoolingRate(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+): Promise<number | null> {
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+
+  const { data } = await supabase
+    .from('temp_controller_history')
+    .select('current_temp, recorded_at')
+    .eq('controller_id', controllerId)
+    .gte('recorded_at', thirtyMinAgo)
+    .order('recorded_at', { ascending: true })
+
+  if (!data || data.length < 2) return null
+
+  const first = data[0]
+  const last = data[data.length - 1]
+  const tempDiff = parseFloat(String(first.current_temp)) - parseFloat(String(last.current_temp))
+  const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
+
+  if (hoursDiff < 0.05) return null // less than 3 min of data
+  return tempDiff / hoursDiff // positive = cooling
+}
+
+// ─── Learn max effective margin ──────────────────────────────
+
+async function learnMaxEffectiveMargin(
+  supabase: ReturnType<typeof createClient>,
+  coolerId: string,
+  tempBucket: string,
+  currentMargin: number,
+  currentRate: number,
+  log: GlycolContext['log'],
+): Promise<void> {
+  // Load previous observation
+  const prev = await getLearnedParam(supabase, coolerId, `prev_margin_rate:${tempBucket}`, 0)
+  const prevMargin = prev.value
+  const prevRate = await getLearnedParam(supabase, coolerId, `prev_cooling_rate:${tempBucket}`, 0)
+
+  // Save current observation for next cycle
+  await supabase.from('fermentation_learnings').upsert({
+    controller_id: coolerId,
+    parameter_name: `prev_margin_rate:${tempBucket}`,
+    learned_value: Math.round(currentMargin * 100) / 100,
+    sample_count: 1,
+    last_updated_at: new Date().toISOString(),
+  }, { onConflict: 'controller_id,parameter_name' })
+
+  await supabase.from('fermentation_learnings').upsert({
+    controller_id: coolerId,
+    parameter_name: `prev_cooling_rate:${tempBucket}`,
+    learned_value: Math.round(currentRate * 100) / 100,
+    sample_count: 1,
+    last_updated_at: new Date().toISOString(),
+  }, { onConflict: 'controller_id,parameter_name' })
+
+  // Need previous data to compare
+  if (prevMargin < 0.5 || prevRate.value < 0.05) return
+
+  // Margin increased by >1°C but rate didn't improve (within 10% tolerance)
+  const marginIncrease = currentMargin - prevMargin
+  const rateImprovement = currentRate - prevRate.value
+
+  if (marginIncrease > 1.0 && rateImprovement < prevRate.value * 0.1) {
+    // Diminishing returns detected — the previous margin was already effective enough
+    const ceilingMargin = prevMargin + 0.5 // small buffer
+    const result = await updateLearnedParam(supabase, coolerId, `max_effective_margin:${tempBucket}`, ceilingMargin, 3.0, 15.0)
+    log('MAX_MARGIN', 'action', `[${tempBucket}] Diminishing returns at margin ${currentMargin.toFixed(1)}°C — ceiling: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+  }
+}
 
 async function applyGlycolTarget(
   ctx: GlycolContext,
