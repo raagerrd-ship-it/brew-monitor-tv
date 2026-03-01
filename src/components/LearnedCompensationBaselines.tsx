@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Trash2, RefreshCw, Flame, Snowflake } from "lucide-react";
+import { Brain, Trash2, RefreshCw, Flame, Snowflake, ChevronDown, ChevronRight } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -28,9 +28,9 @@ interface LearnedEntry {
 }
 
 const BUCKET_LABELS: Record<string, string> = {
-  low: "Låg (<1.5°)",
-  medium: "Medium (1.5–3°)",
-  high: "Hög (>3°)",
+  low: "Låg",
+  medium: "Med",
+  high: "Hög",
 };
 
 const BUCKET_COLORS: Record<string, string> = {
@@ -41,24 +41,21 @@ const BUCKET_COLORS: Record<string, string> = {
 
 const STEP_TYPE_LABELS: Record<string, string> = {
   hold: "Håll",
-  ramp: "Rampa",
-  wait_for_gravity_stable: "SG-stabil",
+  ramp: "Ramp",
+  wait_for_gravity_stable: "SG-stab",
   wait_for_sg: "SG-mål",
-  wait_for_temp: "Temp-mål",
-  wait_for_acknowledgement: "Torrhumla",
-  standalone: "Fristående",
-  unknown: "Okänd",
-};
-
-const MODE_ICONS: Record<string, { icon: typeof Flame; label: string; className: string }> = {
-  heating: { icon: Flame, label: "Värme", className: "text-orange-400" },
-  cooling: { icon: Snowflake, label: "Kyla", className: "text-blue-400" },
+  wait_for_temp: "T-mål",
+  wait_for_acknowledgement: "Vänta",
+  standalone: "Fri",
+  unknown: "–",
+  profile: "Profil",
 };
 
 export function LearnedCompensationBaselines() {
   const { toast } = useToast();
   const [entries, setEntries] = useState<LearnedEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     try {
@@ -133,6 +130,15 @@ export function LearnedCompensationBaselines() {
     }
   };
 
+  const toggleRow = (id: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   if (loading) {
     return <p className="text-xs text-muted-foreground">Laddar inlärda värden…</p>;
   }
@@ -146,18 +152,17 @@ export function LearnedCompensationBaselines() {
     );
   }
 
-  // Group by controller
   const grouped = entries.reduce<Record<string, LearnedEntry[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
   }, {});
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Inlärda baselines</span>
+          <span className="text-sm font-medium">PID-baselines</span>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
@@ -168,14 +173,14 @@ export function LearnedCompensationBaselines() {
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive">
                   <Trash2 className="h-3 w-3 mr-1" />
-                  Nollställ alla
+                  Nollställ
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Nollställ alla baselines?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Alla inlärda baselines för samtliga kontrollrar tas bort. Systemet börjar om från noll och måste lära sig kompensationen på nytt.
+                    Alla inlärda baselines för samtliga kontrollrar tas bort. Systemet börjar om från noll.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -191,75 +196,110 @@ export function LearnedCompensationBaselines() {
       </div>
 
       {Object.entries(grouped).map(([name, items]) => (
-        <div key={name} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
-          <span className="text-xs font-medium">{name}</span>
-          <div className="space-y-2">
-            {items.map((item) => {
-              const modeInfo = MODE_ICONS[item.mode] ?? MODE_ICONS.cooling;
-              const ModeIcon = modeInfo.icon;
-              const hasLivePid = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
+        <div key={name} className="space-y-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
+          <table className="w-full text-xs table-fixed">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                <th className="text-left font-medium pb-1 w-[14%]"></th>
+                <th className="text-left font-medium pb-1 w-[18%]">Delta</th>
+                <th className="text-left font-medium pb-1 w-[16%]">Steg</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Korr.</th>
+                <th className="text-right font-medium pb-1 w-[18%]">Konv.</th>
+                <th className="text-right font-medium pb-1 w-[14%]"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {items.map((item) => {
+                const isHeating = item.mode === "heating";
+                const ModeIcon = isHeating ? Flame : Snowflake;
+                const modeColor = isHeating ? "text-orange-400" : "text-blue-400";
+                const corrColor = isHeating ? "text-orange-400" : "text-cyan-400";
+                const isExpanded = expandedRows.has(item.id);
+                const hasDetails = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
 
-              return (
-                <div key={item.id} className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                      <ModeIcon className={`h-3 w-3 shrink-0 ${modeInfo.className}`} />
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${BUCKET_COLORS[item.delta_bucket] ?? ""}`}>
+                return (
+                  <tr
+                    key={item.id}
+                    className={hasDetails ? "cursor-pointer hover:bg-muted/30" : ""}
+                    onClick={() => hasDetails && toggleRow(item.id)}
+                  >
+                    <td className="py-1.5">
+                      <div className="flex items-center gap-1">
+                        {hasDetails && (
+                          isExpanded
+                            ? <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/50" />
+                            : <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/50" />
+                        )}
+                        <ModeIcon className={`h-3 w-3 ${modeColor}`} />
+                      </div>
+                    </td>
+                    <td className="py-1.5">
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 leading-tight ${BUCKET_COLORS[item.delta_bucket] ?? ""}`}>
                         {BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted/30">
-                        {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
-                      </Badge>
-                      <span className="text-xs font-mono font-semibold">
-                        {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°C
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        ({item.convergence_count} konv.
-                        {item.last_converged_at && (
-                          <>, {formatRecency(item.last_converged_at)}</>
-                        )}
-                        )
-                      </span>
-                    </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Nollställ baseline?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Baseline "{BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}" ({modeInfo.label}) för {name} tas bort permanent.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleReset(item.id)}>
-                            Nollställ
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                  {hasLivePid && (
-                    <div className="ml-5 flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
-                      <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
-                      <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
-                      <span>D={item.latest_d_damping.toFixed(2)}</span>
-                      <span className="text-muted-foreground/60">err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
-                      <span className="text-muted-foreground/40">∫={item.accumulated_integral >= 0 ? "+" : ""}{item.accumulated_integral.toFixed(3)}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    </td>
+                    <td className="py-1.5 text-muted-foreground">
+                      {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
+                    </td>
+                    <td className={`py-1.5 text-right font-mono ${corrColor}`}>
+                      {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°
+                    </td>
+                    <td className="py-1.5 text-right text-muted-foreground">
+                      <span>{item.convergence_count}</span>
+                      {item.last_converged_at && (
+                        <span className="text-muted-foreground/60 ml-1">
+                          {formatRecency(item.last_converged_at)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 text-muted-foreground/40 hover:text-destructive"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Nollställ baseline?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Baseline "{BUCKET_LABELS[item.delta_bucket] ?? item.delta_bucket}" ({isHeating ? "värme" : "kyla"}) för {name} tas bort permanent.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleReset(item.id)}>
+                              Nollställ
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {/* Expanded PID details rendered outside table for proper layout */}
+          {items.map((item) => {
+            const isExpanded = expandedRows.has(item.id);
+            const hasDetails = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
+            if (!isExpanded || !hasDetails) return null;
+            return (
+              <div key={`detail-${item.id}`} className="ml-4 mb-1 flex items-center gap-3 text-[10px] text-muted-foreground/70 font-mono bg-muted/10 rounded px-2 py-1">
+                <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
+                <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
+                <span>D={item.latest_d_damping.toFixed(2)}</span>
+                <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
+                <span className="text-muted-foreground/40">∫={item.accumulated_integral >= 0 ? "+" : ""}{item.accumulated_integral.toFixed(3)}</span>
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
