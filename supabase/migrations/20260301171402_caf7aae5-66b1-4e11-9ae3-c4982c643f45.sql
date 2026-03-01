@@ -1,0 +1,1 @@
+UPDATE brew_data_snapshots SET sg = 1.0107 WHERE id IN ('2281b59c-fbd7-4510-97ff-8500296f3abf', '87271ad3-87ac-47af-bd56-995a4921b7f6')
