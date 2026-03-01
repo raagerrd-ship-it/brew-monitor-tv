@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Gauge, RefreshCw } from "lucide-react";
+import { Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -23,7 +23,7 @@ const LOAD_LABELS: Record<string, string> = {
 
 const LOAD_ORDER = ["load_0", "load_1", "load_2plus"];
 
-export function LearnedGlycolRates() {
+export function LearnedPidCoolingRates() {
   const [entries, setEntries] = useState<LearnedRate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,14 +71,14 @@ export function LearnedGlycolRates() {
   }, [loadData]);
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Laddar inlärda glykolhastigheter…</p>;
+    return <p className="text-xs text-muted-foreground">Laddar inlärda PID-kylhastigheter…</p>;
   }
 
   if (entries.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Gauge className="h-3.5 w-3.5" />
-        <span>Inga inlärda kylhastigheter ännu. Systemet lär sig automatiskt under drift.</span>
+        <Zap className="h-3.5 w-3.5" />
+        <span>Inga inlärda PID-kylhastigheter ännu. Systemet lär sig automatiskt under drift.</span>
       </div>
     );
   }
@@ -97,8 +97,8 @@ export function LearnedGlycolRates() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Gauge className="h-4 w-4 text-cyan-400" />
-          <span className="text-sm font-medium">Inlärda kylhastigheter (glykol)</span>
+           <Zap className="h-4 w-4 text-cyan-400" />
+          <span className="text-sm font-medium">PID-kylhastigheter per last</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />

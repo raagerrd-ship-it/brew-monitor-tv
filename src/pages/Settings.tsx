@@ -9,8 +9,8 @@ import { AiAuditHistory } from "@/components/AiAuditHistory";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
-import { LearnedGlycolRates } from "@/components/LearnedGlycolRates";
-import { LearnedGlycolHeadroom } from "@/components/LearnedGlycolHeadroom";
+import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
+import { LearnedPidHeadroom } from "@/components/LearnedPidHeadroom";
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -560,13 +560,13 @@ export default function Settings() {
                   <SettingsDivider />
                   <LearnedCompensationBaselines />
                   <SettingsDivider />
-                  <LearnedCoolerMarginValues />
+                  <LearnedPidCoolingRates />
                   <SettingsDivider />
-                  <LearnedGlycolRates />
-                  <SettingsDivider />
-                  <LearnedGlycolHeadroom />
+                  <LearnedPidHeadroom />
                   <SettingsDivider />
                   <LearnedThermalRates />
+                  <SettingsDivider />
+                  <LearnedCoolerMarginValues />
                 </SettingsSection>
               </CollapsibleContent>
             </Collapsible>
