@@ -359,14 +359,6 @@ serve(async (req) => {
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
     allAdjustments.push(...controllerAdjs);
 
-    // Sync in-memory targets so cooler sees updated values
-    for (const adj of controllerAdjs) {
-      const fc = followedControllersFullData.find(c => c.name === adj.cooler);
-      if (fc) {
-        (fc as any).target_temp = adj.newTarget;
-      }
-    }
-
     // ══════════════════════════════════════════════════════════════
     // COOLER MANAGEMENT (shared cooling unit)
     // ══════════════════════════════════════════════════════════════
