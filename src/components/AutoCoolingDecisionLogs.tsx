@@ -323,32 +323,7 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium">
                           {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°` : '—'}
                         </div>
-                        <div className="text-muted-foreground">Delta (snitt):</div>
-                        <div className="font-medium">
-                          <span style={{ 
-                            color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
-                          }}>
-                            {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°` : '—'}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground">Kompensation:</div>
-                        <div className="font-medium">
-                          {(() => {
-                            const change = adj.new_target_temp - adj.old_target_temp;
-                            const sign = change >= 0 ? '+' : '';
-                            return `${sign}${change.toFixed(1)}°`;
-                          })()}
-                          {adj.original_target_temp != null && (() => {
-                            const diff = adj.new_target_temp - adj.original_target_temp;
-                            const absDiff = Math.abs(diff).toFixed(1);
-                            const direction = diff > 0.04 ? 'över' : diff < -0.04 ? 'under' : 'på';
-                            return (
-                              <span className="text-muted-foreground ml-1">
-                                (totalt {absDiff}° {direction} profil)
-                              </span>
-                            );
-                          })()}
-                        </div>
+                        
                       </div>
                       {/* D-term data parsed from reason string */}
                       {(() => {
@@ -396,6 +371,32 @@ export function AutoCoolingDecisionLogs() {
                                     </span>
                                   </>
                                 ) : '—'}
+                              </div>
+                              <div className="text-muted-foreground">Delta (snitt):</div>
+                              <div className="font-medium">
+                                <span style={{ 
+                                  color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
+                                }}>
+                                  {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°` : '—'}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground">Kompensation:</div>
+                              <div className="font-medium">
+                                {(() => {
+                                  const change = adj.new_target_temp - adj.old_target_temp;
+                                  const sign = change >= 0 ? '+' : '';
+                                  return `${sign}${change.toFixed(1)}°`;
+                                })()}
+                                {adj.original_target_temp != null && (() => {
+                                  const diff = adj.new_target_temp - adj.original_target_temp;
+                                  const absDiff = Math.abs(diff).toFixed(1);
+                                  const direction = diff > 0.04 ? 'över' : diff < -0.04 ? 'under' : 'på';
+                                  return (
+                                    <span className="text-muted-foreground ml-1">
+                                      (totalt {absDiff}° {direction} profil)
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               {piTotal !== null && piTotal > 0 && (
                                 <>
