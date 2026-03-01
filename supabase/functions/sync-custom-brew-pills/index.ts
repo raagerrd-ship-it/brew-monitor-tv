@@ -1,7 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { createBrewSnapshots } from '../_shared/brew-snapshots.ts';
 
 // ── Inlined RAPT pill telemetry fetch (saves 1 HTTP hop per brew) ──
 async function fetchPillTelemetry(
@@ -120,6 +119,7 @@ serve(async (req) => {
       console.log('Using passed-in RAPT auth token');
     }
     let brewsUpdated = 0;
+    const pendingSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = [];
 
     for (const brew of customBrews) {
       try {
@@ -233,23 +233,21 @@ serve(async (req) => {
                 .eq('id', brew.id) : Promise.resolve({ error: null });
 
               const now = new Date().toISOString();
-              const snapshot = {
-                brew_id: brew.id,
-                recorded_at: now,
-                sg: brew.current_sg ?? null,
-                pill_temp: null as number | null,
-                controller_temp: ctrlFull.current_temp ?? null,
-                profile_target_temp: ctrlFull.profile_target_temp ?? null,
-                auto_target_temp: ctrlFull.target_temp ?? null,
-              };
-              const snapshotInsert = supabase.from('brew_data_snapshots').insert(snapshot);
+              // Collect controller-only snapshot for Phase 2c
+              pendingSnapshots.push({
+                brewId: brew.id,
+                controllerId: brew.linked_controller_id,
+                sgData: [{
+                  date: now,
+                  value: brew.current_sg ?? 1.000,
+                  temp: ctrlFull.current_temp ?? 0,
+                }],
+              });
 
-              // Execute both in parallel
-              const [brewRes, snapRes] = await Promise.all([brewUpdate, snapshotInsert]);
+              // Execute brew update
+              const brewRes = await brewUpdate;
               if (brewRes.error) console.error(`Failed to update brew ${brew.name}:`, brewRes.error);
               else if (fallbackTemp != null) { console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`); brewsUpdated++; }
-              if (snapRes.error) console.error(`Failed to insert snapshot for ${brew.name}:`, snapRes.error);
-              else console.log(`Created controller-only snapshot for ${brew.name}`);
             }
           }
           continue;
@@ -354,9 +352,13 @@ serve(async (req) => {
 
         console.log(`Successfully updated brew ${brew.name} with ${uniqueNewData.length} new data points`);
 
-        // Create data snapshots for all sg_data points (locks Datum, SG, Pill, Ctrl, Mål, Auto)
+        // Collect snapshot job for Phase 2c (after automation)
         if (uniqueNewData.length > 0) {
-          await createBrewSnapshots(supabase, brew.id, brew.linked_controller_id, mergedSgData);
+          pendingSnapshots.push({
+            brewId: brew.id,
+            controllerId: brew.linked_controller_id,
+            sgData: mergedSgData,
+          });
         }
 
         brewsUpdated++;
@@ -373,7 +375,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         brewsUpdated,
-        totalBrews: customBrews.length
+        totalBrews: customBrews.length,
+        pendingSnapshots,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
