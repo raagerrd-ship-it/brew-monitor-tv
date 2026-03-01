@@ -71,14 +71,11 @@ serve(async (req) => {
 
     console.log(`Found ${customBrews.length} custom brews in fermentation`);
 
-    // Get all pills with paired_device_id and controllers for auto-matching
-    const { data: allPills } = await supabase
-      .from('rapt_pills')
-      .select('pill_id, name, paired_device_id');
-    
-    const { data: allControllers } = await supabase
-      .from('rapt_temp_controllers')
-      .select('controller_id, linked_pill_id, pill_temp');
+    // Get all pills with paired_device_id and controllers for auto-matching (parallel)
+    const [{ data: allPills }, { data: allControllers }] = await Promise.all([
+      supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
+      supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp'),
+    ]);
 
     // Get auth token — prefer passed-in token from sync-rapt-data-quick, fallback to own auth
     let access_token: string;
