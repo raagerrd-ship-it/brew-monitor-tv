@@ -146,6 +146,47 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
 
         minTemp = Math.min(minTemp, currentTemp);
         maxTemp = Math.max(maxTemp, currentTemp);
+      } else if (step.step_type === 'gradual_ramp') {
+        // Smart diacetylvila: gradual ramp from current temp up by temp_increase
+        const startTemp = currentTemp;
+        const endTemp = currentTemp + (step.temp_increase ?? 4);
+        const rampDuration = step.min_ramp_hours ?? stepDuration;
+        stepDuration = Math.max(stepDuration, rampDuration);
+
+        // Start point
+        data.push({
+          hour: currentHour,
+          temp: startTemp,
+          tempSolid: null,
+          tempDashed: startTemp,
+          stepIndex: index,
+          stepType: step.step_type,
+          isWaiting: true,
+          isSgBased: false,
+          stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
+        });
+
+        // Intermediate points for the ramp curve
+        const numPoints = Math.max(4, Math.floor(stepDuration / 2));
+        for (let i = 1; i <= numPoints; i++) {
+          const progress = i / numPoints;
+          const tempValue = startTemp + (endTemp - startTemp) * progress;
+          data.push({
+            hour: currentHour + stepDuration * progress,
+            temp: tempValue,
+            tempSolid: null,
+            tempDashed: tempValue,
+            stepIndex: index,
+            stepType: step.step_type,
+            isWaiting: true,
+            isSgBased: false,
+            stepName: STEP_TYPE_LABELS[step.step_type] || step.step_type,
+          });
+        }
+
+        currentTemp = endTemp;
+        minTemp = Math.min(minTemp, startTemp, endTemp);
+        maxTemp = Math.max(maxTemp, startTemp, endTemp);
       } else {
         // Waiting steps: always use current temp from previous step (don't change temp during wait)
         const tempToUse = currentTemp;
@@ -223,6 +264,7 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
       case 'ramp': return 'hsl(38 92% 50%)'; // amber
       case 'hold': return 'hsl(var(--primary))';
       case 'hold_sg': return 'hsl(142 71% 45%)'; // green for SG-based hold
+      case 'gradual_ramp': return 'hsl(280 70% 55%)'; // purple for smart diacetyl rest
       case 'wait_for_gravity_stable': return 'hsl(142 71% 45%)'; // green
       case 'wait_for_sg': return 'hsl(142 71% 45%)';
       case 'wait_for_temp': return 'hsl(217 91% 60%)'; // blue
