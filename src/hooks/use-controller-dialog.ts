@@ -25,12 +25,18 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [currentController, setCurrentController] = useState<RaptTempController | typeof controller>(controller);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [showTempAdjust, setShowTempAdjust] = useState(false);
+  const [pillCompEnabled, setPillCompEnabled] = useState(false);
 
-  // Check authentication
+  // Check authentication + pill compensation setting
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
+
+    supabase.from('auto_cooling_settings').select('pill_compensation_enabled').limit(1).single()
+      .then(({ data }) => {
+        if (data) setPillCompEnabled(data.pill_compensation_enabled ?? false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
@@ -224,5 +230,6 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     setTargetTemperature,
     isActivelyCooling,
     isActivelyHeating,
+    pillCompEnabled,
   };
 }
