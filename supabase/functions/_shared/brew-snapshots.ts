@@ -162,7 +162,7 @@ export async function createBrewSnapshots(
  * Only runs when a brew exceeds 500 snapshots. First & last record in each
  * band are always preserved to maintain graph bounds.
  */
-async function thinSnapshots(supabase: any, brewId: string): Promise<void> {
+export async function thinSnapshots(supabase: any, brewId: string): Promise<void> {
   try {
     const { count } = await supabase
       .from('brew_data_snapshots')
