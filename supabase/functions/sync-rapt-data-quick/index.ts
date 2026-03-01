@@ -272,21 +272,20 @@ serve(async (req) => {
       }
     };
 
-    // PHASE 2a: Sync all data sources in parallel (Brewfather, temp history, custom brews)
-    const [bfResult, historyResult, customBrewResult] = await Promise.allSettled([
+    // PHASE 2a: Sync all data sources in parallel (RAPT already done in Phase 1)
+    const [bfResult, customBrewResult] = await Promise.allSettled([
       brewfatherSync(),
-      supabase.functions.invoke('record-temp-history'),
       supabase.functions.invoke('sync-custom-brew-pills'),
     ]);
 
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
-    if (historyResult.status === 'rejected') console.error('Temp history error:', historyResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
 
     const customBrewsUpdated = customBrewResult.status === 'fulfilled' && !customBrewResult.value?.error
       ? customBrewResult.value?.data?.brewsUpdated || 0 : 0;
 
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
+    // Automation (profiles, PID, cooling) needs fresh RAPT + Brewfather data
     console.log('All data synced — running automation...');
     let automationResult = null;
     try {
@@ -295,6 +294,15 @@ serve(async (req) => {
       else automationResult = autoResponse.data;
     } catch (autoErr) {
       console.error('Automation error:', autoErr);
+    }
+
+    // PHASE 2c: Log temp history AFTER automation so PID-adjusted targets are captured
+    console.log('Logging temp history with PID-adjusted values...');
+    try {
+      const historyResponse = await supabase.functions.invoke('record-temp-history');
+      if (historyResponse.error) console.error('Temp history error:', historyResponse.error);
+    } catch (histErr) {
+      console.error('Temp history error:', histErr);
     }
 
     // ── RAPT outage detection ──
