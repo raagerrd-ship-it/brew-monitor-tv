@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
 import { createBrewSnapshots } from '../_shared/brew-snapshots.ts'
-import { standardSgCorrection } from '../_shared/sg-temp-correction.ts'
+import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts'
 
 // ── Inlined RAPT auth (shared across sub-functions) ──
 async function getRaptToken(): Promise<string> {
@@ -34,7 +34,7 @@ const corsHeaders = {
 }
 
 // ── Inlined Brewfather readings fetch — returns SG-corrected values ──
-async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boolean): Promise<any[]> {
+async function fetchBrewfatherReadings(batchId: string, _sgCorrectionEnabled: boolean): Promise<any[]> {
   const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
   const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
   if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
@@ -47,13 +47,9 @@ async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boo
     }
   );
   if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
-  const readings = await res.json();
-  if (sgCorrectionEnabled) {
-    for (const r of readings) {
-      if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
-    }
-  }
-  return readings;
+  // SG correction is NOT applied here — RAPT pills already compensate internally.
+  // The per-pill residual correction is applied in the RAPT sync pipeline instead.
+  return await res.json();
 }
 
 Deno.serve(async (req) => {

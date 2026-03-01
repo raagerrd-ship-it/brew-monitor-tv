@@ -32,10 +32,11 @@ export function applySgCorrection(
   residualPerDegree: number,
   refTemp = 20
 ): number {
-  const standardCorrected = standardSgCorrection(sg, tempC, refTemp)
-  // Residual correction: compensate for pill-specific drift
+  // RAPT pills already have internal temperature compensation.
+  // Only apply the learned per-pill residual correction — NOT the standard
+  // ASBC polynomial, which would double-correct and cause SG spikes.
   const residualCorrection = residualPerDegree * (tempC - refTemp)
-  return standardCorrected - residualCorrection
+  return sg - residualCorrection
 }
 
 /**
@@ -107,13 +108,9 @@ export function calculateResidual(
   const tempDelta = currentTemp - anchorTemp
   if (Math.abs(tempDelta) < 1) return null // Not enough temp change
 
-  // Standard correction for both anchor and current
-  const anchorCorrected = standardSgCorrection(anchorSg, anchorTemp)
-  const currentCorrected = standardSgCorrection(currentSg, currentTemp)
-
-  // The residual is what remains after standard correction
-  // At the anchor, SG was stable → any SG change is drift
-  const sgDrift = currentCorrected - anchorCorrected
+  // RAPT pills already apply internal temp compensation.
+  // The residual is the remaining drift visible in the raw pill readings.
+  const sgDrift = currentSg - anchorSg
   const residualPerDegree = sgDrift / tempDelta
 
   return residualPerDegree
