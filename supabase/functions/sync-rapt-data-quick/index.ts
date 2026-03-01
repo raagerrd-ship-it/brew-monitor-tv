@@ -148,15 +148,26 @@ serve(async (req) => {
     if (selectedPillIds.length > 0) {
       const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
       if (selectedPillsData.length > 0) {
-        const pillUpserts = selectedPillsData.map((pill: any) => ({
-          pill_id: pill.id,
-          name: pill.name || pill.id,
-          color: pill.color || '#000000',
-          battery_level: Math.round(pill.battery || 0),
-          last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
-          paired_device_id: pill.pairedDeviceId || null,
-          updated_at: new Date().toISOString()
-        }));
+        // Fetch existing colors to preserve manually set values
+        const { data: existingPills } = await supabase.from('rapt_pills')
+          .select('pill_id, color')
+          .in('pill_id', selectedPillsData.map((p: any) => p.id));
+        const existingColorMap = new Map((existingPills || []).map(p => [p.pill_id, p.color]));
+
+        const pillUpserts = selectedPillsData.map((pill: any) => {
+          const existingColor = existingColorMap.get(pill.id);
+          // Keep existing color if set to something other than default black
+          const color = (existingColor && existingColor !== '#000000') ? existingColor : (pill.color && pill.color !== '#000000' ? pill.color : '#F5A623');
+          return {
+            pill_id: pill.id,
+            name: pill.name || pill.id,
+            color,
+            battery_level: Math.round(pill.battery || 0),
+            last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
+            paired_device_id: pill.pairedDeviceId || null,
+            updated_at: new Date().toISOString()
+          };
+        });
         const { error: pillUpsertErr } = await supabase.from('rapt_pills')
           .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
         if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);

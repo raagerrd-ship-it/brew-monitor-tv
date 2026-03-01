@@ -345,6 +345,26 @@ export function useControllersManagement() {
       .map(c => c.linked_pill_id as string);
   }, [controllers]);
 
+  const handleUpdatePillColor = useCallback(async (pillId: string, color: string) => {
+    setUpdating(true);
+    try {
+      isLocalChange.current = true;
+      const { error } = await supabase
+        .from('rapt_pills')
+        .update({ color })
+        .eq('pill_id', pillId);
+      if (error) throw error;
+
+      setPills(prev => prev.map(p => p.pill_id === pillId ? { ...p, color } : p));
+      toast({ title: "Färg uppdaterad", description: `Pill-färg ändrad` });
+    } catch (error) {
+      console.error('Error updating pill color:', error);
+      toast({ title: "Fel", description: "Kunde inte uppdatera färg", variant: "destructive" });
+    } finally {
+      setUpdating(false);
+    }
+  }, [toast]);
+
   const getSyncIntervalText = useCallback(() => {
     const minutes = Math.floor(syncInterval / 60);
     if (minutes === 1) return "varje minut";
@@ -376,5 +396,6 @@ export function useControllersManagement() {
     handleToggleCooler,
     getLinkedPillIds,
     getSyncIntervalText,
+    handleUpdatePillColor,
   };
 }

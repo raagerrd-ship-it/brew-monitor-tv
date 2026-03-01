@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill, Link2, Unlink } from "lucide-react";
+import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill, Link2, Unlink, Palette } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
@@ -22,6 +22,7 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
     handleToggleController, handleMoveUp, handleMoveDown,
     handleStartEditLimits, handleCancelEditLimits, handleUpdateLimits,
     handleLinkPill, handleToggleCooler, getLinkedPillIds, getSyncIntervalText,
+    handleUpdatePillColor,
   } = useControllersManagement();
 
   if (loading) {
@@ -181,28 +182,56 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
                               </p>
                             )}
                           </div>
-                          <Select value={controller.linked_pill_id || "none"} onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)} disabled={updating}>
-                            <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
-                              <span className="text-muted-foreground">Byt</span>
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border z-50">
-                              <SelectItem value="none">
-                                <div className="flex items-center gap-2"><Unlink className="h-3 w-3 text-muted-foreground" /><span>Koppla bort</span></div>
-                              </SelectItem>
-                              {pills.map((pill) => {
-                                const isAlreadyLinked = getLinkedPillIds(controller.controller_id).includes(pill.pill_id);
-                                return (
-                                  <SelectItem key={pill.pill_id} value={pill.pill_id} disabled={isAlreadyLinked}>
+                          <div className="flex items-center gap-1">
+                            <Select value={controller.linked_pill_id || "none"} onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)} disabled={updating}>
+                              <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
+                                <span className="text-muted-foreground">Byt</span>
+                              </SelectTrigger>
+                              <SelectContent className="bg-card border-border z-50">
+                                <SelectItem value="none">
+                                  <div className="flex items-center gap-2"><Unlink className="h-3 w-3 text-muted-foreground" /><span>Koppla bort</span></div>
+                                </SelectItem>
+                                {pills.map((pill) => {
+                                  const isAlreadyLinked = getLinkedPillIds(controller.controller_id).includes(pill.pill_id);
+                                  return (
+                                    <SelectItem key={pill.pill_id} value={pill.pill_id} disabled={isAlreadyLinked}>
+                                      <div className="flex items-center gap-2">
+                                        <Pill className="h-3 w-3" style={{ color: pill.color }} />
+                                        <span>{pill.name}</span>
+                                        {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                            <Select value={linkedPill.color} onValueChange={(value) => handleUpdatePillColor(linkedPill.pill_id, value)} disabled={updating}>
+                              <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-3 h-3 rounded-full border border-border/50" style={{ backgroundColor: linkedPill.color }} />
+                                </div>
+                              </SelectTrigger>
+                              <SelectContent className="bg-card border-border z-50">
+                                {[
+                                  { value: '#F5A623', label: 'Gul' },
+                                  { value: '#4CAF50', label: 'Grön' },
+                                  { value: '#42A5F5', label: 'Blå' },
+                                  { value: '#EF5350', label: 'Röd' },
+                                  { value: '#AB47BC', label: 'Lila' },
+                                  { value: '#FF7043', label: 'Orange' },
+                                  { value: '#26C6DA', label: 'Cyan' },
+                                  { value: '#EC407A', label: 'Rosa' },
+                                ].map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
                                     <div className="flex items-center gap-2">
-                                      <Pill className="h-3 w-3" style={{ color: pill.color }} />
-                                      <span>{pill.name}</span>
-                                      {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
+                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: opt.value }} />
+                                      <span>{opt.label}</span>
                                     </div>
                                   </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-3">
