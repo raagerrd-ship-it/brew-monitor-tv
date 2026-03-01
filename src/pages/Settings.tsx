@@ -136,7 +136,7 @@ export default function Settings() {
                 {/* Brewfather */}
                 <Collapsible>
                   <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
@@ -161,7 +161,9 @@ export default function Settings() {
                           </Badge>
                         )}
                       </div>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4 space-y-3">
                       <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/40">
@@ -222,7 +224,7 @@ export default function Settings() {
                 {/* RAPT */}
                 <Collapsible>
                   <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
@@ -241,7 +243,9 @@ export default function Settings() {
                           </Badge>
                         )}
                       </div>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4 space-y-3">
                       {settings.apiSettings?.rapt && (
@@ -267,7 +271,7 @@ export default function Settings() {
                 {/* Brygg-timer */}
                 <Collapsible>
                   <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
@@ -286,7 +290,9 @@ export default function Settings() {
                           </Badge>
                         )}
                       </div>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4 space-y-3">
                       {externalLoading ? (
@@ -323,7 +329,7 @@ export default function Settings() {
                 {/* Sonos */}
                 <Collapsible>
                   <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
@@ -336,7 +342,9 @@ export default function Settings() {
                           <Check className="h-2.5 w-2.5 mr-0.5" /> OK
                         </Badge>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4">
                       <p className="text-xs text-muted-foreground">Ansluten. Se inställningar under <span className="font-medium text-foreground">Sonos</span>-sektionen nedan.</p>
