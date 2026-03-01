@@ -37,12 +37,12 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, log } = ctx
   const adjustments: AdjustmentResult[] = []
 
-  log('COOLING', 'info', '--- Glycol cooling check ---')
+  log('COOLING', 'info', '--- Cooler management check ---')
 
-  // ── Find glycol cooler ────────────────────────────────────
+  // ── Find cooler ────────────────────────────────────
   const coolerController = allControllers.find(c => (c as any).is_glycol_cooler) as TempController | undefined
   if (!coolerController) {
-    log('COOLER_CONFIG', 'fail', 'No controller marked as glycol cooler')
+    log('COOLER_CONFIG', 'fail', 'No controller marked as cooler')
     return adjustments
   }
 
@@ -101,15 +101,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Clamp margin to max effective (no point going beyond diminishing returns)
   const effectiveMargin = Math.min(learnedMargin.value, maxEffective.value)
-  const desiredGlycolTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
-  const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredGlycolTarget))
+  const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
+  const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
-  log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = glycol ${clampedTarget.toFixed(1)}°C`, {
+  log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
     margin_samples: learnedMargin.sampleCount,
     learned_margin: learnedMargin.value,
     max_effective: maxEffective.value,
-    current_glycol: currentCoolerTarget,
+    current_cooler: currentCoolerTarget,
     required_rate: effectiveTarget.requiredRatePerHour,
   })
 
@@ -136,7 +136,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     return adjustments
   }
 
-  // ── Block raising glycol during active downward ramps ─────
+  // ── Block raising cooler during active downward ramps ─────
   if (clampedTarget > currentCoolerTarget) {
     if (effectiveTarget.isRampingDown) {
       log('RAMP_BLOCK', 'info', 'Blockerar höjning — aktiv nedåtramp pågår')
