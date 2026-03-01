@@ -111,147 +111,159 @@ serve(async (req) => {
 
     // ──────────────────────────────────────────────────────
     // PHASE 1: RAPT device sync (pills + controllers)
+    // Non-fatal: if RAPT auth/API fails, continue with
+    // Brewfather, custom brews, automation and history.
     // ──────────────────────────────────────────────────────
 
-    // Get auth token (use passed token if available) + selected devices IN PARALLEL
-    console.log('Getting RAPT auth token + selected devices...');
-    const [access_token, { data: selectedPills }, { data: selectedControllers }] = await Promise.all([
-      passedToken ? Promise.resolve(passedToken) : getRaptToken(),
-      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
-      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-    ]);
-
-    const selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
-    const selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
-
-    // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
-    const [allPills, allControllers] = await Promise.all([
-      selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
-      selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
-    ]);
-
-    // Build pill temperature map
+    let access_token: string | null = null;
+    let selectedPillIds: string[] = [];
+    let selectedControllerIds: string[] = [];
+    let allPills: any[] = [];
+    let allControllers: any[] = [];
     const pillTempMap = new Map<string, number>();
-
-    for (const pill of allPills) {
-      const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
-      if (temp !== undefined && temp !== null && temp !== 0) {
-        pillTempMap.set(pill.id, temp);
-      }
-    }
-
     let pillsUpdated = 0;
     let controllersUpdated = 0;
     let controllerUpdates: Record<string, any>[] = [];
+    let raptFailed = false;
 
-    // Update Pills — batch upsert instead of sequential updates
-    if (selectedPillIds.length > 0) {
-      const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
-      if (selectedPillsData.length > 0) {
-        // Fetch existing colors to preserve manually set values
-        const { data: existingPills } = await supabase.from('rapt_pills')
-          .select('pill_id, color')
-          .in('pill_id', selectedPillsData.map((p: any) => p.id));
-        const existingColorMap = new Map((existingPills || []).map(p => [p.pill_id, p.color]));
+    // Always fetch selected devices (needed for temp history even on RAPT failure)
+    console.log('Getting RAPT auth token + selected devices...');
+    const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
+      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
+      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
+    ]);
+    selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
+    selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
 
-        const pillUpserts = selectedPillsData.map((pill: any) => {
-          const existingColor = existingColorMap.get(pill.id);
-          // Keep existing color if set to something other than default black
-          const color = (existingColor && existingColor !== '#000000') ? existingColor : (pill.color && pill.color !== '#000000' ? pill.color : '#F5A623');
-          return {
-            pill_id: pill.id,
-            name: pill.name || pill.id,
-            color,
-            battery_level: Math.round(pill.battery || 0),
-            last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
-            paired_device_id: pill.pairedDeviceId || null,
+    try {
+      // Get auth token (use passed token if available)
+      access_token = passedToken || await getRaptToken();
+
+      // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
+      const [fetchedPills, fetchedControllers] = await Promise.all([
+        selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
+        selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
+      ]);
+      allPills = fetchedPills;
+      allControllers = fetchedControllers;
+
+      // Build pill temperature map
+      for (const pill of allPills) {
+        const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
+        if (temp !== undefined && temp !== null && temp !== 0) {
+          pillTempMap.set(pill.id, temp);
+        }
+      }
+
+      // Update Pills — batch upsert instead of sequential updates
+      if (selectedPillIds.length > 0) {
+        const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
+        if (selectedPillsData.length > 0) {
+          const { data: existingPills } = await supabase.from('rapt_pills')
+            .select('pill_id, color')
+            .in('pill_id', selectedPillsData.map((p: any) => p.id));
+          const existingColorMap = new Map((existingPills || []).map(p => [p.pill_id, p.color]));
+
+          const pillUpserts = selectedPillsData.map((pill: any) => {
+            const existingColor = existingColorMap.get(pill.id);
+            const color = (existingColor && existingColor !== '#000000') ? existingColor : (pill.color && pill.color !== '#000000' ? pill.color : '#F5A623');
+            return {
+              pill_id: pill.id,
+              name: pill.name || pill.id,
+              color,
+              battery_level: Math.round(pill.battery || 0),
+              last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
+              paired_device_id: pill.pairedDeviceId || null,
+              updated_at: new Date().toISOString()
+            };
+          });
+          const { error: pillUpsertErr } = await supabase.from('rapt_pills')
+            .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
+          if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);
+          else pillsUpdated = selectedPillsData.length;
+        }
+      }
+
+      // Update Controllers with enriched pill_temp
+      if (selectedControllerIds.length > 0) {
+        const selectedControllersData = allControllers.filter((c: any) => selectedControllerIds.includes(c.id));
+
+        const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
+          supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
+          supabase.from('auto_cooling_settings').select('cooler_controller_id, enabled').single(),
+          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp')
+            .in('controller_id', selectedControllersData.map((c: any) => c.id)),
+        ]);
+        const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
+        const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
+        const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
+
+        for (const controller of selectedControllersData) {
+          const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
+          const targetTemp = controller.targetTemperature;
+          const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
+
+          let pillTemp: number | null = null;
+          let linkedPillId: string | null = null;
+          const apiLinkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId || null;
+          if (apiLinkedPillId && pillTempMap.has(apiLinkedPillId)) {
+            pillTemp = pillTempMap.get(apiLinkedPillId)!;
+            linkedPillId = apiLinkedPillId;
+          } else {
+            const dbLinkedPillId = existingMap.get(controller.id)?.linked_pill_id;
+            if (dbLinkedPillId && pillTempMap.has(dbLinkedPillId)) {
+              pillTemp = pillTempMap.get(dbLinkedPillId)!;
+              linkedPillId = dbLinkedPillId;
+            } else {
+              const apiPillTemp = controller.controlDeviceTemperature;
+              if (apiPillTemp && apiPillTemp !== 0) pillTemp = apiPillTemp;
+            }
+          }
+
+          const hasActiveSession = controllersWithActiveSessions.has(controller.id);
+          const isCoolerController = controller.id === coolerControllerId;
+
+          const updateData: Record<string, any> = {
+            controller_id: controller.id,
+            name: controller.name || controller.id,
+            current_temp: currentTemp,
+            pill_temp: pillTemp,
+            cooling_enabled: controller.coolingEnabled || false,
+            heating_enabled: controller.heatingEnabled || false,
+            heating_utilisation: controller.heatingUtilisation || 0,
+            cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
+            heating_hysteresis: controller.heatingHysteresis ?? 0.2,
+            cooling_run_time: controller.coolingRunTime || 0,
+            cooling_starts: controller.coolingStarts || 0,
+            heating_run_time: controller.heatingRunTime || 0,
+            heating_starts: controller.heatingStarts || 0,
+            last_update: lastUpdate,
             updated_at: new Date().toISOString()
           };
-        });
-        const { error: pillUpsertErr } = await supabase.from('rapt_pills')
-          .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
-        if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);
-        else pillsUpdated = selectedPillsData.length;
-      }
-    }
 
-    // Update Controllers with enriched pill_temp
-    if (selectedControllerIds.length > 0) {
-      const selectedControllersData = allControllers.filter((c: any) => selectedControllerIds.includes(c.id));
-
-      // Fetch all 3 DB queries in parallel
-      const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
-        supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-        supabase.from('auto_cooling_settings').select('cooler_controller_id, enabled').single(),
-        supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp')
-          .in('controller_id', selectedControllersData.map((c: any) => c.id)),
-      ]);
-      const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-      const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
-      const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
-
-      for (const controller of selectedControllersData) {
-        const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
-        const targetTemp = controller.targetTemperature;
-        const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
-
-        let pillTemp: number | null = null;
-        let linkedPillId: string | null = null;
-        const apiLinkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId || null;
-        if (apiLinkedPillId && pillTempMap.has(apiLinkedPillId)) {
-          pillTemp = pillTempMap.get(apiLinkedPillId)!;
-          linkedPillId = apiLinkedPillId;
-        } else {
-          const dbLinkedPillId = existingMap.get(controller.id)?.linked_pill_id;
-          if (dbLinkedPillId && pillTempMap.has(dbLinkedPillId)) {
-            pillTemp = pillTempMap.get(dbLinkedPillId)!;
-            linkedPillId = dbLinkedPillId;
+          if (linkedPillId) updateData.linked_pill_id = linkedPillId;
+          if (!hasActiveSession && !isCoolerController) {
+            updateData.target_temp = targetTemp;
           } else {
-            const apiPillTemp = controller.controlDeviceTemperature;
-            if (apiPillTemp && apiPillTemp !== 0) pillTemp = apiPillTemp;
+            updateData.target_temp = existingMap.get(controller.id)?.target_temp ?? targetTemp;
           }
+
+          controllerUpdates.push(updateData);
+          controllersUpdated++;
         }
 
-        const hasActiveSession = controllersWithActiveSessions.has(controller.id);
-        const isCoolerController = controller.id === coolerControllerId;
-
-        const updateData: Record<string, any> = {
-          controller_id: controller.id,
-          name: controller.name || controller.id,
-          current_temp: currentTemp,
-          pill_temp: pillTemp,
-          cooling_enabled: controller.coolingEnabled || false,
-          heating_enabled: controller.heatingEnabled || false,
-          heating_utilisation: controller.heatingUtilisation || 0,
-          cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
-          heating_hysteresis: controller.heatingHysteresis ?? 0.2,
-          cooling_run_time: controller.coolingRunTime || 0,
-          cooling_starts: controller.coolingStarts || 0,
-          heating_run_time: controller.heatingRunTime || 0,
-          heating_starts: controller.heatingStarts || 0,
-          last_update: lastUpdate,
-          updated_at: new Date().toISOString()
-        };
-
-        if (linkedPillId) updateData.linked_pill_id = linkedPillId;
-        if (!hasActiveSession && !isCoolerController) {
-          updateData.target_temp = targetTemp;
-        } else {
-          updateData.target_temp = existingMap.get(controller.id)?.target_temp ?? targetTemp;
+        if (controllerUpdates.length > 0) {
+          const { error: upsertError } = await supabase.from('rapt_temp_controllers')
+            .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
+          if (upsertError) throw upsertError;
         }
-
-        controllerUpdates.push(updateData);
-        controllersUpdated++;
       }
 
-      if (controllerUpdates.length > 0) {
-        const { error: upsertError } = await supabase.from('rapt_temp_controllers')
-          .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
-        if (upsertError) throw upsertError;
-      }
+      console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
+    } catch (raptError) {
+      raptFailed = true;
+      console.error('RAPT sync failed (non-fatal, continuing with remaining tasks):', raptError);
     }
-
-    console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
 
     // ──────────────────────────────────────────────────────
     // PHASE 2: Brewfather readings (quick) + automation
@@ -388,7 +400,7 @@ serve(async (req) => {
       ? customBrewResult.value?.data?.brewsUpdated || 0 : 0;
 
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
-    // Automation (profiles, PID, cooling) needs fresh RAPT + Brewfather data
+    // Automation uses cached DB data, so it can run even without fresh RAPT data
     console.log('All data synced — running automation...');
     let automationResult = null;
     try {
@@ -461,7 +473,8 @@ serve(async (req) => {
           });
         }
       }
-      if (syncSettingsRow?.id) {
+      // Only mark successful if RAPT actually synced
+      if (syncSettingsRow?.id && !raptFailed) {
         await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettingsRow.id);
       }
     };
@@ -470,10 +483,11 @@ serve(async (req) => {
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
 
-    console.log(`Unified quick sync complete: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
+    const raptStatus = raptFailed ? ' (RAPT FAILED — degraded mode)' : '';
+    console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
 
     return new Response(
-      JSON.stringify({ success: true, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult }),
+      JSON.stringify({ success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
