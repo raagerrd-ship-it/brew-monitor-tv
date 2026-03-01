@@ -132,17 +132,9 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   const probeGap = lowestCurrentTemp - lowestTargetTemp
   const isActivelyCooling = probeGap > lowestHysteresis
 
-  // Closeness guard: if probe is within 0.5°C of target, the RAPT controller
-  // handles this on its own — glycol should NOT intervene with "struggling" logic.
-  // This prevents false triggers when PID ramps the target down in small steps.
-  const CLOSENESS_THRESHOLD = 0.5
-  const isCloseEnough = probeGap <= CLOSENESS_THRESHOLD
-
-  log('ACTIVE_COOLING_CHECK', isActivelyCooling ? (isCloseEnough ? 'info' : 'pass') : 'info',
+  log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info',
     isActivelyCooling
-      ? (isCloseEnough
-        ? `${lowestTempController.name} is cooling but close to target (${probeGap.toFixed(2)}°C gap ≤ ${CLOSENESS_THRESHOLD}°C) — controller handles this`
-        : `${lowestTempController.name} IS actively cooling (${probeGap.toFixed(2)}°C above target)`)
+      ? `${lowestTempController.name} IS actively cooling (${probeGap.toFixed(2)}°C above target)`
       : `${lowestTempController.name} is NOT actively cooling`, {
       current_temp: round1(lowestCurrentTemp),
       target_temp: round1(lowestTargetTemp),
@@ -151,7 +143,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     })
 
   try {
-    if (isActivelyCooling && !isCloseEnough) {
+    if (isActivelyCooling) {
       await handleActiveCooling(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments, coolerTargetRef)
     } else {
       await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
