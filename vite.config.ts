@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => ({
         name: "Brew Monitor",
         short_name: "BrewMon",
         description: "Professionell jäsningsövervakning",
-        theme_color: "#1a1d2e",
-        background_color: "#12141c",
+        theme_color: "#000000",
+        background_color: "#000000",
         display: "standalone",
         icons: [
           { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
