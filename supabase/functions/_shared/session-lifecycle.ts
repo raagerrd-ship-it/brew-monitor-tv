@@ -30,6 +30,14 @@ export async function completeProfile(
   // Clear profile_target_temp (via shared helper — SSOT)
   await clearProfileTarget(supabase, session.controller_id)
 
+  // Clear stale PID adjustment history so non-profile PID uses the
+  // user's manual target_temp as baseline instead of the old profile target
+  await supabase
+    .from('auto_cooling_adjustments')
+    .delete()
+    .eq('cooler_controller_id', session.controller_id)
+    .like('reason', '🎯%')
+
   // Notification
   await insertNotification(supabase, {
     type: 'profile_completed',
