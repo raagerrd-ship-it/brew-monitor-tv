@@ -12,7 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { controllerId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { controllerId, access_token: passedToken } = body;
     
     if (!controllerId) {
       throw new Error('Controller ID is required');
@@ -20,36 +21,35 @@ serve(async (req) => {
 
     console.log(`Fetching profile sessions for controller ${controllerId}`);
 
-    // Get RAPT credentials
-    const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-    const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
-    
-    if (!RAPT_USERNAME || !RAPT_API_SECRET) {
-      throw new Error('RAPT credentials not configured');
+    // Use passed token or authenticate
+    let accessToken = passedToken;
+    if (!accessToken) {
+      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+      
+      if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+        throw new Error('RAPT credentials not configured');
+      }
+
+      const formData = new URLSearchParams();
+      formData.append('client_id', 'rapt-user');
+      formData.append('grant_type', 'password');
+      formData.append('username', RAPT_USERNAME);
+      formData.append('password', RAPT_API_SECRET);
+
+      const authResponse = await fetch('https://id.rapt.io/connect/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      });
+
+      if (!authResponse.ok) {
+        throw new Error(`RAPT auth error: ${authResponse.status}`);
+      }
+
+      const authData = await authResponse.json();
+      accessToken = authData.access_token;
     }
-
-    // Get bearer token
-    const formData = new URLSearchParams();
-    formData.append('client_id', 'rapt-user');
-    formData.append('grant_type', 'password');
-    formData.append('username', RAPT_USERNAME);
-    formData.append('password', RAPT_API_SECRET);
-
-    const authResponse = await fetch('https://id.rapt.io/connect/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
-    });
-
-    if (!authResponse.ok) {
-      console.error('RAPT auth error:', authResponse.status);
-      throw new Error(`RAPT auth error: ${authResponse.status}`);
-    }
-
-    const authData = await authResponse.json();
-    const accessToken = authData.access_token;
 
     // Get all temperature controllers to find profile session information
     const controllersEndpoint = 'https://api.rapt.io/api/TemperatureControllers/GetTemperatureControllers';

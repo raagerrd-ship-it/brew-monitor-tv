@@ -161,12 +161,14 @@ Deno.serve(async (req) => {
     
     const deltaMap = new Map<string, { delta: number }[]>();
     if (controllerIds.length > 0) {
+      // Scale limit by number of controllers to get ~200 per device
+      const scaledLimit = Math.min(200 * controllerIds.length, 1000);
       const { data: deltas } = await supabase
         .from('temp_delta_history')
         .select('controller_id, delta')
         .in('controller_id', controllerIds)
         .order('recorded_at', { ascending: false })
-        .limit(200);
+        .limit(scaledLimit);
 
       (deltas || []).forEach((d: any) => {
         const list = deltaMap.get(d.controller_id) || [];
