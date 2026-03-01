@@ -5,7 +5,7 @@ import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
 import { StallSettings } from '../_shared/stall-detection.ts';
 import { runControllerAdjustments, ControllerAdjustmentContext } from '../_shared/controller-adjustments.ts';
-import { runCoolerCooling, CoolerContext } from '../_shared/glycol-cooling.ts';
+import { runCoolerCooling, CoolerContext } from '../_shared/cooler-management.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
