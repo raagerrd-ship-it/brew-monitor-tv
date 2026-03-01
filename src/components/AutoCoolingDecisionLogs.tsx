@@ -11,19 +11,25 @@ interface ParsedField { label: string; value: string; color?: string }
 function parsePillCompMessage(msg: string): ParsedField[] | null {
   // Match: "Controller: PID X°C → Y°C (delta=D, komp=K°C, D-term: rate=R°/h, damp=D, PI=...)"
   // Use flexible regex that doesn't require matching closing paren
-  const pidMatch = msg.match(/^(.+?):\s*PID\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*\(delta=([\d.]+),\s*komp=([\d.]+)°C/);
+  // Match both regular PID changes and "ingen ändring" entries
+  const pidMatch = msg.match(/^(.+?):\s*PID\s*([\d.]+)°C\s*→\s*([\d.]+)°C\s*[\(]/);
   if (pidMatch) {
-    const [, name, from, to, delta, komp] = pidMatch;
+    const [, name, from, to] = pidMatch;
+    const deltaMatch = msg.match(/delta=([-\d.]+)/);
+    const kompMatch = msg.match(/komp=([-\d.]+)°C/);
     const rateMatch = msg.match(/rate=([-\d.]+)°\/h/);
     const dampMatch = msg.match(/damp=([\d.]+)/);
+    const delta = deltaMatch ? deltaMatch[1] : null;
+    const komp = kompMatch ? kompMatch[1] : null;
     const rate = rateMatch ? rateMatch[1] : null;
     const damp = dampMatch ? dampMatch[1] : null;
+    const noChange = msg.includes('ingen ändring');
     const fields: ParsedField[] = [
       { label: 'Styrenhet', value: name },
-      { label: 'Profilmål → Börvärde', value: `${from}° → ${to}°` },
-      { label: 'Delta', value: `${delta}°`, color: parseFloat(delta) > 2 ? 'hsl(38 92% 50%)' : undefined },
-      { label: 'Kompensation', value: `${komp}°` },
+      { label: 'Status', value: noChange ? `PID ${from}° → ${to}° (ingen ändring)` : `PID ${from}° → ${to}°` },
     ];
+    if (delta) fields.push({ label: 'Delta', value: `${delta}°`, color: parseFloat(delta) > 2 ? 'hsl(38 92% 50%)' : undefined });
+    if (komp) fields.push({ label: 'Kompensation', value: `${komp}°` });
     if (rate) fields.push({ label: 'Pill-hastighet', value: `${rate}°C/h`, color: parseFloat(rate) < 0 ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)' });
     if (damp) fields.push({ label: 'Dämpning', value: parseFloat(damp) < 1.0 ? `${(parseFloat(damp) * 100).toFixed(0)}%` : '100%' });
     
@@ -602,23 +608,6 @@ export function AutoCoolingDecisionLogs() {
         // Decision log entry (fallback for entries without matching adjustment)
         const log = entry.data as DecisionLog;
         
-        // Extract active brakes from PILL_COMP_ACTION decisions for summary
-        const activeBrakes: string[] = [];
-        for (const d of log.decisions) {
-          if (d.step.startsWith('PILL_COMP')) {
-            const lm = d.message.match(/limits=\[([^\]]+)\]/);
-            if (lm) {
-              const cs = lm[1].split(',');
-              if (cs.includes('overshoot-clamp')) activeBrakes.push('🔒 Clamp');
-              if (cs.includes('ramp-hold')) activeBrakes.push('🔒 Hold');
-              if (cs.includes('approach-release')) activeBrakes.push('🚀 Release');
-              if (cs.includes('dir-clamp')) activeBrakes.push('🔒 Dir');
-              if (cs.some(c => c.startsWith('rate-limit'))) activeBrakes.push('⏱ Rate');
-              if (cs.some(c => c.startsWith('approach='))) activeBrakes.push('🎯 Approach');
-            }
-          }
-        }
-        const uniqueBrakes = [...new Set(activeBrakes)];
         
         return (
           <Collapsible key={`dec-${log.id}`}>
@@ -633,11 +622,6 @@ export function AutoCoolingDecisionLogs() {
                 </Badge>
                 <span className="text-muted-foreground">{formatTime(log.created_at)}</span>
                 <span className="font-medium truncate max-w-[120px]">{log.final_result}</span>
-                {uniqueBrakes.length > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20 whitespace-nowrap">
-                    {uniqueBrakes.join(' ')}
-                  </span>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground">{log.duration_ms}ms</span>
