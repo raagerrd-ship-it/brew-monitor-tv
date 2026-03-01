@@ -178,6 +178,7 @@ Deno.serve(async (req) => {
     }
 
     let brewUpdatesCount = 0
+    let pendingFullSyncSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = []
 
     if (brewfatherEnabled && visibleBatchIds.size > 0) {
       const brewfatherBatchIds = [...visibleBatchIds].filter(id => !id.startsWith('custom_'))
@@ -247,16 +248,20 @@ Deno.serve(async (req) => {
           if (upsertError) throw upsertError
           brewUpdatesCount = brewUpdates.length
 
+          // Collect snapshot jobs for Step 5 (after automation + history logging)
           const brewRecordsMap = new Map((brewRecords || []).map((r: any) => [r.batch_id, r]))
-          const snapshotTasks = brewUpdates
-            .filter((u: any) => (u.status === 'Jäsning' || u.status === 'Fermenting') && u.sg_data?.length > 0)
-            .map(async (u: any) => {
-              const record = brewRecordsMap.get(u.batch_id)
+          for (const u of brewUpdates) {
+            if (((u as any).status === 'Jäsning' || (u as any).status === 'Fermenting') && (u as any).sg_data?.length > 0) {
+              const record = brewRecordsMap.get((u as any).batch_id)
               if (record) {
-                await createBrewSnapshots(supabase, record.id, record.linked_controller_id, u.sg_data)
+                pendingFullSyncSnapshots.push({
+                  brewId: record.id,
+                  controllerId: record.linked_controller_id,
+                  sgData: (u as any).sg_data,
+                })
               }
-            })
-          if (snapshotTasks.length > 0) await Promise.allSettled(snapshotTasks)
+            }
+          }
         }
       }
     }
@@ -317,6 +322,16 @@ Deno.serve(async (req) => {
       }
     } else {
       console.log('AI audit disabled, skipping')
+    }
+
+    // ──────────────────────────────────────────────────────
+    // STEP 5: Create brew snapshots (AFTER automation + history)
+    // ──────────────────────────────────────────────────────
+    if (pendingFullSyncSnapshots.length > 0) {
+      console.log(`Creating ${pendingFullSyncSnapshots.length} brew snapshot(s) (post-automation)...`)
+      for (const s of pendingFullSyncSnapshots) {
+        await createBrewSnapshots(supabase, s.brewId, s.controllerId, s.sgData)
+      }
     }
 
     console.log(`FULL sync completed: ${brewUpdatesCount} brews`)

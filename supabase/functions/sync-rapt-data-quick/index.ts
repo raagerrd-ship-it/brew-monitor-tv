@@ -277,6 +277,8 @@ serve(async (req) => {
       : { data: [] as any[] };
 
     let brewsUpdated = 0;
+    // Collect pending snapshot jobs from brewfatherSync for execution in Phase 2c
+    const pendingSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = [];
 
     const brewfatherSync = async () => {
       if (!selectedBrews || selectedBrews.length === 0) return;
@@ -347,21 +349,19 @@ serve(async (req) => {
         brewsUpdated = brewUpdates.length;
         console.log(`Brewfather quick sync: ${brewsUpdated} brews updated`);
 
-        // Create snapshots for fermenting brews (parallel)
-        // Reuse id + linked_controller_id from existingBrewsMap (no re-query needed)
-        const snapshotTasks = brewUpdates
-          .filter((u: any) => {
-            const status = u.status || '';
-            return (status === 'Jäsning' || status === 'Fermenting') && u.sg_data?.length > 0;
-          })
-          .map(async (u: any) => {
-            const existingBrew = existingBrewsMap.get(u.batch_id);
+        // Collect snapshot jobs for Phase 2c (after automation)
+        for (const u of brewUpdates) {
+          const status = (u as any).status || '';
+          if ((status === 'Jäsning' || status === 'Fermenting') && (u as any).sg_data?.length > 0) {
+            const existingBrew = existingBrewsMap.get((u as any).batch_id);
             if (existingBrew?.id) {
-              await createBrewSnapshots(supabase, existingBrew.id, existingBrew.linked_controller_id, u.sg_data);
+              pendingSnapshots.push({
+                brewId: existingBrew.id,
+                controllerId: existingBrew.linked_controller_id,
+                sgData: (u as any).sg_data,
+              });
             }
-          });
-        if (snapshotTasks.length > 0) {
-          await Promise.allSettled(snapshotTasks);
+          }
         }
       }
     };
@@ -413,9 +413,10 @@ serve(async (req) => {
       console.error('Automation error:', autoErr);
     }
 
-    // PHASE 2c: Log temp history + outage detection in PARALLEL after automation
-    // Both are independent. Temp history needs PID-adjusted values (hence after automation).
-    console.log('Logging temp history + outage detection (parallel)...');
+    // PHASE 2c: Log temp history + outage detection + snapshots in PARALLEL after automation
+    // All are independent. Temp history needs PID-adjusted values (hence after automation).
+    // Snapshots use finalized controller state (after PID), ensuring correct Ctrl/Mål/PID values.
+    console.log('Logging temp history + outage detection + snapshots (parallel)...');
 
     const tempHistoryTask = async () => {
       // Reuse selectedControllerIds from Phase 1 — no need to re-query selected_rapt_temp_controllers
@@ -479,9 +480,18 @@ serve(async (req) => {
       }
     };
 
-    const [histResult, outageResult] = await Promise.allSettled([tempHistoryTask(), outageTask()]);
+    const snapshotTask = async () => {
+      if (pendingSnapshots.length === 0) return;
+      console.log(`Creating ${pendingSnapshots.length} brew snapshot(s) (post-automation)...`);
+      for (const s of pendingSnapshots) {
+        await createBrewSnapshots(supabase, s.brewId, s.controllerId, s.sgData);
+      }
+    };
+
+    const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
+    if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
 
     const raptStatus = raptFailed ? ' (RAPT FAILED — degraded mode)' : '';
     console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
