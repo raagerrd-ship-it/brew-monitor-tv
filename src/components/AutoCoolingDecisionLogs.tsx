@@ -492,32 +492,53 @@ export function AutoCoolingDecisionLogs() {
                     </div>
                   )}
 
-                  {category === 'glykol' && (
+                  {category === 'glykol' && (() => {
+                    const isRaising = adj.new_target_temp > adj.old_target_temp;
+                    const margin = adj.followed_target_temp != null
+                      ? Math.abs(adj.followed_target_temp - adj.new_target_temp)
+                      : null;
+                    return (
                     <div className="text-xs space-y-1.5">
                       <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(210 80% 60%)' }}>
                         ❄️ Glykolkylare
                       </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+
+                      {/* Human-readable explanation */}
+                      <p className="text-[11px] leading-relaxed">
+                        {isRaising ? (
+                          <>Tankens mål har <span className="text-amber-400 font-medium">ökat</span> — kylaren behöver inte kyla lika hårt och kan höjas från {r1(adj.old_target_temp)}° till {r1(adj.new_target_temp)}° för att spara energi.</>
+                        ) : (
+                          <>Tankens mål har <span className="text-blue-400 font-medium">sänkts</span> — kylaren sänks från {r1(adj.old_target_temp)}° till {r1(adj.new_target_temp)}° för att möta det nya behovet.</>
+                        )}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] pt-1 border-t border-border/50">
                         <div className="text-muted-foreground">Styrande tank:</div>
                         <div className="font-medium">{adj.followed_controller_name || '—'}</div>
-                        {adj.followed_current_temp !== null && (
-                          <>
-                            <div className="text-muted-foreground">Tank aktuell:</div>
-                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
-                          </>
-                        )}
                         {adj.followed_target_temp !== null && (
                           <>
                             <div className="text-muted-foreground">Tank mål:</div>
                             <div className="font-medium">{adj.followed_target_temp.toFixed(1)}°</div>
                           </>
                         )}
+                        {adj.followed_current_temp !== null && (
+                          <>
+                            <div className="text-muted-foreground">Tank aktuell:</div>
+                            <div className="font-medium">{adj.followed_current_temp.toFixed(1)}°</div>
+                          </>
+                        )}
                         <div className="text-muted-foreground">Kylare:</div>
                         <div className="font-medium">{r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</div>
+                        {margin !== null && (
+                          <>
+                            <div className="text-muted-foreground">Inlärd marginal:</div>
+                            <div className="font-medium">{margin.toFixed(1)}°C</div>
+                          </>
+                        )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1 italic">{adj.reason}</p>
                     </div>
-                  )}
+                    );
+                  })()}
 
                 </div>
               </CollapsibleContent>
