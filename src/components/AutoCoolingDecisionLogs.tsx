@@ -289,15 +289,8 @@ export function AutoCoolingDecisionLogs() {
                   </div>
                   
                   {category === 'pill-comp' && (() => {
-                    const isLowering = adj.new_target_temp < adj.old_target_temp;
                     const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
                       ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
-                    const profileTarget = adj.original_target_temp;
-                    const distanceToTarget = avgTemp !== null && profileTarget !== null ? avgTemp - profileTarget : null;
-                    const reason = adj.reason || '';
-                    const dampMatch = reason.match(/damp=([\d.]+)/);
-                    const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
-                    const isApproachZone = damp !== null && damp < 1.0;
 
                     return (
                     <div className="text-xs space-y-1.5">
@@ -305,26 +298,7 @@ export function AutoCoolingDecisionLogs() {
                         🎯 Pill-kompensation
                       </p>
 
-                      {/* Human-readable explanation */}
-                      <p className="text-[11px] leading-relaxed">
-                        {distanceToTarget !== null && profileTarget !== null ? (
-                          distanceToTarget > 0.5 ? (
-                            isApproachZone ? (
-                              <>Temperaturen ligger <span className="text-amber-400 font-medium">{distanceToTarget.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). PID-regleringen sänker styrenhetens mål till {r1(adj.new_target_temp)}° men <span className="text-sky-400 font-medium">dämpar</span> kompensationen ({damp !== null ? `${(damp * 100).toFixed(0)}%` : ''}) eftersom temperaturen närmar sig målet.</>
-                            ) : (
-                              <>Temperaturen ligger <span className="text-amber-400 font-medium">{distanceToTarget.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål {isLowering ? 'sänks' : 'justeras'} till {r1(adj.new_target_temp)}° för att driva temperaturen nedåt.</>
-                            )
-                          ) : distanceToTarget < -0.5 ? (
-                            <>Temperaturen ligger <span className="text-blue-400 font-medium">{Math.abs(distanceToTarget).toFixed(1)}° under</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål höjs till {r1(adj.new_target_temp)}° för att värma upp.</>
-                          ) : (
-                            <>Temperaturen är <span className="font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>nära profilmålet</span> ({profileTarget.toFixed(1)}°). Finjustering av styrenhetens mål till {r1(adj.new_target_temp)}° för att hålla stabil temperatur.</>
-                          )
-                        ) : (
-                          <>Styrenhetens mål justeras från {r1(adj.old_target_temp)}° till {r1(adj.new_target_temp)}° baserat på pill-kompensation.</>
-                        )}
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] pt-1 border-t border-border/50">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                         <div className="text-muted-foreground">Profilmål:</div>
                         <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°` : '—'}</div>
                         <div className="text-muted-foreground">Aktuell (medel):</div>
@@ -341,16 +315,16 @@ export function AutoCoolingDecisionLogs() {
                         </div>
                         
                       </div>
-                      {/* D-term data parsed from reason string */}
                       {(() => {
                         const reason = adj.reason || '';
                         const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
                         const probeRateMatch = reason.match(/probeRate=([-\d.]+)°\/h/);
                         const etaMatch = reason.match(/ETA=(\d+)min/);
                         const dampMatch = reason.match(/damp=([\d.]+)/);
-                        // New format: PI=+X.XX°C(P=X.XX,I=X.XX,learned=X.XX[bucket]n=N)
                         const piMatch = reason.match(/PI=\+([\d.]+)°C\(P=([\d.]+),I=([\d.]+)(?:,learned=([\d.]+)\[(\w+)\]n=(\d+))?\)/);
                         const pTermMatch = !piMatch ? reason.match(/P-term=\+([\d.]+)°C/) : null;
+                        const limitsMatch = reason.match(/limits=\[([^\]]+)\]/);
+                        const constraints = limitsMatch ? limitsMatch[1].split(',') : [];
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
                         const probeRate = probeRateMatch ? parseFloat(probeRateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
@@ -361,19 +335,78 @@ export function AutoCoolingDecisionLogs() {
                         const learnedVal = piMatch && piMatch[4] ? parseFloat(piMatch[4]) : null;
                         const learnedBucket = piMatch && piMatch[5] ? piMatch[5] : null;
                         const learnedN = piMatch && piMatch[6] ? parseInt(piMatch[6]) : null;
-                        // Calculate average distance to profile target
                         const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
                           ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
                         const profileTarget = adj.original_target_temp;
                         const avgDistance = avgTemp !== null && profileTarget !== null ? avgTemp - profileTarget : null;
                         
                         const bucketLabels: Record<string, string> = { 'high': 'Aktiv (>3°)', 'medium': 'Mellan (1.5-3°)', 'low': 'Lugn (<1.5°)' };
+
+                        // Parse constraint details
+                        const hasRampHold = constraints.includes('ramp-hold');
+                        const hasDirClamp = constraints.includes('dir-clamp');
+                        const hasApproachRelease = constraints.includes('approach-release');
+                        const rateLimitC = constraints.find(c => c.startsWith('rate-limit='));
+                        const rateLimitVal = rateLimitC ? parseFloat(rateLimitC.split('=')[1]) : null;
+                        const approachC = constraints.find(c => c.startsWith('approach='));
+                        const approachVal = approachC ? parseFloat(approachC.split('=')[1]) : null;
+                        const isApproachZone = damp !== null && damp < 1.0;
+                        const isLowering = adj.new_target_temp < adj.old_target_temp;
                         
                         return (
                           <div className="mt-1.5 pt-1.5 border-t border-border/50">
                             <p className="font-semibold text-[10px] mb-1" style={{ color: 'hsl(200 70% 55%)' }}>
                               🧮 PID-reglering
                             </p>
+
+                            {/* Human-readable explanation */}
+                            <p className="text-[11px] leading-relaxed mb-1.5">
+                              {avgDistance !== null && profileTarget !== null ? (
+                                avgDistance > 0.5 ? (
+                                  hasRampHold ? (
+                                    <>Temperaturen ligger <span className="text-amber-400 font-medium">{avgDistance.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°), men PID:n <span className="text-sky-400 font-medium">håller målet</span> ({r1(adj.new_target_temp)}°) eftersom en ramp pågår — systemet låter rampen komma ikapp istället för att motverka den.</>
+                                  ) : rateLimitVal !== null ? (
+                                    <>Temperaturen ligger <span className="text-amber-400 font-medium">{avgDistance.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål sänks till {r1(adj.new_target_temp)}° men <span className="text-sky-400 font-medium">begränsas</span> till max {rateLimitVal.toFixed(1)}°/cykel för att undvika oscillationer.</>
+                                  ) : isApproachZone ? (
+                                    <>Temperaturen ligger <span className="text-amber-400 font-medium">{avgDistance.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål sänks till {r1(adj.new_target_temp)}° men kompensationen <span className="text-sky-400 font-medium">dämpas till {damp !== null ? `${(damp * 100).toFixed(0)}%` : ''}</span> — deltat förväntas minska naturligt när temperaturen närmar sig målet.</>
+                                  ) : (
+                                    <>Temperaturen ligger <span className="text-amber-400 font-medium">{avgDistance.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål {isLowering ? 'sänks' : 'justeras'} till {r1(adj.new_target_temp)}° med full kompensation för att driva temperaturen nedåt.</>
+                                  )
+                                ) : avgDistance < -0.5 ? (
+                                  hasRampHold ? (
+                                    <>Temperaturen ligger <span className="text-blue-400 font-medium">{Math.abs(avgDistance).toFixed(1)}° under</span> profilmålet ({profileTarget.toFixed(1)}°), men PID:n <span className="text-sky-400 font-medium">håller målet</span> eftersom en ramp pågår.</>
+                                  ) : (
+                                    <>Temperaturen ligger <span className="text-blue-400 font-medium">{Math.abs(avgDistance).toFixed(1)}° under</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål höjs till {r1(adj.new_target_temp)}° för att värma upp.</>
+                                  )
+                                ) : (
+                                  <>Temperaturen är <span className="font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>nära profilmålet</span> ({profileTarget.toFixed(1)}°). Finjustering av styrenhetens mål till {r1(adj.new_target_temp)}°.</>
+                                )
+                              ) : (
+                                <>Styrenhetens mål justeras från {r1(adj.old_target_temp)}° till {r1(adj.new_target_temp)}°.</>
+                              )}
+                            </p>
+
+                            {/* Active constraint badges */}
+                            {(hasRampHold || hasDirClamp || rateLimitVal !== null || hasApproachRelease || isApproachZone) && (
+                              <div className="flex flex-wrap gap-1 mb-1.5">
+                                {hasRampHold && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">🔒 Ramp Hold</span>
+                                )}
+                                {hasDirClamp && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">🔒 Riktningsspärr</span>
+                                )}
+                                {rateLimitVal !== null && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">⏱ Rate-limit {rateLimitVal.toFixed(1)}°/cykel</span>
+                                )}
+                                {hasApproachRelease && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">🚀 Approach Release</span>
+                                )}
+                                {isApproachZone && !hasRampHold && !hasApproachRelease && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">🎯 Approach Zone {damp !== null ? `${(damp * 100).toFixed(0)}%` : ''}</span>
+                                )}
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
                               <div className="text-muted-foreground">Medel → Mål:</div>
                               <div className="font-medium">

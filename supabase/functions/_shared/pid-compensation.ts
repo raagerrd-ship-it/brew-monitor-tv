@@ -59,7 +59,8 @@ export async function calculateCompensatedTarget(
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown'
-): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number }> {
+): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
+  const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
   const mp = MODE_PARAMS[mode]
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
@@ -148,6 +149,7 @@ export async function calculateCompensatedTarget(
   let compensation = rawCompensation * dampingFactor * approachScale
   
   if (approachScale < 1.0) {
+    constraints.push(`approach=${approachScale.toFixed(2)}`)
     console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${profileTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
   }
   
@@ -371,9 +373,11 @@ export async function calculateCompensatedTarget(
   if (isRampStep) {
     if (mode === 'cooling' && compensatedTarget > profileTarget) {
       console.log(`🔒 Directional clamp [cooling/${stepType}]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte överskrida profilmål under ramp)`)
+      constraints.push('dir-clamp')
       compensatedTarget = profileTarget
     } else if (mode === 'heating' && compensatedTarget < profileTarget) {
       console.log(`🔒 Directional clamp [heating/${stepType}]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte understiga profilmål under ramp)`)
+      constraints.push('dir-clamp')
       compensatedTarget = profileTarget
     }
   }
@@ -423,18 +427,21 @@ export async function calculateCompensatedTarget(
     if (rampDirectionConflict && isTowardTarget && approachScale < 1.0) {
       // During ramp: hold current target, let ramp bring profile down/up naturally
       compensatedTarget = currentControllerTarget
+      constraints.push('ramp-hold')
       console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${currentControllerTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
     } else if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
       if (distanceFromIdeal <= bypassLimit) {
         console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
       } else {
         compensatedTarget = currentControllerTarget + (isIncreasing ? bypassLimit : -bypassLimit)
+        constraints.push('approach-release')
         console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot profil ${profileTarget}°C (approach zone fast-release)`)
       }
     } else if (distanceFromIdeal > baseLimit) {
       // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
       compensatedTarget = currentControllerTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
+      constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
   }
@@ -443,12 +450,12 @@ export async function calculateCompensatedTarget(
 
   if (Math.abs(compensatedTarget - currentControllerTarget) < 0.05) {
     console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
-    return { compensatedTarget: currentControllerTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
+    return { compensatedTarget: currentControllerTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
   }
 
   console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
+  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
 }
 
 // ============================================================

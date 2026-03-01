@@ -157,8 +157,9 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     const dTermInfo = compensation.dampingFactor < 1.0
       ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
       : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, damp=1.0${piTermInfo}`
+    const constraintInfo = compensation.constraints && compensation.constraints.length > 0 ? `, limits=[${compensation.constraints.join(',')}]` : ''
 
-    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`)
+    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
 
     const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
     if (success) {
@@ -181,7 +182,7 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
         followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
         followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
         followed_hysteresis: compensation.avgDelta,
-        reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo})`,
+        reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
         adjusted_against_timestamp: fc.last_update,
       })
     } else {
