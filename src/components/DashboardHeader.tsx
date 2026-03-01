@@ -224,9 +224,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     }} />
                   )}
 
-                  <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                  <span className={`font-semibold tabular-nums whitespace-nowrap text-foreground ${isMobile ? 'text-sm' : ''}`} style={{
                     fontSize: isMobile ? undefined : '16px',
-                    color: linkedPill?.color || 'hsl(var(--foreground))'
+                    ...(linkedPill?.color ? { color: linkedPill.color } : {})
                   }}>
                     {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
                   </span>
