@@ -149,7 +149,13 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
     let newTarget = Math.max(minTemp, Math.min(maxTemp, compensation.compensatedTarget))
 
-    if (Math.abs(newTarget - targetTemp) < 0.1) continue
+    if (Math.abs(newTarget - targetTemp) < 0.1) {
+      // Log active constraints even when change is too small to apply
+      if (compensation.constraints && compensation.constraints.length > 0) {
+        log('PILL_COMP_ACTION', 'info', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (ingen ändring <0.1°C, delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C, limits=[${compensation.constraints.join(',')}])`)
+      }
+      continue
+    }
 
     const learnedInfo = compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
     const piTermInfo = compensation.errorCorrection !== 0 ? `, PI=${compensation.errorCorrection >= 0 ? '+' : ''}${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
