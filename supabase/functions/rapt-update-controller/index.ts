@@ -139,6 +139,16 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
+        // Read current target before updating
+        const { data: currentData } = await supabase
+          .from('rapt_temp_controllers')
+          .select('target_temp, name')
+          .eq('controller_id', controllerId)
+          .single();
+
+        const oldTarget = currentData?.target_temp ?? value;
+        const controllerName = currentData?.name ?? controllerId;
+
         const { error: dbError } = await supabase
           .from('rapt_temp_controllers')
           .update({ 
@@ -152,6 +162,21 @@ serve(async (req) => {
           console.error('Error updating database:', dbError);
         } else {
           console.log(`Updated database: controller ${controllerId} target_temp = ${value}, profile_target_temp = ${value}`);
+
+          // Log the manual adjustment to decision history
+          if (oldTarget !== value) {
+            await supabase.from('auto_cooling_adjustments').insert({
+              cooler_controller_id: controllerId,
+              cooler_controller_name: controllerName,
+              old_target_temp: oldTarget,
+              new_target_temp: value,
+              lowest_followed_temp: value,
+              reason: `✏️ Manuell justering: ${oldTarget}° → ${value}°`,
+              original_target_temp: value,
+              followed_controller_name: controllerName,
+            });
+            console.log(`Logged manual adjustment: ${oldTarget}° → ${value}°`);
+          }
         }
       } catch (dbUpdateError) {
         console.error('Database update error:', dbUpdateError);
