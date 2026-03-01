@@ -1,57 +1,73 @@
 
 
-## Analys: Var går tiden i synk-cykeln?
+## Robusthetsgranskning: Kvarvarande problem
 
-Jag har gått igenom hela kedjan och hittat **3 konkreta optimeringar** som tillsammans kan spara **4-6 sekunder** per cykel utan att röra SSOT-ordningen.
+Efter genomgång av hela synkkedjan identifieras **6 kvarvarande robusthets- och effektivitetsproblem**.
 
-### Problem 1: Onödig HTTP-overhead för enkla API-proxys
+---
 
-`sync-rapt-data-quick` anropar dessa via `functions.invoke` (varje = cold start + HTTP round trip):
-- `rapt-auth` — bara en `fetch` till RAPT token endpoint
-- `rapt-pills` — bara en `fetch` till RAPT API
-- `rapt-temp-controllers` — bara en `fetch` till RAPT API
-- `brewfather-readings` (per brew) — bara en `fetch` till Brewfather API
-- `record-temp-history` — bara DB-läsning + insert
+### Problem 1: Saknade timeouts på RAPT API-anrop (quick-sync)
+`fetchRaptPills` och `fetchRaptControllers` i `sync-rapt-data-quick` saknar `AbortSignal.timeout`. Om RAPT Cloud hänger sig blockeras hela synkcykeln på obestämd tid.
 
-Varje invoke kostar ~0.5-1.5s i overhead. Genom att **inlina dessa direkta API-anrop och DB-operationer** sparar vi 5 HTTP-hopp = **~3-5s**.
+**Fix**: Lägg till `signal: AbortSignal.timeout(15000)` på båda fetch-anropen (rad 42-46, 51-55).
 
-### Problem 2: Duplicerad RAPT-autentisering
+---
 
-`sync-custom-brew-pills` anropar `rapt-auth` **en gång till** för att hämta sin egen access_token — trots att `sync-rapt-data-quick` redan har en giltig token. Genom att skicka med `access_token` i body sparar vi ytterligare **~1s**.
+### Problem 2: `sync-rapt-data` (full) är ooptimerad
+Denna funktion (anropas av `full-sync-brew-data` Step 2) gör:
+- 3 sekventiella edge-function-anrop (`rapt-auth`, `rapt-pills`, `rapt-temp-controllers`) istället för inlinade fetcher
+- Sekventiella per-controller DB-uppdateringar (select + update/insert loop) istället för batch-upsert
+- Sekventiella queries för `fermentation_sessions` och `auto_cooling_settings`
 
-### Problem 3: Sekventiella pill-uppdateringar
+**Fix**: Refaktorera till samma mönster som quick-sync: inlinade API-anrop, `Promise.all` för DB-queries, batch-upsert.
 
-Pills uppdateras en-och-en i en `for`-loop med individuella `update`-anrop (rad 86-94). Controllers använder redan batch-upsert. Samma mönster borde gälla pills.
+---
 
-### Plan
+### Problem 3: `full-sync-brew-data` anropar Brewfather via edge functions (N extra HTTP-hopp)
+Rad 138-143: Varje brew anropar `brewfather-readings` som en separat edge-function-invokation. Quick-sync löste detta genom att inlina fetchen. Full-sync bör göra samma sak.
 
-#### 1. Inlina RAPT API-anrop direkt i `sync-rapt-data-quick`
-Ersätt `functions.invoke('rapt-auth')`, `functions.invoke('rapt-pills')`, `functions.invoke('rapt-temp-controllers')` med direkta `fetch`-anrop till RAPT API:erna. Sparar 3 HTTP-hopp.
+**Fix**: Inlina Brewfather-readings-fetchen direkt i `full-sync-brew-data` istället för att gå via edge function.
 
-#### 2. Inlina Brewfather readings
-Ersätt `functions.invoke('brewfather-readings', ...)` per brew med direkt `fetch` till Brewfather API. Sparar 1 HTTP-hopp per brew.
+---
 
-#### 3. Inlina record-temp-history
-Flytta DB-logiken (läs controllers + insert history + delta) direkt in i slutet av `sync-rapt-data-quick`. Sparar 1 HTTP-hopp.
+### Problem 4: `full-sync-brew-data` hämtar batches två gånger
+- Rad 52: Hämtar alla batches (för auto-manage)
+- Rad 132-134: Hämtar samma batches igen med `batchIds` (för detaljer)
 
-#### 4. Skicka access_token till sync-custom-brew-pills
-Ändra invoke-anropet: `{ body: { access_token } }`. Uppdatera `sync-custom-brew-pills` att använda medskickad token istället för att anropa `rapt-auth` igen.
+**Fix**: Återanvänd data från första anropet. Om `complete: true` behövs för detaljer, gör bara ett enda anrop med `complete: true` och använd det för båda syftena.
 
-#### 5. Batch-upsert för pills
-Ersätt `for`-loopen med en enda `upsert`-operation, samma mönster som controllers redan använder.
+---
 
-#### 6. Förenkla timestamp-uppdatering
-Ersätt 2-stegs select+update (rad 24-30) med en enda `update`-query utan WHERE på id (det finns bara en rad).
+### Problem 5: `sync-custom-brew-pills` — sekventiell controller-fallback per brew
+Rad 213-255: När en pill är offline görs en individuell DB-query per brew för controller-data, trots att all controller-data redan finns i `allControllers`. Dessutom görs enskilda DB-inserts för varje snapshot.
 
-### Filer som ändras
-- `supabase/functions/sync-rapt-data-quick/index.ts` — inlina allt ovan
-- `supabase/functions/sync-custom-brew-pills/index.ts` — acceptera access_token i body
+**Fix**: Slå upp controller-data från den redan hämtade `allControllers`-arrayen istället för att querien DB:n. Batcha snapshot-inserts.
 
-### Vad som INTE ändras
-- Alla separata funktioner (`rapt-auth`, `rapt-pills`, `brewfather-readings`, `record-temp-history`) **behålls** — de används fortfarande från UI och andra flöden
-- SSOT-ordningen (data → automation → historik) rörs inte
-- `run-automation` behålls som invoke (komplex orkestrering, motiverat som separat)
+---
 
-### Uppskattad tidsbesparing
-~4-6 sekunder per cykel (från ~12-15s ner till ~7-9s).
+### Problem 6: `sync-rapt-data` (full) är delvis redundant med quick-sync
+`full-sync-brew-data` anropar först `sync-rapt-data` (Step 2) och sedan `sync-rapt-data-quick` (Step 3). Båda hämtar RAPT-data från API:et och uppdaterar samma tabeller. Den enda unika funktionen i full-sync är auto-discovery av nya controllers/pills.
+
+**Fix**: Extrahera enbart auto-discovery-logiken (auto-add till `selected_rapt_pills`/`selected_rapt_temp_controllers`) och kör den inline i `full-sync-brew-data`. Ta bort det separata `sync-rapt-data`-anropet, eftersom quick-sync redan hanterar all data-uppdatering.
+
+---
+
+### Sammanfattning av effekt
+
+| Problem | Typ | Besparing |
+|---------|-----|-----------|
+| 1. Saknade timeouts | Stabilitet | Förhindrar oändlig blockering |
+| 2. sync-rapt-data ooptimerad | Latens | ~3-5 sekventiella HTTP-hopp eliminerade |
+| 3. Brewfather via edge fn | Latens + stabilitet | N extra HTTP-hopp per brew |
+| 4. Dubbla batch-hämtningar | Latens | 1 extern API-anrop eliminerat |
+| 5. Sekventiell fallback | Latens | N DB-queries eliminerade |
+| 6. Redundant full RAPT sync | Latens + stabilitet | 1 komplett RAPT-cykel eliminerad |
+
+### Teknisk detalj
+
+Alla ändringar berör enbart edge functions:
+- `supabase/functions/sync-rapt-data-quick/index.ts` (problem 1)
+- `supabase/functions/sync-rapt-data/index.ts` (problem 2, 6)
+- `supabase/functions/full-sync-brew-data/index.ts` (problem 3, 4, 6)
+- `supabase/functions/sync-custom-brew-pills/index.ts` (problem 5)
 
