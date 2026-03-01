@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_cooling_settings ADD COLUMN sg_temp_correction_enabled boolean NOT NULL DEFAULT false;

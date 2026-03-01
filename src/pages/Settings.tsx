@@ -491,6 +491,17 @@ export default function Settings() {
                   </div>
                   <Switch checked={settings.aiAuditEnabled} onCheckedChange={settings.handleAiAuditEnabledChange} />
                 </div>
+                <SettingsDivider />
+                <div className="flex items-center justify-between py-2.5 px-1">
+                  <div className="flex items-center gap-2.5">
+                    <FlaskConical className="h-4 w-4 text-accent" />
+                    <div>
+                      <p className="text-sm font-medium">SG-temperaturkorrektion</p>
+                      <p className="text-[11px] text-muted-foreground">Korrigerar gravityvärden vid synk baserat på temperatur</p>
+                    </div>
+                  </div>
+                  <Switch checked={settings.sgTempCorrectionEnabled} onCheckedChange={settings.handleSgTempCorrectionEnabledChange} />
+                </div>
               </div>
             </SettingsSection>
 

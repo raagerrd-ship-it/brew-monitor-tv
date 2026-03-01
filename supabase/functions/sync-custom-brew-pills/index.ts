@@ -6,7 +6,7 @@ import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correc
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 async function fetchPillTelemetryCorrected(
   accessToken: string, pillId: string, startDate: string, endDate: string,
-  supabase: any
+  supabase: any, sgCorrectionEnabled: boolean
 ): Promise<TelemetryRecord[]> {
   const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
   const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
@@ -20,17 +20,17 @@ async function fetchPillTelemetryCorrected(
   }
   const raw: TelemetryRecord[] = await res.json();
 
-  // Get learned pill-specific residual
-  let pillResidual = 0;
-  try {
-    const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
-    pillResidual = residualPerDegree;
-  } catch (_e) { /* no correction yet */ }
-
-  // Apply full SG correction (standard + residual) at source
-  for (const t of raw) {
-    const rawSg = t.gravity / 1000;
-    t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+  if (sgCorrectionEnabled) {
+    let pillResidual = 0;
+    try {
+      const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+      pillResidual = residualPerDegree;
+    } catch (_e) { /* no correction yet */ }
+    
+    for (const t of raw) {
+      const rawSg = t.gravity / 1000;
+      t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+    }
   }
   return raw;
 }
@@ -60,6 +60,11 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Read SG correction setting
+    const { data: autoCoolingRow } = await supabase
+      .from('auto_cooling_settings').select('sg_temp_correction_enabled').limit(1).maybeSingle();
+    const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
 
     // Get custom brews that are actively fermenting
     const { data: customBrews, error: brewsError } = await supabase
@@ -214,7 +219,7 @@ serve(async (req) => {
         let telemetryData: any[];
         try {
           telemetryData = await fetchPillTelemetryCorrected(
-            access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase
+            access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase, sgTempCorrectionEnabled
           );
         } catch (telemetryError) {
           console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
