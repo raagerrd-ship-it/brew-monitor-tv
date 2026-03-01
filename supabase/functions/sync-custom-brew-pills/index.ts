@@ -3,10 +3,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 
-// ── Inlined RAPT pill telemetry fetch (saves 1 HTTP hop per brew) ──
-async function fetchPillTelemetry(
-  accessToken: string, pillId: string, startDate: string, endDate: string
-): Promise<any[]> {
+// ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
+async function fetchPillTelemetryCorrected(
+  accessToken: string, pillId: string, startDate: string, endDate: string,
+  supabase: any
+): Promise<TelemetryRecord[]> {
   const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
   const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
   const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetTelemetry?${params}`, {
@@ -17,7 +18,21 @@ async function fetchPillTelemetry(
     const errText = await res.text();
     throw new Error(`RAPT telemetry API error: ${res.status} ${errText}`);
   }
-  return res.json();
+  const raw: TelemetryRecord[] = await res.json();
+
+  // Get learned pill-specific residual
+  let pillResidual = 0;
+  try {
+    const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+    pillResidual = residualPerDegree;
+  } catch (_e) { /* no correction yet */ }
+
+  // Apply full SG correction (standard + residual) at source
+  for (const t of raw) {
+    const rawSg = t.gravity / 1000;
+    t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+  }
+  return raw;
 }
 
 const corsHeaders = {
@@ -198,8 +213,8 @@ serve(async (req) => {
         // Fetch telemetry data (inlined — no HTTP hop)
         let telemetryData: any[];
         try {
-          telemetryData = await fetchPillTelemetry(
-            access_token, pillId, startDate.toISOString(), endDate.toISOString()
+          telemetryData = await fetchPillTelemetryCorrected(
+            access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase
           );
         } catch (telemetryError) {
           console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
@@ -256,23 +271,11 @@ serve(async (req) => {
 
         console.log(`Received ${telemetryData.length} telemetry records`);
 
-        // Convert telemetry to sg_data format with SG temperature correction
-        // RAPT API returns gravity as SG * 1000 (e.g., 1047.77 = SG 1.04777)
+        // Convert telemetry to sg_data — values already corrected at fetch time
         const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
         
-        // Get learned pill-specific residual for SG correction
-        let pillResidual = 0;
-        try {
-          const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
-          pillResidual = residualPerDegree;
-        } catch (_e) { /* no correction available yet */ }
-        
         const newSgData: SgDataPoint[] = telemetryData
-          .map((t: TelemetryRecord) => {
-            const rawSg = t.gravity / 1000;
-            const correctedSg = applySgCorrection(rawSg, t.temperature, pillResidual);
-            return { date: new Date(t.createdOn).toISOString(), value: correctedSg, temp: t.temperature };
-          })
+          .map((t: TelemetryRecord) => ({ date: new Date(t.createdOn).toISOString(), value: t.gravity / 1000, temp: t.temperature }))
           .filter((d: SgDataPoint) => {
             if (d.value < 0.990 || d.value > 1.200) return false;
             if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;

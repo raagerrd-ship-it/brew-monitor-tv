@@ -33,7 +33,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-// ── Inlined Brewfather readings fetch (saves 1 HTTP hop per brew) ──
+// ── Inlined Brewfather readings fetch — returns SG-corrected values ──
 async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
   const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
   const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
@@ -47,7 +47,12 @@ async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
     }
   );
   if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
-  return res.json();
+  const readings = await res.json();
+  // Apply standard SG temp correction at source
+  for (const r of readings) {
+    if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
+  }
+  return readings;
 }
 
 Deno.serve(async (req) => {
@@ -205,18 +210,15 @@ Deno.serve(async (req) => {
           const batch = result.batch
           const readings = result.readings
 
+          // SG values already temp-corrected at fetch time
           const sgData = readings.filter((r: any) => r.sg && r.temp)
-            .map((r: any) => ({
-              date: new Date(r.time).toISOString(),
-              value: standardSgCorrection(r.sg, r.temp),
-              temp: r.temp
-            }))
+            .map((r: any) => ({ date: new Date(r.time).toISOString(), value: r.sg, temp: r.temp }))
             .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
           const readingsWithSG = readings.filter((r: any) => r.sg)
             .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
           const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
-          const currentSG = latestReading ? standardSgCorrection(latestReading.sg, latestReading.temp || 20) : (batch.measuredOg || batch.estimatedOg || 1.050)
+          const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
           const currentTemp = latestReading?.temp || 20
           const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
           const og = batch.measuredOg || batch.estimatedOg || 1.050
