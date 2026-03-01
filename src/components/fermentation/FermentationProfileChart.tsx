@@ -415,8 +415,12 @@ export function FermentationProfileChart({ steps, compact = false }: Fermentatio
                 border: `1px solid ${getStepColor(annot.stepType)}30`,
               }}
             >
-              {/* Show dashed line icon for SG-based steps */}
-              {annot.isSgBased ? (
+              {/* Legend icon per step type */}
+              {annot.stepType === 'gradual_ramp' ? (
+                <svg className="w-4 h-3 shrink-0" viewBox="0 0 16 12">
+                  <line x1="0" y1="10" x2="14" y2="2" stroke={getStepColor(annot.stepType)} strokeWidth="2" strokeDasharray="3 2" strokeLinecap="round" />
+                </svg>
+              ) : annot.isSgBased ? (
                 <span 
                   className="w-3 sm:w-4 h-0.5 shrink-0" 
                   style={{ 
