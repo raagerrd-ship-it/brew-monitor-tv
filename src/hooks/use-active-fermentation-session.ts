@@ -48,6 +48,7 @@ export function useActiveFermentationSession({
   const [acknowledgeLoading, setAcknowledgeLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0);
   const { toast } = useToast();
@@ -373,6 +374,42 @@ export function useActiveFermentationSession({
     setAcknowledgeLoading(false);
   }, [session, controllerData, toast, loadSession, preloadedSession, compact]);
 
+  const handleRestartStep = useCallback(async () => {
+    if (!session) return;
+    setActionLoading(true);
+    const newStepStartedAt = new Date().toISOString();
+    const newStepStartTemp = controllerData?.target_temp ?? null;
+    const { error } = await supabase
+      .from('fermentation_sessions')
+      .update({
+        step_started_at: newStepStartedAt,
+        step_start_temp: newStepStartTemp,
+        ramp_triggered_at: null,
+      })
+      .eq('id', session.id);
+    if (error) {
+      toast({ title: "Fel", description: "Kunde inte starta om steget", variant: "destructive" });
+    } else {
+      await supabase.from('fermentation_step_log').insert({
+        session_id: session.id, step_index: session.current_step_index,
+        action: 'restarted', details: { reason: 'manual_restart', message: 'Steg omstartat manuellt' },
+      });
+      toast({ title: "Steg omstartat", description: `Steg ${session.current_step_index + 1} har startats om` });
+      if (preloadedSession && compact) {
+        setSession(prev => prev ? {
+          ...prev,
+          step_started_at: newStepStartedAt,
+          step_start_temp: newStepStartTemp !== null ? Number(newStepStartTemp) : null,
+          ramp_triggered_at: null,
+        } : null);
+      } else {
+        loadSession();
+      }
+    }
+    setActionLoading(false);
+    setShowRestartConfirm(false);
+  }, [session, controllerData, toast, loadSession, preloadedSession, compact]);
+
   // Progress calculations
   const calculateProgress = useCallback(() => {
     if (!session?.steps?.length) return 0;
@@ -424,10 +461,13 @@ export function useActiveFermentationSession({
     setShowCancelDialog,
     showSkipConfirm,
     setShowSkipConfirm,
+    showRestartConfirm,
+    setShowRestartConfirm,
     isAuthenticated,
     handlePauseResume,
     handleCancel,
     handleSkipStep,
+    handleRestartStep,
     handleAcknowledge,
     handleAcknowledgeStep,
     calculateProgress,

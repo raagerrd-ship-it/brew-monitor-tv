@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2, SkipForward, ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp } from "lucide-react";
+import { Play, Pause, Square, Loader2, SkipForward, ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -44,7 +44,8 @@ export function ActiveFermentationSession({
   const {
     session, controllerData, loading, actionLoading, skipLoading, acknowledgeLoading,
     showCancelDialog, setShowCancelDialog, showSkipConfirm, setShowSkipConfirm,
-    isAuthenticated, handlePauseResume, handleCancel, handleSkipStep,
+    showRestartConfirm, setShowRestartConfirm,
+    isAuthenticated, handlePauseResume, handleCancel, handleSkipStep, handleRestartStep,
     handleAcknowledge, handleAcknowledgeStep,
     calculateProgress, calculateStepProgress, getRampProgress,
   } = useActiveFermentationSession({
@@ -243,6 +244,17 @@ export function ActiveFermentationSession({
                   background: 'hsl(var(--primary) / 0.05)',
                   borderColor: 'hsl(var(--primary) / 0.2)',
                 }}
+                onClick={() => setShowRestartConfirm(true)} disabled={actionLoading}
+                title="Starta om steget"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </Button>
+              <Button 
+                variant="outline" size="icon" className="h-8 w-8 shrink-0"
+                style={{
+                  background: 'hsl(var(--primary) / 0.05)',
+                  borderColor: 'hsl(var(--primary) / 0.2)',
+                }}
                 onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} 
                 title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
               >
@@ -290,6 +302,21 @@ export function ActiveFermentationSession({
                 <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
                   {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
                 </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={showRestartConfirm} onOpenChange={setShowRestartConfirm}>
+            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Starta om steg {session.current_step_index + 1}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tid och progress nollställs för det aktuella steget. Stegets konfiguration behålls.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRestartStep}>Starta om</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -401,6 +428,17 @@ export function ActiveFermentationSession({
                 background: 'hsl(var(--primary) / 0.05)',
                 borderColor: 'hsl(var(--primary) / 0.2)',
               }}
+              onClick={() => setShowRestartConfirm(true)} disabled={actionLoading}
+              title="Starta om steget"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </Button>
+            <Button 
+              variant="outline" size="icon" className="h-8 w-8 shrink-0"
+              style={{
+                background: 'hsl(var(--primary) / 0.05)',
+                borderColor: 'hsl(var(--primary) / 0.2)',
+              }}
               onClick={() => setShowSkipConfirm(true)} disabled={skipLoading}
               title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
             >
@@ -448,6 +486,21 @@ export function ActiveFermentationSession({
             <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
               {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showRestartConfirm} onOpenChange={setShowRestartConfirm}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Starta om steg {session.current_step_index + 1}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tid och progress nollställs för det aktuella steget. Stegets konfiguration behålls.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestartStep}>Starta om</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
