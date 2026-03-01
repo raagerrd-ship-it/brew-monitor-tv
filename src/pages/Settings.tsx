@@ -526,12 +526,8 @@ export default function Settings() {
               </SettingsSection>
             )}
 
-            <Collapsible defaultOpen={false}>
-              <CollapsibleTrigger className="w-full cursor-pointer">
-                <CategorySeparator icon={Brain} label="Inlärning" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-2">
-                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation, stall-boost och termiska hastigheter per controller">
+            <CategorySeparator icon={Brain} label="Inlärning" />
+                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation, stall-boost och termiska hastigheter per controller" collapsible defaultOpen={false}>
                   <LearnedCompensationBaselines />
                   <SettingsDivider />
                   <LearnedStallBoostValues />
@@ -539,18 +535,15 @@ export default function Settings() {
                   <LearnedThermalRates />
                 </SettingsSection>
 
-
-                <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren">
+                <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren" collapsible defaultOpen={false}>
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
                 </SettingsSection>
 
-                <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)">
+                <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)" collapsible defaultOpen={false}>
                   <SgCalibrationStatus />
                 </SettingsSection>
-              </CollapsibleContent>
-            </Collapsible>
 
             <CategorySeparator icon={FlaskConical} label="Profiler" />
             <SettingsSection icon={FlaskConical} title="Fermenteringsprofiler" description="Skapa och hantera temperaturschemat för fermenteringen">
