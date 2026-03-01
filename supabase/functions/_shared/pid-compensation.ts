@@ -153,13 +153,9 @@ export async function calculateCompensatedTarget(
     console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${profileTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
   }
   
-  if (currentAvgForComp > profileTarget + 0.05 && compensation < 0) {
-    console.log(`🚫 Delta-komp undertryckt: medel=${currentAvgForComp.toFixed(1)}° redan över mål=${profileTarget}°, komp=${compensation.toFixed(2)}° skulle höja mål ytterligare`)
-    compensation = 0
-  } else if (currentAvgForComp < profileTarget - 0.05 && compensation > 0) {
-    console.log(`🚫 Delta-komp undertryckt: medel=${currentAvgForComp.toFixed(1)}° redan under mål=${profileTarget}°, komp=${compensation.toFixed(2)}° skulle sänka mål ytterligare`)
-    compensation = 0
-  }
+  // Delta-compensation adjusts controller target so avg(pill,probe) = profileTarget.
+  // It should always apply when there's a meaningful delta — the D-term damping
+  // and approach-zone scaling already handle convergence safely.
 
   // === Adaptive PI-term ===
   const deltaBucket = absDelta > 3 ? 'high' : absDelta > 1.5 ? 'medium' : 'low'
