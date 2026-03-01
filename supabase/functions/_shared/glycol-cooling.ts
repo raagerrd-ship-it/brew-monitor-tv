@@ -126,19 +126,32 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     await handleOvercooling(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, tempDiff, adjustments, coolerTargetRef)
   }
 
-  // Check if lowest controller is actively cooling
+  // Check if lowest controller is actively cooling (probe-only)
   const lowestCurrentTemp = parseFloat(String(lowestTempController.current_temp ?? '0'))
   const lowestHysteresis = parseFloat(String(lowestTempController.cooling_hysteresis ?? '0.2'))
-  const isActivelyCooling = lowestCurrentTemp > (lowestTargetTemp + lowestHysteresis)
+  const probeGap = lowestCurrentTemp - lowestTargetTemp
+  const isActivelyCooling = probeGap > lowestHysteresis
 
-  log('ACTIVE_COOLING_CHECK', isActivelyCooling ? 'pass' : 'info',
-    isActivelyCooling ? `${lowestTempController.name} IS actively cooling` : `${lowestTempController.name} is NOT actively cooling`, {
+  // Closeness guard: if probe is within 0.5°C of target, the RAPT controller
+  // handles this on its own — glycol should NOT intervene with "struggling" logic.
+  // This prevents false triggers when PID ramps the target down in small steps.
+  const CLOSENESS_THRESHOLD = 0.5
+  const isCloseEnough = probeGap <= CLOSENESS_THRESHOLD
+
+  log('ACTIVE_COOLING_CHECK', isActivelyCooling ? (isCloseEnough ? 'info' : 'pass') : 'info',
+    isActivelyCooling
+      ? (isCloseEnough
+        ? `${lowestTempController.name} is cooling but close to target (${probeGap.toFixed(2)}°C gap ≤ ${CLOSENESS_THRESHOLD}°C) — controller handles this`
+        : `${lowestTempController.name} IS actively cooling (${probeGap.toFixed(2)}°C above target)`)
+      : `${lowestTempController.name} is NOT actively cooling`, {
       current_temp: round1(lowestCurrentTemp),
+      target_temp: round1(lowestTargetTemp),
+      probe_gap: round1(probeGap),
       threshold: round1(lowestTargetTemp + lowestHysteresis),
     })
 
   try {
-    if (isActivelyCooling) {
+    if (isActivelyCooling && !isCloseEnough) {
       await handleActiveCooling(ctx, coolerController, coolerTargetRef.value, lowestTempController, lowestTargetTemp, lowestCurrentTemp, coolingLoadCount, adjustments, coolerTargetRef)
     } else {
       await (supabase as any).from('auto_cooling_settings').update({ last_check_at: null }).eq('id', settings.id)
@@ -161,10 +174,9 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     log('COOLING_ERROR', 'fail', `Active cooling handler crashed: ${errorMsg}`)
   }
 
-  // Track adjustments count before proactive cooling
-  const adjustmentsBeforeProactive = adjustments.length
+  // Proactive pre-cooling check (always runs)
 
-  // Always: proactive pre-cooling check (look-ahead at fermentation profiles)
+  // Look-ahead at fermentation profiles
   try {
     await handleProactiveCooling(ctx, coolerController, coolerTargetRef.value, coolingLoadCount, adjustments, coolerTargetRef)
   } catch (proactiveError) {
@@ -431,8 +443,33 @@ async function handleActiveCooling(
 
   await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id)
 
-  // Delta analysis
+  // Delta analysis — only affects glycol aggression during NON-fermentation phases
+  // (cold crash, conditioning). During active fermentation, high pill-probe delta
+  // is caused by biological heat, not cooling failure.
   let deltaMultiplier = 1.0
+
+  // Check if any followed controller has active fermentation (high activity = don't amplify)
+  const { data: activeMetrics } = await supabase
+    .from('brew_fermentation_metrics')
+    .select('brew_id, activity_score, fermentation_phase')
+    .in('fermentation_phase', ['active', 'peak', 'lag'])
+
+  const activeBrewIds = new Set((activeMetrics ?? []).filter(m => m.activity_score > 20).map(m => m.brew_id))
+
+  // Check which followed controllers have active fermentation brews linked
+  const { data: brewLinks } = await supabase
+    .from('brew_readings')
+    .select('id, linked_controller_id')
+    .in('linked_controller_id', followedControllerIds)
+    .in('status', ['Jäsning'])
+
+  const controllersWithActiveFermentation = new Set(
+    (brewLinks ?? [])
+      .filter(b => activeBrewIds.has(b.id))
+      .map(b => b.linked_controller_id)
+      .filter(Boolean)
+  )
+
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: allDeltaHistory } = await supabase
     .from('temp_delta_history')
@@ -456,8 +493,12 @@ async function handleActiveCooling(
     const pillTemp = parseFloat(String(fc.pill_temp))
     const ctrlTemp = parseFloat(String(fc.current_temp))
     const currentDelta = pillTemp - ctrlTemp
+    const isActiveFermentation = controllersWithActiveFermentation.has(fc.controller_id)
 
-    log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`)
+    log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°${isActiveFermentation ? ' (aktiv jäsning — ignorerar för multiplikator)' : ''}`)
+
+    // Skip delta amplification during active fermentation — biological heat causes high delta naturally
+    if (isActiveFermentation) continue
 
     const deltaHistory = batchDeltaMap.get(fc.controller_id)
     if (deltaHistory && deltaHistory.length >= 2) {
@@ -491,8 +532,8 @@ async function handleActiveCooling(
   const maxAllowedTarget = lowestTargetTemp - 10.0
   let finalTarget = proposedNewTarget < maxAllowedTarget ? maxAllowedTarget : proposedNewTarget
 
-  if (finalTarget < maxAllowedTarget) {
-    log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest to ${finalTarget.toFixed(1)}°C`)
+  if (proposedNewTarget < maxAllowedTarget) {
+    log('TARGET_CALCULATION', 'info', `Limited by max_diff_from_lowest: proposed ${proposedNewTarget.toFixed(1)}°C → capped at ${finalTarget.toFixed(1)}°C`)
   }
 
   if (finalTarget >= currentCoolerTarget) {
