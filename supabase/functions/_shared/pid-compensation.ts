@@ -143,7 +143,11 @@ export async function calculateCompensatedTarget(
   const currentAvgForComp = (latestPillForComp + latestCtrlForComp) / 2
   const distanceToTarget = Math.abs(currentAvgForComp - profileTarget)
   const APPROACH_ZONE_SIZE = 8.0 // °C — within this range, start scaling down delta compensation
-  const approachScale = Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
+  // When avg is already near target (within ±1°C), the current delta is steady-state:
+  // the compensation is what's MAINTAINING the average at target.
+  // Don't scale it down — that would cause avg to drift away.
+  const isAtTarget = distanceToTarget < 1.0
+  const approachScale = isAtTarget ? 1.0 : Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
   
   const rawCompensation = avgDelta / 2
   let compensation = rawCompensation * dampingFactor * approachScale
@@ -391,9 +395,9 @@ export async function calculateCompensatedTarget(
 
     // High-delta damping: when pill-probe delta is very large, reduce max rate
     // to prevent aggressive changes that cause oscillation in a thermally stratified system
-    const HIGH_DELTA_THRESHOLD = 3.0 // °C — above this, start reducing rate
+    const HIGH_DELTA_THRESHOLD = 4.0 // °C — above this, start reducing rate (raised from 3.0)
     const deltaRateScale = absDelta > HIGH_DELTA_THRESHOLD
-      ? Math.max(0.3, 1.0 - (absDelta - HIGH_DELTA_THRESHOLD) * 0.15)
+      ? Math.max(0.5, 1.0 - (absDelta - HIGH_DELTA_THRESHOLD) * 0.1)
       : 1.0
     const deltaScaledMaxRate = effectiveMaxRate * deltaRateScale
     if (deltaRateScale < 1.0) {
