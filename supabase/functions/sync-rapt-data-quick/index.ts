@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshots } from '../_shared/brew-snapshots.ts';
+import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -514,10 +515,22 @@ serve(async (req) => {
             continue;
           }
 
-          // Convert telemetry to sg_data format
+          // Convert telemetry to sg_data format with SG temperature correction
           const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
+          
+          // Get learned pill-specific residual for SG correction
+          let pillResidual = 0;
+          try {
+            const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+            pillResidual = residualPerDegree;
+          } catch (e) { /* no correction available yet */ }
+          
           const newSgData: SgDataPoint[] = telemetryData
-            .map((t: TelemetryRecord) => ({ date: new Date(t.createdOn).toISOString(), value: t.gravity / 1000, temp: t.temperature }))
+            .map((t: TelemetryRecord) => {
+              const rawSg = t.gravity / 1000;
+              const correctedSg = applySgCorrection(rawSg, t.temperature, pillResidual);
+              return { date: new Date(t.createdOn).toISOString(), value: correctedSg, temp: t.temperature };
+            })
             .filter((d: SgDataPoint) => {
               if (d.value < 0.990 || d.value > 1.200) return false;
               if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;
@@ -562,6 +575,13 @@ serve(async (req) => {
             pendingSnapshots.push({ brewId: brew.id, controllerId: brew.linked_controller_id, sgData: mergedSgData });
           }
           customBrewsUpdated++;
+          
+          // Run SG calibration learning (anchor detection + residual learning)
+          try {
+            await processSgCalibration(supabase, pillId, mergedSgData);
+          } catch (calErr) {
+            console.error(`SG calibration error for pill ${pillId}:`, calErr);
+          }
 
         } catch (brewError) {
           console.error(`Error processing brew ${brew.name}:`, brewError);

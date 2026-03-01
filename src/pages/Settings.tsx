@@ -12,6 +12,7 @@ import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
+import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
@@ -532,6 +533,10 @@ export default function Settings() {
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
+                </SettingsSection>
+
+                <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)">
+                  <SgCalibrationStatus />
                 </SettingsSection>
               </CollapsibleContent>
             </Collapsible>
