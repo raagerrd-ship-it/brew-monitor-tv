@@ -104,12 +104,10 @@ serve(async (req) => {
     // PHASE 1: RAPT device sync (pills + controllers)
     // ──────────────────────────────────────────────────────
 
-    // Get auth token (inlined — no HTTP hop)
-    console.log('Getting RAPT auth token...');
-    const access_token = await getRaptToken();
-
-    // Get selected Pills & Controllers
-    const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
+    // Get auth token + selected devices IN PARALLEL (all independent)
+    console.log('Getting RAPT auth token + selected devices...');
+    const [access_token, { data: selectedPills }, { data: selectedControllers }] = await Promise.all([
+      getRaptToken(),
       supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
       supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
     ]);

@@ -18,22 +18,22 @@ Deno.serve(async (req) => {
 
     console.log('Starting FULL sync (Brewfather + RAPT + AI audit)...')
 
-    // Update timestamps
-    const { data: settingsData } = await supabase
-      .from('sync_settings').select('id').limit(1).single()
-    
-    if (settingsData) {
-      await supabase.from('sync_settings').update({ 
-        last_sync_time: new Date().toISOString(),
-        last_full_sync_at: new Date().toISOString()
-      }).eq('id', settingsData.id)
-    }
-
-    // Get sync settings for auto-management
+    // Single sync_settings query (merged: id + timestamps + auto-management flags)
     const { data: syncSettings } = await supabase
       .from('sync_settings')
-      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
-      .limit(1).maybeSingle()
+      .select('id, auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
+      .limit(1).single()
+
+    // Update timestamps (fire-and-forget)
+    if (syncSettings?.id) {
+      const nowIso = new Date().toISOString()
+      supabase.from('sync_settings').update({
+        last_sync_time: nowIso,
+        last_full_sync_at: nowIso
+      }).eq('id', syncSettings.id).then(({ error }) => {
+        if (error) console.error('sync_settings update error:', error)
+      })
+    }
 
     const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
     const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
@@ -60,12 +60,27 @@ Deno.serve(async (req) => {
       console.log('Brewfather disabled, skipping batch sync')
     }
 
-    // Auto-manage selected_brews
+    // Auto-manage selected_brews — batch-fetch all existing brews at once (replaces N sequential queries)
     if (batchesData.length > 0) {
       const fermentingBatches = batchesData
         .filter((b: any) => b.status === 'Fermenting')
         .sort((a: any, b: any) => new Date(b.brewDate || 0).getTime() - new Date(a.brewDate || 0).getTime())
       const top3FermentingIds = fermentingBatches.slice(0, 3).map((b: any) => b._id)
+
+      const allBatchIds = batchesData.map((b: any) => b._id)
+      const { data: existingBrewsArr } = await supabase
+        .from('selected_brews').select('*').in('batch_id', allBatchIds)
+      const existingBrewsMap = new Map((existingBrewsArr || []).map(b => [b.batch_id, b]))
+
+      // Collect all visibility changes to batch at the end
+      const toShow: string[] = []
+      const toHide: string[] = []
+      const toInsert: { batch_id: string; display_order: number; is_visible: boolean }[] = []
+
+      // Get max display order once
+      const { data: maxOrder } = await supabase.from('selected_brews')
+        .select('display_order').order('display_order', { ascending: false }).limit(1).maybeSingle()
+      let nextOrder = (maxOrder?.display_order || 0) + 1
 
       for (const batch of batchesData) {
         const isFermenting = batch.status === 'Fermenting'
@@ -73,9 +88,7 @@ Deno.serve(async (req) => {
         const isConditioning = batch.status === 'Conditioning'
         const isArchived = batch.status === 'Archived'
         const isInTop3 = top3FermentingIds.includes(batch._id)
-
-        const { data: existingBrew } = await supabase
-          .from('selected_brews').select('*').eq('batch_id', batch._id).maybeSingle()
+        const existingBrew = existingBrewsMap.get(batch._id)
 
         let shouldBeVisible = false
         if (isFermenting && isInTop3 && autoActivateFermenting) {
@@ -89,20 +102,21 @@ Deno.serve(async (req) => {
 
         if (shouldBeVisible) {
           if (existingBrew) {
-            if (!existingBrew.is_visible) {
-              await supabase.from('selected_brews').update({ is_visible: true }).eq('batch_id', batch._id)
-            }
+            if (!existingBrew.is_visible) toShow.push(batch._id)
           } else if (autoActivateFermenting && isFermenting && isInTop3) {
-            const { data: maxOrder } = await supabase.from('selected_brews')
-              .select('display_order').order('display_order', { ascending: false }).limit(1).maybeSingle()
-            await supabase.from('selected_brews').insert({
-              batch_id: batch._id, display_order: (maxOrder?.display_order || 0) + 1, is_visible: true
-            })
+            toInsert.push({ batch_id: batch._id, display_order: nextOrder++, is_visible: true })
           }
         } else if (existingBrew?.is_visible) {
-          await supabase.from('selected_brews').update({ is_visible: false }).eq('batch_id', batch._id)
+          toHide.push(batch._id)
         }
       }
+
+      // Execute all visibility changes in parallel (max 3 queries instead of N)
+      const visibilityOps: Promise<any>[] = []
+      if (toShow.length > 0) visibilityOps.push(supabase.from('selected_brews').update({ is_visible: true }).in('batch_id', toShow))
+      if (toHide.length > 0) visibilityOps.push(supabase.from('selected_brews').update({ is_visible: false }).in('batch_id', toHide))
+      if (toInsert.length > 0) visibilityOps.push(supabase.from('selected_brews').insert(toInsert))
+      if (visibilityOps.length > 0) await Promise.all(visibilityOps)
     }
 
     // Get visible brews for full detail sync
@@ -111,7 +125,7 @@ Deno.serve(async (req) => {
 
     let brewUpdatesCount = 0
 
-    if (selectedBrews && selectedBrews.length > 0) {
+    if (brewfatherEnabled && selectedBrews && selectedBrews.length > 0) {
       const brewfatherBatchIds = selectedBrews.map(b => b.batch_id).filter(id => !id.startsWith('custom_'))
 
       if (brewfatherBatchIds.length > 0) {
@@ -169,23 +183,26 @@ Deno.serve(async (req) => {
         }).filter(Boolean)
 
         if (brewUpdates.length > 0) {
-          const { error: upsertError } = await supabase.from('brew_readings')
-            .upsert(brewUpdates, { onConflict: 'batch_id' })
+          // Batch-fetch existing brew_readings for id + linked_controller_id (used for snapshots)
+          const updateBatchIds = brewUpdates.map((u: any) => u.batch_id)
+          const [{ error: upsertError }, { data: brewRecords }] = await Promise.all([
+            supabase.from('brew_readings').upsert(brewUpdates, { onConflict: 'batch_id' }),
+            supabase.from('brew_readings').select('id, batch_id, linked_controller_id').in('batch_id', updateBatchIds),
+          ])
           if (upsertError) throw upsertError
           brewUpdatesCount = brewUpdates.length
 
-          // Create snapshots for fermenting brews
-          for (const update of brewUpdates) {
-            const u = update as any
-            const isFermenting = u.status === 'Jäsning' || u.status === 'Fermenting'
-            if (isFermenting && u.sg_data?.length > 0) {
-              const { data: brewRecord } = await supabase.from('brew_readings')
-                .select('id, linked_controller_id').eq('batch_id', u.batch_id).single()
-              if (brewRecord) {
-                await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data)
+          // Create snapshots for fermenting brews (parallel, using pre-fetched ids)
+          const brewRecordsMap = new Map((brewRecords || []).map((r: any) => [r.batch_id, r]))
+          const snapshotTasks = brewUpdates
+            .filter((u: any) => (u.status === 'Jäsning' || u.status === 'Fermenting') && u.sg_data?.length > 0)
+            .map(async (u: any) => {
+              const record = brewRecordsMap.get(u.batch_id)
+              if (record) {
+                await createBrewSnapshots(supabase, record.id, record.linked_controller_id, u.sg_data)
               }
-            }
-          }
+            })
+          if (snapshotTasks.length > 0) await Promise.allSettled(snapshotTasks)
         }
       }
     }
