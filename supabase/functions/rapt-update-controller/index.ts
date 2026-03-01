@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { controllerId, action, value } = await req.json();
+    const { controllerId, action, value, access_token: providedToken } = await req.json();
     
     if (!controllerId || typeof controllerId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(controllerId)) {
       throw new Error('Valid Controller ID is required');
@@ -42,37 +42,42 @@ serve(async (req) => {
 
     console.log(`Updating RAPT controller ${controllerId}, action: ${action}`);
 
-    // Get RAPT credentials
-    const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-    const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
-    
-    if (!RAPT_USERNAME || !RAPT_API_SECRET) {
-      throw new Error('RAPT credentials not configured');
+    let accessToken = providedToken;
+
+    if (!accessToken) {
+      // Get RAPT credentials and authenticate
+      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+      
+      if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+        throw new Error('RAPT credentials not configured');
+      }
+
+      const formData = new URLSearchParams();
+      formData.append('client_id', 'rapt-user');
+      formData.append('grant_type', 'password');
+      formData.append('username', RAPT_USERNAME);
+      formData.append('password', RAPT_API_SECRET);
+
+      const authResponse = await fetch('https://id.rapt.io/connect/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!authResponse.ok) {
+        console.error('RAPT auth error:', authResponse.status);
+        throw new Error(`RAPT auth error: ${authResponse.status}`);
+      }
+
+      const authData = await authResponse.json();
+      accessToken = authData.access_token;
+    } else {
+      console.log('Using pre-authenticated RAPT token');
     }
-
-    // Get bearer token
-    const formData = new URLSearchParams();
-    formData.append('client_id', 'rapt-user');
-    formData.append('grant_type', 'password');
-    formData.append('username', RAPT_USERNAME);
-    formData.append('password', RAPT_API_SECRET);
-
-    const authResponse = await fetch('https://id.rapt.io/connect/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!authResponse.ok) {
-      console.error('RAPT auth error:', authResponse.status);
-      throw new Error(`RAPT auth error: ${authResponse.status}`);
-    }
-
-    const authData = await authResponse.json();
-    const accessToken = authData.access_token;
 
     // Determine API endpoint based on action
     let endpoint = '';

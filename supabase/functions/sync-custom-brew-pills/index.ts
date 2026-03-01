@@ -71,19 +71,28 @@ serve(async (req) => {
 
     console.log(`Found ${customBrews.length} custom brews in fermentation`);
 
-    // Get all pills with paired_device_id and controllers for auto-matching (parallel)
-    const [{ data: allPills }, { data: allControllers }] = await Promise.all([
-      supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
-      supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp'),
-    ]);
-
-    // Get auth token — prefer passed-in token from sync-rapt-data-quick, fallback to own auth
-    let access_token: string;
+    // Get auth token + pill/controller data — prefer passed-in from sync-rapt-data-quick
+    let access_token: string = '';
+    let allPills: any[] | null = null;
+    let allControllers: any[] | null = null;
     try {
       const body = await req.json().catch(() => ({}));
-      access_token = body?.access_token;
+      access_token = body?.access_token || '';
+      // Use passed-in pill/controller data if available (saves 2 DB queries)
+      if (body?.pills && Array.isArray(body.pills)) allPills = body.pills;
+      if (body?.controllers && Array.isArray(body.controllers)) allControllers = body.controllers;
     } catch {
-      access_token = '';
+      // no body
+    }
+
+    // Fallback: query DB only if data wasn't passed in
+    if (!allPills || !allControllers) {
+      const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
+        allPills ? Promise.resolve({ data: allPills }) : supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
+        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp'),
+      ]);
+      if (!allPills) allPills = dbPills;
+      if (!allControllers) allControllers = dbControllers;
     }
     
     if (!access_token) {

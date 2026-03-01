@@ -84,14 +84,20 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Update timestamp (simplified: no select+update, just update all rows)
-    await supabase
+    // Read sync_settings once (reused by outageTask later — avoids double query)
+    const { data: syncSettingsRow } = await supabase.from('sync_settings')
+      .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single();
+
+    // Update timestamp (fire-and-forget, no await needed for main flow)
+    const nowIso = new Date().toISOString();
+    supabase
       .from('sync_settings')
       .update({ 
-        last_rapt_quick_sync_at: new Date().toISOString(),
-        last_sync_time: new Date().toISOString()
+        last_rapt_quick_sync_at: nowIso,
+        last_sync_time: nowIso
       })
-      .not('id', 'is', null);
+      .not('id', 'is', null)
+      .then(({ error }) => { if (error) console.error('sync_settings update error:', error); });
 
     // ──────────────────────────────────────────────────────
     // PHASE 1: RAPT device sync (pills + controllers)
@@ -128,6 +134,7 @@ serve(async (req) => {
 
     let pillsUpdated = 0;
     let controllersUpdated = 0;
+    let controllerUpdates: Record<string, any>[] = [];
 
     // Update Pills — batch upsert instead of sequential updates
     if (selectedPillIds.length > 0) {
@@ -163,8 +170,6 @@ serve(async (req) => {
       const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
       const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
       const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
-
-      const controllerUpdates: Record<string, any>[] = [];
 
       for (const controller of selectedControllersData) {
         const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
@@ -244,21 +249,20 @@ serve(async (req) => {
       if (!selectedBrews || selectedBrews.length === 0) return;
 
       // Fetch readings (inlined) + existing data in parallel
-      const [readingsResults, existingBrews] = await Promise.all([
+      // Single batch query for all existing brews (replaces N individual queries)
+      const batchIds = selectedBrews.map(b => b.batch_id);
+      const [readingsResults, { data: existingBrewsArray }] = await Promise.all([
         Promise.all(selectedBrews.map(brew =>
           fetchBrewfatherReadings(brew.batch_id)
             .then(data => ({ batchId: brew.batch_id, data, error: null }))
             .catch(err => ({ batchId: brew.batch_id, data: [], error: err }))
         )),
-        Promise.all(selectedBrews.map(brew =>
-          supabase.from('brew_readings')
-            .select('batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery')
-            .eq('batch_id', brew.batch_id).maybeSingle()
-            .then(r => ({ batchId: brew.batch_id, data: r.data }))
-        ))
+        supabase.from('brew_readings')
+          .select('id, batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery, linked_controller_id')
+          .in('batch_id', batchIds)
       ]);
 
-      const existingBrewsMap = new Map(existingBrews.map(b => [b.batchId, b.data]));
+      const existingBrewsMap = new Map((existingBrewsArray || []).map((b: any) => [b.batch_id, b]));
 
       const brewUpdates = readingsResults.map(result => {
         if (result.error) { console.error(`Readings error for ${result.batchId}:`, result.error); return null; }
@@ -311,16 +315,16 @@ serve(async (req) => {
         console.log(`Brewfather quick sync: ${brewsUpdated} brews updated`);
 
         // Create snapshots for fermenting brews (parallel)
+        // Reuse id + linked_controller_id from existingBrewsMap (no re-query needed)
         const snapshotTasks = brewUpdates
           .filter((u: any) => {
             const status = u.status || '';
             return (status === 'Jäsning' || status === 'Fermenting') && u.sg_data?.length > 0;
           })
           .map(async (u: any) => {
-            const { data: brewRecord } = await supabase.from('brew_readings')
-              .select('id, linked_controller_id').eq('batch_id', u.batch_id).single();
-            if (brewRecord) {
-              await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data);
+            const existingBrew = existingBrewsMap.get(u.batch_id);
+            if (existingBrew?.id) {
+              await createBrewSnapshots(supabase, existingBrew.id, existingBrew.linked_controller_id, u.sg_data);
             }
           });
         if (snapshotTasks.length > 0) {
@@ -330,10 +334,27 @@ serve(async (req) => {
     };
 
     // PHASE 2a: Sync all data sources in parallel (RAPT already done in Phase 1)
-    // Pass access_token to sync-custom-brew-pills to avoid duplicate auth
+    // Pass access_token + pill/controller data to sync-custom-brew-pills to avoid duplicate auth + DB queries
+    const pillDataForCustomBrews = (allPills || [])
+      .filter((p: any) => selectedPillIds.includes(p.id))
+      .map((p: any) => ({
+        pill_id: p.id,
+        name: p.name || p.id,
+        paired_device_id: p.pairedDeviceId || null,
+      }));
+    const controllerDataForCustomBrews = selectedControllerIds.length > 0
+      ? (controllerUpdates || []).map((c: any) => ({
+          controller_id: c.controller_id,
+          linked_pill_id: c.linked_pill_id || null,
+          pill_temp: c.pill_temp ?? null,
+        }))
+      : [];
+
     const [bfResult, customBrewResult] = await Promise.allSettled([
       brewfatherSync(),
-      supabase.functions.invoke('sync-custom-brew-pills', { body: { access_token } }),
+      supabase.functions.invoke('sync-custom-brew-pills', {
+        body: { access_token, pills: pillDataForCustomBrews, controllers: controllerDataForCustomBrews }
+      }),
     ]);
 
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
@@ -404,21 +425,20 @@ serve(async (req) => {
     };
 
     const outageTask = async () => {
-      const { data: syncSettings } = await supabase.from('sync_settings')
-        .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single();
-      const lastSuccess = syncSettings?.last_successful_rapt_sync_at;
+      // Reuse syncSettingsRow read from start of function (no extra DB query)
+      const lastSuccess = syncSettingsRow?.last_successful_rapt_sync_at;
       const now = new Date();
       if (lastSuccess) {
         const gap = (now.getTime() - new Date(lastSuccess).getTime()) / 1000;
-        const threshold = (syncSettings?.rapt_sync_interval || 300) * 2;
+        const threshold = (syncSettingsRow?.rapt_sync_interval || 300) * 2;
         if (gap > threshold) {
           await supabase.from('rapt_outage_log').insert({
             outage_start: lastSuccess, outage_end: now.toISOString(), duration_seconds: Math.round(gap)
           });
         }
       }
-      if (syncSettings?.id) {
-        await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettings.id);
+      if (syncSettingsRow?.id) {
+        await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettingsRow.id);
       }
     };
 

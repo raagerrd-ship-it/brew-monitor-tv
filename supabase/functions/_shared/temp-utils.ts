@@ -109,13 +109,15 @@ export function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: n
  * Set target temperature via the rapt-update-controller edge function.
  * Unified wrapper used by both process-fermentation-profiles and auto-adjust-cooling.
  * For batched updates, use RaptUpdateBatch instead.
+ * Optionally accepts a pre-fetched access_token to avoid redundant RAPT auth.
  */
 export async function setControllerTargetTemp(
   supabaseUrl: string,
   serviceRoleKey: string,
   controllerId: string,
   targetTemp: number,
-  timeoutMs: number = 10000
+  timeoutMs: number = 10000,
+  accessToken?: string | null
 ): Promise<boolean> {
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
@@ -128,6 +130,7 @@ export async function setControllerTargetTemp(
         controllerId,
         action: 'setTargetTemperature',
         value: targetTemp,
+        ...(accessToken ? { access_token: accessToken } : {}),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })
@@ -155,6 +158,7 @@ export async function setControllerTargetTemp(
             controllerId,
             action: 'setTargetTemperature',
             value: targetTemp,
+            ...(accessToken ? { access_token: accessToken } : {}),
           }),
           signal: AbortSignal.timeout(timeoutMs),
         })
