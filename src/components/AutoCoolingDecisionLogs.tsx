@@ -601,6 +601,25 @@ export function AutoCoolingDecisionLogs() {
 
         // Decision log entry (fallback for entries without matching adjustment)
         const log = entry.data as DecisionLog;
+        
+        // Extract active brakes from PILL_COMP_ACTION decisions for summary
+        const activeBrakes: string[] = [];
+        for (const d of log.decisions) {
+          if (d.step.startsWith('PILL_COMP')) {
+            const lm = d.message.match(/limits=\[([^\]]+)\]/);
+            if (lm) {
+              const cs = lm[1].split(',');
+              if (cs.includes('overshoot-clamp')) activeBrakes.push('🔒 Clamp');
+              if (cs.includes('ramp-hold')) activeBrakes.push('🔒 Hold');
+              if (cs.includes('approach-release')) activeBrakes.push('🚀 Release');
+              if (cs.includes('dir-clamp')) activeBrakes.push('🔒 Dir');
+              if (cs.some(c => c.startsWith('rate-limit'))) activeBrakes.push('⏱ Rate');
+              if (cs.some(c => c.startsWith('approach='))) activeBrakes.push('🎯 Approach');
+            }
+          }
+        }
+        const uniqueBrakes = [...new Set(activeBrakes)];
+        
         return (
           <Collapsible key={`dec-${log.id}`}>
             <CollapsibleTrigger className="flex items-center justify-between w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
@@ -614,6 +633,11 @@ export function AutoCoolingDecisionLogs() {
                 </Badge>
                 <span className="text-muted-foreground">{formatTime(log.created_at)}</span>
                 <span className="font-medium truncate max-w-[120px]">{log.final_result}</span>
+                {uniqueBrakes.length > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20 whitespace-nowrap">
+                    {uniqueBrakes.join(' ')}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground">{log.duration_ms}ms</span>
