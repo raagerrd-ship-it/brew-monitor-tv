@@ -59,7 +59,7 @@ export async function calculateCompensatedTarget(
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown'
-): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number }> {
+): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number }> {
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
   const mp = MODE_PARAMS[mode]
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
@@ -92,6 +92,7 @@ export async function calculateCompensatedTarget(
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
   let dampingFactor = 1.0
   let _pillRate: number | null = null
+  let _probeRate: number | null = null
   let _etaMinutes: number | null = null
   const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours
 
@@ -109,6 +110,8 @@ export async function calculateCompensatedTarget(
     if (timeDiffHours > 0.05) {
       const pillRate = (pillNow - pillOld) / timeDiffHours
       _pillRate = pillRate
+      const ctrlOld = parseFloat(String(oldest.controller_temp))
+      _probeRate = (ctrlNow - ctrlOld) / timeDiffHours
 
       const currentAvg = (pillNow + ctrlNow) / 2
       const avgDistance = currentAvg - profileTarget
@@ -440,12 +443,12 @@ export async function calculateCompensatedTarget(
 
   if (Math.abs(compensatedTarget - currentControllerTarget) < 0.05) {
     console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
-    return { compensatedTarget: currentControllerTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
+    return { compensatedTarget: currentControllerTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
   }
 
   console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
+  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount }
 }
 
 // ============================================================

@@ -354,12 +354,14 @@ export function AutoCoolingDecisionLogs() {
                       {(() => {
                         const reason = adj.reason || '';
                         const rateMatch = reason.match(/rate=([-\d.]+)°\/h/);
+                        const probeRateMatch = reason.match(/probeRate=([-\d.]+)°\/h/);
                         const etaMatch = reason.match(/ETA=(\d+)min/);
                         const dampMatch = reason.match(/damp=([\d.]+)/);
                         // New format: PI=+X.XX°C(P=X.XX,I=X.XX,learned=X.XX[bucket]n=N)
                         const piMatch = reason.match(/PI=\+([\d.]+)°C\(P=([\d.]+),I=([\d.]+)(?:,learned=([\d.]+)\[(\w+)\]n=(\d+))?\)/);
                         const pTermMatch = !piMatch ? reason.match(/P-term=\+([\d.]+)°C/) : null;
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
+                        const probeRate = probeRateMatch ? parseFloat(probeRateMatch[1]) : null;
                         const eta = etaMatch ? parseInt(etaMatch[1]) : null;
                         const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
                         const piTotal = piMatch ? parseFloat(piMatch[1]) : (pTermMatch ? parseFloat(pTermMatch[1]) : null);
@@ -427,6 +429,23 @@ export function AutoCoolingDecisionLogs() {
                                   </div>
                                 </>
                               )}
+                              {probeRate !== null && (
+                                <>
+                                  <div className="text-muted-foreground">Probe-hastighet:</div>
+                                  <div className="font-medium" style={{ color: probeRate < 0 ? 'hsl(var(--temp-blue))' : probeRate > 0 ? 'hsl(38 92% 50%)' : undefined }}>
+                                    {probeRate >= 0 ? '+' : ''}{probeRate.toFixed(2)}°C/h
+                                  </div>
+                                </>
+                              )}
+                              <div className="text-muted-foreground">Controller mål:</div>
+                              <div className="font-medium">
+                                {adj.new_target_temp.toFixed(1)}°
+                                {adj.original_target_temp != null && (
+                                  <span className="text-muted-foreground ml-1">
+                                    (profil {adj.original_target_temp.toFixed(1)}°)
+                                  </span>
+                                )}
+                              </div>
                               {eta !== null && (
                                 <>
                                   <div className="text-muted-foreground">ETA till mål:</div>
