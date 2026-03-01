@@ -421,6 +421,9 @@ export async function calculateCompensatedTarget(
     // to allow PID to react and prevent overshoot past the target
     const probeDistToTarget = Math.abs(latestCtrlForComp - profileTarget)
     const overshootRelease = probeDistToTarget <= 1.0
+    if (overshootRelease) {
+      constraints.push('overshoot-release')
+    }
     
     const rampDirectionConflict = isRampStep && !overshootRelease && (
       (mode === 'cooling' && isIncreasing) ||  // downward ramp but pushing target up
