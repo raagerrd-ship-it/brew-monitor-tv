@@ -44,22 +44,32 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
       
       if (nonCoolerIds.length === 0) return;
 
-      // Check profile targets from rapt_temp_controllers
-      const { data: ctrlRows } = await supabase
-        .from('rapt_temp_controllers')
-        .select('controller_id, profile_target_temp')
+      // Only use profile_target_temp for controllers with active sessions
+      const { data: activeSessions } = await supabase
+        .from('fermentation_sessions')
+        .select('controller_id')
         .in('controller_id', nonCoolerIds)
-        .not('profile_target_temp', 'is', null);
+        .in('status', ['running', 'paused']);
 
-      if (ctrlRows) {
-        for (const row of ctrlRows) {
-          if (row.profile_target_temp != null) {
-            targets[row.controller_id] = row.profile_target_temp;
+      const activeControllerIds = new Set((activeSessions ?? []).map(s => s.controller_id));
+
+      if (activeControllerIds.size > 0) {
+        const { data: ctrlRows } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, profile_target_temp')
+          .in('controller_id', Array.from(activeControllerIds))
+          .not('profile_target_temp', 'is', null);
+
+        if (ctrlRows) {
+          for (const row of ctrlRows) {
+            if (row.profile_target_temp != null) {
+              targets[row.controller_id] = row.profile_target_temp;
+            }
           }
         }
       }
       
-      // For controllers without profile target, check adjustments
+      // For controllers without active session profile target, check adjustments
       const remaining = nonCoolerIds.filter(id => targets[id] == null);
       for (const cid of remaining) {
         const { data } = await supabase
