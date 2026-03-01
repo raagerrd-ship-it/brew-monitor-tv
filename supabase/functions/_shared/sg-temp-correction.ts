@@ -124,6 +124,8 @@ export function calculateResidual(
 const RESIDUAL_PARAM_PREFIX = 'sg_residual_per_degree'
 const RESIDUAL_CLAMP_MIN = 0
 const RESIDUAL_CLAMP_MAX = 0.0003
+/** Minimum learning samples before any SG correction is applied to telemetry */
+export const MIN_CONFIDENCE_SAMPLES = 10
 
 function residualParamName(pillId: string): string {
   return `${RESIDUAL_PARAM_PREFIX}:${pillId}`
@@ -137,14 +139,14 @@ function residualParamName(pillId: string): string {
 export async function getLearnedResidual(
   supabase: ReturnType<typeof createClient>,
   pillId: string
-): Promise<{ residualPerDegree: number; sampleCount: number }> {
+): Promise<{ residualPerDegree: number; sampleCount: number; confident: boolean }> {
   const { value, sampleCount } = await getLearnedParam(
     supabase,
     pillId, // stored in controller_id column
     residualParamName(pillId),
     0 // default: no correction
   )
-  return { residualPerDegree: value, sampleCount }
+  return { residualPerDegree: value, sampleCount, confident: sampleCount >= MIN_CONFIDENCE_SAMPLES }
 }
 
 /**
