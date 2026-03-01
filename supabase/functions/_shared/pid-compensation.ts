@@ -449,6 +449,20 @@ export async function calculateCompensatedTarget(
       constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
+    
+    // Safety clamp: never set target above probe during cooling (would start heater)
+    // or below probe during heating (would start cooler)
+    if (overshootRelease) {
+      if (mode === 'cooling' && compensatedTarget > latestCtrlForComp) {
+        compensatedTarget = Math.min(compensatedTarget, latestCtrlForComp)
+        constraints.push('overshoot-clamp')
+        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar värmaren)`)
+      } else if (mode === 'heating' && compensatedTarget < latestCtrlForComp) {
+        compensatedTarget = Math.max(compensatedTarget, latestCtrlForComp)
+        constraints.push('overshoot-clamp')
+        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar kylaren)`)
+      }
+    }
   }
 
   compensatedTarget = Math.round(compensatedTarget * 10) / 10
