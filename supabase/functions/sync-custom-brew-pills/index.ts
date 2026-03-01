@@ -63,15 +63,23 @@ serve(async (req) => {
       .from('rapt_temp_controllers')
       .select('controller_id, linked_pill_id, pill_temp');
 
-    // Get auth token
-    console.log('Getting RAPT auth token...');
-    const { data: authData, error: authError } = await supabase.functions.invoke('rapt-auth');
-    
-    if (authError) {
-      throw new Error(`Failed to get auth token: ${authError.message}`);
+    // Get auth token — prefer passed-in token from sync-rapt-data-quick, fallback to own auth
+    let access_token: string;
+    try {
+      const body = await req.json().catch(() => ({}));
+      access_token = body?.access_token;
+    } catch {
+      access_token = '';
     }
     
-    const { access_token } = authData;
+    if (!access_token) {
+      console.log('No token passed, getting own RAPT auth token...');
+      const { data: authData, error: authError } = await supabase.functions.invoke('rapt-auth');
+      if (authError) throw new Error(`Failed to get auth token: ${authError.message}`);
+      access_token = authData.access_token;
+    } else {
+      console.log('Using passed-in RAPT auth token');
+    }
     let brewsUpdated = 0;
 
     for (const brew of customBrews) {

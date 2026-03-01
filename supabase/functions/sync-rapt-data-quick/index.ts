@@ -8,6 +8,70 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ── Inlined RAPT auth (saves 1 HTTP hop) ──
+async function getRaptToken(): Promise<string> {
+  const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+  const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+  if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
+
+  const formData = new URLSearchParams();
+  formData.append('client_id', 'rapt-user');
+  formData.append('grant_type', 'password');
+  formData.append('username', RAPT_USERNAME);
+  formData.append('password', RAPT_API_SECRET);
+
+  const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+  const res = await fetch(`${authBaseUrl}/connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
+  }
+  const data = await res.json();
+  return data.access_token;
+}
+
+// ── Inlined RAPT API fetches (saves 2 HTTP hops) ──
+async function fetchRaptPills(accessToken: string): Promise<any[]> {
+  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
+  const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetHydrometers`, {
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`RAPT pills API error: ${res.status} ${t}`); }
+  return res.json();
+}
+
+async function fetchRaptControllers(accessToken: string): Promise<any[]> {
+  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
+  const res = await fetch(`${apiBaseUrl}/api/TemperatureControllers/GetTemperatureControllers`, {
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`RAPT controllers API error: ${res.status} ${t}`); }
+  return res.json();
+}
+
+// ── Inlined Brewfather readings fetch (saves 1 HTTP hop per brew) ──
+async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
+  const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
+  const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
+  if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
+
+  const res = await fetch(
+    `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}/readings`,
+    {
+      headers: { 'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}` },
+      signal: AbortSignal.timeout(15000),
+    }
+  );
+  if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
+  return res.json();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -20,25 +84,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Update timestamp
+    // Update timestamp (simplified: no select+update, just update all rows)
     await supabase
       .from('sync_settings')
       .update({ 
         last_rapt_quick_sync_at: new Date().toISOString(),
         last_sync_time: new Date().toISOString()
       })
-      .eq('id', (await supabase.from('sync_settings').select('id').single()).data?.id);
+      .not('id', 'is', null);
 
     // ──────────────────────────────────────────────────────
     // PHASE 1: RAPT device sync (pills + controllers)
     // ──────────────────────────────────────────────────────
 
-    // Get auth token
+    // Get auth token (inlined — no HTTP hop)
     console.log('Getting RAPT auth token...');
-    const { data: authData, error: authError } = await supabase.functions.invoke('rapt-auth');
-    
-    if (authError) throw authError;
-    const { access_token } = authData;
+    const access_token = await getRaptToken();
 
     // Get selected Pills & Controllers
     const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
@@ -49,21 +110,11 @@ serve(async (req) => {
     const selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
     const selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
 
-    // Fetch ALL Pills and Controllers in parallel
-    const [pillsResult, controllersResult] = await Promise.all([
-      selectedPillIds.length > 0 
-        ? supabase.functions.invoke('rapt-pills', { body: { access_token } })
-        : { data: [], error: null },
-      selectedControllerIds.length > 0
-        ? supabase.functions.invoke('rapt-temp-controllers', { body: { access_token } })
-        : { data: [], error: null },
+    // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
+    const [allPills, allControllers] = await Promise.all([
+      selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
+      selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
     ]);
-
-    if (pillsResult.error) console.error('Error fetching pills:', pillsResult.error);
-    if (controllersResult.error) console.error('Error fetching controllers:', controllersResult.error);
-
-    const allPills: any[] = pillsResult.error ? [] : (pillsResult.data || []);
-    const allControllers: any[] = controllersResult.error ? [] : (controllersResult.data || []);
 
     // Build pill temperature map
     const pillTempMap = new Map<string, number>();
@@ -80,17 +131,23 @@ serve(async (req) => {
     let pillsUpdated = 0;
     let controllersUpdated = 0;
 
-    // Update Pills
+    // Update Pills — batch upsert instead of sequential updates
     if (selectedPillIds.length > 0) {
       const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
-      for (const pill of selectedPillsData) {
-        await supabase.from('rapt_pills').update({
+      if (selectedPillsData.length > 0) {
+        const pillUpserts = selectedPillsData.map((pill: any) => ({
+          pill_id: pill.id,
+          name: pill.name || pill.id,
+          color: pill.color || '#000000',
           battery_level: Math.round(pill.battery || 0),
           last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
           paired_device_id: pill.pairedDeviceId || null,
           updated_at: new Date().toISOString()
-        }).eq('pill_id', pill.id);
-        pillsUpdated++;
+        }));
+        const { error: pillUpsertErr } = await supabase.from('rapt_pills')
+          .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
+        if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);
+        else pillsUpdated = selectedPillsData.length;
       }
     }
 
@@ -178,7 +235,7 @@ serve(async (req) => {
 
     // ──────────────────────────────────────────────────────
     // PHASE 2: Brewfather readings (quick) + automation
-    //          Run in parallel with temp history & custom brews
+    //          Run in parallel with custom brews
     // ──────────────────────────────────────────────────────
 
     // Fetch visible Brewfather brews
@@ -190,11 +247,12 @@ serve(async (req) => {
     const brewfatherSync = async () => {
       if (!selectedBrews || selectedBrews.length === 0) return;
 
-      // Fetch readings + existing data in parallel
+      // Fetch readings (inlined) + existing data in parallel
       const [readingsResults, existingBrews] = await Promise.all([
         Promise.all(selectedBrews.map(brew =>
-          supabase.functions.invoke('brewfather-readings', { body: { batchId: brew.batch_id } })
-            .then(r => ({ batchId: brew.batch_id, data: r.data, error: r.error }))
+          fetchBrewfatherReadings(brew.batch_id)
+            .then(data => ({ batchId: brew.batch_id, data, error: null }))
+            .catch(err => ({ batchId: brew.batch_id, data: [], error: err }))
         )),
         Promise.all(selectedBrews.map(brew =>
           supabase.from('brew_readings')
@@ -273,9 +331,10 @@ serve(async (req) => {
     };
 
     // PHASE 2a: Sync all data sources in parallel (RAPT already done in Phase 1)
+    // Pass access_token to sync-custom-brew-pills to avoid duplicate auth
     const [bfResult, customBrewResult] = await Promise.allSettled([
       brewfatherSync(),
-      supabase.functions.invoke('sync-custom-brew-pills'),
+      supabase.functions.invoke('sync-custom-brew-pills', { body: { access_token } }),
     ]);
 
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
@@ -297,10 +356,49 @@ serve(async (req) => {
     }
 
     // PHASE 2c: Log temp history AFTER automation so PID-adjusted targets are captured
+    // Inlined — no HTTP hop to record-temp-history
     console.log('Logging temp history with PID-adjusted values...');
     try {
-      const historyResponse = await supabase.functions.invoke('record-temp-history');
-      if (historyResponse.error) console.error('Temp history error:', historyResponse.error);
+      const { data: visibleControllerIds } = await supabase
+        .from('selected_rapt_temp_controllers')
+        .select('controller_id')
+        .eq('is_visible', true);
+
+      if (visibleControllerIds && visibleControllerIds.length > 0) {
+        const ids = visibleControllerIds.map(c => c.controller_id);
+        const { data: controllers } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp')
+          .in('controller_id', ids);
+
+        if (controllers && controllers.length > 0) {
+          // Insert temp history
+          const historyRecords = controllers.map(c => ({
+            controller_id: c.controller_id,
+            current_temp: c.current_temp ?? c.pill_temp,
+            target_temp: c.target_temp,
+            cooling_enabled: c.cooling_enabled || false,
+            profile_target_temp: c.profile_target_temp ?? c.target_temp,
+          }));
+          const { error: histErr } = await supabase.from('temp_controller_history').insert(historyRecords);
+          if (histErr) console.error('Failed to insert history:', histErr);
+
+          // Insert delta history
+          const deltaRecords = controllers
+            .filter(c => c.pill_temp !== null && c.current_temp !== null)
+            .map(c => ({
+              controller_id: c.controller_id,
+              pill_temp: c.pill_temp,
+              controller_temp: c.current_temp,
+              delta: c.pill_temp - c.current_temp,
+            }));
+          if (deltaRecords.length > 0) {
+            const { error: deltaErr } = await supabase.from('temp_delta_history').insert(deltaRecords);
+            if (deltaErr) console.error('Failed to insert delta history:', deltaErr);
+          }
+          console.log(`Recorded temp history for ${controllers.length} controllers`);
+        }
+      }
     } catch (histErr) {
       console.error('Temp history error:', histErr);
     }
