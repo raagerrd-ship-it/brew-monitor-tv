@@ -1315,6 +1315,7 @@ export type Database = {
           auto_hide_archived: boolean | null
           auto_hide_completed: boolean | null
           auto_hide_conditioning: boolean | null
+          brewfather_enabled: boolean
           created_at: string
           force_tv_refresh_at: string | null
           full_sync_interval: number | null
@@ -1338,6 +1339,7 @@ export type Database = {
           auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
+          brewfather_enabled?: boolean
           created_at?: string
           force_tv_refresh_at?: string | null
           full_sync_interval?: number | null
@@ -1361,6 +1363,7 @@ export type Database = {
           auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
+          brewfather_enabled?: boolean
           created_at?: string
           force_tv_refresh_at?: string | null
           full_sync_interval?: number | null

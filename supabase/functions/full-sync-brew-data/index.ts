@@ -32,28 +32,33 @@ Deno.serve(async (req) => {
     // Get sync settings for auto-management
     const { data: syncSettings } = await supabase
       .from('sync_settings')
-      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived')
+      .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
       .limit(1).maybeSingle()
 
     const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
     const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
     const autoActivateFermenting = syncSettings?.auto_activate_fermenting ?? true
     const autoHideArchived = syncSettings?.auto_hide_archived ?? true
+    const brewfatherEnabled = (syncSettings as any)?.brewfather_enabled ?? true
 
     // ──────────────────────────────────────────────────────
     // STEP 1: Brewfather full batch sync + auto-manage
+    //         (skipped entirely when Brewfather is disabled)
     // ──────────────────────────────────────────────────────
 
     let batchesData: any[] = []
-    try {
-      const { data, error: batchesError } = await supabase.functions.invoke('brewfather-batches', { body: {} })
-      if (batchesError) console.error('Error fetching batches:', batchesError)
-      else batchesData = data || []
-    } catch (e) {
-      console.error('Failed to fetch Brewfather batches:', e)
+    if (brewfatherEnabled) {
+      try {
+        const { data, error: batchesError } = await supabase.functions.invoke('brewfather-batches', { body: {} })
+        if (batchesError) console.error('Error fetching batches:', batchesError)
+        else batchesData = data || []
+      } catch (e) {
+        console.error('Failed to fetch Brewfather batches:', e)
+      }
+      console.log(`Fetched ${batchesData.length} batches from Brewfather`)
+    } else {
+      console.log('Brewfather disabled, skipping batch sync')
     }
-
-    console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
     // Auto-manage selected_brews
     if (batchesData.length > 0) {

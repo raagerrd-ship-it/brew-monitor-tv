@@ -86,7 +86,8 @@ serve(async (req) => {
 
     // Read sync_settings once (reused by outageTask later — avoids double query)
     const { data: syncSettingsRow } = await supabase.from('sync_settings')
-      .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single();
+      .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single();
+    const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
 
     // Update timestamp (fire-and-forget, no await needed for main flow)
     const nowIso = new Date().toISOString();
@@ -239,9 +240,11 @@ serve(async (req) => {
     //          Run in parallel with custom brews
     // ──────────────────────────────────────────────────────
 
-    // Fetch visible Brewfather brews
-    const { data: selectedBrews } = await supabase.from('selected_brews')
-      .select('batch_id').eq('is_visible', true).not('batch_id', 'like', 'custom\\_%');
+    // Fetch visible Brewfather brews (skip if Brewfather disabled)
+    const { data: selectedBrews } = brewfatherEnabled
+      ? await supabase.from('selected_brews')
+          .select('batch_id').eq('is_visible', true).not('batch_id', 'like', 'custom\\_%')
+      : { data: [] as any[] };
 
     let brewsUpdated = 0;
 
