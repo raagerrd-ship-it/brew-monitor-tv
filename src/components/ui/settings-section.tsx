@@ -44,7 +44,7 @@ export function SettingsSection({
     >
       {/* Header */}
       <div
-        className={cn("flex items-center gap-3", collapsible && "cursor-pointer select-none")}
+        className={cn("flex items-center gap-3", collapsible && "cursor-pointer select-none group")}
         onClick={collapsible ? () => setIsOpen(o => !o) : undefined}
       >
         <div className="relative">
@@ -61,7 +61,7 @@ export function SettingsSection({
         </div>
         {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
         {collapsible && (
-          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-all group-hover:text-primary", isOpen && "rotate-180")} />
         )}
       </div>
 
