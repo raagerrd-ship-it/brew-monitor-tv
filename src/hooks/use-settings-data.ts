@@ -49,27 +49,20 @@ export function useSettingsData() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync settings
-  const [syncInterval, setSyncInterval] = useState<string>("60");
+  // Sync settings — unified 2-tier model
+  const [quickSyncInterval, setQuickSyncInterval] = useState<string>("300");
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [autoHideCompleted, setAutoHideCompleted] = useState(true);
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
-  const [fullSyncInterval, setFullSyncInterval] = useState<string>("86400");
-  const [raptSyncInterval, setRaptSyncInterval] = useState<string>("900");
-  const [raptFullSyncInterval, setRaptFullSyncInterval] = useState<string>("86400");
+  const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
-  const [lastBrewfatherQuickSync, setLastBrewfatherQuickSync] = useState<string | null>(null);
-  const [lastRaptSync, setLastRaptSync] = useState<string | null>(null);
-  const [lastRaptQuickSync, setLastRaptQuickSync] = useState<string | null>(null);
+  const [lastQuickSync, setLastQuickSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [quickSyncing, setQuickSyncing] = useState(false);
-  const [raptSyncing, setRaptSyncing] = useState(false);
-  const [raptQuickSyncing, setRaptQuickSyncing] = useState(false);
   const [syncSteps, setSyncSteps] = useState<SyncStep[]>([]);
-  const [raptSyncSteps, setRaptSyncSteps] = useState<SyncStep[]>([]);
   const [apiSettings, setApiSettings] = useState<ApiSettings | null>(null);
 
   // Auto-cooling settings
@@ -144,19 +137,16 @@ export function useSettingsData() {
       if (error) throw error;
       if (data) {
         setSettingsId(data.id);
-        setSyncInterval(data.sync_interval.toString());
+        // Use rapt_sync_interval as the unified quick_sync_interval
+        setQuickSyncInterval(data.rapt_sync_interval?.toString() ?? "300");
         setAutoHideCompleted(data.auto_hide_completed ?? true);
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
-        setFullSyncInterval(data.full_sync_interval?.toString() ?? "86400");
-        setLastRaptSync(data.last_rapt_sync_at);
-        setLastRaptQuickSync(data.last_rapt_quick_sync_at);
-        setRaptSyncInterval(data.rapt_sync_interval?.toString() ?? "900");
-        setRaptFullSyncInterval(data.rapt_full_sync_interval?.toString() ?? "86400");
+        setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
-        setLastBrewfatherQuickSync(data.last_sync_time);
+        setLastQuickSync(data.last_rapt_quick_sync_at);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -292,10 +282,8 @@ export function useSettingsData() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload) => {
         const newData = payload.new as Tables<'sync_settings'>;
         if (newData) {
-          setLastRaptSync(newData.last_rapt_sync_at);
-          setLastRaptQuickSync(newData.last_rapt_quick_sync_at);
+          setLastQuickSync(newData.last_rapt_quick_sync_at);
           setLastFullSync(newData.last_full_sync_at);
-          setLastBrewfatherQuickSync(newData.last_sync_time);
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auto_cooling_adjustments' }, () => {
@@ -367,24 +355,15 @@ export function useSettingsData() {
     }
   }, [autoCoolingSettingsId, toast]);
 
-  const handleSyncIntervalChange = useCallback(async (value: string) => {
-    setSyncInterval(value);
-    await updateSyncSetting('sync_interval', parseInt(value));
+  const handleQuickSyncIntervalChange = useCallback(async (value: string) => {
+    setQuickSyncInterval(value);
+    // Write to rapt_sync_interval which drives the cron trigger
+    await updateSyncSetting('rapt_sync_interval', parseInt(value));
   }, [updateSyncSetting]);
 
   const handleFullSyncIntervalChange = useCallback(async (value: string) => {
     setFullSyncInterval(value);
     await updateSyncSetting('full_sync_interval', parseInt(value));
-  }, [updateSyncSetting]);
-
-  const handleRaptSyncIntervalChange = useCallback(async (value: string) => {
-    setRaptSyncInterval(value);
-    await updateSyncSetting('rapt_sync_interval', parseInt(value));
-  }, [updateSyncSetting]);
-
-  const handleRaptFullSyncIntervalChange = useCallback(async (value: string) => {
-    setRaptFullSyncInterval(value);
-    await updateSyncSetting('rapt_full_sync_interval', parseInt(value));
   }, [updateSyncSetting]);
 
   const handleAutoSettingChange = useCallback(async (field: string, value: boolean) => {
@@ -405,21 +384,23 @@ export function useSettingsData() {
   const handleQuickSync = useCallback(async () => {
     setQuickSyncing(true);
     try {
-      const { error } = await supabase.functions.invoke('sync-brew-data', { body: {} });
+      const { error } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
       if (error) throw error;
-      toast({ title: "Synkronisering klar", description: "Snabb synkronisering har genomförts" });
+      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + Brewfather)" });
+      await loadSettings();
     } catch {
       toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
     } finally {
       setQuickSyncing(false);
     }
-  }, [toast]);
+  }, [toast, loadSettings]);
 
   const handleFullSync = useCallback(async () => {
     setSyncing(true);
     const steps = [
-      { id: 'brewfather-data', label: 'Brewfather data', completed: false, inProgress: false },
-      { id: 'rapt-data', label: 'RAPT data', completed: false, inProgress: false },
+      { id: 'brewfather-data', label: 'Brewfather batchar', completed: false, inProgress: false },
+      { id: 'rapt-data', label: 'RAPT enheter (full)', completed: false, inProgress: false },
+      { id: 'ai-audit', label: 'AI-optimering', completed: false, inProgress: false },
     ];
     setSyncSteps(steps);
     try {
@@ -428,58 +409,18 @@ export function useSettingsData() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, completed: true, inProgress: false } : s));
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
+      setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, inProgress: true } : s));
       const { error } = await syncPromise;
       if (error) throw error;
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
-      toast({ title: "Synkronisering klar", description: "Full synkronisering har genomförts" });
+      setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, completed: true, inProgress: false } : s));
+      toast({ title: "Synkronisering klar", description: "Full synk har genomförts (alla datakällor + AI)" });
       await loadSettings();
     } catch {
       toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
     } finally {
       setSyncing(false);
-    }
-  }, [toast, loadSettings]);
-
-  const handleRaptQuickSync = useCallback(async () => {
-    setRaptQuickSyncing(true);
-    try {
-      const { error } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
-      if (error) throw error;
-      toast({ title: "Snabb RAPT synkning klar", description: "Data för valda enheter har uppdaterats" });
-      await loadSettings();
-    } catch {
-      toast({ title: "Fel", description: "Kunde inte synkronisera RAPT data", variant: "destructive" });
-    } finally {
-      setRaptQuickSyncing(false);
-    }
-  }, [toast, loadSettings]);
-
-  const handleRaptFullSync = useCallback(async () => {
-    setRaptSyncing(true);
-    const steps = [
-      { id: 'rapt-auth', label: 'RAPT autentisering', completed: false, inProgress: false },
-      { id: 'rapt-pills', label: 'RAPT pills', completed: false, inProgress: false },
-      { id: 'rapt-controllers', label: 'RAPT temperaturkontroller', completed: false, inProgress: false },
-    ];
-    setRaptSyncSteps(steps);
-    try {
-      const syncPromise = supabase.functions.invoke('sync-rapt-data', { body: {} });
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-auth' ? { ...s, inProgress: true } : s));
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-auth' ? { ...s, completed: true, inProgress: false } : s));
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, inProgress: true } : s));
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-pills' ? { ...s, completed: true, inProgress: false } : s));
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, inProgress: true } : s));
-      const { error } = await syncPromise;
-      if (error) throw error;
-      setRaptSyncSteps(prev => prev.map(s => s.id === 'rapt-controllers' ? { ...s, completed: true, inProgress: false } : s));
-      toast({ title: "Full RAPT synkning klar", description: "Alla enheter har uppdaterats" });
-      await loadSettings();
-    } catch {
-      toast({ title: "Fel", description: "Kunde inte synkronisera RAPT data", variant: "destructive" });
-    } finally {
-      setRaptSyncing(false);
     }
   }, [toast, loadSettings]);
 
@@ -578,11 +519,11 @@ export function useSettingsData() {
   return {
     // Auth
     user, loading,
-    // Sync
-    syncInterval, fullSyncInterval, raptSyncInterval, raptFullSyncInterval, splashDelayMs,
-    lastFullSync, lastBrewfatherQuickSync, lastRaptSync, lastRaptQuickSync,
-    syncing, quickSyncing, raptSyncing, raptQuickSyncing,
-    syncSteps, raptSyncSteps,
+    // Sync — unified 2-tier
+    quickSyncInterval, fullSyncInterval, splashDelayMs,
+    lastFullSync, lastQuickSync,
+    syncing, quickSyncing,
+    syncSteps,
     apiSettings,
     settingsId,
     autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
@@ -597,10 +538,9 @@ export function useSettingsData() {
     visiblePillsCount, visibleControllersCount, visibleBrewsCount,
     externalLoginDialogOpen, setExternalLoginDialogOpen,
     // Handlers
-    handleSyncIntervalChange, handleFullSyncIntervalChange,
-    handleRaptSyncIntervalChange, handleRaptFullSyncIntervalChange,
+    handleQuickSyncIntervalChange, handleFullSyncIntervalChange,
     handleAutoSettingChange, handleSplashDelayChange,
-    handleQuickSync, handleFullSync, handleRaptQuickSync, handleRaptFullSync,
+    handleQuickSync, handleFullSync,
     handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
     handlePillCompEnabledChange, handlePillCompMaxCompensationChange,

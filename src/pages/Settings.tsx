@@ -335,18 +335,13 @@ export default function Settings() {
 
             <SettingsSection icon={RefreshCw} title="Frekvenser" description="Automatisk och manuell synk för alla datakällor">
               <div className="space-y-3">
-                {/* Brewfather */}
                 <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-2.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Beer className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-semibold tracking-wide uppercase text-foreground/80">Brewfather</span>
-                  </div>
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">Hämtar senaste mätvärden</p>
+                      <p className="text-[10px] text-muted-foreground">RAPT + Brewfather mätvärden + automation</p>
                     </div>
-                    <Select value={settings.syncInterval} onValueChange={settings.handleSyncIntervalChange}>
+                    <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-card border-border z-50">
                         <SelectItem value="0">Aldrig</SelectItem>
@@ -354,6 +349,7 @@ export default function Settings() {
                         <SelectItem value="300">5 min</SelectItem>
                         <SelectItem value="600">10 min</SelectItem>
                         <SelectItem value="900">15 min</SelectItem>
+                        <SelectItem value="1800">30 min</SelectItem>
                         <SelectItem value="3600">1 tim</SelectItem>
                       </SelectContent>
                     </Select>
@@ -363,7 +359,7 @@ export default function Settings() {
 
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Full synk</p>
-                      <p className="text-[10px] text-muted-foreground">Synkar alla batchar och recept</p>
+                      <p className="text-[10px] text-muted-foreground">Alla batchar + enheter + AI-optimering</p>
                     </div>
                     <Select value={settings.fullSyncInterval} onValueChange={settings.handleFullSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
@@ -380,53 +376,6 @@ export default function Settings() {
                     </Button>
                   </div>
                   {settings.syncing && settings.syncSteps.length > 0 && <SyncChecklist steps={settings.syncSteps} />}
-                </div>
-
-                {/* RAPT */}
-                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-2.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Cloud className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-semibold tracking-wide uppercase text-foreground/80">RAPT</span>
-                  </div>
-                  <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">Pill & temperaturstyrning</p>
-                    </div>
-                    <Select value={settings.raptSyncInterval} onValueChange={settings.handleRaptSyncIntervalChange}>
-                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="0">Aldrig</SelectItem>
-                        <SelectItem value="60">1 min</SelectItem>
-                        <SelectItem value="300">5 min</SelectItem>
-                        <SelectItem value="600">10 min</SelectItem>
-                        <SelectItem value="900">15 min</SelectItem>
-                        <SelectItem value="1800">30 min</SelectItem>
-                        <SelectItem value="3600">1 tim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={settings.handleRaptQuickSync} disabled={settings.raptQuickSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <RefreshCw className={`h-3 w-3 ${settings.raptQuickSyncing ? 'animate-spin' : ''}`} />
-                    </Button>
-
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">Full synk</p>
-                      <p className="text-[10px] text-muted-foreground">Alla enheter och konfiguration</p>
-                    </div>
-                    <Select value={settings.raptFullSyncInterval} onValueChange={settings.handleRaptFullSyncIntervalChange}>
-                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="0">Aldrig</SelectItem>
-                        <SelectItem value="21600">6 tim</SelectItem>
-                        <SelectItem value="43200">12 tim</SelectItem>
-                        <SelectItem value="86400">24 tim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={settings.handleRaptFullSync} disabled={settings.raptSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <RefreshCw className={`h-3 w-3 ${settings.raptSyncing ? 'animate-spin' : ''}`} />
-                    </Button>
-                  </div>
-                  {settings.raptSyncing && settings.raptSyncSteps.length > 0 && <SyncChecklist steps={settings.raptSyncSteps} />}
                 </div>
               </div>
             </SettingsSection>
@@ -543,8 +492,8 @@ export default function Settings() {
                     coolerControllerId={settings.coolerControllerId}
                     followedControllerIds={settings.followedControllerIds}
                     lastAdjustment={settings.lastAdjustment}
-                    lastAutoCoolingCheck={settings.lastRaptQuickSync}
-                    autoCoolingInterval={settings.raptSyncInterval}
+                    lastAutoCoolingCheck={settings.lastQuickSync}
+                    autoCoolingInterval={settings.quickSyncInterval}
                   />
                 </div>
               </SettingsSection>
