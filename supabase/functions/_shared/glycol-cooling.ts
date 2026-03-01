@@ -8,7 +8,7 @@ import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 // 
 // PRINCIPLE: Glycol only cares about ONE thing —
 // maintaining a learned margin below the lowest followed
-// controller's effective target temp so cooling happens
+// controller's effective probe target so cooling happens
 // at a good/reasonable rate.
 //
 // PID handles probe/pill averaging and target adjustments.
@@ -26,8 +26,14 @@ export interface GlycolContext {
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
 }
 
+// Cached profile data shared between functions to avoid duplicate queries
+interface ProfileCache {
+  sessions: any[]
+  stepsMap: Map<string, any[]>
+}
+
 export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentResult[]> {
-  const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, settings, log } = ctx
+  const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, log } = ctx
   const adjustments: AdjustmentResult[] = []
 
   log('COOLING', 'info', '--- Glycol cooling check ---')
@@ -70,7 +76,6 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   if (controllersWithCooling.length === 0) {
     log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
-    // Set to default idle temp
     const defaultTemp = 18
     if (Math.abs(currentCoolerTarget - defaultTemp) > 0.5 && defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
       await applyGlycolTarget(ctx, coolerController, currentCoolerTarget, defaultTemp, 0, 'Ingen tank kyler — viloläge', adjustments)
@@ -78,10 +83,11 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     return adjustments
   }
 
+  // ── Load profile data once (used for ramp detection + blocking) ──
+  const profileCache = await loadProfileCache(ctx, controllersWithCooling)
+
   // ── Determine effective lowest target ─────────────────────
-  // Check if any followed controller has an active ramp — if so,
-  // use the interpolated ramp position (1h look-ahead) as reference.
-  const effectiveTarget = await getEffectiveLowestTarget(ctx, controllersWithCooling)
+  const effectiveTarget = resolveEffectiveLowestTarget(ctx, controllersWithCooling, profileCache)
 
   log('EFFECTIVE_TARGET', 'info', `Lowest effective target: ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`, {
     controller: effectiveTarget.controllerName,
@@ -104,7 +110,6 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.3) {
     log('GLYCOL_OK', 'pass', `Glycol at ${currentCoolerTarget}°C, target ${clampedTarget}°C — close enough (${diff.toFixed(1)}°C diff)`)
-    // Learn: margin is working well
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget.temp, tempBucket)
     return adjustments
   }
@@ -126,8 +131,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   // ── Block raising glycol during active downward ramps ─────
   if (clampedTarget > currentCoolerTarget) {
-    const isRampingDown = await isAnyFollowedRampingDown(ctx)
-    if (isRampingDown) {
+    if (effectiveTarget.isRampingDown) {
       log('RAMP_BLOCK', 'info', 'Blockerar höjning — aktiv nedåtramp pågår')
       return adjustments
     }
@@ -142,20 +146,53 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   return adjustments
 }
 
-// ─── Determine the effective lowest target ───────────────────
-// Considers active ramps with 1h interpolated look-ahead.
+// ─── Load profile data once ──────────────────────────────────
+
+async function loadProfileCache(ctx: GlycolContext, controllersWithCooling: TempController[]): Promise<ProfileCache> {
+  const { supabase } = ctx
+  const followedIds = controllersWithCooling.map(c => c.controller_id)
+
+  const { data: sessions } = await supabase
+    .from('fermentation_sessions')
+    .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
+    .eq('status', 'running')
+    .in('controller_id', followedIds)
+
+  if (!sessions || sessions.length === 0) return { sessions: [], stepsMap: new Map() }
+
+  const uniqueProfileIds = [...new Set(sessions.map(s => s.profile_id))]
+  const { data: allSteps } = await supabase
+    .from('fermentation_profile_steps')
+    .select('profile_id, step_order, step_type, target_temp, duration_hours')
+    .in('profile_id', uniqueProfileIds)
+    .order('step_order', { ascending: true })
+
+  const stepsMap = new Map<string, any[]>()
+  if (allSteps) {
+    for (const step of allSteps) {
+      const list = stepsMap.get(step.profile_id) || []
+      list.push(step)
+      stepsMap.set(step.profile_id, list)
+    }
+  }
+
+  return { sessions, stepsMap }
+}
+
+// ─── Determine the effective lowest target (pure logic, no DB) ──
 
 interface EffectiveTarget {
   temp: number
   controllerName: string
   controllerId: string
   source: string
+  isRampingDown: boolean
 }
 
-async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling: TempController[]): Promise<EffectiveTarget> {
-  const { supabase, log } = ctx
+function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling: TempController[], cache: ProfileCache): EffectiveTarget {
+  const { log } = ctx
 
-  // Start with the static lowest target
+  // Start with the static lowest probe target
   const lowestStatic = controllersWithCooling.reduce((lowest, c) => {
     const t = parseFloat(String(c.target_temp ?? '999'))
     const lt = parseFloat(String(lowest.target_temp ?? '999'))
@@ -167,36 +204,11 @@ async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooli
     controllerName: lowestStatic.name,
     controllerId: lowestStatic.controller_id,
     source: 'probe target',
+    isRampingDown: false,
   }
 
-  // Check for active ramps — use interpolated position with 1h look-ahead
-  const followedIds = controllersWithCooling.map(c => c.controller_id)
-  const { data: sessions } = await supabase
-    .from('fermentation_sessions')
-    .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp')
-    .eq('status', 'running')
-    .in('controller_id', followedIds)
-
-  if (!sessions || sessions.length === 0) return result
-
-  const uniqueProfileIds = [...new Set(sessions.map(s => s.profile_id))]
-  const { data: allSteps } = await supabase
-    .from('fermentation_profile_steps')
-    .select('profile_id, step_order, step_type, target_temp, duration_hours')
-    .in('profile_id', uniqueProfileIds)
-    .order('step_order', { ascending: true })
-
-  if (!allSteps) return result
-
-  const stepsMap = new Map<string, any[]>()
-  for (const step of allSteps) {
-    const list = stepsMap.get(step.profile_id) || []
-    list.push(step)
-    stepsMap.set(step.profile_id, list)
-  }
-
-  for (const session of sessions) {
-    const steps = stepsMap.get(session.profile_id)
+  for (const session of cache.sessions) {
+    const steps = cache.stepsMap.get(session.profile_id)
     if (!steps) continue
 
     const controller = controllersWithCooling.find(c => c.controller_id === session.controller_id)
@@ -210,6 +222,8 @@ async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooli
       const stepTarget = parseFloat(String(currentStep.target_temp))
       const startTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : result.temp
       if (stepTarget < startTemp) {
+        result.isRampingDown = true // Flag for ramp blocking
+
         const elapsedHours = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
         const remainingHours = Math.max(0, currentStep.duration_hours - elapsedHours)
 
@@ -224,6 +238,7 @@ async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooli
             controllerName: controller.name,
             controllerId: controller.controller_id,
             source: `ramp look-ahead 1h (→ ${stepTarget}°C)`,
+            isRampingDown: true,
           }
         }
       }
@@ -233,10 +248,13 @@ async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooli
     const nextStep = steps[session.current_step_index + 1]
     if (nextStep?.target_temp != null) {
       const nextTarget = parseFloat(String(nextStep.target_temp))
-      let currentEffective = result.temp
+
+      // Find current step's effective target (not the ramp look-ahead)
+      let currentEffective: number | null = null
       for (let i = session.current_step_index; i >= 0; i--) {
         if (steps[i].target_temp != null) { currentEffective = parseFloat(String(steps[i].target_temp)); break }
       }
+      if (currentEffective === null) continue
 
       if (nextTarget < currentEffective - 0.5) {
         let hoursUntil = 0
@@ -251,6 +269,7 @@ async function getEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooli
             controllerName: controller.name,
             controllerId: controller.controller_id,
             source: `upcoming step (om ${hoursUntil.toFixed(1)}h → ${nextTarget}°C)`,
+            isRampingDown: result.isRampingDown,
           }
           log('PROACTIVE', 'info', `${controller.name}: nästa steg om ${hoursUntil.toFixed(1)}h → ${nextTarget}°C`)
         }
@@ -274,7 +293,6 @@ async function learnFromCurrentState(
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
   const currentMargin = Math.abs(effectiveTarget - currentCoolerTarget)
 
-  // Check: is the lowest controller at or below target? → margin is adequate
   const lowestController = controllersWithCooling.reduce((lowest, c) => {
     const t = parseFloat(String(c.target_temp ?? '999'))
     const lt = parseFloat(String(lowest.target_temp ?? '999'))
@@ -289,67 +307,18 @@ async function learnFromCurrentState(
   const overshot = probeTemp < targetTemp - 1.0
 
   if (atTarget && !overshot && currentMargin > 1.0) {
-    // Margin is working — confirm it (nudge slightly tighter)
     const tighterMargin = currentMargin * 0.97
     const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   } else if (overshot) {
-    // Too aggressive — reduce margin
     const reducedMargin = currentMargin * 0.75
     const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Overshoot! Reducing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   } else if (!atTarget) {
-    // Not reaching target — increase margin
     const biggerMargin = currentMargin * 1.15
     const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, biggerMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Not reaching target — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   }
-}
-
-// ─── Check if any followed controller is ramping down ────────
-
-async function isAnyFollowedRampingDown(ctx: GlycolContext): Promise<boolean> {
-  const { supabase, followedControllersFullData } = ctx
-  const followedIds = followedControllersFullData.map(c => c.controller_id)
-
-  const { data: sessions } = await supabase
-    .from('fermentation_sessions')
-    .select('id, controller_id, profile_id, current_step_index, step_start_temp')
-    .eq('status', 'running')
-    .in('controller_id', followedIds)
-
-  if (!sessions || sessions.length === 0) return false
-
-  const profileIds = [...new Set(sessions.map(s => s.profile_id))]
-  const { data: steps } = await supabase
-    .from('fermentation_profile_steps')
-    .select('profile_id, step_order, step_type, target_temp')
-    .in('profile_id', profileIds)
-    .order('step_order', { ascending: true })
-
-  if (!steps) return false
-
-  const stepsMap = new Map<string, any[]>()
-  for (const s of steps) {
-    const list = stepsMap.get(s.profile_id) || []
-    list.push(s)
-    stepsMap.set(s.profile_id, list)
-  }
-
-  for (const session of sessions) {
-    const pSteps = stepsMap.get(session.profile_id)
-    if (!pSteps) continue
-    const currentStep = pSteps[session.current_step_index]
-    if (!currentStep) continue
-    if (['ramp', 'gradual_ramp'].includes(currentStep.step_type)
-      && currentStep.target_temp != null
-      && session.step_start_temp != null
-      && parseFloat(String(currentStep.target_temp)) < parseFloat(String(session.step_start_temp))) {
-      return true
-    }
-  }
-
-  return false
 }
 
 // ─── Apply glycol target ─────────────────────────────────────
