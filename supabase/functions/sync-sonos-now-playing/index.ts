@@ -151,7 +151,8 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const trackId = track?.id?.objectId || track?.name || existingRow.track_name || '';
+      // Use ONLY the existing row's data — never the live Sonos API (song may have changed)
+      const trackId = existingRow.track_name || '';
       const result = await resolveBackgroundAndWidget(supabase, artUrl, trackId, bgSettings, viewportW, viewportH, null, true, existingRow.track_name);
       if (result.bgUrl || result.widgetUrl) {
         const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
@@ -160,7 +161,7 @@ serve(async (req) => {
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
       }
       const duration = Date.now() - startTime;
-      console.log(`[SonosSync] bg_only: regenerated in ${duration}ms (bg: ${result.bgUrl ? 'yes' : 'no'}, widget: ${result.widgetUrl ? 'yes' : 'no'})`);
+      console.log(`[SonosSync] bg_only: regenerated for "${existingRow.track_name}" in ${duration}ms (bg: ${result.bgUrl ? 'yes' : 'no'}, widget: ${result.widgetUrl ? 'yes' : 'no'})`);
       return new Response(JSON.stringify({ ok: true, bg_only: true, duration_ms: duration }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
