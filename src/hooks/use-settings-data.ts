@@ -81,6 +81,7 @@ export function useSettingsData() {
   const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
   const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
   const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
+  const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [lastAdjustment, setLastAdjustment] = useState<LastAdjustment | null>(null);
 
@@ -183,6 +184,7 @@ export function useSettingsData() {
         setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
         setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
         setAiAuditEnabled(data.ai_audit_enabled ?? true);
+        setSgTempCorrectionEnabled((data as any).sg_temp_correction_enabled ?? false);
       }
       const { data: adjData } = await supabase.from('auto_cooling_adjustments')
         .select('created_at, old_target_temp, new_target_temp, reason, followed_controller_name, followed_current_temp, followed_target_temp')
@@ -306,6 +308,7 @@ export function useSettingsData() {
           if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
           if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
+          if ((newData as any).sg_temp_correction_enabled !== undefined) setSgTempCorrectionEnabled((newData as any).sg_temp_correction_enabled);
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers' }, (payload) => {
@@ -492,6 +495,11 @@ export function useSettingsData() {
     await updateAutoCoolingSetting('ai_audit_enabled', checked);
   }, [updateAutoCoolingSetting]);
 
+  const handleSgTempCorrectionEnabledChange = useCallback(async (checked: boolean) => {
+    setSgTempCorrectionEnabled(checked);
+    await updateAutoCoolingSetting('sg_temp_correction_enabled', checked);
+  }, [updateAutoCoolingSetting]);
+
   const handleCoolerControllerChange = useCallback(async (value: string) => {
     setCoolerControllerId(value);
     await updateAutoCoolingSetting('cooler_controller_id', value);
@@ -543,7 +551,7 @@ export function useSettingsData() {
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
     pillCompEnabled, pillCompMaxCompensation,
-    stallDetectionEnabled, stallBoostDegrees, overshootPreventionEnabled, aiAuditEnabled,
+    stallDetectionEnabled, stallBoostDegrees, overshootPreventionEnabled, aiAuditEnabled, sgTempCorrectionEnabled,
     lastAutoCoolingCheck, lastAdjustment,
     // Controllers & devices
     availableControllers, headerControllers, headerPillsData,
@@ -557,7 +565,7 @@ export function useSettingsData() {
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
     handlePillCompEnabledChange, handlePillCompMaxCompensationChange,
     handleStallDetectionEnabledChange, handleStallBoostDegreesChange,
-    handleOvershootPreventionChange, handleAiAuditEnabledChange, handleCoolerControllerChange,
+    handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange, handleCoolerControllerChange,
     handleFollowedControllerToggle,
     handleLogout, handleForceTvRefresh,
   };

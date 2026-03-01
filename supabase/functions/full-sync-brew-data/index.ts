@@ -34,7 +34,7 @@ const corsHeaders = {
 }
 
 // ── Inlined Brewfather readings fetch — returns SG-corrected values ──
-async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
+async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boolean): Promise<any[]> {
   const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
   const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
   if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
@@ -48,9 +48,10 @@ async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
   );
   if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
   const readings = await res.json();
-  // Apply standard SG temp correction at source
-  for (const r of readings) {
-    if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
+  if (sgCorrectionEnabled) {
+    for (const r of readings) {
+      if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
+    }
   }
   return readings;
 }
@@ -67,11 +68,15 @@ Deno.serve(async (req) => {
 
     console.log('Starting FULL sync (Brewfather + RAPT discovery + quick sync + AI audit)...')
 
-    // Single sync_settings query
-    const { data: syncSettings } = await supabase
-      .from('sync_settings')
-      .select('id, auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
-      .limit(1).single()
+    // Single sync_settings + auto_cooling_settings query
+    const [{ data: syncSettings }, { data: autoCoolingRow }] = await Promise.all([
+      supabase.from('sync_settings')
+        .select('id, auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
+        .limit(1).single(),
+      supabase.from('auto_cooling_settings')
+        .select('sg_temp_correction_enabled').limit(1).maybeSingle(),
+    ]);
+    const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
 
     // Update timestamps (fire-and-forget)
     if (syncSettings?.id) {
@@ -199,7 +204,7 @@ Deno.serve(async (req) => {
         // Fetch readings inlined (Problem 3: no more edge function hops)
         const readingsResults = await Promise.all(
           batchesToSync.map((batch: any) =>
-            fetchBrewfatherReadings(batch._id)
+            fetchBrewfatherReadings(batch._id, sgTempCorrectionEnabled)
               .then(readings => ({ batch, readings, error: null }))
               .catch(err => ({ batch, readings: [] as any[], error: err }))
           )

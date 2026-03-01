@@ -59,7 +59,7 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
 }
 
 // ── Inlined Brewfather readings fetch — returns SG-corrected values ──
-async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
+async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boolean): Promise<any[]> {
   const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
   const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
   if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
@@ -73,9 +73,10 @@ async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
   );
   if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
   const readings = await res.json();
-  // Apply standard SG temp correction at source — all downstream uses get corrected values
-  for (const r of readings) {
-    if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
+  if (sgCorrectionEnabled) {
+    for (const r of readings) {
+      if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
+    }
   }
   return readings;
 }
@@ -84,7 +85,7 @@ async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
 // Applies standard correction + pill-specific residual at source.
 async function fetchPillTelemetryCorrected(
   accessToken: string, pillId: string, startDate: string, endDate: string,
-  supabase: any
+  supabase: any, sgCorrectionEnabled: boolean
 ): Promise<TelemetryRecord[]> {
   const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
   const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
@@ -98,17 +99,19 @@ async function fetchPillTelemetryCorrected(
   }
   const raw: TelemetryRecord[] = await res.json();
   
-  // Get learned pill-specific residual
-  let pillResidual = 0;
-  try {
-    const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
-    pillResidual = residualPerDegree;
-  } catch (_e) { /* no correction yet */ }
-  
-  // Apply full SG correction (standard + residual) at source
-  for (const t of raw) {
-    const rawSg = t.gravity / 1000;
-    t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+  if (sgCorrectionEnabled) {
+    // Get learned pill-specific residual
+    let pillResidual = 0;
+    try {
+      const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+      pillResidual = residualPerDegree;
+    } catch (_e) { /* no correction yet */ }
+    
+    // Apply full SG correction (standard + residual) at source
+    for (const t of raw) {
+      const rawSg = t.gravity / 1000;
+      t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+    }
   }
   return raw;
 }
@@ -141,10 +144,15 @@ serve(async (req) => {
       passedToken = body?.access_token || null;
     } catch { /* no body or invalid JSON — that's fine */ }
 
-    // Read sync_settings once (reused by outageTask later — avoids double query)
-    const { data: syncSettingsRow } = await supabase.from('sync_settings')
-      .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single();
+    // Read sync_settings + auto_cooling_settings once
+    const [{ data: syncSettingsRow }, { data: autoCoolingRow }] = await Promise.all([
+      supabase.from('sync_settings')
+        .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single(),
+      supabase.from('auto_cooling_settings')
+        .select('sg_temp_correction_enabled').limit(1).maybeSingle(),
+    ]);
     const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
+    const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
 
     // Update timestamp (fire-and-forget, no await needed for main flow)
     const nowIso = new Date().toISOString();
@@ -336,7 +344,7 @@ serve(async (req) => {
       const batchIds = selectedBrews.map(b => b.batch_id);
       const [readingsResults, { data: existingBrewsArray }] = await Promise.all([
         Promise.all(selectedBrews.map(brew =>
-          fetchBrewfatherReadings(brew.batch_id)
+          fetchBrewfatherReadings(brew.batch_id, sgTempCorrectionEnabled)
             .then(data => ({ batchId: brew.batch_id, data, error: null }))
             .catch(err => ({ batchId: brew.batch_id, data: [], error: err }))
         )),
@@ -508,7 +516,7 @@ serve(async (req) => {
 
           let telemetryData: any[];
           try {
-            telemetryData = await fetchPillTelemetryCorrected(access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase);
+            telemetryData = await fetchPillTelemetryCorrected(access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase, sgTempCorrectionEnabled);
           } catch (telemetryError) {
             console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
             continue;
@@ -586,11 +594,13 @@ serve(async (req) => {
           }
           customBrewsUpdated++;
           
-          // Run SG calibration learning (anchor detection + residual learning)
-          try {
-            await processSgCalibration(supabase, pillId, mergedSgData);
-          } catch (calErr) {
-            console.error(`SG calibration error for pill ${pillId}:`, calErr);
+          // Run SG calibration learning only when correction is enabled
+          if (sgTempCorrectionEnabled) {
+            try {
+              await processSgCalibration(supabase, pillId, mergedSgData);
+            } catch (calErr) {
+              console.error(`SG calibration error for pill ${pillId}:`, calErr);
+            }
           }
 
         } catch (brewError) {
