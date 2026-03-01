@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
 import { getActualTemp } from "@/lib/temp-display";
-import { supabase } from "@/integrations/supabase/client";
+
 
 interface RaptControllersManagementProps {
   pillCompEnabled?: boolean;
@@ -27,54 +27,15 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
     handleUpdatePillColor,
   } = useControllersManagement();
 
-  // Fetch original targets for all followed controllers
-  const [originalTargets, setOriginalTargets] = useState<Record<string, number>>({});
-  
-  useEffect(() => {
-    if (!pillCompEnabled || controllers.length === 0) {
-      setOriginalTargets({});
-      return;
-    }
-    
-    const fetchOriginalTargets = async () => {
-      const targets: Record<string, number> = {};
-      const nonCoolerIds = controllers
-        .filter(c => !c.is_glycol_cooler)
-        .map(c => c.controller_id);
-      
-      if (nonCoolerIds.length === 0) return;
-
-      // Only use profile_target_temp for controllers with active sessions
-      const { data: activeSessions } = await supabase
-        .from('fermentation_sessions')
-        .select('controller_id')
-        .in('controller_id', nonCoolerIds)
-        .in('status', ['running', 'paused']);
-
-      const activeControllerIds = new Set((activeSessions ?? []).map(s => s.controller_id));
-
-      if (activeControllerIds.size > 0) {
-        const { data: ctrlRows } = await supabase
-          .from('rapt_temp_controllers')
-          .select('controller_id, profile_target_temp')
-          .in('controller_id', Array.from(activeControllerIds))
-          .not('profile_target_temp', 'is', null);
-
-        if (ctrlRows) {
-          for (const row of ctrlRows) {
-            if (row.profile_target_temp != null) {
-              targets[row.controller_id] = row.profile_target_temp;
-            }
-          }
-        }
+  // SSOT: profile_target_temp is always available on the controller row — no extra fetch needed
+  const originalTargets: Record<string, number> = {};
+  if (pillCompEnabled) {
+    for (const c of controllers) {
+      if (!c.is_glycol_cooler && c.profile_target_temp != null) {
+        originalTargets[c.controller_id] = c.profile_target_temp;
       }
-      // No fallback to auto_cooling_adjustments - that's cooler data, not PID snitt-mål
-      
-      setOriginalTargets(targets);
-    };
-    
-    fetchOriginalTargets();
-  }, [pillCompEnabled, controllers]);
+    }
+  }
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Laddar Temperature Controllers...</div>;

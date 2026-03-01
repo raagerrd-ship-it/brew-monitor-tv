@@ -102,26 +102,19 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       log('PILL_COMP', 'info', `${fc.name}: Samma RAPT-data men profilmål ändrat (${profileTargetNow?.toFixed(1)}° vs ctrl ${targetTemp.toFixed(1)}°) — kör PID ändå`)
     }
 
-    // Determine base target
+    // Determine base target — SSOT: always use profile_target_temp
     let baseTarget: number
-    if (isProfileOwned) {
-      const profileTarget = (fc as any).profile_target_temp
-      if (profileTarget === null || profileTarget === undefined) {
-        log('PILL_COMP_SKIP', 'info', `${fc.name}: profile-owned but no profile_target_temp set yet`)
-        continue
-      }
+    const profileTarget = (fc as any).profile_target_temp
+    if (profileTarget != null) {
       baseTarget = parseFloat(String(profileTarget))
     } else {
-      // No active session: use the controller's current target_temp as base.
-      // Stale profile_target_temp should be cleared — do it now if found.
-      if ((fc as any).profile_target_temp != null) {
-        log('PILL_COMP', 'info', `${fc.name}: Clearing stale profile_target_temp (${(fc as any).profile_target_temp}) — no active session`)
-        await supabase
-          .from('rapt_temp_controllers')
-          .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-      }
+      // Bootstrap: profile_target_temp not yet set — copy from target_temp
       baseTarget = targetTemp
+      log('PILL_COMP', 'info', `${fc.name}: Bootstrapping profile_target_temp = ${targetTemp} from target_temp`)
+      await supabase
+        .from('rapt_temp_controllers')
+        .update({ profile_target_temp: targetTemp, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
     }
 
     const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp
