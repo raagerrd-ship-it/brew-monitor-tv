@@ -178,18 +178,21 @@ serve(async (req) => {
     const cooloffControllerIds = new Set<string>();
     const profileStatusMap = new Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string }>();
 
-    // Batch: last adjusted timestamps
+    // Batch: last PID-adjusted timestamps (exclude pass-through and manual entries)
     {
       const allIds = followedControllersFullData.map(c => c.controller_id);
       const { data: allLastAdj } = await supabase
         .from('auto_cooling_adjustments')
-        .select('cooler_controller_id, adjusted_against_timestamp, created_at')
+        .select('cooler_controller_id, adjusted_against_timestamp, created_at, reason')
         .in('cooler_controller_id', allIds)
         .not('adjusted_against_timestamp', 'is', null)
         .order('created_at', { ascending: false });
       if (allLastAdj) {
         for (const adj of allLastAdj) {
           if (!lastAdjTimestampMap.has(adj.cooler_controller_id)) {
+            // Only track PID adjustments for same-data guard, not pass-throughs or manual
+            const reason = adj.reason ?? '';
+            if (reason.startsWith('🔄') || reason.startsWith('✏️')) continue;
             lastAdjTimestampMap.set(adj.cooler_controller_id, adj.adjusted_against_timestamp);
           }
         }
