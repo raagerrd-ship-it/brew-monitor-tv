@@ -142,7 +142,7 @@ export async function calculateCompensatedTarget(
   const latestCtrlForComp = parseFloat(String(deltaHistory[0].controller_temp))
   const currentAvgForComp = (latestPillForComp + latestCtrlForComp) / 2
   const distanceToTarget = Math.abs(currentAvgForComp - profileTarget)
-  const APPROACH_ZONE_SIZE = 5.0 // °C — within this range, start scaling down delta compensation
+  const APPROACH_ZONE_SIZE = 8.0 // °C — within this range, start scaling down delta compensation
   const approachScale = Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
   
   const rawCompensation = avgDelta / 2
