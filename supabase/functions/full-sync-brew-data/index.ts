@@ -186,41 +186,50 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 2: RAPT full sync + AI audit (parallel)
+    // STEP 2: RAPT full sync (device discovery)
     // ──────────────────────────────────────────────────────
 
-    // Get AI audit setting
-    const { data: autoCoolingSettings } = await supabase
-      .from('auto_cooling_settings').select('ai_audit_enabled').limit(1).maybeSingle()
-    const aiAuditEnabled = autoCoolingSettings?.ai_audit_enabled ?? true
-
-    console.log('Triggering RAPT full sync + AI audit in parallel...')
-
-    const [raptResult, aiResult] = await Promise.allSettled([
-      supabase.functions.invoke('sync-rapt-data', { body: {} }),
-      aiAuditEnabled
-        ? supabase.functions.invoke('ai-automation-audit', { body: {} })
-        : Promise.resolve({ data: { skipped: true }, error: null }),
-    ])
-
-    if (raptResult.status === 'rejected') console.error('RAPT full sync failed:', raptResult.reason)
-    else if (raptResult.status === 'fulfilled' && raptResult.value.error) console.error('RAPT full sync error:', raptResult.value.error)
-    else console.log('RAPT full sync completed')
-
-    if (aiResult.status === 'rejected') console.error('AI audit failed:', aiResult.reason)
-    else if (aiResult.status === 'fulfilled' && aiResult.value.error) console.error('AI audit error:', aiResult.value.error)
-    else console.log('AI audit completed')
+    console.log('Running RAPT full sync...')
+    try {
+      const raptResult = await supabase.functions.invoke('sync-rapt-data', { body: {} })
+      if (raptResult.error) console.error('RAPT full sync error:', raptResult.error)
+      else console.log('RAPT full sync completed')
+    } catch (e) {
+      console.error('RAPT full sync failed:', e)
+    }
 
     // ──────────────────────────────────────────────────────
-    // STEP 3: Quick sync (to get fresh data after full)
+    // STEP 3: Quick sync (fresh readings + automation)
+    //         Runs AFTER all data sources are updated
     // ──────────────────────────────────────────────────────
 
-    console.log('Running quick sync pass...')
+    console.log('Running quick sync pass (data + automation)...')
     try {
       await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
       console.log('Quick sync pass completed')
     } catch (e) {
       console.error('Quick sync pass failed:', e)
+    }
+
+    // ──────────────────────────────────────────────────────
+    // STEP 4: AI audit (analyzes fresh state after automation)
+    // ──────────────────────────────────────────────────────
+
+    const { data: autoCoolingSettings } = await supabase
+      .from('auto_cooling_settings').select('ai_audit_enabled').limit(1).maybeSingle()
+    const aiAuditEnabled = autoCoolingSettings?.ai_audit_enabled ?? true
+
+    if (aiAuditEnabled) {
+      console.log('Running AI audit...')
+      try {
+        const aiResult = await supabase.functions.invoke('ai-automation-audit', { body: {} })
+        if (aiResult.error) console.error('AI audit error:', aiResult.error)
+        else console.log('AI audit completed')
+      } catch (e) {
+        console.error('AI audit failed:', e)
+      }
+    } else {
+      console.log('AI audit disabled, skipping')
     }
 
     console.log(`FULL sync completed: ${brewUpdatesCount} brews, RAPT full + AI audit`)
