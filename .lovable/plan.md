@@ -2,55 +2,80 @@
 
 ## Problem
 
-When pill-comp is active, "Mål" everywhere shows `controller.target_temp` (the PID-adjusted probe target, e.g. 4.3°). The user expects to see the **intended snitt-mål** (e.g. 7.0°) as the primary target, with the probe target shown as secondary context.
+The current temperature logic has **two separate paths** for determining `baseTarget` in the PID loop depending on whether a fermentation profile is active or not:
 
-Current state:
-- **RaptControllerDialog**: "Mål (snitt)" shows probe target (wrong)
-- **RaptControllersManagement**: "Mål (snitt)" shows probe target (wrong)  
-- **TempStat (brew card)**: Already uses `getDisplayTarget()` which prioritizes `originalTarget` — closer to correct but depends on adjustment data existing
+1. **Profile active** → reads `profile_target_temp` from the controller row (set by `setProfileTarget()`)
+2. **Manual (no profile)** → uses `controller.target_temp` directly (which is the PID-adjusted value, not the user's intended target)
 
-## SSOT Definition (confirmed)
+This causes a circular problem: when pill-comp is active without a profile, PID adjusts `target_temp` to e.g. 4.3°, and next cycle reads that 4.3° as the "intended" target, drifting further away from the user's actual goal of 7°.
 
-| Mode | Är-temp | Mål-temp |
-|------|---------|----------|
-| Pill-comp aktiv | Snitt (pill+probe)/2 | Användarmål (snitt). PID justerar ctrl-mål mot detta. |
-| Pill-comp inaktiv | Ctrl (probe) | Ctrl-mål (direkt) |
+The previous fix (removing `pillCompOriginalTargetMap`) broke the only mechanism that remembered what the user originally wanted.
 
-## Plan
+## Root Cause
 
-### 1. Fetch original target in controller dialog hook
-**File**: `src/hooks/use-controller-dialog.ts`
+There is no SSOT for "what temperature does the user want" in manual mode. `profile_target_temp` is only set by fermentation profiles. Manual users have no equivalent field.
 
-- Add state `originalTarget: number | null`
-- When dialog opens, query `auto_cooling_adjustments` for latest `🎯` record matching the controller to get `original_target_temp`
-- Also check `fermentation_sessions` for `controller_profile_target_temp` (profile takes priority)
-- Expose `originalTarget` from the hook
-- When user sets a new target via slider and pill-comp is active, that value IS the snitt-mål. The edge function `rapt-update-controller` should handle PID compensation. Need to verify this.
+## Solution: Unify the channel
 
-### 2. Update RaptControllerDialog target display
-**File**: `src/components/RaptControllerDialog.tsx`
+Use `profile_target_temp` as the **single desired-target field** for ALL modes -- both manual and profile. The PID loop always reads `profile_target_temp` as `baseTarget`. The actual `target_temp` on the controller is what PID sends to the hardware.
 
-- When `isPillCompActive`:
-  - Primary "Mål (snitt)" value: show `originalTarget ?? currentController.target_temp` 
-  - Sub-label: show `Ctrl-mål (PID): {currentController.target_temp}°`
-- When pill-comp inactive:
-  - "Mål (ctrl)" value: show `currentController.target_temp` (unchanged)
+```text
+User intent (manual slider OR profile step)
+        │
+        ▼
+  profile_target_temp  ← SSOT "what temp do I want"
+        │
+        ▼
+  Pill-comp active?
+  ├─ Yes → PID calculates compensated target
+  │         → writes to target_temp (hardware)
+  └─ No  → target_temp = profile_target_temp (pass-through)
+```
 
-### 3. Update RaptControllersManagement target display  
-**File**: `src/components/RaptControllersManagement.tsx`
+### Changes
 
-- Need to fetch `original_target_temp` per controller from `auto_cooling_adjustments`
-- When `pillCompEnabled`: show original target as primary, probe target as sub-text
-- When not: show `controller.target_temp` directly
+#### 1. Manual target setting writes `profile_target_temp`
+**File**: `supabase/functions/rapt-update-controller/index.ts`
 
-### 4. Verify TempStat brew card
+When `action === 'setTargetTemperature'` and pill-comp is enabled:
+- Write `value` to both `target_temp` AND `profile_target_temp`
+- When pill-comp is disabled: write `value` to `target_temp` and set `profile_target_temp = value` too (keep them in sync)
+
+This way `profile_target_temp` always represents "what the user wants", regardless of source.
+
+#### 2. PID loop always uses `profile_target_temp` as base
+**File**: `supabase/functions/_shared/controller-adjustments.ts`
+
+Remove the `isProfileOwned` branching for `baseTarget`. Instead:
+- If `profile_target_temp` is set → use it as `baseTarget` (works for both profile and manual)
+- If `profile_target_temp` is null → use `target_temp` (legacy/first-run fallback, also set `profile_target_temp = target_temp` to bootstrap)
+
+Remove the stale-clearing logic that nulls `profile_target_temp` when no session exists -- it's now always valid.
+
+#### 3. UI: always show `profile_target_temp` as the user's goal
+**Files**: `src/hooks/use-controller-dialog.ts`, `src/components/RaptControllerDialog.tsx`, `src/components/RaptControllersManagement.tsx`
+
+Simplify: always read `profile_target_temp` from `rapt_temp_controllers` as the display target. No need to check for active sessions or query `auto_cooling_adjustments`. The field is always populated.
+
+- Dialog: `originalTarget` = `controller.profile_target_temp` (always)
+- Management list: same -- just read the column directly, no separate fetch
+- When user sets target via slider: call `rapt-update-controller` which writes both fields
+
+#### 4. TempStat brew card
 **File**: `src/components/brew-card/TempStat.tsx`
 
-- Already uses `getDisplayTarget(profileTarget ?? originalTarget, targetTemp)` — this is correct
-- The label in parentheses shows `profileGoal` which is the SSOT target — correct
-- No changes needed here
+Use `controller.profile_target_temp` directly as the SSOT target. Already partially doing this.
+
+#### 5. Auto-cooling entry point cleanup
+**File**: `supabase/functions/auto-adjust-cooling/index.ts`
+
+The `profileOwnedControllerIds` / `profileTargetMap` maps become unnecessary since all controllers use the same field. Simplify: just read `profile_target_temp` from the controller data directly in the PID loop.
 
 ### Technical Detail
 
-The `original_target_temp` in `auto_cooling_adjustments` represents the user's intended target before PID compensation. When pill-comp is active, PID adjusts the controller's actual `target_temp` to compensate for the difference between pill and probe. The `original_target_temp` IS the snitt-mål.
+The key insight is that `profile_target_temp` should not mean "owned by a fermentation profile" but rather "the user's desired average temperature". Both manual slider and profile steps write to the same field via the same `setProfileTarget()` function. The PID loop has exactly one path: read `profile_target_temp`, calculate compensation, write `target_temp`.
+
+### Migration
+
+For controllers that currently have `profile_target_temp = null` (manual mode), the first PID cycle will bootstrap by copying `target_temp` → `profile_target_temp`. No DB migration needed.
 
