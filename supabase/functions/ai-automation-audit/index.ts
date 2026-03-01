@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
       { data: recentAdjustments },
       { data: runningSessions },
       { data: deltaHistory },
+      { data: fermentationMetrics },
     ] = await Promise.all([
       // Recent decision logs (last 6h)
       supabase.from('auto_cooling_decision_logs')
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
         .limit(50),
       // Running fermentation sessions
       supabase.from('fermentation_sessions')
-        .select('id, controller_id, profile_id, current_step_index, status, started_at')
+        .select('id, controller_id, profile_id, current_step_index, status, started_at, brew_id')
         .eq('status', 'running'),
       // Recent delta history (last 6h, sampled)
       supabase.from('temp_delta_history')
@@ -107,7 +108,17 @@ Deno.serve(async (req) => {
         .gte('recorded_at', sixHoursAgo)
         .order('recorded_at', { ascending: false })
         .limit(100),
+      // Fermentation metrics for all active brews (phase, activity, attenuation)
+      supabase.from('brew_fermentation_metrics')
+        .select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, peak_delta, ready_to_crash, updated_at')
+        .order('updated_at', { ascending: false }),
     ]);
+
+    // Fetch active brews to map controller_id → brew_id for fermentation metrics
+    const { data: activeBrews } = await supabase
+      .from('brew_readings')
+      .select('id, linked_controller_id, attenuation, status')
+      .not('linked_controller_id', 'is', null);
 
     // ========================================
     // BUILD PROMPT WITH ALL SYSTEM DATA
@@ -178,18 +189,32 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
       } : null,
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
-        .map((c: any) => ({
-          id: c.controller_id,
-          name: sanitize(c.name),
-          current_temp: c.current_temp,
-          target_temp: c.target_temp,
-          pill_temp: c.pill_temp,
-          delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
-          cooling: c.cooling_enabled,
-          heating: c.heating_enabled,
-          is_cooler: c.is_glycol_cooler,
-          last_update: c.last_update,
-        })),
+        .map((c: any) => {
+          // Find fermentation metrics for this controller via running sessions (session has brew_id)
+          const session = (runningSessions || []).find((s: any) => s.controller_id === c.controller_id);
+          const metrics = session?.brew_id ? (fermentationMetrics || []).find((m: any) => m.brew_id === session.brew_id) : null;
+          // Also try matching via brew_readings.linked_controller_id
+          const directMetrics = !metrics ? (fermentationMetrics || []).find((m: any) => {
+            return (activeBrews || []).some((b: any) => b.id === m.brew_id && b.linked_controller_id === c.controller_id);
+          }) : metrics;
+          const fm = metrics || directMetrics;
+          return {
+            id: c.controller_id,
+            name: sanitize(c.name),
+            current_temp: c.current_temp,
+            target_temp: c.target_temp,
+            pill_temp: c.pill_temp,
+            delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
+            cooling: c.cooling_enabled,
+            heating: c.heating_enabled,
+            is_cooler: c.is_glycol_cooler,
+            last_update: c.last_update,
+            fermentation_phase: fm ? sanitize(fm.fermentation_phase, 30) : null,
+            activity_score: fm?.activity_score ?? null,
+            sg_rate_per_hour: fm?.sg_rate_per_hour ?? null,
+            ready_to_crash: fm?.ready_to_crash ?? null,
+          };
+        }),
       running_sessions: (runningSessions || []).length,
       learned_parameters: (learnings || []).map((l: any) => ({
         controller_id: l.controller_id,
