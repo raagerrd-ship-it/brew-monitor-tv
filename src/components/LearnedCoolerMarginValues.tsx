@@ -114,7 +114,6 @@ export function LearnedCoolerMarginValues() {
     );
   }
 
-  // Group by controller
   const grouped = entries.reduce<Record<string, LearnedMargin[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
@@ -134,12 +133,14 @@ export function LearnedCoolerMarginValues() {
     });
   }
 
+  const hasAnyMaxEff = entries.some((e) => e.max_effective != null);
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Snowflake className="h-4 w-4 text-blue-400" />
-          <span className="text-sm font-medium">Inlärda kylarmarginaler</span>
+          <span className="text-sm font-medium">Kylarmarginaler</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
@@ -154,8 +155,8 @@ export function LearnedCoolerMarginValues() {
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 <th className="text-left font-medium pb-1">Zon</th>
                 <th className="text-right font-medium pb-1">Marginal</th>
-                <th className="text-right font-medium pb-1">Max eff.</th>
-                <th className="text-right font-medium pb-1">Mätningar</th>
+                {hasAnyMaxEff && <th className="text-right font-medium pb-1">Tak</th>}
+                <th className="text-right font-medium pb-1">Prov</th>
                 <th className="text-right font-medium pb-1">Senast</th>
               </tr>
             </thead>
@@ -164,9 +165,11 @@ export function LearnedCoolerMarginValues() {
                 <tr key={`${item.controller_id}-${item.bucket}`}>
                   <td className="py-1.5">{formatBucketLabel(item.bucket)}</td>
                   <td className="py-1.5 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
-                  <td className="py-1.5 text-right font-mono text-amber-400">
-                    {item.max_effective != null ? `${item.max_effective.toFixed(1)}°C` : "–"}
-                  </td>
+                  {hasAnyMaxEff && (
+                    <td className="py-1.5 text-right font-mono text-amber-400">
+                      {item.max_effective != null ? `${item.max_effective.toFixed(1)}°C` : "–"}
+                    </td>
+                  )}
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
                   <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
                 </tr>
