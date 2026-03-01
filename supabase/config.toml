@@ -78,3 +78,9 @@ verify_jwt = false
 
 [functions.system-health-check]
 verify_jwt = false
+
+[functions.cleanup-temp-history]
+verify_jwt = false
+
+[functions.thin-all-snapshots]
+verify_jwt = false
