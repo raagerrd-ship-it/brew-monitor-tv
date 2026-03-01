@@ -4,13 +4,21 @@ import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 
 // ============================================================
-// Controller Adjustments
+// Controller Adjustments — Pipeline Architecture
 //
-// Adjusts individual tank controllers:
-// 1. PID Pill Compensation — targets average of pill + probe
-// 2. Stall Detection — adaptive boost when fermentation stalls
+// SSOT: profile_target_temp is the user's desired temperature.
+//       target_temp is what gets sent to the hardware.
 //
-// These are tank-level adjustments. They never touch the cooler.
+// Pipeline:
+//   1. Bootstrap — ensure profile_target_temp is set for all controllers
+//   2. Processors — each can modify the desired target (pill-comp, future...)
+//   3. Pass-through — sync target_temp = profile_target_temp for untouched controllers
+//   4. Stall detection — separate concern, acts on resolved targets
+//
+// Removing/disabling any processor is safe:
+//   target_temp will always converge to profile_target_temp.
+// Adding a new processor:
+//   Return adjustments for modified controllers; untouched ones pass through.
 // ============================================================
 
 export interface ControllerAdjustmentContext {
@@ -31,33 +39,184 @@ export interface ControllerAdjustmentContext {
 }
 
 /**
- * Run all controller-level adjustments (PID + Stall).
+ * Run all controller-level adjustments via the pipeline.
  * Returns adjustment results and mutates followedControllersFullData in-memory
  * so downstream consumers (cooler) see updated targets.
  */
 export async function runControllerAdjustments(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
   const adjustments: AdjustmentResult[] = []
 
-  // ── Feature 1: PID Pill Compensation ─────────────────────────
-  const pidAdjs = await runPillCompensation(ctx)
-  adjustments.push(...pidAdjs)
+  // ── Step 1: Bootstrap profile_target_temp ──────────────────
+  // Ensure every controller has a valid SSOT target, regardless of
+  // which processors are enabled. This runs ONCE per controller.
+  await bootstrapProfileTargets(ctx)
 
-  // Sync in-memory data so stall detection sees current targets
-  for (const adj of pidAdjs) {
+  // ── Step 2: Run processors (each is independently toggleable) ─
+  const processorAdjs = await runProcessors(ctx)
+  adjustments.push(...processorAdjs)
+
+  // Track which controllers were modified by any processor
+  const adjustedControllerNames = new Set(processorAdjs.map(a => a.cooler))
+
+  // Sync in-memory data so downstream sees current targets
+  for (const adj of processorAdjs) {
     const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
     if (fc) {
       (fc as any).target_temp = adj.newTarget
     }
   }
 
-  // ── Feature 2: Stall Detection ───────────────────────────────
+  // ── Step 3: Pass-through sync ─────────────────────────────
+  // For any controller NOT touched by a processor, ensure
+  // target_temp matches profile_target_temp. This is what makes
+  // the system work with zero processors enabled.
+  const passThroughAdjs = await runPassThroughSync(ctx, adjustedControllerNames)
+  adjustments.push(...passThroughAdjs)
+
+  // Sync in-memory for pass-through too
+  for (const adj of passThroughAdjs) {
+    const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
+    if (fc) {
+      (fc as any).target_temp = adj.newTarget
+    }
+  }
+
+  // ── Step 4: Stall Detection (separate concern) ────────────
   const stallAdjs = await runStallDetection(ctx)
   adjustments.push(...stallAdjs)
 
   return adjustments
 }
 
-// ─── PID Pill Compensation ───────────────────────────────────
+// ─── Bootstrap ───────────────────────────────────────────────
+
+async function bootstrapProfileTargets(ctx: ControllerAdjustmentContext): Promise<void> {
+  const { supabase, followedControllersFullData, log } = ctx
+
+  for (const fc of followedControllersFullData) {
+    if ((fc as any).profile_target_temp != null) continue
+    if (!fc.heating_enabled && !fc.cooling_enabled) continue
+
+    const targetTemp = parseFloat(String(fc.target_temp ?? '20'))
+    log('BOOTSTRAP', 'info', `${fc.name}: Setting profile_target_temp = ${targetTemp}°C from target_temp`)
+    
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ profile_target_temp: targetTemp, updated_at: new Date().toISOString() })
+      .eq('controller_id', fc.controller_id)
+    
+    // Update in-memory so processors see it immediately
+    ;(fc as any).profile_target_temp = targetTemp
+  }
+}
+
+// ─── Processor Pipeline ──────────────────────────────────────
+// Each processor is a function that returns adjustments for controllers
+// it modified. Unmodified controllers are handled by pass-through.
+// To add a new processor: create a function, add it to the array below.
+
+async function runProcessors(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
+  const adjustments: AdjustmentResult[] = []
+
+  // Register processors here. Each is independently toggleable.
+  // Order matters: later processors see targets set by earlier ones.
+  const processors = [
+    runPillCompensation,
+    // Future: runThermalModelProcessor,
+    // Future: runExternalSensorProcessor,
+  ]
+
+  for (const processor of processors) {
+    const adjs = await processor(ctx)
+    adjustments.push(...adjs)
+
+    // Sync in-memory between processors so next one sees current targets
+    for (const adj of adjs) {
+      const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
+      if (fc) {
+        (fc as any).target_temp = adj.newTarget
+      }
+    }
+  }
+
+  return adjustments
+}
+
+// ─── Pass-through Sync ───────────────────────────────────────
+
+async function runPassThroughSync(
+  ctx: ControllerAdjustmentContext,
+  adjustedControllerNames: Set<string>,
+): Promise<AdjustmentResult[]> {
+  const { supabase, followedControllersFullData, log } = ctx
+  const adjustments: AdjustmentResult[] = []
+
+  for (const fc of followedControllersFullData) {
+    // Skip controllers already handled by a processor
+    if (adjustedControllerNames.has(fc.name)) continue
+    if (!fc.heating_enabled && !fc.cooling_enabled) continue
+
+    const profileTarget = (fc as any).profile_target_temp
+    if (profileTarget == null) continue
+
+    const currentTarget = parseFloat(String(fc.target_temp ?? '20'))
+    const desiredTarget = parseFloat(String(profileTarget))
+
+    // Already in sync
+    if (Math.abs(desiredTarget - currentTarget) < 0.1) continue
+
+    // Same-data guard for pass-through: skip if RAPT data hasn't changed
+    const lastAdjTs = ctx.lastAdjTimestampMap.get(fc.controller_id)
+    if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update) {
+      // But still sync if profile target diverged (e.g. profile step change)
+      if (Math.abs(desiredTarget - currentTarget) < 0.5) continue
+    }
+
+    // Respect hardware bounds
+    const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+    const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
+    const newTarget = Math.max(hwMinTemp, Math.min(maxTemp, desiredTarget))
+
+    log('PASS_THROUGH', 'action', `${fc.name}: Syncing target_temp ${currentTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (profile_target_temp = ${desiredTarget.toFixed(1)}°C)`)
+
+    // Queue update in batch (or send immediately)
+    let success: boolean
+    if (ctx.updateBatch) {
+      ctx.updateBatch.add(fc.controller_id, newTarget)
+      success = true
+    } else {
+      success = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, newTarget)
+    }
+
+    if (success) {
+      adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget })
+
+      await supabase.from('rapt_temp_controllers')
+        .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+
+      await logAdjustment(supabase, {
+        cooler_controller_id: fc.controller_id,
+        cooler_controller_name: fc.name,
+        old_target_temp: currentTarget,
+        new_target_temp: newTarget,
+        original_target_temp: desiredTarget,
+        lowest_followed_temp: desiredTarget,
+        followed_controller_id: fc.controller_id,
+        followed_controller_name: fc.name,
+        followed_current_temp: parseFloat(String(fc.current_temp ?? '0')),
+        followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
+        followed_hysteresis: 0,
+        reason: `🔄 Pass-through: profile_target_temp ${desiredTarget.toFixed(1)}°C → target_temp ${newTarget.toFixed(1)}°C`,
+        adjusted_against_timestamp: fc.last_update,
+      })
+    }
+  }
+
+  return adjustments
+}
+
+// ─── PID Pill Compensation (Processor) ───────────────────────
 
 async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
   const {
@@ -74,9 +233,6 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
   }
 
   log('PILL_COMP', 'info', '--- PID pill compensation check ---')
-
-  // (Original target map for non-profile controllers removed — 
-  //  non-profile controllers now always use their current target_temp as base)
 
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
@@ -102,20 +258,8 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       log('PILL_COMP', 'info', `${fc.name}: Samma RAPT-data men mål ändrat (${profileTargetNow?.toFixed(1)}° vs ctrl ${targetTemp.toFixed(1)}°) — kör PID ändå`)
     }
 
-    // Determine base target — SSOT: always use profile_target_temp
-    let baseTarget: number
-    const profileTarget = (fc as any).profile_target_temp
-    if (profileTarget != null) {
-      baseTarget = parseFloat(String(profileTarget))
-    } else {
-      // Bootstrap: profile_target_temp not yet set — copy from target_temp
-      baseTarget = targetTemp
-      log('PILL_COMP', 'info', `${fc.name}: Bootstrapping profile_target_temp = ${targetTemp} from target_temp`)
-      await supabase
-        .from('rapt_temp_controllers')
-        .update({ profile_target_temp: targetTemp, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
-    }
+    // Base target from SSOT (already bootstrapped)
+    const baseTarget = parseFloat(String((fc as any).profile_target_temp))
 
     const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp
     const pidMode: 'heating' | 'cooling' = actualTemp < baseTarget ? 'heating' : 'cooling'
