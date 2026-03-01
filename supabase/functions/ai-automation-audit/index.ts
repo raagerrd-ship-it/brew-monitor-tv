@@ -120,11 +120,21 @@ Deno.serve(async (req) => {
 - Stall-detektion upptäcker avstannad jäsning och applicerar temperatur-boost
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
+## KRITISK FYSIKFÖRSTÅELSE — Sensorplacering och delta
+- **Probe (controller-temp)** sitter i BOTTEN av jäskärlet, nära kylslangen/glykolmanteln. Den reagerar SNABBT på kylning.
+- **Pill (pill-temp)** sitter i TOPPEN av vätskan. Den reagerar LÅNGSAMT på kylning.
+- Under **aktiv jäsning**: CO₂-produktion driver värme uppåt → pill blir naturligt varmare än probe → högt delta är FÖRVÄNTAT och normalt. Ändra INTE PID-parametrar pga högt delta under aktiv jäsning.
+- Under **cold crash / temperatursänkning**: Om delta (pill - probe) är STORT betyder det att kylningen är FÖR AGGRESSIV — probe sjunker snabbt (nära kylslangen) medan pill hänger kvar (långt från kylning).
+  → Rätt åtgärd: ÖKA damping (lugnare PID), MINSKA rate_limit (mindre steg per cykel) — INTE tvärtom!
+  → FEL åtgärd: Sänka damping eller öka rate_limit — det gör kylningen ännu mer aggressiv och ÖKAR delta.
+- Tumregel: Stort delta + låg jäsningsaktivitet = kylningen driver för hårt. Lösning = lugnare reglering.
+
 ## Regler för parameterändringar
 - Du FÅR ändra parametrar direkt. Returnera dem i "parameter_changes".
 - Ändra bara om det finns tydlig evidens (oscillering, konvergensfel, ineffektiva boosts).
 - Var konservativ — små steg (10-25% åt gången).
 - Motivera VARJE ändring med data.
+- Vid högt delta under cold crash: ÖKA damping, MINSKA rate_limit. ALDRIG tvärtom.
 
 ## Parametrar du kan ändra (i auto_cooling_settings):
 - pill_compensation_damping (0.1-0.9): Hur snabbt PID reagerar. Höj vid oscillering. MAX ÄNDRING: ±0.1 per audit.
