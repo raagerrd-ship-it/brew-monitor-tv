@@ -65,9 +65,16 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Update timestamp + get auth token in parallel
+    // Accept pre-fetched token from caller (e.g. full-sync-brew-data) to avoid double auth
+    let passedToken: string | null = null;
+    try {
+      const body = await req.json();
+      passedToken = body?.access_token || null;
+    } catch { /* no body or invalid JSON — that's fine */ }
+
+    // Update timestamp + get auth token in parallel (skip auth if token was passed)
     const [accessToken] = await Promise.all([
-      getRaptToken(),
+      passedToken ? Promise.resolve(passedToken) : getRaptToken(),
       supabase.from('sync_settings')
         .update({ last_rapt_sync_at: new Date().toISOString() })
         .not('id', 'is', null)

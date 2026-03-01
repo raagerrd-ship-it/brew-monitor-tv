@@ -86,6 +86,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Accept pre-fetched token from caller (e.g. full-sync-brew-data) to avoid double auth
+    let passedToken: string | null = null;
+    try {
+      const body = await req.json();
+      passedToken = body?.access_token || null;
+    } catch { /* no body or invalid JSON — that's fine */ }
+
     // Read sync_settings once (reused by outageTask later — avoids double query)
     const { data: syncSettingsRow } = await supabase.from('sync_settings')
       .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single();
@@ -106,10 +113,10 @@ serve(async (req) => {
     // PHASE 1: RAPT device sync (pills + controllers)
     // ──────────────────────────────────────────────────────
 
-    // Get auth token + selected devices IN PARALLEL (all independent)
+    // Get auth token (use passed token if available) + selected devices IN PARALLEL
     console.log('Getting RAPT auth token + selected devices...');
     const [access_token, { data: selectedPills }, { data: selectedControllers }] = await Promise.all([
-      getRaptToken(),
+      passedToken ? Promise.resolve(passedToken) : getRaptToken(),
       supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
       supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
     ]);
