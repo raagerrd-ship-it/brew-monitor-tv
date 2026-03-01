@@ -10,7 +10,7 @@ import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBa
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
-import { LearnedPidHeadroom } from "@/components/LearnedPidHeadroom";
+
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -561,13 +561,12 @@ export default function Settings() {
                   <LearnedStallBoostValues />
                   <SettingsDivider />
                   <LearnedThermalRates />
-                  <SettingsDivider />
-                  <LearnedPidCoolingRates />
-                  <SettingsDivider />
-                  <LearnedPidHeadroom />
                 </SettingsSection>
 
+
                 <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren">
+                  <LearnedPidCoolingRates />
+                  <SettingsDivider />
                   <LearnedCoolerMarginValues />
                 </SettingsSection>
               </CollapsibleContent>
