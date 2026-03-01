@@ -28,7 +28,8 @@ serve(async (req) => {
   const decisionLog: DecisionLogEntry[] = [];
   const startTime = Date.now();
 
-  try { await req.json(); } catch { /* no body */ }
+  let reqBody: any = {};
+  try { reqBody = await req.json(); } catch { /* no body */ }
 
   const log = (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => {
     decisionLog.push({ step, result, message, details });
@@ -352,8 +353,8 @@ serve(async (req) => {
 
     const allAdjustments: AdjustmentResult[] = [];
 
-    // Create shared batch for all RAPT API updates
-    const updateBatch = new RaptUpdateBatch();
+    // Create shared batch for all RAPT API updates (reuse token if passed from orchestrator)
+    const updateBatch = new RaptUpdateBatch(reqBody?.rapt_access_token);
 
     // ══════════════════════════════════════════════════════════════
     // CONTROLLER ADJUSTMENTS (PID + Stall — tank-level)

@@ -202,6 +202,15 @@ interface PendingRaptUpdate {
  */
 export class RaptUpdateBatch {
   private pending: PendingRaptUpdate[] = []
+  private preAuthToken: string | null = null
+
+  /**
+   * Optionally provide a pre-fetched RAPT access token to avoid
+   * a redundant auth call during flush().
+   */
+  constructor(accessToken?: string) {
+    if (accessToken) this.preAuthToken = accessToken
+  }
 
   /** Queue a target temp update. If same controller is added twice, last value wins. */
   add(controllerId: string, targetTemp: number): void {
@@ -227,44 +236,49 @@ export class RaptUpdateBatch {
 
     console.log(`🔄 Flushing ${this.pending.length} RAPT update(s) in parallel...`)
 
-    // Get one auth token
-    const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME')
-    const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET')
-    if (!RAPT_USERNAME || !RAPT_API_SECRET) {
-      console.error('RAPT credentials not configured for batch update')
-      for (const p of this.pending) resultMap.set(p.controllerId, false)
-      return resultMap
-    }
+    let accessToken = this.preAuthToken
 
-    let accessToken: string
-    try {
-      const formData = new URLSearchParams()
-      formData.append('client_id', 'rapt-user')
-      formData.append('grant_type', 'password')
-      formData.append('username', RAPT_USERNAME)
-      formData.append('password', RAPT_API_SECRET)
-
-      const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io'
-      const authRes = await fetch(`${authBaseUrl}/connect/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
-      })
-
-      if (!authRes.ok) {
-        const errText = await authRes.text()
-        console.error(`RAPT batch auth failed: ${authRes.status} ${errText}`)
+    // Only fetch a new token if none was provided
+    if (!accessToken) {
+      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME')
+      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET')
+      if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+        console.error('RAPT credentials not configured for batch update')
         for (const p of this.pending) resultMap.set(p.controllerId, false)
         return resultMap
       }
 
-      const authData = await authRes.json()
-      accessToken = authData.access_token
-    } catch (authErr) {
-      console.error('RAPT batch auth error:', authErr)
-      for (const p of this.pending) resultMap.set(p.controllerId, false)
-      return resultMap
+      try {
+        const formData = new URLSearchParams()
+        formData.append('client_id', 'rapt-user')
+        formData.append('grant_type', 'password')
+        formData.append('username', RAPT_USERNAME)
+        formData.append('password', RAPT_API_SECRET)
+
+        const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io'
+        const authRes = await fetch(`${authBaseUrl}/connect/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString(),
+          signal: AbortSignal.timeout(15000),
+        })
+
+        if (!authRes.ok) {
+          const errText = await authRes.text()
+          console.error(`RAPT batch auth failed: ${authRes.status} ${errText}`)
+          for (const p of this.pending) resultMap.set(p.controllerId, false)
+          return resultMap
+        }
+
+        const authData = await authRes.json()
+        accessToken = authData.access_token
+      } catch (authErr) {
+        console.error('RAPT batch auth error:', authErr)
+        for (const p of this.pending) resultMap.set(p.controllerId, false)
+        return resultMap
+      }
+    } else {
+      console.log('🔑 Using pre-authenticated RAPT token for batch flush')
     }
 
     // Fire all updates in parallel

@@ -3,6 +3,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshots } from '../_shared/brew-snapshots.ts';
 
+// ── Inlined RAPT pill telemetry fetch (saves 1 HTTP hop per brew) ──
+async function fetchPillTelemetry(
+  accessToken: string, pillId: string, startDate: string, endDate: string
+): Promise<any[]> {
+  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
+  const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
+  const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetTelemetry?${params}`, {
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`RAPT telemetry API error: ${res.status} ${errText}`);
+  }
+  return res.json();
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -74,8 +91,24 @@ serve(async (req) => {
     
     if (!access_token) {
       console.log('No token passed, getting own RAPT auth token...');
-      const { data: authData, error: authError } = await supabase.functions.invoke('rapt-auth');
-      if (authError) throw new Error(`Failed to get auth token: ${authError.message}`);
+      // Inlined auth — no HTTP hop to rapt-auth
+      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+      if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
+      const formData = new URLSearchParams();
+      formData.append('client_id', 'rapt-user');
+      formData.append('grant_type', 'password');
+      formData.append('username', RAPT_USERNAME);
+      formData.append('password', RAPT_API_SECRET);
+      const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+      const authRes = await fetch(`${authBaseUrl}/connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!authRes.ok) throw new Error(`RAPT auth error: ${authRes.status}`);
+      const authData = await authRes.json();
       access_token = authData.access_token;
     } else {
       console.log('Using passed-in RAPT auth token');
@@ -155,17 +188,13 @@ serve(async (req) => {
 
         console.log(`Fetching telemetry from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
-        // Fetch telemetry data
-        const { data: telemetryData, error: telemetryError } = await supabase.functions.invoke('rapt-pill-telemetry', {
-          body: {
-            access_token,
-            pill_id: pillId,
-            start_date: startDate.toISOString(),
-            end_date: endDate.toISOString()
-          }
-        });
-
-        if (telemetryError) {
+        // Fetch telemetry data (inlined — no HTTP hop)
+        let telemetryData: any[];
+        try {
+          telemetryData = await fetchPillTelemetry(
+            access_token, pillId, startDate.toISOString(), endDate.toISOString()
+          );
+        } catch (telemetryError) {
           console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
           continue;
         }
