@@ -141,7 +141,37 @@ export async function setControllerTargetTemp(
     return data?.success === true
   } catch (error) {
     const isTimeout = error instanceof DOMException && error.name === 'TimeoutError'
-    console.error(`Error setting temperature for ${controllerId}: ${isTimeout ? `Timeout after ${timeoutMs}ms` : String(error)}`)
+    if (isTimeout) {
+      console.warn(`⏱️ Timeout after ${timeoutMs}ms for ${controllerId}, retrying once...`)
+      try {
+        const retryResponse = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            controllerId,
+            action: 'setTargetTemperature',
+            value: targetTemp,
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+        if (retryResponse.ok) {
+          const data = await retryResponse.json()
+          if (data?.success === true) {
+            console.log(`✅ Retry succeeded for ${controllerId}`)
+            return true
+          }
+        }
+        console.error(`❌ Retry also failed for ${controllerId}`)
+        return false
+      } catch (retryError) {
+        console.error(`❌ Retry failed for ${controllerId}: ${retryError}`)
+        return false
+      }
+    }
+    console.error(`Error setting temperature for ${controllerId}: ${String(error)}`)
     return false
   }
 }
