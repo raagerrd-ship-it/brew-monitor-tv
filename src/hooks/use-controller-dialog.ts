@@ -74,17 +74,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         }
       }
 
-      // Fall back to latest PID adjustment's original_target_temp
-      const { data: adj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('original_target_temp')
-        .eq('followed_controller_id', controller.controller_id)
-        .not('original_target_temp', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setOriginalTarget(adj?.original_target_temp ?? null);
+      // No active session = no separate snitt-mål; target_temp IS the target
+      setOriginalTarget(null);
     };
 
     if (open) {

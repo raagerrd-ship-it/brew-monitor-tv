@@ -68,22 +68,7 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
           }
         }
       }
-      
-      // For controllers without active session profile target, check adjustments
-      const remaining = nonCoolerIds.filter(id => targets[id] == null);
-      for (const cid of remaining) {
-        const { data } = await supabase
-          .from('auto_cooling_adjustments')
-          .select('original_target_temp')
-          .eq('followed_controller_id', cid)
-          .not('original_target_temp', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data?.original_target_temp != null) {
-          targets[cid] = data.original_target_temp;
-        }
-      }
+      // No fallback to auto_cooling_adjustments - that's cooler data, not PID snitt-mål
       
       setOriginalTargets(targets);
     };
