@@ -48,31 +48,33 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
 
   // Check for active fermentation session + fetch original target
   useEffect(() => {
-    const checkActiveSession = async () => {
-      const { data } = await supabase
+    const loadSessionAndTarget = async () => {
+      // Check active session first
+      const { data: sessionData } = await supabase
         .from('fermentation_sessions')
         .select('id')
         .eq('controller_id', controller.controller_id)
         .in('status', ['running', 'paused'])
         .maybeSingle();
 
-      setHasActiveSession(!!data);
-    };
+      const activeSession = !!sessionData;
+      setHasActiveSession(activeSession);
 
-    const fetchOriginalTarget = async () => {
-      // First check profile target (takes priority)
-      const { data: ctrlData } = await supabase
-        .from('rapt_temp_controllers')
-        .select('profile_target_temp')
-        .eq('controller_id', controller.controller_id)
-        .single();
+      // Only use profile_target_temp if there's an active session
+      if (activeSession) {
+        const { data: ctrlData } = await supabase
+          .from('rapt_temp_controllers')
+          .select('profile_target_temp')
+          .eq('controller_id', controller.controller_id)
+          .single();
 
-      if (ctrlData?.profile_target_temp != null) {
-        setOriginalTarget(ctrlData.profile_target_temp);
-        return;
+        if (ctrlData?.profile_target_temp != null) {
+          setOriginalTarget(ctrlData.profile_target_temp);
+          return;
+        }
       }
 
-      // Fall back to latest adjustment's original_target_temp
+      // Fall back to latest PID adjustment's original_target_temp
       const { data: adj } = await supabase
         .from('auto_cooling_adjustments')
         .select('original_target_temp')
@@ -86,8 +88,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     };
 
     if (open) {
-      checkActiveSession();
-      fetchOriginalTarget();
+      loadSessionAndTarget();
 
       const channel = supabase
         .channel(`session-check-${controller.controller_id}`)
@@ -99,7 +100,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
             table: 'fermentation_sessions',
             filter: `controller_id=eq.${controller.controller_id}`
           },
-          () => checkActiveSession()
+          () => loadSessionAndTarget()
         )
         .subscribe();
 
