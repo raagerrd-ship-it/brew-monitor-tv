@@ -440,9 +440,9 @@ export function AutoCoolingDecisionLogs() {
                               <div className="text-muted-foreground">Controller mål:</div>
                               <div className="font-medium">
                                 {adj.new_target_temp.toFixed(1)}°
-                                {adj.original_target_temp != null && (
+                                {adj.followed_target_temp != null && (
                                   <span className="text-muted-foreground ml-1">
-                                    (profil {adj.original_target_temp.toFixed(1)}°)
+                                    (probe {adj.followed_target_temp.toFixed(1)}°)
                                   </span>
                                 )}
                               </div>
