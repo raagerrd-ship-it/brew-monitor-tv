@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getValidAccessToken } from "../_shared/sonos-token.ts";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackgroundAndWidget, cleanupOldBackgrounds } from "../_shared/sonos-storage.ts";
+import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
 
 const corsHeaders = {
@@ -159,6 +159,9 @@ serve(async (req) => {
         if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
         if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
+        // Cleanup: keep only the images now referenced
+        const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url').eq('id', existingRow.id).single();
+        if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.widget_art_url, row.next_bg_image_url, row.next_widget_art_url]).catch(() => {});
       }
       const duration = Date.now() - startTime;
       console.log(`[SonosSync] bg_only: regenerated for "${existingRow.track_name}" in ${duration}ms (bg: ${result.bgUrl ? 'yes' : 'no'}, widget: ${result.widgetUrl ? 'yes' : 'no'})`);
@@ -191,6 +194,9 @@ serve(async (req) => {
           playback_state: 'PLAYBACK_STATE_IDLE',
           position_ms: 0,
         }).eq('id', existingRow.id);
+
+        // Delete ALL images — nothing is displayed in IDLE
+        cleanupUnreferencedBackgrounds(supabase, []).catch(() => {});
 
         const duration = Date.now() - startTime;
         console.log(`[SonosSync] Stale pause (${Math.round(msSinceUpdate / 1000)}s) → IDLE in ${duration}ms`);
@@ -284,18 +290,6 @@ serve(async (req) => {
 
       bgImageUrl = currentResult.bgUrl;
       widgetArtUrl = currentResult.widgetUrl;
-
-      // Cleanup old files (non-blocking)
-      const keepFiles: string[] = [];
-      for (const url of [bgImageUrl, widgetArtUrl]) {
-        if (url) {
-          const match = url.match(/\/([^/?]+)\?/);
-          if (match) keepFiles.push(match[1]);
-        }
-      }
-      if (keepFiles.length > 0) {
-        cleanupOldBackgrounds(supabase, keepFiles).catch(() => {});
-      }
     }
 
     // --- Process next track images ---
@@ -348,6 +342,9 @@ serve(async (req) => {
           await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
         }
       }
+
+      // Cleanup unreferenced files after final write (non-blocking)
+      cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, widgetArtUrl, nextBgUrl, nextWidgetUrl]).catch(() => {});
     }
 
     const totalMs = Date.now() - startTime;
