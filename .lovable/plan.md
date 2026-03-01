@@ -1,19 +1,15 @@
 
 
-## Architecture: Controller vs Cooler Separation (DONE)
+## Remove Dead "Profil" Category from Decision Logs
 
-### Structure
-`auto-adjust-cooling/index.ts` is a thin **orchestrator** (~350 lines) that:
-1. Loads shared data (controllers, settings, profiles)
-2. Calls `runControllerAdjustments(ctx)` — PID pill compensation + stall detection (tank-level)
-3. Syncs in-memory targets
-4. Calls `runCoolerCooling(ctx)` — shared cooling unit management
+The `categorizeAdjustment` function maps `🔧` and `📈` reason prefixes to a `'profil'` category, but no backend code ever writes adjustment records with those prefixes. Profile enforcement was unified into PID compensation — there is no separate "profil" adjustment type anymore.
 
-### Files
-- `_shared/controller-adjustments.ts` — PID pill compensation + stall detection orchestration
-- `_shared/glycol-cooling.ts` — Cooler management (renamed exports: `CoolerContext`, `runCoolerCooling`)
-- `_shared/pid-compensation.ts` — PID calculation engine (unchanged)
-- `_shared/stall-detection.ts` — Stall detection logic (unchanged)
+### Changes (single file: `src/components/AutoCoolingDecisionLogs.tsx`)
 
-### Principle
-Tank controllers and the shared cooler are **completely separate concerns**. Controller adjustments never touch the cooler. The cooler only follows the lowest effective target from all followed controllers.
+1. **Remove `'profil'` from `AdjustmentCategory` type** — change to `'pill-comp' | 'glykol'`
+2. **Remove the two categorization lines** matching `🔧` and `📈` (lines ~102-103) — these will fall through to the default `'glykol'` or can be mapped to `'pill-comp'` as safety fallback
+3. **Remove the `getCategoryBadge` case for `'profil'`**
+4. **Remove the entire `{category === 'profil' && (...)}` rendering block** (~20 lines of dead UI code)
+
+This is a cleanup-only change — no functional or visual impact since no data ever reaches this code path.
+
