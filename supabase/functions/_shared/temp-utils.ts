@@ -206,6 +206,7 @@ interface PendingRaptUpdate {
  */
 export class RaptUpdateBatch {
   private pending: PendingRaptUpdate[] = []
+  private applied: Map<string, number> = new Map()
   private preAuthToken: string | null = null
 
   /**
@@ -228,6 +229,11 @@ export class RaptUpdateBatch {
 
   get size(): number {
     return this.pending.length
+  }
+
+  /** Look up the target temp that was queued (and applied) for a controller */
+  getAppliedTarget(controllerId: string): number | undefined {
+    return this.applied.get(controllerId)
   }
 
   /**
@@ -312,6 +318,7 @@ export class RaptUpdateBatch {
       const r = results[i]
       if (r.status === 'fulfilled' && r.value.success) {
         resultMap.set(p.controllerId, true)
+        this.applied.set(p.controllerId, p.targetTemp)
         console.log(`✅ ${p.controllerId} → ${p.targetTemp}°C`)
       } else {
         resultMap.set(p.controllerId, false)

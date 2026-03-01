@@ -414,6 +414,23 @@ serve(async (req) => {
       } else {
         log('BATCH_FLUSH', 'pass', `All ${batchResults.size} update(s) sent successfully`);
       }
+
+      // Persist successful target_temp changes to DB so next cycle reads the correct value
+      const succeeded = [...batchResults.entries()].filter(([, ok]) => ok);
+      if (succeeded.length > 0) {
+        const dbUpdates = succeeded.map(([controllerId]) => {
+          const target = updateBatch.getAppliedTarget(controllerId);
+          return supabase
+            .from('rapt_temp_controllers')
+            .update({ target_temp: target, updated_at: new Date().toISOString() })
+            .eq('controller_id', controllerId);
+        });
+        const dbResults = await Promise.allSettled(dbUpdates);
+        const dbFailed = dbResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+        if (dbFailed.length > 0) {
+          log('BATCH_DB', 'fail', `${dbFailed.length} DB update(s) failed`);
+        }
+      }
     }
 
     // ── Summary ──────────────────────────────────────────────────
