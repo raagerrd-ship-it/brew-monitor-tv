@@ -435,32 +435,9 @@ async function handleActiveCooling(
 
   await (supabase as any).from('auto_cooling_settings').update({ last_check_at: new Date().toISOString() }).eq('id', settings.id)
 
-  // Delta analysis — only affects glycol aggression during NON-fermentation phases
-  // (cold crash, conditioning). During active fermentation, high pill-probe delta
-  // is caused by biological heat, not cooling failure.
+  // Delta analysis — amplifies glycol aggression when pill-probe delta is high,
+  // indicating the cooling medium isn't keeping up with thermal load.
   let deltaMultiplier = 1.0
-
-  // Check if any followed controller has active fermentation (high activity = don't amplify)
-  const { data: activeMetrics } = await supabase
-    .from('brew_fermentation_metrics')
-    .select('brew_id, activity_score, fermentation_phase')
-    .in('fermentation_phase', ['active', 'peak', 'lag'])
-
-  const activeBrewIds = new Set((activeMetrics ?? []).filter(m => m.activity_score > 20).map(m => m.brew_id))
-
-  // Check which followed controllers have active fermentation brews linked
-  const { data: brewLinks } = await supabase
-    .from('brew_readings')
-    .select('id, linked_controller_id')
-    .in('linked_controller_id', followedControllerIds)
-    .in('status', ['Jäsning'])
-
-  const controllersWithActiveFermentation = new Set(
-    (brewLinks ?? [])
-      .filter(b => activeBrewIds.has(b.id))
-      .map(b => b.linked_controller_id)
-      .filter(Boolean)
-  )
 
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: allDeltaHistory } = await supabase
@@ -485,12 +462,8 @@ async function handleActiveCooling(
     const pillTemp = parseFloat(String(fc.pill_temp))
     const ctrlTemp = parseFloat(String(fc.current_temp))
     const currentDelta = pillTemp - ctrlTemp
-    const isActiveFermentation = controllersWithActiveFermentation.has(fc.controller_id)
 
-    log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°${isActiveFermentation ? ' (aktiv jäsning — ignorerar för multiplikator)' : ''}`)
-
-    // Skip delta amplification during active fermentation — biological heat causes high delta naturally
-    if (isActiveFermentation) continue
+    log('DELTA_ANALYSIS', 'info', `${fc.name}: pill=${pillTemp.toFixed(1)}° ctrl=${ctrlTemp.toFixed(1)}° delta=${currentDelta >= 0 ? '+' : ''}${currentDelta.toFixed(1)}°`)
 
     const deltaHistory = batchDeltaMap.get(fc.controller_id)
     if (deltaHistory && deltaHistory.length >= 2) {
