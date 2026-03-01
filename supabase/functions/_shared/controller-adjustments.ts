@@ -145,10 +145,12 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType
     )
 
-    // Safety bounds
+    // Safety bounds — allow PID to go below min_target_temp for profile-owned
+    // controllers (PID needs to undershoot to pull the pill average down)
     const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-    const minTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
-    let newTarget = Math.max(minTemp, Math.min(maxTemp, compensation.compensatedTarget))
+    const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
+    const pidFloor = isProfileOwned ? Math.min(hwMinTemp, baseTarget - (pillCompSettings.maxCompensation ?? 5)) : hwMinTemp
+    let newTarget = Math.max(pidFloor, Math.min(maxTemp, compensation.compensatedTarget))
 
     if (Math.abs(newTarget - targetTemp) < 0.1) {
       // Log active constraints even when change is too small to apply

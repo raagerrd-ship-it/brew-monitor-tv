@@ -140,6 +140,13 @@ export async function detectAndHandleStalls(
     const fc = followedControllersFullData.find(c => c.controller_id === cId)
     if (!fc) continue
 
+    // Cold crash guard: never boost when profile target is below 10°C
+    // (cold crash / conditioning steps should not trigger stall detection)
+    if (profileTarget !== undefined && profileTarget < 10) {
+      log('STALL_SKIP', 'info', `${fc.name}: Profilmål ${profileTarget}°C < 10°C — cold crash, hoppar över stall-detektion`)
+      continue
+    }
+
     // Get learned boost degrees
     const { data: learnedBoost } = await supabase
       .from('fermentation_learnings')
