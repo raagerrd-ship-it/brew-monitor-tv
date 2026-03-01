@@ -53,34 +53,13 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
   return res.json();
 }
 
-// Color map for pill names
-const colorMap: Record<string, string> = {
-  'black': '#1f2937', 'svart': '#1f2937',
-  'blue': '#3b82f6', 'blå': '#3b82f6',
-  'green': '#22c55e', 'grön': '#22c55e',
-  'orange': '#f97316',
-  'pink': '#ec4899', 'rosa': '#ec4899',
-  'purple': '#a855f7', 'lila': '#a855f7',
-  'red': '#ef4444', 'röd': '#ef4444',
-  'yellow': '#eab308', 'gul': '#eab308',
-  'white': '#f3f4f6', 'vit': '#f3f4f6',
-};
-
-const extractColor = (name: string): string => {
-  const nameLower = name.toLowerCase();
-  for (const [colorName, hexValue] of Object.entries(colorMap)) {
-    if (nameLower.includes(colorName)) return hexValue;
-  }
-  return '#1f2937';
-};
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Starting RAPT full sync (data + auto-discovery)...');
+    console.log('Starting RAPT auto-discovery (new devices only)...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -95,102 +74,13 @@ serve(async (req) => {
         .then(({ error }) => { if (error) console.error('sync_settings update error:', error); }),
     ]);
 
-    // Fetch pills + controllers + DB state ALL in parallel
-    const [pills, controllers, { data: activeSessions }, { data: autoCoolingSettings }] = await Promise.all([
+    // Fetch pills + controllers from RAPT API in parallel
+    const [pills, controllers] = await Promise.all([
       fetchRaptPills(accessToken),
       fetchRaptControllers(accessToken).catch(err => { console.error('Controllers fetch failed:', err); return []; }),
-      supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-      supabase.from('auto_cooling_settings').select('cooler_controller_id, enabled').limit(1).single(),
     ]);
 
-    console.log(`Received ${pills.length} Pills, ${controllers.length} Controllers`);
-
-    const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-    const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
-
-    // ── Upsert Pills (batch) ──
-    const pillsData = pills.map((pill: any) => ({
-      pill_id: pill.id,
-      name: pill.name || 'Unknown Pill',
-      color: extractColor(pill.name || ''),
-      battery_level: Math.round(pill.battery || 0),
-      last_update: pill.lastActivityTime ? new Date(pill.lastActivityTime).toISOString() : new Date().toISOString(),
-      paired_device_id: pill.pairedDeviceId || null,
-    }));
-
-    if (pillsData.length > 0) {
-      const { error } = await supabase.from('rapt_pills').upsert(pillsData, { onConflict: 'pill_id' });
-      if (error) throw new Error(`Failed to upsert Pills: ${error.message}`);
-      console.log(`Synced ${pillsData.length} Pills`);
-    }
-
-    // ── Upsert Controllers (batch) — skip target_temp for managed controllers ──
-    if (controllers.length > 0) {
-      const controllersData = controllers.map((controller: any) => {
-        const hasActiveSession = controllersWithActiveSessions.has(controller.id);
-        const isCoolerController = controller.id === coolerControllerId;
-
-        const data: Record<string, any> = {
-          controller_id: controller.id,
-          name: controller.name || 'Unknown Controller',
-          current_temp: controller.temperature || null,
-          pill_temp: controller.controlDeviceTemperature || null,
-          cooling_enabled: controller.coolingEnabled || false,
-          heating_enabled: controller.heatingEnabled || false,
-          heating_utilisation: controller.heatingUtilisation || 0,
-          cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
-          heating_hysteresis: controller.heatingHysteresis ?? 0.2,
-          cooling_run_time: controller.coolingRunTime || 0,
-          cooling_starts: controller.coolingStarts || 0,
-          heating_run_time: controller.heatingRunTime || 0,
-          heating_starts: controller.heatingStarts || 0,
-          last_update: controller.lastActivityTime ? new Date(controller.lastActivityTime).toISOString() : new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        // Only include target_temp if NOT managed
-        if (!hasActiveSession && !isCoolerController) {
-          data.target_temp = controller.targetTemperature || null;
-        }
-
-        return data;
-      });
-
-      // For managed controllers we can't use simple upsert (target_temp must be preserved)
-      // Split into managed vs unmanaged
-      const managedIds = new Set([
-        ...Array.from(controllersWithActiveSessions),
-        ...(coolerControllerId ? [coolerControllerId] : []),
-      ]);
-      
-      const unmanagedControllers = controllersData.filter(c => !managedIds.has(c.controller_id));
-      const managedControllers = controllersData.filter(c => managedIds.has(c.controller_id));
-
-      const ops: Promise<any>[] = [];
-      
-      if (unmanagedControllers.length > 0) {
-        // Unmanaged: full upsert including target_temp
-        const withTarget = unmanagedControllers.map(c => ({
-          ...c,
-          target_temp: controllers.find((raw: any) => raw.id === c.controller_id)?.targetTemperature || null,
-        }));
-        ops.push(supabase.from('rapt_temp_controllers').upsert(withTarget, { onConflict: 'controller_id' }));
-      }
-
-      // Managed: upsert WITHOUT target_temp (already excluded from data above)
-      if (managedControllers.length > 0) {
-        for (const c of managedControllers) {
-          ops.push(
-            supabase.from('rapt_temp_controllers')
-              .update(c)
-              .eq('controller_id', c.controller_id)
-          );
-        }
-      }
-
-      await Promise.all(ops);
-      console.log(`Synced ${controllersData.length} Controllers`);
-    }
+    console.log(`Received ${pills.length} Pills, ${controllers.length} Controllers from RAPT API`);
 
     // ── Auto-discovery: add new pills/controllers to selection tables ──
     const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([
@@ -204,14 +94,14 @@ serve(async (req) => {
     const discoveryOps: Promise<any>[] = [];
 
     // New pills
-    const newPills = pillsData.filter(p => !existingPillIds.has(p.pill_id));
+    const newPills = pills.filter((p: any) => !existingPillIds.has(p.id));
     if (newPills.length > 0) {
       const { data: maxPillOrder } = await supabase.from('selected_rapt_pills')
         .select('display_order').order('display_order', { ascending: false }).limit(1);
       let nextPillOrder = (maxPillOrder && maxPillOrder.length > 0) ? maxPillOrder[0].display_order + 1 : 1;
       
       discoveryOps.push(supabase.from('selected_rapt_pills').insert(
-        newPills.map(p => ({ pill_id: p.pill_id, is_visible: true, display_order: nextPillOrder++ }))
+        newPills.map((p: any) => ({ pill_id: p.id, is_visible: true, display_order: nextPillOrder++ }))
       ));
       console.log(`Auto-added ${newPills.length} new pills to selection`);
     }
@@ -232,7 +122,7 @@ serve(async (req) => {
     if (discoveryOps.length > 0) await Promise.all(discoveryOps);
 
     return new Response(
-      JSON.stringify({ success: true, pillsCount: pillsData.length, controllersCount: controllers.length }),
+      JSON.stringify({ success: true, newPills: newPills.length, newControllers: newControllers.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

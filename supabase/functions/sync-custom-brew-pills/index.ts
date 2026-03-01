@@ -89,7 +89,7 @@ serve(async (req) => {
     if (!allPills || !allControllers) {
       const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
         allPills ? Promise.resolve({ data: allPills }) : supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
-        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp'),
+        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp'),
       ]);
       if (!allPills) allPills = dbPills;
       if (!allControllers) allControllers = dbControllers;
@@ -208,22 +208,14 @@ serve(async (req) => {
         if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
           console.log(`No new telemetry data for brew ${brew.name}, checking controller fallback...`);
           
-          // Fallback: use pre-fetched controller data (Problem 5: no DB query needed)
+          // Fallback: use pre-fetched controller data (no DB query needed)
           if (brew.linked_controller_id) {
-            // Look up from allControllers array first
             const ctrlFromMemory = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
             
-            // If passed-in data has pill_temp but not full controller data, query DB
+            // Use in-memory data if it has the fields we need, otherwise fall back to DB
             let ctrlFull: any = null;
-            if (ctrlFromMemory) {
-              // We have basic data from memory, but need full data for snapshots
-              // Query DB only once for the fields we need
-              const { data } = await supabase
-                .from('rapt_temp_controllers')
-                .select('current_temp, pill_temp, target_temp, profile_target_temp')
-                .eq('controller_id', brew.linked_controller_id)
-                .maybeSingle();
-              ctrlFull = data;
+            if (ctrlFromMemory && ctrlFromMemory.current_temp !== undefined) {
+              ctrlFull = ctrlFromMemory;
             } else {
               const { data } = await supabase
                 .from('rapt_temp_controllers')

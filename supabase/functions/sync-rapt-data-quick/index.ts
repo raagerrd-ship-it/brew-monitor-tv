@@ -350,6 +350,9 @@ serve(async (req) => {
           controller_id: c.controller_id,
           linked_pill_id: c.linked_pill_id || null,
           pill_temp: c.pill_temp ?? null,
+          current_temp: c.current_temp ?? null,
+          target_temp: c.target_temp ?? null,
+          profile_target_temp: c.profile_target_temp ?? null,
         }))
       : [];
 

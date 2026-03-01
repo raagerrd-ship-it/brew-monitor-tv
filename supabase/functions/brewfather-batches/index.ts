@@ -65,7 +65,7 @@ serve(async (req) => {
     url.searchParams.set('limit', requestedLimit.toString());
     url.searchParams.set('order_by', 'batchNo');
     url.searchParams.set('order_by_direction', 'desc');
-    url.searchParams.set('complete', 'false'); // Only fetch basic fields for faster response
+    url.searchParams.set('complete', complete ? 'true' : 'false'); // Respect caller's preference
     url.searchParams.set('include', 'recipe.style'); // Add style info which we display
     url.searchParams.set('status', 'Planning,Brewing,Fermenting,Conditioning,Completed'); // Never fetch Archived
     
