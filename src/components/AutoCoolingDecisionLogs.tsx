@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ParsedField { label: string; value: string; color?: string }
@@ -119,13 +119,14 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol';
+type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell';
 
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
   | { type: 'adjustment'; data: AdjustmentLog; category: AdjustmentCategory; timestamp: string };
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
+  if (reason.startsWith('✏️')) return 'manuell';
   if (reason.startsWith('🎯')) return 'pill-comp';
   if (reason.startsWith('🔥')) return 'pill-comp'; // Stall boost
   // Legacy overshoot/stall entries still categorize to pill-comp
@@ -158,6 +159,17 @@ function getCategoryBadge(category: AdjustmentCategory) {
         }}>
           <Snowflake className="h-2.5 w-2.5 mr-0.5" />
           Glykol
+        </Badge>
+      );
+    case 'manuell':
+      return (
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
+          background: 'hsl(38 92% 55% / 0.2)', 
+          color: 'hsl(38 92% 55%)', 
+          borderColor: 'hsl(38 92% 55% / 0.3)' 
+        }}>
+          <Pencil className="h-2.5 w-2.5 mr-0.5" />
+          Manuell
         </Badge>
       );
     default:
