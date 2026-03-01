@@ -323,7 +323,7 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium">
                           {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°` : '—'}
                         </div>
-                        <div className="text-muted-foreground">Delta:</div>
+                        <div className="text-muted-foreground">Delta (snitt):</div>
                         <div className="font-medium">
                           <span style={{ 
                             color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
