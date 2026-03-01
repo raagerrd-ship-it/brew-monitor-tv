@@ -145,20 +145,18 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType
     )
 
-    // Safety bounds — allow PID to go below min_target_temp for profile-owned
-    // controllers (PID needs to undershoot to pull the pill average down)
+    // Safety bounds — respect hardware min/max strictly
     const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
     const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
-    const pidFloor = isProfileOwned ? Math.min(hwMinTemp, baseTarget - (pillCompSettings.maxCompensation ?? 5)) : hwMinTemp
     const unclamped = compensation.compensatedTarget
-    let newTarget = Math.max(pidFloor, Math.min(maxTemp, unclamped))
+    let newTarget = Math.max(hwMinTemp, Math.min(maxTemp, unclamped))
 
     // Track if hardware min/max clamped the target
-    if (unclamped < hwMinTemp && newTarget >= hwMinTemp - 0.05) {
+    if (unclamped < hwMinTemp) {
       compensation.constraints = compensation.constraints ?? []
       compensation.constraints.push(`hw-min=${hwMinTemp}`)
     }
-    if (unclamped > maxTemp && newTarget <= maxTemp + 0.05) {
+    if (unclamped > maxTemp) {
       compensation.constraints = compensation.constraints ?? []
       compensation.constraints.push(`hw-max=${maxTemp}`)
     }
