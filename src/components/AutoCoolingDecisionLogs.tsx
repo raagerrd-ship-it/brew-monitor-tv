@@ -301,19 +301,48 @@ export function AutoCoolingDecisionLogs() {
                     <span>Mål: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}° (probe)</span>
                   </div>
                   
-                  {category === 'pill-comp' && (
+                  {category === 'pill-comp' && (() => {
+                    const isLowering = adj.new_target_temp < adj.old_target_temp;
+                    const avgTemp = adj.followed_current_temp !== null && adj.followed_target_temp !== null
+                      ? (adj.followed_current_temp + adj.followed_target_temp) / 2 : null;
+                    const profileTarget = adj.original_target_temp;
+                    const distanceToTarget = avgTemp !== null && profileTarget !== null ? avgTemp - profileTarget : null;
+                    const reason = adj.reason || '';
+                    const dampMatch = reason.match(/damp=([\d.]+)/);
+                    const damp = dampMatch ? parseFloat(dampMatch[1]) : null;
+                    const isApproachZone = damp !== null && damp < 1.0;
+
+                    return (
                     <div className="text-xs space-y-1.5">
                       <p className="font-semibold flex items-center gap-1" style={{ color: 'hsl(280 60% 60%)' }}>
                         🎯 Pill-kompensation
                       </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+
+                      {/* Human-readable explanation */}
+                      <p className="text-[11px] leading-relaxed">
+                        {distanceToTarget !== null && profileTarget !== null ? (
+                          distanceToTarget > 0.5 ? (
+                            isApproachZone ? (
+                              <>Temperaturen ligger <span className="text-amber-400 font-medium">{distanceToTarget.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). PID-regleringen sänker styrenhetens mål till {r1(adj.new_target_temp)}° men <span className="text-sky-400 font-medium">dämpar</span> kompensationen ({damp !== null ? `${(damp * 100).toFixed(0)}%` : ''}) eftersom temperaturen närmar sig målet.</>
+                            ) : (
+                              <>Temperaturen ligger <span className="text-amber-400 font-medium">{distanceToTarget.toFixed(1)}° över</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål {isLowering ? 'sänks' : 'justeras'} till {r1(adj.new_target_temp)}° för att driva temperaturen nedåt.</>
+                            )
+                          ) : distanceToTarget < -0.5 ? (
+                            <>Temperaturen ligger <span className="text-blue-400 font-medium">{Math.abs(distanceToTarget).toFixed(1)}° under</span> profilmålet ({profileTarget.toFixed(1)}°). Styrenhetens mål höjs till {r1(adj.new_target_temp)}° för att värma upp.</>
+                          ) : (
+                            <>Temperaturen är <span className="font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>nära profilmålet</span> ({profileTarget.toFixed(1)}°). Finjustering av styrenhetens mål till {r1(adj.new_target_temp)}° för att hålla stabil temperatur.</>
+                          )
+                        ) : (
+                          <>Styrenhetens mål justeras från {r1(adj.old_target_temp)}° till {r1(adj.new_target_temp)}° baserat på pill-kompensation.</>
+                        )}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] pt-1 border-t border-border/50">
                         <div className="text-muted-foreground">Profilmål:</div>
                         <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°` : '—'}</div>
                         <div className="text-muted-foreground">Aktuell (medel):</div>
                         <div className="font-medium">
-                          {adj.followed_current_temp !== null && adj.followed_target_temp !== null
-                            ? `${((adj.followed_current_temp + adj.followed_target_temp) / 2).toFixed(1)}°`
-                            : '—'}
+                          {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : '—'}
                         </div>
                         <div className="text-muted-foreground">Pill (yta):</div>
                         <div className="font-medium" style={{ color: 'hsl(38 92% 50%)' }}>
@@ -469,7 +498,8 @@ export function AutoCoolingDecisionLogs() {
                         Justerar styrenhetens mål (probe) så att medelvärdet av pill (yta) och probe (kärna) hamnar på profilmålet
                       </p>
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {category === 'profil' && (
                     <div className="text-xs space-y-1.5">
