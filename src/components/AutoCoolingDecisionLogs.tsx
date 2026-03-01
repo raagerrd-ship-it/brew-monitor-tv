@@ -26,6 +26,29 @@ function parsePillCompMessage(msg: string): ParsedField[] | null {
     ];
     if (rate) fields.push({ label: 'Pill-hastighet', value: `${rate}°C/h`, color: parseFloat(rate) < 0 ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)' });
     if (damp) fields.push({ label: 'Dämpning', value: parseFloat(damp) < 1.0 ? `${(parseFloat(damp) * 100).toFixed(0)}%` : '100%' });
+    
+    // Extract active constraints/brakes from limits=[...]
+    const limitsMatch = msg.match(/limits=\[([^\]]+)\]/);
+    if (limitsMatch) {
+      const constraints = limitsMatch[1].split(',');
+      const brakeLabels: string[] = [];
+      if (constraints.includes('overshoot-clamp')) brakeLabels.push('🔒 Overshoot-clamp');
+      if (constraints.includes('overshoot-release')) brakeLabels.push('🛑 Overshoot-release');
+      if (constraints.includes('ramp-hold')) brakeLabels.push('🔒 Ramp Hold');
+      if (constraints.includes('approach-release')) brakeLabels.push('🚀 Approach Release');
+      if (constraints.includes('dir-clamp')) brakeLabels.push('🔒 Riktningsspärr');
+      const rateLimitC = constraints.find(c => c.startsWith('rate-limit='));
+      if (rateLimitC) brakeLabels.push(`⏱ Rate-limit ${rateLimitC.split('=')[1]}°/cykel`);
+      const approachC = constraints.find(c => c.startsWith('approach='));
+      if (approachC) brakeLabels.push(`🎯 Approach ${(parseFloat(approachC.split('=')[1]) * 100).toFixed(0)}%`);
+      
+      if (brakeLabels.length > 0) {
+        fields.push({ label: 'Broms', value: brakeLabels.join(', '), color: 'hsl(200 70% 55%)' });
+      }
+    } else if (damp && parseFloat(damp) < 1.0) {
+      fields.push({ label: 'Broms', value: `🎯 Approach Zone ${(parseFloat(damp) * 100).toFixed(0)}%`, color: 'hsl(200 70% 55%)' });
+    }
+    
     return fields;
   }
 
