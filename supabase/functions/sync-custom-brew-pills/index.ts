@@ -22,14 +22,21 @@ async function fetchPillTelemetryCorrected(
 
   if (sgCorrectionEnabled) {
     let pillResidual = 0;
+    let shouldCorrect = false;
     try {
-      const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+      const { residualPerDegree, confident, sampleCount } = await getLearnedResidual(supabase, pillId);
       pillResidual = residualPerDegree;
+      shouldCorrect = confident;
+      if (!confident) {
+        console.log(`⏳ SG correction skipped for pill ${pillId}: only ${sampleCount} samples (need 10+)`);
+      }
     } catch (_e) { /* no correction yet */ }
     
-    for (const t of raw) {
-      const rawSg = t.gravity / 1000;
-      t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+    if (shouldCorrect) {
+      for (const t of raw) {
+        const rawSg = t.gravity / 1000;
+        t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
+      }
     }
   }
   return raw;
