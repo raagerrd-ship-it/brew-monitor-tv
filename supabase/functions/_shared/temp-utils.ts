@@ -108,6 +108,7 @@ export function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: n
 /**
  * Set target temperature via the rapt-update-controller edge function.
  * Unified wrapper used by both process-fermentation-profiles and auto-adjust-cooling.
+ * For batched updates, use RaptUpdateBatch instead.
  */
 export async function setControllerTargetTemp(
   supabaseUrl: string,
@@ -173,6 +174,137 @@ export async function setControllerTargetTemp(
     }
     console.error(`Error setting temperature for ${controllerId}: ${String(error)}`)
     return false
+  }
+}
+
+// ============================================================
+// Batched RAPT Updates
+//
+// Collects target temperature changes and flushes them in parallel
+// with a single shared auth token. Saves ~2-4s per automation cycle
+// by eliminating per-call auth overhead and sequential execution.
+// ============================================================
+
+interface PendingRaptUpdate {
+  controllerId: string
+  targetTemp: number
+}
+
+/**
+ * Collects RAPT controller target temperature updates and sends them
+ * in parallel with a single shared auth token.
+ *
+ * Usage:
+ *   const batch = new RaptUpdateBatch()
+ *   batch.add('controller-1', 18.5)
+ *   batch.add('controller-2', 20.0)
+ *   const results = await batch.flush()
+ */
+export class RaptUpdateBatch {
+  private pending: PendingRaptUpdate[] = []
+
+  /** Queue a target temp update. If same controller is added twice, last value wins. */
+  add(controllerId: string, targetTemp: number): void {
+    const existing = this.pending.find(p => p.controllerId === controllerId)
+    if (existing) {
+      existing.targetTemp = targetTemp
+    } else {
+      this.pending.push({ controllerId, targetTemp })
+    }
+  }
+
+  get size(): number {
+    return this.pending.length
+  }
+
+  /**
+   * Send all queued updates in parallel using a single RAPT auth token.
+   * Returns a map of controllerId → success boolean.
+   */
+  async flush(timeoutMs: number = 10000): Promise<Map<string, boolean>> {
+    const resultMap = new Map<string, boolean>()
+    if (this.pending.length === 0) return resultMap
+
+    console.log(`🔄 Flushing ${this.pending.length} RAPT update(s) in parallel...`)
+
+    // Get one auth token
+    const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME')
+    const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET')
+    if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+      console.error('RAPT credentials not configured for batch update')
+      for (const p of this.pending) resultMap.set(p.controllerId, false)
+      return resultMap
+    }
+
+    let accessToken: string
+    try {
+      const formData = new URLSearchParams()
+      formData.append('client_id', 'rapt-user')
+      formData.append('grant_type', 'password')
+      formData.append('username', RAPT_USERNAME)
+      formData.append('password', RAPT_API_SECRET)
+
+      const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io'
+      const authRes = await fetch(`${authBaseUrl}/connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+        signal: AbortSignal.timeout(15000),
+      })
+
+      if (!authRes.ok) {
+        const errText = await authRes.text()
+        console.error(`RAPT batch auth failed: ${authRes.status} ${errText}`)
+        for (const p of this.pending) resultMap.set(p.controllerId, false)
+        return resultMap
+      }
+
+      const authData = await authRes.json()
+      accessToken = authData.access_token
+    } catch (authErr) {
+      console.error('RAPT batch auth error:', authErr)
+      for (const p of this.pending) resultMap.set(p.controllerId, false)
+      return resultMap
+    }
+
+    // Fire all updates in parallel
+    const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io'
+    const results = await Promise.allSettled(
+      this.pending.map(async ({ controllerId, targetTemp }) => {
+        const url = `${apiBaseUrl}/api/TemperatureControllers/SetTargetTemperature?temperatureControllerId=${encodeURIComponent(controllerId)}&target=${targetTemp}`
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`RAPT API ${res.status}: ${errText}`)
+        }
+
+        const data = await res.json()
+        return { controllerId, success: data === true }
+      })
+    )
+
+    // Process results
+    for (let i = 0; i < this.pending.length; i++) {
+      const p = this.pending[i]
+      const r = results[i]
+      if (r.status === 'fulfilled' && r.value.success) {
+        resultMap.set(p.controllerId, true)
+        console.log(`✅ ${p.controllerId} → ${p.targetTemp}°C`)
+      } else {
+        resultMap.set(p.controllerId, false)
+        const errMsg = r.status === 'rejected' ? String(r.reason) : 'API returned false'
+        console.error(`❌ ${p.controllerId}: ${errMsg}`)
+      }
+    }
+
+    console.log(`🔄 Batch complete: ${[...resultMap.values()].filter(v => v).length}/${this.pending.length} succeeded`)
+    this.pending = []
+    return resultMap
   }
 }
 

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget } from './temp-utils.ts'
+import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 
@@ -27,6 +27,7 @@ export interface ControllerAdjustmentContext {
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
   stallSettings: StallSettings
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
+  updateBatch?: RaptUpdateBatch
 }
 
 /**
@@ -167,9 +168,17 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
 
     log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
 
-    const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
+    // Queue update in batch (or send immediately if no batch)
+    let success: boolean
+    if (ctx.updateBatch) {
+      ctx.updateBatch.add(fc.controller_id, newTarget)
+      success = true // Optimistic — will be flushed later
+    } else {
+      success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
+    }
+
     if (success) {
-      log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${newTarget}°C`)
+      log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${newTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       adjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget })
 
       await supabase.from('rapt_temp_controllers')
@@ -218,6 +227,7 @@ async function runStallDetection(ctx: ControllerAdjustmentContext): Promise<Adju
     profileTargetMap: ctx.profileTargetMap,
     sessionBrewIdMap: ctx.sessionBrewIdMap,
     log,
+    updateBatch: ctx.updateBatch,
   }
 
   await evaluateBoostOutcomes(stallCtx, ctx.stallSettings)

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers } from '../_shared/temp-utils.ts';
+import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
 import { StallSettings } from '../_shared/stall-detection.ts';
@@ -352,6 +352,9 @@ serve(async (req) => {
 
     const allAdjustments: AdjustmentResult[] = [];
 
+    // Create shared batch for all RAPT API updates
+    const updateBatch = new RaptUpdateBatch();
+
     // ══════════════════════════════════════════════════════════════
     // CONTROLLER ADJUSTMENTS (PID + Stall — tank-level)
     // ══════════════════════════════════════════════════════════════
@@ -368,6 +371,7 @@ serve(async (req) => {
       profileTargetMap, sessionBrewIdMap, cooloffControllerIds,
       profileStatusMap, lastAdjTimestampMap, pillCompSettings,
       stallSettings, log,
+      updateBatch,
     };
 
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
@@ -389,11 +393,26 @@ serve(async (req) => {
         supabase, supabaseUrl, serviceRoleKey: supabaseKey,
         allControllers, followedControllersFullData, followedControllerIds,
         settings: { id: settings.id, last_check_at: settings.last_check_at }, log,
+        updateBatch,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);
     } else {
       log('COOLING', 'info', 'Auto cooling adjustment disabled');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // FLUSH: Send all queued RAPT updates in parallel (1 auth, N parallel API calls)
+    // ══════════════════════════════════════════════════════════════
+    if (updateBatch.size > 0) {
+      log('BATCH_FLUSH', 'info', `Flushing ${updateBatch.size} RAPT update(s) in parallel...`);
+      const batchResults = await updateBatch.flush();
+      const failed = [...batchResults.entries()].filter(([, ok]) => !ok);
+      if (failed.length > 0) {
+        log('BATCH_FLUSH', 'fail', `${failed.length} update(s) failed: ${failed.map(([id]) => id).join(', ')}`);
+      } else {
+        log('BATCH_FLUSH', 'pass', `All ${batchResults.size} update(s) sent successfully`);
+      }
     }
 
     // ── Summary ──────────────────────────────────────────────────
