@@ -413,7 +413,6 @@ export async function calculateCompensatedTarget(
       if (avgBelowTarget && isIncreasing) {
         console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
       }
-      }
     } else {
       const avgAboveTarget = currentAvg > profileTarget + 0.2
       const downwardLimit = avgAboveTarget ? deltaScaledMaxRate : mp.upwardRelease
