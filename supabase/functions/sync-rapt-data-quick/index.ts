@@ -399,6 +399,13 @@ serve(async (req) => {
     const customBrewsUpdated = customBrewResult.status === 'fulfilled' && !customBrewResult.value?.error
       ? customBrewResult.value?.data?.brewsUpdated || 0 : 0;
 
+    // Collect pending snapshots from custom brew sync response
+    if (customBrewResult.status === 'fulfilled' && customBrewResult.value?.data?.pendingSnapshots) {
+      for (const s of customBrewResult.value.data.pendingSnapshots) {
+        pendingSnapshots.push(s);
+      }
+    }
+
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
     // Automation uses cached DB data, so it can run even without fresh RAPT data
     console.log('All data synced — running automation...');
