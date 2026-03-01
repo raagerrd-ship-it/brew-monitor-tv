@@ -10,6 +10,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let reqBody: any = {};
+  try { reqBody = await req.json(); } catch { /* no body */ }
+
   const startTime = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
 
   if ((hasPillComp || hasCooling) && hasActiveControllers) {
     console.log("Step 3: Running PID compensation + glycol cooler...");
-    step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", {}, 20000));
+    step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", { rapt_access_token: reqBody?.rapt_access_token || null }, 20000));
   } else {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers ? "no active controllers" : "features disabled" });
     step3and4.push(Promise.resolve(null));

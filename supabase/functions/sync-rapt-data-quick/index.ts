@@ -118,10 +118,8 @@ serve(async (req) => {
 
     // Build pill temperature map
     const pillTempMap = new Map<string, number>();
-    const pillDataMap = new Map<string, any>();
 
     for (const pill of allPills) {
-      pillDataMap.set(pill.id, pill);
       const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
       if (temp !== undefined && temp !== null && temp !== 0) {
         pillTempMap.set(pill.id, temp);
@@ -314,18 +312,21 @@ serve(async (req) => {
         brewsUpdated = brewUpdates.length;
         console.log(`Brewfather quick sync: ${brewsUpdated} brews updated`);
 
-        // Create snapshots for fermenting brews
-        for (const update of brewUpdates) {
-          const u = update as any;
-          const status = u.status || '';
-          const isFermenting = status === 'Jäsning' || status === 'Fermenting';
-          if (isFermenting && u.sg_data?.length > 0) {
+        // Create snapshots for fermenting brews (parallel)
+        const snapshotTasks = brewUpdates
+          .filter((u: any) => {
+            const status = u.status || '';
+            return (status === 'Jäsning' || status === 'Fermenting') && u.sg_data?.length > 0;
+          })
+          .map(async (u: any) => {
             const { data: brewRecord } = await supabase.from('brew_readings')
               .select('id, linked_controller_id').eq('batch_id', u.batch_id).single();
             if (brewRecord) {
               await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data);
             }
-          }
+          });
+        if (snapshotTasks.length > 0) {
+          await Promise.allSettled(snapshotTasks);
         }
       }
     };
@@ -348,63 +349,63 @@ serve(async (req) => {
     console.log('All data synced — running automation...');
     let automationResult = null;
     try {
-      const autoResponse = await supabase.functions.invoke('run-automation');
+      const autoResponse = await supabase.functions.invoke('run-automation', {
+        body: { rapt_access_token: access_token }
+      });
       if (autoResponse.error) console.error('Automation error:', autoResponse.error);
       else automationResult = autoResponse.data;
     } catch (autoErr) {
       console.error('Automation error:', autoErr);
     }
 
-    // PHASE 2c: Log temp history AFTER automation so PID-adjusted targets are captured
-    // Inlined — no HTTP hop to record-temp-history
-    console.log('Logging temp history with PID-adjusted values...');
-    try {
-      const { data: visibleControllerIds } = await supabase
-        .from('selected_rapt_temp_controllers')
-        .select('controller_id')
-        .eq('is_visible', true);
+    // PHASE 2c: Log temp history + outage detection in PARALLEL after automation
+    // Both are independent. Temp history needs PID-adjusted values (hence after automation).
+    console.log('Logging temp history + outage detection (parallel)...');
 
-      if (visibleControllerIds && visibleControllerIds.length > 0) {
-        const ids = visibleControllerIds.map(c => c.controller_id);
-        const { data: controllers } = await supabase
-          .from('rapt_temp_controllers')
-          .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp')
-          .in('controller_id', ids);
+    const tempHistoryTask = async () => {
+      // Reuse selectedControllerIds from Phase 1 — no need to re-query selected_rapt_temp_controllers
+      if (selectedControllerIds.length === 0) return;
 
-        if (controllers && controllers.length > 0) {
-          // Insert temp history
-          const historyRecords = controllers.map(c => ({
-            controller_id: c.controller_id,
-            current_temp: c.current_temp ?? c.pill_temp,
-            target_temp: c.target_temp,
-            cooling_enabled: c.cooling_enabled || false,
-            profile_target_temp: c.profile_target_temp ?? c.target_temp,
-          }));
-          const { error: histErr } = await supabase.from('temp_controller_history').insert(historyRecords);
-          if (histErr) console.error('Failed to insert history:', histErr);
+      const { data: controllers } = await supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp')
+        .in('controller_id', selectedControllerIds);
 
-          // Insert delta history
-          const deltaRecords = controllers
-            .filter(c => c.pill_temp !== null && c.current_temp !== null)
-            .map(c => ({
-              controller_id: c.controller_id,
-              pill_temp: c.pill_temp,
-              controller_temp: c.current_temp,
-              delta: c.pill_temp - c.current_temp,
-            }));
-          if (deltaRecords.length > 0) {
-            const { error: deltaErr } = await supabase.from('temp_delta_history').insert(deltaRecords);
-            if (deltaErr) console.error('Failed to insert delta history:', deltaErr);
-          }
-          console.log(`Recorded temp history for ${controllers.length} controllers`);
-        }
+      if (!controllers || controllers.length === 0) return;
+
+      // Insert temp history + delta history in parallel
+      const historyRecords = controllers.map(c => ({
+        controller_id: c.controller_id,
+        current_temp: c.current_temp ?? c.pill_temp,
+        target_temp: c.target_temp,
+        cooling_enabled: c.cooling_enabled || false,
+        profile_target_temp: c.profile_target_temp ?? c.target_temp,
+      }));
+
+      const deltaRecords = controllers
+        .filter(c => c.pill_temp !== null && c.current_temp !== null)
+        .map(c => ({
+          controller_id: c.controller_id,
+          pill_temp: c.pill_temp,
+          controller_temp: c.current_temp,
+          delta: c.pill_temp - c.current_temp,
+        }));
+
+      const inserts: Promise<any>[] = [
+        supabase.from('temp_controller_history').insert(historyRecords),
+      ];
+      if (deltaRecords.length > 0) {
+        inserts.push(supabase.from('temp_delta_history').insert(deltaRecords));
       }
-    } catch (histErr) {
-      console.error('Temp history error:', histErr);
-    }
 
-    // ── RAPT outage detection ──
-    try {
+      const results = await Promise.allSettled(inserts);
+      for (const r of results) {
+        if (r.status === 'rejected') console.error('History insert error:', r.reason);
+      }
+      console.log(`Recorded temp history for ${controllers.length} controllers`);
+    };
+
+    const outageTask = async () => {
       const { data: syncSettings } = await supabase.from('sync_settings')
         .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single();
       const lastSuccess = syncSettings?.last_successful_rapt_sync_at;
@@ -421,7 +422,11 @@ serve(async (req) => {
       if (syncSettings?.id) {
         await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettings.id);
       }
-    } catch (e) { console.error('Outage log error:', e); }
+    };
+
+    const [histResult, outageResult] = await Promise.allSettled([tempHistoryTask(), outageTask()]);
+    if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
+    if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
 
     console.log(`Unified quick sync complete: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
 
