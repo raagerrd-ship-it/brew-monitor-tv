@@ -1,53 +1,56 @@
 
 
-## Audit: Pill-komp aktiv = "Snitt", Pill-komp inaktiv = "Ctrl"
+## Problem
 
-After reviewing the codebase, here are the inconsistencies found:
+When pill-comp is active, "Mål" everywhere shows `controller.target_temp` (the PID-adjusted probe target, e.g. 4.3°). The user expects to see the **intended snitt-mål** (e.g. 7.0°) as the primary target, with the probe target shown as secondary context.
 
-### Issues found
+Current state:
+- **RaptControllerDialog**: "Mål (snitt)" shows probe target (wrong)
+- **RaptControllersManagement**: "Mål (snitt)" shows probe target (wrong)  
+- **TempStat (brew card)**: Already uses `getDisplayTarget()` which prioritizes `originalTarget` — closer to correct but depends on adjustment data existing
 
-**1. `getActualTempLabel()` in `src/lib/temp-display.ts` (line 35-36)**
-- Currently returns `"(probe)"` when pill-comp is OFF and probe is available
-- Should return `"(ctrl)"` per the naming convention
+## SSOT Definition (confirmed)
 
-**2. `RaptControllerDialog.tsx` — "Aktuell temp" label (line 95)**
-- When pill-comp is OFF, shows `"Aktuell temp"` — should be `"Aktuell (ctrl)"`
-- When pill-comp is ON, shows `"Aktuell (snitt)"` — correct
+| Mode | Är-temp | Mål-temp |
+|------|---------|----------|
+| Pill-comp aktiv | Snitt (pill+probe)/2 | Användarmål (snitt). PID justerar ctrl-mål mot detta. |
+| Pill-comp inaktiv | Ctrl (probe) | Ctrl-mål (direkt) |
 
-**3. `RaptControllerDialog.tsx` — "Måltemperatur" label (line 110)**  
-- When pill-comp is OFF, shows `"Måltemperatur"` — should be `"Mål (ctrl)"`
-- When pill-comp is ON, shows `"Mål (snitt)"` — correct
+## Plan
 
-**4. `RaptControllerDialog.tsx` — sub-label "Inbyggd sensor" (line 100)**
-- When pill-comp is OFF, shows `"Inbyggd sensor"` — should be consistent, e.g. `"Controller-sensor"`
+### 1. Fetch original target in controller dialog hook
+**File**: `src/hooks/use-controller-dialog.ts`
 
-**5. `RaptControllerDialog.tsx` — temp adjust labels (lines 136, 163)**
-- When pill-comp is OFF, says `"Ändra måltemperatur"` / `"Sätt måltemperatur"` — should be `"Ändra ctrl-mål"` / `"Sätt ctrl-mål"`
+- Add state `originalTarget: number | null`
+- When dialog opens, query `auto_cooling_adjustments` for latest `🎯` record matching the controller to get `original_target_temp`
+- Also check `fermentation_sessions` for `controller_profile_target_temp` (profile takes priority)
+- Expose `originalTarget` from the hook
+- When user sets a new target via slider and pill-comp is active, that value IS the snitt-mål. The edge function `rapt-update-controller` should handle PID compensation. Need to verify this.
 
-**6. `RaptControllersManagement.tsx` — "Aktuell" and "Mål" labels (lines 126, 132)**
-- Always shows just `"Aktuell"` and `"Mål"` regardless of pill-comp state
-- Should show `"Aktuell (snitt)"` / `"Mål (snitt)"` or `"Aktuell (ctrl)"` / `"Mål (ctrl)"`
+### 2. Update RaptControllerDialog target display
+**File**: `src/components/RaptControllerDialog.tsx`
 
-**7. `ControllerTempChart.tsx` — Legend labels (lines 79, 84)**
-- Always says `"Aktuell"` / `"Aktuell temp"` and `"Mål"` / `"Måltemp"`
-- These are fine as-is since the chart always shows probe data from the controller history
+- When `isPillCompActive`:
+  - Primary "Mål (snitt)" value: show `originalTarget ?? currentController.target_temp` 
+  - Sub-label: show `Ctrl-mål (PID): {currentController.target_temp}°`
+- When pill-comp inactive:
+  - "Mål (ctrl)" value: show `currentController.target_temp` (unchanged)
 
-**8. `TempStat.tsx` (brew card) — `tempLabel` from `getActualTempLabel` (line 30)**
-- Returns `"(probe)"` when pill-comp OFF — should be `"(ctrl)"`
+### 3. Update RaptControllersManagement target display  
+**File**: `src/components/RaptControllersManagement.tsx`
 
-**9. `StepExecutionDisplay.tsx` — labels "Måltemp" and "Aktuell" (lines 78, 85)**
-- These are profile-context labels in fermentation view. The `currentTemp` passed here is already the SSOT value (snitt or ctrl depending on pill-comp). No `pillCompEnabled` prop is available to differentiate the label. Should add context.
+- Need to fetch `original_target_temp` per controller from `auto_cooling_adjustments`
+- When `pillCompEnabled`: show original target as primary, probe target as sub-text
+- When not: show `controller.target_temp` directly
 
-### No issues (correct already)
-- `getActualTemp()` logic — correct (returns average when pill-comp ON, probe when OFF)
-- `getDisplayTarget()` — correct (shows profile target as SSOT)
-- `AutoCoolingDecisionLogs.tsx` — correct (explicitly says "medel" / "probe" / "pill")
-- `FermentationSessionCompact.tsx` — temperature display shows targets from profile, not raw sensor labels
+### 4. Verify TempStat brew card
+**File**: `src/components/brew-card/TempStat.tsx`
 
-### Plan
+- Already uses `getDisplayTarget(profileTarget ?? originalTarget, targetTemp)` — this is correct
+- The label in parentheses shows `profileGoal` which is the SSOT target — correct
+- No changes needed here
 
-1. **Update `getActualTempLabel()`** — change `"(probe)"` to `"(ctrl)"`
-2. **Update `RaptControllerDialog.tsx`** — change inactive labels from "Aktuell temp" → "Aktuell (ctrl)", "Måltemperatur" → "Mål (ctrl)", "Inbyggd sensor" → "Ctrl-sensor", "Ändra måltemperatur" → "Ändra ctrl-mål", "Sätt måltemperatur" → "Sätt ctrl-mål"
-3. **Update `RaptControllersManagement.tsx`** — pass `pillCompEnabled` to determine "Aktuell (snitt)"/"Aktuell (ctrl)" and "Mål (snitt)"/"Mål (ctrl)" labels. Note: this component already receives `pillCompEnabled` as a prop.
-4. **`StepExecutionDisplay.tsx`** — add `pillCompEnabled` prop and update "Måltemp" → "Mål (snitt)"/"Mål (ctrl)" and "Aktuell" → context-aware label. This requires threading `pillCompEnabled` through `ActiveFermentationSession` → `StepExecutionDisplay`.
+### Technical Detail
+
+The `original_target_temp` in `auto_cooling_adjustments` represents the user's intended target before PID compensation. When pill-comp is active, PID adjusts the controller's actual `target_temp` to compensate for the difference between pill and probe. The `original_target_temp` IS the snitt-mål.
 
