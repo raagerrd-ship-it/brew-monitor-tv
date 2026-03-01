@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
+import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 
 // ── Inlined RAPT pill telemetry fetch (saves 1 HTTP hop per brew) ──
 async function fetchPillTelemetry(
@@ -255,22 +256,25 @@ serve(async (req) => {
 
         console.log(`Received ${telemetryData.length} telemetry records`);
 
-        // Convert telemetry to sg_data format
+        // Convert telemetry to sg_data format with SG temperature correction
         // RAPT API returns gravity as SG * 1000 (e.g., 1047.77 = SG 1.04777)
-        // Filter out invalid readings (SG should be between 0.990 and 1.200 for beer)
-        // Also filter out readings before fermentation_start if set
         const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
         
+        // Get learned pill-specific residual for SG correction
+        let pillResidual = 0;
+        try {
+          const { residualPerDegree } = await getLearnedResidual(supabase, pillId);
+          pillResidual = residualPerDegree;
+        } catch (_e) { /* no correction available yet */ }
+        
         const newSgData: SgDataPoint[] = telemetryData
-          .map((t: TelemetryRecord) => ({
-            date: new Date(t.createdOn).toISOString(),
-            value: t.gravity / 1000, // Convert from RAPT format to standard SG
-            temp: t.temperature
-          }))
+          .map((t: TelemetryRecord) => {
+            const rawSg = t.gravity / 1000;
+            const correctedSg = applySgCorrection(rawSg, t.temperature, pillResidual);
+            return { date: new Date(t.createdOn).toISOString(), value: correctedSg, temp: t.temperature };
+          })
           .filter((d: SgDataPoint) => {
-            // Filter by SG range
             if (d.value < 0.990 || d.value > 1.200) return false;
-            // Filter by fermentation start date
             if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;
             return true;
           });

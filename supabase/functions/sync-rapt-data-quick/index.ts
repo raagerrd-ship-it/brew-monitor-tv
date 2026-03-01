@@ -320,7 +320,7 @@ serve(async (req) => {
             .catch(err => ({ batchId: brew.batch_id, data: [], error: err }))
         )),
         supabase.from('brew_readings')
-          .select('id, batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery, linked_controller_id')
+          .select('id, batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery, linked_controller_id, linked_pill_id')
           .in('batch_id', batchIds)
       ]);
 
@@ -332,13 +332,17 @@ serve(async (req) => {
         const existingBrew = existingBrewsMap.get(result.batchId);
 
         const sgData = readings.filter((r: any) => r.sg && r.temp)
-          .map((r: any) => ({ date: new Date(r.time).toISOString(), value: r.sg, temp: r.temp }))
+          .map((r: any) => ({
+            date: new Date(r.time).toISOString(),
+            value: standardSgCorrection(r.sg, r.temp),
+            temp: r.temp
+          }))
           .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const readingsWithSG = readings.filter((r: any) => r.sg)
           .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
         const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null;
-        const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050;
+        const currentSG = latestReading ? standardSgCorrection(latestReading.sg, latestReading.temp || 20) : (existingBrew?.original_gravity || 1.050);
         const currentTemp = latestReading?.temp || 20;
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null;
         const og = existingBrew?.original_gravity || 1.050;

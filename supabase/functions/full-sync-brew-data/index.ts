@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
 import { createBrewSnapshots } from '../_shared/brew-snapshots.ts'
+import { standardSgCorrection } from '../_shared/sg-temp-correction.ts'
 
 // ── Inlined RAPT auth (shared across sub-functions) ──
 async function getRaptToken(): Promise<string> {
@@ -205,13 +206,17 @@ Deno.serve(async (req) => {
           const readings = result.readings
 
           const sgData = readings.filter((r: any) => r.sg && r.temp)
-            .map((r: any) => ({ date: new Date(r.time).toISOString(), value: r.sg, temp: r.temp }))
+            .map((r: any) => ({
+              date: new Date(r.time).toISOString(),
+              value: standardSgCorrection(r.sg, r.temp),
+              temp: r.temp
+            }))
             .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
           const readingsWithSG = readings.filter((r: any) => r.sg)
             .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
           const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
-          const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
+          const currentSG = latestReading ? standardSgCorrection(latestReading.sg, latestReading.temp || 20) : (batch.measuredOg || batch.estimatedOg || 1.050)
           const currentTemp = latestReading?.temp || 20
           const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
           const og = batch.measuredOg || batch.estimatedOg || 1.050
