@@ -344,14 +344,9 @@ export function SonosSettings() {
                 onCheckedChange={handleShowOnDashboardChange}
               />
             </div>
-          </div>
-
-          {/* Playback / Widget Settings */}
-          <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
-            <p className="settings-label">Uppspelning & widget</p>
 
             {/* Track Change Offset */}
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
                 <Label>Synk-justering vid låtbyte</Label>
                 <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
@@ -368,7 +363,6 @@ export function SonosSettings() {
                 Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
               </p>
             </div>
-
           </div>
 
           {/* Background Image Processing Section */}
