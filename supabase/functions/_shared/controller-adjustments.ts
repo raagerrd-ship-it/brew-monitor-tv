@@ -75,28 +75,8 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
 
   log('PILL_COMP', 'info', '--- PID pill compensation check ---')
 
-  // Build original target map for non-profile controllers
-  const pillCompOriginalTargetMap = new Map<string, number>()
-  {
-    const nonProfileIds = followedControllersFullData
-      .filter(c => !profileOwnedControllerIds.has(c.controller_id))
-      .map(c => c.controller_id)
-    if (nonProfileIds.length > 0) {
-      const { data: pillCompAdj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('cooler_controller_id, original_target_temp, created_at')
-        .in('cooler_controller_id', nonProfileIds)
-        .like('reason', '🎯%')
-        .order('created_at', { ascending: true })
-      if (pillCompAdj) {
-        for (const adj of pillCompAdj) {
-          if (!pillCompOriginalTargetMap.has(adj.cooler_controller_id) && adj.original_target_temp != null) {
-            pillCompOriginalTargetMap.set(adj.cooler_controller_id, parseFloat(String(adj.original_target_temp)))
-          }
-        }
-      }
-    }
-  }
+  // (Original target map for non-profile controllers removed — 
+  //  non-profile controllers now always use their current target_temp as base)
 
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
@@ -132,7 +112,16 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       }
       baseTarget = parseFloat(String(profileTarget))
     } else {
-      baseTarget = pillCompOriginalTargetMap.get(fc.controller_id) ?? targetTemp
+      // No active session: use the controller's current target_temp as base.
+      // Stale profile_target_temp should be cleared — do it now if found.
+      if ((fc as any).profile_target_temp != null) {
+        log('PILL_COMP', 'info', `${fc.name}: Clearing stale profile_target_temp (${(fc as any).profile_target_temp}) — no active session`)
+        await supabase
+          .from('rapt_temp_controllers')
+          .update({ profile_target_temp: null, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+      }
+      baseTarget = targetTemp
     }
 
     const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp
