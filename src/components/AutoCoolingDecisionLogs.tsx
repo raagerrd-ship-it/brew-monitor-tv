@@ -309,6 +309,12 @@ export function AutoCoolingDecisionLogs() {
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                         <div className="text-muted-foreground">Profilmål:</div>
                         <div className="font-medium">{adj.original_target_temp !== null ? `${adj.original_target_temp.toFixed(1)}°` : '—'}</div>
+                        <div className="text-muted-foreground">Aktuell (medel):</div>
+                        <div className="font-medium">
+                          {adj.followed_current_temp !== null && adj.followed_target_temp !== null
+                            ? `${((adj.followed_current_temp + adj.followed_target_temp) / 2).toFixed(1)}°`
+                            : '—'}
+                        </div>
                         <div className="text-muted-foreground">Pill (yta):</div>
                         <div className="font-medium" style={{ color: 'hsl(38 92% 50%)' }}>
                           {adj.followed_current_temp !== null ? `${adj.followed_current_temp.toFixed(1)}°` : '—'}
@@ -317,18 +323,12 @@ export function AutoCoolingDecisionLogs() {
                         <div className="font-medium">
                           {adj.followed_target_temp !== null ? `${adj.followed_target_temp.toFixed(1)}°` : '—'}
                         </div>
-                        <div className="text-muted-foreground">Delta / Medel:</div>
+                        <div className="text-muted-foreground">Delta:</div>
                         <div className="font-medium">
                           <span style={{ 
                             color: adj.followed_hysteresis && adj.followed_hysteresis > 2 ? 'hsl(0 80% 60%)' : adj.followed_hysteresis && adj.followed_hysteresis > 1 ? 'hsl(38 92% 50%)' : undefined 
                           }}>
                             {adj.followed_hysteresis !== null ? `+${adj.followed_hysteresis.toFixed(2)}°` : '—'}
-                          </span>
-                          {' / '}
-                          <span>
-                            {adj.followed_current_temp !== null && adj.followed_target_temp !== null
-                              ? `${((adj.followed_current_temp + adj.followed_target_temp) / 2).toFixed(1)}°`
-                              : '—'}
                           </span>
                         </div>
                         <div className="text-muted-foreground">Kompensation:</div>
