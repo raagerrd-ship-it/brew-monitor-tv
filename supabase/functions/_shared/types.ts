@@ -98,30 +98,3 @@ export async function setProfileTarget(
   console.log(`📋 Profile target set: ${profileTarget}°C for ${controllerId} (PID will enforce)`)
 }
 
-/**
- * Preserve profile_target_temp when a profile completes.
- * Copies current target_temp → profile_target_temp so the controller
- * seamlessly transitions to manual mode with a valid SSOT base target.
- * (Previously this cleared to null, breaking manual PID.)
- */
-export async function preserveProfileTarget(
-  supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-): Promise<void> {
-  // Read current target_temp to use as the new manual SSOT
-  const { data } = await supabase
-    .from('rapt_temp_controllers')
-    .select('target_temp')
-    .eq('controller_id', controllerId)
-    .single()
-  const currentTarget = data?.target_temp ?? null
-  if (currentTarget !== null) {
-    await supabase
-      .from('rapt_temp_controllers')
-      .update({ profile_target_temp: currentTarget, updated_at: new Date().toISOString() })
-      .eq('controller_id', controllerId)
-    console.log(`📋 Profile target preserved as ${currentTarget}°C for ${controllerId} (manual mode)`)
-  } else {
-    console.log(`📋 No target_temp to preserve for ${controllerId}`)
-  }
-}
