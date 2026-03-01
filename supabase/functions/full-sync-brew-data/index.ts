@@ -14,81 +14,53 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('Starting FULL brew data sync...')
+    console.log('Starting FULL sync (Brewfather + RAPT + AI audit)...')
 
-    // Update last_sync_time to trigger UI notification
+    // Update timestamps
     const { data: settingsData } = await supabase
-      .from('sync_settings')
-      .select('id')
-      .limit(1)
-      .single()
+      .from('sync_settings').select('id').limit(1).single()
     
     if (settingsData) {
-      await supabase
-        .from('sync_settings')
-        .update({ 
-          last_sync_time: new Date().toISOString(),
-          last_full_sync_at: new Date().toISOString()
-        })
-        .eq('id', settingsData.id)
+      await supabase.from('sync_settings').update({ 
+        last_sync_time: new Date().toISOString(),
+        last_full_sync_at: new Date().toISOString()
+      }).eq('id', settingsData.id)
     }
 
-    // Get sync settings to determine auto-management behavior
+    // Get sync settings for auto-management
     const { data: syncSettings } = await supabase
       .from('sync_settings')
       .select('auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived')
-      .limit(1)
-      .maybeSingle()
+      .limit(1).maybeSingle()
 
     const autoHideCompleted = syncSettings?.auto_hide_completed ?? true
     const autoHideConditioning = syncSettings?.auto_hide_conditioning ?? true
     const autoActivateFermenting = syncSettings?.auto_activate_fermenting ?? true
     const autoHideArchived = syncSettings?.auto_hide_archived ?? true
 
-    console.log('Auto-management settings:', { autoHideCompleted, autoHideConditioning, autoActivateFermenting, autoHideArchived })
+    // ──────────────────────────────────────────────────────
+    // STEP 1: Brewfather full batch sync + auto-manage
+    // ──────────────────────────────────────────────────────
 
-    // Fetch ALL batches from Brewfather
     let batchesData: any[] = []
     try {
-      const { data, error: batchesError } = await supabase.functions.invoke(
-        'brewfather-batches',
-        { body: {} }
-      )
-
-      if (batchesError) {
-        console.error('Error fetching batches:', batchesError)
-        // Don't throw - continue with custom brews only
-      } else {
-        batchesData = data || []
-      }
+      const { data, error: batchesError } = await supabase.functions.invoke('brewfather-batches', { body: {} })
+      if (batchesError) console.error('Error fetching batches:', batchesError)
+      else batchesData = data || []
     } catch (e) {
       console.error('Failed to fetch Brewfather batches:', e)
-      // Continue - there may be custom brews to handle
     }
 
     console.log(`Fetched ${batchesData.length} batches from Brewfather`)
 
-    console.log(`Fetched ${batchesData.length} batches from Brewfather`)
-
-    // Auto-manage selected_brews based on fermentation status (only for Brewfather batches)
+    // Auto-manage selected_brews
     if (batchesData.length > 0) {
-      console.log('Managing selected_brews based on fermentation status...')
-      
       const fermentingBatches = batchesData
-        .filter((batch: any) => batch.status === 'Fermenting')
-        .sort((a: any, b: any) => {
-          const dateA = new Date(a.brewDate || 0).getTime()
-          const dateB = new Date(b.brewDate || 0).getTime()
-          return dateB - dateA
-        })
-
-      console.log(`Found ${fermentingBatches.length} fermenting batches`)
-
-      const top3Fermenting = fermentingBatches.slice(0, 3)
-      const top3FermentingIds = top3Fermenting.map((b: any) => b._id)
+        .filter((b: any) => b.status === 'Fermenting')
+        .sort((a: any, b: any) => new Date(b.brewDate || 0).getTime() - new Date(a.brewDate || 0).getTime())
+      const top3FermentingIds = fermentingBatches.slice(0, 3).map((b: any) => b._id)
 
       for (const batch of batchesData) {
         const isFermenting = batch.status === 'Fermenting'
@@ -96,267 +68,172 @@ Deno.serve(async (req) => {
         const isConditioning = batch.status === 'Conditioning'
         const isArchived = batch.status === 'Archived'
         const isInTop3 = top3FermentingIds.includes(batch._id)
-        
-        const { data: existingBrew } = await supabase
-          .from('selected_brews')
-          .select('*')
-          .eq('batch_id', batch._id)
-          .maybeSingle()
 
-        // Determine if this brew should be visible based on settings
+        const { data: existingBrew } = await supabase
+          .from('selected_brews').select('*').eq('batch_id', batch._id).maybeSingle()
+
         let shouldBeVisible = false
-        
         if (isFermenting && isInTop3 && autoActivateFermenting) {
           shouldBeVisible = true
         } else if (existingBrew) {
-          // Keep manually selected brews visible unless they match auto-hide criteria
           shouldBeVisible = existingBrew.is_visible
-          
-          if (isCompleted && autoHideCompleted) {
-            shouldBeVisible = false
-          }
-          if (isConditioning && autoHideConditioning) {
-            shouldBeVisible = false
-          }
-          if (isArchived && autoHideArchived) {
-            shouldBeVisible = false
-          }
+          if (isCompleted && autoHideCompleted) shouldBeVisible = false
+          if (isConditioning && autoHideConditioning) shouldBeVisible = false
+          if (isArchived && autoHideArchived) shouldBeVisible = false
         }
 
         if (shouldBeVisible) {
           if (existingBrew) {
             if (!existingBrew.is_visible) {
-              await supabase
-                .from('selected_brews')
-                .update({ is_visible: true })
-                .eq('batch_id', batch._id)
-              console.log(`Auto-activated brew: ${batch._id} (status: ${batch.status})`)
+              await supabase.from('selected_brews').update({ is_visible: true }).eq('batch_id', batch._id)
             }
           } else if (autoActivateFermenting && isFermenting && isInTop3) {
-            const { data: maxOrder } = await supabase
-              .from('selected_brews')
-              .select('display_order')
-              .order('display_order', { ascending: false })
-              .limit(1)
-              .maybeSingle()
-            
-            const nextOrder = (maxOrder?.display_order || 0) + 1
-            
-            await supabase
-              .from('selected_brews')
-              .insert({
-                batch_id: batch._id,
-                display_order: nextOrder,
-                is_visible: true
-              })
-            console.log(`Auto-added fermenting brew: ${batch._id}`)
+            const { data: maxOrder } = await supabase.from('selected_brews')
+              .select('display_order').order('display_order', { ascending: false }).limit(1).maybeSingle()
+            await supabase.from('selected_brews').insert({
+              batch_id: batch._id, display_order: (maxOrder?.display_order || 0) + 1, is_visible: true
+            })
           }
-        } else {
-          if (existingBrew && existingBrew.is_visible) {
-            await supabase
-              .from('selected_brews')
-              .update({ is_visible: false })
-              .eq('batch_id', batch._id)
-            
-            console.log(`Auto-deactivated brew: ${batch._id} (status: ${batch.status})`)
-          }
+        } else if (existingBrew?.is_visible) {
+          await supabase.from('selected_brews').update({ is_visible: false }).eq('batch_id', batch._id)
         }
       }
-    } else {
-      console.log('No Brewfather batches - skipping auto-management')
     }
 
-    // Get currently visible brews for full syncing
-    const { data: selectedBrews, error: selectedError } = await supabase
-      .from('selected_brews')
-      .select('*')
-      .eq('is_visible', true)
-      .order('display_order')
+    // Get visible brews for full detail sync
+    const { data: selectedBrews } = await supabase
+      .from('selected_brews').select('*').eq('is_visible', true).order('display_order')
 
-    if (selectedError) {
-      console.error('Error fetching selected brews:', selectedError)
-      throw selectedError
-    }
+    let brewUpdatesCount = 0
 
-    if (!selectedBrews || selectedBrews.length === 0) {
-      console.log('No visible brews after auto-management')
-      // Still trigger RAPT sync even with no brews
-      try {
-        await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
-        console.log('RAPT device sync triggered successfully')
-      } catch (e) {
-        console.error('Failed to trigger RAPT sync:', e)
-      }
-      return new Response(
-        JSON.stringify({ message: 'No visible brews' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    if (selectedBrews && selectedBrews.length > 0) {
+      const brewfatherBatchIds = selectedBrews.map(b => b.batch_id).filter(id => !id.startsWith('custom_'))
 
-    console.log(`Found ${selectedBrews.length} visible brews to sync`)
+      if (brewfatherBatchIds.length > 0) {
+        const { data: fullBatchesData } = await supabase.functions.invoke(
+          'brewfather-batches', { body: { batchIds: brewfatherBatchIds } }
+        )
+        const batchesToSync = fullBatchesData || []
 
-    // Only fetch Brewfather batch details for non-custom brews
-    const brewfatherBatchIds = selectedBrews
-      .map(b => b.batch_id)
-      .filter(id => !id.startsWith('custom_'))
-    
-    let batchesToSync: any[] = []
-    
-    if (brewfatherBatchIds.length > 0) {
-      console.log(`Fetching FULL batch details for ${brewfatherBatchIds.length} Brewfather batches...`)
-      
-      try {
-        const { data: fullBatchesData, error: fullBatchesError } = await supabase.functions.invoke(
-          'brewfather-batches',
-          { body: { batchIds: brewfatherBatchIds } }
+        // Fetch readings in parallel
+        const readingsResults = await Promise.all(
+          batchesToSync.map((batch: any) =>
+            supabase.functions.invoke('brewfather-readings', { body: { batchId: batch._id } })
+              .then(r => ({ batch, readings: r.data || [], error: r.error }))
+          )
         )
 
-        if (fullBatchesError) {
-          console.error('Error fetching full batch details:', fullBatchesError)
-        } else {
-          batchesToSync = fullBatchesData || []
-        }
-      } catch (e) {
-        console.error('Failed to fetch Brewfather batch details:', e)
-      }
-    } else {
-      console.log('No Brewfather batches to sync - only custom brews selected')
-    }
-    
-    console.log(`Got ${batchesToSync.length} full batch details`)
+        const brewUpdates = readingsResults.map(result => {
+          if (result.error) return null
+          const batch = result.batch
+          const readings = result.readings
 
-    // Fetch all readings in parallel for faster sync
-    const readingsPromises = batchesToSync.map((batch: any) =>
-      supabase.functions.invoke('brewfather-readings', { 
-        body: { batchId: batch._id } 
-      }).then(result => ({
-        batch: batch,
-        readings: result.data || [],
-        error: result.error
-      }))
-    )
+          const sgData = readings.filter((r: any) => r.sg && r.temp)
+            .map((r: any) => ({ date: new Date(r.time).toISOString(), value: r.sg, temp: r.temp }))
+            .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    const readingsResults = await Promise.all(readingsPromises)
-    console.log(`Fetched readings for ${readingsResults.length} batches in parallel`)
+          const readingsWithSG = readings.filter((r: any) => r.sg)
+            .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
+          const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
+          const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
+          const currentTemp = latestReading?.temp || 20
+          const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
+          const og = batch.measuredOg || batch.estimatedOg || 1.050
+          const fg = batch.measuredFg || batch.estimatedFg || 1.010
+          const attenuation = ((og - currentSG) / (og - 1.000)) * 100
+          const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
 
-    // Process all batches and prepare data
-    const brewUpdates = readingsResults.map(result => {
-      if (result.error) {
-        console.error(`Error fetching readings for ${result.batch._id}:`, result.error)
-        return null
-      }
+          return {
+            batch_id: batch._id,
+            name: batch.recipe?.name || batch.name,
+            style: batch.recipe?.style?.name || 'Okänd stil',
+            batch_number: `#${batch.batchNo}`,
+            status: batch.status === 'Conditioning' ? 'Konditionering' : 
+                    batch.status === 'Completed' ? 'Klar' : 
+                    batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
+            current_sg: currentSG, current_temp: currentTemp,
+            attenuation: Math.round(attenuation), abv: parseFloat(abv.toFixed(1)),
+            original_gravity: og, final_gravity: fg,
+            last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
+            battery,
+            sg_data: sgData.length > 0 ? sgData : [
+              { date: 'Start', value: og, temp: 20 },
+              { date: 'Nu', value: currentSG, temp: currentTemp },
+            ],
+          }
+        }).filter(Boolean)
 
-      const batch = result.batch
-      const readings = result.readings
+        if (brewUpdates.length > 0) {
+          const { error: upsertError } = await supabase.from('brew_readings')
+            .upsert(brewUpdates, { onConflict: 'batch_id' })
+          if (upsertError) throw upsertError
+          brewUpdatesCount = brewUpdates.length
 
-      const sgData = readings
-        .filter((r: any) => r.sg && r.temp)
-        .map((r: any) => ({
-          date: new Date(r.time).toISOString(),
-          value: r.sg,
-          temp: r.temp,
-        }))
-        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-      const readingsWithSG = readings
-        .filter((r: any) => r.sg)
-        .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
-      const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null
-      const currentSG = latestReading?.sg || batch.measuredOg || batch.estimatedOg || 1.050
-      const currentTemp = latestReading?.temp || 20
-      const battery = latestReading?.battery ? Math.round(latestReading.battery) : null
-
-      const firstReading = readings.length > 0 ? readings[0] : null
-      const og = batch.measuredOg || batch.estimatedOg || firstReading?.sg || 1.050
-      const fg = batch.measuredFg || batch.estimatedFg || 1.010
-      
-      console.log(`Batch ${batch.name || batch.recipe?.name}: measuredOg=${batch.measuredOg}, estimatedOg=${batch.estimatedOg}, using og=${og}`)
-      
-      const attenuation = ((og - currentSG) / (og - 1.000)) * 100
-      const abv = ((og - currentSG) * 131.25) || batch.estimatedAbv || 0
-
-      return {
-        batch_id: batch._id,
-        name: batch.recipe?.name || batch.name,
-        style: batch.recipe?.style?.name || 'Okänd stil',
-        batch_number: `#${batch.batchNo}`,
-        status: batch.status === 'Conditioning' ? 'Konditionering' : 
-                batch.status === 'Completed' ? 'Klar' : 
-                batch.status === 'Fermenting' ? 'Jäsning' : batch.status,
-        current_sg: currentSG,
-        current_temp: currentTemp,
-        attenuation: Math.round(attenuation),
-        abv: parseFloat(abv.toFixed(1)),
-        original_gravity: og,
-        final_gravity: fg,
-        last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
-        battery: battery,
-        sg_data: sgData.length > 0 ? sgData : [
-          { date: 'Start', value: og, temp: 20 },
-          { date: 'Nu', value: currentSG, temp: currentTemp },
-        ],
-      }
-    }).filter(Boolean)
-
-    // Batch upsert all updates at once
-    if (brewUpdates.length > 0) {
-      const { error: upsertError } = await supabase
-        .from('brew_readings')
-        .upsert(brewUpdates, { onConflict: 'batch_id' })
-
-      if (upsertError) {
-        console.error('Error batch upserting brews:', upsertError)
-        throw upsertError
-      }
-
-      console.log(`Successfully full synced ${brewUpdates.length} brews in parallel`)
-
-      // Create data snapshots for updated brews (only during fermentation)
-      for (const update of brewUpdates) {
-        const u = update as any
-        const status = u.status || ''
-        const isFermenting = status === 'Jäsning' || status === 'Fermenting'
-        if (isFermenting && u.sg_data && Array.isArray(u.sg_data) && u.sg_data.length > 0) {
-          const { data: brewRecord } = await supabase
-            .from('brew_readings')
-            .select('id, linked_controller_id')
-            .eq('batch_id', u.batch_id)
-            .single()
-          if (brewRecord) {
-            await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data)
+          // Create snapshots for fermenting brews
+          for (const update of brewUpdates) {
+            const u = update as any
+            const isFermenting = u.status === 'Jäsning' || u.status === 'Fermenting'
+            if (isFermenting && u.sg_data?.length > 0) {
+              const { data: brewRecord } = await supabase.from('brew_readings')
+                .select('id, linked_controller_id').eq('batch_id', u.batch_id).single()
+              if (brewRecord) {
+                await createBrewSnapshots(supabase, brewRecord.id, brewRecord.linked_controller_id, u.sg_data)
+              }
+            }
           }
         }
       }
     }
 
-    // Also trigger RAPT device sync
-    console.log('Triggering RAPT device sync...')
+    // ──────────────────────────────────────────────────────
+    // STEP 2: RAPT full sync + AI audit (parallel)
+    // ──────────────────────────────────────────────────────
+
+    // Get AI audit setting
+    const { data: autoCoolingSettings } = await supabase
+      .from('auto_cooling_settings').select('ai_audit_enabled').limit(1).maybeSingle()
+    const aiAuditEnabled = autoCoolingSettings?.ai_audit_enabled ?? true
+
+    console.log('Triggering RAPT full sync + AI audit in parallel...')
+
+    const [raptResult, aiResult] = await Promise.allSettled([
+      supabase.functions.invoke('sync-rapt-data', { body: {} }),
+      aiAuditEnabled
+        ? supabase.functions.invoke('ai-automation-audit', { body: {} })
+        : Promise.resolve({ data: { skipped: true }, error: null }),
+    ])
+
+    if (raptResult.status === 'rejected') console.error('RAPT full sync failed:', raptResult.reason)
+    else if (raptResult.status === 'fulfilled' && raptResult.value.error) console.error('RAPT full sync error:', raptResult.value.error)
+    else console.log('RAPT full sync completed')
+
+    if (aiResult.status === 'rejected') console.error('AI audit failed:', aiResult.reason)
+    else if (aiResult.status === 'fulfilled' && aiResult.value.error) console.error('AI audit error:', aiResult.value.error)
+    else console.log('AI audit completed')
+
+    // ──────────────────────────────────────────────────────
+    // STEP 3: Quick sync (to get fresh data after full)
+    // ──────────────────────────────────────────────────────
+
+    console.log('Running quick sync pass...')
     try {
-      const { error: raptError } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
-      if (raptError) {
-        console.error('Error syncing RAPT devices:', raptError)
-      } else {
-        console.log('RAPT device sync triggered successfully')
-      }
-    } catch (raptSyncError) {
-      console.error('Failed to trigger RAPT sync:', raptSyncError)
+      await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
+      console.log('Quick sync pass completed')
+    } catch (e) {
+      console.error('Quick sync pass failed:', e)
     }
 
-    console.log('FULL brew data sync completed (including RAPT devices)')
+    console.log(`FULL sync completed: ${brewUpdatesCount} brews, RAPT full + AI audit`)
 
     return new Response(
-      JSON.stringify({ message: 'Full sync completed', count: brewUpdates.length }),
+      JSON.stringify({ message: 'Full sync completed', count: brewUpdatesCount }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     console.error('Error in full-sync-brew-data:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
