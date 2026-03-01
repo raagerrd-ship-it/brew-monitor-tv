@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ParsedField { label: string; value: string; color?: string }
@@ -119,7 +119,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell';
+type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough';
 
 type HistoryEntry = 
   | { type: 'decision'; data: DecisionLog; timestamp: string }
@@ -127,12 +127,12 @@ type HistoryEntry =
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('✏️')) return 'manuell';
+  if (reason.startsWith('🔄')) return 'passthrough';
   if (reason.startsWith('🎯')) return 'pill-comp';
   if (reason.startsWith('🔥')) return 'pill-comp'; // Stall boost
   // Legacy overshoot/stall entries still categorize to pill-comp
   if (reason.startsWith('🌡️')) return 'pill-comp';
   if (reason.startsWith('🧠')) return 'pill-comp';
-  if (reason.startsWith('🔄')) return 'glykol';
   if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
   return 'glykol';
 }
@@ -170,6 +170,17 @@ function getCategoryBadge(category: AdjustmentCategory) {
         }}>
           <Pencil className="h-2.5 w-2.5 mr-0.5" />
           Manuell
+        </Badge>
+      );
+    case 'passthrough':
+      return (
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ 
+          background: 'hsl(170 60% 45% / 0.2)', 
+          color: 'hsl(170 60% 45%)', 
+          borderColor: 'hsl(170 60% 45% / 0.3)' 
+        }}>
+          <RefreshCw className="h-2.5 w-2.5 mr-0.5" />
+          Synk
         </Badge>
       );
     default:
