@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { round1, TempController, setControllerTargetTemp } from './temp-utils.ts'
+import { round1, TempController, setControllerTargetTemp, RaptUpdateBatch } from './temp-utils.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 
@@ -25,6 +25,7 @@ export interface CoolerContext {
   followedControllerIds: string[]
   settings: { id: string; last_check_at: string | null }
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
+  updateBatch?: RaptUpdateBatch
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -457,10 +458,16 @@ async function applyCoolerTarget(
 
   log('ADJUSTMENT', 'action', `${oldTarget}°C → ${newTarget}°C: ${reason}`)
 
-  const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, newTarget)
+  let success: boolean
+  if (ctx.updateBatch) {
+    ctx.updateBatch.add(coolerController.controller_id, newTarget)
+    success = true
+  } else {
+    success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, newTarget)
+  }
 
   if (success) {
-    log('ADJUSTMENT', 'pass', `Kylare satt till ${newTarget}°C`)
+    log('ADJUSTMENT', 'pass', `Kylare satt till ${newTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
     adjustments.push({ cooler: coolerController.name, oldTarget, newTarget })
 
     await logAdjustment(supabase, {

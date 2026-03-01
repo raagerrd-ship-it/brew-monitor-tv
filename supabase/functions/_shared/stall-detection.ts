@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { TempController, setControllerTargetTemp } from './temp-utils.ts'
+import { TempController, setControllerTargetTemp, RaptUpdateBatch } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 
@@ -24,6 +24,7 @@ export interface StallContext {
   profileTargetMap: Map<string, number>
   sessionBrewIdMap: Map<string, string>
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
+  updateBatch?: RaptUpdateBatch
 }
 
 /** Evaluate pending boost outcomes and learn from them */
@@ -283,12 +284,18 @@ export async function detectAndHandleStalls(
       log('STALL_BOOST', 'pass', `${fc.name}: PID +${boostDeg.toFixed(1)}°C (total: ${newCorrection.toFixed(2)}°C)`)
     } else {
       const safeTarget = Math.min(maxTemp, boostedTarget)
-      const boostSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, safeTarget)
+      let boostSuccess: boolean
+      if (ctx.updateBatch) {
+        ctx.updateBatch.add(fc.controller_id, safeTarget)
+        boostSuccess = true
+      } else {
+        boostSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, safeTarget)
+      }
       if (boostSuccess) {
         await supabase.from('rapt_temp_controllers')
           .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost ${currentTarget}°C → ${safeTarget}°C`)
+        log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost ${currentTarget}°C → ${safeTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       } else {
         log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`)
         continue
@@ -425,12 +432,18 @@ async function handleUnBoost(
     const restoredTarget = Math.max(effectiveProfileTarget, boostOldTarget)
 
     if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
-      const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, restoredTarget)
+      let success: boolean
+      if (ctx.updateBatch) {
+        ctx.updateBatch.add(fc.controller_id, restoredTarget)
+        success = true
+      } else {
+        success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, restoredTarget)
+      }
       if (success) {
         await supabase.from('rapt_temp_controllers')
           .update({ target_temp: restoredTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, direkt un-boost ${currentTarget}°C → ${restoredTarget}°C`)
+        log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, direkt un-boost ${currentTarget}°C → ${restoredTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       } else {
         log('STALL_UNBOOST', 'fail', `${fc.name}: Kunde inte reversera direkt boost`)
         return
