@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Snowflake, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -32,7 +31,6 @@ const LOAD_LABELS: Record<string, string> = {
 const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 
 function formatBucketLabel(bucket: string): string {
-  // e.g. "warm:load_1" → "Varm (12–18°) · 1 tank"
   const parts = bucket.split(":");
   const base = BUCKET_LABELS[parts[0]] ?? parts[0];
   if (parts.length > 1) {
@@ -60,7 +58,6 @@ export function LearnedCoolerMarginValues() {
         return;
       }
 
-      // Also fetch max_effective_margin learnings
       const { data: maxEffectives } = await supabase
         .from("fermentation_learnings")
         .select("controller_id, parameter_name, learned_value")
@@ -124,7 +121,6 @@ export function LearnedCoolerMarginValues() {
     return acc;
   }, {});
 
-  // Sort: base buckets first, then load-specific
   for (const items of Object.values(grouped)) {
     items.sort((a, b) => {
       const aBase = a.bucket.split(":")[0];
@@ -132,7 +128,6 @@ export function LearnedCoolerMarginValues() {
       const aIdx = BUCKET_ORDER.indexOf(aBase);
       const bIdx = BUCKET_ORDER.indexOf(bBase);
       if (aIdx !== bIdx) return aIdx - bIdx;
-      // base before load-specific
       const aHasLoad = a.bucket.includes(":");
       const bHasLoad = b.bucket.includes(":");
       if (aHasLoad !== bHasLoad) return aHasLoad ? 1 : -1;
@@ -153,31 +148,32 @@ export function LearnedCoolerMarginValues() {
       </div>
 
       {Object.entries(grouped).map(([name, items]) => (
-        <div key={name} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1.5">
-          <span className="text-xs font-medium">{name}</span>
-          {items.map((item) => (
-            <div
-              key={`${item.controller_id}-${item.bucket}`}
-              className="flex items-center justify-between gap-2"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground">{formatBucketLabel(item.bucket)}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-400 border-blue-500/30">
-                  {item.learned_value.toFixed(1)}°C
-                </Badge>
-                {item.max_effective != null && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-400 border-amber-500/30">
-                    max {item.max_effective.toFixed(1)}°C
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-                <span>{item.sample_count} mätningar</span>
-                <span className="text-muted-foreground/50">·</span>
-                <span>{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</span>
-              </div>
-            </div>
-          ))}
+        <div key={name} className="space-y-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                <th className="text-left font-medium pb-1">Zon</th>
+                <th className="text-right font-medium pb-1">Marginal</th>
+                <th className="text-right font-medium pb-1">Max eff.</th>
+                <th className="text-right font-medium pb-1">Mätningar</th>
+                <th className="text-right font-medium pb-1">Senast</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {items.map((item) => (
+                <tr key={`${item.controller_id}-${item.bucket}`}>
+                  <td className="py-1.5">{formatBucketLabel(item.bucket)}</td>
+                  <td className="py-1.5 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
+                  <td className="py-1.5 text-right font-mono text-amber-400">
+                    {item.max_effective != null ? `${item.max_effective.toFixed(1)}°C` : "–"}
+                  </td>
+                  <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ))}
     </div>

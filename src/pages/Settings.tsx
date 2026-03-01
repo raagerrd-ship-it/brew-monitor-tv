@@ -554,18 +554,20 @@ export default function Settings() {
               <CollapsibleTrigger className="w-full cursor-pointer">
                 <CategorySeparator icon={Brain} label="Inlärning" />
               </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SettingsSection icon={Brain} title="Inlärda värden" description="Systemets inlärda parametrar per controller">
+              <CollapsibleContent className="space-y-4 pt-2">
+                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation, stall-boost och termiska hastigheter per controller">
+                  <LearnedCompensationBaselines />
+                  <SettingsDivider />
                   <LearnedStallBoostValues />
                   <SettingsDivider />
-                  <LearnedCompensationBaselines />
+                  <LearnedThermalRates />
                   <SettingsDivider />
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedPidHeadroom />
-                  <SettingsDivider />
-                  <LearnedThermalRates />
-                  <SettingsDivider />
+                </SettingsSection>
+
+                <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren">
                   <LearnedCoolerMarginValues />
                 </SettingsSection>
               </CollapsibleContent>

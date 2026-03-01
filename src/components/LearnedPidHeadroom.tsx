@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -61,7 +60,7 @@ export function LearnedPidHeadroom() {
         }))
       );
     } catch (e) {
-      console.error("Error loading glycol headroom learnings:", e);
+      console.error("Error loading PID headroom learnings:", e);
     } finally {
       setLoading(false);
     }
@@ -98,38 +97,40 @@ export function LearnedPidHeadroom() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-           <ShieldCheck className="h-4 w-4 text-violet-400" />
-          <span className="text-sm font-medium">PID-förkylningsmarginal (headroom)</span>
+          <ShieldCheck className="h-4 w-4 text-violet-400" />
+          <span className="text-sm font-medium">PID-förkylningsmarginal</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[10px] text-muted-foreground/60 italic">
         Hur många °C under tankens mål PID-kompensationen förkör för att hinna med temperaturrampar.
       </p>
 
       {Object.entries(grouped).map(([name, items]) => (
-        <div key={name} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1.5">
-          <span className="text-xs font-medium">{name}</span>
-          {items.map((item) => (
-            <div
-              key={`${item.controller_id}-${item.temp_bucket}`}
-              className="flex items-center justify-between gap-2"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-violet-500/10 text-violet-400 border-violet-500/30">
-                  {item.headroom.toFixed(1)}°C
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-                <span>{item.sample_count} mätningar</span>
-                <span className="text-muted-foreground/50">·</span>
-                <span>{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</span>
-              </div>
-            </div>
-          ))}
+        <div key={name} className="space-y-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                <th className="text-left font-medium pb-1">Temperaturzon</th>
+                <th className="text-right font-medium pb-1">Headroom</th>
+                <th className="text-right font-medium pb-1">Mätningar</th>
+                <th className="text-right font-medium pb-1">Senast</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {items.map((item) => (
+                <tr key={`${item.controller_id}-${item.temp_bucket}`}>
+                  <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
+                  <td className="py-1.5 text-right font-mono text-violet-400">{item.headroom.toFixed(1)}°C</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ))}
     </div>

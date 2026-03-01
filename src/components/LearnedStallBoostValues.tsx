@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Flame, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -78,33 +77,33 @@ export function LearnedStallBoostValues() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4 text-orange-400" />
-          <span className="text-sm font-medium">Inlärda stall-boost</span>
+          <span className="text-sm font-medium">Stall-boost</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
 
-      <div className="space-y-1.5">
-        {entries.map((entry) => (
-          <div
-            key={entry.controller_id}
-            className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 px-3 py-2"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs font-medium truncate">{entry.controller_name}</span>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-orange-500/10 text-orange-400 border-orange-500/30">
-                +{entry.learned_value.toFixed(1)}°C
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-              <span>{entry.sample_count} mätningar</span>
-              <span className="text-muted-foreground/50">·</span>
-              <span>{formatDistanceToNow(new Date(entry.last_updated_at), { locale: sv, addSuffix: true })}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+            <th className="text-left font-medium pb-1.5">Controller</th>
+            <th className="text-right font-medium pb-1.5">Boost</th>
+            <th className="text-right font-medium pb-1.5">Mätningar</th>
+            <th className="text-right font-medium pb-1.5">Senast</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/30">
+          {entries.map((entry) => (
+            <tr key={entry.controller_id}>
+              <td className="py-1.5 font-medium">{entry.controller_name}</td>
+              <td className="py-1.5 text-right font-mono text-orange-400">+{entry.learned_value.toFixed(1)}°C</td>
+              <td className="py-1.5 text-right text-muted-foreground">{entry.sample_count}</td>
+              <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(entry.last_updated_at), { locale: sv, addSuffix: true })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
