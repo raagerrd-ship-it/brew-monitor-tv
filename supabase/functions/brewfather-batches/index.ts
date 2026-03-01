@@ -67,7 +67,7 @@ serve(async (req) => {
     url.searchParams.set('order_by_direction', 'desc');
     url.searchParams.set('complete', complete ? 'true' : 'false'); // Respect caller's preference
     url.searchParams.set('include', 'recipe.style'); // Add style info which we display
-    url.searchParams.set('status', 'Planning,Brewing,Fermenting,Conditioning,Completed'); // Never fetch Archived
+    url.searchParams.set('status', 'Planning,Brewing,Fermenting,Conditioning,Completed,Archived'); // Include Archived for auto-hide logic
     
     console.log('Fetching', requestedLimit, 'batches sorted by batchNo descending (optimized fields)');
     

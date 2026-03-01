@@ -1,5 +1,31 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
 import { createBrewSnapshots } from '../_shared/brew-snapshots.ts'
+
+// ── Inlined RAPT auth (shared across sub-functions) ──
+async function getRaptToken(): Promise<string> {
+  const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+  const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+  if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
+
+  const formData = new URLSearchParams();
+  formData.append('client_id', 'rapt-user');
+  formData.append('grant_type', 'password');
+  formData.append('username', RAPT_USERNAME);
+  formData.append('password', RAPT_API_SECRET);
+
+  const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+  const res = await fetch(`${authBaseUrl}/connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) throw new Error(`RAPT auth error: ${res.status}`);
+  const data = await res.json();
+  return data.access_token;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -236,13 +262,22 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 2: RAPT auto-discovery (Problem 6: only discovery, not full data sync)
-    //         Data sync is handled by quick-sync in Step 3
+    // STEP 2: Get RAPT token ONCE, then run discovery + quick sync
     // ──────────────────────────────────────────────────────
 
+    let raptToken: string | null = null;
+    try {
+      raptToken = await getRaptToken();
+    } catch (e) {
+      console.error('RAPT auth failed (discovery + quick sync will use their own fallback):', e);
+    }
+
+    // STEP 2a: RAPT auto-discovery (pass token to avoid double auth)
     console.log('Running RAPT auto-discovery...')
     try {
-      const raptResult = await supabase.functions.invoke('sync-rapt-data', { body: {} })
+      const raptResult = await supabase.functions.invoke('sync-rapt-data', { 
+        body: raptToken ? { access_token: raptToken } : {} 
+      })
       if (raptResult.error) console.error('RAPT auto-discovery error:', raptResult.error)
       else console.log('RAPT auto-discovery completed')
     } catch (e) {
@@ -250,12 +285,14 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 3: Quick sync (fresh readings + automation)
+    // STEP 3: Quick sync (pass same token to avoid triple auth)
     // ──────────────────────────────────────────────────────
 
     console.log('Running quick sync pass (data + automation)...')
     try {
-      await supabase.functions.invoke('sync-rapt-data-quick', { body: {} })
+      await supabase.functions.invoke('sync-rapt-data-quick', { 
+        body: raptToken ? { access_token: raptToken } : {} 
+      })
       console.log('Quick sync pass completed')
     } catch (e) {
       console.error('Quick sync pass failed:', e)
