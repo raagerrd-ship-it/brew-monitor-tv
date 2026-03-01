@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Eye, RefreshCw } from "lucide-react";
+import { ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -24,7 +24,7 @@ const BUCKET_LABELS: Record<string, string> = {
 
 const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 
-export function LearnedGlycolHeadroom() {
+export function LearnedPidHeadroom() {
   const [entries, setEntries] = useState<HeadroomEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,14 +72,14 @@ export function LearnedGlycolHeadroom() {
   }, [loadData]);
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Laddar inlärda headroom-värden…</p>;
+    return <p className="text-xs text-muted-foreground">Laddar inlärda PID-förkylningsmarginaler…</p>;
   }
 
   if (entries.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Eye className="h-3.5 w-3.5" />
-        <span>Inga inlärda headroom-värden ännu. Systemet lär sig automatiskt vid profilkörning.</span>
+        <ShieldCheck className="h-3.5 w-3.5" />
+        <span>Inga inlärda förkylningsmarginaler ännu. Systemet lär sig automatiskt vid profilkörning.</span>
       </div>
     );
   }
@@ -98,15 +98,15 @@ export function LearnedGlycolHeadroom() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Eye className="h-4 w-4 text-violet-400" />
-          <span className="text-sm font-medium">Proaktiv förkylning (headroom)</span>
+           <ShieldCheck className="h-4 w-4 text-violet-400" />
+          <span className="text-sm font-medium">PID-förkylningsmarginal (headroom)</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Hur många °C under tankens mål glykolkylaren behöver ligga för att hinna med temperaturrampar.
+        Hur många °C under tankens mål PID-kompensationen förkör för att hinna med temperaturrampar.
       </p>
 
       {Object.entries(grouped).map(([name, items]) => (
