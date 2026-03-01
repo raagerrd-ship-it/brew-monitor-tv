@@ -1,57 +1,5 @@
-/**
- * Color keywords mapped to hex values (English and Swedish)
- */
-const colorMatches: Array<[string[], string]> = [
-  [['red', 'röd'], '#ef4444'],
-  [['blue', 'blå'], '#3b82f6'],
-  [['green', 'grön'], '#22c55e'],
-  [['yellow', 'gul'], '#eab308'],
-  [['purple', 'lila'], '#a855f7'],
-  [['pink', 'rosa'], '#ec4899'],
-  [['orange'], '#f97316'],
-  [['cyan'], '#06b6d4'],
-  [['lime'], '#84cc16'],
-  [['amber', 'bärnsten'], '#f59e0b'],
-  [['teal', 'turkos'], '#14b8a6'],
-  [['indigo'], '#6366f1'],
-  [['violet', 'violett'], '#8b5cf6'],
-  [['fuchsia'], '#d946ef'],
-  [['rose'], '#f43f5e'],
-  [['sky', 'himmel'], '#0ea5e9'],
-  [['emerald', 'smaragd'], '#10b981'],
-  [['slate', 'skiffer'], '#64748b'],
-  [['gray', 'grey', 'grå'], '#6b7280'],
-  [['zinc', 'zink'], '#71717a'],
-  [['neutral', 'neutral'], '#737373'],
-  [['stone', 'sten'], '#78716c'],
-  [['white', 'vit'], '#f1f5f9'],
-  [['black', 'svart'], '#1e293b'],
-];
-
-/**
- * Color keywords used for matching devices to brews
- */
-export const colorKeywords = [
-  'röd', 'red', 'blå', 'blue', 'grön', 'green', 'gul', 'gyllene', 'guld', 'golden', 'yellow', 
-  'lila', 'purple', 'rosa', 'pink', 'orange', 'cyan', 'lime', 'amber', 'bärnsten', 
-  'turkos', 'teal', 'indigo', 'violet', 'violett', 'fuchsia', 'rose', 'himmel', 'sky', 
-  'smaragd', 'emerald'
-];
-
-/**
- * Extract color from controller/pill name and return hex value
- */
-export function getControllerColor(name: string): string {
-  const lowerName = name.toLowerCase();
-
-  for (const [keywords, hex] of colorMatches) {
-    if (keywords.some(keyword => lowerName.includes(keyword))) {
-      return hex;
-    }
-  }
-  
-  return 'currentColor';
-}
+/** Default fallback color when no pill color is available */
+export const DEFAULT_DEVICE_COLOR = '#f1f5f9';
 
 /**
  * Convert HSL color string to RGB values

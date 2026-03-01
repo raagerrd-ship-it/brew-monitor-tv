@@ -260,7 +260,7 @@ export function BrewingDashboard() {
       </div>
 
       {/* Dialogs */}
-      {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} />}
+      {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
       {/* Timer Footer */}
       <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
