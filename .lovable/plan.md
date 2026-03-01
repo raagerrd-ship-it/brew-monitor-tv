@@ -1,15 +1,35 @@
 
 
-## Remove Dead "Profil" Category from Decision Logs
+## Ändra `get_temp_history_sampled`: AVG → senaste värde för `current_temp`
 
-The `categorizeAdjustment` function maps `🔧` and `📈` reason prefixes to a `'profil'` category, but no backend code ever writes adjustment records with those prefixes. Profile enforcement was unified into PID compensation — there is no separate "profil" adjustment type anymore.
+### Analys
 
-### Changes (single file: `src/components/AutoCoolingDecisionLogs.tsx`)
+Du har helt rätt. AVG inom en 15-minutersbucket ger ett utjämnat värde som inte matchar det faktiska live-värdet vid en given tidpunkt. Under en cold crash där temperaturen sjunker snabbt blir genomsnittet missvisande — det ligger alltid "efter" det senaste riktiga värdet. Det finns inget bra skäl att använda AVG för `current_temp` i detta system:
 
-1. **Remove `'profil'` from `AdjustmentCategory` type** — change to `'pill-comp' | 'glykol'`
-2. **Remove the two categorization lines** matching `🔧` and `📈` (lines ~102-103) — these will fall through to the default `'glykol'` or can be mapped to `'pill-comp'` as safety fallback
-3. **Remove the `getCategoryBadge` case for `'profil'`**
-4. **Remove the entire `{category === 'profil' && (...)}` rendering block** (~20 lines of dead UI code)
+- **target_temp** och **profile_target_temp** använder redan `ARRAY_AGG(...ORDER BY recorded_at DESC)[1]` (senaste värdet) — korrekt
+- **cooling_enabled** använder `BOOL_OR` — rimligt (om kylning var på någon gång i bucketen)
+- **current_temp** borde följa samma mönster som target_temp: senaste värdet i bucketen
 
-This is a cleanup-only change — no functional or visual impact since no data ever reaches this code path.
+### Ändring
+
+En databasmigration som ersätter funktionen `get_temp_history_sampled`:
+
+```sql
+-- Ändra current_temp från ROUND(AVG(...)) till senaste värdet i bucketen
+SELECT
+  bucket AS recorded_at,
+  (ARRAY_AGG(current_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS current_temp,  -- ← ändrad
+  (ARRAY_AGG(target_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS target_temp,
+  BOOL_OR(cooling_enabled) AS cooling_enabled,
+  (ARRAY_AGG(profile_target_temp ORDER BY recorded_at DESC))[1]::NUMERIC AS profile_target_temp
+FROM bucketed
+GROUP BY bucket
+ORDER BY bucket;
+```
+
+### Påverkan
+
+- **brew_data_snapshots**: `createBrewSnapshots` använder denna funktion — snapshots kommer nu matcha live-värdet från automationsloggen
+- **Controller-chart**: Använder samma RPC för att rita grafer — ingen visuell skillnad i praktiken (skillnaden inom en 15-min bucket är minimal i normalfall, men korrekt under snabba ändringar)
+- **Ingen kodändring** behövs i frontend eller edge functions — bara SQL-funktionen uppdateras
 
