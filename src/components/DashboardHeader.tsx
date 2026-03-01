@@ -8,7 +8,7 @@ import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-reac
 import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
-import { getControllerColor } from "@/lib/brew-utils";
+import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -201,8 +201,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
           )}
 
           {controllers.map((controller, index) => {
-            const controllerColor = getControllerColor(controller.name);
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
+            const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <div key={controller.id} className="flex items-center">

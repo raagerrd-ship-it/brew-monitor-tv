@@ -8,7 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
-import { getControllerColor } from '@/lib/brew-utils';
+import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
 
 interface TempController {
@@ -37,11 +37,11 @@ interface RaptControllerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isCooler?: boolean;
+  controllerColor?: string;
 }
 
-export function RaptControllerDialog({ controller, open, onOpenChange, isCooler = false }: RaptControllerDialogProps) {
+export function RaptControllerDialog({ controller, open, onOpenChange, isCooler = false, controllerColor = DEFAULT_DEVICE_COLOR }: RaptControllerDialogProps) {
   const navigate = useNavigate();
-  const controllerColor = getControllerColor(controller.name);
 
   const {
     loading, isAuthenticated, targetTemp, setTargetTemp,
