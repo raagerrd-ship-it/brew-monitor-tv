@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -60,7 +59,7 @@ export function LearnedPidCoolingRates() {
         }))
       );
     } catch (e) {
-      console.error("Error loading glycol rate learnings:", e);
+      console.error("Error loading PID cooling rate learnings:", e);
     } finally {
       setLoading(false);
     }
@@ -97,7 +96,7 @@ export function LearnedPidCoolingRates() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-           <Zap className="h-4 w-4 text-cyan-400" />
+          <Zap className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-medium">PID-kylhastigheter per last</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
@@ -106,26 +105,28 @@ export function LearnedPidCoolingRates() {
       </div>
 
       {Object.entries(grouped).map(([name, items]) => (
-        <div key={name} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1.5">
-          <span className="text-xs font-medium">{name}</span>
-          {items.map((item) => (
-            <div
-              key={`${item.controller_id}-${item.load_bucket}`}
-              className="flex items-center justify-between gap-2"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground">{LOAD_LABELS[item.load_bucket] ?? item.load_bucket}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-                  {item.rate.toFixed(2)}°C/h
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-                <span>{item.sample_count} mätningar</span>
-                <span className="text-muted-foreground/50">·</span>
-                <span>{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</span>
-              </div>
-            </div>
-          ))}
+        <div key={name} className="space-y-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                <th className="text-left font-medium pb-1">Last</th>
+                <th className="text-right font-medium pb-1">Hastighet</th>
+                <th className="text-right font-medium pb-1">Mätningar</th>
+                <th className="text-right font-medium pb-1">Senast</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {items.map((item) => (
+                <tr key={`${item.controller_id}-${item.load_bucket}`}>
+                  <td className="py-1.5">{LOAD_LABELS[item.load_bucket] ?? item.load_bucket}</td>
+                  <td className="py-1.5 text-right font-mono text-cyan-400">{item.rate.toFixed(2)}°C/h</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{formatDistanceToNow(new Date(item.last_updated_at), { locale: sv, addSuffix: true })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ))}
     </div>
