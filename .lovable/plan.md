@@ -1,59 +1,43 @@
 
 
-## Analysis: Temperature SSOT Gaps
+## Review: Temperature SSOT Logic
 
-I've reviewed all the files in the chain. The SSOT architecture is **almost** there but has several remaining inconsistencies that break the "single path" principle.
+After tracing the full chain across all files, the architecture is almost correct. There is **one bug** remaining, plus a minor redundancy.
 
-### Problems Found
+### Bug: `preserveProfileTarget` overwrites SSOT with PID-adjusted value
 
-**1. `clearProfileTarget` breaks manual mode after session ends**
-`session-lifecycle.ts` line 31 calls `clearProfileTarget()` which sets `profile_target_temp = null` when a fermentation profile completes. In the new model where `profile_target_temp` is SSOT for ALL modes, this leaves the controller without a desired target. The PID loop then bootstraps from `target_temp` (which is the PID-adjusted value — e.g. 4.3° instead of 7°).
+In `session-lifecycle.ts` line 31, `completeProfile` calls `preserveProfileTarget()` which reads `target_temp` (the PID-compensated hardware value, e.g. 4.3°) and writes it into `profile_target_temp`, **overwriting** the user's actual desired target (e.g. 7°).
 
-**Fix:** Instead of nulling, copy `target_temp` into `profile_target_temp` on session completion so the user seamlessly transitions back to manual mode with the current hardware target as the new SSOT.
+This means after a profile completes:
+- `profile_target_temp` becomes 4.3° (wrong — should be 7°)
+- Next PID cycle uses 4.3° as base, compensates further → drift
 
-**2. PID same-data guard ignores manual target changes**
-`controller-adjustments.ts` lines 95-96: for non-profile controllers, `profileTargetNow` is set to `null` (because `isProfileOwned` is false), which makes `profileMatchesCurrent` always `true`. This means if the user changes their manual target between cycles, the same-data guard still skips PID because the RAPT timestamp hasn't changed.
+**The fix is simple**: Don't touch `profile_target_temp` at all on completion. It already holds the correct value (the last profile step's target). Just leave it. The user seamlessly transitions to manual mode with the same desired target.
 
-**Fix:** Remove the `isProfileOwned` gate — always read `profile_target_temp` from the controller for the same-data check.
+This means `preserveProfileTarget` in `types.ts` is no longer needed, and `completeProfile` should simply skip that call.
 
-**3. `originalTargetMap` is dead code**
-`auto-adjust-cooling/index.ts` lines 303-323 build an `originalTargetMap` by querying `auto_cooling_adjustments` for non-profile controllers. This map is never passed to the PID context — it's only used for logging (line 334-336). It's a remnant of the old system and confusing.
+### Minor: Redundant in-memory sync in auto-adjust-cooling
 
-**Fix:** Remove. Use `profile_target_temp` from controller data for logging too.
+Lines 362-368 in `auto-adjust-cooling/index.ts` re-sync in-memory targets after `runControllerAdjustments`, but the function already does this internally (lines 62-67, 77-82). Harmless but unnecessary — can be removed for clarity.
 
-**4. TempStat only reads profile target from active session**
-`TempStat.tsx` line 54: `brew.fermentationSession?.controller_profile_target_temp` — when no session exists (manual mode), this is `null`, so it falls back to `targetTemp` which is PID-adjusted. The brew card therefore shows the PID-adjusted target instead of the user's intent.
+### Everything else is correct
 
-**Fix:** Read `profile_target_temp` from the controller row directly (via `devices.controller`), regardless of session status.
-
-**5. `profileOwnedControllerIds` branching still present**
-The `isProfileOwned` variable in `controller-adjustments.ts` is still used for step type labeling (line 123). This is fine for learning buckets but should not affect the core PID path. Currently it doesn't (baseTarget is unified), but the same-data guard (problem 2) still branches on it.
+| Scenario | Flow | Status |
+|---|---|---|
+| Manual slider | `rapt-update-controller` → writes both fields | OK |
+| Profile step | `setProfileTarget()` → `profile_target_temp` | OK |
+| PID (pill-comp on) | reads `profile_target_temp`, writes `target_temp` | OK |
+| PID (pill-comp off) | pass-through syncs `target_temp = profile_target_temp` | OK |
+| Profile completes | `profile_target_temp` stays as-is (after fix) | Fix needed |
+| Bootstrap (null) | copies `target_temp` → `profile_target_temp` once | OK |
+| Manual target change mid-cycle | same-data guard detects `profile_target_temp` divergence | OK |
+| TempStat display | reads `controller.profile_target_temp` as SSOT | OK |
 
 ### Changes
 
 | File | Change |
 |---|---|
-| `supabase/functions/_shared/session-lifecycle.ts` | On session complete: copy `target_temp` → `profile_target_temp` instead of clearing to `null` |
-| `supabase/functions/_shared/types.ts` | Replace `clearProfileTarget` with `preserveProfileTarget` that copies current target |
-| `supabase/functions/_shared/controller-adjustments.ts` | Remove `isProfileOwned` gate from same-data guard — always check `profile_target_temp` |
-| `supabase/functions/auto-adjust-cooling/index.ts` | Remove `originalTargetMap` block (lines 303-323), use `profile_target_temp` for logging |
-| `src/components/brew-card/TempStat.tsx` | Read `profile_target_temp` from `devices.controller` as fallback when no session |
-
-### Result
-
-After these changes, the flow is truly unified:
-
-```text
-User intent (slider OR profile step)
-        │
-        ▼
-  profile_target_temp  ← always populated, never null
-        │
-        ▼
-  Pill-comp ON?
-  ├─ Yes → PID calculates → target_temp (hardware)
-  └─ No  → target_temp = profile_target_temp
-```
-
-No branching on `isProfileOwned` in the core path. No fallback to `auto_cooling_adjustments`. No `clearProfileTarget` nulling the SSOT.
+| `supabase/functions/_shared/session-lifecycle.ts` | Remove `preserveProfileTarget` call from `completeProfile` — leave `profile_target_temp` as-is |
+| `supabase/functions/_shared/types.ts` | Remove `preserveProfileTarget` function (dead code after above) |
+| `supabase/functions/auto-adjust-cooling/index.ts` | Remove redundant in-memory sync (lines 362-368) |
 
