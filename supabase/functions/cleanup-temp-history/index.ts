@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 /**
- * Deletes temp_controller_history and temp_delta_history rows older than 30 days.
+ * Deletes old rows from temp_controller_history, temp_delta_history,
+ * and auto_cooling_adjustments (all older than 30 days).
+ * Designed to run daily via cron.
  * Designed to run daily via cron.
  */
 Deno.serve(async (req) => {
@@ -26,6 +28,7 @@ Deno.serve(async (req) => {
     // Delete in batches to avoid timeouts on large tables
     let totalControllerDeleted = 0;
     let totalDeltaDeleted = 0;
+    let totalAdjustmentsDeleted = 0;
 
     // temp_controller_history
     while (true) {
@@ -34,9 +37,7 @@ Deno.serve(async (req) => {
         .select("id")
         .lt("recorded_at", cutoff)
         .limit(1000);
-
       if (!data || data.length === 0) break;
-
       const ids = data.map((r: any) => r.id);
       await supabase.from("temp_controller_history").delete().in("id", ids);
       totalControllerDeleted += ids.length;
@@ -49,19 +50,30 @@ Deno.serve(async (req) => {
         .select("id")
         .lt("recorded_at", cutoff)
         .limit(1000);
-
       if (!data || data.length === 0) break;
-
       const ids = data.map((r: any) => r.id);
       await supabase.from("temp_delta_history").delete().in("id", ids);
       totalDeltaDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history rows older than 30 days`;
+    // auto_cooling_adjustments
+    while (true) {
+      const { data } = await supabase
+        .from("auto_cooling_adjustments")
+        .select("id")
+        .lt("created_at", cutoff)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      const ids = data.map((r: any) => r.id);
+      await supabase.from("auto_cooling_adjustments").delete().in("id", ids);
+      totalAdjustmentsDeleted += ids.length;
+    }
+
+    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history + ${totalAdjustmentsDeleted} adjustments older than 30 days`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted }),
+      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
