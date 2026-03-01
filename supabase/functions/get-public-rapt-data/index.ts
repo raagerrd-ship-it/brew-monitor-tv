@@ -32,41 +32,13 @@ serve(async (req) => {
     if (brewId) {
       console.log('Fetching public brew data for id:', brewId);
 
-      // Try to find by share_id first, then batch_id, then id (UUID)
-      let brew = null;
-
-      // Try share_id
-      const { data: byShareId } = await supabase
+      // Single query with .or() instead of 3 sequential lookups
+      const { data: brew } = await supabase
         .from('brew_readings')
         .select('*')
-        .eq('share_id', brewId)
+        .or(`share_id.eq.${brewId},batch_id.eq.${brewId},id.eq.${brewId}`)
+        .limit(1)
         .maybeSingle();
-
-      if (byShareId) {
-        brew = byShareId;
-      } else {
-        // Try batch_id
-        const { data: byBatchId } = await supabase
-          .from('brew_readings')
-          .select('*')
-          .eq('batch_id', brewId)
-          .maybeSingle();
-
-        if (byBatchId) {
-          brew = byBatchId;
-        } else {
-          // Try UUID id
-          const { data: byId } = await supabase
-            .from('brew_readings')
-            .select('*')
-            .eq('id', brewId)
-            .maybeSingle();
-
-          if (byId) {
-            brew = byId;
-          }
-        }
-      }
 
       if (!brew) {
         return new Response(
@@ -151,75 +123,48 @@ serve(async (req) => {
     // Default behavior: fetch all selected RAPT data
     console.log('Fetching public RAPT data...');
 
-    // Get selected controllers
-    const { data: selectedControllers, error: selectedControllersError } = await supabase
-      .from('selected_rapt_temp_controllers')
-      .select('controller_id')
-      .eq('is_visible', true)
-      .order('display_order');
+    // Fetch selected controllers and pills in parallel
+    const [
+      { data: selectedControllers, error: selectedControllersError },
+      { data: selectedPills, error: selectedPillsError },
+    ] = await Promise.all([
+      supabase
+        .from('selected_rapt_temp_controllers')
+        .select('controller_id')
+        .eq('is_visible', true)
+        .order('display_order'),
+      supabase
+        .from('selected_rapt_pills')
+        .select('pill_id')
+        .eq('is_visible', true)
+        .order('display_order'),
+    ]);
 
-    if (selectedControllersError) {
-      console.error('Error fetching selected controllers:', selectedControllersError);
-      throw selectedControllersError;
-    }
+    if (selectedControllersError) throw selectedControllersError;
+    if (selectedPillsError) throw selectedPillsError;
 
     const selectedControllerIds = selectedControllers?.map(s => s.controller_id) || [];
-
-    // Get selected pills
-    const { data: selectedPills, error: selectedPillsError } = await supabase
-      .from('selected_rapt_pills')
-      .select('pill_id')
-      .eq('is_visible', true)
-      .order('display_order');
-
-    if (selectedPillsError) {
-      console.error('Error fetching selected pills:', selectedPillsError);
-      throw selectedPillsError;
-    }
-
     const selectedPillIds = selectedPills?.map(s => s.pill_id) || [];
 
-    // Fetch controllers data
-    let controllers = [];
-    if (selectedControllerIds.length > 0) {
-      const { data: controllersData, error: controllersError } = await supabase
-        .from('rapt_temp_controllers')
-        .select('*')
-        .in('controller_id', selectedControllerIds);
+    // Fetch controllers and pills data in parallel
+    const [controllersResult, pillsResult] = await Promise.all([
+      selectedControllerIds.length > 0
+        ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', selectedControllerIds)
+        : Promise.resolve({ data: [], error: null }),
+      selectedPillIds.length > 0
+        ? supabase.from('rapt_pills').select('*').in('pill_id', selectedPillIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
-      if (controllersError) {
-        console.error('Error fetching controllers:', controllersError);
-        throw controllersError;
-      }
+    if (controllersResult.error) throw controllersResult.error;
+    if (pillsResult.error) throw pillsResult.error;
 
-      // Sort by selected order
-      controllers = (controllersData || []).sort((a, b) => {
-        const aIndex = selectedControllerIds.indexOf(a.controller_id);
-        const bIndex = selectedControllerIds.indexOf(b.controller_id);
-        return aIndex - bIndex;
-      });
-    }
-
-    // Fetch pills data
-    let pills = [];
-    if (selectedPillIds.length > 0) {
-      const { data: pillsData, error: pillsError } = await supabase
-        .from('rapt_pills')
-        .select('*')
-        .in('pill_id', selectedPillIds);
-
-      if (pillsError) {
-        console.error('Error fetching pills:', pillsError);
-        throw pillsError;
-      }
-
-      // Sort by selected order
-      pills = (pillsData || []).sort((a, b) => {
-        const aIndex = selectedPillIds.indexOf(a.pill_id);
-        const bIndex = selectedPillIds.indexOf(b.pill_id);
-        return aIndex - bIndex;
-      });
-    }
+    const controllers = (controllersResult.data || []).sort((a, b) =>
+      selectedControllerIds.indexOf(a.controller_id) - selectedControllerIds.indexOf(b.controller_id)
+    );
+    const pills = (pillsResult.data || []).sort((a, b) =>
+      selectedPillIds.indexOf(a.pill_id) - selectedPillIds.indexOf(b.pill_id)
+    );
 
     console.log(`Successfully fetched ${controllers.length} controllers and ${pills.length} pills`);
 
