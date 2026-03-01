@@ -507,7 +507,7 @@ export default function Settings() {
 
             {/* Live-status */}
             {settings.autoCoolingEnabled && settings.coolerControllerId && (
-              <SettingsSection icon={Thermometer} title="Live-status" variant="muted">
+              <SettingsSection icon={Thermometer} title="Live-status" variant="muted" collapsible defaultOpen={false}>
                 <div className="space-y-3">
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}

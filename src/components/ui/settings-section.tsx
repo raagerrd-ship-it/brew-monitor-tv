@@ -1,5 +1,6 @@
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface SettingsSectionProps {
   icon: LucideIcon;
@@ -9,6 +10,8 @@ interface SettingsSectionProps {
   className?: string;
   variant?: "default" | "muted";
   headerAction?: React.ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }
 
 /**
@@ -23,7 +26,11 @@ export function SettingsSection({
   className,
   variant = "default",
   headerAction,
+  collapsible = false,
+  defaultOpen = true,
 }: SettingsSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   return (
     <div
       className={cn(
@@ -36,7 +43,10 @@ export function SettingsSection({
       style={{ containerType: 'inline-size' } as React.CSSProperties}
     >
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div
+        className={cn("flex items-center gap-3", collapsible && "cursor-pointer select-none")}
+        onClick={collapsible ? () => setIsOpen(o => !o) : undefined}
+      >
         <div className="relative">
           <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
           <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 border border-primary/30">
@@ -50,10 +60,15 @@ export function SettingsSection({
           )}
         </div>
         {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
+        {collapsible && (
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        )}
       </div>
 
       {/* Content */}
-      <div className="space-y-4">{children}</div>
+      {(!collapsible || isOpen) && (
+        <div className="space-y-4">{children}</div>
+      )}
     </div>
   );
 }
