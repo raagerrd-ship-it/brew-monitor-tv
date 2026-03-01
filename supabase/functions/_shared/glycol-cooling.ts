@@ -4,18 +4,19 @@ import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-u
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 
 // ============================================================
-// Glycol Cooling Management
+// Cooler Management
 // 
-// PRINCIPLE: Glycol only cares about ONE thing —
+// PRINCIPLE: The cooler only cares about ONE thing —
 // maintaining a learned margin below the lowest followed
 // controller's effective probe target so cooling happens
 // at a good/reasonable rate.
 //
-// PID handles probe/pill averaging and target adjustments.
-// When PID lowers the probe target, glycol naturally follows.
+// Controller adjustments (PID, stall) are handled separately
+// in controller-adjustments.ts. When they lower probe targets,
+// the cooler naturally follows.
 // ============================================================
 
-export interface GlycolContext {
+export interface CoolerContext {
   supabase: ReturnType<typeof createClient>
   supabaseUrl: string
   serviceRoleKey: string
@@ -32,7 +33,7 @@ interface ProfileCache {
   stepsMap: Map<string, any[]>
 }
 
-export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentResult[]> {
+export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentResult[]> {
   const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, log } = ctx
   const adjustments: AdjustmentResult[] = []
 
@@ -78,7 +79,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
     log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
     const defaultTemp = 18
     if (Math.abs(currentCoolerTarget - defaultTemp) > 0.5 && defaultTemp >= coolerMinTemp && defaultTemp <= coolerMaxTemp) {
-      await applyGlycolTarget(ctx, coolerController, currentCoolerTarget, defaultTemp, 0, 'Ingen tank kyler — viloläge', adjustments)
+      await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, defaultTemp, 0, 'Ingen tank kyler — viloläge', adjustments)
     }
     return adjustments
   }
@@ -115,7 +116,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
   // ── Apply if different enough ─────────────────────────────
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.3) {
-    log('GLYCOL_OK', 'pass', `Glycol at ${currentCoolerTarget}°C, target ${clampedTarget}°C — close enough (${diff.toFixed(1)}°C diff)`)
+    log('COOLER_OK', 'pass', `Kylare vid ${currentCoolerTarget}°C, mål ${clampedTarget}°C — nära nog (${diff.toFixed(1)}°C diff)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket)
     return adjustments
   }
@@ -145,8 +146,8 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
   // ── Apply ─────────────────────────────────────────────────
   const direction = clampedTarget < currentCoolerTarget ? 'Sänker' : 'Höjer'
-  await applyGlycolTarget(ctx, coolerController, currentCoolerTarget, clampedTarget, effectiveTarget.temp,
-    `${direction} glycol: margin ${learnedMargin.value.toFixed(1)}°C under ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`,
+  await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, clampedTarget, effectiveTarget.temp,
+    `${direction} kylare: margin ${learnedMargin.value.toFixed(1)}°C under ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`,
     adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
 
   return adjustments
@@ -154,7 +155,7 @@ export async function runGlycolCooling(ctx: GlycolContext): Promise<AdjustmentRe
 
 // ─── Load profile data once ──────────────────────────────────
 
-async function loadProfileCache(ctx: GlycolContext, controllersWithCooling: TempController[]): Promise<ProfileCache> {
+async function loadProfileCache(ctx: CoolerContext, controllersWithCooling: TempController[]): Promise<ProfileCache> {
   const { supabase } = ctx
   const followedIds = controllersWithCooling.map(c => c.controller_id)
 
@@ -196,7 +197,7 @@ interface EffectiveTarget {
   requiredRatePerHour: number | null // °C/h needed for active ramp
 }
 
-function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling: TempController[], cache: ProfileCache): EffectiveTarget {
+function resolveEffectiveLowestTarget(ctx: CoolerContext, controllersWithCooling: TempController[], cache: ProfileCache): EffectiveTarget {
   const { log } = ctx
 
   // Start with the static lowest probe target
@@ -297,7 +298,7 @@ function resolveEffectiveLowestTarget(ctx: GlycolContext, controllersWithCooling
 // ─── Learn from current state ────────────────────────────────
 
 async function learnFromCurrentState(
-  ctx: GlycolContext,
+  ctx: CoolerContext,
   coolerController: TempController,
   controllersWithCooling: TempController[],
   effectiveTarget: EffectiveTarget,
@@ -402,7 +403,7 @@ async function learnMaxEffectiveMargin(
   tempBucket: string,
   currentMargin: number,
   currentRate: number,
-  log: GlycolContext['log'],
+  log: CoolerContext['log'],
 ): Promise<void> {
   // Load previous observation
   const prev = await getLearnedParam(supabase, coolerId, `prev_margin_rate:${tempBucket}`, 0)
@@ -441,8 +442,8 @@ async function learnMaxEffectiveMargin(
   }
 }
 
-async function applyGlycolTarget(
-  ctx: GlycolContext,
+async function applyCoolerTarget(
+  ctx: CoolerContext,
   coolerController: TempController,
   oldTarget: number,
   newTarget: number,
@@ -459,7 +460,7 @@ async function applyGlycolTarget(
   const success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, newTarget)
 
   if (success) {
-    log('ADJUSTMENT', 'pass', `Glycol satt till ${newTarget}°C`)
+    log('ADJUSTMENT', 'pass', `Kylare satt till ${newTarget}°C`)
     adjustments.push({ cooler: coolerController.name, oldTarget, newTarget })
 
     await logAdjustment(supabase, {
