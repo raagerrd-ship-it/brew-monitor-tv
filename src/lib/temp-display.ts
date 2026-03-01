@@ -32,7 +32,7 @@ export function getActualTempLabel(
   const hasProbe = probeTemp != null;
 
   if (pillCompEnabled && hasPill && hasProbe) return "(snitt)";
-  if (hasProbe) return "(probe)";
+  if (hasProbe) return "(ctrl)";
   if (hasPill) return "(pill)";
   return "";
 }
