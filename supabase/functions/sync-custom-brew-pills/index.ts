@@ -208,50 +208,56 @@ serve(async (req) => {
         if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
           console.log(`No new telemetry data for brew ${brew.name}, checking controller fallback...`);
           
-          // Fallback: update current_temp from controller probe when pill is offline
-          // AND create a controller-only snapshot so we keep logging Ctrl/Mål/PID
+          // Fallback: use pre-fetched controller data (Problem 5: no DB query needed)
           if (brew.linked_controller_id) {
-            const { data: ctrlFull } = await supabase
-              .from('rapt_temp_controllers')
-              .select('current_temp, pill_temp, last_update, target_temp, profile_target_temp')
-              .eq('controller_id', brew.linked_controller_id)
-              .maybeSingle();
+            // Look up from allControllers array first
+            const ctrlFromMemory = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
+            
+            // If passed-in data has pill_temp but not full controller data, query DB
+            let ctrlFull: any = null;
+            if (ctrlFromMemory) {
+              // We have basic data from memory, but need full data for snapshots
+              // Query DB only once for the fields we need
+              const { data } = await supabase
+                .from('rapt_temp_controllers')
+                .select('current_temp, pill_temp, target_temp, profile_target_temp')
+                .eq('controller_id', brew.linked_controller_id)
+                .maybeSingle();
+              ctrlFull = data;
+            } else {
+              const { data } = await supabase
+                .from('rapt_temp_controllers')
+                .select('current_temp, pill_temp, target_temp, profile_target_temp')
+                .eq('controller_id', brew.linked_controller_id)
+                .maybeSingle();
+              ctrlFull = data;
+            }
             
             if (ctrlFull) {
               const fallbackTemp = ctrlFull.current_temp;
-              if (fallbackTemp != null) {
-                console.log(`Updating ${brew.name} with controller probe temp: ${fallbackTemp}°C (pill offline)`);
-                await supabase
-                  .from('brew_readings')
-                  .update({
-                    current_temp: fallbackTemp,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', brew.id);
-                brewsUpdated++;
-              }
+              const brewUpdate = fallbackTemp != null ? supabase
+                .from('brew_readings')
+                .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
+                .eq('id', brew.id) : Promise.resolve({ error: null });
 
-              // Create a controller-only snapshot: SG = last known, pill_temp = null
-              // Always log whatever controller data is available (Ctrl, Mål, PID)
               const now = new Date().toISOString();
-              const lastSg = brew.current_sg ?? null;
               const snapshot = {
                 brew_id: brew.id,
                 recorded_at: now,
-                sg: lastSg,
+                sg: brew.current_sg ?? null,
                 pill_temp: null as number | null,
                 controller_temp: ctrlFull.current_temp ?? null,
                 profile_target_temp: ctrlFull.profile_target_temp ?? null,
                 auto_target_temp: ctrlFull.target_temp ?? null,
               };
-              const { error: snapErr } = await supabase
-                .from('brew_data_snapshots')
-                .insert(snapshot);
-              if (snapErr) {
-                console.error(`Failed to insert controller-only snapshot for ${brew.name}:`, snapErr);
-              } else {
-                console.log(`Created controller-only snapshot for ${brew.name} (SG=${lastSg}, Ctrl=${fallbackTemp ?? 'null'}°)`);
-              }
+              const snapshotInsert = supabase.from('brew_data_snapshots').insert(snapshot);
+
+              // Execute both in parallel
+              const [brewRes, snapRes] = await Promise.all([brewUpdate, snapshotInsert]);
+              if (brewRes.error) console.error(`Failed to update brew ${brew.name}:`, brewRes.error);
+              else if (fallbackTemp != null) { console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`); brewsUpdated++; }
+              if (snapRes.error) console.error(`Failed to insert snapshot for ${brew.name}:`, snapRes.error);
+              else console.log(`Created controller-only snapshot for ${brew.name}`);
             }
           }
           continue;

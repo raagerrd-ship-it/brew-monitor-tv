@@ -6,6 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// ── Inlined Brewfather readings fetch (saves 1 HTTP hop per brew) ──
+async function fetchBrewfatherReadings(batchId: string): Promise<any[]> {
+  const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
+  const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
+  if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
+
+  const res = await fetch(
+    `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}/readings`,
+    {
+      headers: { 'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}` },
+      signal: AbortSignal.timeout(15000),
+    }
+  );
+  if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
+  return res.json();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -16,9 +33,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('Starting FULL sync (Brewfather + RAPT + AI audit)...')
+    console.log('Starting FULL sync (Brewfather + RAPT discovery + quick sync + AI audit)...')
 
-    // Single sync_settings query (merged: id + timestamps + auto-management flags)
+    // Single sync_settings query
     const { data: syncSettings } = await supabase
       .from('sync_settings')
       .select('id, auto_hide_completed, auto_hide_conditioning, auto_activate_fermenting, auto_hide_archived, brewfather_enabled')
@@ -43,13 +60,15 @@ Deno.serve(async (req) => {
 
     // ──────────────────────────────────────────────────────
     // STEP 1: Brewfather full batch sync + auto-manage
-    //         (skipped entirely when Brewfather is disabled)
     // ──────────────────────────────────────────────────────
 
     let batchesData: any[] = []
     if (brewfatherEnabled) {
       try {
-        const { data, error: batchesError } = await supabase.functions.invoke('brewfather-batches', { body: {} })
+        // Single fetch with complete=true (used for both auto-manage AND detail sync)
+        const { data, error: batchesError } = await supabase.functions.invoke('brewfather-batches', {
+          body: { complete: true }
+        })
         if (batchesError) console.error('Error fetching batches:', batchesError)
         else batchesData = data || []
       } catch (e) {
@@ -60,7 +79,7 @@ Deno.serve(async (req) => {
       console.log('Brewfather disabled, skipping batch sync')
     }
 
-    // Auto-manage selected_brews — batch-fetch all existing brews at once (replaces N sequential queries)
+    // Auto-manage selected_brews
     if (batchesData.length > 0) {
       const fermentingBatches = batchesData
         .filter((b: any) => b.status === 'Fermenting')
@@ -72,12 +91,10 @@ Deno.serve(async (req) => {
         .from('selected_brews').select('*').in('batch_id', allBatchIds)
       const existingBrewsMap = new Map((existingBrewsArr || []).map(b => [b.batch_id, b]))
 
-      // Collect all visibility changes to batch at the end
       const toShow: string[] = []
       const toHide: string[] = []
       const toInsert: { batch_id: string; display_order: number; is_visible: boolean }[] = []
 
-      // Get max display order once
       const { data: maxOrder } = await supabase.from('selected_brews')
         .select('display_order').order('display_order', { ascending: false }).limit(1).maybeSingle()
       let nextOrder = (maxOrder?.display_order || 0) + 1
@@ -111,7 +128,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Execute all visibility changes in parallel (max 3 queries instead of N)
       const visibilityOps: Promise<any>[] = []
       if (toShow.length > 0) visibilityOps.push(supabase.from('selected_brews').update({ is_visible: true }).in('batch_id', toShow))
       if (toHide.length > 0) visibilityOps.push(supabase.from('selected_brews').update({ is_visible: false }).in('batch_id', toHide))
@@ -129,21 +145,23 @@ Deno.serve(async (req) => {
       const brewfatherBatchIds = selectedBrews.map(b => b.batch_id).filter(id => !id.startsWith('custom_'))
 
       if (brewfatherBatchIds.length > 0) {
-        const { data: fullBatchesData } = await supabase.functions.invoke(
-          'brewfather-batches', { body: { batchIds: brewfatherBatchIds } }
-        )
-        const batchesToSync = fullBatchesData || []
+        // Reuse batchesData from first fetch (eliminates Problem 4: double fetch)
+        const batchesMap = new Map(batchesData.map((b: any) => [b._id, b]))
+        const batchesToSync = brewfatherBatchIds
+          .map(id => batchesMap.get(id))
+          .filter(Boolean)
 
-        // Fetch readings in parallel
+        // Fetch readings inlined (Problem 3: no more edge function hops)
         const readingsResults = await Promise.all(
           batchesToSync.map((batch: any) =>
-            supabase.functions.invoke('brewfather-readings', { body: { batchId: batch._id } })
-              .then(r => ({ batch, readings: r.data || [], error: r.error }))
+            fetchBrewfatherReadings(batch._id)
+              .then(readings => ({ batch, readings, error: null }))
+              .catch(err => ({ batch, readings: [] as any[], error: err }))
           )
         )
 
         const brewUpdates = readingsResults.map(result => {
-          if (result.error) return null
+          if (result.error) { console.error(`Readings error for ${result.batch._id}:`, result.error); return null; }
           const batch = result.batch
           const readings = result.readings
 
@@ -183,7 +201,6 @@ Deno.serve(async (req) => {
         }).filter(Boolean)
 
         if (brewUpdates.length > 0) {
-          // Batch-fetch existing brew_readings for id + linked_controller_id (used for snapshots)
           const updateBatchIds = brewUpdates.map((u: any) => u.batch_id)
           const [{ error: upsertError }, { data: brewRecords }] = await Promise.all([
             supabase.from('brew_readings').upsert(brewUpdates, { onConflict: 'batch_id' }),
@@ -192,7 +209,6 @@ Deno.serve(async (req) => {
           if (upsertError) throw upsertError
           brewUpdatesCount = brewUpdates.length
 
-          // Create snapshots for fermenting brews (parallel, using pre-fetched ids)
           const brewRecordsMap = new Map((brewRecords || []).map((r: any) => [r.batch_id, r]))
           const snapshotTasks = brewUpdates
             .filter((u: any) => (u.status === 'Jäsning' || u.status === 'Fermenting') && u.sg_data?.length > 0)
@@ -208,21 +224,21 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 2: RAPT full sync (device discovery)
+    // STEP 2: RAPT auto-discovery (Problem 6: only discovery, not full data sync)
+    //         Data sync is handled by quick-sync in Step 3
     // ──────────────────────────────────────────────────────
 
-    console.log('Running RAPT full sync...')
+    console.log('Running RAPT auto-discovery...')
     try {
       const raptResult = await supabase.functions.invoke('sync-rapt-data', { body: {} })
-      if (raptResult.error) console.error('RAPT full sync error:', raptResult.error)
-      else console.log('RAPT full sync completed')
+      if (raptResult.error) console.error('RAPT auto-discovery error:', raptResult.error)
+      else console.log('RAPT auto-discovery completed')
     } catch (e) {
-      console.error('RAPT full sync failed:', e)
+      console.error('RAPT auto-discovery failed:', e)
     }
 
     // ──────────────────────────────────────────────────────
     // STEP 3: Quick sync (fresh readings + automation)
-    //         Runs AFTER all data sources are updated
     // ──────────────────────────────────────────────────────
 
     console.log('Running quick sync pass (data + automation)...')
@@ -234,7 +250,7 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 4: AI audit (analyzes fresh state after automation)
+    // STEP 4: AI audit
     // ──────────────────────────────────────────────────────
 
     const { data: autoCoolingSettings } = await supabase
@@ -254,7 +270,7 @@ Deno.serve(async (req) => {
       console.log('AI audit disabled, skipping')
     }
 
-    console.log(`FULL sync completed: ${brewUpdatesCount} brews, RAPT full + AI audit`)
+    console.log(`FULL sync completed: ${brewUpdatesCount} brews`)
 
     return new Response(
       JSON.stringify({ message: 'Full sync completed', count: brewUpdatesCount }),
