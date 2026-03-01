@@ -272,23 +272,30 @@ serve(async (req) => {
       }
     };
 
-    // Run Brewfather sync, temp history, custom brews, and automation in parallel
-    const [bfResult, historyResult, customBrewResult, autoResult] = await Promise.allSettled([
+    // PHASE 2a: Sync all data sources in parallel (Brewfather, temp history, custom brews)
+    const [bfResult, historyResult, customBrewResult] = await Promise.allSettled([
       brewfatherSync(),
       supabase.functions.invoke('record-temp-history'),
       supabase.functions.invoke('sync-custom-brew-pills'),
-      supabase.functions.invoke('run-automation'),
     ]);
 
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
     if (historyResult.status === 'rejected') console.error('Temp history error:', historyResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
-    if (autoResult.status === 'rejected') console.error('Automation error:', autoResult.reason);
 
     const customBrewsUpdated = customBrewResult.status === 'fulfilled' && !customBrewResult.value?.error
       ? customBrewResult.value?.data?.brewsUpdated || 0 : 0;
-    const automationResult = autoResult.status === 'fulfilled' && !autoResult.value?.error
-      ? autoResult.value?.data : null;
+
+    // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
+    console.log('All data synced — running automation...');
+    let automationResult = null;
+    try {
+      const autoResponse = await supabase.functions.invoke('run-automation');
+      if (autoResponse.error) console.error('Automation error:', autoResponse.error);
+      else automationResult = autoResponse.data;
+    } catch (autoErr) {
+      console.error('Automation error:', autoErr);
+    }
 
     // ── RAPT outage detection ──
     try {
