@@ -17,6 +17,7 @@ interface StepExecutionDisplayProps {
   originalGravity?: number | null;
   activityScore?: number | null;
   attenuation?: number | null;
+  pillCompEnabled?: boolean;
 }
 
 interface ExecutionItem {
@@ -42,6 +43,7 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   originalGravity,
   activityScore,
   attenuation,
+  pillCompEnabled = false,
 }: StepExecutionDisplayProps) {
   const items: ExecutionItem[] = [];
   const iconClass = "w-3 h-3 shrink-0";
@@ -75,14 +77,14 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
     const displayTarget = effectiveTarget ?? currentStep.target_temp;
     if (displayTarget != null) {
       const tempItem: ExecutionItem = {
-        label: 'Måltemp',
+        label: pillCompEnabled ? 'Mål (snitt)' : 'Mål (ctrl)',
         icon: <Thermometer className={iconClass} />,
         value: `${displayTarget.toFixed(1)}°`,
         color: 'hsl(var(--primary))',
       };
       if (currentTemp != null) {
         const diff = Math.abs(currentTemp - displayTarget);
-        tempItem.detail = `Aktuell ${currentTemp.toFixed(1)}°`;
+        tempItem.detail = `${pillCompEnabled ? 'Snitt' : 'Ctrl'} ${currentTemp.toFixed(1)}°`;
         tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
         tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
       }

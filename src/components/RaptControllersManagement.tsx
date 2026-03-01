@@ -123,13 +123,13 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
               <div className="px-4 py-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
-                    <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
+                    <p className="text-xs text-muted-foreground mb-1">{pillCompEnabled ? 'Aktuell (snitt)' : 'Aktuell (ctrl)'}</p>
                     <p className="text-xl font-bold tabular-nums">
                       {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '—'}
                     </p>
                   </div>
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
-                    <p className="text-xs text-muted-foreground mb-1">Mål</p>
+                    <p className="text-xs text-muted-foreground mb-1">{pillCompEnabled ? 'Mål (snitt)' : 'Mål (ctrl)'}</p>
                     <p className="text-xl font-bold tabular-nums text-primary">
                       {controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
                     </p>

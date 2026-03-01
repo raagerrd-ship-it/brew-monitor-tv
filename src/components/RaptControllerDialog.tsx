@@ -81,7 +81,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">
-                {isPillCompActive ? 'Aktuell (snitt)' : 'Aktuell temp'}
+                {isPillCompActive ? 'Aktuell (snitt)' : 'Aktuell (ctrl)'}
               </p>
               <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
                 {isPillCompActive && avgTemp !== null
@@ -91,7 +91,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-[10px] text-muted-foreground/70 mt-1">
                 {isPillCompActive
                   ? `Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
-                  : 'Inbyggd sensor'}
+                  : 'Ctrl-sensor'}
               </p>
             </div>
             
@@ -107,7 +107,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             >
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs text-muted-foreground">
-                  {isPillCompActive ? 'Mål (snitt)' : 'Måltemperatur'}
+                  {isPillCompActive ? 'Mål (snitt)' : 'Mål (ctrl)'}
                 </p>
                 {isAuthenticated && !hasActiveSession && (
                   <Pencil className="w-3 h-3 text-muted-foreground/50" />
@@ -133,7 +133,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30 animate-fade-in">
               <div className="flex items-center justify-between">
                 <Label htmlFor="target-temp" className="text-xs font-medium text-muted-foreground">
-                  {isPillCompActive ? 'Ändra snittmål' : 'Ändra måltemperatur'}
+                  {isPillCompActive ? 'Ändra snittmål' : 'Ändra ctrl-mål'}
                 </Label>
                 <span className="text-lg font-bold text-primary tabular-nums">
                   {targetTemp}°
@@ -160,7 +160,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 className="w-full"
                 size="sm"
               >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isPillCompActive ? 'Sätt snittmål' : 'Sätt måltemperatur'}
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isPillCompActive ? 'Sätt snittmål' : 'Sätt ctrl-mål'}
               </Button>
             </div>
           )}
