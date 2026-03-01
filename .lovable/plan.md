@@ -1,43 +1,42 @@
 
 
-## Review: Temperature SSOT Logic
+## Analys: Behövs "(snitt)"/"(ctrl)"-etiketter?
 
-After tracing the full chain across all files, the architecture is almost correct. There is **one bug** remaining, plus a minor redundancy.
+Du har rätt. Ur användarens perspektiv finns det bara **en temperatur** och **ett mål**. Att den beräknas som medelvärde av två sensorer eller läses direkt från probe är en implementationsdetalj som inte hjälper användaren.
 
-### Bug: `preserveProfileTarget` overwrites SSOT with PID-adjusted value
+### Nuvarande situation
 
-In `session-lifecycle.ts` line 31, `completeProfile` calls `preserveProfileTarget()` which reads `target_temp` (the PID-compensated hardware value, e.g. 4.3°) and writes it into `profile_target_temp`, **overwriting** the user's actual desired target (e.g. 7°).
+Etiketterna "(snitt)"/"(ctrl)" förekommer på 5 ställen:
 
-This means after a profile completes:
-- `profile_target_temp` becomes 4.3° (wrong — should be 7°)
-- Next PID cycle uses 4.3° as base, compensates further → drift
-
-**The fix is simple**: Don't touch `profile_target_temp` at all on completion. It already holds the correct value (the last profile step's target). Just leave it. The user seamlessly transitions to manual mode with the same desired target.
-
-This means `preserveProfileTarget` in `types.ts` is no longer needed, and `completeProfile` should simply skip that call.
-
-### Minor: Redundant in-memory sync in auto-adjust-cooling
-
-Lines 362-368 in `auto-adjust-cooling/index.ts` re-sync in-memory targets after `runControllerAdjustments`, but the function already does this internally (lines 62-67, 77-82). Harmless but unnecessary — can be removed for clarity.
-
-### Everything else is correct
-
-| Scenario | Flow | Status |
+| Plats | Nuvarande | Föreslagen |
 |---|---|---|
-| Manual slider | `rapt-update-controller` → writes both fields | OK |
-| Profile step | `setProfileTarget()` → `profile_target_temp` | OK |
-| PID (pill-comp on) | reads `profile_target_temp`, writes `target_temp` | OK |
-| PID (pill-comp off) | pass-through syncs `target_temp = profile_target_temp` | OK |
-| Profile completes | `profile_target_temp` stays as-is (after fix) | Fix needed |
-| Bootstrap (null) | copies `target_temp` → `profile_target_temp` once | OK |
-| Manual target change mid-cycle | same-data guard detects `profile_target_temp` divergence | OK |
-| TempStat display | reads `controller.profile_target_temp` as SSOT | OK |
+| `TempStat.tsx` (brew-kort) | `getActualTempLabel()` → "(snitt)"/"(ctrl)" | Ta bort label helt — visa bara temperaturen |
+| `RaptControllerDialog.tsx` | "Aktuell (snitt)", "Mål (snitt)", "Sätt snittmål" | "Aktuell", "Mål", "Sätt mål" |
+| `RaptControllersManagement.tsx` | "Aktuell (snitt)", "Mål (snitt)" | "Aktuell", "Mål" |
+| `StepExecutionDisplay.tsx` | "Mål (snitt)", "Snitt 7.2°" | "Mål", "7.2°" |
+| `AutoCoolingDecisionLogs.tsx` | "Delta (snitt)" | "Delta" — detta är debug/audit, kan behålla teknisk term |
+| `temp-display.ts` | `getActualTempLabel()` returnerar "(snitt)"/"(ctrl)"/"(pill)" | Förenkla eller ta bort |
 
-### Changes
+### Undantag: Tooltip/debug
 
-| File | Change |
+I tooltips (TempStat rad 202) visas "Snitt: 7.2°" som en av flera rader med Pill/Probe/Ctrl-värden. Där är kontexten teknisk och användaren har aktivt hovrat — **behåll** dessa detaljer i tooltips.
+
+Samma gäller `AutoCoolingDecisionLogs` — det är en debug/audit-vy, tekniska termer är förväntade.
+
+### Ändringar
+
+| Fil | Ändring |
 |---|---|
-| `supabase/functions/_shared/session-lifecycle.ts` | Remove `preserveProfileTarget` call from `completeProfile` — leave `profile_target_temp` as-is |
-| `supabase/functions/_shared/types.ts` | Remove `preserveProfileTarget` function (dead code after above) |
-| `supabase/functions/auto-adjust-cooling/index.ts` | Remove redundant in-memory sync (lines 362-368) |
+| `src/lib/temp-display.ts` | `getActualTempLabel` returnerar alltid `""` (eller ta bort funktionen, ersätt anrop med `""`) |
+| `src/components/RaptControllerDialog.tsx` | "Aktuell", "Mål", "Ändra mål", "Sätt mål" — inga suffix |
+| `src/components/RaptControllersManagement.tsx` | "Aktuell", "Mål" — inga suffix |
+| `src/components/fermentation/StepExecutionDisplay.tsx` | "Mål", och detail utan "Snitt"/"Ctrl"-prefix |
+| `src/components/brew-card/TempStat.tsx` | Sluta visa `tempLabel` i huvudvyn (behåll tooltip-detaljer) |
+
+### Vad som INTE ändras
+
+- Tooltip-innehåll i TempStat (Pill/Probe/Snitt-rader) — teknisk detalj vid hover, bra att ha
+- `AutoCoolingDecisionLogs` — audit/debug-vy
+- `getActualTemp()` beräkningen — den är korrekt och oförändrad
+- Backend-logik — inga ändringar
 
