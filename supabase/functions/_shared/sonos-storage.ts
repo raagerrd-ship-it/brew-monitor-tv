@@ -59,23 +59,43 @@ async function backgroundExists(supabase: any, fileName: string): Promise<string
   return null;
 }
 
-// Clean up old background files, keeping only the specified ones
-export async function cleanupOldBackgrounds(supabase: any, keepFileNames: string[]) {
+// Extract filename from a storage public URL (e.g. "...sonos-backgrounds/abc.jpg?v=123" → "abc.jpg")
+function fileNameFromUrl(url: string): string | null {
   try {
+    const path = new URL(url).pathname;
+    const parts = path.split('/');
+    return parts[parts.length - 1] || null;
+  } catch {
+    // Fallback regex for non-standard URLs
+    const match = url.match(/\/([^/?]+)\??/);
+    return match ? match[1] : null;
+  }
+}
+
+// Delete ALL files in bucket except those actively referenced by the given URLs.
+// Pass an empty array to delete everything (e.g. on IDLE transition).
+export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUrls: (string | null | undefined)[]) {
+  try {
+    const keepNames = new Set(
+      referencedUrls
+        .filter(Boolean)
+        .map(url => fileNameFromUrl(url!))
+        .filter(Boolean) as string[]
+    );
+
     const { data: files } = await supabase.storage
       .from('sonos-backgrounds')
-      .list('', { limit: 50 });
+      .list('', { limit: 100 });
 
-    if (!files || files.length <= 10) return;
+    if (!files || files.length === 0) return;
 
     const toDelete = files
-      .filter((f: any) => !keepFileNames.includes(f.name))
-      .slice(0, files.length - 5)
-      .map((f: any) => f.name);
+      .map((f: any) => f.name)
+      .filter((name: string) => !keepNames.has(name));
 
     if (toDelete.length > 0) {
       await supabase.storage.from('sonos-backgrounds').remove(toDelete);
-      console.log(`[SonosSync] Cleaned up ${toDelete.length} old backgrounds`);
+      console.log(`[SonosSync] Cleanup: deleted ${toDelete.length} unreferenced files, kept ${keepNames.size}`);
     }
   } catch {
     // Non-critical, ignore
