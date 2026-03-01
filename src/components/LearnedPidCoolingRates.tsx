@@ -58,7 +58,7 @@ export function LearnedPidCoolingRates() {
         }))
       );
     } catch (e) {
-      console.error("Error loading PID cooling rate learnings:", e);
+      console.error("Error loading cooling rate learnings:", e);
     } finally {
       setLoading(false);
     }
@@ -69,19 +69,18 @@ export function LearnedPidCoolingRates() {
   }, [loadData]);
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Laddar inlärda PID-kylhastigheter…</p>;
+    return <p className="text-xs text-muted-foreground">Laddar inlärda kylhastigheter…</p>;
   }
 
   if (entries.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Zap className="h-3.5 w-3.5" />
-        <span>Inga inlärda PID-kylhastigheter ännu. Systemet lär sig automatiskt under drift.</span>
+        <span>Inga inlärda kylhastigheter ännu. Systemet lär sig automatiskt under drift.</span>
       </div>
     );
   }
 
-  // Group by controller
   const grouped = entries.reduce<Record<string, LearnedRate[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
@@ -96,7 +95,7 @@ export function LearnedPidCoolingRates() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-cyan-400" />
-          <span className="text-sm font-medium">PID-kylhastigheter per last</span>
+          <span className="text-sm font-medium">Kylhastigheter per last</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
@@ -109,10 +108,10 @@ export function LearnedPidCoolingRates() {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                <th className="text-left font-medium pb-1">Last</th>
-                <th className="text-right font-medium pb-1">Hastighet</th>
-                <th className="text-right font-medium pb-1">Mätningar</th>
-                <th className="text-right font-medium pb-1">Senast</th>
+                <th className="text-left font-medium pb-1 w-[30%]">Last</th>
+                <th className="text-right font-medium pb-1 w-[25%]">Hastighet</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Prov</th>
+                <th className="text-right font-medium pb-1 w-[25%]">Senast</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
