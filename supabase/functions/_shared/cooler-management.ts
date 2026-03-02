@@ -251,19 +251,21 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     return adjustments
   }
 
-  // Rate-limit: 5 min between adjustments
-  const { data: lastAdjust } = await supabase
-    .from('auto_cooling_adjustments')
-    .select('created_at')
-    .eq('cooler_controller_id', coolerController.controller_id)
-    .order('created_at', { ascending: false }).limit(1)
+  // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
+  if (!previousWasKick) {
+    const { data: lastAdjust } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .order('created_at', { ascending: false }).limit(1)
 
-  const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0
-  const timeSinceLastAdjust = Date.now() - lastAdjustTime
+    const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0
+    const timeSinceLastAdjust = Date.now() - lastAdjustTime
 
-  if (timeSinceLastAdjust < 5 * 60 * 1000) {
-    log('RATE_LIMIT', 'info', `Väntar ${Math.ceil((5 * 60 * 1000 - timeSinceLastAdjust) / 60000)}min till nästa justering`)
-    return adjustments
+    if (timeSinceLastAdjust < 5 * 60 * 1000) {
+      log('RATE_LIMIT', 'info', `Väntar ${Math.ceil((5 * 60 * 1000 - timeSinceLastAdjust) / 60000)}min till nästa justering`)
+      return adjustments
+    }
   }
 
   // ── Block raising cooler during active downward ramps ─────
