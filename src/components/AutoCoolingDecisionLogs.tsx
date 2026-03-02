@@ -595,9 +595,19 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       </td>
                       <td className="py-0.5 pl-1 text-center">
                         {det.preserved ? (
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400">bevarad</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
+                          </Tooltip>
                         ) : (
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
+                          </Tooltip>
                         )}
                       </td>
                       <td className="py-0.5 pl-1 text-right text-muted-foreground font-mono">
