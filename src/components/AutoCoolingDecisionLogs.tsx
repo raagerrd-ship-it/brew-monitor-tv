@@ -7,6 +7,41 @@ import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gaug
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('sv-SE') : null;
+
+/** Build a tooltip showing timestamp → utilization pairs */
+const buildUtilTooltip = (data: {
+  lastUpdate?: string | null;
+  runTime?: number | null;
+  recentPct?: number | null;
+  pct?: number | null;
+  prevAt?: string | null;
+  anchorAt?: string | null;
+  starts?: number | null;
+}): string => {
+  const lines: string[] = [];
+  const current = fmtTime(data.lastUpdate ?? null);
+  const prev = fmtTime(data.prevAt ?? null);
+  const anchor = fmtTime(data.anchorAt ?? null);
+
+  // Show intervals: timestamp → timestamp: X%
+  if (prev && current && data.recentPct != null) {
+    lines.push(`${prev} → ${current}: ${data.recentPct}%`);
+  }
+  if (anchor && current && data.pct != null && anchor !== prev) {
+    lines.push(`${anchor} → ${current}: ${data.pct}% (30 min)`);
+  } else if (data.pct != null && !anchor) {
+    lines.push(`Rullande 30 min: ${data.pct}%`);
+  }
+
+  // Raw data
+  if (data.runTime != null) lines.push(`cooling_run_time: ${data.runTime}s`);
+  if (data.starts != null) lines.push(`cooling_starts: ${data.starts}`);
+
+  if (lines.length === 0) lines.push('Ingen data ännu');
+  return lines.join('\n');
+};
+
 const r1 = (v: number | null | undefined): string => {
   if (v === null || v === undefined) return '—';
   return parseFloat(Number(v).toFixed(1)).toString();
@@ -362,21 +397,15 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const isAdjusted = !!adjustment;
 
   // Format RAPT timestamp for tooltip
-  const coolerLastUpdate = statusDet.last_update as string | null;
-  const coolerRunTime = statusDet.cooling_run_time as number | null;
-  const coolerUtilValue = statusDet.cooler_utilization as number | null;
-  const coolerRecentUtil = statusDet.recent_utilization as number | null;
-  const coolerStarts = statusDet.cooling_starts as number | null;
-  const coolerUtilTooltip = (() => {
-    const parts: string[] = [];
-    if (coolerUtilValue != null) parts.push(`Rullande 30 min: ${coolerUtilValue}%`);
-    if (coolerRecentUtil != null) parts.push(`Senaste intervall: ${coolerRecentUtil}%`);
-    parts.push(`cooling_run_time: ${coolerRunTime ?? '?'}s`);
-    if (coolerStarts != null) parts.push(`cooling_starts: ${coolerStarts}`);
-    if (coolerLastUpdate) parts.push(`RAPT: ${new Date(coolerLastUpdate).toLocaleTimeString('sv-SE')}`);
-    if (coolerUtilValue === 0 && (coolerRunTime == null || coolerRunTime === 0)) parts.push('Kylkretsen har inte körts ännu');
-    return parts.join('\n');
-  })();
+  const coolerUtilTooltip = buildUtilTooltip({
+    lastUpdate: statusDet.last_update as string | null,
+    runTime: statusDet.cooling_run_time as number | null,
+    recentPct: statusDet.recent_utilization as number | null,
+    pct: statusDet.cooler_utilization as number | null,
+    prevAt: statusDet.prev_at as string | null,
+    anchorAt: statusDet.anchor_at as string | null,
+    starts: statusDet.cooling_starts as number | null,
+  });
 
   return (
     <div className="space-y-1.5">
@@ -400,7 +429,7 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
               <TooltipTrigger asChild>
                 <span className="font-mono text-[10px] text-muted-foreground/40 cursor-help">- %</span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line">Ingen utnyttjandedata ännu{coolerLastUpdate ? `\nRAPT: ${coolerLastUpdate}` : ''}</TooltipContent>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -410,24 +439,21 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const mDet = matchingUtil?.details || {};
           const mUtilMatch = matchingUtil?.message.match(/util=(\d+)%/);
           const mUtilPct = mUtilMatch ? parseInt(mUtilMatch[1]) : null;
-          const mRunTime = mDet.cooling_run_time as number | null;
-          const mRecentUtil = mDet.recent_utilization as number | null;
-          const mLastUpdate = mDet.last_update as string | null;
-          const mTip = (() => {
-            const p: string[] = [];
-            if (mUtilPct != null) p.push(`Rullande 30 min: ${mUtilPct}%`);
-            if (mRecentUtil != null) p.push(`Senaste intervall: ${mRecentUtil}%`);
-            if (mRunTime != null) p.push(`cooling_run_time: ${mRunTime}s`);
-            if (mLastUpdate) p.push(`RAPT: ${new Date(mLastUpdate).toLocaleTimeString('sv-SE')}`);
-            return p.length > 0 ? p.join('\n') : null;
-          })();
+          const mTip = buildUtilTooltip({
+            lastUpdate: mDet.last_update as string | null,
+            runTime: mDet.cooling_run_time as number | null,
+            recentPct: mDet.recent_utilization as number | null,
+            pct: mUtilPct,
+            prevAt: mDet.prev_at as string | null,
+            anchorAt: mDet.anchor_at as string | null,
+          });
           return (
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Lägsta behov:</span>
               <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
                 {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
               </span>
-              {mTip ? (
+              {mTip !== 'Ingen data ännu' ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="text-muted-foreground text-[10px] cursor-help">({effCtrlName}{mUtilPct != null ? ` ${mUtilPct}%` : ''})</span>
@@ -450,17 +476,14 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const effectiveCtrlName = effectiveDet.controller as string;
           if (effectiveCtrlName && name === effectiveCtrlName) return null;
           const uDet = u.details || {};
-          const tankRunTime = uDet.cooling_run_time as number | null;
-          const tankRecentUtil = uDet.recent_utilization as number | null;
-          const tankLastUpdate = uDet.last_update as string | null;
-          const tankUtilTip = (() => {
-            const p: string[] = [];
-            if (utilPct != null) p.push(`Rullande 30 min: ${utilPct}%`);
-            if (tankRecentUtil != null) p.push(`Senaste intervall: ${tankRecentUtil}%`);
-            if (tankRunTime != null) p.push(`cooling_run_time: ${tankRunTime}s`);
-            if (tankLastUpdate) p.push(`RAPT: ${new Date(tankLastUpdate).toLocaleTimeString('sv-SE')}`);
-            return p.length > 0 ? p.join('\n') : 'Ingen data';
-          })();
+          const tankUtilTip = buildUtilTooltip({
+            lastUpdate: uDet.last_update as string | null,
+            runTime: uDet.cooling_run_time as number | null,
+            recentPct: uDet.recent_utilization as number | null,
+            pct: utilPct,
+            prevAt: uDet.prev_at as string | null,
+            anchorAt: uDet.anchor_at as string | null,
+          });
           return (
             <Tooltip key={i}>
               <TooltipTrigger asChild>
@@ -564,7 +587,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     brewSgByName.set(name, d);
   });
   // Build a map of utilization per controller name
-  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; runTime: number | null; lastUpdate: string | null }>();
+  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; runTime: number | null; lastUpdate: string | null; prevAt: string | null; prevRunTime: number | null; anchorAt: string | null; anchorRunTime: number | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
     const utilMatch = d.message.match(/util=(\d+)%/);
@@ -574,7 +597,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     const recentPct = det.recent_utilization as number | null;
     const runTime = det.cooling_run_time as number | null;
     const lastUpdate = det.last_update as string | null;
-    utilByName.set(name, { pct, active, recentPct, runTime, lastUpdate });
+    const prevAt = det.prev_at as string | null;
+    const prevRunTime = det.prev_run_time as number | null;
+    const anchorAt = det.anchor_at as string | null;
+    const anchorRunTime = det.anchor_run_time as number | null;
+    utilByName.set(name, { pct, active, recentPct, runTime, lastUpdate, prevAt, prevRunTime, anchorAt, anchorRunTime });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -637,15 +664,15 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
                       <td className="py-0.5 px-1 text-right">
                         {util ? (() => {
-                          const utilTip = (() => {
-                            const p: string[] = [];
-                            if (util.pct != null) p.push(`Rullande 30 min: ${util.pct}%`);
-                            if (util.recentPct != null) p.push(`Senaste intervall: ${util.recentPct}%`);
-                            if (util.runTime != null) p.push(`cooling_run_time: ${util.runTime}s`);
-                            if (util.lastUpdate) p.push(`RAPT: ${new Date(util.lastUpdate).toLocaleTimeString('sv-SE')}`);
-                            return p.length > 0 ? p.join('\n') : null;
-                          })();
-                          return utilTip ? (
+                          const utilTip = buildUtilTooltip({
+                            lastUpdate: util.lastUpdate,
+                            runTime: util.runTime,
+                            recentPct: util.recentPct,
+                            pct: util.pct,
+                            prevAt: util.prevAt,
+                            anchorAt: util.anchorAt,
+                          });
+                          return (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -654,10 +681,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                               </TooltipTrigger>
                               <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
                             </Tooltip>
-                          ) : (
-                            <span className={`font-mono ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                              {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
-                            </span>
                           );
                         })() : (
                           <Tooltip>
