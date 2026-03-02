@@ -570,7 +570,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 <th className="text-right py-0.5 px-1 font-medium">+ PI</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
                 <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
-                <th className="text-left py-0.5 pl-1 font-medium">Begr.</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
                 {/* Result columns */}
                 <th className="text-right py-0.5 px-1 font-medium">Ctrl mål</th>
@@ -607,14 +606,28 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 return (
                   <React.Fragment key={i}>
                   <tr className="border-b border-border/10">
-                    {/* Info: Controller */}
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[80px]">
-                      {name}
-                      {mode && (
-                        <span className={`ml-1 text-[8px] ${mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>
-                          {mode === 'cooling' ? '❄️' : '🔥'}
-                        </span>
-                      )}
+                    {/* Info: Controller + Begränsningar */}
+                    <td className="py-0.5 pr-2 font-medium truncate max-w-[120px]">
+                      <div className="flex items-center gap-1">
+                        {name}
+                        {mode && (
+                          <span className={`text-[8px] ${mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>
+                            {mode === 'cooling' ? '❄️' : '🔥'}
+                          </span>
+                        )}
+                      </div>
+                      {/* Brakes under controller name */}
+                      {action?.brakes && action.brakes.length > 0 ? (
+                        <div className="flex flex-wrap gap-0.5 mt-0.5">
+                          {action.brakes.map((b, bi) => (
+                            <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
+                          ))}
+                        </div>
+                      ) : damping != null && damping < 1.0 ? (
+                        <div className="mt-0.5">
+                          <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
+                        </div>
+                      ) : null}
                     </td>
                     {/* Info: Är-temp */}
                     <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
@@ -650,20 +663,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     {/* Nytt mål (constrained) */}
                     <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
                       {ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : rawValue != null ? `${r1(rawValue)}°` : '—'}
-                    </td>
-                    {/* Begränsningar */}
-                    <td className="py-0.5 pl-1">
-                      {action?.brakes && action.brakes.length > 0 ? (
-                        <div className="flex flex-wrap gap-0.5">
-                          {action.brakes.map((b, bi) => (
-                            <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
-                          ))}
-                        </div>
-                      ) : damping != null && damping < 1.0 ? (
-                        <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
-                      ) : action?.noChange ? (
-                        <span className="text-[8px] px-1 py-0 rounded bg-muted text-muted-foreground">—</span>
-                      ) : null}
                     </td>
                     {/* Separator */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
