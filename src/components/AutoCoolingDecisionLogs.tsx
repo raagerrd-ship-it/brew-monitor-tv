@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, Droplets } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const r1 = (v: number | null | undefined): string => {
@@ -325,6 +325,12 @@ function PipelineView({ decisions, hideSync, hidePid }: {
 }) {
   const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
   const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
+  // Build a map of pill/brew data per controller name for merging into SYNC_DATA
+  const brewSgByName = new Map<string, DecisionEntry>();
+  brewSgEntries.forEach(d => {
+    const name = d.message.replace('Controller: ', '');
+    brewSgByName.set(name, d);
+  });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
   const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
@@ -337,7 +343,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
   );
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
-  // Remaining visible entries (errors, etc.)
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
   );
@@ -352,7 +357,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
 
   return (
     <div className="space-y-2">
-      {/* 1. SYNC_DATA */}
+      {/* 1. SYNC_DATA (merged with pill/brew data) */}
       {!hideSync && syncEntries.length > 0 && (
         <PipelineSection icon={<Database className="h-3 w-3" />} title="Synk-data" color="muted-foreground">
           <table className="w-full text-[10px]">
@@ -370,21 +375,52 @@ function PipelineView({ decisions, hideSync, hidePid }: {
               {syncEntries.map((d, i) => {
                 const det = d.details || {};
                 const name = d.message.replace('Controller: ', '');
+                const pillData = brewSgByName.get(name);
+                const pillDet = pillData?.details || {};
                 return (
-                  <tr key={i} className="border-b border-border/10 last:border-0">
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{name}</td>
-                    <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right">{r1(det.ctrl_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
-                    <td className="py-0.5 pl-1 text-center">
-                      {det.preserved ? (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400">bevarad</span>
-                      ) : (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
-                      )}
-                    </td>
-                  </tr>
+                  <React.Fragment key={i}>
+                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'}`}>
+                      <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{name}</td>
+                      <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                      <td className="py-0.5 px-1 text-right">{r1(det.ctrl_temp as number)}</td>
+                      <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
+                      <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
+                      <td className="py-0.5 pl-1 text-center">
+                        {det.preserved ? (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400">bevarad</span>
+                        ) : (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
+                        )}
+                      </td>
+                    </tr>
+                    {pillData && (
+                      <tr className="border-b border-border/10">
+                        <td colSpan={6} className="py-0.5 pl-6">
+                          <div className="flex items-center gap-3 text-muted-foreground">
+                            <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
+                              <Pill className="h-2.5 w-2.5" />
+                              <span className="text-[9px] font-medium">Pill</span>
+                            </span>
+                            {pillDet.current_sg != null && (
+                              <span>SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
+                            )}
+                            {pillDet.og != null && (
+                              <span>OG: <span className="font-mono">{(pillDet.og as number).toFixed(3)}</span></span>
+                            )}
+                            {pillDet.fg != null && (
+                              <span>FG: <span className="font-mono">{(pillDet.fg as number).toFixed(3)}</span></span>
+                            )}
+                            {pillDet.battery != null && (
+                              <span>🔋 {pillDet.battery as number}%</span>
+                            )}
+                            {pillDet.status && (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-muted">{pillDet.status as string}</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -392,66 +428,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 2. Brew SG-data */}
-      {brewSgEntries.length > 0 && (
-        <PipelineSection
-          icon={<Droplets className="h-3 w-3" />}
-          title="SG / Jäsning"
-          color="hsl(160 60% 45%)"
-          borderColor="hsl(160 60% 45% / 0.3)"
-          bgColor="hsl(160 60% 45% / 0.05)"
-        >
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border/30">
-                <th className="text-left py-0.5 pr-2 font-medium">Bryggning</th>
-                <th className="text-right py-0.5 px-1 font-medium">SG</th>
-                <th className="text-right py-0.5 px-1 font-medium">Att%</th>
-                <th className="text-right py-0.5 px-1 font-medium">Takt</th>
-                <th className="text-left py-0.5 pl-1 font-medium">Fas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {brewSgEntries.map((d, i) => {
-                const det = d.details || {};
-                const brewName = (det.brew_name as string) || d.message.replace('Controller: ', '');
-                const sgRate = det.sg_rate as number;
-                const phase = det.phase as string;
-                const phaseColors: Record<string, string> = {
-                  lag: 'bg-slate-500/15 text-slate-400',
-                  active: 'bg-green-500/15 text-green-400',
-                  slowing: 'bg-amber-500/15 text-amber-400',
-                  stable: 'bg-sky-500/15 text-sky-400',
-                  unknown: 'bg-muted text-muted-foreground',
-                };
-                return (
-                  <tr key={i} className="border-b border-border/10 last:border-0">
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{brewName}</td>
-                    <td className="py-0.5 px-1 text-right font-mono" style={{ color: 'hsl(160 60% 50%)' }}>
-                      {det.current_sg != null ? (det.current_sg as number).toFixed(3) : '—'}
-                    </td>
-                    <td className="py-0.5 px-1 text-right">
-                      {det.attenuation != null ? `${det.attenuation}%` : '—'}
-                    </td>
-                    <td className="py-0.5 px-1 text-right font-mono">
-                      {sgRate != null ? `${sgRate >= 0 ? '' : ''}${sgRate.toFixed(4)}` : '—'}
-                    </td>
-                    <td className="py-0.5 pl-1">
-                      {phase ? (
-                        <span className={`text-[9px] px-1 py-0.5 rounded ${phaseColors[phase] || phaseColors.unknown}`}>
-                          {phase}
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </PipelineSection>
-      )}
-
-      {/* 3. PID-reglering (merged: sensor fusion + compensation + PID details) */}
+      {/* 2. PID-reglering */}
       {!hidePid && pidStatusEntries.length > 0 && (
         <PipelineSection
           icon={<Gauge className="h-3 w-3" />}
