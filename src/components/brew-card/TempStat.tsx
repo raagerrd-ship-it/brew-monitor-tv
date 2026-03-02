@@ -54,7 +54,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   const currentProfileTarget = controller?.profile_target_temp
     ?? brew.fermentationSession?.controller_profile_target_temp
     ?? null;
-  const { target: displayTarget, compensation } = getDisplayTarget(
+  const { actualTarget: displayTarget, pidCompensation: compensation } = getDisplayTarget(
     currentProfileTarget,
     targetTemp
   );

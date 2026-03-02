@@ -250,28 +250,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    const targetTemp = parseFloat(String(fc.target_temp ?? '20'))
+    const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
     // PID always runs every cycle — no same-data guard.
     // Even if RAPT telemetry hasn't changed, the PID integral and learned
     // baselines evolve, so skipping would allow drift.
 
-    // Base target from SSOT (already bootstrapped)
-    const baseTarget = parseFloat(String((fc as any).profile_target_temp))
+    // Actual target from SSOT (already bootstrapped)
+    const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
     // Pre-calculate actual_temp: dual sensors ON + pill available → average, otherwise probe
     const hasDualSensors = pillCompSettings.enabled && fc.pill_temp != null
-    const probeTemp = fc.current_temp ?? fc.pill_temp ?? targetTemp
+    const probeTemp = fc.current_temp ?? fc.pill_temp ?? ctrlTarget
     const actualTemp = hasDualSensors
       ? ((fc.pill_temp! + (fc.current_temp ?? fc.pill_temp!)) / 2)
       : probeTemp
 
-    const pidMode: 'heating' | 'cooling' = actualTemp < baseTarget ? 'heating' : 'cooling'
+    const pidMode: 'heating' | 'cooling' = actualTemp < actualTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
-    const compensation = await calculateCompensatedTarget(
-      supabase, fc.controller_id, baseTarget, targetTemp,
+    const pidResult = await calculateCompensatedTarget(
+      supabase, fc.controller_id, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
       actualTemp, probeTemp
     )
@@ -279,93 +279,89 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Safety bounds — respect hardware min/max strictly
     const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
     const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
-    const unclamped = compensation.compensatedTarget
-    let newTarget = Math.max(hwMinTemp, Math.min(maxTemp, unclamped))
+    const unclamped = pidResult.ctrlTargetPid
+    let ctrlTargetPid = Math.max(hwMinTemp, Math.min(maxTemp, unclamped))
 
     // Track if hardware min/max clamped the target
     if (unclamped < hwMinTemp) {
-      compensation.constraints = compensation.constraints ?? []
-      compensation.constraints.push(`hw-min=${hwMinTemp}`)
+      pidResult.constraints = pidResult.constraints ?? []
+      pidResult.constraints.push(`hw-min=${hwMinTemp}`)
     }
     if (unclamped > maxTemp) {
-      compensation.constraints = compensation.constraints ?? []
-      compensation.constraints.push(`hw-max=${maxTemp}`)
+      pidResult.constraints = pidResult.constraints ?? []
+      pidResult.constraints.push(`hw-max=${maxTemp}`)
     }
 
     // Always log PID status for visibility in decision log
     const pillTempLog = round1(fc.pill_temp ?? 0)
     const probeTempLog = round1(fc.current_temp ?? 0)
     const avgTemp = round1(actualTemp)
-    const constraintLabels = compensation.constraints && compensation.constraints.length > 0 ? compensation.constraints : []
+    const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
       pill_temp: pillTempLog,
       probe_temp: probeTempLog,
       actual_temp: avgTemp,
       dual_sensors: hasDualSensors,
-      avg_temp: avgTemp,
-      base_target: round1(baseTarget),
-      compensated_target: round1(newTarget),
-      current_target: round1(targetTemp),
-      delta: round1(compensation.avgDelta),
-      compensation: round1(compensation.compensation),
-      damping: round1(compensation.dampingFactor),
-      pill_rate: compensation.pillRate != null ? round1(compensation.pillRate) : null,
+      actual_target: round1(actualTarget),
+      ctrl_target: round1(ctrlTarget),
+      ctrl_target_pid: round1(ctrlTargetPid),
+      delta: round1(pidResult.avgDelta),
+      compensation: round1(pidResult.compensation),
+      damping: round1(pidResult.dampingFactor),
+      pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
     })
 
-    if (Math.abs(newTarget - targetTemp) < 0.1) {
+    if (Math.abs(ctrlTargetPid - ctrlTarget) < 0.1) {
       continue
     }
 
-    const learnedInfo = compensation.learnedBaseline > 0 ? `, learned=${compensation.learnedBaseline.toFixed(2)}[${compensation.deltaBucket}]n=${compensation.convergenceCount}` : ''
-    const piTermInfo = compensation.errorCorrection !== 0 ? `, PI=${compensation.errorCorrection >= 0 ? '+' : ''}${compensation.errorCorrection.toFixed(2)}°C(P=${compensation.pCorrection?.toFixed(2) ?? '0'},I=${compensation.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
-    const probeRateInfo = compensation.probeRate != null ? `, probeRate=${compensation.probeRate.toFixed(2)}°/h` : ''
-    const dTermInfo = compensation.dampingFactor < 1.0
-      ? `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, ETA=${compensation.etaMinutes ?? '?'}min, damp=${compensation.dampingFactor.toFixed(2)}${piTermInfo}`
-      : `, D-term: rate=${compensation.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, damp=1.0${piTermInfo}`
-    const constraintInfo = compensation.constraints && compensation.constraints.length > 0 ? `, limits=[${compensation.constraints.join(',')}]` : ''
+    const learnedInfo = pidResult.learnedBaseline > 0 ? `, learned=${pidResult.learnedBaseline.toFixed(2)}[${pidResult.deltaBucket}]n=${pidResult.convergenceCount}` : ''
+    const piTermInfo = pidResult.errorCorrection !== 0 ? `, PI=${pidResult.errorCorrection >= 0 ? '+' : ''}${pidResult.errorCorrection.toFixed(2)}°C(P=${pidResult.pCorrection?.toFixed(2) ?? '0'},I=${pidResult.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
+    const probeRateInfo = pidResult.probeRate != null ? `, probeRate=${pidResult.probeRate.toFixed(2)}°/h` : ''
+    const dTermInfo = pidResult.dampingFactor < 1.0
+      ? `, D-term: rate=${pidResult.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, ETA=${pidResult.etaMinutes ?? '?'}min, damp=${pidResult.dampingFactor.toFixed(2)}${piTermInfo}`
+      : `, D-term: rate=${pidResult.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, damp=1.0${piTermInfo}`
+    const constraintInfo = pidResult.constraints && pidResult.constraints.length > 0 ? `, limits=[${pidResult.constraints.join(',')}]` : ''
 
-    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
+    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
 
     // Queue update in batch (or send immediately if no batch)
     let success: boolean
     if (ctx.updateBatch) {
-      ctx.updateBatch.add(fc.controller_id, newTarget, targetTemp)
+      ctx.updateBatch.add(fc.controller_id, ctrlTargetPid, ctrlTarget)
       success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
-      success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
+      success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, ctrlTargetPid)
     }
 
     if (success) {
-      log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${newTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
-      adjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget })
+      log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${ctrlTargetPid}°C${ctx.updateBatch ? ' (batched)' : ''}`)
+      adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: ctrlTargetPid })
 
       // Only write to DB immediately when NOT batching.
-      // When batching, the batch flush handler persists to DB only after
-      // RAPT hardware confirms the update — preventing optimistic writes
-      // that get overwritten by stale hardware values on the next sync.
       if (!ctx.updateBatch) {
         await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+          .update({ target_temp: ctrlTargetPid, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
       }
 
       await logAdjustment(supabase, {
         cooler_controller_id: fc.controller_id,
         cooler_controller_name: fc.name,
-        old_target_temp: targetTemp,
-        new_target_temp: newTarget,
-        original_target_temp: baseTarget,
-        lowest_followed_temp: baseTarget,
+        old_target_temp: ctrlTarget,
+        new_target_temp: ctrlTargetPid,
+        original_target_temp: actualTarget,
+        lowest_followed_temp: actualTarget,
         followed_controller_id: fc.controller_id,
         followed_controller_name: fc.name,
         followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
         followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
-        followed_hysteresis: compensation.avgDelta,
-        reason: `🎯 PID: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
+        followed_hysteresis: pidResult.avgDelta,
+        reason: `🎯 PID: ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
         adjusted_against_timestamp: fc.last_update,
       })
     } else {

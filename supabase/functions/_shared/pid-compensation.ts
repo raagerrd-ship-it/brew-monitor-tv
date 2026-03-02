@@ -2,8 +2,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
-// PID Pill Compensation & Thermal Learning
-// Extracted from temp-utils.ts for maintainability
+// PID Control & Thermal Learning
+//
+// SSOT Naming Convention:
+//   actualTarget  = user's desired temperature (profile_target_temp)
+//   ctrlTarget    = current hardware target (target_temp before PID)
+//   ctrlTargetPid = PID-computed target sent to RAPT hardware
+//   actualTemp    = fused sensor reading (avg or probe-only)
 // ============================================================
 
 export interface PillCompensationSettings {
@@ -46,22 +51,27 @@ const MODE_PARAMS = {
 }
 
 /**
- * Calculate pill-compensated target temperature.
- * Targets the AVERAGE of pill (surface) and probe (core) to equal the profile goal.
- * Formula: compensatedTarget = profileTarget - avgDelta/2
+ * Calculate PID-compensated target temperature.
+ * Targets the AVERAGE of pill (surface) and probe (core) to equal the actual target.
+ * Formula: ctrlTargetPid = actualTarget - avgDelta/2
+ *
+ * @param actualTarget  The user's desired temperature (SSOT: profile_target_temp)
+ * @param ctrlTarget    The current hardware target (target_temp before PID)
+ * @param actualTemp    Pre-computed fused sensor reading (avg or probe-only)
+ * @param probeTemp     The controller's probe temperature
  */
 export async function calculateCompensatedTarget(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
-  profileTarget: number,
-  currentControllerTarget: number,
+  actualTarget: number,
+  ctrlTarget: number,
   controllerName: string,
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown',
   actualTemp?: number,
   probeTemp?: number
-): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
+): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
   const mp = MODE_PARAMS[mode]
@@ -92,7 +102,7 @@ export async function calculateCompensatedTarget(
     absDelta = Math.abs(avgDelta)
   } else {
     console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar compensation=0`)
-    return { compensatedTarget: profileTarget, compensation: 0, avgDelta: 0 }
+    return { ctrlTargetPid: actualTarget, compensation: 0, avgDelta: 0 }
   }
 
   if (absDelta < 0.1) {
@@ -126,7 +136,7 @@ export async function calculateCompensatedTarget(
       _probeRate = (ctrlNow - ctrlOld) / timeDiffHours
 
       const currentAvg = (pillNow + ctrlNow) / 2
-      const avgDistance = currentAvg - profileTarget
+      const avgDistance = currentAvg - actualTarget
 
       const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
       if (Math.abs(avgDistance) > 0.1 && isConverging) {
@@ -136,20 +146,20 @@ export async function calculateCompensatedTarget(
         const etaHours = avgRate > 0.01 ? Math.abs(avgDistance) / avgRate : 99
         _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${profileTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${actualTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
         _etaMinutes = null
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${profileTarget}°C (ej mot mål eller för långsam), damping=1.0`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${actualTarget}°C (ej mot mål eller för långsam), damping=1.0`)
       }
     }
   }
 
   // Target average: compensate by half the delta, scaled by damping factor
   // === Approach Zone: anticipate that delta will shrink as we near the target ===
-  const latestPillForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? profileTarget)
-  const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? profileTarget)
+  const latestPillForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? actualTarget)
+  const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? actualTarget)
   const currentAvgForComp = actualTemp ?? (latestPillForComp + latestCtrlForComp) / 2
-  const distanceToTarget = Math.abs(currentAvgForComp - profileTarget)
+  const distanceToTarget = Math.abs(currentAvgForComp - actualTarget)
   const APPROACH_ZONE_SIZE = 8.0 // °C — within this range, start scaling down delta compensation
   // When avg is already near target (within ±1°C), the current delta is steady-state:
   // the compensation is what's MAINTAINING the average at target.
@@ -162,10 +172,10 @@ export async function calculateCompensatedTarget(
   
   if (approachScale < 1.0) {
     constraints.push(`approach=${approachScale.toFixed(2)}`)
-    console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${profileTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
+    console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${actualTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
   }
   
-  // Delta-compensation adjusts controller target so avg(pill,probe) = profileTarget.
+  // Delta-compensation adjusts controller target so avg(pill,probe) = actualTarget.
   // It should always apply when there's a meaningful delta — the D-term damping
   // and approach-zone scaling already handle convergence safely.
 
@@ -237,8 +247,8 @@ export async function calculateCompensatedTarget(
   // Use pre-computed actualTemp for error calculation when available
   const currentAvgForError = actualTemp ?? (deltaHistory?.[0]
     ? (parseFloat(String(deltaHistory[0].pill_temp)) + parseFloat(String(deltaHistory[0].controller_temp))) / 2
-    : profileTarget)
-  const avgError = profileTarget - currentAvgForError
+    : actualTarget)
+  const avgError = actualTarget - currentAvgForError
 
   let pCorrection = 0
   let iCorrection = 0
@@ -278,7 +288,7 @@ export async function calculateCompensatedTarget(
     }
     
     if (isSaturated && errorCorrection > learnedBaseline && learnedBaseline > 0) {
-      const prevComp = Math.abs(profileTarget - currentControllerTarget)
+      const prevComp = Math.abs(actualTarget - ctrlTarget)
       if (errorCorrection > prevComp) {
         errorCorrection = prevComp
         console.log(`⚡ Saturation cap: begränsar PI till ${errorCorrection.toFixed(2)}°C (hårdvaran redan vid max)`)
@@ -288,7 +298,7 @@ export async function calculateCompensatedTarget(
     if (learnedBaseline > 0) {
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
-    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
+    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${actualTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -319,14 +329,14 @@ export async function calculateCompensatedTarget(
     }
     
     if (isSaturated && errorCorrection < 0) {
-      const prevComp = profileTarget - currentControllerTarget
+      const prevComp = actualTarget - ctrlTarget
       if (errorCorrection < prevComp && prevComp < 0) {
         errorCorrection = prevComp
         console.log(`⚡ Saturation cap (overshoot): begränsar PI till ${errorCorrection.toFixed(2)}°C`)
       }
     }
     
-    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
+    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${actualTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -339,7 +349,7 @@ export async function calculateCompensatedTarget(
     // === CONVERGENCE ===
     const decayedIntegral = persistedIntegral * 0.8
     
-    const totalCompApplied = Math.abs(profileTarget - currentControllerTarget)
+    const totalCompApplied = Math.abs(actualTarget - ctrlTarget)
     if (totalCompApplied > 0.1) {
       const alpha = convergenceCount < 5 ? mp.convergenceAlpha0 : mp.convergenceAlphaN
       const absRawComp = Math.abs(rawCompensation * dampingFactor)
@@ -368,35 +378,35 @@ export async function calculateCompensatedTarget(
     }
   }
 
-  let compensatedTarget = profileTarget - compensation + errorCorrection
+  let ctrlTargetPid = actualTarget - compensation + errorCorrection
 
   // Safety bounds
-  compensatedTarget = Math.max(profileTarget - effectiveMaxComp, Math.min(profileTarget + effectiveMaxComp, compensatedTarget))
+  ctrlTargetPid = Math.max(actualTarget - effectiveMaxComp, Math.min(actualTarget + effectiveMaxComp, ctrlTargetPid))
 
-  // Directional clamp: during ramp/gradual_ramp steps, never push target past profileTarget
+  // Directional clamp: during ramp/gradual_ramp steps, never push target past actualTarget
   // in the wrong direction. Hold steps need bidirectional compensation to hit exact average.
   const isRampStep = ['ramp', 'gradual_ramp'].includes(stepType)
   if (isRampStep) {
-    if (mode === 'cooling' && compensatedTarget > profileTarget) {
-      console.log(`🔒 Directional clamp [cooling/${stepType}]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte överskrida profilmål under ramp)`)
+    if (mode === 'cooling' && ctrlTargetPid > actualTarget) {
+      console.log(`🔒 Directional clamp [cooling/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${actualTarget.toFixed(1)}°C (kan inte överskrida profilmål under ramp)`)
       constraints.push('dir-clamp')
-      compensatedTarget = profileTarget
-    } else if (mode === 'heating' && compensatedTarget < profileTarget) {
-      console.log(`🔒 Directional clamp [heating/${stepType}]: ${compensatedTarget.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte understiga profilmål under ramp)`)
+      ctrlTargetPid = actualTarget
+    } else if (mode === 'heating' && ctrlTargetPid < actualTarget) {
+      console.log(`🔒 Directional clamp [heating/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${actualTarget.toFixed(1)}°C (kan inte understiga profilmål under ramp)`)
       constraints.push('dir-clamp')
-      compensatedTarget = profileTarget
+      ctrlTargetPid = actualTarget
     }
   }
 
   // Asymmetric rate limit
-  const diff = compensatedTarget - currentControllerTarget
+  const diff = ctrlTargetPid - ctrlTarget
   const distanceFromIdeal = Math.abs(diff)
   const isIncreasing = diff > 0
 
   {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    const latestPill = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? profileTarget)
-    const latestCtrl = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? profileTarget)
+    const latestPill = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? actualTarget)
+    const latestCtrl = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? actualTarget)
     const currentAvg = actualTemp ?? (latestPill + latestCtrl) / 2
 
     // High-delta damping: when pill-probe delta is very large, reduce max rate
@@ -413,31 +423,29 @@ export async function calculateCompensatedTarget(
     
     let baseLimit: number
     if (mode === 'cooling') {
-      const avgBelowTarget = currentAvg < profileTarget - 0.2
+      const avgBelowTarget = currentAvg < actualTarget - 0.2
       const upwardLimit = avgBelowTarget ? deltaScaledMaxRate : mp.upwardRelease
       baseLimit = isIncreasing ? Math.min(deltaScaledMaxRate * scaleFactor, upwardLimit) : deltaScaledMaxRate * scaleFactor
       if (avgBelowTarget && isIncreasing) {
-        console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
+        console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${actualTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
       }
     } else {
-      const avgAboveTarget = currentAvg > profileTarget + 0.2
+      const avgAboveTarget = currentAvg > actualTarget + 0.2
       const downwardLimit = avgAboveTarget ? deltaScaledMaxRate : mp.upwardRelease
       baseLimit = isIncreasing ? deltaScaledMaxRate * scaleFactor : Math.min(deltaScaledMaxRate * scaleFactor, downwardLimit)
       if (avgAboveTarget && !isIncreasing) {
-        console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${profileTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
+        console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${actualTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
       }
     }
     
-    const currentDistToProfile = Math.abs(currentControllerTarget - profileTarget)
-    const newDistToProfile = Math.abs(compensatedTarget - profileTarget)
+    const currentDistToProfile = Math.abs(ctrlTarget - actualTarget)
+    const newDistToProfile = Math.abs(ctrlTargetPid - actualTarget)
     const isTowardTarget = newDistToProfile < currentDistToProfile
     
     // When in approach zone AND moving toward profile, allow faster release
     // BUT: during ramp steps, don't release AGAINST the ramp direction.
-    // E.g. during a downward ramp (cooling), don't push target UP — let the ramp catch up.
-    // Overshoot-release: disable ramp hold when probe is within 1°C of profile target
-    // to allow PID to react and prevent overshoot past the target
-    const probeDistToTarget = Math.abs(latestCtrlForComp - profileTarget)
+    // Overshoot-release: disable ramp hold when probe is within 1°C of actual target
+    const probeDistToTarget = Math.abs(latestCtrlForComp - actualTarget)
     const overshootRelease = probeDistToTarget <= 1.0
     if (overshootRelease) {
       constraints.push('overshoot-release')
@@ -452,21 +460,21 @@ export async function calculateCompensatedTarget(
     
     if (rampDirectionConflict && isTowardTarget && approachScale < 1.0) {
       // During ramp: hold current target, let ramp bring profile down/up naturally
-      compensatedTarget = currentControllerTarget
+      ctrlTargetPid = ctrlTarget
       constraints.push('ramp-hold')
-      console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${currentControllerTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
+      console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
     } else if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
       if (distanceFromIdeal <= bypassLimit) {
-        console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → profil ${profileTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
+        console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → actual_target ${actualTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
       } else {
-        compensatedTarget = currentControllerTarget + (isIncreasing ? bypassLimit : -bypassLimit)
+        ctrlTargetPid = ctrlTarget + (isIncreasing ? bypassLimit : -bypassLimit)
         constraints.push('approach-release')
-        console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot profil ${profileTarget}°C (approach zone fast-release)`)
+        console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot actual_target ${actualTarget}°C (approach zone fast-release)`)
       }
     } else if (distanceFromIdeal > baseLimit) {
       // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
-      compensatedTarget = currentControllerTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
+      ctrlTargetPid = ctrlTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
       constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
@@ -474,28 +482,28 @@ export async function calculateCompensatedTarget(
     // Safety clamp: never set target above probe during cooling (would start heater)
     // or below probe during heating (would start cooler)
     if (overshootRelease) {
-      if (mode === 'cooling' && compensatedTarget > latestCtrlForComp) {
-        compensatedTarget = Math.min(compensatedTarget, latestCtrlForComp)
+      if (mode === 'cooling' && ctrlTargetPid > latestCtrlForComp) {
+        ctrlTargetPid = Math.min(ctrlTargetPid, latestCtrlForComp)
         constraints.push('overshoot-clamp')
         console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar värmaren)`)
-      } else if (mode === 'heating' && compensatedTarget < latestCtrlForComp) {
-        compensatedTarget = Math.max(compensatedTarget, latestCtrlForComp)
+      } else if (mode === 'heating' && ctrlTargetPid < latestCtrlForComp) {
+        ctrlTargetPid = Math.max(ctrlTargetPid, latestCtrlForComp)
         constraints.push('overshoot-clamp')
         console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar kylaren)`)
       }
     }
   }
 
-  compensatedTarget = Math.round(compensatedTarget * 10) / 10
+  ctrlTargetPid = Math.round(ctrlTargetPid * 10) / 10
 
-  if (Math.abs(compensatedTarget - currentControllerTarget) < 0.05) {
-    console.log(`🎯 Pill-kompensation för ${controllerName}: redan nära mål (${currentControllerTarget}°C ≈ ${compensatedTarget}°C), skippar`)
-    return { compensatedTarget: currentControllerTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
+  if (Math.abs(ctrlTargetPid - ctrlTarget) < 0.05) {
+    console.log(`🎯 PID ${controllerName}: redan nära mål (${ctrlTarget}°C ≈ ${ctrlTargetPid}°C), skippar`)
+    return { ctrlTargetPid: ctrlTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
   }
 
-  console.log(`🎯 Pill-kompensation för ${controllerName}: profil=${profileTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ny target=${compensatedTarget}°C (nuvarande=${currentControllerTarget}°C)`)
+  console.log(`🎯 PID ${controllerName}: actual_target=${actualTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ctrl_target_pid=${ctrlTargetPid}°C (ctrl_target=${ctrlTarget}°C)`)
 
-  return { compensatedTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
+  return { ctrlTargetPid, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
 }
 
 // ============================================================
