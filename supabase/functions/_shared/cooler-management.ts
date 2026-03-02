@@ -48,15 +48,19 @@ interface ProfileCache {
 interface CoolingUtilization {
   controllerId: string
   controllerName: string
-  utilization: number | null  // 0.0–1.0 rolling 30-min, null if no prev data
-  recentUtilization: number | null  // 0.0–1.0 between two latest data points
-  isActivelyCooling: boolean  // probe > target + hysteresis right now
+  utilization: number | null  // avg of 2 most recent intervals (for decisions)
+  recentUtilization: number | null  // p1→p0
+  midUtilization: number | null  // p2→p1
+  oldestUtilization: number | null  // p3→p2
+  isActivelyCooling: boolean
   probeTemp: number
   targetTemp: number
   hysteresis: number
-  // Raw data for tooltip transparency
+  // Raw data for tooltip
   prevTimestampMs: number
   prevRunTime: number
+  p2TimestampMs: number
+  p2RunTime: number
   anchorTimestampMs: number
   anchorRunTime: number
   currentRunTime: number
@@ -106,11 +110,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     current_temp: round1(coolerController.current_temp),
     cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
     recent_utilization: coolerUtilResult.recent != null ? Math.round(coolerUtilResult.recent * 100) : null,
+    mid_utilization: coolerUtilResult.mid != null ? Math.round(coolerUtilResult.mid * 100) : null,
+    oldest_utilization: coolerUtilResult.oldest != null ? Math.round(coolerUtilResult.oldest * 100) : null,
     cooling_run_time: coolerController.cooling_run_time ?? 0,
     cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
     prev_at: coolerUtilResult.prevTimestampMs > 0 ? new Date(coolerUtilResult.prevTimestampMs).toISOString() : null,
     prev_run_time: coolerUtilResult.prevRunTime,
+    p2_at: coolerUtilResult.p2TimestampMs > 0 ? new Date(coolerUtilResult.p2TimestampMs).toISOString() : null,
+    p2_run_time: coolerUtilResult.p2RunTime,
     anchor_at: coolerUtilResult.anchorTimestampMs > 0 ? new Date(coolerUtilResult.anchorTimestampMs).toISOString() : null,
     anchor_run_time: coolerUtilResult.anchorRunTime,
   })
@@ -135,10 +143,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
+      mid_utilization: u.midUtilization != null ? Math.round(u.midUtilization * 100) : null,
+      oldest_utilization: u.oldestUtilization != null ? Math.round(u.oldestUtilization * 100) : null,
       cooling_run_time: c?.cooling_run_time ?? null,
       last_update: c?.last_update ?? null,
       prev_at: u.prevTimestampMs > 0 ? new Date(u.prevTimestampMs).toISOString() : null,
       prev_run_time: u.prevRunTime,
+      p2_at: u.p2TimestampMs > 0 ? new Date(u.p2TimestampMs).toISOString() : null,
+      p2_run_time: u.p2RunTime,
       anchor_at: u.anchorTimestampMs > 0 ? new Date(u.anchorTimestampMs).toISOString() : null,
       anchor_run_time: u.anchorRunTime,
     })
@@ -253,13 +265,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 // Calculate rolling 30-min utilization for a single controller
 // Returns { rolling, recent } where recent = util between the two latest data points
 export interface UtilizationResult {
-  rolling: number | null
-  recent: number | null
-  prevRunTime: number
+  rolling: number | null   // avg of 2 most recent intervals (for decisions)
+  recent: number | null    // p1→p0 (most recent interval)
+  mid: number | null       // p2→p1 (second most recent interval)
+  oldest: number | null    // p3→p2 (oldest interval)
+  prevRunTime: number      // p1
   prevTimestampMs: number
-  anchorRunTime: number
+  p2RunTime: number        // p2
+  p2TimestampMs: number
+  anchorRunTime: number    // p3 (oldest)
   anchorTimestampMs: number
-  currentRunTime: number
+  currentRunTime: number   // p0
   sensorTimestampMs: number
 }
 
@@ -269,75 +285,117 @@ export async function calculateSingleUtilization(
 ): Promise<UtilizationResult> {
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
-  const WINDOW_MS = 30 * 60 * 1000
 
-  const anchorRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1)
-  const anchorTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0)
-  const prevRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_run_time', -1)
-  const prevTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0)
+  // Load all 4 stored points: p3 (anchor/oldest) → p2 → p1 (prev) → p0 (current from hw)
+  const [anchorRunTimeParam, anchorTimestampParam, p2RunTimeParam, p2TimestampParam, prevRunTimeParam, prevTimestampParam] = await Promise.all([
+    getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1),
+    getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0),
+    getLearnedParam(supabase, c.controller_id, 'util_p2_run_time', -1),
+    getLearnedParam(supabase, c.controller_id, 'util_p2_at', 0),
+    getLearnedParam(supabase, c.controller_id, 'util_prev_run_time', -1),
+    getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0),
+  ])
 
   let anchorRunTime = anchorRunTimeParam.value
   let anchorTimestampMs = anchorTimestampParam.value
+  let p2RunTime = p2RunTimeParam.value
+  let p2TimestampMs = p2TimestampParam.value
 
   const prevSensorMs = prevTimestampParam.value
   const prevRunTime = prevRunTimeParam.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
-  if (isNewData) {
-    const shouldPromote = prevSensorMs > 0 && (
-      anchorRunTime < 0 ||
-      (anchorTimestampMs > 0 && (sensorTimestampMs - anchorTimestampMs) >= WINDOW_MS)
-    )
+  if (isNewData && prevSensorMs > 0) {
+    // Shift the chain: p3 ← old p2, p2 ← old p1, p1 ← current
+    const now = new Date().toISOString()
 
-    if (shouldPromote) {
-      anchorRunTime = prevRunTimeParam.value
-      anchorTimestampMs = prevSensorMs
-
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
-        learned_value: anchorRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_anchor_at',
-        learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
+    // Promote p2 → anchor (p3)
+    if (p2RunTime >= 0 && p2TimestampMs > 0) {
+      anchorRunTime = p2RunTime
+      anchorTimestampMs = p2TimestampMs
+      await Promise.all([
+        supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
+          learned_value: anchorRunTime, sample_count: 1, last_updated_at: now,
+        }, { onConflict: 'controller_id,parameter_name' }),
+        supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_anchor_at',
+          learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: now,
+        }, { onConflict: 'controller_id,parameter_name' }),
+      ])
     }
 
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
-      learned_value: currentRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id, parameter_name: 'util_prev_at',
-      learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
+    // Promote prev → p2
+    p2RunTime = prevRunTime
+    p2TimestampMs = prevSensorMs
+    await Promise.all([
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_p2_run_time',
+        learned_value: p2RunTime, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_p2_at',
+        learned_value: p2TimestampMs, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+    ])
+
+    // Save current as new prev (p1)
+    await Promise.all([
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
+        learned_value: currentRunTime, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_prev_at',
+        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+    ])
+  } else if (isNewData && prevSensorMs === 0) {
+    // First data point ever — just save as prev
+    const now = new Date().toISOString()
+    await Promise.all([
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
+        learned_value: currentRunTime, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+      supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_prev_at',
+        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now,
+      }, { onConflict: 'controller_id,parameter_name' }),
+    ])
   }
 
-  // Rolling 30-min utilization (anchor → current)
+  // Helper to compute utilization between two points
+  const calcInterval = (fromRunTime: number, fromMs: number, toRunTime: number, toMs: number): number | null => {
+    if (fromRunTime < 0 || fromMs <= 0 || toMs <= fromMs) return null
+    const elapsed = (toMs - fromMs) / 1000
+    if (elapsed <= 30) return null
+    const delta = toRunTime - fromRunTime
+    return delta >= 0 ? Math.min(1.0, delta / elapsed) : null
+  }
+
+  // p1→p0 (most recent interval)
+  const recent = calcInterval(prevRunTime, prevSensorMs, currentRunTime, sensorTimestampMs)
+  // p2→p1
+  const mid = calcInterval(p2RunTime, p2TimestampMs, prevRunTime, prevSensorMs)
+  // p3→p2
+  const oldest = calcInterval(anchorRunTime, anchorTimestampMs, p2RunTime, p2TimestampMs)
+
+  // Rolling = average of the 2 most recent intervals (for decisions)
   let rolling: number | null = null
-  if (anchorRunTime >= 0 && anchorTimestampMs > 0 && sensorTimestampMs > anchorTimestampMs) {
-    const elapsedSeconds = (sensorTimestampMs - anchorTimestampMs) / 1000
-    if (elapsedSeconds > 60) {
-      const deltaRunTime = currentRunTime - anchorRunTime
-      if (deltaRunTime >= 0) {
-        rolling = Math.min(1.0, deltaRunTime / elapsedSeconds)
-      }
-    }
+  if (recent != null && mid != null) {
+    rolling = (recent + mid) / 2
+  } else if (recent != null) {
+    rolling = recent
   }
 
-  // Recent utilization (prev → current)
-  let recent: number | null = null
-  if (prevRunTime >= 0 && prevSensorMs > 0 && sensorTimestampMs > prevSensorMs) {
-    const recentElapsed = (sensorTimestampMs - prevSensorMs) / 1000
-    if (recentElapsed > 30) {
-      const recentDelta = currentRunTime - prevRunTime
-      if (recentDelta >= 0) {
-        recent = Math.min(1.0, recentDelta / recentElapsed)
-      }
-    }
+  return {
+    rolling, recent, mid, oldest,
+    prevRunTime, prevTimestampMs: prevSensorMs,
+    p2RunTime, p2TimestampMs,
+    anchorRunTime, anchorTimestampMs,
+    currentRunTime, sensorTimestampMs,
   }
-
-  return { rolling, recent, prevRunTime, prevTimestampMs: prevSensorMs, anchorRunTime, anchorTimestampMs, currentRunTime, sensorTimestampMs }
 }
 
 async function calculateCoolingUtilizations(
@@ -359,12 +417,16 @@ async function calculateCoolingUtilizations(
       controllerName: c.name,
       utilization: utilResult.rolling,
       recentUtilization: utilResult.recent,
+      midUtilization: utilResult.mid,
+      oldestUtilization: utilResult.oldest,
       isActivelyCooling,
       probeTemp,
       targetTemp,
       hysteresis,
       prevTimestampMs: utilResult.prevTimestampMs,
       prevRunTime: utilResult.prevRunTime,
+      p2TimestampMs: utilResult.p2TimestampMs,
+      p2RunTime: utilResult.p2RunTime,
       anchorTimestampMs: utilResult.anchorTimestampMs,
       anchorRunTime: utilResult.anchorRunTime,
       currentRunTime: utilResult.currentRunTime,

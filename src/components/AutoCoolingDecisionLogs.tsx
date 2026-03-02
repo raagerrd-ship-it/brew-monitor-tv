@@ -9,47 +9,46 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('sv-SE') : null;
 
-/** Build a tooltip showing rolling avg + per-timestamp utilization */
+/** Build a tooltip showing avg (decision value) + per-interval utilization for 4 data points */
 const buildUtilTooltip = (data: {
   lastUpdate?: string | null;
-  recentPct?: number | null;
-  pct?: number | null;
-  prevAt?: string | null;
-  prevRunTime?: number | null;
-  anchorAt?: string | null;
-  anchorRunTime?: number | null;
+  recentPct?: number | null;   // p1→p0
+  midPct?: number | null;      // p2→p1
+  oldestPct?: number | null;   // p3→p2
+  pct?: number | null;         // rolling avg (decision value)
+  prevAt?: string | null;      // p1 timestamp
+  p2At?: string | null;        // p2 timestamp
+  anchorAt?: string | null;    // p3 timestamp
 }): string => {
   const lines: string[] = [];
 
-  // Rolling average header
+  // Rolling average header (avg of 2 most recent intervals — used for decisions)
   if (data.pct != null) {
-    lines.push(`Medel (30 min): ${data.pct}%`);
+    lines.push(`Snitt (senaste 2): ${data.pct}%`);
   }
 
-  // Build per-timestamp entries (most recent first)
-  // current timestamp: utilization from prev→current
+  // p0 (current) — interval from p1→p0
   const currentTime = fmtTime(data.lastUpdate ?? null);
-  if (currentTime && data.recentPct != null) {
-    lines.push(`${currentTime}: ${data.recentPct}%`);
+  if (currentTime) {
+    lines.push(`${currentTime}: ${data.recentPct != null ? `${data.recentPct}%` : '—'}`);
   }
 
-  // prev timestamp: utilization from anchor→prev
+  // p1 (prev) — interval from p2→p1
   const prevTime = fmtTime(data.prevAt ?? null);
-  if (prevTime && data.anchorAt && data.prevAt && data.prevRunTime != null && data.anchorRunTime != null) {
-    const anchorMs = new Date(data.anchorAt).getTime();
-    const prevMs = new Date(data.prevAt).getTime();
-    const elapsed = (prevMs - anchorMs) / 1000;
-    if (elapsed > 30) {
-      const delta = data.prevRunTime - data.anchorRunTime;
-      const pct = Math.min(100, Math.max(0, Math.round((delta / elapsed) * 100)));
-      lines.push(`${prevTime}: ${pct}%`);
-    }
+  if (prevTime) {
+    lines.push(`${prevTime}: ${data.midPct != null ? `${data.midPct}%` : '—'}`);
   }
 
-  // anchor timestamp (oldest point — no earlier data to compute from)
+  // p2 — interval from p3→p2
+  const p2Time = fmtTime(data.p2At ?? null);
+  if (p2Time) {
+    lines.push(`${p2Time}: ${data.oldestPct != null ? `${data.oldestPct}%` : '—'}`);
+  }
+
+  // p3 (anchor/oldest) — no earlier data
   const anchorTime = fmtTime(data.anchorAt ?? null);
-  if (anchorTime && anchorTime !== prevTime) {
-    lines.push(`${anchorTime}: —`);
+  if (anchorTime && anchorTime !== p2Time) {
+    lines.push(`${anchorTime}: (start)`);
   }
 
   if (lines.length === 0) lines.push('Ingen data ännu');
@@ -414,11 +413,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const coolerUtilTooltip = buildUtilTooltip({
     lastUpdate: statusDet.last_update as string | null,
     recentPct: statusDet.recent_utilization as number | null,
+    midPct: statusDet.mid_utilization as number | null,
+    oldestPct: statusDet.oldest_utilization as number | null,
     pct: statusDet.cooler_utilization as number | null,
     prevAt: statusDet.prev_at as string | null,
-    prevRunTime: statusDet.prev_run_time as number | null,
+    p2At: statusDet.p2_at as string | null,
     anchorAt: statusDet.anchor_at as string | null,
-    anchorRunTime: statusDet.anchor_run_time as number | null,
   });
 
   return (
@@ -456,11 +456,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const mTip = buildUtilTooltip({
             lastUpdate: mDet.last_update as string | null,
             recentPct: mDet.recent_utilization as number | null,
+            midPct: mDet.mid_utilization as number | null,
+            oldestPct: mDet.oldest_utilization as number | null,
             pct: mUtilPct,
             prevAt: mDet.prev_at as string | null,
-            prevRunTime: mDet.prev_run_time as number | null,
+            p2At: mDet.p2_at as string | null,
             anchorAt: mDet.anchor_at as string | null,
-            anchorRunTime: mDet.anchor_run_time as number | null,
           });
           return (
             <div className="flex items-center gap-1.5">
@@ -494,11 +495,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const tankUtilTip = buildUtilTooltip({
             lastUpdate: uDet.last_update as string | null,
             recentPct: uDet.recent_utilization as number | null,
+            midPct: uDet.mid_utilization as number | null,
+            oldestPct: uDet.oldest_utilization as number | null,
             pct: utilPct,
             prevAt: uDet.prev_at as string | null,
-            prevRunTime: uDet.prev_run_time as number | null,
+            p2At: uDet.p2_at as string | null,
             anchorAt: uDet.anchor_at as string | null,
-            anchorRunTime: uDet.anchor_run_time as number | null,
           });
           return (
             <Tooltip key={i}>
@@ -635,20 +637,23 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     brewSgByName.set(name, d);
   });
   // Build a map of utilization per controller name
-  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; lastUpdate: string | null; prevAt: string | null; prevRunTime: number | null; anchorAt: string | null; anchorRunTime: number | null }>();
+  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; midPct: number | null; oldestPct: number | null; lastUpdate: string | null; prevAt: string | null; p2At: string | null; anchorAt: string | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
     const utilMatch = d.message.match(/util=(\d+)%/);
     const pct = utilMatch ? parseInt(utilMatch[1]) : null;
     const active = d.message.includes('❄️');
     const det = d.details || {};
-    const recentPct = det.recent_utilization as number | null;
-    const lastUpdate = det.last_update as string | null;
-    const prevAt = det.prev_at as string | null;
-    const prevRunTime = det.prev_run_time as number | null;
-    const anchorAt = det.anchor_at as string | null;
-    const anchorRunTime = det.anchor_run_time as number | null;
-    utilByName.set(name, { pct, active, recentPct, lastUpdate, prevAt, prevRunTime, anchorAt, anchorRunTime });
+    utilByName.set(name, {
+      pct, active,
+      recentPct: det.recent_utilization as number | null,
+      midPct: det.mid_utilization as number | null,
+      oldestPct: det.oldest_utilization as number | null,
+      lastUpdate: det.last_update as string | null,
+      prevAt: det.prev_at as string | null,
+      p2At: det.p2_at as string | null,
+      anchorAt: det.anchor_at as string | null,
+    });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -714,11 +719,12 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                           const utilTip = buildUtilTooltip({
                             lastUpdate: util.lastUpdate,
                             recentPct: util.recentPct,
+                            midPct: util.midPct,
+                            oldestPct: util.oldestPct,
                             pct: util.pct,
                             prevAt: util.prevAt,
-                            prevRunTime: util.prevRunTime,
+                            p2At: util.p2At,
                             anchorAt: util.anchorAt,
-                            anchorRunTime: util.anchorRunTime,
                           });
                           return (
                             <Tooltip>
