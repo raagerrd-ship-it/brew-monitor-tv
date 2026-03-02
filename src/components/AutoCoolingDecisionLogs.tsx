@@ -69,8 +69,8 @@ const PIPELINE_STEPS = new Set([
   'PASS_THROUGH',
   'STALL', 'STALL_SKIP', 'STALL_ANALYSIS', 'STALL_BOOST', 'STALL_LEARN',
   'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
-  'COOLING_CAPABILITY', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
-  'RAMP_BLOCK', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'MAX_MARGIN',
+  'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
+  'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
 ]);
@@ -330,12 +330,15 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const adjustment = entries.find(d => d.step === 'ADJUSTMENT');
   const rateLimit = entries.find(d => d.step === 'RATE_LIMIT');
   const rampBlock = entries.find(d => d.step === 'RAMP_BLOCK');
+  const demandGuard = entries.find(d => d.step === 'DEMAND_GUARD');
   const proactive = entries.find(d => d.step === 'PROACTIVE');
   const marginLearn = entries.find(d => d.step === 'MARGIN_LEARN');
+  const utilLearn = entries.find(d => d.step === 'UTIL_LEARN');
   const rateLearn = entries.find(d => d.step === 'RATE_LEARN');
   const coolerStale = entries.find(d => d.step === 'COOLER_STALE');
   const noCooling = entries.find(d => d.step === 'COOLING_CAPABILITY');
   const noConfig = entries.find(d => d.step === 'COOLER_CONFIG');
+  const utilEntries = entries.filter(d => d.step === 'COOLING_UTIL');
 
   // Error/skip states
   if (noConfig) return <div className="text-[11px] text-muted-foreground flex items-center gap-2"><XCircle className="h-3 w-3 text-red-400" />{noConfig.message}</div>;
@@ -353,6 +356,7 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
 
   // Determine outcome
   const isBlocked = !!rampBlock;
+  const isDemandGuarded = !!demandGuard;
   const isRateLimited = !!rateLimit;
   const isOk = !!coolerOk;
   const isAdjusted = !!adjustment;
@@ -389,6 +393,24 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
         </div>
       )}
 
+      {/* Row 2.5: Cooling utilization per tank */}
+      {utilEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+          {utilEntries.map((u, i) => {
+            const isActive = u.message.includes('❄️');
+            return (
+              <span key={i} className="flex items-center gap-1">
+                <span>{isActive ? '❄️' : '⏸️'}</span>
+                <span>{u.message.split(':')[0].replace(/^.*?(\S+)$/, '$1')}</span>
+                {u.message.match(/util=(\d+)%/) && (
+                  <span className="font-mono">{u.message.match(/util=(\d+)%/)?.[0]}</span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Row 3: Proactive look-ahead */}
       {proactive && (
         <div className="flex items-center gap-2 text-[10px]">
@@ -403,6 +425,11 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           <>
             <Wrench className="h-3 w-3 text-amber-500" />
             <span className="font-medium">{adjustment.message}</span>
+          </>
+        ) : isDemandGuarded ? (
+          <>
+            <ShieldAlert className="h-3 w-3 text-sky-400" />
+            <span className="text-sky-400">{demandGuard.message}</span>
           </>
         ) : isBlocked ? (
           <>
@@ -428,9 +455,10 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
       </div>
 
       {/* Row 5: Learning feedback (subtle) */}
-      {(marginLearn || rateLearn) && (
+      {(marginLearn || rateLearn || utilLearn) && (
         <div className="text-[10px] text-muted-foreground space-y-0.5 pt-0.5">
           {rateLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{rateLearn.message}</div>}
+          {utilLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{utilLearn.message}</div>}
           {marginLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{marginLearn.message}</div>}
         </div>
       )}
@@ -456,10 +484,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
   const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
   const coolerEntries = decisions.filter(d =>
     d.step === 'COOLING' || d.step.startsWith('COOLER_') ||
-    d.step === 'COOLING_CAPABILITY' || d.step === 'EFFECTIVE_TARGET' ||
-    d.step === 'MARGIN_CALC' || d.step === 'RATE_LIMIT' ||
+    d.step === 'COOLING_CAPABILITY' || d.step === 'COOLING_UTIL' ||
+    d.step === 'EFFECTIVE_TARGET' || d.step === 'MARGIN_CALC' ||
+    d.step === 'RATE_LIMIT' || d.step === 'DEMAND_GUARD' ||
     d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
-    d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN'
+    d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN'
   );
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
