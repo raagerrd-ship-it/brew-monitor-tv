@@ -164,7 +164,7 @@ function BrewChartComponent({
           {/* Left Y-axis for SG */}
           <YAxis
             yAxisId="sg"
-            domain={[fg - 0.001, og + 0.001]}
+            domain={[Math.min(fg, ...chartData.filter(p => p.value != null).map(p => p.value)) - 0.001, og + 0.001]}
             stroke={COLORS.sg}
             style={{ fontSize: AXIS_STYLES.fontSize.y }}
             tick={{ fill: COLORS.sg }}
