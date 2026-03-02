@@ -622,7 +622,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                               <span>FG: <span className="font-mono">{(pillDet.fg as number).toFixed(3)}</span></span>
                             )}
                             {pillDet.battery != null && (
-                              <span>🔋 {pillDet.battery as number}%</span>
+                              <span>🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
                             )}
                             {pillDet.status && (
                               <span className="text-[9px] px-1 py-0.5 rounded bg-muted">{pillDet.status as string}</span>
