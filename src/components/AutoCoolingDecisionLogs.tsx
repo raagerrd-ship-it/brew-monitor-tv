@@ -894,6 +894,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                           if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
                           const utilSat = statusLimits.find(c => c.startsWith('util-sat='));
                           if (utilSat) brakes.push({ label: `⚡ Util ${utilSat.split('=')[1]}`, tip: `Kylkretsen körs ${utilSat.split('=')[1]} av tiden — hårdvaran maxad, PID begränsas` });
+                          const heatGuard = statusLimits.find(c => c.startsWith('heat-guard='));
+                          if (heatGuard) brakes.push({ label: `🔥 Heat-guard`, tip: `PID begränsad för att inte aktivera värmaren (hysteres ${heatGuard.split('=')[1]}°C). Temperaturen tillåts stiga naturligt.` });
                         } else if (action?.brakes && action.brakes.length > 0) {
                           action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
                         }
