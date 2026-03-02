@@ -589,7 +589,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       {r1(actualTempVal)}°
                       {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
                     </td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
+                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1((det.actual_target ?? det.base_target) as number)}</td>
                     <td className="py-0.5 px-1 text-right" style={{
                       color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
                     }}>
