@@ -121,7 +121,7 @@ async function runProcessors(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // Register processors here. Each is independently toggleable.
   // Order matters: later processors see targets set by earlier ones.
   const processors = [
-    runPillCompensation,
+    runPidControl,
     // Future: runThermalModelProcessor,
     // Future: runExternalSensorProcessor,
   ]
@@ -157,11 +157,11 @@ async function runPassThroughSync(
     if (adjustedControllerNames.has(fc.name)) continue
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // Skip controllers that are owned by PID pill-compensation.
+    // Skip controllers that are owned by PID control.
     // When PID skips a cycle (same-data guard), pass-through must NOT
     // overwrite the PID-compensated target_temp back to profile_target_temp.
-    // PID is the sole owner of target_temp for these controllers.
-    if (pillCompSettings.enabled && fc.pill_temp != null) continue
+    // PID is the sole owner of target_temp for controllers with active temp control.
+    if (fc.heating_enabled || fc.cooling_enabled) continue
 
     const profileTarget = (fc as any).profile_target_temp
     if (profileTarget == null) continue
@@ -226,9 +226,9 @@ async function runPassThroughSync(
   return adjustments
 }
 
-// ─── PID Pill Compensation (Processor) ───────────────────────
+// ─── PID Control (Processor) ─────────────────────────────────
 
-async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
+async function runPidControl(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
   const {
     supabase, supabaseUrl, serviceRoleKey,
     followedControllersFullData, profileOwnedControllerIds,
@@ -237,22 +237,18 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
   } = ctx
   const adjustments: AdjustmentResult[] = []
 
-  if (!pillCompSettings.enabled) {
-    log('PILL_COMP', 'info', 'Pill compensation disabled')
-    return adjustments
-  }
-
-  log('PILL_COMP', 'info', 'PID pill compensation check')
+  // PID always runs — the "Dubbla temperaturgivare" toggle only controls
+  // whether actual_temp is an average of pill+probe or just probe.
+  log('PID_CONTROL', 'info', `PID control check (dual sensors: ${pillCompSettings.enabled ? 'ON' : 'OFF'})`)
 
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
 
     if (cooloffControllerIds.has(fc.controller_id)) {
-      log('PILL_COMP_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping pill-comp`)
+      log('PID_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping PID`)
       continue
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
-    if (fc.pill_temp === null || fc.pill_temp === undefined) continue
 
     const targetTemp = parseFloat(String(fc.target_temp ?? '20'))
 
@@ -263,14 +259,21 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     // Base target from SSOT (already bootstrapped)
     const baseTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    const actualTemp = fc.pill_temp ?? fc.current_temp ?? targetTemp
+    // Pre-calculate actual_temp: dual sensors ON + pill available → average, otherwise probe
+    const hasDualSensors = pillCompSettings.enabled && fc.pill_temp != null
+    const probeTemp = fc.current_temp ?? fc.pill_temp ?? targetTemp
+    const actualTemp = hasDualSensors
+      ? ((fc.pill_temp! + (fc.current_temp ?? fc.pill_temp!)) / 2)
+      : probeTemp
+
     const pidMode: 'heating' | 'cooling' = actualTemp < baseTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
     const compensation = await calculateCompensatedTarget(
       supabase, fc.controller_id, baseTarget, targetTemp,
-      fc.name || fc.controller_id, pillCompSettings, pidMode, stepType
+      fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
+      actualTemp, probeTemp
     )
 
     // Safety bounds — respect hardware min/max strictly
@@ -290,14 +293,16 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     }
 
     // Always log PID status for visibility in decision log
-    const pillTemp = round1(fc.pill_temp ?? 0)
-    const probeTemp = round1(fc.current_temp ?? 0)
-    const avgTemp = round1(((fc.pill_temp ?? 0) + (fc.current_temp ?? 0)) / 2)
+    const pillTempLog = round1(fc.pill_temp ?? 0)
+    const probeTempLog = round1(fc.current_temp ?? 0)
+    const avgTemp = round1(actualTemp)
     const constraintLabels = compensation.constraints && compensation.constraints.length > 0 ? compensation.constraints : []
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
-      pill_temp: pillTemp,
-      probe_temp: probeTemp,
+      pill_temp: pillTempLog,
+      probe_temp: probeTempLog,
+      actual_temp: avgTemp,
+      dual_sensors: hasDualSensors,
       avg_temp: avgTemp,
       base_target: round1(baseTarget),
       compensated_target: round1(newTarget),
@@ -360,7 +365,7 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
         followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
         followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
         followed_hysteresis: compensation.avgDelta,
-        reason: `🎯 Pill-kompensation: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
+        reason: `🎯 PID: ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
         adjusted_against_timestamp: fc.last_update,
       })
     } else {

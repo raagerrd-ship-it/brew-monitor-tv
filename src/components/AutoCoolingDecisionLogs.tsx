@@ -451,23 +451,27 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 3. Pill-kompensation */}
+      {/* 3. PID-reglering (merged: sensor fusion + compensation + PID details) */}
       {!hidePid && pidStatusEntries.length > 0 && (
         <PipelineSection
-          icon={<Pill className="h-3 w-3" />}
-          title="Pill-kompensation"
-          color="hsl(280 60% 60%)"
-          borderColor="hsl(280 60% 60% / 0.3)"
-          bgColor="hsl(280 60% 60% / 0.05)"
+          icon={<Gauge className="h-3 w-3" />}
+          title="PID-reglering"
+          color="hsl(220 70% 55%)"
+          borderColor="hsl(220 70% 55% / 0.3)"
+          bgColor="hsl(220 70% 55% / 0.05)"
         >
           <table className="w-full text-[10px]">
             <thead>
               <tr className="text-muted-foreground border-b border-border/30">
                 <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
+                <th className="text-right py-0.5 px-1 font-medium">Är-temp</th>
+                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
+                <th className="text-right py-0.5 px-1 font-medium">Delta</th>
                 <th className="text-right py-0.5 px-1 font-medium">Komp</th>
-                <th className="text-right py-0.5 px-1 font-medium">Beräknat</th>
-                <th className="text-right py-0.5 px-1 font-medium">→ Nytt mål</th>
+                <th className="text-right py-0.5 px-1 font-medium">→ Mål</th>
+                <th className="text-right py-0.5 px-1 font-medium">Damp</th>
                 <th className="text-left py-0.5 pl-1 font-medium">Begr.</th>
+                <th className="text-left py-0.5 pl-1 font-medium">Läge</th>
               </tr>
             </thead>
             <tbody>
@@ -475,17 +479,30 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const det = d.details || {};
                 const name = d.message.replace('Controller: ', '');
                 const comp = det.compensation as number;
+                const delta = det.delta as number;
+                const damping = det.damping as number;
+                const mode = det.mode as string;
                 const action = actionByName.get(name);
-                const compensatedTarget = det.compensated_target as number;
+                const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
+                const dualSensors = det.dual_sensors as boolean;
                 return (
                   <tr key={i} className="border-b border-border/10 last:border-0">
                     <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
+                    <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
+                      {r1(actualTempVal)}°
+                      {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
+                    </td>
+                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
+                    <td className="py-0.5 px-1 text-right" style={{
+                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
+                    }}>
+                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
+                    </td>
                     <td className="py-0.5 px-1 text-right" style={{
                       color: comp != null && Math.abs(comp) > 0.05 ? (comp < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)') : undefined
                     }}>
                       {comp != null ? `${comp >= 0 ? '+' : ''}${r1(comp)}°` : '—'}
                     </td>
-                    <td className="py-0.5 px-1 text-right">{r1(compensatedTarget)}°</td>
                     <td className="py-0.5 px-1 text-right font-medium">
                       {action?.noChange ? (
                         <span className="text-muted-foreground">—</span>
@@ -494,6 +511,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </td>
+                    <td className="py-0.5 px-1 text-right" style={{
+                      color: damping != null && damping < 1.0 ? 'hsl(210 80% 60%)' : undefined
+                    }}>
+                      {damping != null ? r1(damping) : '—'}
                     </td>
                     <td className="py-0.5 pl-1">
                       {action?.brakes && action.brakes.length > 0 ? (
@@ -506,6 +528,13 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                         <span className="text-[8px] px-1 py-0 rounded bg-muted text-muted-foreground">–</span>
                       ) : null}
                     </td>
+                    <td className="py-0.5 pl-1">
+                      {mode ? (
+                        <span className={`text-[9px] px-1 py-0.5 rounded ${mode === 'cooling' ? 'bg-sky-500/15 text-sky-400' : 'bg-orange-500/15 text-orange-400'}`}>
+                          {mode === 'cooling' ? '❄️' : '🔥'}
+                        </span>
+                      ) : '—'}
+                    </td>
                   </tr>
                 );
               })}
@@ -514,7 +543,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 3. Pass-through */}
+      {/* 4. Pass-through */}
       {passThroughEntries.length > 0 && (
         <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="Pass-through" color="hsl(170 60% 45%)" borderColor="hsl(170 60% 45% / 0.3)" bgColor="hsl(170 60% 45% / 0.05)">
           {passThroughEntries.map((d, i) => (
@@ -592,64 +621,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 6. PID-reglering (always-on, final step before hardware) */}
-      {!hidePid && pidStatusEntries.length > 0 && (
-        <PipelineSection
-          icon={<Gauge className="h-3 w-3" />}
-          title="PID-reglering"
-          color="hsl(220 70% 55%)"
-          borderColor="hsl(220 70% 55% / 0.3)"
-          bgColor="hsl(220 70% 55% / 0.05)"
-        >
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border/30">
-                <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
-                <th className="text-right py-0.5 px-1 font-medium">Pill</th>
-                <th className="text-right py-0.5 px-1 font-medium">Probe</th>
-                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Delta</th>
-                <th className="text-right py-0.5 px-1 font-medium">Damp</th>
-                <th className="text-left py-0.5 pl-1 font-medium">Läge</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pidStatusEntries.map((d, i) => {
-                const det = d.details || {};
-                const name = d.message.replace('Controller: ', '');
-                const delta = det.delta as number;
-                const damping = det.damping as number;
-                const mode = det.mode as string;
-                return (
-                  <tr key={i} className="border-b border-border/10 last:border-0">
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
-                    <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right">{r1(det.probe_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
-                    }}>
-                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
-                    </td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: damping != null && damping < 1.0 ? 'hsl(210 80% 60%)' : undefined
-                    }}>
-                      {damping != null ? r1(damping) : '—'}
-                    </td>
-                    <td className="py-0.5 pl-1">
-                      {mode ? (
-                        <span className={`text-[9px] px-1 py-0.5 rounded ${mode === 'cooling' ? 'bg-sky-500/15 text-sky-400' : 'bg-orange-500/15 text-orange-400'}`}>
-                          {mode === 'cooling' ? '❄️' : '🔥'}
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </PipelineSection>
-      )}
+      {/* Section 6 removed — merged into section 3 "PID-reglering" above */}
 
       {/* 7. RAPT_SEND */}
       {raptSendEntries.length > 0 && (
