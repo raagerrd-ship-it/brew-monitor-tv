@@ -369,10 +369,17 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           <span className="text-muted-foreground">Kylare:</span>
           <span className="font-mono font-medium">{coolerTarget}°</span>
           <span className="text-muted-foreground text-[10px]">(är {coolerTemp}°)</span>
-          {statusDet.cooler_utilization != null && (
+          {statusDet.cooler_utilization != null ? (
             <span className={`font-mono text-[10px] font-medium ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
               {statusDet.cooler_utilization as number}%
             </span>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="font-mono text-[10px] text-muted-foreground/40 cursor-help">- %</span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Ingen utnyttjandedata ännu</TooltipContent>
+            </Tooltip>
           )}
         </div>
         {effectiveTarget && (
