@@ -52,6 +52,7 @@ interface CoolingUtilization {
   recentUtilization: number | null  // p1→p0
   midUtilization: number | null  // p2→p1
   oldestUtilization: number | null  // p3→p2
+  ancientUtilization: number | null  // p4→p3
   isActivelyCooling: boolean
   probeTemp: number
   targetTemp: number
@@ -63,6 +64,8 @@ interface CoolingUtilization {
   p2RunTime: number
   anchorTimestampMs: number
   anchorRunTime: number
+  p4TimestampMs: number
+  p4RunTime: number
   currentRunTime: number
   sensorTimestampMs: number
 }
@@ -112,6 +115,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     recent_utilization: coolerUtilResult.recent != null ? Math.round(coolerUtilResult.recent * 100) : null,
     mid_utilization: coolerUtilResult.mid != null ? Math.round(coolerUtilResult.mid * 100) : null,
     oldest_utilization: coolerUtilResult.oldest != null ? Math.round(coolerUtilResult.oldest * 100) : null,
+    ancient_utilization: coolerUtilResult.ancient != null ? Math.round(coolerUtilResult.ancient * 100) : null,
     cooling_run_time: coolerController.cooling_run_time ?? 0,
     cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
@@ -121,6 +125,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     p2_run_time: coolerUtilResult.p2RunTime,
     anchor_at: coolerUtilResult.anchorTimestampMs > 0 ? new Date(coolerUtilResult.anchorTimestampMs).toISOString() : null,
     anchor_run_time: coolerUtilResult.anchorRunTime,
+    p4_at: coolerUtilResult.p4TimestampMs > 0 ? new Date(coolerUtilResult.p4TimestampMs).toISOString() : null,
+    p4_run_time: coolerUtilResult.p4RunTime,
   })
 
   // ── Find followed controllers with cooling enabled ────────
@@ -145,6 +151,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
       mid_utilization: u.midUtilization != null ? Math.round(u.midUtilization * 100) : null,
       oldest_utilization: u.oldestUtilization != null ? Math.round(u.oldestUtilization * 100) : null,
+      ancient_utilization: u.ancientUtilization != null ? Math.round(u.ancientUtilization * 100) : null,
       cooling_run_time: c?.cooling_run_time ?? null,
       last_update: c?.last_update ?? null,
       prev_at: u.prevTimestampMs > 0 ? new Date(u.prevTimestampMs).toISOString() : null,
@@ -153,6 +160,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       p2_run_time: u.p2RunTime,
       anchor_at: u.anchorTimestampMs > 0 ? new Date(u.anchorTimestampMs).toISOString() : null,
       anchor_run_time: u.anchorRunTime,
+      p4_at: u.p4TimestampMs > 0 ? new Date(u.p4TimestampMs).toISOString() : null,
+      p4_run_time: u.p4RunTime,
     })
   }
 
@@ -268,13 +277,16 @@ export interface UtilizationResult {
   rolling: number | null   // avg of 2 most recent intervals (for decisions)
   recent: number | null    // p1→p0 (most recent interval)
   mid: number | null       // p2→p1 (second most recent interval)
-  oldest: number | null    // p3→p2 (oldest interval)
+  oldest: number | null    // p3→p2 (third interval)
+  ancient: number | null   // p4→p3 (oldest interval)
   prevRunTime: number      // p1
   prevTimestampMs: number
   p2RunTime: number        // p2
   p2TimestampMs: number
-  anchorRunTime: number    // p3 (oldest)
+  anchorRunTime: number    // p3
   anchorTimestampMs: number
+  p4RunTime: number        // p4 (oldest)
+  p4TimestampMs: number
   currentRunTime: number   // p0
   sensorTimestampMs: number
 }
@@ -286,8 +298,10 @@ export async function calculateSingleUtilization(
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
 
-  // Load all 4 stored points: p3 (anchor/oldest) → p2 → p1 (prev) → p0 (current from hw)
-  const [anchorRunTimeParam, anchorTimestampParam, p2RunTimeParam, p2TimestampParam, prevRunTimeParam, prevTimestampParam] = await Promise.all([
+  // Load all 5 stored points: p4 (oldest) → p3 (anchor) → p2 → p1 (prev) → p0 (current from hw)
+  const [p4RunTimeParam, p4TimestampParam, anchorRunTimeParam, anchorTimestampParam, p2RunTimeParam, p2TimestampParam, prevRunTimeParam, prevTimestampParam] = await Promise.all([
+    getLearnedParam(supabase, c.controller_id, 'util_p4_run_time', -1),
+    getLearnedParam(supabase, c.controller_id, 'util_p4_at', 0),
     getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1),
     getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0),
     getLearnedParam(supabase, c.controller_id, 'util_p2_run_time', -1),
@@ -296,24 +310,44 @@ export async function calculateSingleUtilization(
     getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0),
   ])
 
+  let p4RunTime = p4RunTimeParam.value
+  let p4TimestampMs = p4TimestampParam.value
   let anchorRunTime = anchorRunTimeParam.value
   let anchorTimestampMs = anchorTimestampParam.value
   let p2RunTime = p2RunTimeParam.value
   let p2TimestampMs = p2TimestampParam.value
 
-  // Preserve pre-shift values for calcInterval (shift mutates p2/anchor)
+  // Preserve pre-shift values for calcInterval (shift mutates p2/anchor/p4)
   const origP2RunTime = p2RunTime
   const origP2TimestampMs = p2TimestampMs
   const origAnchorRunTime = anchorRunTime
   const origAnchorTimestampMs = anchorTimestampMs
+  const origP4RunTime = p4RunTime
+  const origP4TimestampMs = p4TimestampMs
 
   const prevSensorMs = prevTimestampParam.value
   const prevRunTime = prevRunTimeParam.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
   if (isNewData && prevSensorMs > 0) {
-    // Shift the chain: p3 ← old p2, p2 ← old p1, p1 ← current
+    // Shift the chain: p4 ← old p3, p3 ← old p2, p2 ← old p1, p1 ← current
     const now = new Date().toISOString()
+
+    // Promote anchor (p3) → p4
+    if (anchorRunTime >= 0 && anchorTimestampMs > 0) {
+      p4RunTime = anchorRunTime
+      p4TimestampMs = anchorTimestampMs
+      await Promise.all([
+        supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_p4_run_time',
+          learned_value: p4RunTime, sample_count: 1, last_updated_at: now,
+        }, { onConflict: 'controller_id,parameter_name' }),
+        supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_p4_at',
+          learned_value: p4TimestampMs, sample_count: 1, last_updated_at: now,
+        }, { onConflict: 'controller_id,parameter_name' }),
+      ])
+    }
 
     // Promote p2 → anchor (p3)
     if (p2RunTime >= 0 && p2TimestampMs > 0) {
@@ -386,6 +420,8 @@ export async function calculateSingleUtilization(
   const mid = calcInterval(origP2RunTime, origP2TimestampMs, prevRunTime, prevSensorMs)
   // p3→p2 — use original anchor values
   const oldest = calcInterval(origAnchorRunTime, origAnchorTimestampMs, origP2RunTime, origP2TimestampMs)
+  // p4→p3 — use original p4 values
+  const ancient = calcInterval(origP4RunTime, origP4TimestampMs, origAnchorRunTime, origAnchorTimestampMs)
 
   // Rolling = average of the 2 most recent intervals (for decisions)
   let rolling: number | null = null
@@ -398,10 +434,11 @@ export async function calculateSingleUtilization(
   }
 
   return {
-    rolling, recent, mid, oldest,
+    rolling, recent, mid, oldest, ancient,
     prevRunTime, prevTimestampMs: prevSensorMs,
     p2RunTime: origP2RunTime, p2TimestampMs: origP2TimestampMs,
     anchorRunTime: origAnchorRunTime, anchorTimestampMs: origAnchorTimestampMs,
+    p4RunTime: origP4RunTime, p4TimestampMs: origP4TimestampMs,
     currentRunTime, sensorTimestampMs,
   }
 }
@@ -427,6 +464,7 @@ async function calculateCoolingUtilizations(
       recentUtilization: utilResult.recent,
       midUtilization: utilResult.mid,
       oldestUtilization: utilResult.oldest,
+      ancientUtilization: utilResult.ancient,
       isActivelyCooling,
       probeTemp,
       targetTemp,
@@ -437,6 +475,8 @@ async function calculateCoolingUtilizations(
       p2RunTime: utilResult.p2RunTime,
       anchorTimestampMs: utilResult.anchorTimestampMs,
       anchorRunTime: utilResult.anchorRunTime,
+      p4TimestampMs: utilResult.p4TimestampMs,
+      p4RunTime: utilResult.p4RunTime,
       currentRunTime: utilResult.currentRunTime,
       sensorTimestampMs: utilResult.sensorTimestampMs,
     })
