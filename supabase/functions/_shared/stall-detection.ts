@@ -293,7 +293,7 @@ export async function detectAndHandleStalls(
       const safeTarget = Math.min(maxTemp, boostedTarget)
       let boostSuccess: boolean
       if (ctx.updateBatch) {
-        ctx.updateBatch.add(fc.controller_id, safeTarget)
+        ctx.updateBatch.add(fc.controller_id, safeTarget, parseFloat(String(fc.target_temp ?? '0')))
         boostSuccess = true
       } else {
         boostSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, safeTarget)
@@ -443,7 +443,7 @@ async function handleUnBoost(
     if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
       let success: boolean
       if (ctx.updateBatch) {
-        ctx.updateBatch.add(fc.controller_id, restoredTarget)
+        ctx.updateBatch.add(fc.controller_id, restoredTarget, currentTarget)
         success = true
       } else {
         success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, restoredTarget)

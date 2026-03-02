@@ -189,7 +189,7 @@ async function runPassThroughSync(
     // Queue update in batch (or send immediately)
     let success: boolean
     if (ctx.updateBatch) {
-      ctx.updateBatch.add(fc.controller_id, newTarget)
+      ctx.updateBatch.add(fc.controller_id, newTarget, currentTarget)
       success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
       success = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, newTarget)
@@ -328,7 +328,7 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     // Queue update in batch (or send immediately if no batch)
     let success: boolean
     if (ctx.updateBatch) {
-      ctx.updateBatch.add(fc.controller_id, newTarget)
+      ctx.updateBatch.add(fc.controller_id, newTarget, targetTemp)
       success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
       success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
