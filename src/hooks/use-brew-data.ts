@@ -305,7 +305,7 @@ export function useBrewData(): UseBrewDataReturn {
       .filter((r: any) => r.linked_controller_id)
       .map((r: any) => r.linked_controller_id);
     
-    const overshootMap = new Map<string, { reason: string | null; original_target: number | null }>();
+    const overshootMap = new Map<string, { reason: string | null; original_target: number | null; pidReason: string | null }>();
     if (allControllerIds.length > 0) {
       const { data: adjData } = await supabase
         .from('auto_cooling_adjustments')
@@ -329,6 +329,7 @@ export function useBrewData(): UseBrewDataReturn {
             reason: overshootMatch && overshootAge < 6 * 60 * 60 * 1000 
               ? overshootMatch.reason.replace('🌡️ ', '') : null,
             original_target: pidMatch?.original_target_temp ?? overshootMatch?.original_target_temp ?? null,
+            pidReason: pidMatch?.reason ?? null,
           });
         }
       }
@@ -411,6 +412,9 @@ export function useBrewData(): UseBrewDataReturn {
           : null,
         originalTarget: reading.linked_controller_id 
           ? overshootMap.get(reading.linked_controller_id)?.original_target ?? null 
+          : null,
+        pidReason: reading.linked_controller_id
+          ? overshootMap.get(reading.linked_controller_id)?.pidReason ?? null
           : null,
         fermentationTrend,
         fermentationMetrics: (() => {

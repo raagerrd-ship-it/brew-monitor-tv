@@ -277,8 +277,39 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
               </div>
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            Kompensation: {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°
+          <TooltipContent side="bottom" className="text-xs max-w-[260px]">
+            <div className="space-y-0.5">
+              <p className="font-medium">PID-kompensation: {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°</p>
+              {(() => {
+                const reason = brew.pidReason;
+                if (!reason) return null;
+                // Parse PI info from reason: "🎯 PID: X°C → Y°C (delta=..., komp=...°C, D-term: ..., PI=+0.50°C(P=0.30,I=0.20, learned=0.15[d3.4]n=12))"
+                const piMatch = reason.match(/PI=([+-]?\d+\.?\d*)°C\(P=([+-]?\d+\.?\d*),I=([+-]?\d+\.?\d*)/);
+                const kompMatch = reason.match(/komp=([+-]?\d+\.?\d*)°C/);
+                const deltaMatch = reason.match(/delta=([+-]?\d+\.?\d*)/);
+                const dampMatch = reason.match(/damp=([+-]?\d+\.?\d*)/);
+                const learnedMatch = reason.match(/learned=([+-]?\d+\.?\d*)\[([^\]]+)\]n=(\d+)/);
+                const limitsMatch = reason.match(/limits=\[([^\]]+)\]/);
+                
+                return (
+                  <>
+                    <div className="border-t border-border/50 my-1" />
+                    {deltaMatch && <p>Delta (pill−probe): {deltaMatch[1]}°</p>}
+                    {kompMatch && <p>Kompensation: {kompMatch[1]}°</p>}
+                    {dampMatch && parseFloat(dampMatch[1]) < 1.0 && <p>D-dämpning: {dampMatch[1]}</p>}
+                    {piMatch && (
+                      <p>PI-korrigering: {piMatch[1]}° <span className="text-muted-foreground">(P={piMatch[2]}, I={piMatch[3]})</span></p>
+                    )}
+                    {learnedMatch && (
+                      <p>Inlärd baseline: {learnedMatch[1]}° <span className="text-muted-foreground">[{learnedMatch[2]}] n={learnedMatch[3]}</span></p>
+                    )}
+                    {limitsMatch && (
+                      <p className="text-warning">Begränsningar: {limitsMatch[1]}</p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
