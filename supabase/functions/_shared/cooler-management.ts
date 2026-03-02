@@ -158,7 +158,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── Apply if different enough ─────────────────────────────
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
-  if (diff < 0.3) {
+  if (diff < 0.1) {
     log('COOLER_OK', 'pass', `Kylare vid ${currentCoolerTarget}°C, mål ${clampedTarget}°C — nära nog (${diff.toFixed(1)}°C diff)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
