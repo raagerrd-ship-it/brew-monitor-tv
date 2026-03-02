@@ -490,11 +490,21 @@ function PipelineView({ decisions, hideSync, hidePid }: {
 }) {
   const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
   const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
+  const utilEntries = decisions.filter(d => d.step === 'COOLING_UTIL');
   // Build a map of pill/brew data per controller name for merging into SYNC_DATA
   const brewSgByName = new Map<string, DecisionEntry>();
   brewSgEntries.forEach(d => {
     const name = d.message.replace('Controller: ', '');
     brewSgByName.set(name, d);
+  });
+  // Build a map of utilization per controller name
+  const utilByName = new Map<string, { pct: number | null; active: boolean }>();
+  utilEntries.forEach(d => {
+    const name = d.message.split(':')[0].trim();
+    const utilMatch = d.message.match(/util=(\d+)%/);
+    const pct = utilMatch ? parseInt(utilMatch[1]) : null;
+    const active = d.message.includes('❄️');
+    utilByName.set(name, { pct, active });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -534,6 +544,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 <th className="text-right py-0.5 px-1 font-medium">Ctrl</th>
                 <th className="text-right py-0.5 px-1 font-medium">Mål</th>
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
+                <th className="text-right py-0.5 px-1 font-medium">Kyla</th>
                 <th className="text-center py-0.5 pl-1 font-medium">Status</th>
               </tr>
             </thead>
@@ -543,6 +554,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const name = d.message.replace('Controller: ', '');
                 const pillData = brewSgByName.get(name);
                 const pillDet = pillData?.details || {};
+                const util = utilByName.get(name);
                 return (
                   <React.Fragment key={i}>
                     <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'}`}>
@@ -551,6 +563,15 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       <td className="py-0.5 px-1 text-right">{r1(det.ctrl_temp as number)}</td>
                       <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
                       <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
+                      <td className="py-0.5 px-1 text-right">
+                        {util ? (
+                          <span className={`font-mono ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/30">—</span>
+                        )}
+                      </td>
                       <td className="py-0.5 pl-1 text-center">
                         {det.preserved ? (
                           <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400">bevarad</span>
@@ -561,7 +582,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     </tr>
                     {pillData && (
                       <tr className="border-b border-border/10">
-                        <td colSpan={6} className="py-0.5 pl-6">
+                        <td colSpan={7} className="py-0.5 pl-6">
                           <div className="flex items-center gap-3 text-muted-foreground">
                             <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                               <Pill className="h-2.5 w-2.5" />
