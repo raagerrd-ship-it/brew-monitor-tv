@@ -827,27 +827,27 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       </td>
                     </tr>
                     {pillData && (
-                      <tr className="border-b border-border/10">
-                        <td colSpan={8} className="py-0.5 pl-6">
-                          <div className="flex items-center gap-3 text-muted-foreground">
+                      <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
+                        <td colSpan={8} className="py-1 px-1.5 pl-4">
+                          <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
                             <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                               <Pill className="h-2.5 w-2.5" />
                               <span className="text-[9px] font-medium">Pill</span>
                             </span>
                             {pillDet.current_sg != null && (
-                              <span>SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
+                              <span className="whitespace-nowrap">SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
                             )}
                             {pillDet.og != null && (
-                              <span>OG: <span className="font-mono">{(pillDet.og as number).toFixed(3)}</span></span>
+                              <span className="whitespace-nowrap">OG: <span className="font-mono">{(pillDet.og as number).toFixed(3)}</span></span>
                             )}
                             {pillDet.fg != null && (
-                              <span>FG: <span className="font-mono">{(pillDet.fg as number).toFixed(3)}</span></span>
+                              <span className="whitespace-nowrap">FG: <span className="font-mono">{(pillDet.fg as number).toFixed(3)}</span></span>
                             )}
                             {pillDet.battery != null && (
-                              <span>🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
+                              <span className="whitespace-nowrap">🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
                             )}
                             {pillDet.status && (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-muted">{pillDet.status as string}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted whitespace-nowrap">{pillDet.status as string}</span>
                             )}
                           </div>
                         </td>
