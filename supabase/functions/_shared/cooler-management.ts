@@ -89,9 +89,13 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
 
-  log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}`, {
+  // ── Calculate cooler's own utilization (rolling 30-min avg) ──
+  const coolerUtil = await calculateSingleUtilization(ctx, coolerController)
+
+  log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}`, {
     target_temp: round1(currentCoolerTarget),
     current_temp: round1(coolerController.current_temp),
+    cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
   })
 
   // ── Find followed controllers with cooling enabled ────────
@@ -217,13 +221,70 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
 // ─── Cooling Utilization Tracking ─────────────────────────────
 // Tracks cooling_run_time between cycles to calculate what fraction
-// of the time each tank's cooling circuit was running.
+// of the time each controller's cooling circuit was running.
+
+// Calculate rolling 30-min utilization for a single controller
+async function calculateSingleUtilization(
+  ctx: CoolerContext,
+  c: TempController,
+): Promise<number | null> {
+  const { supabase } = ctx
+  const currentRunTime = c.cooling_run_time ?? 0
+  const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
+  const WINDOW_MS = 30 * 60 * 1000
+
+  const anchorRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1)
+  const anchorTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0)
+  const prevRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_run_time', -1)
+  const prevTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0)
+
+  let anchorRunTime = anchorRunTimeParam.value
+  let anchorTimestampMs = anchorTimestampParam.value
+
+  const prevSensorMs = prevTimestampParam.value
+  const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
+
+  if (isNewData) {
+    if (prevSensorMs > 0 && (sensorTimestampMs - prevSensorMs) >= WINDOW_MS) {
+      anchorRunTime = prevRunTimeParam.value
+      anchorTimestampMs = prevSensorMs
+
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
+        learned_value: anchorRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id, parameter_name: 'util_anchor_at',
+        learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+    }
+
+    await supabase.from('fermentation_learnings').upsert({
+      controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
+      learned_value: currentRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,parameter_name' })
+    await supabase.from('fermentation_learnings').upsert({
+      controller_id: c.controller_id, parameter_name: 'util_prev_at',
+      learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,parameter_name' })
+  }
+
+  if (anchorRunTime >= 0 && anchorTimestampMs > 0 && sensorTimestampMs > anchorTimestampMs) {
+    const elapsedSeconds = (sensorTimestampMs - anchorTimestampMs) / 1000
+    if (elapsedSeconds > 60) {
+      const deltaRunTime = currentRunTime - anchorRunTime
+      if (deltaRunTime >= 0) {
+        return Math.min(1.0, deltaRunTime / elapsedSeconds)
+      }
+    }
+  }
+  return null
+}
 
 async function calculateCoolingUtilizations(
   ctx: CoolerContext,
   controllersWithCooling: TempController[],
 ): Promise<CoolingUtilization[]> {
-  const { supabase } = ctx
   const results: CoolingUtilization[] = []
 
   for (const c of controllersWithCooling) {
@@ -231,63 +292,8 @@ async function calculateCoolingUtilizations(
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     const isActivelyCooling = probeTemp > targetTemp + hysteresis
-    const currentRunTime = c.cooling_run_time ?? 0
-    const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
 
-    // Rolling 30-min utilization using RAPT hardware timestamps (last_update),
-    // not wall clock. cooling_run_time only changes when RAPT sends new data.
-    const WINDOW_MS = 30 * 60 * 1000
-
-    const anchorRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1)
-    const anchorTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0)
-    const prevRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_run_time', -1)
-    const prevTimestampParam = await getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0)
-
-    let anchorRunTime = anchorRunTimeParam.value
-    let anchorTimestampMs = anchorTimestampParam.value
-
-    // Only update snapshots if we have a valid sensor timestamp and it's newer than prev
-    const prevSensorMs = prevTimestampParam.value
-    const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
-
-    if (isNewData) {
-      // Promote "prev" to "anchor" if prev is old enough (>=30min)
-      if (prevSensorMs > 0 && (sensorTimestampMs - prevSensorMs) >= WINDOW_MS) {
-        anchorRunTime = prevRunTimeParam.value
-        anchorTimestampMs = prevSensorMs
-
-        await supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
-          learned_value: anchorRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
-        }, { onConflict: 'controller_id,parameter_name' })
-        await supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_anchor_at',
-          learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
-        }, { onConflict: 'controller_id,parameter_name' })
-      }
-
-      // Save current sensor data as "prev"
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
-        learned_value: currentRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_at',
-        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
-    }
-
-    // Calculate utilization from anchor → current sensor timestamp
-    let utilization: number | null = null
-    if (anchorRunTime >= 0 && anchorTimestampMs > 0 && sensorTimestampMs > anchorTimestampMs) {
-      const elapsedSeconds = (sensorTimestampMs - anchorTimestampMs) / 1000
-      if (elapsedSeconds > 60) {
-        const deltaRunTime = currentRunTime - anchorRunTime
-        if (deltaRunTime >= 0) {
-          utilization = Math.min(1.0, deltaRunTime / elapsedSeconds)
-        }
-      }
-    }
+    const utilization = await calculateSingleUtilization(ctx, c)
 
     results.push({
       controllerId: c.controller_id,
