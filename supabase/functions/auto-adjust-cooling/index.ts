@@ -305,7 +305,7 @@ serve(async (req) => {
 
     // originalTargetMap removed — profile_target_temp is now SSOT for all controllers
 
-    // Log followed controller data
+    // Log sync data per controller (post-sync state from DB)
     for (const controller of followedControllersFullData) {
       const pillTemp = round1(controller.pill_temp);
       const currentTemp = round1(controller.current_temp ?? controller.pill_temp) ?? 0;
@@ -319,20 +319,24 @@ serve(async (req) => {
         : null;
       const originalTarget = profileTarget ?? controllerProfileTarget ?? targetTemp;
 
+      // Check if target_temp was preserved (differs from what RAPT hardware would have set)
+      const isPreserved = profileOwnedControllerIds.has(controller.controller_id) || (controller as any).is_glycol_cooler;
+
       const details: Record<string, unknown> = {
-        original_target: originalTarget,
         last_update: controller.last_update ? new Date(controller.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
-        pill_temp: pillTemp, ctrl_temp: currentTemp, ctrl_target_temp: targetTemp,
+        pill_temp: pillTemp, ctrl_temp: currentTemp, ctrl_target: targetTemp,
+        profile_target: originalTarget,
         cooling_enabled: controller.cooling_enabled, is_actively_cooling: isActivelyCooling,
+        preserved: isPreserved,
       };
       const profileInfo = profileStatusMap.get(controller.controller_id);
       if (profileInfo) {
-        details.profile_target = profileInfo.profileTarget;
-        if (profileInfo.activeTarget != null && profileInfo.activeTarget !== profileInfo.profileTarget) details.profile_active_target = profileInfo.activeTarget;
-        details.profile_step = profileInfo.stepIndex;
-        if (profileInfo.hasCooloff) details.profile_cooloff = true;
+        if (profileInfo.activeTarget != null && profileInfo.activeTarget !== profileInfo.profileTarget) details.ramp_target = profileInfo.activeTarget;
+        details.step_index = profileInfo.stepIndex;
+        if (profileInfo.currentStepType) details.step_type = profileInfo.currentStepType;
+        if (profileInfo.hasCooloff) details.cooloff = true;
       }
-      log('FOLLOWED_DATA', 'info', `Controller: ${controller.name}`, details);
+      log('SYNC_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
     const allAdjustments: AdjustmentResult[] = [];
@@ -391,8 +395,21 @@ serve(async (req) => {
         log('BATCH_FLUSH', 'pass', `All ${batchResults.size} update(s) sent successfully`);
       }
 
-      // Persist successful target_temp changes to DB so next cycle reads the correct value
+      // Log individual RAPT_SEND entries for each successfully sent update
       const succeeded = [...batchResults.entries()].filter(([, ok]) => ok);
+      for (const [controllerId] of succeeded) {
+        const target = updateBatch.getAppliedTarget(controllerId);
+        const controllerData = followedControllersFullData.find(c => c.controller_id === controllerId);
+        const oldTarget = controllerData ? round1(controllerData.target_temp) : null;
+        const name = controllerData?.name ?? controllerId;
+        log('RAPT_SEND', 'action', `${name}: ${oldTarget ?? '?'}°C → ${target}°C`, {
+          controller_id: controllerId,
+          old_target: oldTarget,
+          new_target: target,
+        });
+      }
+
+      // Persist successful target_temp changes to DB so next cycle reads the correct value
       if (succeeded.length > 0) {
         const dbUpdates = succeeded.map(([controllerId]) => {
           const target = updateBatch.getAppliedTarget(controllerId);

@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ParsedField { label: string; value: string; color?: string }
@@ -209,6 +209,7 @@ export function AutoCoolingDecisionLogs() {
   const [hideSystem, setHideSystem] = useState(true);
   const [hideGlykol, setHideGlykol] = useState(false);
   const [hidePid, setHidePid] = useState(false);
+  const [hideSync, setHideSync] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -322,6 +323,10 @@ export function AutoCoolingDecisionLogs() {
         <div className="flex items-center gap-2">
           <Switch id="hide-pid" checked={hidePid} onCheckedChange={setHidePid} />
           <Label htmlFor="hide-pid" className="text-xs text-muted-foreground cursor-pointer">Dölj PID</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="hide-sync" checked={hideSync} onCheckedChange={setHideSync} />
+          <Label htmlFor="hide-sync" className="text-xs text-muted-foreground cursor-pointer">Dölj synk</Label>
         </div>
       </div>
       {filteredEntries.length === 0 && (
@@ -676,38 +681,109 @@ export function AutoCoolingDecisionLogs() {
                   <span>Resultat: {log.final_result}</span>
                 </div>
                 <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {log.decisions.map((decision, index) => {
-                    const isPillComp = decision.step.startsWith('PILL_COMP');
-                    const parsed = isPillComp ? parsePillCompMessage(decision.message) : null;
-                    
+                  {/* Group SYNC_DATA entries into a compact table */}
+                  {(() => {
+                    const syncEntries = log.decisions.filter(d => d.step === 'SYNC_DATA');
+                    const raptSendEntries = log.decisions.filter(d => d.step === 'RAPT_SEND');
+                    const otherEntries = log.decisions.filter(d => d.step !== 'SYNC_DATA' && d.step !== 'RAPT_SEND');
+
                     return (
-                      <div key={index} className="flex items-start gap-2 text-[11px]">
-                        <div className="mt-0.5 flex-shrink-0">{getResultIcon(decision.result)}</div>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-mono text-muted-foreground text-[10px]">{decision.step}</span>
-                          {parsed ? (
-                            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10px] mt-0.5 pl-1">
-                              {parsed.map(({ label, value, color }, i) => (
-                                <React.Fragment key={i}>
-                                  <span className="text-muted-foreground">{label}:</span>
-                                  <span className="font-medium" style={color ? { color } : undefined}>{value}</span>
-                                </React.Fragment>
-                              ))}
+                      <>
+                        {!hideSync && syncEntries.length > 0 && (
+                          <div className="mb-2 p-2 rounded border border-border/50 bg-muted/20">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Database className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Synk-data (post-sync)</span>
                             </div>
-                          ) : (
-                            <span className="text-foreground ml-2 break-words">{decision.message}</span>
-                          )}
-                          {decision.details && Object.keys(decision.details).length > 0 && (
-                            <div className="mt-0.5 text-[10px] text-muted-foreground font-mono pl-2 border-l border-border ml-1">
-                              {Object.entries(decision.details).map(([key, value]) => (
-                                <div key={key}>{key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}</div>
-                              ))}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[10px]">
+                                <thead>
+                                  <tr className="text-muted-foreground border-b border-border/30">
+                                    <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Pill</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Ctrl</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Mål</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Profil</th>
+                                    <th className="text-center py-0.5 pl-1 font-medium">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {syncEntries.map((d, i) => {
+                                    const det = d.details || {};
+                                    const name = d.message.replace('Controller: ', '');
+                                    return (
+                                      <tr key={i} className="border-b border-border/10 last:border-0">
+                                        <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{name}</td>
+                                        <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                                        <td className="py-0.5 px-1 text-right">{r1(det.ctrl_temp as number)}</td>
+                                        <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
+                                        <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
+                                        <td className="py-0.5 pl-1 text-center">
+                                          {det.preserved ? (
+                                            <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400">bevarad</span>
+                                          ) : (
+                                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
+                        )}
+
+                        {raptSendEntries.length > 0 && (
+                          <div className="mb-2 p-2 rounded border border-orange-500/30 bg-orange-500/5">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Send className="h-3 w-3 text-orange-400" />
+                              <span className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider">Skickat till RAPT</span>
+                            </div>
+                            {raptSendEntries.map((d, i) => (
+                              <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+                                <Wrench className="h-3 w-3 text-orange-400 flex-shrink-0" />
+                                <span className="font-medium text-orange-300">{d.message}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {otherEntries.map((decision, index) => {
+                          const isPillComp = decision.step.startsWith('PILL_COMP');
+                          const parsed = isPillComp ? parsePillCompMessage(decision.message) : null;
+                          
+                          return (
+                            <div key={index} className="flex items-start gap-2 text-[11px]">
+                              <div className="mt-0.5 flex-shrink-0">{getResultIcon(decision.result)}</div>
+                              <div className="flex-1 min-w-0">
+                                <span className="font-mono text-muted-foreground text-[10px]">{decision.step}</span>
+                                {parsed ? (
+                                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10px] mt-0.5 pl-1">
+                                    {parsed.map(({ label, value, color }, i) => (
+                                      <React.Fragment key={i}>
+                                        <span className="text-muted-foreground">{label}:</span>
+                                        <span className="font-medium" style={color ? { color } : undefined}>{value}</span>
+                                      </React.Fragment>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-foreground ml-2 break-words">{decision.message}</span>
+                                )}
+                                {decision.details && Object.keys(decision.details).length > 0 && (
+                                  <div className="mt-0.5 text-[10px] text-muted-foreground font-mono pl-2 border-l border-border ml-1">
+                                    {Object.entries(decision.details).map(([key, value]) => (
+                                      <div key={key}>{key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
             </CollapsibleContent>
