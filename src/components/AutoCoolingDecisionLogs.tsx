@@ -564,6 +564,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
                 <th className="text-right py-0.5 px-1 font-medium">Delta</th>
                 <th className="text-right py-0.5 px-1 font-medium">Komp</th>
+                <th className="text-right py-0.5 px-1 font-medium">PI</th>
                 <th className="text-right py-0.5 px-1 font-medium">→ Mål</th>
                 <th className="text-right py-0.5 px-1 font-medium">Damp</th>
                 <th className="text-left py-0.5 pl-1 font-medium">Begr.</th>
@@ -576,6 +577,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const name = d.message.replace('Controller: ', '');
                 const comp = det.compensation as number;
                 const delta = det.delta as number;
+                const errCorr = det.error_correction as number;
                 const damping = det.damping as number;
                 const mode = det.mode as string;
                 const action = actionByName.get(name);
@@ -600,11 +602,16 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     }}>
                       {comp != null ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}°` : '—'}
                     </td>
+                    <td className="py-0.5 px-1 text-right" style={{
+                      color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
+                    }}>
+                      {errCorr != null && Math.abs(errCorr) > 0.01 ? `+${r1(errCorr)}°` : '—'}
+                    </td>
                     <td className="py-0.5 px-1 text-right font-medium">
                       {det.ctrl_target_pid != null ? (
                         <span className="flex items-center justify-end gap-0.5">
                           <span className="text-muted-foreground text-[9px] font-normal">
-                            ({r1(actualTargetVal)}{delta != null ? `${(-delta) >= 0 ? '+' : ''}${r1(-delta)}` : ''}{comp != null && Math.abs(comp) > 0.01 ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}` : ''})
+                            ({r1(actualTargetVal)}{comp != null && Math.abs(comp) > 0.01 ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}` : ''}{errCorr != null && Math.abs(errCorr) > 0.01 ? `+${r1(errCorr)}` : ''})
                           </span>
                           <span style={{ color: action?.noChange ? undefined : 'hsl(var(--ferment-green))' }}>
                             {r1(det.ctrl_target_pid as number)}°
