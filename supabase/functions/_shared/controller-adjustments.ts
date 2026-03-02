@@ -275,7 +275,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
     if (fc.cooling_enabled) {
-      const utilResult = await calculateSingleUtilization(supabase, fc)
+      const utilResult = await calculateSingleUtilization(supabase, fc, { skipShift: true })
       coolingUtil = utilResult.rolling
       recentUtil = utilResult.recent
     }
