@@ -593,18 +593,18 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-1 text-right" style={{
                       color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
                     }}>
-                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
+                      {delta != null ? `${(-delta) >= 0 ? '+' : ''}${r1(-delta)}°` : '—'}
                     </td>
                     <td className="py-0.5 px-1 text-right" style={{
-                      color: comp != null && Math.abs(comp) > 0.05 ? (comp < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)') : undefined
+                      color: comp != null && Math.abs(comp) > 0.05 ? (comp > 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)') : undefined
                     }}>
-                      {comp != null ? `${comp >= 0 ? '+' : ''}${r1(comp)}°` : '—'}
+                      {comp != null ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}°` : '—'}
                     </td>
                     <td className="py-0.5 px-1 text-right font-medium">
                       {det.ctrl_target_pid != null ? (
                         <span className="flex items-center justify-end gap-0.5">
                           <span className="text-muted-foreground text-[9px] font-normal">
-                            ({r1(actualTargetVal)}{delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}` : ''}{comp != null && Math.abs(comp) > 0.01 ? `${comp >= 0 ? '+' : ''}${r1(comp)}` : ''})
+                            ({r1(actualTargetVal)}{delta != null ? `${(-delta) >= 0 ? '+' : ''}${r1(-delta)}` : ''}{comp != null && Math.abs(comp) > 0.01 ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}` : ''})
                           </span>
                           <span style={{ color: action?.noChange ? undefined : 'hsl(var(--ferment-green))' }}>
                             {r1(det.ctrl_target_pid as number)}°
