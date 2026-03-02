@@ -552,7 +552,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 <th className="text-right py-0.5 px-1 font-medium">Mål</th>
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
                 <th className="text-right py-0.5 px-1 font-medium">Kyla</th>
-                <th className="text-center py-0.5 pl-1 font-medium">Status</th>
+                <th className="text-center py-0.5 px-1 font-medium">Status</th>
+                <th className="text-right py-0.5 pl-1 font-medium">RAPT</th>
               </tr>
             </thead>
             <tbody>
@@ -562,6 +563,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const pillData = brewSgByName.get(name);
                 const pillDet = pillData?.details || {};
                 const util = utilByName.get(name);
+                const lastUpdate = det.last_update as string | null;
                 return (
                   <React.Fragment key={i}>
                     <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'}`}>
@@ -598,10 +600,13 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                           <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
                         )}
                       </td>
+                      <td className="py-0.5 pl-1 text-right text-muted-foreground font-mono">
+                        {lastUpdate || '—'}
+                      </td>
                     </tr>
                     {pillData && (
                       <tr className="border-b border-border/10">
-                        <td colSpan={7} className="py-0.5 pl-6">
+                        <td colSpan={8} className="py-0.5 pl-6">
                           <div className="flex items-center gap-3 text-muted-foreground">
                             <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                               <Pill className="h-2.5 w-2.5" />
