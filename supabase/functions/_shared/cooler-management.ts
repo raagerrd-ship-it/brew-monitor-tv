@@ -232,10 +232,10 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     const isActivelyCooling = probeTemp > targetTemp + hysteresis
     const currentRunTime = c.cooling_run_time ?? 0
+    const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
 
-    // Rolling 30-min utilization:
-    // We keep two snapshots: "current" (updated every cycle) and "anchor" (the ~30min-ago reference).
-    // Each cycle we check if "current" is old enough (>=30min) to become the new anchor.
+    // Rolling 30-min utilization using RAPT hardware timestamps (last_update),
+    // not wall clock. cooling_run_time only changes when RAPT sends new data.
     const WINDOW_MS = 30 * 60 * 1000
 
     const anchorRunTimeParam = await getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1)
@@ -246,36 +246,41 @@ async function calculateCoolingUtilizations(
     let anchorRunTime = anchorRunTimeParam.value
     let anchorTimestampMs = anchorTimestampParam.value
 
-    // Promote "prev" to "anchor" if prev is old enough (>=30min)
-    if (prevTimestampParam.value > 0 && (Date.now() - prevTimestampParam.value) >= WINDOW_MS) {
-      anchorRunTime = prevRunTimeParam.value
-      anchorTimestampMs = prevTimestampParam.value
+    // Only update snapshots if we have a valid sensor timestamp and it's newer than prev
+    const prevSensorMs = prevTimestampParam.value
+    const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
-      // Save as new anchor
+    if (isNewData) {
+      // Promote "prev" to "anchor" if prev is old enough (>=30min)
+      if (prevSensorMs > 0 && (sensorTimestampMs - prevSensorMs) >= WINDOW_MS) {
+        anchorRunTime = prevRunTimeParam.value
+        anchorTimestampMs = prevSensorMs
+
+        await supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
+          learned_value: anchorRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
+        }, { onConflict: 'controller_id,parameter_name' })
+        await supabase.from('fermentation_learnings').upsert({
+          controller_id: c.controller_id, parameter_name: 'util_anchor_at',
+          learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
+        }, { onConflict: 'controller_id,parameter_name' })
+      }
+
+      // Save current sensor data as "prev"
       await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
-        learned_value: anchorRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
+        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
+        learned_value: currentRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
       }, { onConflict: 'controller_id,parameter_name' })
       await supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_anchor_at',
-        learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
+        controller_id: c.controller_id, parameter_name: 'util_prev_at',
+        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: new Date().toISOString(),
       }, { onConflict: 'controller_id,parameter_name' })
     }
 
-    // Always save current as "prev" (will become anchor in ~30min)
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
-      learned_value: currentRunTime, sample_count: 1, last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id, parameter_name: 'util_prev_at',
-      learned_value: Date.now(), sample_count: 1, last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
-
-    // Calculate utilization from anchor → now
+    // Calculate utilization from anchor → current sensor timestamp
     let utilization: number | null = null
-    if (anchorRunTime >= 0 && anchorTimestampMs > 0) {
-      const elapsedSeconds = (Date.now() - anchorTimestampMs) / 1000
+    if (anchorRunTime >= 0 && anchorTimestampMs > 0 && sensorTimestampMs > anchorTimestampMs) {
+      const elapsedSeconds = (sensorTimestampMs - anchorTimestampMs) / 1000
       if (elapsedSeconds > 60) {
         const deltaRunTime = currentRunTime - anchorRunTime
         if (deltaRunTime >= 0) {
