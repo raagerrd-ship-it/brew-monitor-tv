@@ -539,7 +539,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         const actionableStall = stallEntries.filter(d =>
           d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
           d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
-          d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR'
+          d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR' ||
+          d.step === 'STALL_SKIP'
         );
         if (actionableStall.length === 0) return null;
         return (
@@ -548,6 +549,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
               const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
               const isError = d.step === 'STALL_ERROR';
               const isAnalysis = d.step === 'STALL_ANALYSIS';
+              const isSkip = d.step === 'STALL_SKIP';
               const stallDetected = isAnalysis && d.result === 'action';
               return (
                 <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
@@ -555,10 +557,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
                      isError ? <XCircle className="h-3 w-3 text-red-400" /> :
                      stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
+                     isSkip ? <Info className="h-3 w-3 text-muted-foreground" /> :
                      <CheckCircle2 className="h-3 w-3 text-green-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className={`font-medium ${isError ? 'text-red-400' : ''}`}>{d.message}</span>
+                    <span className={`font-medium ${isError ? 'text-red-400' : isSkip ? 'text-muted-foreground' : ''}`}>{d.message}</span>
                     {isAnalysis && d.details && (
                       <span className="text-muted-foreground ml-2">
                         SG: {r1(d.details.sg_rate_per_day as number)}/dag
