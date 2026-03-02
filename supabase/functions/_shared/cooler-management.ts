@@ -562,7 +562,7 @@ async function learnFromCurrentState(
   } else if (!atTarget) {
     const biggerMargin = currentMargin * 1.15
     const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, biggerMargin, 2.0, 15.0)
-    log('MARGIN_LEARN', 'action', `[${tempBucket}] Not reaching target — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   }
 
   if (actualRate !== null) {
