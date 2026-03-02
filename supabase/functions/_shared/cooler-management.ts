@@ -93,6 +93,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   log('EFFECTIVE_TARGET', 'info', `Lowest effective target: ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`, {
     controller: effectiveTarget.controllerName,
+    temp: effectiveTarget.temp,
   })
 
   // ── Get learned margin for this temperature zone ──────────
