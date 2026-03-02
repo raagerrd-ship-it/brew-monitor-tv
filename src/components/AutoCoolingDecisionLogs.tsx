@@ -391,66 +391,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 2. PID-reglering (always-on core loop status) */}
-      {!hidePid && pidStatusEntries.length > 0 && (
-        <PipelineSection
-          icon={<Gauge className="h-3 w-3" />}
-          title="PID-reglering"
-          color="hsl(220 70% 55%)"
-          borderColor="hsl(220 70% 55% / 0.3)"
-          bgColor="hsl(220 70% 55% / 0.05)"
-        >
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border/30">
-                <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
-                <th className="text-right py-0.5 px-1 font-medium">Pill</th>
-                <th className="text-right py-0.5 px-1 font-medium">Probe</th>
-                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Delta</th>
-                <th className="text-right py-0.5 px-1 font-medium">Damp</th>
-                <th className="text-left py-0.5 pl-1 font-medium">Läge</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pidStatusEntries.map((d, i) => {
-                const det = d.details || {};
-                const name = d.message.replace('Controller: ', '');
-                const delta = det.delta as number;
-                const damping = det.damping as number;
-                const mode = det.mode as string;
-                return (
-                  <tr key={i} className="border-b border-border/10 last:border-0">
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
-                    <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right">{r1(det.probe_temp as number)}</td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
-                    }}>
-                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
-                    </td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: damping != null && damping < 1.0 ? 'hsl(210 80% 60%)' : undefined
-                    }}>
-                      {damping != null ? r1(damping) : '—'}
-                    </td>
-                    <td className="py-0.5 pl-1">
-                      {mode ? (
-                        <span className={`text-[9px] px-1 py-0.5 rounded ${mode === 'cooling' ? 'bg-sky-500/15 text-sky-400' : 'bg-orange-500/15 text-orange-400'}`}>
-                          {mode === 'cooling' ? '❄️' : '🔥'}
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </PipelineSection>
-      )}
-
-      {/* 3. Pill-kompensation (compensation actions) */}
+      {/* 2. Pill-kompensation */}
       {!hidePid && pidStatusEntries.length > 0 && (
         <PipelineSection
           icon={<Pill className="h-3 w-3" />}
@@ -476,7 +417,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const comp = det.compensation as number;
                 const action = actionByName.get(name);
                 const compensatedTarget = det.compensated_target as number;
-                
                 return (
                   <tr key={i} className="border-b border-border/10 last:border-0">
                     <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
@@ -561,10 +501,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
       {coolerEntries.length > 0 && (
         <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
           {coolerEntries.map((d, i) => {
-            // Show key entries with structured info, skip noise
             const isStatus = d.step === 'COOLER_STATUS' && d.details;
             const isOk = d.step === 'COOLER_OK';
-            const isMargin = d.step === 'MARGIN_CALC';
             const isAction = d.result === 'action';
 
             if (isStatus && d.details) {
@@ -594,7 +532,66 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 6. RAPT_SEND */}
+      {/* 6. PID-reglering (always-on, final step before hardware) */}
+      {!hidePid && pidStatusEntries.length > 0 && (
+        <PipelineSection
+          icon={<Gauge className="h-3 w-3" />}
+          title="PID-reglering"
+          color="hsl(220 70% 55%)"
+          borderColor="hsl(220 70% 55% / 0.3)"
+          bgColor="hsl(220 70% 55% / 0.05)"
+        >
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border/30">
+                <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
+                <th className="text-right py-0.5 px-1 font-medium">Pill</th>
+                <th className="text-right py-0.5 px-1 font-medium">Probe</th>
+                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
+                <th className="text-right py-0.5 px-1 font-medium">Delta</th>
+                <th className="text-right py-0.5 px-1 font-medium">Damp</th>
+                <th className="text-left py-0.5 pl-1 font-medium">Läge</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pidStatusEntries.map((d, i) => {
+                const det = d.details || {};
+                const name = d.message.replace('Controller: ', '');
+                const delta = det.delta as number;
+                const damping = det.damping as number;
+                const mode = det.mode as string;
+                return (
+                  <tr key={i} className="border-b border-border/10 last:border-0">
+                    <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
+                    <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                    <td className="py-0.5 px-1 text-right">{r1(det.probe_temp as number)}</td>
+                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
+                    <td className="py-0.5 px-1 text-right" style={{
+                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
+                    }}>
+                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
+                    </td>
+                    <td className="py-0.5 px-1 text-right" style={{
+                      color: damping != null && damping < 1.0 ? 'hsl(210 80% 60%)' : undefined
+                    }}>
+                      {damping != null ? r1(damping) : '—'}
+                    </td>
+                    <td className="py-0.5 pl-1">
+                      {mode ? (
+                        <span className={`text-[9px] px-1 py-0.5 rounded ${mode === 'cooling' ? 'bg-sky-500/15 text-sky-400' : 'bg-orange-500/15 text-orange-400'}`}>
+                          {mode === 'cooling' ? '❄️' : '🔥'}
+                        </span>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </PipelineSection>
+      )}
+
+      {/* 7. RAPT_SEND */}
       {raptSendEntries.length > 0 && (
         <PipelineSection icon={<Send className="h-3 w-3" />} title="Skickat till RAPT" color="hsl(25 95% 53%)" borderColor="hsl(25 95% 53% / 0.3)" bgColor="hsl(25 95% 53% / 0.05)">
           {raptSendEntries.map((d, i) => (
