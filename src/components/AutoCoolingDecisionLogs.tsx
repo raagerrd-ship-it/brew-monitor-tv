@@ -665,7 +665,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     d.step === 'EFFECTIVE_TARGET' || d.step === 'MARGIN_CALC' ||
     d.step === 'RATE_LIMIT' || d.step === 'DEMAND_GUARD' ||
     d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
-    d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN'
+    d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN' ||
+    d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN'
   );
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
