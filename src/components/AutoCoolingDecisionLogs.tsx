@@ -1029,11 +1029,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
                       {errCorr != null ? (
-                        Math.abs(errCorr) > 0.01 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-current/30">{errCorr >= 0 ? '+' : ''}{r1(errCorr)}°</span>
+                              <span className={`cursor-help border-b border-dotted border-current/30 ${Math.abs(errCorr) <= 0.01 ? 'text-muted-foreground/40' : ''}`}>
+                                {Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '0'}
+                              </span>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
                               <div className="space-y-0.5">
@@ -1047,7 +1048,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        ) : <span className="text-muted-foreground/40">0</span>
                       ) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     {/* = */}
