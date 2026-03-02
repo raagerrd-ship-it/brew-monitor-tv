@@ -564,13 +564,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 <th className="text-right py-0.5 px-1 font-medium">Är</th>
                 <th className="text-right py-0.5 px-1 font-medium">Δ</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
-                {/* Calculation columns: Profil − Komp + PI = Rå → Nytt mål */}
+                {/* Calculation columns: Profil − Komp + PI = Nytt mål */}
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
                 <th className="text-right py-0.5 px-1 font-medium">− Komp</th>
                 <th className="text-right py-0.5 px-1 font-medium">+ PI</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
-                <th className="text-right py-0.5 px-1 font-medium text-muted-foreground/60">Rå</th>
-                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">→</th>
                 <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
                 <th className="text-left py-0.5 pl-1 font-medium">Begr.</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
@@ -645,18 +643,10 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-1 text-right" style={{
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
-                      {errCorr != null && Math.abs(errCorr) > 0.01 ? `+${r1(errCorr)}°` : '—'}
+                      {errCorr != null && Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '—'}
                     </td>
                     {/* = */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
-                    {/* Rå (raw formula result) */}
-                    <td className="py-0.5 px-1 text-right text-muted-foreground/60 font-mono">
-                      {rawValue != null ? `${r1(rawValue)}°` : '—'}
-                    </td>
-                    {/* → */}
-                    <td className="py-0.5 px-0 text-center text-muted-foreground/25">
-                      {rawValue != null && ctrlTargetPid != null && Math.abs(rawValue - ctrlTargetPid) > 0.05 ? '→' : ''}
-                    </td>
                     {/* Nytt mål (constrained) */}
                     <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
                       {ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : rawValue != null ? `${r1(rawValue)}°` : '—'}
