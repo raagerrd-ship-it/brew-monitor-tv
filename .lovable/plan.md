@@ -2,47 +2,65 @@
 
 ## Analys
 
-Användaren har helt rätt. Flödet idag:
+Användaren har rätt — det enklaste är att beräkna `actual_temp` **innan** PID anropas, inte som ett separat pipeline-steg. Logiken:
 
-1. `sync-rapt-data-quick` hämtar all pill-telemetri (SG, temp) från RAPT API och skriver till `brew_readings`
-2. `run-automation` → `auto-adjust-cooling` gör sedan en **egen DB-query** mot `brew_readings` + `brew_fermentation_metrics` bara för att logga `BREW_SG_STATUS`
+- **Dubbla temperaturgivare PÅ** + pill finns: `actual_temp = avg(pill, probe)`
+- **Dubbla temperaturgivare AV** (eller ingen pill): `actual_temp = probe` (= `current_temp`)
 
-Detta skapar en onödig extra synkkanal — automations-funktionen borde få SG-data skickad till sig från orkestratorn, precis som `rapt_access_token` redan gör.
+I båda fallen får PID exakt samma interface: `actual_temp` och `ctrl_temp` (probe). PID kan sedan räkna `avgDelta = actual_temp - ctrl_temp` internt. När dubbla givare är av blir `avgDelta = 0` automatiskt — PID fungerar fortfarande men gör ingen delta-kompensation.
+
+### Vad detta förenklar
+
+Idag hämtar `calculateCompensatedTarget` sin egen `temp_delta_history` (8 rader) för att beräkna `avgDelta` och `actual_temp` internt. Med den nya modellen:
+
+1. `controller-adjustments.ts` beräknar `actual_temp` per controller före PID-anropet
+2. `calculateCompensatedTarget` tar emot `actualTemp` och `probeTemp` som parametrar
+3. `avgDelta = actualTemp - probeTemp` — beräknas i PID, men värdet kommer direkt från indata
+4. `temp_delta_history`-queryn i PID **behålls** — den används för EMA-utjämning av delta och D-termens rate-beräkning (pillRate, probeRate), inte bara för att räkna ut nuvarande delta
+
+### Ingen ny pipeline-sektion behövs
+
+"Dubbla temperaturgivare" är inte ett eget steg — det är en **pre-beräkning** som sker i `runPidControl` (renamed from `runPillCompensation`). I loggen visas `actual_temp` redan som `avg_temp` i `PILL_COMP_STATUS`.
 
 ## Plan
 
-### 1. Skicka brew-data från orkestratorn till automation
+### 1. `controller-adjustments.ts`
 
-**`sync-rapt-data-quick/index.ts`**: Samla ihop en `brew_sg_map` (controller_id → { name, current_sg, og, fg, attenuation, temp, battery, status, last_update }) från den data som redan processats under synken. Skicka med i `run-automation` body.
+- Byt namn `runPillCompensation` → `runPidControl`
+- Före PID-loopen: beräkna `actual_temp` per controller:
+  ```
+  const hasDualSensors = pillCompSettings.enabled && fc.pill_temp != null
+  const actualTemp = hasDualSensors 
+    ? (fc.pill_temp + fc.current_temp) / 2 
+    : (fc.current_temp ?? fc.pill_temp ?? targetTemp)
+  ```
+- Skicka `actualTemp` och `fc.current_temp` (probeTemp) till `calculateCompensatedTarget`
+- PID-mode bestäms av `actualTemp < baseTarget` (inte `pill_temp`)
+- **PID körs alltid** — ta bort `if (!pillCompSettings.enabled) return`. Toggeln styr bara om medelvärde beräknas eller ej.
+- Pass-through: ta bort `if (pillCompSettings.enabled && fc.pill_temp != null) continue` — PID hanterar alla controllers nu
 
-**`run-automation/index.ts`**: Vidarebefordra `brew_sg_data` till `auto-adjust-cooling`-anropet.
+### 2. `pid-compensation.ts`
 
-### 2. Konsumera passad data i auto-adjust-cooling
+- `calculateCompensatedTarget` ny signatur: lägg till `actualTemp: number, probeTemp: number`
+- `avgDelta` beräknas som `actualTemp - probeTemp` (direkt, utan delta-history)
+- `temp_delta_history`-queryn behålls men används enbart för D-termen (rate-beräkning, EMA)
+- Om `avgDelta ≈ 0` (inga dubbla givare), hoppa över delta-kompensation men kör PI-loop ändå
 
-**`auto-adjust-cooling/index.ts`**: Ta emot `brew_sg_data` från request body. Om den finns, använd den direkt istället för att göra egna DB-queries mot `brew_readings`. Behåll fallback-queryn om data saknas (för manuella anrop / debugging).
+### 3. UI — `AutoCoolingDecisionLogs.tsx`
 
-Fermentation metrics (`brew_fermentation_metrics`) hämtas dock separat eftersom de beräknas av `compute-fermentation-metrics` som körs som en del av automationen — de finns inte tillgängliga i synk-fasen. Alternativet är att flytta metrics-queryn till en fallback eller att inkludera metrics i det som skickas om de redan beräknats vid det laget.
+- Byt sektionsnamn "Pill-kompensation" → "PID-reglering"
+- Visa `actual_temp` (medel eller probe beroende på toggle) som "Är-temp" i tabellen
+- Slå ihop nuvarande PID-sektion med kompensationssektionen (de delar redan `PILL_COMP_STATUS`)
 
-### 3. Behåll metrics-query som DB-lookup
+### 4. Settings-toggle
 
-Eftersom `compute-fermentation-metrics` körs i `run-automation` **före** `auto-adjust-cooling`, har metrics redan uppdaterats i DB:n. Det enklaste är att behålla den lilla DB-queryn mot `brew_fermentation_metrics` (den är billig) men eliminera den tunga `brew_readings`-queryn.
-
-### Sammanfattning av dataflöde efter ändringen
-
-```text
-RAPT API → sync-rapt-data-quick (hämtar & skriver brew_readings)
-                ↓ brew_sg_data (passas via body)
-          run-automation
-                ↓ brew_sg_data (vidarebefordras)
-          auto-adjust-cooling
-                ├── brew_sg_data (från body, ingen extra DB-query)
-                ├── brew_fermentation_metrics (DB, redan uppdaterad)
-                └── BREW_SG_STATUS logg-entry
-```
+- Byt etikett "Pill-kompensation" → "Dubbla temperaturgivare"
+- Tooltip: "Använd medelvärde av Pill och Probe som är-temperatur. Avaktivera om du bara har en givare."
 
 ### Filer som ändras
 
-- `supabase/functions/sync-rapt-data-quick/index.ts` — samla och skicka brew-data
-- `supabase/functions/run-automation/index.ts` — vidarebefordra brew_sg_data
-- `supabase/functions/auto-adjust-cooling/index.ts` — konsumera passad data, fallback till DB
+- `supabase/functions/_shared/controller-adjustments.ts` — pre-beräkning av actual_temp, rename, PID alltid aktiv
+- `supabase/functions/_shared/pid-compensation.ts` — ta emot actualTemp/probeTemp, avgDelta från indata
+- `src/components/AutoCoolingDecisionLogs.tsx` — slå ihop sektioner, rename
+- Settings-komponent — toggle-etikett
 
