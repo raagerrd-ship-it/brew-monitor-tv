@@ -375,7 +375,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 justify-self-end" />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-3">
+        <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-3 overflow-x-auto">
           {/* Meta header */}
           {log.decision_count > 0 && (
             <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border">
@@ -742,17 +742,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
       {/* 1. SYNC_DATA (merged with pill/brew data) */}
       {!hideSync && syncEntries.length > 0 && (
         <PipelineSection icon={<Database className="h-3 w-3" />} title="Synk-data" color="muted-foreground">
-          <table className="w-full text-[10px]">
+          <div className="overflow-x-auto -mx-2 px-2">
+          <table className="w-full text-[10px] min-w-[520px]">
             <thead>
-              <tr className="text-muted-foreground border-b border-border/30">
-                <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
-                <th className="text-right py-0.5 px-1 font-medium">Pill</th>
-                <th className="text-right py-0.5 px-1 font-medium">Ctrl</th>
-                <th className="text-right py-0.5 px-1 font-medium">Mål</th>
-                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Kyla</th>
-                <th className="text-center py-0.5 px-1 font-medium">Status</th>
-                <th className="text-right py-0.5 pl-1 font-medium">RAPT</th>
+              <tr className="text-muted-foreground/80 border-b border-border/40 bg-muted/30">
+                <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Pill</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
+                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
+                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
               </tr>
             </thead>
             <tbody>
@@ -765,13 +766,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const lastUpdate = det.last_update as string | null;
                 return (
                   <React.Fragment key={i}>
-                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'}`}>
-                      <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{name}</td>
-                      <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
-                      <td className="py-0.5 px-1 text-right">{r1(det.ctrl_temp as number)}</td>
-                      <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
-                      <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
-                      <td className="py-0.5 px-1 text-right">
+                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
+                      <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">{name}</td>
+                      <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_temp as number)}</td>
+                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
+                      <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
+                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {util ? (() => {
                           const utilTip = buildUtilTooltip({
                             lastUpdate: util.lastUpdate,
@@ -804,24 +805,24 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           </Tooltip>
                         )}
                       </td>
-                      <td className="py-0.5 pl-1 text-center">
+                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {det.preserved ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
                           </Tooltip>
                         ) : (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
                           </Tooltip>
                         )}
                       </td>
-                      <td className="py-0.5 pl-1 text-right text-muted-foreground font-mono">
+                      <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
                         {lastUpdate || '—'}
                       </td>
                     </tr>
@@ -857,6 +858,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
               })}
             </tbody>
           </table>
+          </div>
         </PipelineSection>
       )}
 
@@ -869,23 +871,24 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
           borderColor="hsl(220 70% 55% / 0.3)"
           bgColor="hsl(220 70% 55% / 0.05)"
         >
-          <table className="w-full text-[10px]">
+          <div className="overflow-x-auto -mx-2 px-2">
+          <table className="w-full text-[10px] min-w-[520px]">
             <thead>
-              <tr className="text-muted-foreground border-b border-border/30">
+              <tr className="text-muted-foreground/80 border-b border-border/40 bg-[hsl(220_70%_55%/0.08)]">
                 {/* Info columns */}
-                <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
-                <th className="text-right py-0.5 px-1 font-medium">Är</th>
-                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
+                <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
+                <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
                 {/* Calculation columns: Profil − Δ + PI = Nytt mål */}
-                <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Δ</th>
-                <th className="text-right py-0.5 px-1 font-medium">PI</th>
-                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
-                <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
-                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Δ</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">PI</th>
+                <th className="text-center py-1 px-0 font-medium text-muted-foreground/30">=</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
+                <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
                 {/* Result columns */}
-                <th className="text-right py-0.5 px-1 font-medium">Ctrl mål</th>
-                <th className="text-right py-0.5 px-1 font-medium">Diff</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl mål</th>
+                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Diff</th>
               </tr>
             </thead>
             <tbody>
@@ -922,9 +925,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
 
                 return (
                   <React.Fragment key={i}>
-                  <tr className="border-b border-border/10">
+                  <tr className={`border-b border-border/10 ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
                     {/* Info: Controller + Begränsningar */}
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[120px]">
+                    <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         {name}
                         {mode && (
@@ -997,18 +1000,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       })()}
                     </td>
                     {/* Info: Är-temp */}
-                    <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
+                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
                       {r1(actualTempVal)}°
                       {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
                     </td>
                     {/* Separator */}
-                    <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
+                    <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
                     {/* Calc: Profil (actual_target) */}
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>
+                    <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>
                       {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
                     </td>
                     {/* Calc: Δ (delta/2 = compensation) */}
-                    <td className="py-0.5 px-1 text-right" style={{
+                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
                       color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
                       {comp != null ? (
@@ -1031,7 +1034,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       ) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     {/* Calc: + PI (with tooltip) */}
-                    <td className="py-0.5 px-1 text-right" style={{
+                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
                       {errCorr != null ? (
@@ -1057,9 +1060,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       ) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     {/* = */}
-                    <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
+                    <td className="py-1 px-0 text-center text-muted-foreground/25">=</td>
                     {/* Nytt mål (PID result sent to hardware) */}
-                    <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
+                    <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
                       {ctrlTargetPid != null ? (
                         rawValue != null && Math.abs(rawValue - ctrlTargetPid) >= 0.05 ? (
                           <TooltipProvider delayDuration={200}>
@@ -1077,13 +1080,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       ) : rawValue != null ? `${r1(rawValue)}°` : '—'}
                     </td>
                     {/* Separator */}
-                    <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
+                    <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
                     {/* Ctrl mål (before) */}
-                    <td className="py-0.5 px-1 text-right text-muted-foreground/50">
+                    <td className="py-1 px-1.5 text-right text-muted-foreground/50 whitespace-nowrap">
                       {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
                     </td>
                     {/* Diff */}
-                    <td className="py-0.5 px-1 text-right font-medium" style={{
+                    <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{
                       color: diff != null && Math.abs(diff) > 0.05
                         ? (diff < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)')
                         : undefined
@@ -1096,6 +1099,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
               })}
             </tbody>
           </table>
+          </div>
         </PipelineSection>
       )}
 
