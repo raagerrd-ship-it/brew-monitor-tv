@@ -257,11 +257,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   )
   if (allTanksZeroUtil && !previousWasKick) {
     const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
-    const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst + 2) * 10) / 10)
+    const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst) * 10) / 10)
     if (currentCoolerTarget < idleTarget - 0.1) {
-      log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C, temp ${round1(coolerTemp)}° + 2°)`)
+      log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
       await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
-        `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (temp+2°, stänger av)`,
+        `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (stänger av)`,
         adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
       return adjustments
     } else {
