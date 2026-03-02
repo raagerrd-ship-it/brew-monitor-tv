@@ -466,26 +466,35 @@ async function learnFromCurrentState(
   }
 
   // ── Utilization-based learning (hold steps) ──
-  // This is the primary learning signal: how hard is the cooling circuit working?
+  // Primary learning signal: how hard is the cooling circuit working?
+  // Philosophy: only increase margin at 100% utilization (tank can't keep up).
+  // Otherwise tighten aggressively to keep cooler temp as high as possible
+  // (minimizes condensation risk on glycol lines).
   const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
   if (lowestUtil?.utilization != null) {
     const util = lowestUtil.utilization
 
     log('UTIL_LEARN', 'info', `[${tempBucket}] Cooling utilization: ${Math.round(util * 100)}% (margin ${currentMargin.toFixed(1)}°C)`)
 
-    if (util > 0.85 && currentMargin > 1.0) {
-      // Cooling circuit running almost constantly — need more margin
-      const scaledMargin = currentMargin * 1.10  // 10% increase
+    if (util >= 0.99 && currentMargin > 1.0) {
+      // Cooling circuit running 100% — tank genuinely can't keep up, need more margin
+      const scaledMargin = currentMargin * 1.08  // conservative 8% increase
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] High utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
-    } else if (util < 0.4 && currentMargin > 2.5) {
-      // Cooling circuit idle most of the time — try tightening
-      const tighterMargin = currentMargin * 0.95  // 5% decrease
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    } else if (util < 0.7 && currentMargin > 2.0) {
+      // Under 70% — actively tighten to reduce condensation risk
+      const tighterMargin = currentMargin * 0.93  // 7% decrease (more aggressive)
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
-    } else if (util >= 0.4 && util <= 0.85) {
-      // Sweet spot — margin is well-tuned
-      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is well-tuned`)
+    } else if (util >= 0.7 && util < 0.99) {
+      // 70–99%: good zone, but still try to nudge tighter slowly
+      if (currentMargin > 2.5) {
+        const nudge = currentMargin * 0.98  // gentle 2% decrease
+        const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — nudging tighter: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+      } else {
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal`)
+      }
     }
 
     // Also learn max effective during hold if we have rate data
