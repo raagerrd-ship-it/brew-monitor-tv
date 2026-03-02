@@ -467,16 +467,28 @@ export async function calculateCompensatedTarget(
       if (distanceFromIdeal <= bypassLimit) {
         console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → actual_target ${actualTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
       } else {
-        ctrlTargetPid = ctrlTarget + (isIncreasing ? bypassLimit : -bypassLimit)
-        constraints.push('approach-release')
-        console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot actual_target ${actualTarget}°C (approach zone fast-release)`)
+        const rateLimited = ctrlTarget + (isIncreasing ? bypassLimit : -bypassLimit)
+        // If rate-limited result is within 0.2°C of raw, use raw — not worth waiting a cycle for <0.2°C
+        if (Math.abs(rateLimited - ctrlTargetPid) < 0.2) {
+          console.log(`✅ Rate-limit close-enough: ${rateLimited.toFixed(2)}° ≈ ${ctrlTargetPid.toFixed(2)}° (diff=${Math.abs(rateLimited - ctrlTargetPid).toFixed(2)}°), använder rått värde`)
+        } else {
+          ctrlTargetPid = rateLimited
+          constraints.push('approach-release')
+          console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot actual_target ${actualTarget}°C (approach zone fast-release)`)
+        }
       }
     } else if (distanceFromIdeal > baseLimit) {
       // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
-      ctrlTargetPid = ctrlTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
-      constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
-      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
+      const rateLimited = ctrlTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
+      // If rate-limited result is within 0.2°C of raw, use raw
+      if (Math.abs(rateLimited - ctrlTargetPid) < 0.2) {
+        console.log(`✅ Rate-limit close-enough: ${rateLimited.toFixed(2)}° ≈ ${ctrlTargetPid.toFixed(2)}° (diff=${Math.abs(rateLimited - ctrlTargetPid).toFixed(2)}°), använder rått värde`)
+      } else {
+        ctrlTargetPid = rateLimited
+        constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
+        console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
+      }
     }
     
     // Safety clamp: never set target above probe during cooling (would start heater)
