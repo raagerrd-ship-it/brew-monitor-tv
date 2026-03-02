@@ -398,12 +398,24 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
         <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
           {utilEntries.map((u, i) => {
             const isActive = u.message.includes('❄️');
+            const name = u.message.split(':')[0].trim();
+            const utilMatch = u.message.match(/util=(\d+)%/);
+            const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
+            const probeMatch = u.message.match(/probe ([\d.]+)°/);
+            const targetMatch = u.message.match(/mål ([\d.]+)°/);
             return (
               <span key={i} className="flex items-center gap-1">
                 <span>{isActive ? '❄️' : '⏸️'}</span>
-                <span>{u.message.split(':')[0].replace(/^.*?(\S+)$/, '$1')}</span>
-                {u.message.match(/util=(\d+)%/) && (
-                  <span className="font-mono">{u.message.match(/util=(\d+)%/)?.[0]}</span>
+                <span>{name}</span>
+                {probeMatch && targetMatch && (
+                  <span className="font-mono text-[9px]">({probeMatch[1]}→{targetMatch[1]}°)</span>
+                )}
+                {utilPct != null ? (
+                  <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    {utilPct}%
+                  </span>
+                ) : (
+                  <span className="font-mono text-muted-foreground/50">—</span>
                 )}
               </span>
             );
