@@ -638,10 +638,41 @@ serve(async (req) => {
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
     // Automation uses cached DB data, so it can run even without fresh RAPT data
     console.log('All data synced — running automation...');
+
+    // Build brew_sg_data map from already-synced brew data (avoids redundant DB queries in automation)
+    const brew_sg_data: Record<string, any> = {};
+    {
+      // Collect from brew_readings for all visible brews (Brewfather + custom)
+      const { data: allBrews } = await supabase
+        .from('brew_readings')
+        .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, status, last_update, linked_controller_id')
+        .in('status', ['Jäsning', 'Fermenting']);
+
+      if (allBrews) {
+        for (const brew of allBrews) {
+          if (brew.linked_controller_id) {
+            brew_sg_data[brew.linked_controller_id] = {
+              brew_id: brew.id,
+              name: brew.name,
+              current_sg: brew.current_sg,
+              og: brew.original_gravity,
+              fg: brew.final_gravity,
+              attenuation: brew.attenuation,
+              pill_temp: brew.current_temp,
+              battery: brew.battery,
+              status: brew.status,
+              last_update: brew.last_update,
+            };
+          }
+        }
+      }
+      console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
+    }
+
     let automationResult = null;
     try {
       const autoResponse = await supabase.functions.invoke('run-automation', {
-        body: { rapt_access_token: access_token }
+        body: { rapt_access_token: access_token, brew_sg_data }
       });
       if (autoResponse.error) console.error('Automation error:', autoResponse.error);
       else automationResult = autoResponse.data;
