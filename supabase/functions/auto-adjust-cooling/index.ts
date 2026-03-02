@@ -340,7 +340,10 @@ serve(async (req) => {
     }
 
     // ── Log Brew/SG data per controller ──────────────────────────
+    // Use brew_sg_data passed from orchestrator if available (eliminates DB query)
     {
+      const passedBrewSgData: Record<string, any> | null = reqBody?.brew_sg_data || null;
+
       // Collect all brew IDs linked to followed controllers
       const controllerBrewIds = new Map<string, string>();
       for (const controller of followedControllersFullData) {
@@ -348,34 +351,59 @@ serve(async (req) => {
         if (brewId) controllerBrewIds.set(controller.controller_id, brewId);
       }
 
-      if (controllerBrewIds.size > 0) {
-        const brewIds = [...new Set(controllerBrewIds.values())];
-        const [{ data: brews }, { data: metrics }] = await Promise.all([
-          supabase.from('brew_readings')
-            .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, last_update, status')
-            .in('id', brewIds),
-          supabase.from('brew_fermentation_metrics')
-            .select('brew_id, sg_rate_per_hour, fermentation_phase, activity_score, eta_to_fg_hours, ready_to_crash')
-            .in('brew_id', brewIds),
-        ]);
+      // Determine which controllers have brew data (from passed data or session linkage)
+      const controllersWithBrewData = new Set<string>();
+      if (passedBrewSgData) {
+        for (const cId of Object.keys(passedBrewSgData)) {
+          controllersWithBrewData.add(cId);
+        }
+      }
+      for (const cId of controllerBrewIds.keys()) {
+        controllersWithBrewData.add(cId);
+      }
 
-        const brewMap = new Map((brews || []).map(b => [b.id, b]));
+      if (controllersWithBrewData.size > 0) {
+        // Fetch metrics from DB (computed by compute-fermentation-metrics which runs before us)
+        const brewIds = [...new Set([
+          ...controllerBrewIds.values(),
+          ...(passedBrewSgData ? Object.values(passedBrewSgData).map((b: any) => b.brew_id).filter(Boolean) : []),
+        ])];
+
+        // Only fetch brew_readings from DB if we don't have passed data (fallback for manual invocations)
+        let brewMap = new Map<string, any>();
+        if (!passedBrewSgData) {
+          const { data: brews } = await supabase.from('brew_readings')
+            .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, last_update, status')
+            .in('id', brewIds);
+          brewMap = new Map((brews || []).map(b => [b.id, b]));
+          log('BREW_SG_STATUS', 'info', 'Using DB fallback for brew data (no orchestrator data passed)');
+        } else {
+          log('BREW_SG_STATUS', 'info', `Using orchestrator-passed brew data for ${Object.keys(passedBrewSgData).length} controller(s)`);
+        }
+
+        const { data: metrics } = await supabase.from('brew_fermentation_metrics')
+          .select('brew_id, sg_rate_per_hour, fermentation_phase, activity_score, eta_to_fg_hours, ready_to_crash')
+          .in('brew_id', brewIds);
         const metricsMap = new Map((metrics || []).map(m => [m.brew_id, m]));
 
         for (const controller of followedControllersFullData) {
-          const brewId = controllerBrewIds.get(controller.controller_id);
-          if (!brewId) continue;
-          const brew = brewMap.get(brewId);
+          // Try passed data first, then DB fallback
+          const passed = passedBrewSgData?.[controller.controller_id];
+          const brewId = passed?.brew_id || controllerBrewIds.get(controller.controller_id);
+          if (!brewId && !passed) continue;
+
+          const brew = passed || brewMap.get(brewId);
           if (!brew) continue;
-          const m = metricsMap.get(brewId);
+
+          const m = metricsMap.get(brewId || passed?.brew_id);
 
           log('BREW_SG_STATUS', 'info', `Controller: ${controller.name}`, {
-            brew_name: brew.name,
+            brew_name: brew.name ?? brew.brew_name,
             current_sg: brew.current_sg,
-            og: brew.original_gravity,
-            fg: brew.final_gravity,
+            og: brew.og ?? brew.original_gravity,
+            fg: brew.fg ?? brew.final_gravity,
             attenuation: brew.attenuation,
-            pill_temp: brew.current_temp,
+            pill_temp: brew.pill_temp ?? brew.current_temp,
             battery: brew.battery,
             status: brew.status,
             last_update: brew.last_update ? new Date(brew.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' }) : null,
