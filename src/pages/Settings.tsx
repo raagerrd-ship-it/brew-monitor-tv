@@ -8,6 +8,7 @@ import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { AiAuditHistory } from "@/components/AiAuditHistory";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
+import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 
@@ -558,6 +559,8 @@ export default function Settings() {
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
+                  <SettingsDivider />
+                  <LearnedMarginHistory />
                 </SettingsSection>
 
                 <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)" collapsible defaultOpen={false}>

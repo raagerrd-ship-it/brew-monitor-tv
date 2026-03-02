@@ -69,11 +69,25 @@ Deno.serve(async (req) => {
       totalAdjustmentsDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history + ${totalAdjustmentsDeleted} adjustments older than 30 days`;
+    // cooler_margin_history (keep 30 days)
+    let totalMarginHistoryDeleted = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("cooler_margin_history")
+        .select("id")
+        .lt("recorded_at", cutoff)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      const ids = data.map((r: any) => r.id);
+      await supabase.from("cooler_margin_history").delete().in("id", ids);
+      totalMarginHistoryDeleted += ids.length;
+    }
+
+    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history + ${totalAdjustmentsDeleted} adjustments + ${totalMarginHistoryDeleted} margin history older than 30 days`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted }),
+      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
