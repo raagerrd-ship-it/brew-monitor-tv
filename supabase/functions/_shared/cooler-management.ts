@@ -96,6 +96,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     target_temp: round1(currentCoolerTarget),
     current_temp: round1(coolerController.current_temp),
     cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
+    cooling_run_time: coolerController.cooling_run_time ?? 0,
+    last_update: coolerController.last_update,
   })
 
   // ── Find followed controllers with cooling enabled ────────
