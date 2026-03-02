@@ -54,6 +54,13 @@ interface CoolingUtilization {
   probeTemp: number
   targetTemp: number
   hysteresis: number
+  // Raw data for tooltip transparency
+  prevTimestampMs: number
+  prevRunTime: number
+  anchorTimestampMs: number
+  anchorRunTime: number
+  currentRunTime: number
+  sensorTimestampMs: number
 }
 
 export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentResult[]> {
@@ -102,6 +109,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     cooling_run_time: coolerController.cooling_run_time ?? 0,
     cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
+    prev_at: coolerUtilResult.prevTimestampMs > 0 ? new Date(coolerUtilResult.prevTimestampMs).toISOString() : null,
+    prev_run_time: coolerUtilResult.prevRunTime,
+    anchor_at: coolerUtilResult.anchorTimestampMs > 0 ? new Date(coolerUtilResult.anchorTimestampMs).toISOString() : null,
+    anchor_run_time: coolerUtilResult.anchorRunTime,
   })
 
   // ── Find followed controllers with cooling enabled ────────
@@ -126,6 +137,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
       cooling_run_time: c?.cooling_run_time ?? null,
       last_update: c?.last_update ?? null,
+      prev_at: u.prevTimestampMs > 0 ? new Date(u.prevTimestampMs).toISOString() : null,
+      prev_run_time: u.prevRunTime,
+      anchor_at: u.anchorTimestampMs > 0 ? new Date(u.anchorTimestampMs).toISOString() : null,
+      anchor_run_time: u.anchorRunTime,
     })
   }
 
@@ -349,6 +364,12 @@ async function calculateCoolingUtilizations(
       probeTemp,
       targetTemp,
       hysteresis,
+      prevTimestampMs: utilResult.prevTimestampMs,
+      prevRunTime: utilResult.prevRunTime,
+      anchorTimestampMs: utilResult.anchorTimestampMs,
+      anchorRunTime: utilResult.anchorRunTime,
+      currentRunTime: utilResult.currentRunTime,
+      sensorTimestampMs: utilResult.sensorTimestampMs,
     })
   }
 
