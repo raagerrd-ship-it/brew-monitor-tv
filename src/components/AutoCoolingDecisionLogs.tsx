@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const r1 = (v: number | null | undefined): string => {
   if (v === null || v === undefined) return '—';
@@ -583,6 +584,10 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const comp = det.compensation as number;
                 const delta = det.delta as number;
                 const errCorr = det.error_correction as number;
+                const pCorr = det.p_correction as number;
+                const iCorr = det.i_correction as number;
+                const learnedBaseline = det.learned_baseline as number;
+                const rawComp = det.raw_compensation as number;
                 const damping = det.damping as number;
                 const mode = det.mode as string;
                 const action = actionByName.get(name);
@@ -646,17 +651,50 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>
                       {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
                     </td>
-                    {/* Calc: − Komp */}
+                    {/* Calc: − Komp (with tooltip) */}
                     <td className="py-0.5 px-1 text-right" style={{
                       color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
-                      {comp != null && Math.abs(comp) > 0.01 ? `−${r1(Math.abs(comp))}°` : '—'}
+                      {comp != null && Math.abs(comp) > 0.01 ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(comp))}°</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
+                              <div className="space-y-0.5">
+                                <div>Δ/2 = {rawComp != null ? r1(rawComp) : delta != null ? r1(delta / 2) : '?'}°</div>
+                                {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
+                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° slutgiltig</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : '—'}
                     </td>
-                    {/* Calc: + PI */}
+                    {/* Calc: + PI (with tooltip) */}
                     <td className="py-0.5 px-1 text-right" style={{
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
-                      {errCorr != null && Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '—'}
+                      {errCorr != null && Math.abs(errCorr) > 0.01 ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help border-b border-dotted border-current/30">{errCorr >= 0 ? '+' : ''}{r1(errCorr)}°</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
+                              <div className="space-y-0.5">
+                                <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
+                                <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
+                                {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && (
+                                  <div>Inlärd = {r1(learnedBaseline)}°</div>
+                                )}
+                                <div className="border-t border-border/30 pt-0.5 font-medium">= {errCorr >= 0 ? '+' : ''}{r1(errCorr)}° totalt</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : '—'}
                     </td>
                     {/* = */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
