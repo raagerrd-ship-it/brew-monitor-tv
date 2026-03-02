@@ -214,10 +214,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
-  // Detect if the PREVIOUS cycle was a kick (current target is below the normal target).
-  // If so, always revert to clampedTarget — never kick twice in a row.
-  // RAPT only reports new data every ~15 min so conditions may look identical.
-  const previousWasKick = currentCoolerTarget < clampedTarget - 0.05
+  // Detect if the PREVIOUS cycle was a kick (current target is well below the normal target).
+  // A real kick drops by at least ~hysteresis degrees, so use half-hysteresis as threshold
+  // to avoid false positives from normal margin fluctuations (e.g. 0.1° vs 0.2°).
+  const previousWasKick = currentCoolerTarget < clampedTarget - Math.max(coolerHysteresis * 0.5, 0.5)
 
   if (previousWasKick) {
     log('HYSTERESIS_REVERT', 'action', `Föregående cykel var hysteres-kick (${round1(currentCoolerTarget)}°) — återgår till ${round1(clampedTarget)}°C`)
