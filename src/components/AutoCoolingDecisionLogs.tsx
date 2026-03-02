@@ -559,16 +559,22 @@ function PipelineView({ decisions, hideSync, hidePid }: {
           <table className="w-full text-[10px]">
             <thead>
               <tr className="text-muted-foreground border-b border-border/30">
+                {/* Info columns */}
                 <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
-                <th className="text-right py-0.5 px-1 font-medium">Är-temp</th>
+                <th className="text-right py-0.5 px-1 font-medium">Är</th>
+                <th className="text-right py-0.5 px-1 font-medium">Δ</th>
+                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
+                {/* Calculation columns: Profil − Komp + PI = Nytt mål */}
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Delta</th>
-                <th className="text-right py-0.5 px-1 font-medium">Komp</th>
-                <th className="text-right py-0.5 px-1 font-medium">PI</th>
-                <th className="text-right py-0.5 px-1 font-medium">→ Mål</th>
-                <th className="text-right py-0.5 px-1 font-medium">Damp</th>
+                <th className="text-right py-0.5 px-1 font-medium">− Komp</th>
+                <th className="text-right py-0.5 px-1 font-medium">+ PI</th>
+                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
+                <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
+                <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
+                {/* Result columns */}
+                <th className="text-right py-0.5 px-1 font-medium">Ctrl mål</th>
+                <th className="text-right py-0.5 px-1 font-medium">Diff</th>
                 <th className="text-left py-0.5 pl-1 font-medium">Begr.</th>
-                <th className="text-left py-0.5 pl-1 font-medium">Läge</th>
               </tr>
             </thead>
             <tbody>
@@ -584,51 +590,79 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
                 const dualSensors = det.dual_sensors as boolean;
                 const actualTargetVal = det.actual_target as number ?? det.base_target as number;
+                const ctrlTarget = det.ctrl_target as number;
+                const ctrlTargetPid = det.ctrl_target_pid as number;
+
+                // Computed new target from formula
+                const computedNew = actualTargetVal != null && comp != null
+                  ? actualTargetVal - comp + (errCorr ?? 0)
+                  : null;
+                const diff = ctrlTargetPid != null && ctrlTarget != null
+                  ? ctrlTargetPid - ctrlTarget
+                  : null;
+
                 return (
                   <React.Fragment key={i}>
                   <tr className="border-b border-border/10">
-                    <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
+                    {/* Info: Controller */}
+                    <td className="py-0.5 pr-2 font-medium truncate max-w-[80px]">
+                      {name}
+                      {mode && (
+                        <span className={`ml-1 text-[8px] ${mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>
+                          {mode === 'cooling' ? '❄️' : '🔥'}
+                        </span>
+                      )}
+                    </td>
+                    {/* Info: Är-temp */}
                     <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
                       {r1(actualTempVal)}°
                       {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
                     </td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(actualTargetVal)}</td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
+                    {/* Info: Delta (raw sensor diff) */}
+                    <td className="py-0.5 px-1 text-right text-muted-foreground/50" style={{
+                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50% / 0.6)' : undefined
                     }}>
-                      {delta != null ? `${(-delta) >= 0 ? '+' : ''}${r1(-delta)}°` : '—'}
+                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
                     </td>
+                    {/* Separator */}
+                    <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
+                    {/* Calc: Profil (actual_target) */}
+                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>
+                      {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
+                    </td>
+                    {/* Calc: − Komp */}
                     <td className="py-0.5 px-1 text-right" style={{
-                      color: comp != null && Math.abs(comp) > 0.05 ? (comp > 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)') : undefined
+                      color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
-                      {comp != null ? `${(-comp) >= 0 ? '+' : ''}${r1(-comp)}°` : '—'}
+                      {comp != null && Math.abs(comp) > 0.01 ? `−${r1(Math.abs(comp))}°` : '—'}
                     </td>
+                    {/* Calc: + PI */}
                     <td className="py-0.5 px-1 text-right" style={{
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
                       {errCorr != null && Math.abs(errCorr) > 0.01 ? `+${r1(errCorr)}°` : '—'}
                     </td>
-                    <td className="py-0.5 px-1 text-right font-medium">
-                      {det.ctrl_target_pid != null ? (
-                        <span className="flex items-center justify-end gap-0.5">
-                          {det.ctrl_target != null && Math.abs((det.ctrl_target as number) - (det.ctrl_target_pid as number)) > 0.05 && (
-                            <span className="text-muted-foreground text-[9px] font-normal">
-                              {r1(det.ctrl_target as number)}→
-                            </span>
-                          )}
-                          <span style={{ color: action?.noChange ? undefined : 'hsl(var(--ferment-green))' }}>
-                            {r1(det.ctrl_target_pid as number)}°
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                    {/* = */}
+                    <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
+                    {/* Nytt mål (computed) */}
+                    <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
+                      {ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : computedNew != null ? `${r1(computedNew)}°` : '—'}
                     </td>
-                    <td className="py-0.5 px-1 text-right" style={{
-                      color: damping != null && damping < 1.0 ? 'hsl(210 80% 60%)' : undefined
+                    {/* Separator */}
+                    <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
+                    {/* Ctrl mål (before) */}
+                    <td className="py-0.5 px-1 text-right text-muted-foreground/50">
+                      {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
+                    </td>
+                    {/* Diff */}
+                    <td className="py-0.5 px-1 text-right font-medium" style={{
+                      color: diff != null && Math.abs(diff) > 0.05
+                        ? (diff < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)')
+                        : undefined
                     }}>
-                      {damping != null ? r1(damping) : '—'}
+                      {diff != null && Math.abs(diff) > 0.05 ? `${diff >= 0 ? '+' : ''}${r1(diff)}°` : '—'}
                     </td>
+                    {/* Begränsningar */}
                     <td className="py-0.5 pl-1">
                       {action?.brakes && action.brakes.length > 0 ? (
                         <div className="flex flex-wrap gap-0.5">
@@ -636,103 +670,11 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                             <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
                           ))}
                         </div>
+                      ) : damping != null && damping < 1.0 ? (
+                        <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
                       ) : action?.noChange ? (
-                        <span className="text-[8px] px-1 py-0 rounded bg-muted text-muted-foreground">–</span>
+                        <span className="text-[8px] px-1 py-0 rounded bg-muted text-muted-foreground">—</span>
                       ) : null}
-                    </td>
-                    <td className="py-0.5 pl-1">
-                      {mode ? (
-                        <span className={`text-[9px] px-1 py-0.5 rounded ${mode === 'cooling' ? 'bg-sky-500/15 text-sky-400' : 'bg-orange-500/15 text-orange-400'}`}>
-                          {mode === 'cooling' ? '❄️' : '🔥'}
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={10} className="p-0">
-                      <details className="group">
-                        <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/70 select-none pl-2 py-0.5">
-                          Visa beräkning…
-                        </summary>
-                        <div className="pl-4 pr-2 pb-2 pt-1 text-[10px] space-y-1 text-muted-foreground/70 font-mono">
-                          {(() => {
-                            const at = det.actual_target as number;
-                            const computedRawComp = delta != null ? delta / 2 : null;
-                            const rawComp = det.raw_compensation as number ?? computedRawComp;
-                            const finalComp = det.compensation as number;
-                            const ec = det.error_correction as number;
-                            const pCorr = det.p_correction as number;
-                            const iCorr = det.i_correction as number;
-                            const learned = det.learned_baseline as number;
-                            const computedRaw = at != null && finalComp != null ? at - finalComp + (ec ?? 0) : null;
-                            const rawResult = det.raw_ctrl_target_pid as number ?? computedRaw;
-                            const finalResult = det.ctrl_target_pid as number;
-                            const dmp = det.damping as number;
-                            const lims = det.limits as string[];
-                            let step = 1;
-                            return (
-                              <>
-                                <div className="text-muted-foreground/50 text-[9px] font-sans mb-1">ctrl_target_pid = actual_target − komp + PI</div>
-                                <div>
-                                  <span className="text-muted-foreground/50">{step++}. Rå komp (delta/2):</span>{' '}
-                                  {delta != null ? <><span>{r1(delta)}</span> / 2 = <span className="text-accent">{rawComp != null ? r1(rawComp) : '?'}</span></> : '—'}
-                                </div>
-                                {dmp != null && dmp < 1.0 && (
-                                  <div>
-                                    <span className="text-muted-foreground/50">{step++}. × Damping:</span>{' '}
-                                    {rawComp != null ? <><span>{r1(rawComp)}</span> × {r1(dmp)} = <span className="text-accent">{finalComp != null ? r1(finalComp) : '?'}</span></> : '—'}
-                                  </div>
-                                )}
-                                {dmp == null || dmp >= 1.0 ? (
-                                  <div>
-                                    <span className="text-muted-foreground/50">{step++}. Komp = Rå komp:</span>{' '}
-                                    <span className="text-accent">{finalComp != null ? r1(finalComp) : '—'}</span>
-                                    <span className="text-muted-foreground/40 ml-1">(damping=1, ingen skalning)</span>
-                                  </div>
-                                ) : null}
-                                <div>
-                                  <span className="text-muted-foreground/50">{step++}. PI-korrigering:</span>{' '}
-                                  {pCorr != null || iCorr != null ? (
-                                    <>P={pCorr != null ? r1(pCorr) : '?'} + I={iCorr != null ? r1(iCorr) : '?'}
-                                    {learned != null && learned > 0 && <span className="text-muted-foreground/40"> (learned={r1(learned)})</span>}
-                                    {' = '}<span className="text-green-400">{ec != null ? `+${r1(ec)}` : '?'}</span></>
-                                  ) : (
-                                    <span className="text-green-400">{ec != null && Math.abs(ec) > 0.01 ? `+${r1(ec)}` : '0'}</span>
-                                  )}
-                                </div>
-                                <div className="border-t border-border/20 pt-1 mt-1">
-                                  <span className="text-muted-foreground/50">{step++}. Resultat:</span>{' '}
-                                  <span style={{ color: 'hsl(280 60% 60%)' }}>{at != null ? r1(at) : '?'}</span>
-                                  {' − '}<span className="text-accent">{finalComp != null ? r1(finalComp) : '?'}</span>
-                                  {' + '}<span className="text-green-400">{ec != null ? r1(ec) : '0'}</span>
-                                  {' = '}<span className="font-bold">{rawResult != null ? `${r1(rawResult)}°` : '?'}</span>
-                                </div>
-                                {rawResult != null && finalResult != null && Math.abs(rawResult - finalResult) > 0.05 && (
-                                  <div>
-                                    <span className="text-muted-foreground/50">Efter begränsningar:</span>{' '}
-                                    <span className="font-bold">{r1(rawResult)}° → </span>
-                                    <span className="font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>{r1(finalResult)}°</span>
-                                    {lims && lims.length > 0 && (
-                                      <span className="ml-1 text-[8px]">
-                                        ({lims.map((l, li) => (
-                                          <span key={li} className="px-0.5 text-sky-400">{l}</span>
-                                        ))})
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {rawResult != null && finalResult != null && Math.abs(rawResult - finalResult) <= 0.05 && (
-                                  <div>
-                                    <span className="text-muted-foreground/50">Slutligt mål:</span>{' '}
-                                    <span className="font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>{r1(finalResult)}°</span>
-                                    <span className="text-muted-foreground/40 ml-1">(inga begränsningar)</span>
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </details>
                     </td>
                   </tr>
                   </React.Fragment>
