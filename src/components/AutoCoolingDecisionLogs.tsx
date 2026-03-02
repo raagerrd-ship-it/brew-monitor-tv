@@ -348,10 +348,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
 
   return (
     <Collapsible>
-      <CollapsibleTrigger className="grid grid-cols-[auto_1fr_auto_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
+      <CollapsibleTrigger className="grid grid-cols-[auto_1fr_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
         <span className="text-muted-foreground whitespace-nowrap text-left">{formatTime(entry.timestamp)}</span>
         {headerBadge}
-        <span className="text-[10px] text-muted-foreground">{log.duration_ms > 0 ? `${log.duration_ms}ms` : ''}</span>
         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 justify-self-end" />
       </CollapsibleTrigger>
       <CollapsibleContent>
