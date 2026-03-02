@@ -880,9 +880,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
               {pidStatusEntries.map((d, i) => {
                 const det = d.details || {};
                 const name = d.message.replace('Controller: ', '');
-                const comp = det.compensation as number;
+                const comp = (det.compensation as number) ?? 0;
                 const delta = det.delta as number;
-                const errCorr = det.error_correction as number;
+                const errCorr = (det.error_correction as number) ?? 0;
                 const pCorr = det.p_correction as number;
                 const iCorr = det.i_correction as number;
                 const learnedBaseline = det.learned_baseline as number;
