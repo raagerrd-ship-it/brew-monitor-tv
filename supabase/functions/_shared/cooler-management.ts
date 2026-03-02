@@ -215,18 +215,22 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
   if (coolerInDeadBand) {
-    const anyActivelyCooling = utilizations.some(u => u.isActivelyCooling)
-    if (anyActivelyCooling) {
-      // Tanks need cooling but cooler relay is off (in dead band)
+    // Only kick if: a tank is at 100% util AND cooler itself is at 0% util
+    const anyTankMaxUtil = utilizations.some(u => u.utilization != null && u.utilization >= 0.99)
+    const coolerAtZero = coolerUtil != null && coolerUtil < 0.01
+
+    if (anyTankMaxUtil && coolerAtZero) {
+      // Tanks maxing out cooling but cooler relay is off (in dead band)
       // Temporarily kick target below threshold: target = current - hysteresis - 0.1
       const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
-      log('HYSTERESIS_KICK', 'action', `Kylare i dead band (${round1(coolerTemp)}° mellan ${round1(clampedTarget)}° och ${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C för att starta relä`)
+      const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
+      log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% (dead band ${round1(coolerTemp)}° mellan ${round1(clampedTarget)}°–${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C`)
       await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
-        `⚡ Hysteres-kick: ${round1(coolerTemp)}° i dead band → kickar till ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
+        `⚡ Hysteres-kick: tank 100% + kylare 0% → kickar ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
         adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
       return adjustments
     } else {
-      log('HYSTERESIS_DEADBAND', 'info', `Kylare i dead band (${round1(coolerTemp)}° < ${round1(coolerRelayThreshold)}°) men ingen tank behöver kyla`)
+      log('HYSTERESIS_DEADBAND', 'info', `Kylare i dead band (${round1(coolerTemp)}° < ${round1(coolerRelayThreshold)}°)${anyTankMaxUtil ? '' : ' — ingen tank vid 100%'}${coolerAtZero ? '' : ` — kylare util ${coolerUtil != null ? Math.round(coolerUtil * 100) : '?'}%`}`)
     }
   }
 
