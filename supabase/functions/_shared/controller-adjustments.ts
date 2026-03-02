@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
+import { calculateSingleUtilization } from './cooler-management.ts'
 
 // ============================================================
 // Controller Adjustments — Pipeline Architecture
@@ -270,10 +271,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
+    // Calculate cooling utilization for this controller
+    let coolingUtil: number | null = null
+    let recentUtil: number | null = null
+    if (fc.cooling_enabled) {
+      const utilResult = await calculateSingleUtilization(supabase, fc)
+      coolingUtil = utilResult.rolling
+      recentUtil = utilResult.recent
+    }
+
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp
+      actualTemp, probeTemp, coolingUtil
     )
 
     // Safety bounds — respect hardware min/max strictly
@@ -318,6 +328,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
+      cooling_util: coolingUtil != null ? Math.round(coolingUtil * 100) : null,
+      recent_util: recentUtil != null ? Math.round(recentUtil * 100) : null,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
     })
 

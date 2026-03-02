@@ -860,6 +860,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                           if (approachC) brakes.push({ label: `🎯 ${approachC.split('=')[1]}`, tip: `Approach-skalning: delta-komp × ${approachC.split('=')[1]} (nära mål)` });
                           const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
                           if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
+                          const utilSat = statusLimits.find(c => c.startsWith('util-sat='));
+                          if (utilSat) brakes.push({ label: `⚡ Util ${utilSat.split('=')[1]}`, tip: `Kylkretsen körs ${utilSat.split('=')[1]} av tiden — hårdvaran maxad, PID begränsas` });
                         } else if (action?.brakes && action.brakes.length > 0) {
                           action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
                         }

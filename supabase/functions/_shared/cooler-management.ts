@@ -98,7 +98,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
 
   // ── Calculate cooler's own utilization (rolling 30-min avg) ──
-  const coolerUtilResult = await calculateSingleUtilization(ctx, coolerController)
+  const coolerUtilResult = await calculateSingleUtilization(supabase, coolerController)
   const coolerUtil = coolerUtilResult.rolling
 
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}`, {
@@ -252,7 +252,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
 // Calculate rolling 30-min utilization for a single controller
 // Returns { rolling, recent } where recent = util between the two latest data points
-interface UtilizationResult {
+export interface UtilizationResult {
   rolling: number | null
   recent: number | null
   prevRunTime: number
@@ -263,11 +263,11 @@ interface UtilizationResult {
   sensorTimestampMs: number
 }
 
-async function calculateSingleUtilization(
-  ctx: CoolerContext,
+export async function calculateSingleUtilization(
+  supabase: ReturnType<typeof createClient>,
   c: TempController,
 ): Promise<UtilizationResult> {
-  const { supabase } = ctx
+  const currentRunTime = c.cooling_run_time ?? 0
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
   const WINDOW_MS = 30 * 60 * 1000
@@ -353,7 +353,7 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     const isActivelyCooling = probeTemp > targetTemp + hysteresis
 
-    const utilResult = await calculateSingleUtilization(ctx, c)
+    const utilResult = await calculateSingleUtilization(ctx.supabase, c)
 
     results.push({
       controllerId: c.controller_id,

@@ -70,7 +70,8 @@ export async function calculateCompensatedTarget(
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown',
   actualTemp?: number,
-  probeTemp?: number
+  probeTemp?: number,
+  coolingUtilization?: number | null,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -263,6 +264,17 @@ export async function calculateCompensatedTarget(
       isSaturated = true
       console.log(`⚡ Saturation ${controllerName} [${mode}]: rate=${absRate.toFixed(2)}°C/h ≈ ${(saturationRatio * 100).toFixed(0)}% av max ${learnedThermalRate.toFixed(2)}°C/h — begränsar kompensation`)
     }
+  }
+
+  // === Utilization-based saturation ===
+  // If cooling circuit is running >90% of the time, the hardware is maxed out.
+  // No point pushing the target further — it would only accumulate integral error.
+  if (coolingUtilization != null && coolingUtilization >= 0.90 && mode === 'cooling') {
+    if (!isSaturated) {
+      isSaturated = true
+      console.log(`⚡ Util saturation ${controllerName}: cooling util ${Math.round(coolingUtilization * 100)}% ≥ 90% — hardware maxed, begränsar kompensation`)
+    }
+    constraints.push(`util-sat=${Math.round(coolingUtilization * 100)}%`)
   }
 
   if (avgError >= 0.35) {
