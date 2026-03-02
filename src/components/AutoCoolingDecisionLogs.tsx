@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const r1 = (v: number | null | undefined): string => {
@@ -318,6 +318,124 @@ function EntryRow({ entry, hideSync, hidePid, formatTime }: {
   );
 }
 
+// --- Cooler Decision View ---
+
+function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
+  const status = entries.find(d => d.step === 'COOLER_STATUS');
+  const effectiveTarget = entries.find(d => d.step === 'EFFECTIVE_TARGET');
+  const marginCalc = entries.find(d => d.step === 'MARGIN_CALC');
+  const coolerOk = entries.find(d => d.step === 'COOLER_OK');
+  const adjustment = entries.find(d => d.step === 'ADJUSTMENT');
+  const rateLimit = entries.find(d => d.step === 'RATE_LIMIT');
+  const rampBlock = entries.find(d => d.step === 'RAMP_BLOCK');
+  const proactive = entries.find(d => d.step === 'PROACTIVE');
+  const marginLearn = entries.find(d => d.step === 'MARGIN_LEARN');
+  const rateLearn = entries.find(d => d.step === 'RATE_LEARN');
+  const coolerStale = entries.find(d => d.step === 'COOLER_STALE');
+  const noCooling = entries.find(d => d.step === 'COOLING_CAPABILITY');
+  const noConfig = entries.find(d => d.step === 'COOLER_CONFIG');
+
+  // Error/skip states
+  if (noConfig) return <div className="text-[11px] text-muted-foreground flex items-center gap-2"><XCircle className="h-3 w-3 text-red-400" />{noConfig.message}</div>;
+  if (coolerStale) return <div className="text-[11px] text-red-400 flex items-center gap-2"><AlertTriangle className="h-3 w-3" />{coolerStale.message}</div>;
+  if (noCooling) return <div className="text-[11px] text-muted-foreground flex items-center gap-2"><Info className="h-3 w-3" />{noCooling.message}</div>;
+
+  const statusDet = status?.details || {};
+  const marginDet = marginCalc?.details || {};
+  const effectiveDet = effectiveTarget?.details || {};
+  const coolerTemp = r1(statusDet.current_temp as number);
+  const coolerTarget = r1(statusDet.target_temp as number);
+  const learnedMargin = r1(marginDet.learned_margin as number);
+  const maxEffective = r1(marginDet.max_effective as number);
+  const samples = marginDet.margin_samples as number;
+
+  // Determine outcome
+  const isBlocked = !!rampBlock;
+  const isRateLimited = !!rateLimit;
+  const isOk = !!coolerOk;
+  const isAdjusted = !!adjustment;
+
+  return (
+    <div className="space-y-1.5">
+      {/* Row 1: Current state + effective target */}
+      <div className="flex items-center gap-4 text-[11px]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Kylare:</span>
+          <span className="font-mono font-medium">{coolerTarget}°</span>
+          <span className="text-muted-foreground text-[10px]">(är {coolerTemp}°)</span>
+        </div>
+        {effectiveTarget && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Lägsta behov:</span>
+            <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
+              {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
+            </span>
+            <span className="text-muted-foreground text-[10px]">({effectiveDet.controller as string ?? ''})</span>
+          </div>
+        )}
+      </div>
+
+      {/* Row 2: Margin calculation */}
+      {marginCalc && (
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span>Marginal: <span className="font-mono text-foreground">{learnedMargin}°</span></span>
+          {maxEffective && <span>Max eff: <span className="font-mono">{maxEffective}°</span></span>}
+          {samples != null && <span>({samples} samples)</span>}
+          {marginDet.required_rate != null && (
+            <span>Krav: <span className="font-mono">{r1(marginDet.required_rate as number)}°/h</span></span>
+          )}
+        </div>
+      )}
+
+      {/* Row 3: Proactive look-ahead */}
+      {proactive && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <Info className="h-2.5 w-2.5 text-blue-400" />
+          <span style={{ color: 'hsl(210 80% 70%)' }}>{proactive.message}</span>
+        </div>
+      )}
+
+      {/* Row 4: Decision / Result */}
+      <div className="flex items-center gap-2 text-[11px] pt-0.5 border-t border-border/20">
+        {isAdjusted ? (
+          <>
+            <Wrench className="h-3 w-3 text-amber-500" />
+            <span className="font-medium">{adjustment.message}</span>
+          </>
+        ) : isBlocked ? (
+          <>
+            <ShieldAlert className="h-3 w-3 text-amber-500" />
+            <span className="text-amber-400">{rampBlock.message}</span>
+          </>
+        ) : isRateLimited ? (
+          <>
+            <Clock className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">{rateLimit.message}</span>
+          </>
+        ) : isOk ? (
+          <>
+            <CheckCircle2 className="h-3 w-3 text-green-500" />
+            <span className="text-green-400">{coolerOk.message}</span>
+          </>
+        ) : (
+          <>
+            <Info className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Ingen åtgärd</span>
+          </>
+        )}
+      </div>
+
+      {/* Row 5: Learning feedback (subtle) */}
+      {(marginLearn || rateLearn) && (
+        <div className="text-[10px] text-muted-foreground space-y-0.5 pt-0.5">
+          {rateLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{rateLearn.message}</div>}
+          {marginLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{marginLearn.message}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Pipeline View ---
 
 function PipelineView({ decisions, hideSync, hidePid }: {
@@ -576,38 +694,10 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         );
       })()}
 
-      {/* 5. Glykol-kylare */}
+      {/* 5. Glykol-kylare — structured decision view */}
       {coolerEntries.length > 0 && (
         <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
-          {coolerEntries.map((d, i) => {
-            const isStatus = d.step === 'COOLER_STATUS' && d.details;
-            const isOk = d.step === 'COOLER_OK';
-            const isAction = d.result === 'action';
-
-            if (isStatus && d.details) {
-              return (
-                <div key={i} className="flex items-center gap-3 text-[11px] py-0.5">
-                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500" />
-                  <span className="font-medium">{d.message.replace('Cooler: ', '')}</span>
-                  <span className="text-muted-foreground">
-                    Mål: {r1(d.details.target_temp as number)}° | Temp: {r1(d.details.current_temp as number)}°
-                  </span>
-                </div>
-              );
-            }
-
-            return (
-              <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-                <div className="mt-0.5 flex-shrink-0">
-                  {isAction ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                   isOk || d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
-                   d.result === 'fail' ? <XCircle className="h-3 w-3 text-red-400" /> :
-                   <Info className="h-3 w-3 text-muted-foreground" />}
-                </div>
-                <span className={d.result === 'fail' ? 'text-muted-foreground' : ''}>{d.message}</span>
-              </div>
-            );
-          })}
+          <CoolerDecisionView entries={coolerEntries} />
         </PipelineSection>
       )}
 
