@@ -837,17 +837,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             {pillDet.current_sg != null && (
                               <span className="whitespace-nowrap">SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
                             )}
-                            {pillDet.og != null && (
-                              <span className="whitespace-nowrap">OG: <span className="font-mono">{(pillDet.og as number).toFixed(3)}</span></span>
-                            )}
-                            {pillDet.fg != null && (
-                              <span className="whitespace-nowrap">FG: <span className="font-mono">{(pillDet.fg as number).toFixed(3)}</span></span>
-                            )}
                             {pillDet.battery != null && (
                               <span className="whitespace-nowrap">🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
-                            )}
-                            {pillDet.status && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted whitespace-nowrap">{pillDet.status as string}</span>
                             )}
                           </div>
                         </td>
