@@ -301,6 +301,12 @@ export async function calculateSingleUtilization(
   let p2RunTime = p2RunTimeParam.value
   let p2TimestampMs = p2TimestampParam.value
 
+  // Preserve pre-shift values for calcInterval (shift mutates p2/anchor)
+  const origP2RunTime = p2RunTime
+  const origP2TimestampMs = p2TimestampMs
+  const origAnchorRunTime = anchorRunTime
+  const origAnchorTimestampMs = anchorTimestampMs
+
   const prevSensorMs = prevTimestampParam.value
   const prevRunTime = prevRunTimeParam.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
@@ -374,12 +380,12 @@ export async function calculateSingleUtilization(
     return delta >= 0 ? Math.min(1.0, delta / elapsed) : null
   }
 
-  // p1→p0 (most recent interval)
+  // p1→p0 (most recent interval) — use original (pre-shift) prev values
   const recent = calcInterval(prevRunTime, prevSensorMs, currentRunTime, sensorTimestampMs)
-  // p2→p1
-  const mid = calcInterval(p2RunTime, p2TimestampMs, prevRunTime, prevSensorMs)
-  // p3→p2
-  const oldest = calcInterval(anchorRunTime, anchorTimestampMs, p2RunTime, p2TimestampMs)
+  // p2→p1 — use original p2 values (before shift mutated them)
+  const mid = calcInterval(origP2RunTime, origP2TimestampMs, prevRunTime, prevSensorMs)
+  // p3→p2 — use original anchor values
+  const oldest = calcInterval(origAnchorRunTime, origAnchorTimestampMs, origP2RunTime, origP2TimestampMs)
 
   // Rolling = average of the 2 most recent intervals (for decisions)
   let rolling: number | null = null
@@ -394,8 +400,8 @@ export async function calculateSingleUtilization(
   return {
     rolling, recent, mid, oldest,
     prevRunTime, prevTimestampMs: prevSensorMs,
-    p2RunTime, p2TimestampMs,
-    anchorRunTime, anchorTimestampMs,
+    p2RunTime: origP2RunTime, p2TimestampMs: origP2TimestampMs,
+    anchorRunTime: origAnchorRunTime, anchorTimestampMs: origAnchorTimestampMs,
     currentRunTime, sensorTimestampMs,
   }
 }
