@@ -58,12 +58,19 @@ interface UnifiedEntry {
 const HIDDEN_STEPS = new Set([
   'START', 'SETTINGS', 'FOLLOWED_CONTROLLERS', 'COMPLETE',
   'BATCH_FLUSH', 'BATCH_DB', 'PILL_COMP', 'PILL_COMP_SKIP',
-  'BOOTSTRAP', 'COOLING', 'STALE_SENSOR',
+  'BOOTSTRAP', 'STALE_SENSOR',
 ]);
 
-/** Steps shown as pipeline sections (handled specially) */
+/** All steps handled by named pipeline sections */
 const PIPELINE_STEPS = new Set([
-  'SYNC_DATA', 'PILL_COMP_STATUS', 'PILL_COMP_ACTION', 'RAPT_SEND',
+  'SYNC_DATA',
+  'PILL_COMP_STATUS', 'PILL_COMP_ACTION',
+  'PASS_THROUGH',
+  'STALL', 'STALL_SKIP', 'STALL_ANALYSIS', 'STALL_BOOST', 'STALL_LEARN',
+  'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
+  'COOLING_CAPABILITY', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
+  'RAMP_BLOCK', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN',
+  'RAPT_SEND',
 ]);
 
 // --- Helpers ---
@@ -319,8 +326,17 @@ function PipelineView({ decisions, hideSync, hidePid }: {
   const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
+  const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
+  const coolerEntries = decisions.filter(d =>
+    d.step === 'COOLING' || d.step.startsWith('COOLER_') ||
+    d.step === 'COOLING_CAPABILITY' || d.step === 'EFFECTIVE_TARGET' ||
+    d.step === 'MARGIN_CALC' || d.step === 'RATE_LIMIT' ||
+    d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
+    d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN'
+  );
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND');
-  // Remaining visible entries (errors, stall, pass-through, etc.)
+  const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
+  // Remaining visible entries (errors, etc.)
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
   );
@@ -375,7 +391,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 2. PID Kompensation (PILL_COMP_STATUS + integrated PILL_COMP_ACTION) */}
+      {/* 2. PID Kompensation */}
       {!hidePid && pidStatusEntries.length > 0 && (
         <PipelineSection
           icon={<Pill className="h-3 w-3" />}
@@ -443,7 +459,87 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 3. RAPT_SEND */}
+      {/* 3. Pass-through */}
+      {passThroughEntries.length > 0 && (
+        <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="Pass-through" color="hsl(170 60% 45%)" borderColor="hsl(170 60% 45% / 0.3)" bgColor="hsl(170 60% 45% / 0.05)">
+          {passThroughEntries.map((d, i) => (
+            <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+              <RefreshCw className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(170 60% 45%)' }} />
+              <span>{d.message}</span>
+            </div>
+          ))}
+        </PipelineSection>
+      )}
+
+      {/* 4. Stall-detektering */}
+      {stallEntries.length > 0 && (
+        <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
+          {stallEntries.map((d, i) => {
+            const isAction = d.result === 'action';
+            const isSkip = d.step === 'STALL_SKIP';
+            return (
+              <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
+                <div className="mt-0.5 flex-shrink-0">
+                  {isAction ? <Wrench className="h-3 w-3 text-amber-500" /> :
+                   d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
+                   <Info className="h-3 w-3 text-muted-foreground" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {!isSkip && d.details ? (
+                    <div>
+                      <span className="font-medium">{d.message}</span>
+                      {d.details.sg_rate_per_day != null && (
+                        <span className="text-muted-foreground ml-2">SG: {r1(d.details.sg_rate_per_day as number)}/dag</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className={isSkip ? 'text-muted-foreground' : ''}>{d.message}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </PipelineSection>
+      )}
+
+      {/* 5. Glykol-kylare */}
+      {coolerEntries.length > 0 && (
+        <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
+          {coolerEntries.map((d, i) => {
+            // Show key entries with structured info, skip noise
+            const isStatus = d.step === 'COOLER_STATUS' && d.details;
+            const isOk = d.step === 'COOLER_OK';
+            const isMargin = d.step === 'MARGIN_CALC';
+            const isAction = d.result === 'action';
+
+            if (isStatus && d.details) {
+              return (
+                <div key={i} className="flex items-center gap-3 text-[11px] py-0.5">
+                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500" />
+                  <span className="font-medium">{d.message.replace('Cooler: ', '')}</span>
+                  <span className="text-muted-foreground">
+                    Mål: {r1(d.details.target_temp as number)}° | Temp: {r1(d.details.current_temp as number)}°
+                  </span>
+                </div>
+              );
+            }
+
+            return (
+              <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
+                <div className="mt-0.5 flex-shrink-0">
+                  {isAction ? <Wrench className="h-3 w-3 text-amber-500" /> :
+                   isOk || d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
+                   d.result === 'fail' ? <XCircle className="h-3 w-3 text-red-400" /> :
+                   <Info className="h-3 w-3 text-muted-foreground" />}
+                </div>
+                <span className={d.result === 'fail' ? 'text-muted-foreground' : ''}>{d.message}</span>
+              </div>
+            );
+          })}
+        </PipelineSection>
+      )}
+
+      {/* 6. RAPT_SEND */}
       {raptSendEntries.length > 0 && (
         <PipelineSection icon={<Send className="h-3 w-3" />} title="Skickat till RAPT" color="hsl(25 95% 53%)" borderColor="hsl(25 95% 53% / 0.3)" bgColor="hsl(25 95% 53% / 0.05)">
           {raptSendEntries.map((d, i) => (
@@ -455,7 +551,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 4. Remaining (errors, stall, etc.) */}
+      {/* 7. Remaining (errors, etc.) */}
       {otherEntries.length > 0 && (
         <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
           {otherEntries.map((d, i) => (
