@@ -115,7 +115,7 @@ interface UnifiedEntry {
 /** Steps hidden from expanded view (operational noise) */
 const HIDDEN_STEPS = new Set([
   'START', 'SETTINGS', 'FOLLOWED_CONTROLLERS', 'COMPLETE',
-  'BATCH_FLUSH', 'BATCH_DB', 'PILL_COMP', 'PILL_COMP_SKIP',
+  'BATCH_DB', 'PILL_COMP', 'PILL_COMP_SKIP',
   'BOOTSTRAP', 'STALE_SENSOR',
 ]);
 
@@ -723,7 +723,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN' ||
     d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN'
   );
-  const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND');
+  const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
@@ -1161,17 +1161,30 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
 
       {/* Section 6 removed — merged into section 3 "PID-reglering" above */}
 
-      {/* 7. RAPT_SEND */}
-      {raptSendEntries.length > 0 && (
-        <PipelineSection icon={<Send className="h-3 w-3" />} title="Skickat till RAPT" color="hsl(25 95% 53%)" borderColor="hsl(25 95% 53% / 0.3)" bgColor="hsl(25 95% 53% / 0.05)">
-          {raptSendEntries.map((d, i) => (
-            <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
-              <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
-              <span className="font-medium" style={{ color: 'hsl(25 80% 60%)' }}>{d.message}</span>
-            </div>
-          ))}
-        </PipelineSection>
-      )}
+      {/* 7. RAPT_SEND + BATCH_FLUSH */}
+      {raptSendEntries.length > 0 && (() => {
+        const hasFailure = raptSendEntries.some(d => d.result === 'fail');
+        const sectionColor = hasFailure ? 'hsl(0 84% 60%)' : 'hsl(25 95% 53%)';
+        const sectionBorder = hasFailure ? 'hsl(0 84% 60% / 0.3)' : 'hsl(25 95% 53% / 0.3)';
+        const sectionBg = hasFailure ? 'hsl(0 84% 60% / 0.05)' : 'hsl(25 95% 53% / 0.05)';
+        const title = hasFailure ? 'Skickat till RAPT — Timeout' : 'Skickat till RAPT';
+        return (
+          <PipelineSection icon={<Send className="h-3 w-3" />} title={title} color={sectionColor} borderColor={sectionBorder} bgColor={sectionBg}>
+            {raptSendEntries.map((d, i) => {
+              const isFail = d.result === 'fail';
+              return (
+                <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+                  {isFail
+                    ? <XCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
+                    : <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
+                  }
+                  <span className="font-medium" style={{ color: isFail ? 'hsl(0 84% 60%)' : 'hsl(25 80% 60%)' }}>{d.message}</span>
+                </div>
+              );
+            })}
+          </PipelineSection>
+        );
+      })()}
 
       {/* 7. Remaining (errors, etc.) */}
       {otherEntries.length > 0 && (
