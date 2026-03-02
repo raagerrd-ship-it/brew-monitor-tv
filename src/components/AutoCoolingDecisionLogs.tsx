@@ -9,34 +9,50 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('sv-SE') : null;
 
-/** Build a tooltip showing timestamp → utilization pairs */
+/** Build a tooltip showing rolling avg + per-timestamp utilization */
 const buildUtilTooltip = (data: {
   lastUpdate?: string | null;
   runTime?: number | null;
   recentPct?: number | null;
   pct?: number | null;
   prevAt?: string | null;
+  prevRunTime?: number | null;
   anchorAt?: string | null;
+  anchorRunTime?: number | null;
   starts?: number | null;
 }): string => {
   const lines: string[] = [];
-  const current = fmtTime(data.lastUpdate ?? null);
-  const prev = fmtTime(data.prevAt ?? null);
-  const anchor = fmtTime(data.anchorAt ?? null);
 
-  // Show intervals: timestamp → timestamp: X%
-  if (prev && current && data.recentPct != null) {
-    lines.push(`${prev} → ${current}: ${data.recentPct}%`);
-  }
-  if (anchor && current && data.pct != null && anchor !== prev) {
-    lines.push(`${anchor} → ${current}: ${data.pct}% (30 min)`);
-  } else if (data.pct != null && !anchor) {
-    lines.push(`Rullande 30 min: ${data.pct}%`);
+  // Rolling average header
+  if (data.pct != null) {
+    lines.push(`Medel (30 min): ${data.pct}%`);
   }
 
-  // Raw data
-  if (data.runTime != null) lines.push(`cooling_run_time: ${data.runTime}s`);
-  if (data.starts != null) lines.push(`cooling_starts: ${data.starts}`);
+  // Build per-timestamp entries (most recent first)
+  // current timestamp: utilization from prev→current
+  const currentTime = fmtTime(data.lastUpdate ?? null);
+  if (currentTime && data.recentPct != null) {
+    lines.push(`${currentTime}: ${data.recentPct}%`);
+  }
+
+  // prev timestamp: utilization from anchor→prev
+  const prevTime = fmtTime(data.prevAt ?? null);
+  if (prevTime && data.anchorAt && data.prevAt && data.prevRunTime != null && data.anchorRunTime != null) {
+    const anchorMs = new Date(data.anchorAt).getTime();
+    const prevMs = new Date(data.prevAt).getTime();
+    const elapsed = (prevMs - anchorMs) / 1000;
+    if (elapsed > 30) {
+      const delta = data.prevRunTime - data.anchorRunTime;
+      const pct = Math.min(100, Math.max(0, Math.round((delta / elapsed) * 100)));
+      lines.push(`${prevTime}: ${pct}%`);
+    }
+  }
+
+  // anchor timestamp (oldest point — no earlier data to compute from)
+  const anchorTime = fmtTime(data.anchorAt ?? null);
+  if (anchorTime && anchorTime !== prevTime) {
+    lines.push(`${anchorTime}: —`);
+  }
 
   if (lines.length === 0) lines.push('Ingen data ännu');
   return lines.join('\n');
@@ -403,7 +419,9 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
     recentPct: statusDet.recent_utilization as number | null,
     pct: statusDet.cooler_utilization as number | null,
     prevAt: statusDet.prev_at as string | null,
+    prevRunTime: statusDet.prev_run_time as number | null,
     anchorAt: statusDet.anchor_at as string | null,
+    anchorRunTime: statusDet.anchor_run_time as number | null,
     starts: statusDet.cooling_starts as number | null,
   });
 
@@ -445,7 +463,9 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
             recentPct: mDet.recent_utilization as number | null,
             pct: mUtilPct,
             prevAt: mDet.prev_at as string | null,
+            prevRunTime: mDet.prev_run_time as number | null,
             anchorAt: mDet.anchor_at as string | null,
+            anchorRunTime: mDet.anchor_run_time as number | null,
           });
           return (
             <div className="flex items-center gap-1.5">
@@ -482,7 +502,9 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
             recentPct: uDet.recent_utilization as number | null,
             pct: utilPct,
             prevAt: uDet.prev_at as string | null,
+            prevRunTime: uDet.prev_run_time as number | null,
             anchorAt: uDet.anchor_at as string | null,
+            anchorRunTime: uDet.anchor_run_time as number | null,
           });
           return (
             <Tooltip key={i}>
@@ -670,7 +692,9 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                             recentPct: util.recentPct,
                             pct: util.pct,
                             prevAt: util.prevAt,
+                            prevRunTime: util.prevRunTime,
                             anchorAt: util.anchorAt,
+                            anchorRunTime: util.anchorRunTime,
                           });
                           return (
                             <Tooltip>
