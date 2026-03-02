@@ -566,10 +566,22 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       <td className="py-0.5 px-1 text-right">
                         {util ? (
                           <span className={`font-mono ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ''}
+                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-muted-foreground/50 cursor-help"> - %</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">Ingen utnyttjandedata ännu (väntar på tillräckligt med mätpunkter)</TooltipContent>
+                              </Tooltip>
+                            )}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground/30">—</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
+                          </Tooltip>
                         )}
                       </td>
                       <td className="py-0.5 pl-1 text-center">
