@@ -142,7 +142,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
   return 'glykol';
 }
 
-function getCategoryBadge(category: AdjustmentCategory) {
+function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNode) {
   const styles: Record<AdjustmentCategory, { bg: string; color: string; border: string; icon: React.ReactNode; label: string }> = {
     'pill-comp': { bg: 'hsl(280 60% 60% / 0.2)', color: 'hsl(280 60% 60%)', border: 'hsl(280 60% 60% / 0.3)', icon: <Pill className="h-2.5 w-2.5 mr-0.5" />, label: 'PID' },
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
@@ -152,7 +152,7 @@ function getCategoryBadge(category: AdjustmentCategory) {
   const s = styles[category];
   return (
     <Badge variant="default" className="text-[10px] px-1.5" style={{ background: s.bg, color: s.color, borderColor: s.border }}>
-      {s.icon}{s.label}
+      {s.icon}{s.label}{adjText && <span className="ml-1">{adjText}</span>}
     </Badge>
   );
 }
@@ -333,25 +333,17 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
     );
   } else if (hasPidAdj && hasGlykolAdj) {
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
-    const adjColor = pidAdj.new_target_temp < pidAdj.old_target_temp ? 'hsl(210 80% 60%)' : 'hsl(var(--ferment-green))';
+    const glykolAdj = adjs.find(a => a.category === 'glykol')!;
+    const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
     headerBadge = (
-      <div className="flex gap-1 items-center">
-        {getCategoryBadge('pill-comp')}{getCategoryBadge('glykol')}
-        <span className="font-medium whitespace-nowrap ml-1" style={{ color: adjColor }}>
-          {r1(pidAdj.old_target_temp)}° → {r1(pidAdj.new_target_temp)}°
-        </span>
+      <div className="flex gap-1 items-center flex-wrap">
+        {getCategoryBadge('pill-comp', adjStr(pidAdj))}
+        {getCategoryBadge('glykol', adjStr(glykolAdj))}
       </div>
     );
   } else {
-    const adjColor = primaryAdj!.new_target_temp < primaryAdj!.old_target_temp ? 'hsl(210 80% 60%)' : primaryAdj!.new_target_temp > primaryAdj!.old_target_temp ? 'hsl(var(--ferment-green))' : undefined;
-    headerBadge = (
-      <div className="flex gap-1 items-center">
-        {getCategoryBadge(primaryAdj!.category)}
-        <span className="font-medium whitespace-nowrap" style={{ color: adjColor }}>
-          {r1(primaryAdj!.old_target_temp)}° → {r1(primaryAdj!.new_target_temp)}°
-        </span>
-      </div>
-    );
+    const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
+    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr);
   }
 
   return (
