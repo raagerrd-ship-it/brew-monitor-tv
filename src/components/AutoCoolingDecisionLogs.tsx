@@ -207,6 +207,8 @@ export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [hideSystem, setHideSystem] = useState(true);
+  const [hideGlykol, setHideGlykol] = useState(false);
+  const [hidePid, setHidePid] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -299,13 +301,28 @@ export function AutoCoolingDecisionLogs() {
   if (loading) return <p className="text-sm text-muted-foreground">Laddar...</p>;
   if (entries.length === 0) return <p className="text-sm text-muted-foreground italic">Inga justeringar har gjorts ännu.</p>;
 
-  const filteredEntries = hideSystem ? entries.filter(e => e.type !== 'decision') : entries;
+  const filteredEntries = entries.filter(e => {
+    if (hideSystem && e.type === 'decision') return false;
+    if (hideGlykol && e.type === 'adjustment' && e.category === 'glykol') return false;
+    if (hidePid && e.type === 'adjustment' && e.category === 'pill-comp') return false;
+    return true;
+  });
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 pb-1">
-        <Switch id="hide-system" checked={hideSystem} onCheckedChange={setHideSystem} />
-        <Label htmlFor="hide-system" className="text-xs text-muted-foreground cursor-pointer">Dölj systemloggar</Label>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-1">
+        <div className="flex items-center gap-2">
+          <Switch id="hide-system" checked={hideSystem} onCheckedChange={setHideSystem} />
+          <Label htmlFor="hide-system" className="text-xs text-muted-foreground cursor-pointer">Dölj system</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="hide-glykol" checked={hideGlykol} onCheckedChange={setHideGlykol} />
+          <Label htmlFor="hide-glykol" className="text-xs text-muted-foreground cursor-pointer">Dölj glykol</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="hide-pid" checked={hidePid} onCheckedChange={setHidePid} />
+          <Label htmlFor="hide-pid" className="text-xs text-muted-foreground cursor-pointer">Dölj PID</Label>
+        </div>
       </div>
       {filteredEntries.length === 0 && (
         <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>
