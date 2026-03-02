@@ -33,10 +33,13 @@ export interface TempController {
   cooling_enabled: boolean | null
   heating_enabled: boolean | null
   cooling_hysteresis: number | null
+  heating_hysteresis: number | null
   min_target_temp: number | null
   max_target_temp: number | null
   last_update: string | null
   profile_target_temp: number | null
+  cooling_run_time: number | null
+  cooling_starts: number | null
 }
 
 // ============================================================

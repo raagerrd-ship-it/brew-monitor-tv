@@ -11,9 +11,19 @@ import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 // controller's effective probe target so cooling happens
 // at a good/reasonable rate.
 //
+// DEMAND-DRIVEN: The cooler only lowers its target when at
+// least one tank is actively cooling (probe > target + hysteresis).
+// This prevents wasteful adjustments when PID shifts targets
+// but the tank hasn't even triggered its cooling circuit yet.
+//
+// UTILIZATION-AWARE: By tracking cooling_run_time between
+// cycles, we calculate how much of the time the cooling
+// circuit was active. High utilization → need more margin.
+// Low utilization → can tighten margin to save energy.
+//
 // Controller adjustments (PID, stall) are handled separately
 // in controller-adjustments.ts. When they lower probe targets,
-// the cooler naturally follows.
+// the cooler naturally follows once actual demand appears.
 // ============================================================
 
 export interface CoolerContext {
@@ -32,6 +42,17 @@ export interface CoolerContext {
 interface ProfileCache {
   sessions: any[]
   stepsMap: Map<string, any[]>
+}
+
+// Per-controller cooling utilization data
+interface CoolingUtilization {
+  controllerId: string
+  controllerName: string
+  utilization: number | null  // 0.0–1.0, null if no prev data
+  isActivelyCooling: boolean  // probe > target + hysteresis right now
+  probeTemp: number
+  targetTemp: number
+  hysteresis: number
 }
 
 export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentResult[]> {
@@ -85,6 +106,13 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     return adjustments
   }
 
+  // ── Calculate cooling utilization per controller ───────────
+  const utilizations = await calculateCoolingUtilizations(ctx, controllersWithCooling)
+
+  for (const u of utilizations) {
+    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`)
+  }
+
   // ── Load profile data once (used for ramp detection + blocking) ──
   const profileCache = await loadProfileCache(ctx, controllersWithCooling)
 
@@ -119,7 +147,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.3) {
     log('COOLER_OK', 'pass', `Kylare vid ${currentCoolerTarget}°C, mål ${clampedTarget}°C — nära nog (${diff.toFixed(1)}°C diff)`)
-    await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket)
+    await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
   }
 
@@ -146,6 +174,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
+  // ── Demand guard: only LOWER cooler if tanks actually need cooling ──
+  if (clampedTarget < currentCoolerTarget && !effectiveTarget.isRampingDown) {
+    const anyActivelyCooling = utilizations.some(u => u.isActivelyCooling)
+    if (!anyActivelyCooling) {
+      log('DEMAND_GUARD', 'info', `Ingen tank kyler aktivt — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
+      // Still learn from current state even though we didn't adjust
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+      return adjustments
+    }
+  }
+
   // ── Apply ─────────────────────────────────────────────────
   const direction = clampedTarget < currentCoolerTarget ? 'Sänker' : 'Höjer'
   await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, clampedTarget, effectiveTarget.temp,
@@ -154,8 +193,77 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   return adjustments
 }
+}
 
-// ─── Load profile data once ──────────────────────────────────
+// ─── Cooling Utilization Tracking ─────────────────────────────
+// Tracks cooling_run_time between cycles to calculate what fraction
+// of the time each tank's cooling circuit was running.
+
+async function calculateCoolingUtilizations(
+  ctx: CoolerContext,
+  controllersWithCooling: TempController[],
+): Promise<CoolingUtilization[]> {
+  const { supabase } = ctx
+  const results: CoolingUtilization[] = []
+
+  for (const c of controllersWithCooling) {
+    const probeTemp = parseFloat(String(c.current_temp ?? c.pill_temp ?? '999'))
+    const targetTemp = parseFloat(String(c.target_temp ?? '999'))
+    const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
+    const isActivelyCooling = probeTemp > targetTemp + hysteresis
+    const currentRunTime = c.cooling_run_time ?? 0
+
+    // Load previous cooling_run_time snapshot
+    const prevParam = await getLearnedParam(supabase, c.controller_id, 'prev_cooling_run_time', -1)
+    const prevRunTime = prevParam.value
+    const prevTimestampParam = await getLearnedParam(supabase, c.controller_id, 'prev_cooling_run_time_at', 0)
+    const prevTimestampMs = prevTimestampParam.value
+
+    let utilization: number | null = null
+
+    if (prevRunTime >= 0 && prevTimestampMs > 0) {
+      const elapsedSeconds = (Date.now() - prevTimestampMs) / 1000
+      if (elapsedSeconds > 60) { // At least 1 min of data
+        const deltaRunTime = currentRunTime - prevRunTime
+        // cooling_run_time can reset (firmware restart etc)
+        if (deltaRunTime >= 0) {
+          utilization = Math.min(1.0, deltaRunTime / elapsedSeconds)
+        }
+      }
+    }
+
+    // Save current snapshot for next cycle
+    await supabase.from('fermentation_learnings').upsert({
+      controller_id: c.controller_id,
+      parameter_name: 'prev_cooling_run_time',
+      learned_value: currentRunTime,
+      sample_count: 1,
+      last_updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,parameter_name' })
+
+    await supabase.from('fermentation_learnings').upsert({
+      controller_id: c.controller_id,
+      parameter_name: 'prev_cooling_run_time_at',
+      learned_value: Date.now(),
+      sample_count: 1,
+      last_updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,parameter_name' })
+
+    results.push({
+      controllerId: c.controller_id,
+      controllerName: c.name,
+      utilization,
+      isActivelyCooling,
+      probeTemp,
+      targetTemp,
+      hysteresis,
+    })
+  }
+
+  return results
+}
+
+
 
 async function loadProfileCache(ctx: CoolerContext, controllersWithCooling: TempController[]): Promise<ProfileCache> {
   const { supabase } = ctx
@@ -305,6 +413,7 @@ async function learnFromCurrentState(
   controllersWithCooling: TempController[],
   effectiveTarget: EffectiveTarget,
   tempBucket: string,
+  utilizations?: CoolingUtilization[],
 ): Promise<void> {
   const { supabase, log } = ctx
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
@@ -331,23 +440,50 @@ async function learnFromCurrentState(
     log('RATE_LEARN', 'info', `Ramp rate: actual ${actualRate.toFixed(2)}°C/h vs required ${requiredRate.toFixed(2)}°C/h (ratio ${ratio.toFixed(2)})`)
 
     if (ratio > 1.1) {
-      // Too slow — increase margin proportionally (clamped)
-      const scaledMargin = currentMargin * Math.min(ratio, 1.5) // max 50% increase per cycle
+      const scaledMargin = currentMargin * Math.min(ratio, 1.5)
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `[${tempBucket}] Rate too slow — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
     } else if (ratio < 0.85) {
-      // Faster than needed — tighten margin
       const tighterMargin = currentMargin * 0.95
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
     }
 
-    // ── Max-effective-margin learning ──
     await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
     return
   }
 
-  // ── Fallback: static target-based learning (hold steps) ──
+  // ── Utilization-based learning (hold steps) ──
+  // This is the primary learning signal: how hard is the cooling circuit working?
+  const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
+  if (lowestUtil?.utilization != null) {
+    const util = lowestUtil.utilization
+
+    log('UTIL_LEARN', 'info', `[${tempBucket}] Cooling utilization: ${Math.round(util * 100)}% (margin ${currentMargin.toFixed(1)}°C)`)
+
+    if (util > 0.85 && currentMargin > 1.0) {
+      // Cooling circuit running almost constantly — need more margin
+      const scaledMargin = currentMargin * 1.10  // 10% increase
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] High utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    } else if (util < 0.4 && currentMargin > 2.5) {
+      // Cooling circuit idle most of the time — try tightening
+      const tighterMargin = currentMargin * 0.95  // 5% decrease
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+    } else if (util >= 0.4 && util <= 0.85) {
+      // Sweet spot — margin is well-tuned
+      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is well-tuned`)
+    }
+
+    // Also learn max effective during hold if we have rate data
+    if (actualRate !== null) {
+      await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+    }
+    return
+  }
+
+  // ── Fallback: static target-based learning (no utilization data yet) ──
   const atTarget = probeTemp <= targetTemp + hysteresis
   const overshot = probeTemp < targetTemp - 1.0
 
@@ -365,7 +501,6 @@ async function learnFromCurrentState(
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Not reaching target — increasing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
   }
 
-  // Also learn max effective during hold if we have rate data
   if (actualRate !== null) {
     await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
   }
