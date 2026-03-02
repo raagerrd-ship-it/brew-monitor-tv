@@ -365,10 +365,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const coolerLastUpdate = statusDet.last_update as string | null;
   const coolerRunTime = statusDet.cooling_run_time as number | null;
   const coolerUtilValue = statusDet.cooler_utilization as number | null;
+  const coolerRecentUtil = statusDet.recent_utilization as number | null;
   const coolerStarts = statusDet.cooling_starts as number | null;
   const coolerUtilTooltip = (() => {
     const parts: string[] = [];
-    if (coolerUtilValue != null) parts.push(`Utnyttjandegrad: ${coolerUtilValue}% (rullande 30 min)`);
+    if (coolerUtilValue != null) parts.push(`Rullande 30 min: ${coolerUtilValue}%`);
+    if (coolerRecentUtil != null) parts.push(`Senaste intervall: ${coolerRecentUtil}%`);
     parts.push(`cooling_run_time: ${coolerRunTime ?? '?'}s`);
     if (coolerStarts != null) parts.push(`cooling_starts: ${coolerStarts}`);
     if (coolerLastUpdate) parts.push(`RAPT: ${new Date(coolerLastUpdate).toLocaleTimeString('sv-SE')}`);
@@ -409,10 +411,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const mUtilMatch = matchingUtil?.message.match(/util=(\d+)%/);
           const mUtilPct = mUtilMatch ? parseInt(mUtilMatch[1]) : null;
           const mRunTime = mDet.cooling_run_time as number | null;
+          const mRecentUtil = mDet.recent_utilization as number | null;
           const mLastUpdate = mDet.last_update as string | null;
           const mTip = (() => {
             const p: string[] = [];
-            if (mUtilPct != null) p.push(`Utnyttjandegrad: ${mUtilPct}% (rullande 30 min)`);
+            if (mUtilPct != null) p.push(`Rullande 30 min: ${mUtilPct}%`);
+            if (mRecentUtil != null) p.push(`Senaste intervall: ${mRecentUtil}%`);
             if (mRunTime != null) p.push(`cooling_run_time: ${mRunTime}s`);
             if (mLastUpdate) p.push(`RAPT: ${new Date(mLastUpdate).toLocaleTimeString('sv-SE')}`);
             return p.length > 0 ? p.join('\n') : null;
@@ -447,10 +451,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           if (effectiveCtrlName && name === effectiveCtrlName) return null;
           const uDet = u.details || {};
           const tankRunTime = uDet.cooling_run_time as number | null;
+          const tankRecentUtil = uDet.recent_utilization as number | null;
           const tankLastUpdate = uDet.last_update as string | null;
           const tankUtilTip = (() => {
             const p: string[] = [];
-            if (utilPct != null) p.push(`Utnyttjandegrad: ${utilPct}% (rullande 30 min)`);
+            if (utilPct != null) p.push(`Rullande 30 min: ${utilPct}%`);
+            if (tankRecentUtil != null) p.push(`Senaste intervall: ${tankRecentUtil}%`);
             if (tankRunTime != null) p.push(`cooling_run_time: ${tankRunTime}s`);
             if (tankLastUpdate) p.push(`RAPT: ${new Date(tankLastUpdate).toLocaleTimeString('sv-SE')}`);
             return p.length > 0 ? p.join('\n') : 'Ingen data';

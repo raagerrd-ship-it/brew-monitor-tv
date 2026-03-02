@@ -48,7 +48,8 @@ interface ProfileCache {
 interface CoolingUtilization {
   controllerId: string
   controllerName: string
-  utilization: number | null  // 0.0–1.0, null if no prev data
+  utilization: number | null  // 0.0–1.0 rolling 30-min, null if no prev data
+  recentUtilization: number | null  // 0.0–1.0 between two latest data points
   isActivelyCooling: boolean  // probe > target + hysteresis right now
   probeTemp: number
   targetTemp: number
@@ -90,12 +91,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
 
   // ── Calculate cooler's own utilization (rolling 30-min avg) ──
-  const coolerUtil = await calculateSingleUtilization(ctx, coolerController)
+  const coolerUtilResult = await calculateSingleUtilization(ctx, coolerController)
+  const coolerUtil = coolerUtilResult.rolling
 
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}`, {
     target_temp: round1(currentCoolerTarget),
     current_temp: round1(coolerController.current_temp),
     cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
+    recent_utilization: coolerUtilResult.recent != null ? Math.round(coolerUtilResult.recent * 100) : null,
     cooling_run_time: coolerController.cooling_run_time ?? 0,
     cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
@@ -120,6 +123,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
     log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
+      recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
       cooling_run_time: c?.cooling_run_time ?? null,
       last_update: c?.last_update ?? null,
     })
@@ -232,10 +236,22 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 // of the time each controller's cooling circuit was running.
 
 // Calculate rolling 30-min utilization for a single controller
+// Returns { rolling, recent } where recent = util between the two latest data points
+interface UtilizationResult {
+  rolling: number | null
+  recent: number | null
+  prevRunTime: number
+  prevTimestampMs: number
+  anchorRunTime: number
+  anchorTimestampMs: number
+  currentRunTime: number
+  sensorTimestampMs: number
+}
+
 async function calculateSingleUtilization(
   ctx: CoolerContext,
   c: TempController,
-): Promise<number | null> {
+): Promise<UtilizationResult> {
   const { supabase } = ctx
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
@@ -250,14 +266,13 @@ async function calculateSingleUtilization(
   let anchorTimestampMs = anchorTimestampParam.value
 
   const prevSensorMs = prevTimestampParam.value
+  const prevRunTime = prevRunTimeParam.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
   if (isNewData) {
-    // Promote prev→anchor when: no anchor exists yet, OR enough total time
-    // has elapsed since the current anchor was set (sliding window)
     const shouldPromote = prevSensorMs > 0 && (
-      anchorRunTime < 0 ||  // no anchor yet → bootstrap
-      (anchorTimestampMs > 0 && (sensorTimestampMs - anchorTimestampMs) >= WINDOW_MS)  // window elapsed
+      anchorRunTime < 0 ||
+      (anchorTimestampMs > 0 && (sensorTimestampMs - anchorTimestampMs) >= WINDOW_MS)
     )
 
     if (shouldPromote) {
@@ -284,16 +299,31 @@ async function calculateSingleUtilization(
     }, { onConflict: 'controller_id,parameter_name' })
   }
 
+  // Rolling 30-min utilization (anchor → current)
+  let rolling: number | null = null
   if (anchorRunTime >= 0 && anchorTimestampMs > 0 && sensorTimestampMs > anchorTimestampMs) {
     const elapsedSeconds = (sensorTimestampMs - anchorTimestampMs) / 1000
     if (elapsedSeconds > 60) {
       const deltaRunTime = currentRunTime - anchorRunTime
       if (deltaRunTime >= 0) {
-        return Math.min(1.0, deltaRunTime / elapsedSeconds)
+        rolling = Math.min(1.0, deltaRunTime / elapsedSeconds)
       }
     }
   }
-  return null
+
+  // Recent utilization (prev → current)
+  let recent: number | null = null
+  if (prevRunTime >= 0 && prevSensorMs > 0 && sensorTimestampMs > prevSensorMs) {
+    const recentElapsed = (sensorTimestampMs - prevSensorMs) / 1000
+    if (recentElapsed > 30) {
+      const recentDelta = currentRunTime - prevRunTime
+      if (recentDelta >= 0) {
+        recent = Math.min(1.0, recentDelta / recentElapsed)
+      }
+    }
+  }
+
+  return { rolling, recent, prevRunTime, prevTimestampMs: prevSensorMs, anchorRunTime, anchorTimestampMs, currentRunTime, sensorTimestampMs }
 }
 
 async function calculateCoolingUtilizations(
@@ -308,12 +338,13 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     const isActivelyCooling = probeTemp > targetTemp + hysteresis
 
-    const utilization = await calculateSingleUtilization(ctx, c)
+    const utilResult = await calculateSingleUtilization(ctx, c)
 
     results.push({
       controllerId: c.controller_id,
       controllerName: c.name,
-      utilization,
+      utilization: utilResult.rolling,
+      recentUtilization: utilResult.recent,
       isActivelyCooling,
       probeTemp,
       targetTemp,
