@@ -214,15 +214,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
-  // Detect if the PREVIOUS cycle was a kick (current target is well below the normal target).
-  // A real kick drops by at least ~hysteresis degrees, so use half-hysteresis as threshold
-  // to avoid false positives from normal margin fluctuations (e.g. 0.1° vs 0.2°).
-  const previousWasKick = currentCoolerTarget < clampedTarget - Math.max(coolerHysteresis * 0.5, 0.5)
+  // Detect if the PREVIOUS cycle was a kick using the DB flag (set when kick is sent)
+  const previousWasKick = !!(coolerController as any).hysteresis_kick_active
 
   if (previousWasKick) {
     log('HYSTERESIS_REVERT', 'action', `Föregående cykel var hysteres-kick (${round1(currentCoolerTarget)}°) — återgår till ${round1(clampedTarget)}°C`)
-    // Fall through to the normal "apply if different" logic below,
-    // which will set clampedTarget. No early return needed.
+    // Clear the flag
+    await supabase.from('rapt_temp_controllers')
+      .update({ hysteresis_kick_active: false })
+      .eq('controller_id', coolerController.controller_id)
+    // Fall through to the normal "apply if different" logic below
   } else if (coolerInDeadBand) {
     // Only kick if: a tank is at 100% util AND cooler itself is at 0% util
     const anyTankMaxUtil = utilizations.some(u => u.utilization != null && u.utilization >= 0.99)
@@ -234,6 +235,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
       const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
       log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% (dead band ${round1(coolerTemp)}° mellan ${round1(clampedTarget)}°–${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C`)
+      // Set the flag so next cycle knows to revert
+      await supabase.from('rapt_temp_controllers')
+        .update({ hysteresis_kick_active: true })
+        .eq('controller_id', coolerController.controller_id)
       await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
         `⚡ Hysteres-kick: tank 100% + kylare 0% → kickar ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
         adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
