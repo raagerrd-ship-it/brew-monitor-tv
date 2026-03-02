@@ -302,6 +302,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pidResult.constraints.push(`hw-max=${maxTemp}`)
     }
 
+    // ── Heater activation guard ──────────────────────────────
+    // When PID wants to raise target in heating mode, cap it below
+    // the heater activation threshold (probe + heating_hysteresis)
+    // so the temperature drifts up naturally without firing the heater.
+    // Only applies when error is small (holding stable, not recovering).
+    if (pidMode === 'heating' && fc.heating_enabled && fc.heating_hysteresis != null) {
+      const heatingHyst = parseFloat(String(fc.heating_hysteresis))
+      // Heater activates when probe < target - hysteresis
+      // → prevent by keeping target ≤ probe + hysteresis - buffer
+      const heaterThreshold = probeTemp + heatingHyst - 0.1
+      const avgError = actualTarget - actualTemp
+      const isHoldingStable = Math.abs(avgError) < 1.0
+
+      if (isHoldingStable && ctrlTargetPid > heaterThreshold) {
+        const before = ctrlTargetPid
+        ctrlTargetPid = Math.max(actualTarget, heaterThreshold) // never below profile target
+        pidResult.constraints = pidResult.constraints ?? []
+        pidResult.constraints.push(`heat-guard=${heatingHyst}`)
+        console.log(`🔥 Heater guard ${fc.name}: capped ${before.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (probe=${probeTemp.toFixed(1)}, hyst=${heatingHyst}, threshold=${heaterThreshold.toFixed(1)})`)
+      }
+    }
+
     // Always log PID status for visibility in decision log
     const pillTempLog = round1(fc.pill_temp ?? 0)
     const probeTempLog = round1(fc.current_temp ?? 0)
