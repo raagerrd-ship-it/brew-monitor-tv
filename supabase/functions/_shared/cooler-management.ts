@@ -116,6 +116,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     mid_utilization: coolerUtilResult.mid != null ? Math.round(coolerUtilResult.mid * 100) : null,
     oldest_utilization: coolerUtilResult.oldest != null ? Math.round(coolerUtilResult.oldest * 100) : null,
     ancient_utilization: coolerUtilResult.ancient != null ? Math.round(coolerUtilResult.ancient * 100) : null,
+    frozen_counter: coolerUtilResult.frozenCounter ?? false,
     cooling_run_time: coolerController.cooling_run_time ?? 0,
     cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
@@ -289,6 +290,7 @@ export interface UtilizationResult {
   p4TimestampMs: number
   currentRunTime: number   // p0
   sensorTimestampMs: number
+  frozenCounter?: boolean  // true if RAPT counter is frozen (relay continuously ON)
 }
 
 export async function calculateSingleUtilization(
@@ -424,9 +426,27 @@ export async function calculateSingleUtilization(
   // p4→p3 — use original p4 values
   const ancient = calcInterval(origP4RunTime, origP4TimestampMs, origAnchorRunTime, origAnchorTimestampMs)
 
+  // ── Frozen counter detection ──────────────────────────────
+  // RAPT only updates cooling_run_time when the relay turns OFF.
+  // If the relay is continuously ON (e.g. glycol chiller running non-stop),
+  // the counter stays frozen → all intervals compute as 0%.
+  // Detect this: if we have ≥2 data points spanning enough time but
+  // run_time is identical across all of them, and cooling_enabled is true
+  // and the controller is actively below its target, infer ~100% utilization.
+  const frozenCounter = (
+    prevRunTime >= 0 && prevSensorMs > 0 &&
+    currentRunTime === prevRunTime &&
+    (origP2RunTime < 0 || origP2RunTime === prevRunTime) &&
+    (sensorTimestampMs - prevSensorMs) > 60_000 && // at least 1 min between points
+    c.cooling_enabled === true
+  )
+
   // Rolling = average of the 2 most recent intervals (for decisions)
   let rolling: number | null = null
-  if (recent != null && mid != null) {
+  if (frozenCounter) {
+    // Counter frozen while cooling → infer 100%
+    rolling = 1.0
+  } else if (recent != null && mid != null) {
     rolling = (recent + mid) / 2
   } else if (recent != null) {
     rolling = recent
@@ -435,12 +455,17 @@ export async function calculateSingleUtilization(
   }
 
   return {
-    rolling, recent, mid, oldest, ancient,
+    rolling,
+    recent: frozenCounter && recent === 0 ? 1.0 : recent,
+    mid: frozenCounter && mid === 0 ? 1.0 : mid,
+    oldest: frozenCounter && oldest === 0 ? 1.0 : oldest,
+    ancient: frozenCounter && ancient === 0 ? 1.0 : ancient,
     prevRunTime, prevTimestampMs: prevSensorMs,
     p2RunTime: origP2RunTime, p2TimestampMs: origP2TimestampMs,
     anchorRunTime: origAnchorRunTime, anchorTimestampMs: origAnchorTimestampMs,
     p4RunTime: origP4RunTime, p4TimestampMs: origP4TimestampMs,
     currentRunTime, sensorTimestampMs,
+    frozenCounter,
   }
 }
 
