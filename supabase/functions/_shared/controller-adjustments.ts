@@ -308,6 +308,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ctrl_target_pid: round1(ctrlTargetPid),
       delta: round1(pidResult.avgDelta),
       compensation: round1(pidResult.compensation),
+      error_correction: round1(pidResult.errorCorrection ?? 0),
       damping: round1(pidResult.dampingFactor),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
