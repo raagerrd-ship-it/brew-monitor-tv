@@ -684,7 +684,8 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-1 text-right" style={{
                       color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
-                      {comp != null && Math.abs(comp) > 0.01 ? (
+                      {comp != null ? (
+                        Math.abs(comp) > 0.01 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -699,13 +700,15 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                        ) : <span className="text-muted-foreground/40">—</span>
                       ) : '—'}
                     </td>
                     {/* Calc: + PI (with tooltip) */}
                     <td className="py-0.5 px-1 text-right" style={{
                       color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
                     }}>
-                      {errCorr != null && Math.abs(errCorr) > 0.01 ? (
+                      {errCorr != null ? (
+                        Math.abs(errCorr) > 0.01 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -723,6 +726,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                        ) : <span className="text-muted-foreground/40">—</span>
                       ) : '—'}
                     </td>
                     {/* = */}
