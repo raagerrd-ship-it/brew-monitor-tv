@@ -541,49 +541,81 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
         </div>
       )}
 
-      {/* Row 4: Decision / Result */}
-      <div className="flex items-center gap-2 text-[11px] pt-0.5 border-t border-border/20">
+      {/* Row 3: Decision + Learning — compact card */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border/20">
+        {/* Decision outcome badge */}
         {isAdjusted ? (
-          <>
-            <Wrench className="h-3 w-3 text-amber-500" />
-            <span className="font-medium">{adjustment.message}</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
+            <Wrench className="h-2.5 w-2.5" />
+            {(() => {
+              const adjDet = adjustment.details || {};
+              const oldT = adjDet.old_target as number;
+              const newT = adjDet.new_target as number;
+              return oldT != null && newT != null
+                ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
+                : <span>{adjustment.message}</span>;
+            })()}
+          </span>
         ) : isDemandGuarded ? (
-          <>
-            <ShieldAlert className="h-3 w-3 text-sky-400" />
-            <span className="text-sky-400">{demandGuard.message}</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400">
+            <ShieldAlert className="h-2.5 w-2.5" />Demand guard
+          </span>
         ) : isBlocked ? (
-          <>
-            <ShieldAlert className="h-3 w-3 text-amber-500" />
-            <span className="text-amber-400">{rampBlock.message}</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
+            <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
+          </span>
         ) : isRateLimited ? (
-          <>
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <span className="text-muted-foreground">{rateLimit.message}</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            <Clock className="h-2.5 w-2.5" />Rate-limit
+          </span>
         ) : isOk ? (
-          <>
-            <CheckCircle2 className="h-3 w-3 text-green-500" />
-            <span className="text-green-400">{coolerOk.message}</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
+            <CheckCircle2 className="h-2.5 w-2.5" />OK
+            {(() => {
+              // Extract diff from message if available
+              const diffMatch = coolerOk.message.match(/\(([0-9.]+)°C diff\)/);
+              return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
+            })()}
+          </span>
         ) : (
-          <>
-            <Info className="h-3 w-3 text-muted-foreground" />
-            <span className="text-muted-foreground">Ingen åtgärd</span>
-          </>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            <Info className="h-2.5 w-2.5" />Ingen åtgärd
+          </span>
+        )}
+
+        {/* Learning badges (inline, subtle) */}
+        {marginLearn && (() => {
+          const ml = marginLearn.details || {};
+          const oldVal = ml.old_value as number;
+          const newVal = ml.new_value as number;
+          const direction = (oldVal != null && newVal != null && newVal < oldVal) ? '↓' : '↑';
+          return (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+              <GraduationCap className="h-2.5 w-2.5" />
+              Marginal
+              {oldVal != null && newVal != null ? (
+                <span className="font-mono">{oldVal.toFixed(2)}° {direction} {newVal.toFixed(2)}°</span>
+              ) : (
+                <span>{marginLearn.message.replace(/.*tightening:|.*widening:|.*nudging:/, '').trim()}</span>
+              )}
+            </span>
+          );
+        })()}
+        {rateLearn && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+            <GraduationCap className="h-2.5 w-2.5" />
+            Rate
+            <span className="font-mono">{rateLearn.message.replace(/.*→\s*/, '').trim()}</span>
+          </span>
+        )}
+        {utilLearn && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+            <GraduationCap className="h-2.5 w-2.5" />
+            Util
+            <span className="font-mono">{utilLearn.message.replace(/.*→\s*/, '').trim()}</span>
+          </span>
         )}
       </div>
-
-      {/* Row 5: Learning feedback (subtle) */}
-      {(marginLearn || rateLearn || utilLearn) && (
-        <div className="text-[10px] text-muted-foreground space-y-0.5 pt-0.5">
-          {rateLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{rateLearn.message}</div>}
-          {utilLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{utilLearn.message}</div>}
-          {marginLearn && <div className="flex items-center gap-1"><GraduationCap className="h-2.5 w-2.5" />{marginLearn.message}</div>}
-        </div>
-      )}
     </div>
   );
 }
