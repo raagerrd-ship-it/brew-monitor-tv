@@ -245,7 +245,14 @@ async function calculateSingleUtilization(
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
   if (isNewData) {
-    if (prevSensorMs > 0 && (sensorTimestampMs - prevSensorMs) >= WINDOW_MS) {
+    // Promote prev→anchor when: no anchor exists yet, OR enough total time
+    // has elapsed since the current anchor was set (sliding window)
+    const shouldPromote = prevSensorMs > 0 && (
+      anchorRunTime < 0 ||  // no anchor yet → bootstrap
+      (anchorTimestampMs > 0 && (sensorTimestampMs - anchorTimestampMs) >= WINDOW_MS)  // window elapsed
+    )
+
+    if (shouldPromote) {
       anchorRunTime = prevRunTimeParam.value
       anchorTimestampMs = prevSensorMs
 
