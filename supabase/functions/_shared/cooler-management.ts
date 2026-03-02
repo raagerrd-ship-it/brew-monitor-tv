@@ -387,6 +387,8 @@ export async function calculateSingleUtilization(
     rolling = (recent + mid) / 2
   } else if (recent != null) {
     rolling = recent
+  } else if (mid != null) {
+    rolling = mid
   }
 
   return {
