@@ -723,6 +723,14 @@ async function learnFromCurrentState(
   utilizations?: CoolingUtilization[],
 ): Promise<void> {
   const { supabase, log } = ctx
+
+  // ── Only learn when at least one controller is actively cooling ──
+  // If no tank has active demand, the observed margin is meaningless
+  const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
+  if (!anyActive) {
+    log('MARGIN_LEARN', 'info', `Hoppar inlärning — ingen controller kyler aktivt`)
+    return
+  }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
   const currentMargin = Math.abs(effectiveTarget.temp - currentCoolerTarget)
 
