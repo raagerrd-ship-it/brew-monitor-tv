@@ -252,22 +252,28 @@ async function calculateCoolingUtilizations(
       }
     }
 
-    // Save current snapshot for next cycle
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id,
-      parameter_name: 'prev_cooling_run_time',
-      learned_value: currentRunTime,
-      sample_count: 1,
-      last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
+    // Only update the reference snapshot every 30 min for a stable rolling average
+    // (avoids noisy 0%/100% swings from 5-min cycle deltas)
+    const SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000
+    const timeSinceSnapshot = prevTimestampMs > 0 ? Date.now() - prevTimestampMs : Infinity
 
-    await supabase.from('fermentation_learnings').upsert({
-      controller_id: c.controller_id,
-      parameter_name: 'prev_cooling_run_time_at',
-      learned_value: Date.now(),
-      sample_count: 1,
-      last_updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,parameter_name' })
+    if (timeSinceSnapshot >= SNAPSHOT_INTERVAL_MS || prevRunTime < 0) {
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id,
+        parameter_name: 'prev_cooling_run_time',
+        learned_value: currentRunTime,
+        sample_count: 1,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: c.controller_id,
+        parameter_name: 'prev_cooling_run_time_at',
+        learned_value: Date.now(),
+        sample_count: 1,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+    }
 
     results.push({
       controllerId: c.controller_id,
