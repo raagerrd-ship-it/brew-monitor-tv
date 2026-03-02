@@ -731,9 +731,9 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     </td>
                     {/* = */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
-                    {/* Nytt mål (constrained) */}
+                    {/* Nytt mål (raw calculation result = Profil − Komp + PI) */}
                     <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
-                      {ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : rawValue != null ? `${r1(rawValue)}°` : '—'}
+                      {rawValue != null ? `${r1(rawValue)}°` : ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : '—'}
                     </td>
                     {/* Separator */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
