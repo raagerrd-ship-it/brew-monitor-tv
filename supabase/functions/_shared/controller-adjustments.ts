@@ -190,7 +190,7 @@ async function runPassThroughSync(
     let success: boolean
     if (ctx.updateBatch) {
       ctx.updateBatch.add(fc.controller_id, newTarget)
-      success = true
+      success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
       success = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, newTarget)
     }
@@ -198,9 +198,12 @@ async function runPassThroughSync(
     if (success) {
       adjustments.push({ cooler: fc.name, oldTarget: currentTarget, newTarget })
 
-      await supabase.from('rapt_temp_controllers')
-        .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
+      // Only write to DB immediately when NOT batching (see PID comment above)
+      if (!ctx.updateBatch) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+      }
 
       await logAdjustment(supabase, {
         cooler_controller_id: fc.controller_id,
@@ -308,7 +311,7 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     let success: boolean
     if (ctx.updateBatch) {
       ctx.updateBatch.add(fc.controller_id, newTarget)
-      success = true // Optimistic — will be flushed later
+      success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
       success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, newTarget)
     }
@@ -317,9 +320,15 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${newTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       adjustments.push({ cooler: fc.name, oldTarget: targetTemp, newTarget })
 
-      await supabase.from('rapt_temp_controllers')
-        .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
+      // Only write to DB immediately when NOT batching.
+      // When batching, the batch flush handler persists to DB only after
+      // RAPT hardware confirms the update — preventing optimistic writes
+      // that get overwritten by stale hardware values on the next sync.
+      if (!ctx.updateBatch) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: newTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+      }
 
       await logAdjustment(supabase, {
         cooler_controller_id: fc.controller_id,

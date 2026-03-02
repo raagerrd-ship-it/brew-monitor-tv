@@ -299,9 +299,11 @@ export async function detectAndHandleStalls(
         boostSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, safeTarget)
       }
       if (boostSuccess) {
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
+        if (!ctx.updateBatch) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: safeTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+        }
         log('STALL_BOOST', 'pass', `${fc.name}: Direkt boost ${currentTarget}°C → ${safeTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       } else {
         log('STALL_BOOST', 'fail', `${fc.name}: Kunde inte höja temperaturen`)
@@ -447,9 +449,11 @@ async function handleUnBoost(
         success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, restoredTarget)
       }
       if (success) {
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: restoredTarget, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
+        if (!ctx.updateBatch) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: restoredTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+        }
         log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, direkt un-boost ${currentTarget}°C → ${restoredTarget}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       } else {
         log('STALL_UNBOOST', 'fail', `${fc.name}: Kunde inte reversera direkt boost`)
