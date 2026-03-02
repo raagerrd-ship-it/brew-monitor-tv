@@ -25,6 +25,7 @@ const buildUtilTooltip = (data: {
   // Rolling average header (avg of 2 most recent intervals — used for decisions)
   if (data.pct != null) {
     lines.push(`Snitt (senaste 2): ${data.pct}%`);
+    lines.push('───');
   }
 
   // p0 (current) — interval from p1→p0 (skip if same timestamp as p1 = no new hw data yet)
