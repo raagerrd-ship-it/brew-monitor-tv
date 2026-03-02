@@ -485,6 +485,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const action = actionByName.get(name);
                 const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
                 const dualSensors = det.dual_sensors as boolean;
+                const actualTargetVal = det.actual_target as number ?? det.base_target as number;
                 return (
                   <tr key={i} className="border-b border-border/10 last:border-0">
                     <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>

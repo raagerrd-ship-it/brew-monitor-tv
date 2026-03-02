@@ -1,6 +1,11 @@
 /**
  * Centralized "actual temperature" calculation.
  *
+ * SSOT Naming:
+ *   actualTemp   = fused sensor reading (avg or probe-only)
+ *   actualTarget = user's desired target (profile_target_temp)
+ *   ctrlTargetPid = PID-adjusted target sent to hardware
+ *
  * Rules:
  *  - pillCompEnabled ON + both sensors available → average(pill, probe)
  *  - pillCompEnabled OFF (or only one sensor)   → probe ?? pill
@@ -35,26 +40,26 @@ export function getActualTempLabel(
 /**
  * Centralized "display target" calculation.
  *
- * Rules:
- *  - Profile target (SSOT) is the primary display value
- *  - Falls back to controller target (PID-adjusted) if no profile target
- *  - Also exposes compensation delta for UI indicators
+ * SSOT:
+ *   actualTarget    = profile_target_temp (what the user set)
+ *   ctrlTargetPid   = target_temp on hardware (PID-adjusted)
+ *   pidCompensation = ctrlTargetPid − actualTarget
  */
 export function getDisplayTarget(
   profileTarget: number | null | undefined,
   controllerTarget: number | null | undefined,
 ): {
-  /** The target to show the user (profile target preferred) */
-  target: number | null;
-  /** PID compensation: controllerTarget − profileTarget */
-  compensation: number | null;
+  /** The target to show the user (actualTarget preferred) */
+  actualTarget: number | null;
+  /** PID compensation: ctrlTargetPid − actualTarget */
+  pidCompensation: number | null;
 } {
   const pTarget = profileTarget ?? null;
   const cTarget = controllerTarget ?? null;
 
   return {
-    target: pTarget ?? cTarget,
-    compensation:
+    actualTarget: pTarget ?? cTarget,
+    pidCompensation:
       pTarget != null && cTarget != null
         ? Math.round((cTarget - pTarget) * 100) / 100
         : null,

@@ -168,7 +168,7 @@ function buildFeatureBlocks(
       } else if (skip) {
         if (skip.message.includes("Samma data")) {
           // Show current profile→setpoint even when no change
-          const { target: dt, compensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
+          const { actualTarget: dt, pidCompensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
           if (dt != null && c.target_temp != null) {
             const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
             controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
@@ -184,7 +184,7 @@ function buildFeatureBlocks(
         }
       } else {
         // No PID decision — show current profile→setpoint if available
-        const { target: dt, compensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
+        const { actualTarget: dt, pidCompensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
         if (dt != null && c.target_temp != null) {
           const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
           controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
