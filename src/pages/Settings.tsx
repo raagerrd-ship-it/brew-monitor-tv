@@ -25,7 +25,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot, Gauge } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
@@ -455,6 +455,17 @@ export default function Settings() {
           <TabsContent value="automation" className="space-y-6">
             <SettingsSection icon={Cpu} title="Autonoma funktioner" description="Aktivera eller inaktivera automatisk styrning">
               <div className="space-y-1">
+                <div className="flex items-center justify-between py-2.5 px-1">
+                  <div className="flex items-center gap-2.5">
+                    <Gauge className="h-4 w-4 text-accent" />
+                    <div>
+                      <p className="text-sm font-medium">PID-reglering</p>
+                      <p className="text-[11px] text-muted-foreground">Kärnfunktion — alltid aktiv</p>
+                    </div>
+                  </div>
+                  <Switch checked={true} disabled className="opacity-60" />
+                </div>
+                <SettingsDivider />
                 <div className="flex items-center justify-between py-2.5 px-1">
                   <div className="flex items-center gap-2.5">
                     <Snowflake className="h-4 w-4 text-accent" />
