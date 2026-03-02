@@ -564,13 +564,17 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     brewSgByName.set(name, d);
   });
   // Build a map of utilization per controller name
-  const utilByName = new Map<string, { pct: number | null; active: boolean }>();
+  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; runTime: number | null; lastUpdate: string | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
     const utilMatch = d.message.match(/util=(\d+)%/);
     const pct = utilMatch ? parseInt(utilMatch[1]) : null;
     const active = d.message.includes('❄️');
-    utilByName.set(name, { pct, active });
+    const det = d.details || {};
+    const recentPct = det.recent_utilization as number | null;
+    const runTime = det.cooling_run_time as number | null;
+    const lastUpdate = det.last_update as string | null;
+    utilByName.set(name, { pct, active, recentPct, runTime, lastUpdate });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -632,18 +636,30 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       <td className="py-0.5 px-1 text-right">{r1(det.ctrl_target as number)}</td>
                       <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
                       <td className="py-0.5 px-1 text-right">
-                        {util ? (
-                          <span className={`font-mono ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="text-muted-foreground/50 cursor-help"> - %</span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">Ingen utnyttjandedata ännu (väntar på tillräckligt med mätpunkter)</TooltipContent>
-                              </Tooltip>
-                            )}
-                          </span>
-                        ) : (
+                        {util ? (() => {
+                          const utilTip = (() => {
+                            const p: string[] = [];
+                            if (util.pct != null) p.push(`Rullande 30 min: ${util.pct}%`);
+                            if (util.recentPct != null) p.push(`Senaste intervall: ${util.recentPct}%`);
+                            if (util.runTime != null) p.push(`cooling_run_time: ${util.runTime}s`);
+                            if (util.lastUpdate) p.push(`RAPT: ${new Date(util.lastUpdate).toLocaleTimeString('sv-SE')}`);
+                            return p.length > 0 ? p.join('\n') : null;
+                          })();
+                          return utilTip ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                  {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className={`font-mono ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                              {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
+                            </span>
+                          );
+                        })() : (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
