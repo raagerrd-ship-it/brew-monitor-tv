@@ -888,12 +888,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const name = d.message.replace('Controller: ', '');
                 const delta = det.delta as number;
                 const loggedComp = (det.compensation as number) ?? (delta != null ? delta / 2 : 0);
-                // When PID skips (already at target), compensation=0 but the offset is still active.
-                // Derive effective comp from actual values: Δ = actualTarget - ctrlTargetPid + PI
-                const effectiveComp = (det.actual_target as number) != null && (det.ctrl_target_pid as number) != null
-                  ? (det.actual_target as number) - (det.ctrl_target_pid as number) + ((det.error_correction as number) ?? 0)
-                  : null;
-                const comp = loggedComp != null && Math.abs(loggedComp) > 0.01 ? loggedComp : (effectiveComp ?? loggedComp);
+                // Use delta directly as the compensation display — it's always logged correctly
+                // even when PID skips ("redan nära mål"), unlike compensation which resets to 0
+                const comp = delta != null ? delta / 2 : loggedComp;
                 const errCorr = (det.error_correction as number) ?? 0;
                 const pCorr = det.p_correction as number;
                 const iCorr = det.i_correction as number;
