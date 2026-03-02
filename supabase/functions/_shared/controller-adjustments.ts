@@ -339,7 +339,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(ctrlTargetPid),
       delta: round1(pidResult.avgDelta),
-      raw_compensation: round1(pidResult.avgDelta / 2),
+      raw_compensation: round1(pidResult.avgDelta),
       compensation: round1(pidResult.compensation),
       error_correction: round1(pidResult.errorCorrection ?? 0),
       p_correction: round1(pidResult.pCorrection ?? 0),
