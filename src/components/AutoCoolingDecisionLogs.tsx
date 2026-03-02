@@ -9,16 +9,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('sv-SE') : null;
 
-/** Build a tooltip showing avg (decision value) + per-interval utilization for 4 data points */
+/** Build a tooltip showing avg (decision value) + per-interval utilization for 5 data points */
 const buildUtilTooltip = (data: {
   lastUpdate?: string | null;
   recentPct?: number | null;   // p1→p0
   midPct?: number | null;      // p2→p1
   oldestPct?: number | null;   // p3→p2
+  ancientPct?: number | null;  // p4→p3
   pct?: number | null;         // rolling avg (decision value)
   prevAt?: string | null;      // p1 timestamp
   p2At?: string | null;        // p2 timestamp
   anchorAt?: string | null;    // p3 timestamp
+  p4At?: string | null;        // p4 timestamp
 }): string => {
   const lines: string[] = [];
 
@@ -28,14 +30,14 @@ const buildUtilTooltip = (data: {
     lines.push('───');
   }
 
-  // p0 (current) — interval from p1→p0 (skip if same timestamp as p1 = no new hw data yet)
+  // p0 (current) — interval from p1→p0
   const currentTime = fmtTime(data.lastUpdate ?? null);
   const prevTime = fmtTime(data.prevAt ?? null);
   if (currentTime && currentTime !== prevTime) {
     lines.push(`${currentTime}: ${data.recentPct != null ? `${data.recentPct}%` : '—'}`);
   }
 
-  // p1 (prev) — interval from p2→p1
+  // p1 — interval from p2→p1
   if (prevTime) {
     lines.push(`${prevTime}: ${data.midPct != null ? `${data.midPct}%` : '—'}`);
   }
@@ -46,10 +48,16 @@ const buildUtilTooltip = (data: {
     lines.push(`${p2Time}: ${data.oldestPct != null ? `${data.oldestPct}%` : '—'}`);
   }
 
-  // p3 (anchor/oldest) — no earlier data
+  // p3 (anchor) — interval from p4→p3
   const anchorTime = fmtTime(data.anchorAt ?? null);
-  if (anchorTime && anchorTime !== p2Time) {
-    lines.push(`${anchorTime}: (start)`);
+  if (anchorTime) {
+    lines.push(`${anchorTime}: ${data.ancientPct != null ? `${data.ancientPct}%` : '—'}`);
+  }
+
+  // p4 (oldest) — no earlier data
+  const p4Time = fmtTime(data.p4At ?? null);
+  if (p4Time && p4Time !== anchorTime) {
+    lines.push(`${p4Time}: (start)`);
   }
 
   if (lines.length === 0) lines.push('Ingen data ännu');
@@ -426,10 +434,12 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
     recentPct: statusDet.recent_utilization as number | null,
     midPct: statusDet.mid_utilization as number | null,
     oldestPct: statusDet.oldest_utilization as number | null,
+    ancientPct: statusDet.ancient_utilization as number | null,
     pct: statusDet.cooler_utilization as number | null,
     prevAt: statusDet.prev_at as string | null,
     p2At: statusDet.p2_at as string | null,
     anchorAt: statusDet.anchor_at as string | null,
+    p4At: statusDet.p4_at as string | null,
   });
 
   return (
@@ -469,10 +479,12 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             recentPct: mDet.recent_utilization as number | null,
             midPct: mDet.mid_utilization as number | null,
             oldestPct: mDet.oldest_utilization as number | null,
+            ancientPct: mDet.ancient_utilization as number | null,
             pct: mUtilPct,
             prevAt: mDet.prev_at as string | null,
             p2At: mDet.p2_at as string | null,
             anchorAt: mDet.anchor_at as string | null,
+            p4At: mDet.p4_at as string | null,
           });
           return (
             <div className="flex items-center gap-1.5">
@@ -508,10 +520,12 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             recentPct: uDet.recent_utilization as number | null,
             midPct: uDet.mid_utilization as number | null,
             oldestPct: uDet.oldest_utilization as number | null,
+            ancientPct: uDet.ancient_utilization as number | null,
             pct: utilPct,
             prevAt: uDet.prev_at as string | null,
             p2At: uDet.p2_at as string | null,
             anchorAt: uDet.anchor_at as string | null,
+            p4At: uDet.p4_at as string | null,
           });
           return (
             <Tooltip key={i}>
@@ -664,7 +678,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     brewSgByName.set(name, d);
   });
   // Build a map of utilization per controller name
-  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; midPct: number | null; oldestPct: number | null; lastUpdate: string | null; prevAt: string | null; p2At: string | null; anchorAt: string | null }>();
+  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; midPct: number | null; oldestPct: number | null; ancientPct: number | null; lastUpdate: string | null; prevAt: string | null; p2At: string | null; anchorAt: string | null; p4At: string | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
     const utilMatch = d.message.match(/util=(\d+)%/);
@@ -676,10 +690,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
       recentPct: det.recent_utilization as number | null,
       midPct: det.mid_utilization as number | null,
       oldestPct: det.oldest_utilization as number | null,
+      ancientPct: det.ancient_utilization as number | null,
       lastUpdate: det.last_update as string | null,
       prevAt: det.prev_at as string | null,
       p2At: det.p2_at as string | null,
       anchorAt: det.anchor_at as string | null,
+      p4At: det.p4_at as string | null,
     });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
@@ -749,10 +765,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             recentPct: util.recentPct,
                             midPct: util.midPct,
                             oldestPct: util.oldestPct,
+                            ancientPct: util.ancientPct,
                             pct: util.pct,
                             prevAt: util.prevAt,
                             p2At: util.p2At,
                             anchorAt: util.anchorAt,
+                            p4At: util.p4At,
                           });
                           return (
                             <Tooltip>
