@@ -294,6 +294,7 @@ export interface UtilizationResult {
 export async function calculateSingleUtilization(
   supabase: ReturnType<typeof createClient>,
   c: TempController,
+  options?: { skipShift?: boolean },
 ): Promise<UtilizationResult> {
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
@@ -329,7 +330,7 @@ export async function calculateSingleUtilization(
   const prevRunTime = prevRunTimeParam.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
-  if (isNewData && prevSensorMs > 0) {
+  if (isNewData && prevSensorMs > 0 && !options?.skipShift) {
     // Shift the chain: p4 ← old p3, p3 ← old p2, p2 ← old p1, p1 ← current
     const now = new Date().toISOString()
 
@@ -390,7 +391,7 @@ export async function calculateSingleUtilization(
         learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now,
       }, { onConflict: 'controller_id,parameter_name' }),
     ])
-  } else if (isNewData && prevSensorMs === 0) {
+  } else if (isNewData && prevSensorMs === 0 && !options?.skipShift) {
     // First data point ever — just save as prev
     const now = new Date().toISOString()
     await Promise.all([
