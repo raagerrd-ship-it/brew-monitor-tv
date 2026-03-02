@@ -192,6 +192,7 @@ export async function setControllerTargetTemp(
 interface PendingRaptUpdate {
   controllerId: string
   targetTemp: number
+  oldTarget?: number
 }
 
 /**
@@ -217,7 +218,7 @@ export class RaptUpdateBatch {
     if (accessToken) this.preAuthToken = accessToken
   }
 
-  /** Queue a target temp update. If same controller is added twice, last value wins. */
+  /** Queue a target temp update. If same controller is added twice, last value wins (but keeps first oldTarget). */
   add(controllerId: string, targetTemp: number, currentTarget?: number): void {
     // Skip no-op: don't send if hardware already at this target
     if (currentTarget !== undefined && Math.abs(targetTemp - currentTarget) < 0.05) {
@@ -226,9 +227,15 @@ export class RaptUpdateBatch {
     const existing = this.pending.find(p => p.controllerId === controllerId)
     if (existing) {
       existing.targetTemp = targetTemp
+      // Keep the original oldTarget from the first add()
     } else {
-      this.pending.push({ controllerId, targetTemp })
+      this.pending.push({ controllerId, targetTemp, oldTarget: currentTarget })
     }
+  }
+
+  /** Look up the original target temp before any updates were queued */
+  getOldTarget(controllerId: string): number | undefined {
+    return this.pending.find(p => p.controllerId === controllerId)?.oldTarget
   }
 
   get size(): number {

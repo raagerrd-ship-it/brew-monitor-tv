@@ -480,7 +480,8 @@ serve(async (req) => {
       for (const [controllerId] of succeeded) {
         const target = updateBatch.getAppliedTarget(controllerId);
         const controllerData = followedControllersFullData.find(c => c.controller_id === controllerId);
-        const oldTarget = controllerData ? round1(controllerData.target_temp) : null;
+        // Use the original old target stored at queue time, not the in-memory (mutated) value
+        const oldTarget = updateBatch.getOldTarget(controllerId) ?? (controllerData ? round1(controllerData.target_temp) : null);
         const name = controllerData?.name ?? controllerId;
         log('RAPT_SEND', 'action', `${name}: ${oldTarget ?? '?'}°C → ${target}°C`, {
           controller_id: controllerId,
