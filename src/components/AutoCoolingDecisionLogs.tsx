@@ -328,7 +328,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
   if (adjs.length === 0) {
     headerBadge = (
       <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
-        <Gauge className="h-2.5 w-2.5 mr-0.5" />System — {log.final_result}
+        <Gauge className="h-2.5 w-2.5 mr-0.5" />System
       </Badge>
     );
   } else if (hasPidAdj && hasGlykolAdj) {
