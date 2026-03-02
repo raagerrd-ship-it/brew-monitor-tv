@@ -253,17 +253,9 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
 
     const targetTemp = parseFloat(String(fc.target_temp ?? '20'))
 
-    // Same-data guard — always check profile_target_temp (SSOT for both manual and profile)
-    const lastAdjTs = lastAdjTimestampMap.get(fc.controller_id)
-    const profileTargetNow = (fc as any).profile_target_temp != null ? parseFloat(String((fc as any).profile_target_temp)) : null
-    const profileMatchesCurrent = profileTargetNow === null || Math.abs(profileTargetNow - targetTemp) < 0.15
-    if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update && profileMatchesCurrent) {
-      log('PILL_COMP_SKIP', 'info', `${fc.name}: Samma data som senaste justering (${fc.last_update}), hoppar över`)
-      continue
-    }
-    if (lastAdjTs && fc.last_update && lastAdjTs === fc.last_update && !profileMatchesCurrent) {
-      log('PILL_COMP', 'info', `${fc.name}: Samma RAPT-data men mål ändrat (${profileTargetNow?.toFixed(1)}° vs ctrl ${targetTemp.toFixed(1)}°) — kör PID ändå`)
-    }
+    // PID always runs every cycle — no same-data guard.
+    // Even if RAPT telemetry hasn't changed, the PID integral and learned
+    // baselines evolve, so skipping would allow drift.
 
     // Base target from SSOT (already bootstrapped)
     const baseTarget = parseFloat(String((fc as any).profile_target_temp))
