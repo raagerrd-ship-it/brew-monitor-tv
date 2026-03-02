@@ -192,7 +192,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     const anyActivelyCooling = utilizations.some(u => u.isActivelyCooling)
     if (!anyActivelyCooling) {
       log('DEMAND_GUARD', 'info', `Ingen tank kyler aktivt — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
-      // Still learn from current state even though we didn't adjust
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+      return adjustments
+    }
+
+    // Even if probe > target+hysteresis right now, block if utilization is very low
+    // (tank's cooling relay barely running → no real demand for lower cooler)
+    const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
+    if (lowestUtil?.utilization != null && lowestUtil.utilization < 0.10) {
+      log('DEMAND_GUARD', 'info', `Tank kyler momentant men util=${Math.round(lowestUtil.utilization * 100)}% — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
