@@ -242,7 +242,7 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
     return adjustments
   }
 
-  log('PILL_COMP', 'info', '--- PID pill compensation check ---')
+  log('PILL_COMP', 'info', 'PID pill compensation check')
 
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
@@ -289,11 +289,29 @@ async function runPillCompensation(ctx: ControllerAdjustmentContext): Promise<Ad
       compensation.constraints.push(`hw-max=${maxTemp}`)
     }
 
+    // Always log PID status for visibility in decision log
+    const pillTemp = round1(fc.pill_temp ?? 0)
+    const probeTemp = round1(fc.current_temp ?? 0)
+    const avgTemp = round1(((fc.pill_temp ?? 0) + (fc.current_temp ?? 0)) / 2)
+    const constraintLabels = compensation.constraints && compensation.constraints.length > 0 ? compensation.constraints : []
+
+    log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
+      pill_temp: pillTemp,
+      probe_temp: probeTemp,
+      avg_temp: avgTemp,
+      base_target: round1(baseTarget),
+      compensated_target: round1(newTarget),
+      current_target: round1(targetTemp),
+      delta: round1(compensation.avgDelta),
+      compensation: round1(compensation.compensation),
+      damping: round1(compensation.dampingFactor),
+      pill_rate: compensation.pillRate != null ? round1(compensation.pillRate) : null,
+      mode: pidMode,
+      step_type: stepType,
+      ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
+    })
+
     if (Math.abs(newTarget - targetTemp) < 0.1) {
-      // Log active constraints even when change is too small to apply
-      if (compensation.constraints && compensation.constraints.length > 0) {
-        log('PILL_COMP_ACTION', 'info', `${fc.name}: PID ${baseTarget.toFixed(1)}°C → ${newTarget.toFixed(1)}°C (ingen ändring <0.1°C, delta=${compensation.avgDelta.toFixed(2)}, komp=${compensation.compensation.toFixed(2)}°C, limits=[${compensation.constraints.join(',')}])`)
-      }
       continue
     }
 

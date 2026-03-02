@@ -681,11 +681,14 @@ export function AutoCoolingDecisionLogs() {
                   <span>Resultat: {log.final_result}</span>
                 </div>
                 <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {/* Group SYNC_DATA entries into a compact table */}
+                  {/* Group SYNC_DATA and PILL_COMP_STATUS entries into compact tables */}
                   {(() => {
                     const syncEntries = log.decisions.filter(d => d.step === 'SYNC_DATA');
+                    const pidStatusEntries = log.decisions.filter(d => d.step === 'PILL_COMP_STATUS');
                     const raptSendEntries = log.decisions.filter(d => d.step === 'RAPT_SEND');
-                    const otherEntries = log.decisions.filter(d => d.step !== 'SYNC_DATA' && d.step !== 'RAPT_SEND');
+                    const otherEntries = log.decisions.filter(d => 
+                      d.step !== 'SYNC_DATA' && d.step !== 'RAPT_SEND' && d.step !== 'PILL_COMP_STATUS'
+                    );
 
                     return (
                       <>
@@ -725,6 +728,53 @@ export function AutoCoolingDecisionLogs() {
                                             <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">hw</span>
                                           )}
                                         </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {!hidePid && pidStatusEntries.length > 0 && (
+                          <div className="mb-2 p-2 rounded border border-border/50" style={{ borderColor: 'hsl(280 60% 60% / 0.3)', background: 'hsl(280 60% 60% / 0.05)' }}>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Pill className="h-3 w-3" style={{ color: 'hsl(280 60% 60%)' }} />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(280 60% 60%)' }}>PID Pill-kompensation</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[10px]">
+                                <thead>
+                                  <tr className="text-muted-foreground border-b border-border/30">
+                                    <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Pill</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Probe</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Medel</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Profil</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Komp</th>
+                                    <th className="text-right py-0.5 px-1 font-medium">Mål</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pidStatusEntries.map((d, i) => {
+                                    const det = d.details || {};
+                                    const name = d.message.replace('Controller: ', '');
+                                    const comp = det.compensation as number;
+                                    const delta = det.delta as number;
+                                    return (
+                                      <tr key={i} className="border-b border-border/10 last:border-0">
+                                        <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{name}</td>
+                                        <td className="py-0.5 px-1 text-right" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                                        <td className="py-0.5 px-1 text-right">{r1(det.probe_temp as number)}</td>
+                                        <td className="py-0.5 px-1 text-right">{r1(det.avg_temp as number)}</td>
+                                        <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.base_target as number)}</td>
+                                        <td className="py-0.5 px-1 text-right" style={{ 
+                                          color: comp != null && Math.abs(comp) > 0.05 ? (comp < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)') : undefined 
+                                        }}>
+                                          {comp != null ? `${comp >= 0 ? '+' : ''}${r1(comp)}°` : '—'}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-right font-medium">{r1(det.compensated_target as number)}°</td>
                                       </tr>
                                     );
                                   })}
