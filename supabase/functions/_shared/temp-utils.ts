@@ -307,8 +307,10 @@ export class RaptUpdateBatch {
           throw new Error(`RAPT API ${res.status}: ${errText}`)
         }
 
-        const data = await res.json()
-        return { controllerId, success: data === true }
+        // RAPT API returns true for actual change, false for no-op (already at target)
+        // Both are successful — the hardware is at the desired temperature
+        await res.json()
+        return { controllerId, success: true }
       })
     )
 
