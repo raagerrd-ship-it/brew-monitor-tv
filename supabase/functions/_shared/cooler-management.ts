@@ -858,13 +858,10 @@ async function learnMinEffectiveMargin(
   // Only learn from cycles where cooling is actually happening (rate > 0)
   if (currentRate <= 0 || currentMargin < 0.5) return
 
-  // This margin produced cooling — it's a candidate for min_effective
-  const current = await getLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin)
-
-  if (current.sampleCount === 0 || currentMargin < current.value) {
-    // New minimum found — update with EMA toward this lower value
-    const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
-    log('MIN_MARGIN', 'action', `[${tempBucket}] Ny lägsta effektiva marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h)`)
+  // Always learn via EMA when cooling works — converges toward the true minimum effective margin
+  const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
+  if (Math.abs(result.oldValue - result.newValue) > 0.05) {
+    log('MIN_MARGIN', 'action', `[${tempBucket}] Min eff marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h, n=${result.sampleCount})`)
   }
 }
 
