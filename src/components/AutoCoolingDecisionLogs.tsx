@@ -585,13 +585,14 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const dualSensors = det.dual_sensors as boolean;
                 const actualTargetVal = det.actual_target as number ?? det.base_target as number;
                 return (
-                  <tr key={i} className="border-b border-border/10 last:border-0">
+                  <React.Fragment key={i}>
+                  <tr className="border-b border-border/10">
                     <td className="py-0.5 pr-2 font-medium truncate max-w-[90px]">{name}</td>
                     <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
                       {r1(actualTempVal)}°
                       {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
                     </td>
-                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1((det.actual_target ?? det.base_target) as number)}</td>
+                    <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>{r1(actualTargetVal)}</td>
                     <td className="py-0.5 px-1 text-right" style={{
                       color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50%)' : undefined
                     }}>
@@ -647,6 +648,84 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       ) : '—'}
                     </td>
                   </tr>
+                  <tr>
+                    <td colSpan={10} className="p-0">
+                      <details className="group">
+                        <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/70 select-none pl-2 py-0.5">
+                          Visa beräkning…
+                        </summary>
+                        <div className="pl-4 pr-2 pb-2 pt-1 text-[10px] space-y-1 text-muted-foreground/70 font-mono">
+                          {(() => {
+                            const at = det.actual_target as number;
+                            const rawComp = det.raw_compensation as number;
+                            const finalComp = det.compensation as number;
+                            const ec = det.error_correction as number;
+                            const pCorr = det.p_correction as number;
+                            const iCorr = det.i_correction as number;
+                            const learned = det.learned_baseline as number;
+                            const rawResult = det.raw_ctrl_target_pid as number;
+                            const finalResult = det.ctrl_target_pid as number;
+                            const dmp = det.damping as number;
+                            const lims = det.limits as string[];
+                            return (
+                              <>
+                                <div className="text-muted-foreground/50 text-[9px] font-sans mb-1">Formel: ctrl_target_pid = actual_target − komp + PI</div>
+                                <div>
+                                  <span className="text-muted-foreground/50">1. Delta/2:</span>{' '}
+                                  {delta != null ? `${r1(delta)}/2 = ${rawComp != null ? r1(rawComp) : '?'}` : '—'}
+                                </div>
+                                {dmp != null && dmp < 1.0 && (
+                                  <div>
+                                    <span className="text-muted-foreground/50">2. × Damping:</span>{' '}
+                                    {rawComp != null ? `${r1(rawComp)} × ${r1(dmp)} = ${finalComp != null ? r1(finalComp) : '?'}` : '—'}
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-muted-foreground/50">{dmp != null && dmp < 1.0 ? '3' : '2'}. Komp (slutlig):</span>{' '}
+                                  <span className="text-accent">{finalComp != null ? r1(finalComp) : '—'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground/50">{dmp != null && dmp < 1.0 ? '4' : '3'}. PI-term:</span>{' '}
+                                  P={pCorr != null ? r1(pCorr) : '?'} + I={iCorr != null ? r1(iCorr) : '?'}
+                                  {learned != null && learned > 0 && <span> (learned={r1(learned)})</span>}
+                                  {' = '}<span className="text-green-400">{ec != null ? `+${r1(ec)}` : '?'}</span>
+                                </div>
+                                <div className="border-t border-border/20 pt-1 mt-1">
+                                  <span className="text-muted-foreground/50">Rå beräkning:</span>{' '}
+                                  <span style={{ color: 'hsl(280 60% 60%)' }}>{at != null ? r1(at) : '?'}</span>
+                                  {' − '}<span className="text-accent">{finalComp != null ? r1(finalComp) : '?'}</span>
+                                  {' + '}<span className="text-green-400">{ec != null ? r1(ec) : '?'}</span>
+                                  {' = '}<span className="font-bold">{rawResult != null ? `${r1(rawResult)}°` : '?'}</span>
+                                </div>
+                                {rawResult != null && finalResult != null && Math.abs(rawResult - finalResult) > 0.05 && (
+                                  <div>
+                                    <span className="text-muted-foreground/50">Efter begränsningar:</span>{' '}
+                                    <span className="font-bold">{r1(rawResult)}° → </span>
+                                    <span className="font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>{r1(finalResult)}°</span>
+                                    {lims && lims.length > 0 && (
+                                      <span className="ml-1 text-[8px]">
+                                        ({lims.map((l, li) => (
+                                          <span key={li} className="px-0.5 text-sky-400">{l}</span>
+                                        ))})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {rawResult != null && finalResult != null && Math.abs(rawResult - finalResult) <= 0.05 && (
+                                  <div>
+                                    <span className="text-muted-foreground/50">Slutligt mål:</span>{' '}
+                                    <span className="font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>{r1(finalResult)}°</span>
+                                    <span className="text-muted-foreground/40 ml-1">(inga begränsningar)</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>
