@@ -1033,9 +1033,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                <div className="space-y-0.5">
                                  <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
                                 <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
-                                {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && (
-                                  <div>Inlärd = {r1(learnedBaseline)}°</div>
-                                )}
+                                {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && errCorr >= 0 && (
+                                   <div>Inlärd = {r1(learnedBaseline)}°</div>
+                                 )}
                                 <div className="border-t border-border/30 pt-0.5 font-medium">= {errCorr >= 0 ? '+' : ''}{r1(errCorr)}° totalt</div>
                               </div>
                             </TooltipContent>
