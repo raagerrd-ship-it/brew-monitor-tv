@@ -533,36 +533,45 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 4. Stall-detektering */}
-      {stallEntries.length > 0 && (
-        <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
-          {stallEntries.map((d, i) => {
-            const isAction = d.result === 'action';
-            const isSkip = d.step === 'STALL_SKIP';
-            return (
-              <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-                <div className="mt-0.5 flex-shrink-0">
-                  {isAction ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                   d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
-                   <Info className="h-3 w-3 text-muted-foreground" />}
+      {/* 3. Stall-detektering — only show actionable decisions */}
+      {stallEntries.length > 0 && (() => {
+        // Filter: only show STALL_ANALYSIS (with result), STALL_BOOST, STALL_LEARN, STALL_UNBOOST, STALL_COOLDOWN, STALL_ERROR
+        const actionableStall = stallEntries.filter(d =>
+          d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
+          d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
+          d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR'
+        );
+        if (actionableStall.length === 0) return null;
+        return (
+          <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
+            {actionableStall.map((d, i) => {
+              const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
+              const isError = d.step === 'STALL_ERROR';
+              const isAnalysis = d.step === 'STALL_ANALYSIS';
+              const stallDetected = isAnalysis && d.result === 'action';
+              return (
+                <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
+                  <div className="mt-0.5 flex-shrink-0">
+                    {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
+                     isError ? <XCircle className="h-3 w-3 text-red-400" /> :
+                     stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
+                     <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className={`font-medium ${isError ? 'text-red-400' : ''}`}>{d.message}</span>
+                    {isAnalysis && d.details && (
+                      <span className="text-muted-foreground ml-2">
+                        SG: {r1(d.details.sg_rate_per_day as number)}/dag
+                        {d.details.activity != null && ` · Akt: ${r1(d.details.activity as number)}`}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  {!isSkip && d.details ? (
-                    <div>
-                      <span className="font-medium">{d.message}</span>
-                      {d.details.sg_rate_per_day != null && (
-                        <span className="text-muted-foreground ml-2">SG: {r1(d.details.sg_rate_per_day as number)}/dag</span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className={isSkip ? 'text-muted-foreground' : ''}>{d.message}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </PipelineSection>
-      )}
+              );
+            })}
+          </PipelineSection>
+        );
+      })()}
 
       {/* 5. Glykol-kylare */}
       {coolerEntries.length > 0 && (
