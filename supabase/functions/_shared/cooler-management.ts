@@ -268,7 +268,6 @@ export async function calculateSingleUtilization(
   c: TempController,
 ): Promise<UtilizationResult> {
   const currentRunTime = c.cooling_run_time ?? 0
-  const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
   const WINDOW_MS = 30 * 60 * 1000
 
