@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_temp_controllers ADD COLUMN hysteresis_kick_active boolean NOT NULL DEFAULT false;

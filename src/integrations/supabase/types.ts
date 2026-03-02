@@ -1048,6 +1048,7 @@ export type Database = {
           heating_run_time: number | null
           heating_starts: number | null
           heating_utilisation: number | null
+          hysteresis_kick_active: boolean
           id: string
           is_glycol_cooler: boolean
           last_update: string | null
@@ -1073,6 +1074,7 @@ export type Database = {
           heating_run_time?: number | null
           heating_starts?: number | null
           heating_utilisation?: number | null
+          hysteresis_kick_active?: boolean
           id?: string
           is_glycol_cooler?: boolean
           last_update?: string | null
@@ -1098,6 +1100,7 @@ export type Database = {
           heating_run_time?: number | null
           heating_starts?: number | null
           heating_utilisation?: number | null
+          hysteresis_kick_active?: boolean
           id?: string
           is_glycol_cooler?: boolean
           last_update?: string | null
