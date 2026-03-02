@@ -1,83 +1,46 @@
 
 
-## Plan: Synkflöde i decision-loggen
+## Plan: Rensa och strukturera beslutsloggen
 
 ### Problem
-Decision-loggen visar bara automationscykelns beslut (auto-adjust-cooling). Synkflödet (sync-rapt-data-quick) — vad som kom från RAPT, vad som bevarades, vad som skickades tillbaka — syns bara i edge function console-loggar och är osynligt i UI:t.
+Loggen visar duplicerad information (PID-data syns både i `PILL_COMP_STATUS`/`PILL_COMP_ACTION` och i det separata adjustment-kortet), samt operationella steg (START, SETTINGS, FOLLOWED_CONTROLLERS, BATCH_FLUSH, COMPLETE) som skapar brus.
 
-### Mål
-Visa hela synk-pipelinen som en rak linje i loggen:
-1. **RAPT → DB**: Vilken data som kom in (pill_temp, ctrl_temp, ctrl_target, hardware_target)
-2. **Bevarad/Överskiven**: Om target_temp bevarades (PID/session/cooler) eller skrevs från RAPT
-3. **Automation**: PID-justeringar, stall, glykol (redan finns)
-4. **DB → RAPT**: Vilka justeringar som skickades (batch flush) — **markera bara denna sektion**
+### Lösning — UI-omstrukturering (AutoCoolingDecisionLogs.tsx)
 
-### Teknisk approach
+**1. Filtrera bort operationellt brus i expanderad vy**
 
-#### 1. Utöka decision-loggen med synk-data (auto-adjust-cooling/index.ts)
+Dölj dessa steg-typer helt: `START`, `SETTINGS`, `FOLLOWED_CONTROLLERS`, `COMPLETE`, `BATCH_FLUSH`, `BATCH_DB`, `PILL_COMP` (rubrik), `PILL_COMP_SKIP`, `BOOTSTRAP`, `COOLING`, `STALE_SENSOR`.
 
-Auto-adjust-cooling läser redan alla controllers från DB (`rapt_temp_controllers`). Den har dock inte tillgång till vad RAPT-hårdvaran rapporterade *innan* sync-rapt-data-quick skrev till DB.
+Visa enbart pipeline-stegen: `SYNC_DATA`, `PILL_COMP_STATUS`, `PILL_COMP_ACTION`, `RAPT_SEND`, `PASS_THROUGH`, `STALL_*`, `ERROR`.
 
-**Lösning**: Lägg till en `SYNC_DATA`-loggpost per controller i `auto-adjust-cooling` som loggar det aktuella DB-tillståndet (som nu är post-sync). Lägg även till en `RAPT_SENT`-sektion runt batch flush-loggen som markerar vad som faktiskt skickades.
+**2. Strukturera expanderad vy som en tydlig pipeline**
 
-Logformatet per controller:
-```
-SYNC_DATA | Controller: X
-  last_update: HH:MM:SS
-  pill_temp: 8.8
-  ctrl_temp: 5.6
-  ctrl_target: 5.4
-  profile_target: 8.0
-  preserved: true/false
+Tre visuella sektioner med headers och färgkodning:
+
+```text
+┌─────────────────────────────────────┐
+│ 📊 Synk-data (SYNC_DATA)           │  ← tabell, som idag
+├─────────────────────────────────────┤
+│ 🧮 PID-kompensation                │  ← PILL_COMP_STATUS tabell
+│    + PILL_COMP_ACTION med broms-    │     badges (inline, ej separat kort)
+├─────────────────────────────────────┤
+│ 📤 Skickat till RAPT (RAPT_SEND)   │  ← som idag
+└─────────────────────────────────────┘
 ```
 
-Detta finns redan delvis som `FOLLOWED_DATA`. **Ändra**: Döp om `FOLLOWED_DATA` till `SYNC_DATA`, lägg till `profile_target_temp` och `hardware_preserved`-flagga. Alla controllers ska ha samma format.
+**3. Ta bort redundanta adjustment-kort för PID**
 
-#### 2. Markera RAPT-sändningar tydligt
+Adjustment-kortet (rad 587-685) duplicerar PID-data. Bort med PID-kortet (`pill-comp` category). Behåll kort för glykol, manuell, pass-through.
 
-Lägg till en `RAPT_SEND`-step för varje controller som faktiskt skickas i batch flush, med tydlig `action`-markering. Övriga steg förblir `info`.
+**4. Integrera PILL_COMP_ACTION i PID-tabellen**
 
-#### 3. Uppdatera UI:t (AutoCoolingDecisionLogs.tsx)
-
-I den expanderade decision-log-vyn:
-- `SYNC_DATA`-rader: visa som enhetlig tabell per controller
-- `RAPT_SEND`-rader: markera med orange/action-badge
-- Resterande info-rader: visa som idag
-
-#### 4. Pill-comp toggle (bonus)
-
-Redan möjligt via Settings → Automation. Inget behov av extra toggle i loggen — det finns redan.
+Istället för att visa PILL_COMP_ACTION som rå text i "other entries", lägg till en rad per controller i PID-tabellen med `→ nytt mål` och broms-badges direkt i tabellen.
 
 ### Filer att ändra
 
-1. **`supabase/functions/auto-adjust-cooling/index.ts`**
-   - Döp om `FOLLOWED_DATA` → `SYNC_DATA`
-   - Lägg till `profile_target_temp` och `preserved`-flagga i details
-   - Lägg till `RAPT_SEND`-loggposter i batch flush-sektionen
-
-2. **`src/components/AutoCoolingDecisionLogs.tsx`**
-   - Rendera `SYNC_DATA`-poster med enhetligt tabellformat
-   - Markera `RAPT_SEND`-poster visuellt (orange action-badge)
-   - Lägg till "Dölj synk"-toggle för att dölja SYNC_DATA-rader i loggen
-
-### Detaljerat loggformat (alla controllers, konsekvent)
-
-```
-SYNC_DATA | info | Controller: Temp Controller Gul
-  details: {
-    last_update: "07:11:22",
-    pill_temp: 8.8,
-    ctrl_temp: 5.6,
-    ctrl_target: 5.4,
-    profile_target: 8.0,
-    cooling_enabled: true,
-    preserved: true,          // target_temp bevarades (PID/session)
-    is_actively_cooling: true
-  }
-```
-
-```
-RAPT_SEND | action | Temp Controller Gul: 5.4°C → 4.8°C
-  details: { controller_id: "...", source: "PID" }
-```
+1. **`src/components/AutoCoolingDecisionLogs.tsx`**
+   - Definiera `HIDDEN_STEPS` set och filtrera bort i rendered output
+   - Flytta PILL_COMP_ACTION-data in i PID-tabellen (extra kolumn "Nytt mål" + badges)
+   - Ta bort PID adjustment-kortet (behåll glykol/manuell/passthrough)
+   - Rensa up sektionsordning: Synk → PID → RAPT_SEND → Övrigt
 
