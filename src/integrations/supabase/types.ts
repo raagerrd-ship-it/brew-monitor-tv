@@ -590,6 +590,45 @@ export type Database = {
         }
         Relationships: []
       }
+      cooler_margin_history: {
+        Row: {
+          controller_id: string
+          cooling_rate: number | null
+          created_at: string
+          id: string
+          margin_value: number
+          max_effective: number | null
+          recorded_at: string
+          sample_count: number
+          temp_bucket: string
+          utilization: number | null
+        }
+        Insert: {
+          controller_id: string
+          cooling_rate?: number | null
+          created_at?: string
+          id?: string
+          margin_value: number
+          max_effective?: number | null
+          recorded_at?: string
+          sample_count?: number
+          temp_bucket: string
+          utilization?: number | null
+        }
+        Update: {
+          controller_id?: string
+          cooling_rate?: number | null
+          created_at?: string
+          id?: string
+          margin_value?: number
+          max_effective?: number | null
+          recorded_at?: string
+          sample_count?: number
+          temp_bucket?: string
+          utilization?: number | null
+        }
+        Relationships: []
+      }
       external_user_settings: {
         Row: {
           created_at: string

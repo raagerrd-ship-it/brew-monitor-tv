@@ -143,6 +143,19 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     required_rate: effectiveTarget.requiredRatePerHour,
   })
 
+  // ── Log margin history snapshot ───────────────────────────
+  const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
+  const actualRate = await measureCoolingRate(supabase, effectiveTarget.controllerId)
+  await supabase.from('cooler_margin_history').insert({
+    controller_id: coolerController.controller_id,
+    temp_bucket: tempBucket,
+    margin_value: Math.round(effectiveMargin * 100) / 100,
+    max_effective: maxEffective.sampleCount > 0 ? Math.round(maxEffective.value * 100) / 100 : null,
+    utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
+    cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
+    sample_count: learnedMargin.sampleCount,
+  })
+
   // ── Apply if different enough ─────────────────────────────
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.3) {
