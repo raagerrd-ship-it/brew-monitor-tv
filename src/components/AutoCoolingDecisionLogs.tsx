@@ -27,14 +27,14 @@ const buildUtilTooltip = (data: {
     lines.push(`Snitt (senaste 2): ${data.pct}%`);
   }
 
-  // p0 (current) — interval from p1→p0
+  // p0 (current) — interval from p1→p0 (skip if same timestamp as p1 = no new hw data yet)
   const currentTime = fmtTime(data.lastUpdate ?? null);
-  if (currentTime) {
+  const prevTime = fmtTime(data.prevAt ?? null);
+  if (currentTime && currentTime !== prevTime) {
     lines.push(`${currentTime}: ${data.recentPct != null ? `${data.recentPct}%` : '—'}`);
   }
 
   // p1 (prev) — interval from p2→p1
-  const prevTime = fmtTime(data.prevAt ?? null);
   if (prevTime) {
     lines.push(`${prevTime}: ${data.midPct != null ? `${data.midPct}%` : '—'}`);
   }
