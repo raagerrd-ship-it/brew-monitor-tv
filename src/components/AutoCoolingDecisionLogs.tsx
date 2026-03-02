@@ -959,7 +959,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                     <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap cursor-help">{b.label}</span>
                                   </TooltipTrigger>
                                   {b.tip && (
-                                    <TooltipContent side="bottom" className="text-[10px] max-w-[220px]">
+                                    <TooltipContent side="top" className="text-[10px] max-w-[220px]">
                                       {b.tip}
                                     </TooltipContent>
                                   )}
@@ -974,8 +974,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                 <TooltipTrigger asChild>
                                   <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">damp={r1(damping)}</span>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom" className="text-[10px]">
-                                  D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
+                                 <TooltipContent side="top" className="text-[10px]">
+                                   D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -1005,9 +1005,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             <TooltipTrigger asChild>
                               <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(comp))}°</span>
                             </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
-                              <div className="space-y-0.5">
-                                <div>Δ = avg − probe = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
+                             <TooltipContent side="top" className="text-[10px] max-w-[200px]">
+                               <div className="space-y-0.5">
+                                 <div>Δ = avg − probe = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
                                 {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
                                 <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° kompensation</div>
                               </div>
@@ -1029,9 +1029,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                 {Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '0'}
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
-                              <div className="space-y-0.5">
-                                <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
+                             <TooltipContent side="top" className="text-[10px] max-w-[200px]">
+                               <div className="space-y-0.5">
+                                 <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
                                 <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
                                 {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && (
                                   <div>Inlärd = {r1(learnedBaseline)}°</div>
@@ -1054,8 +1054,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                               <TooltipTrigger asChild>
                                 <span className="cursor-help border-b border-dotted border-current/30">{r1(ctrlTargetPid)}°</span>
                               </TooltipTrigger>
-                              <TooltipContent side="bottom" className="text-[10px]">
-                                <div>Rått: {r1(rawValue)}° → {r1(ctrlTargetPid)}°</div>
+                               <TooltipContent side="top" className="text-[10px]">
+                                 <div>Rått: {r1(rawValue)}° → {r1(ctrlTargetPid)}°</div>
                                 {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
                               </TooltipContent>
                             </Tooltip>
