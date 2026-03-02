@@ -250,16 +250,18 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── All tanks at 0% utilization → turn cooler off ─────────
   // If no tank is cooling, raise cooler target to max so the relay stays
-  // off. The normal automation will lower it again when a tank needs cooling.
+  // off. Setting target just above current temp + hysteresis margin so
+  // automation can bring it back down quickly when a tank needs cooling.
   const allTanksZeroUtil = utilizations.length > 0 && utilizations.every(
     u => u.utilization != null && u.utilization < 0.01
   )
   if (allTanksZeroUtil && !previousWasKick) {
-    const idleTarget = coolerMaxTemp
+    const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
+    const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst + 2) * 10) / 10)
     if (currentCoolerTarget < idleTarget - 0.1) {
-      log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
+      log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C, temp ${round1(coolerTemp)}° + 2°)`)
       await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
-        `💤 Alla tankar 0% — höjer kylare till max ${idleTarget}°C (stänger av)`,
+        `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (temp+2°, stänger av)`,
         adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
       return adjustments
     } else {
