@@ -1,46 +1,48 @@
 
 
-## Plan: Rensa och strukturera beslutsloggen
+## Analys
 
-### Problem
-Loggen visar duplicerad information (PID-data syns både i `PILL_COMP_STATUS`/`PILL_COMP_ACTION` och i det separata adjustment-kortet), samt operationella steg (START, SETTINGS, FOLLOWED_CONTROLLERS, BATCH_FLUSH, COMPLETE) som skapar brus.
+Användaren har helt rätt. Flödet idag:
 
-### Lösning — UI-omstrukturering (AutoCoolingDecisionLogs.tsx)
+1. `sync-rapt-data-quick` hämtar all pill-telemetri (SG, temp) från RAPT API och skriver till `brew_readings`
+2. `run-automation` → `auto-adjust-cooling` gör sedan en **egen DB-query** mot `brew_readings` + `brew_fermentation_metrics` bara för att logga `BREW_SG_STATUS`
 
-**1. Filtrera bort operationellt brus i expanderad vy**
+Detta skapar en onödig extra synkkanal — automations-funktionen borde få SG-data skickad till sig från orkestratorn, precis som `rapt_access_token` redan gör.
 
-Dölj dessa steg-typer helt: `START`, `SETTINGS`, `FOLLOWED_CONTROLLERS`, `COMPLETE`, `BATCH_FLUSH`, `BATCH_DB`, `PILL_COMP` (rubrik), `PILL_COMP_SKIP`, `BOOTSTRAP`, `COOLING`, `STALE_SENSOR`.
+## Plan
 
-Visa enbart pipeline-stegen: `SYNC_DATA`, `PILL_COMP_STATUS`, `PILL_COMP_ACTION`, `RAPT_SEND`, `PASS_THROUGH`, `STALL_*`, `ERROR`.
+### 1. Skicka brew-data från orkestratorn till automation
 
-**2. Strukturera expanderad vy som en tydlig pipeline**
+**`sync-rapt-data-quick/index.ts`**: Samla ihop en `brew_sg_map` (controller_id → { name, current_sg, og, fg, attenuation, temp, battery, status, last_update }) från den data som redan processats under synken. Skicka med i `run-automation` body.
 
-Tre visuella sektioner med headers och färgkodning:
+**`run-automation/index.ts`**: Vidarebefordra `brew_sg_data` till `auto-adjust-cooling`-anropet.
+
+### 2. Konsumera passad data i auto-adjust-cooling
+
+**`auto-adjust-cooling/index.ts`**: Ta emot `brew_sg_data` från request body. Om den finns, använd den direkt istället för att göra egna DB-queries mot `brew_readings`. Behåll fallback-queryn om data saknas (för manuella anrop / debugging).
+
+Fermentation metrics (`brew_fermentation_metrics`) hämtas dock separat eftersom de beräknas av `compute-fermentation-metrics` som körs som en del av automationen — de finns inte tillgängliga i synk-fasen. Alternativet är att flytta metrics-queryn till en fallback eller att inkludera metrics i det som skickas om de redan beräknats vid det laget.
+
+### 3. Behåll metrics-query som DB-lookup
+
+Eftersom `compute-fermentation-metrics` körs i `run-automation` **före** `auto-adjust-cooling`, har metrics redan uppdaterats i DB:n. Det enklaste är att behålla den lilla DB-queryn mot `brew_fermentation_metrics` (den är billig) men eliminera den tunga `brew_readings`-queryn.
+
+### Sammanfattning av dataflöde efter ändringen
 
 ```text
-┌─────────────────────────────────────┐
-│ 📊 Synk-data (SYNC_DATA)           │  ← tabell, som idag
-├─────────────────────────────────────┤
-│ 🧮 PID-kompensation                │  ← PILL_COMP_STATUS tabell
-│    + PILL_COMP_ACTION med broms-    │     badges (inline, ej separat kort)
-├─────────────────────────────────────┤
-│ 📤 Skickat till RAPT (RAPT_SEND)   │  ← som idag
-└─────────────────────────────────────┘
+RAPT API → sync-rapt-data-quick (hämtar & skriver brew_readings)
+                ↓ brew_sg_data (passas via body)
+          run-automation
+                ↓ brew_sg_data (vidarebefordras)
+          auto-adjust-cooling
+                ├── brew_sg_data (från body, ingen extra DB-query)
+                ├── brew_fermentation_metrics (DB, redan uppdaterad)
+                └── BREW_SG_STATUS logg-entry
 ```
 
-**3. Ta bort redundanta adjustment-kort för PID**
+### Filer som ändras
 
-Adjustment-kortet (rad 587-685) duplicerar PID-data. Bort med PID-kortet (`pill-comp` category). Behåll kort för glykol, manuell, pass-through.
-
-**4. Integrera PILL_COMP_ACTION i PID-tabellen**
-
-Istället för att visa PILL_COMP_ACTION som rå text i "other entries", lägg till en rad per controller i PID-tabellen med `→ nytt mål` och broms-badges direkt i tabellen.
-
-### Filer att ändra
-
-1. **`src/components/AutoCoolingDecisionLogs.tsx`**
-   - Definiera `HIDDEN_STEPS` set och filtrera bort i rendered output
-   - Flytta PILL_COMP_ACTION-data in i PID-tabellen (extra kolumn "Nytt mål" + badges)
-   - Ta bort PID adjustment-kortet (behåll glykol/manuell/passthrough)
-   - Rensa up sektionsordning: Synk → PID → RAPT_SEND → Övrigt
+- `supabase/functions/sync-rapt-data-quick/index.ts` — samla och skicka brew-data
+- `supabase/functions/run-automation/index.ts` — vidarebefordra brew_sg_data
+- `supabase/functions/auto-adjust-cooling/index.ts` — konsumera passad data, fallback till DB
 
