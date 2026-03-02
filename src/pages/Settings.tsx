@@ -490,7 +490,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between py-2.5 px-1">
                   <div className="flex items-center gap-2.5">
                     <Pill className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-medium">Pill-kompensation</p>
+                    <p className="text-sm font-medium">Dubbla temperaturgivare</p>
                   </div>
                   <Switch checked={settings.pillCompEnabled} onCheckedChange={settings.handlePillCompEnabledChange} />
                 </div>

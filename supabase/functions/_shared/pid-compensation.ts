@@ -58,7 +58,9 @@ export async function calculateCompensatedTarget(
   controllerName: string,
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
-  stepType: string = 'unknown'
+  stepType: string = 'unknown',
+  actualTemp?: number,
+  probeTemp?: number
 ): Promise<{ compensatedTarget: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -66,7 +68,12 @@ export async function calculateCompensatedTarget(
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
   const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
 
-  // Fetch last 8 delta measurements (≈40 min at 5-min intervals)
+  // Calculate avgDelta from pre-computed actualTemp and probeTemp if provided
+  // Otherwise fall back to delta history (backward compat)
+  let avgDelta: number
+  let absDelta: number
+
+  // Fetch delta history — still needed for D-term rate calculations and EMA
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
     .select('delta, pill_temp, controller_temp, recorded_at')
@@ -74,20 +81,24 @@ export async function calculateCompensatedTarget(
     .order('recorded_at', { ascending: false })
     .limit(8)
 
-  if (!deltaHistory || deltaHistory.length === 0) {
-    console.log(`⚠️ PID ${controllerName}: ingen deltahistorik — returnerar compensation=0`)
+  if (actualTemp != null && probeTemp != null) {
+    // Use pre-computed values from sensor fusion
+    avgDelta = actualTemp - probeTemp
+    absDelta = Math.abs(avgDelta)
+  } else if (deltaHistory && deltaHistory.length > 0) {
+    // Fallback: compute from history (backward compat)
+    const deltas = deltaHistory.map((d: any) => parseFloat(String(d.delta)))
+    avgDelta = deltas.reduce((sum: number, d: number) => sum + d, 0) / deltas.length
+    absDelta = Math.abs(avgDelta)
+  } else {
+    console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar compensation=0`)
     return { compensatedTarget: profileTarget, compensation: 0, avgDelta: 0 }
   }
 
-  const deltas = deltaHistory.map((d: any) => parseFloat(String(d.delta)))
-  const avgDelta = deltas.reduce((sum: number, d: number) => sum + d, 0) / deltas.length
-  const absDelta = Math.abs(avgDelta)
-
   if (absDelta < 0.1) {
-    // Pill and probe are synced — no compensation needed, but return 0 explicitly
-    // so the caller knows PID is active (not missing data)
-    console.log(`✅ PID ${controllerName}: pill-probe delta ${avgDelta.toFixed(2)}°C < 0.1 — ingen kompensation behövs`)
-    return { compensatedTarget: profileTarget, compensation: 0, avgDelta }
+    // Sensors are synced (or single sensor) — no delta compensation needed
+    // but still run PI-loop for error correction
+    console.log(`✅ PID ${controllerName}: delta ${avgDelta.toFixed(2)}°C < 0.1 — hoppar delta-komp, kör PI`)
   }
 
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
@@ -99,7 +110,7 @@ export async function calculateCompensatedTarget(
 
   const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode)
 
-  if (deltaHistory.length >= 3) {
+  if (deltaHistory && deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
     const oldest = deltaHistory[deltaHistory.length - 1]
     const pillNow = parseFloat(String(newest.pill_temp))
@@ -135,12 +146,9 @@ export async function calculateCompensatedTarget(
 
   // Target average: compensate by half the delta, scaled by damping factor
   // === Approach Zone: anticipate that delta will shrink as we near the target ===
-  // When far from target (e.g. 10°C away), cooling/heating effort is high → delta is inflated.
-  // As we approach, effort decreases → delta will naturally shrink.
-  // Scale down delta-compensation proportionally to avoid over-correcting.
-  const latestPillForComp = parseFloat(String(deltaHistory[0].pill_temp))
-  const latestCtrlForComp = parseFloat(String(deltaHistory[0].controller_temp))
-  const currentAvgForComp = (latestPillForComp + latestCtrlForComp) / 2
+  const latestPillForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? profileTarget)
+  const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? profileTarget)
+  const currentAvgForComp = actualTemp ?? (latestPillForComp + latestCtrlForComp) / 2
   const distanceToTarget = Math.abs(currentAvgForComp - profileTarget)
   const APPROACH_ZONE_SIZE = 8.0 // °C — within this range, start scaling down delta compensation
   // When avg is already near target (within ±1°C), the current delta is steady-state:
@@ -226,12 +234,10 @@ export async function calculateCompensatedTarget(
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
   }
 
-  const historicalAvgs = deltaHistory.map((d: any) => {
-    const p = parseFloat(String(d.pill_temp))
-    const c = parseFloat(String(d.controller_temp))
-    return (p + c) / 2
-  })
-  const currentAvgForError = historicalAvgs[0]
+  // Use pre-computed actualTemp for error calculation when available
+  const currentAvgForError = actualTemp ?? (deltaHistory?.[0]
+    ? (parseFloat(String(deltaHistory[0].pill_temp)) + parseFloat(String(deltaHistory[0].controller_temp))) / 2
+    : profileTarget)
   const avgError = profileTarget - currentAvgForError
 
   let pCorrection = 0
@@ -389,9 +395,9 @@ export async function calculateCompensatedTarget(
 
   {
     const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    const latestPill = parseFloat(String(deltaHistory[0].pill_temp))
-    const latestCtrl = parseFloat(String(deltaHistory[0].controller_temp))
-    const currentAvg = (latestPill + latestCtrl) / 2
+    const latestPill = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? profileTarget)
+    const latestCtrl = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? profileTarget)
+    const currentAvg = actualTemp ?? (latestPill + latestCtrl) / 2
 
     // High-delta damping: when pill-probe delta is very large, reduce max rate
     // to prevent aggressive changes that cause oscillation in a thermally stratified system
