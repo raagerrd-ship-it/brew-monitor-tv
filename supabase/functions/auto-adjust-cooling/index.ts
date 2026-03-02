@@ -339,6 +339,58 @@ serve(async (req) => {
       log('SYNC_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
+    // ── Log Brew/SG data per controller ──────────────────────────
+    {
+      // Collect all brew IDs linked to followed controllers
+      const controllerBrewIds = new Map<string, string>();
+      for (const controller of followedControllersFullData) {
+        const brewId = sessionBrewIdMap.get(controller.controller_id);
+        if (brewId) controllerBrewIds.set(controller.controller_id, brewId);
+      }
+
+      if (controllerBrewIds.size > 0) {
+        const brewIds = [...new Set(controllerBrewIds.values())];
+        const [{ data: brews }, { data: metrics }] = await Promise.all([
+          supabase.from('brew_readings')
+            .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, last_update, status')
+            .in('id', brewIds),
+          supabase.from('brew_fermentation_metrics')
+            .select('brew_id, sg_rate_per_hour, fermentation_phase, activity_score, eta_to_fg_hours, ready_to_crash')
+            .in('brew_id', brewIds),
+        ]);
+
+        const brewMap = new Map((brews || []).map(b => [b.id, b]));
+        const metricsMap = new Map((metrics || []).map(m => [m.brew_id, m]));
+
+        for (const controller of followedControllersFullData) {
+          const brewId = controllerBrewIds.get(controller.controller_id);
+          if (!brewId) continue;
+          const brew = brewMap.get(brewId);
+          if (!brew) continue;
+          const m = metricsMap.get(brewId);
+
+          log('BREW_SG_STATUS', 'info', `Controller: ${controller.name}`, {
+            brew_name: brew.name,
+            current_sg: brew.current_sg,
+            og: brew.original_gravity,
+            fg: brew.final_gravity,
+            attenuation: brew.attenuation,
+            pill_temp: brew.current_temp,
+            battery: brew.battery,
+            status: brew.status,
+            last_update: brew.last_update ? new Date(brew.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' }) : null,
+            ...(m ? {
+              sg_rate: parseFloat((m.sg_rate_per_hour ?? 0).toFixed(4)),
+              phase: m.fermentation_phase,
+              activity: parseFloat((m.activity_score ?? 0).toFixed(1)),
+              eta_hours: m.eta_to_fg_hours != null ? parseFloat((m.eta_to_fg_hours).toFixed(1)) : null,
+              ready_to_crash: m.ready_to_crash,
+            } : {}),
+          });
+        }
+      }
+    }
+
     const allAdjustments: AdjustmentResult[] = [];
 
     // Create shared batch for all RAPT API updates (reuse token if passed from orchestrator)

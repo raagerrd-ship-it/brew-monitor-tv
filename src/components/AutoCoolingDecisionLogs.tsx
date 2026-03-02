@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, Droplets } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const r1 = (v: number | null | undefined): string => {
@@ -63,7 +63,7 @@ const HIDDEN_STEPS = new Set([
 
 /** All steps handled by named pipeline sections */
 const PIPELINE_STEPS = new Set([
-  'SYNC_DATA',
+  'SYNC_DATA', 'BREW_SG_STATUS',
   'PILL_COMP_STATUS', 'PILL_COMP_ACTION',
   'PASS_THROUGH',
   'STALL', 'STALL_SKIP', 'STALL_ANALYSIS', 'STALL_BOOST', 'STALL_LEARN',
@@ -324,6 +324,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
   decisions: DecisionEntry[]; hideSync: boolean; hidePid: boolean;
 }) {
   const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
+  const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
   const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
@@ -391,7 +392,66 @@ function PipelineView({ decisions, hideSync, hidePid }: {
         </PipelineSection>
       )}
 
-      {/* 2. Pill-kompensation */}
+      {/* 2. Brew SG-data */}
+      {brewSgEntries.length > 0 && (
+        <PipelineSection
+          icon={<Droplets className="h-3 w-3" />}
+          title="SG / Jäsning"
+          color="hsl(160 60% 45%)"
+          borderColor="hsl(160 60% 45% / 0.3)"
+          bgColor="hsl(160 60% 45% / 0.05)"
+        >
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border/30">
+                <th className="text-left py-0.5 pr-2 font-medium">Bryggning</th>
+                <th className="text-right py-0.5 px-1 font-medium">SG</th>
+                <th className="text-right py-0.5 px-1 font-medium">Att%</th>
+                <th className="text-right py-0.5 px-1 font-medium">Takt</th>
+                <th className="text-left py-0.5 pl-1 font-medium">Fas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {brewSgEntries.map((d, i) => {
+                const det = d.details || {};
+                const brewName = (det.brew_name as string) || d.message.replace('Controller: ', '');
+                const sgRate = det.sg_rate as number;
+                const phase = det.phase as string;
+                const phaseColors: Record<string, string> = {
+                  lag: 'bg-slate-500/15 text-slate-400',
+                  active: 'bg-green-500/15 text-green-400',
+                  slowing: 'bg-amber-500/15 text-amber-400',
+                  stable: 'bg-sky-500/15 text-sky-400',
+                  unknown: 'bg-muted text-muted-foreground',
+                };
+                return (
+                  <tr key={i} className="border-b border-border/10 last:border-0">
+                    <td className="py-0.5 pr-2 font-medium truncate max-w-[100px]">{brewName}</td>
+                    <td className="py-0.5 px-1 text-right font-mono" style={{ color: 'hsl(160 60% 50%)' }}>
+                      {det.current_sg != null ? (det.current_sg as number).toFixed(3) : '—'}
+                    </td>
+                    <td className="py-0.5 px-1 text-right">
+                      {det.attenuation != null ? `${det.attenuation}%` : '—'}
+                    </td>
+                    <td className="py-0.5 px-1 text-right font-mono">
+                      {sgRate != null ? `${sgRate >= 0 ? '' : ''}${sgRate.toFixed(4)}` : '—'}
+                    </td>
+                    <td className="py-0.5 pl-1">
+                      {phase ? (
+                        <span className={`text-[9px] px-1 py-0.5 rounded ${phaseColors[phase] || phaseColors.unknown}`}>
+                          {phase}
+                        </span>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </PipelineSection>
+      )}
+
+      {/* 3. Pill-kompensation */}
       {!hidePid && pidStatusEntries.length > 0 && (
         <PipelineSection
           icon={<Pill className="h-3 w-3" />}
