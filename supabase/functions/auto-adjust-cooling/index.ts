@@ -312,7 +312,7 @@ serve(async (req) => {
       const targetTemp = round1(controller.target_temp) ?? 999;
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
-      const pillDelta = pillTemp !== null ? round1(pillTemp - currentTemp) : null;
+      
       const profileTarget = profileTargetMap.get(controller.controller_id);
       const controllerProfileTarget = (controller as any).profile_target_temp != null
         ? round1(parseFloat(String((controller as any).profile_target_temp)))
@@ -322,8 +322,8 @@ serve(async (req) => {
       const details: Record<string, unknown> = {
         original_target: originalTarget,
         last_update: controller.last_update ? new Date(controller.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
-        target_temp: targetTemp, current_temp: currentTemp, pill_temp: pillTemp,
-        pill_delta: pillDelta, cooling_enabled: controller.cooling_enabled, is_actively_cooling: isActivelyCooling,
+        pill_temp: pillTemp, ctrl_temp: currentTemp, ctrl_target_temp: targetTemp,
+        cooling_enabled: controller.cooling_enabled, is_actively_cooling: isActivelyCooling,
       };
       const profileInfo = profileStatusMap.get(controller.controller_id);
       if (profileInfo) {
