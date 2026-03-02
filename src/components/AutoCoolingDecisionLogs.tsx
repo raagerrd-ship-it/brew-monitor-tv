@@ -284,20 +284,30 @@ export function AutoCoolingDecisionLogs() {
           </div>
         ))}
       </div>
-
-      {filteredEntries.length === 0 && <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>}
-
-      {filteredEntries.map((entry) => (
-        <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} />
-      ))}
+      {/* Compute recent cooler adjustments for tooltip */}
+      {(() => {
+        const allCoolerAdjs = entries
+          .flatMap(e => e.adjustments.filter(a => a.category === 'glykol'))
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 4);
+        return (
+          <>
+            {filteredEntries.length === 0 && <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>}
+            {filteredEntries.map((entry) => (
+              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} />
+            ))}
+          </>
+        );
+      })()}
     </div>
   );
 }
 
 // --- Entry Row ---
 
-function EntryRow({ entry, hideSync, hidePid, formatTime }: {
+function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
   entry: UnifiedEntry; hideSync: boolean; hidePid: boolean; formatTime: (ts: string) => string;
+  recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
 }) {
   const { log, adjustments: adjs } = entry;
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
@@ -356,7 +366,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime }: {
 
           {/* Pipeline sections */}
           {log.decisions.length > 0 && (
-            <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} />
+            <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} recentCoolerAdjs={recentCoolerAdjs} />
           )}
 
           {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
@@ -371,7 +381,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime }: {
 
 // --- Cooler Decision View ---
 
-function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
+function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[] }) {
   const status = entries.find(d => d.step === 'COOLER_STATUS');
   const effectiveTarget = entries.find(d => d.step === 'EFFECTIVE_TARGET');
   const marginCalc = entries.find(d => d.step === 'MARGIN_CALC');
@@ -546,45 +556,60 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
 
       {/* Row 3: Decision + Learning — compact card */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border/20">
-        {/* Decision outcome badge */}
-        {isAdjusted ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
-            <Wrench className="h-2.5 w-2.5" />
-            {(() => {
-              const adjDet = adjustment.details || {};
-              const oldT = adjDet.old_target as number;
-              const newT = adjDet.new_target as number;
-              return oldT != null && newT != null
-                ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
-                : <span>{adjustment.message}</span>;
-            })()}
-          </span>
-        ) : isDemandGuarded ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400">
-            <ShieldAlert className="h-2.5 w-2.5" />Demand guard
-          </span>
-        ) : isBlocked ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
-            <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
-          </span>
-        ) : isRateLimited ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            <Clock className="h-2.5 w-2.5" />Rate-limit
-          </span>
-        ) : isOk ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
-            <CheckCircle2 className="h-2.5 w-2.5" />OK
-            {(() => {
-              // Extract diff from message if available
-              const diffMatch = coolerOk.message.match(/\(([0-9.]+)°C diff\)/);
-              return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
-            })()}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            <Info className="h-2.5 w-2.5" />Ingen åtgärd
-          </span>
-        )}
+        {/* Decision outcome badge with recent history tooltip */}
+        {(() => {
+          const historyLines = recentCoolerAdjs.length > 0
+            ? recentCoolerAdjs.map(a => {
+                const time = new Date(a.created_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                return `${time}: ${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
+              }).join('\n')
+            : 'Inga justeringar ännu';
+
+          const badge = isAdjusted ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium cursor-help">
+              <Wrench className="h-2.5 w-2.5" />
+              {(() => {
+                const adjDet = adjustment.details || {};
+                const oldT = adjDet.old_target as number;
+                const newT = adjDet.new_target as number;
+                return oldT != null && newT != null
+                  ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
+                  : <span>{adjustment.message}</span>;
+              })()}
+            </span>
+          ) : isDemandGuarded ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
+              <ShieldAlert className="h-2.5 w-2.5" />Demand guard
+            </span>
+          ) : isBlocked ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
+              <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
+            </span>
+          ) : isRateLimited ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+              <Clock className="h-2.5 w-2.5" />Rate-limit
+            </span>
+          ) : isOk ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
+              <CheckCircle2 className="h-2.5 w-2.5" />OK
+              {(() => {
+                const diffMatch = coolerOk.message.match(/\(([0-9.]+)°C diff\)/);
+                return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
+              })()}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+              <Info className="h-2.5 w-2.5" />Ingen åtgärd
+            </span>
+          );
+
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>{badge}</TooltipTrigger>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono">{historyLines}</TooltipContent>
+            </Tooltip>
+          );
+        })()}
 
         {/* Learning badges (inline, subtle) */}
         {marginLearn && (() => {
@@ -625,8 +650,9 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
 
 // --- Pipeline View ---
 
-function PipelineView({ decisions, hideSync, hidePid }: {
+function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
   decisions: DecisionEntry[]; hideSync: boolean; hidePid: boolean;
+  recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
 }) {
   const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
   const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
@@ -1107,7 +1133,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
       {/* 5. Glykol-kylare — structured decision view */}
       {coolerEntries.length > 0 && (
         <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
-          <CoolerDecisionView entries={coolerEntries} />
+          <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} />
         </PipelineSection>
       )}
 
