@@ -23,21 +23,18 @@ function LogoComponent() {
     >
       {/* Brygg — warm bright copper */}
       <span
-        className="logo-shimmer"
         style={{
           background: 'linear-gradient(160deg, hsl(42 100% 72%) 0%, hsl(36 95% 60%) 40%, hsl(30 85% 50%) 100%)',
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
           textShadow: 'none',
-          filter: 'drop-shadow(0 2px 6px hsl(30 80% 15% / 0.6))',
         }}
       >
         {firstPart}
       </span>
       {/* övervakare — italic, lighter amber */}
       <span
-        className="logo-shimmer"
         style={{ 
           fontWeight: 500,
           fontStyle: 'italic',
@@ -46,8 +43,6 @@ function LogoComponent() {
           backgroundClip: 'text',
           color: 'transparent',
           textShadow: 'none',
-          filter: 'drop-shadow(0 2px 6px hsl(30 80% 15% / 0.6))',
-          animationDelay: '0.15s',
         }}
       >
         {secondPart}
@@ -66,7 +61,6 @@ function LogoComponent() {
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',
-            filter: 'drop-shadow(0 1px 3px hsl(30 80% 15% / 0.4))',
             textTransform: 'uppercase',
           }}
         >
