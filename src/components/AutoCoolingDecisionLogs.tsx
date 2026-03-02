@@ -365,10 +365,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const coolerLastUpdate = statusDet.last_update as string | null;
   const coolerRunTime = statusDet.cooling_run_time as number | null;
   const coolerUtilValue = statusDet.cooler_utilization as number | null;
+  const coolerStarts = statusDet.cooling_starts as number | null;
   const coolerUtilTooltip = (() => {
     const parts: string[] = [];
-    if (coolerUtilValue != null) parts.push(`Utnyttjandegrad: ${coolerUtilValue}%`);
+    if (coolerUtilValue != null) parts.push(`Utnyttjandegrad: ${coolerUtilValue}% (rullande 30 min)`);
     parts.push(`cooling_run_time: ${coolerRunTime ?? '?'}s`);
+    if (coolerStarts != null) parts.push(`cooling_starts: ${coolerStarts}`);
     if (coolerLastUpdate) parts.push(`RAPT: ${new Date(coolerLastUpdate).toLocaleTimeString('sv-SE')}`);
     if (coolerUtilValue === 0 && (coolerRunTime == null || coolerRunTime === 0)) parts.push('Kylkretsen har inte körts ännu');
     return parts.join('\n');
@@ -418,18 +420,33 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           // Skip if this is the same controller already shown in "Lägsta behov"
           const effectiveCtrlName = effectiveDet.controller as string;
           if (effectiveCtrlName && name === effectiveCtrlName) return null;
+          const uDet = u.details || {};
+          const tankRunTime = uDet.cooling_run_time as number | null;
+          const tankLastUpdate = uDet.last_update as string | null;
+          const tankUtilTip = (() => {
+            const p: string[] = [];
+            if (utilPct != null) p.push(`Utnyttjandegrad: ${utilPct}% (rullande 30 min)`);
+            if (tankRunTime != null) p.push(`cooling_run_time: ${tankRunTime}s`);
+            if (tankLastUpdate) p.push(`RAPT: ${new Date(tankLastUpdate).toLocaleTimeString('sv-SE')}`);
+            return p.length > 0 ? p.join('\n') : 'Ingen data';
+          })();
           return (
-            <span key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <span>{isActive ? '❄️' : '⏸️'}</span>
-              <span>{name}</span>
-              {utilPct != null ? (
-                <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {utilPct}%
+            <Tooltip key={i}>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-help">
+                  <span>{isActive ? '❄️' : '⏸️'}</span>
+                  <span>{name}</span>
+                  {utilPct != null ? (
+                    <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {utilPct}%
+                    </span>
+                  ) : (
+                    <span className="font-mono text-muted-foreground/50">—</span>
+                  )}
                 </span>
-              ) : (
-                <span className="font-mono text-muted-foreground/50">—</span>
-              )}
-            </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line">{tankUtilTip}</TooltipContent>
+            </Tooltip>
           );
         })}
       </div>
