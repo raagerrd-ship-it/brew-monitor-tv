@@ -70,7 +70,7 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
   // For any controller NOT touched by a processor, ensure
   // target_temp matches profile_target_temp. This is what makes
   // the system work with zero processors enabled.
-  const passThroughAdjs = await runPassThroughSync(ctx, adjustedControllerNames)
+  const passThroughAdjs = await runPassThroughSync(ctx, adjustedControllerNames, ctx.pillCompSettings)
   adjustments.push(...passThroughAdjs)
 
   // Sync in-memory for pass-through too
@@ -147,6 +147,7 @@ async function runProcessors(ctx: ControllerAdjustmentContext): Promise<Adjustme
 async function runPassThroughSync(
   ctx: ControllerAdjustmentContext,
   adjustedControllerNames: Set<string>,
+  pillCompSettings: { enabled: boolean },
 ): Promise<AdjustmentResult[]> {
   const { supabase, followedControllersFullData, log } = ctx
   const adjustments: AdjustmentResult[] = []
@@ -155,6 +156,12 @@ async function runPassThroughSync(
     // Skip controllers already handled by a processor
     if (adjustedControllerNames.has(fc.name)) continue
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
+
+    // Skip controllers that are owned by PID pill-compensation.
+    // When PID skips a cycle (same-data guard), pass-through must NOT
+    // overwrite the PID-compensated target_temp back to profile_target_temp.
+    // PID is the sole owner of target_temp for these controllers.
+    if (pillCompSettings.enabled && fc.pill_temp != null) continue
 
     const profileTarget = (fc as any).profile_target_temp
     if (profileTarget == null) continue
