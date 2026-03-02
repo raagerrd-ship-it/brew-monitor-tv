@@ -310,8 +310,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime }: {
             <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} />
           )}
 
-          {/* Adjustment detail cards (glykol, manuell, passthrough only — PID is in pipeline) */}
-          {adjs.filter(a => a.category !== 'pill-comp').map(adj => (
+          {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
+          {adjs.filter(a => a.category !== 'pill-comp' && a.category !== 'glykol').map(adj => (
             <AdjustmentCard key={adj.id} adj={adj} />
           ))}
         </div>

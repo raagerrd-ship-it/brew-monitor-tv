@@ -211,6 +211,8 @@ interface PendingRaptUpdate {
 export class RaptUpdateBatch {
   private pending: PendingRaptUpdate[] = []
   private applied: Map<string, number> = new Map()
+  /** Preserved old targets — survives flush() so RAPT_SEND logging can read them */
+  private oldTargets: Map<string, number> = new Map()
   private preAuthToken: string | null = null
 
   /**
@@ -233,12 +235,16 @@ export class RaptUpdateBatch {
       // Keep the original oldTarget from the first add()
     } else {
       this.pending.push({ controllerId, targetTemp, oldTarget: currentTarget })
+      // Preserve oldTarget in a separate map that survives flush()
+      if (currentTarget !== undefined && !this.oldTargets.has(controllerId)) {
+        this.oldTargets.set(controllerId, currentTarget)
+      }
     }
   }
 
-  /** Look up the original target temp before any updates were queued */
+  /** Look up the original target temp before any updates were queued (survives flush) */
   getOldTarget(controllerId: string): number | undefined {
-    return this.pending.find(p => p.controllerId === controllerId)?.oldTarget
+    return this.oldTargets.get(controllerId) ?? this.pending.find(p => p.controllerId === controllerId)?.oldTarget
   }
 
   get size(): number {
