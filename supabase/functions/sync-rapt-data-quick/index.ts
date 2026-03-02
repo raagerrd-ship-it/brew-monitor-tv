@@ -314,7 +314,12 @@ serve(async (req) => {
           if (!hasActiveSession && !isCoolerController && !isPidManaged) {
             updateData.target_temp = targetTemp;
           } else {
-            updateData.target_temp = existingMap.get(controller.id)?.target_temp ?? targetTemp;
+            const preservedTarget = existingMap.get(controller.id)?.target_temp ?? targetTemp;
+            updateData.target_temp = preservedTarget;
+            // Log when we preserve a PID-managed target that differs from hardware
+            if (isPidManaged && targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
+              console.log(`SYNC_PRESERVE: ${controller.name || controller.id}: Bevarar DB target ${preservedTarget}°C (RAPT hardware: ${targetTemp}°C) — PID-hanterad controller`);
+            }
           }
 
           controllerUpdates.push(updateData);
