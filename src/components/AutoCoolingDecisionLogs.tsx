@@ -402,15 +402,40 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
             </Tooltip>
           )}
         </div>
-        {effectiveTarget && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">Lägsta behov:</span>
-            <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
-              {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
-            </span>
-            <span className="text-muted-foreground text-[10px]">({effectiveDet.controller as string ?? ''})</span>
-          </div>
-        )}
+        {effectiveTarget && (() => {
+          const effCtrlName = effectiveDet.controller as string;
+          const matchingUtil = utilEntries.find(u => u.message.split(':')[0].trim() === effCtrlName);
+          const mDet = matchingUtil?.details || {};
+          const mUtilMatch = matchingUtil?.message.match(/util=(\d+)%/);
+          const mUtilPct = mUtilMatch ? parseInt(mUtilMatch[1]) : null;
+          const mRunTime = mDet.cooling_run_time as number | null;
+          const mLastUpdate = mDet.last_update as string | null;
+          const mTip = (() => {
+            const p: string[] = [];
+            if (mUtilPct != null) p.push(`Utnyttjandegrad: ${mUtilPct}% (rullande 30 min)`);
+            if (mRunTime != null) p.push(`cooling_run_time: ${mRunTime}s`);
+            if (mLastUpdate) p.push(`RAPT: ${new Date(mLastUpdate).toLocaleTimeString('sv-SE')}`);
+            return p.length > 0 ? p.join('\n') : null;
+          })();
+          return (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Lägsta behov:</span>
+              <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
+                {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
+              </span>
+              {mTip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-muted-foreground text-[10px] cursor-help">({effCtrlName}{mUtilPct != null ? ` ${mUtilPct}%` : ''})</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs whitespace-pre-line">{mTip}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="text-muted-foreground text-[10px]">({effCtrlName})</span>
+              )}
+            </div>
+          );
+        })()}
         {/* Inline tank utilization */}
         {utilEntries.map((u, i) => {
           const isActive = u.message.includes('❄️');
