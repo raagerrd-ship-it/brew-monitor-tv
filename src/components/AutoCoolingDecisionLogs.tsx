@@ -322,42 +322,43 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
 
-  // Header badge & summary
+  // Header badge (includes adjustment summary)
   let headerBadge: React.ReactNode;
-  let headerSummary: React.ReactNode;
 
   if (adjs.length === 0) {
     headerBadge = (
       <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
-        <Gauge className="h-2.5 w-2.5 mr-0.5" />System
+        <Gauge className="h-2.5 w-2.5 mr-0.5" />System — {log.final_result}
       </Badge>
     );
-    headerSummary = <span className="font-medium truncate max-w-[160px]">{log.final_result}</span>;
   } else if (hasPidAdj && hasGlykolAdj) {
-    headerBadge = <div className="flex gap-1">{getCategoryBadge('pill-comp')}{getCategoryBadge('glykol')}</div>;
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
-    headerSummary = (
-      <span className="font-medium whitespace-nowrap" style={{ color: pidAdj.new_target_temp < pidAdj.old_target_temp ? 'hsl(210 80% 60%)' : 'hsl(var(--ferment-green))' }}>
-        {r1(pidAdj.old_target_temp)}° → {r1(pidAdj.new_target_temp)}°
-      </span>
+    const adjColor = pidAdj.new_target_temp < pidAdj.old_target_temp ? 'hsl(210 80% 60%)' : 'hsl(var(--ferment-green))';
+    headerBadge = (
+      <div className="flex gap-1 items-center">
+        {getCategoryBadge('pill-comp')}{getCategoryBadge('glykol')}
+        <span className="font-medium whitespace-nowrap ml-1" style={{ color: adjColor }}>
+          {r1(pidAdj.old_target_temp)}° → {r1(pidAdj.new_target_temp)}°
+        </span>
+      </div>
     );
   } else {
-    headerBadge = getCategoryBadge(primaryAdj!.category);
-    headerSummary = (
-      <span className="font-medium whitespace-nowrap" style={{
-        color: primaryAdj!.new_target_temp < primaryAdj!.old_target_temp ? 'hsl(210 80% 60%)' : primaryAdj!.new_target_temp > primaryAdj!.old_target_temp ? 'hsl(var(--ferment-green))' : undefined
-      }}>
-        {r1(primaryAdj!.old_target_temp)}° → {r1(primaryAdj!.new_target_temp)}°
-      </span>
+    const adjColor = primaryAdj!.new_target_temp < primaryAdj!.old_target_temp ? 'hsl(210 80% 60%)' : primaryAdj!.new_target_temp > primaryAdj!.old_target_temp ? 'hsl(var(--ferment-green))' : undefined;
+    headerBadge = (
+      <div className="flex gap-1 items-center">
+        {getCategoryBadge(primaryAdj!.category)}
+        <span className="font-medium whitespace-nowrap" style={{ color: adjColor }}>
+          {r1(primaryAdj!.old_target_temp)}° → {r1(primaryAdj!.new_target_temp)}°
+        </span>
+      </div>
     );
   }
 
   return (
     <Collapsible>
-      <CollapsibleTrigger className="grid grid-cols-[auto_105px_1fr_auto_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
-        {headerBadge}
+      <CollapsibleTrigger className="grid grid-cols-[105px_1fr_auto_20px] items-center w-full py-2 px-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors gap-x-2 text-xs">
         <span className="text-muted-foreground whitespace-nowrap text-left">{formatTime(entry.timestamp)}</span>
-        {headerSummary}
+        {headerBadge}
         <span className="text-[10px] text-muted-foreground">{log.duration_ms > 0 ? `${log.duration_ms}ms` : ''}</span>
         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 justify-self-end" />
       </CollapsibleTrigger>
