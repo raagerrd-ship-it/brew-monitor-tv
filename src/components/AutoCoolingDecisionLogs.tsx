@@ -866,8 +866,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
                 {/* Calculation columns: Profil − Komp + PI = Nytt mål */}
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">− Komp</th>
-                <th className="text-right py-0.5 px-1 font-medium">+ PI</th>
+                <th className="text-right py-0.5 px-1 font-medium">Komp</th>
+                <th className="text-right py-0.5 px-1 font-medium">PI</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
                 <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
