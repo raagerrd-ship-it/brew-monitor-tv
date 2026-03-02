@@ -603,11 +603,9 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-1 text-right font-medium">
                       {det.ctrl_target_pid != null ? (
                         <span className="flex items-center justify-end gap-0.5">
-                          {det.ctrl_target != null && Math.abs((det.ctrl_target as number) - (det.ctrl_target_pid as number)) > 0.05 && (
-                            <span className="text-muted-foreground text-[9px] font-normal">
-                              {r1(det.ctrl_target as number)}→
-                            </span>
-                          )}
+                          <span className="text-muted-foreground text-[9px] font-normal">
+                            ({r1(actualTargetVal)}{delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}` : ''}{comp != null && Math.abs(comp) > 0.01 ? `${comp >= 0 ? '+' : ''}${r1(comp)}` : ''})
+                          </span>
                           <span style={{ color: action?.noChange ? undefined : 'hsl(var(--ferment-green))' }}>
                             {r1(det.ctrl_target_pid as number)}°
                           </span>
