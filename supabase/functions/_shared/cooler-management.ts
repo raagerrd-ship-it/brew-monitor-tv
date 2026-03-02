@@ -206,7 +206,6 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   return adjustments
 }
-}
 
 // ─── Cooling Utilization Tracking ─────────────────────────────
 // Tracks cooling_run_time between cycles to calculate what fraction
