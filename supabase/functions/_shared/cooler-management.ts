@@ -97,6 +97,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     current_temp: round1(coolerController.current_temp),
     cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
     cooling_run_time: coolerController.cooling_run_time ?? 0,
+    cooling_starts: coolerController.cooling_starts ?? 0,
     last_update: coolerController.last_update,
   })
 
@@ -116,7 +117,12 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const utilizations = await calculateCoolingUtilizations(ctx, controllersWithCooling)
 
   for (const u of utilizations) {
-    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`)
+    const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
+    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`, {
+      utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
+      cooling_run_time: c?.cooling_run_time ?? null,
+      last_update: c?.last_update ?? null,
+    })
   }
 
   // ── Load profile data once (used for ramp detection + blocking) ──
