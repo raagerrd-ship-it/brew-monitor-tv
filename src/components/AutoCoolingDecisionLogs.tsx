@@ -364,9 +364,15 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   // Format RAPT timestamp for tooltip
   const coolerLastUpdate = statusDet.last_update as string | null;
   const coolerRunTime = statusDet.cooling_run_time as number | null;
-  const coolerUtilTooltip = coolerRunTime != null
-    ? `cooling_run_time: ${coolerRunTime}s${coolerLastUpdate ? `\nRAPT: ${coolerLastUpdate}` : ''}`
-    : coolerLastUpdate ? `RAPT: ${coolerLastUpdate}` : 'Ingen data';
+  const coolerUtilValue = statusDet.cooler_utilization as number | null;
+  const coolerUtilTooltip = (() => {
+    const parts: string[] = [];
+    if (coolerUtilValue != null) parts.push(`Utnyttjandegrad: ${coolerUtilValue}%`);
+    parts.push(`cooling_run_time: ${coolerRunTime ?? '?'}s`);
+    if (coolerLastUpdate) parts.push(`RAPT: ${new Date(coolerLastUpdate).toLocaleTimeString('sv-SE')}`);
+    if (coolerUtilValue === 0 && (coolerRunTime == null || coolerRunTime === 0)) parts.push('Kylkretsen har inte körts ännu');
+    return parts.join('\n');
+  })();
 
   return (
     <div className="space-y-1.5">
