@@ -290,7 +290,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
     const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
     const unclamped = pidResult.ctrlTargetPid
-    let ctrlTargetPid = Math.max(hwMinTemp, Math.min(maxTemp, unclamped))
+    let ctrlTargetPid = round1(Math.max(hwMinTemp, Math.min(maxTemp, unclamped)))
 
     // Track if hardware min/max clamped the target
     if (unclamped < hwMinTemp) {
