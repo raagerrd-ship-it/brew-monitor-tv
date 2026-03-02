@@ -256,16 +256,33 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     u => u.utilization != null && u.utilization < 0.01
   )
   if (allTanksZeroUtil && !previousWasKick) {
-    const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
-    const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst) * 10) / 10)
-    if (currentCoolerTarget < idleTarget - 0.1) {
-      log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
-      await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
-        `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (stänger av)`,
-        adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
-      return adjustments
+    // Cooldown: only idle once per 30 min to let new utilization data arrive
+    const { data: lastIdleAdj } = await ctx.supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .like('reason', '%Alla tankar 0%%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    const idleCooldownMs = 30 * 60 * 1000
+    const timeSinceLastIdle = lastIdleAdj
+      ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
+      : Infinity
+    if (timeSinceLastIdle < idleCooldownMs) {
+      log('COOLER_IDLE', 'info', `Alla tankar 0% util — cooldown (${Math.round((idleCooldownMs - timeSinceLastIdle) / 60000)} min kvar)`)
     } else {
-      log('COOLER_IDLE', 'info', `Alla tankar 0% util — kylare redan av (mål ${round1(currentCoolerTarget)}°)`)
+      const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
+      const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst) * 10) / 10)
+      if (currentCoolerTarget < idleTarget - 0.1) {
+        log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
+        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
+          `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (stänger av)`,
+          adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        return adjustments
+      } else {
+        log('COOLER_IDLE', 'info', `Alla tankar 0% util — kylare redan av (mål ${round1(currentCoolerTarget)}°)`)
+      }
     }
   }
 
