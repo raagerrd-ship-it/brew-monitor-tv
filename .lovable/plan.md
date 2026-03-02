@@ -1,42 +1,83 @@
 
 
-## Analys: Behövs "(snitt)"/"(ctrl)"-etiketter?
+## Plan: Synkflöde i decision-loggen
 
-Du har rätt. Ur användarens perspektiv finns det bara **en temperatur** och **ett mål**. Att den beräknas som medelvärde av två sensorer eller läses direkt från probe är en implementationsdetalj som inte hjälper användaren.
+### Problem
+Decision-loggen visar bara automationscykelns beslut (auto-adjust-cooling). Synkflödet (sync-rapt-data-quick) — vad som kom från RAPT, vad som bevarades, vad som skickades tillbaka — syns bara i edge function console-loggar och är osynligt i UI:t.
 
-### Nuvarande situation
+### Mål
+Visa hela synk-pipelinen som en rak linje i loggen:
+1. **RAPT → DB**: Vilken data som kom in (pill_temp, ctrl_temp, ctrl_target, hardware_target)
+2. **Bevarad/Överskiven**: Om target_temp bevarades (PID/session/cooler) eller skrevs från RAPT
+3. **Automation**: PID-justeringar, stall, glykol (redan finns)
+4. **DB → RAPT**: Vilka justeringar som skickades (batch flush) — **markera bara denna sektion**
 
-Etiketterna "(snitt)"/"(ctrl)" förekommer på 5 ställen:
+### Teknisk approach
 
-| Plats | Nuvarande | Föreslagen |
-|---|---|---|
-| `TempStat.tsx` (brew-kort) | `getActualTempLabel()` → "(snitt)"/"(ctrl)" | Ta bort label helt — visa bara temperaturen |
-| `RaptControllerDialog.tsx` | "Aktuell (snitt)", "Mål (snitt)", "Sätt snittmål" | "Aktuell", "Mål", "Sätt mål" |
-| `RaptControllersManagement.tsx` | "Aktuell (snitt)", "Mål (snitt)" | "Aktuell", "Mål" |
-| `StepExecutionDisplay.tsx` | "Mål (snitt)", "Snitt 7.2°" | "Mål", "7.2°" |
-| `AutoCoolingDecisionLogs.tsx` | "Delta (snitt)" | "Delta" — detta är debug/audit, kan behålla teknisk term |
-| `temp-display.ts` | `getActualTempLabel()` returnerar "(snitt)"/"(ctrl)"/"(pill)" | Förenkla eller ta bort |
+#### 1. Utöka decision-loggen med synk-data (auto-adjust-cooling/index.ts)
 
-### Undantag: Tooltip/debug
+Auto-adjust-cooling läser redan alla controllers från DB (`rapt_temp_controllers`). Den har dock inte tillgång till vad RAPT-hårdvaran rapporterade *innan* sync-rapt-data-quick skrev till DB.
 
-I tooltips (TempStat rad 202) visas "Snitt: 7.2°" som en av flera rader med Pill/Probe/Ctrl-värden. Där är kontexten teknisk och användaren har aktivt hovrat — **behåll** dessa detaljer i tooltips.
+**Lösning**: Lägg till en `SYNC_DATA`-loggpost per controller i `auto-adjust-cooling` som loggar det aktuella DB-tillståndet (som nu är post-sync). Lägg även till en `RAPT_SENT`-sektion runt batch flush-loggen som markerar vad som faktiskt skickades.
 
-Samma gäller `AutoCoolingDecisionLogs` — det är en debug/audit-vy, tekniska termer är förväntade.
+Logformatet per controller:
+```
+SYNC_DATA | Controller: X
+  last_update: HH:MM:SS
+  pill_temp: 8.8
+  ctrl_temp: 5.6
+  ctrl_target: 5.4
+  profile_target: 8.0
+  preserved: true/false
+```
 
-### Ändringar
+Detta finns redan delvis som `FOLLOWED_DATA`. **Ändra**: Döp om `FOLLOWED_DATA` till `SYNC_DATA`, lägg till `profile_target_temp` och `hardware_preserved`-flagga. Alla controllers ska ha samma format.
 
-| Fil | Ändring |
-|---|---|
-| `src/lib/temp-display.ts` | `getActualTempLabel` returnerar alltid `""` (eller ta bort funktionen, ersätt anrop med `""`) |
-| `src/components/RaptControllerDialog.tsx` | "Aktuell", "Mål", "Ändra mål", "Sätt mål" — inga suffix |
-| `src/components/RaptControllersManagement.tsx` | "Aktuell", "Mål" — inga suffix |
-| `src/components/fermentation/StepExecutionDisplay.tsx` | "Mål", och detail utan "Snitt"/"Ctrl"-prefix |
-| `src/components/brew-card/TempStat.tsx` | Sluta visa `tempLabel` i huvudvyn (behåll tooltip-detaljer) |
+#### 2. Markera RAPT-sändningar tydligt
 
-### Vad som INTE ändras
+Lägg till en `RAPT_SEND`-step för varje controller som faktiskt skickas i batch flush, med tydlig `action`-markering. Övriga steg förblir `info`.
 
-- Tooltip-innehåll i TempStat (Pill/Probe/Snitt-rader) — teknisk detalj vid hover, bra att ha
-- `AutoCoolingDecisionLogs` — audit/debug-vy
-- `getActualTemp()` beräkningen — den är korrekt och oförändrad
-- Backend-logik — inga ändringar
+#### 3. Uppdatera UI:t (AutoCoolingDecisionLogs.tsx)
+
+I den expanderade decision-log-vyn:
+- `SYNC_DATA`-rader: visa som enhetlig tabell per controller
+- `RAPT_SEND`-rader: markera med orange/action-badge
+- Resterande info-rader: visa som idag
+
+#### 4. Pill-comp toggle (bonus)
+
+Redan möjligt via Settings → Automation. Inget behov av extra toggle i loggen — det finns redan.
+
+### Filer att ändra
+
+1. **`supabase/functions/auto-adjust-cooling/index.ts`**
+   - Döp om `FOLLOWED_DATA` → `SYNC_DATA`
+   - Lägg till `profile_target_temp` och `preserved`-flagga i details
+   - Lägg till `RAPT_SEND`-loggposter i batch flush-sektionen
+
+2. **`src/components/AutoCoolingDecisionLogs.tsx`**
+   - Rendera `SYNC_DATA`-poster med enhetligt tabellformat
+   - Markera `RAPT_SEND`-poster visuellt (orange action-badge)
+   - Lägg till "Dölj synk"-toggle för att dölja SYNC_DATA-rader i loggen
+
+### Detaljerat loggformat (alla controllers, konsekvent)
+
+```
+SYNC_DATA | info | Controller: Temp Controller Gul
+  details: {
+    last_update: "07:11:22",
+    pill_temp: 8.8,
+    ctrl_temp: 5.6,
+    ctrl_target: 5.4,
+    profile_target: 8.0,
+    cooling_enabled: true,
+    preserved: true,          // target_temp bevarades (PID/session)
+    is_actively_cooling: true
+  }
+```
+
+```
+RAPT_SEND | action | Temp Controller Gul: 5.4°C → 4.8°C
+  details: { controller_id: "...", source: "PID" }
+```
 
