@@ -1021,8 +1021,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        ) : <span className="text-muted-foreground/40">—</span>
-                      ) : '—'}
+                        ) : <span className="text-muted-foreground/40">0</span>
+                      ) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     {/* Calc: + PI (with tooltip) */}
                     <td className="py-0.5 px-1 text-right" style={{
@@ -1047,8 +1047,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        ) : <span className="text-muted-foreground/40">—</span>
-                      ) : '—'}
+                        ) : <span className="text-muted-foreground/40">0</span>
+                      ) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     {/* = */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
