@@ -361,24 +361,36 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   const isOk = !!coolerOk;
   const isAdjusted = !!adjustment;
 
+  // Format RAPT timestamp for tooltip
+  const coolerLastUpdate = statusDet.last_update as string | null;
+  const coolerRunTime = statusDet.cooling_run_time as number | null;
+  const coolerUtilTooltip = coolerRunTime != null
+    ? `cooling_run_time: ${coolerRunTime}s${coolerLastUpdate ? `\nRAPT: ${coolerLastUpdate}` : ''}`
+    : coolerLastUpdate ? `RAPT: ${coolerLastUpdate}` : 'Ingen data';
+
   return (
     <div className="space-y-1.5">
-      {/* Row 1: Current state + effective target */}
-      <div className="flex items-center gap-4 text-[11px]">
+      {/* Row 1: Current state + effective target + util per tank */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Kylare:</span>
           <span className="font-mono font-medium">{coolerTarget}°</span>
           <span className="text-muted-foreground text-[10px]">(är {coolerTemp}°)</span>
           {statusDet.cooler_utilization != null ? (
-            <span className={`font-mono text-[10px] font-medium ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-              {statusDet.cooler_utilization as number}%
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={`font-mono text-[10px] font-medium cursor-help ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {statusDet.cooler_utilization as number}%
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
+            </Tooltip>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="font-mono text-[10px] text-muted-foreground/40 cursor-help">- %</span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Ingen utnyttjandedata ännu</TooltipContent>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line">Ingen utnyttjandedata ännu{coolerLastUpdate ? `\nRAPT: ${coolerLastUpdate}` : ''}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -391,6 +403,29 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
             <span className="text-muted-foreground text-[10px]">({effectiveDet.controller as string ?? ''})</span>
           </div>
         )}
+        {/* Inline tank utilization */}
+        {utilEntries.map((u, i) => {
+          const isActive = u.message.includes('❄️');
+          const name = u.message.split(':')[0].trim();
+          const utilMatch = u.message.match(/util=(\d+)%/);
+          const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
+          // Skip if this is the same controller already shown in "Lägsta behov"
+          const effectiveCtrlName = effectiveDet.controller as string;
+          if (effectiveCtrlName && name === effectiveCtrlName) return null;
+          return (
+            <span key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span>{isActive ? '❄️' : '⏸️'}</span>
+              <span>{name}</span>
+              {utilPct != null ? (
+                <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {utilPct}%
+                </span>
+              ) : (
+                <span className="font-mono text-muted-foreground/50">—</span>
+              )}
+            </span>
+          );
+        })}
       </div>
 
       {/* Row 2: Margin calculation */}
@@ -402,36 +437,6 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           {marginDet.required_rate != null && (
             <span>Krav: <span className="font-mono">{r1(marginDet.required_rate as number)}°/h</span></span>
           )}
-        </div>
-      )}
-
-      {/* Row 2.5: Cooling utilization per tank */}
-      {utilEntries.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
-          {utilEntries.map((u, i) => {
-            const isActive = u.message.includes('❄️');
-            const name = u.message.split(':')[0].trim();
-            const utilMatch = u.message.match(/util=(\d+)%/);
-            const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
-            const probeMatch = u.message.match(/probe ([\d.]+)°/);
-            const targetMatch = u.message.match(/mål ([\d.]+)°/);
-            return (
-              <span key={i} className="flex items-center gap-1">
-                <span>{isActive ? '❄️' : '⏸️'}</span>
-                <span>{name}</span>
-                {probeMatch && targetMatch && (
-                  <span className="font-mono text-[9px]">({probeMatch[1]}→{targetMatch[1]}°)</span>
-                )}
-                {utilPct != null ? (
-                  <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {utilPct}%
-                  </span>
-                ) : (
-                  <span className="font-mono text-muted-foreground/50">—</span>
-                )}
-              </span>
-            );
-          })}
         </div>
       )}
 
