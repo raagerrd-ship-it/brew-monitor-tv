@@ -460,7 +460,7 @@ async function applyCoolerTarget(
 
   let success: boolean
   if (ctx.updateBatch) {
-    ctx.updateBatch.add(coolerController.controller_id, newTarget)
+    ctx.updateBatch.add(coolerController.controller_id, newTarget, oldTarget)
     success = true
   } else {
     success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, coolerController.controller_id, newTarget)

@@ -218,7 +218,11 @@ export class RaptUpdateBatch {
   }
 
   /** Queue a target temp update. If same controller is added twice, last value wins. */
-  add(controllerId: string, targetTemp: number): void {
+  add(controllerId: string, targetTemp: number, currentTarget?: number): void {
+    // Skip no-op: don't send if hardware already at this target
+    if (currentTarget !== undefined && Math.abs(targetTemp - currentTarget) < 0.05) {
+      return
+    }
     const existing = this.pending.find(p => p.controllerId === controllerId)
     if (existing) {
       existing.targetTemp = targetTemp
