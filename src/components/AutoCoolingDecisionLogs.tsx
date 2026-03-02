@@ -626,6 +626,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                 const ctrlTarget = det.ctrl_target as number;
                 const ctrlTargetPid = det.ctrl_target_pid as number;
                 const rawCtrlTargetPid = det.raw_ctrl_target_pid as number;
+                const statusLimits = (det.limits as string[]) ?? [];
 
                 // Computed raw from formula (fallback if backend doesn't log it yet)
                 const computedRaw = actualTargetVal != null && comp != null
@@ -650,18 +651,40 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                           </span>
                         )}
                       </div>
-                      {/* Brakes under controller name */}
-                      {action?.brakes && action.brakes.length > 0 ? (
-                        <div className="flex flex-wrap gap-0.5 mt-0.5">
-                          {action.brakes.map((b, bi) => (
-                            <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
-                          ))}
-                        </div>
-                      ) : damping != null && damping < 1.0 ? (
-                        <div className="mt-0.5">
-                          <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
-                        </div>
-                      ) : null}
+                      {(() => {
+                        // Use limits from STATUS data directly, fall back to ACTION brakes
+                        const brakes: string[] = [];
+                        if (statusLimits.length > 0) {
+                          if (statusLimits.includes('overshoot-clamp')) brakes.push('🔒 Overshoot');
+                          if (statusLimits.includes('overshoot-release')) brakes.push('🛑 Release');
+                          if (statusLimits.includes('ramp-hold')) brakes.push('🔒 Ramp');
+                          if (statusLimits.includes('approach-release')) brakes.push('🚀 Approach');
+                          if (statusLimits.includes('dir-clamp')) brakes.push('🔒 Riktning');
+                          const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
+                          if (rateLimitC) brakes.push(`⏱ ${rateLimitC.split('=')[1]}°/c`);
+                          const hwMin = statusLimits.find(c => c.startsWith('hw-min='));
+                          if (hwMin) brakes.push(`⬇ Min ${hwMin.split('=')[1]}°`);
+                          const hwMax = statusLimits.find(c => c.startsWith('hw-max='));
+                          if (hwMax) brakes.push(`⬆ Max ${hwMax.split('=')[1]}°`);
+                          const approachC = statusLimits.find(c => c.startsWith('approach='));
+                          if (approachC) brakes.push(`🎯 Approach ${approachC.split('=')[1]}`);
+                          const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
+                          if (deltaDamp) brakes.push(`🌊 ΔDamp ${deltaDamp.split('=')[1]}`);
+                        } else if (action?.brakes && action.brakes.length > 0) {
+                          brakes.push(...action.brakes);
+                        }
+                        return brakes.length > 0 ? (
+                          <div className="flex flex-wrap gap-0.5 mt-0.5">
+                            {brakes.map((b, bi) => (
+                              <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
+                            ))}
+                          </div>
+                        ) : damping != null && damping < 1.0 ? (
+                          <div className="mt-0.5">
+                            <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     {/* Info: Är-temp */}
                     <td className="py-0.5 px-1 text-right" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
@@ -733,7 +756,21 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                     <td className="py-0.5 px-0 text-center text-muted-foreground/25">=</td>
                     {/* Nytt mål (PID result sent to hardware) */}
                     <td className="py-0.5 px-1 text-right font-bold" style={{ color: 'hsl(var(--ferment-green))' }}>
-                      {ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : rawValue != null ? `${r1(rawValue)}°` : '—'}
+                      {ctrlTargetPid != null ? (
+                        rawValue != null && Math.abs(rawValue - ctrlTargetPid) >= 0.05 ? (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help border-b border-dotted border-current/30">{r1(ctrlTargetPid)}°</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="text-[10px]">
+                                <div>Rått: {r1(rawValue)}° → {r1(ctrlTargetPid)}°</div>
+                                {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : `${r1(ctrlTargetPid)}°`
+                      ) : rawValue != null ? `${r1(rawValue)}°` : '—'}
                     </td>
                     {/* Separator */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
