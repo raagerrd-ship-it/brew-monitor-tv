@@ -862,11 +862,10 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 {/* Info columns */}
                 <th className="text-left py-0.5 pr-2 font-medium">Controller</th>
                 <th className="text-right py-0.5 px-1 font-medium">Är</th>
-                <th className="text-right py-0.5 px-1 font-medium">Δ</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/20">│</th>
-                {/* Calculation columns: Profil − Komp + PI = Nytt mål */}
+                {/* Calculation columns: Profil − Δ + PI = Nytt mål */}
                 <th className="text-right py-0.5 px-1 font-medium">Profil</th>
-                <th className="text-right py-0.5 px-1 font-medium">Komp</th>
+                <th className="text-right py-0.5 px-1 font-medium">Δ</th>
                 <th className="text-right py-0.5 px-1 font-medium">PI</th>
                 <th className="text-center py-0.5 px-0 font-medium text-muted-foreground/30">=</th>
                 <th className="text-right py-0.5 px-1 font-medium" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
@@ -989,19 +988,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       {r1(actualTempVal)}°
                       {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
                     </td>
-                    {/* Info: Delta (raw sensor diff) */}
-                    <td className="py-0.5 px-1 text-right text-muted-foreground/50" style={{
-                      color: delta != null && Math.abs(delta) > 0.3 ? 'hsl(38 92% 50% / 0.6)' : undefined
-                    }}>
-                      {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '—'}
-                    </td>
                     {/* Separator */}
                     <td className="py-0.5 px-0 text-center text-muted-foreground/15">│</td>
                     {/* Calc: Profil (actual_target) */}
                     <td className="py-0.5 px-1 text-right font-medium" style={{ color: 'hsl(280 60% 60%)' }}>
                       {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
                     </td>
-                    {/* Calc: − Komp (with tooltip) */}
+                    {/* Calc: Δ (delta/2 = compensation) */}
                     <td className="py-0.5 px-1 text-right" style={{
                       color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
@@ -1014,9 +1007,10 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
                               <div className="space-y-0.5">
+                                <div>Δ sensorskillnad = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
                                 <div>Δ/2 = {rawComp != null ? r1(rawComp) : delta != null ? r1(delta / 2) : '?'}°</div>
                                 {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
-                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° slutgiltig</div>
+                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° kompensation</div>
                               </div>
                             </TooltipContent>
                           </Tooltip>
