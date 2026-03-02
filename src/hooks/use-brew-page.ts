@@ -147,6 +147,7 @@ export function useBrewPage(brewId: string | undefined) {
           description: reading.description || null,
           overshootReason: null,
           originalTarget: null,
+          pidReason: null,
           fermentationTrend,
         };
 
