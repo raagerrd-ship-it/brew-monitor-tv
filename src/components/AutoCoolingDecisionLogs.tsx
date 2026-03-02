@@ -431,7 +431,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   const coolerTemp = r1(statusDet.current_temp as number);
   const coolerTarget = r1(statusDet.target_temp as number);
   const learnedMargin = r1(marginDet.learned_margin as number);
-  const maxEffective = r1(marginDet.max_effective as number);
+  const minEffective = r1(marginDet.min_effective as number);
   const samples = marginDet.margin_samples as number;
 
   // Determine outcome
@@ -565,7 +565,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
       {marginCalc && (
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <span>Marginal: <span className="font-mono text-foreground">{learnedMargin}°</span></span>
-          {maxEffective && <span>Max eff: <span className="font-mono">{maxEffective}°</span></span>}
+          {minEffective && <span>Min eff: <span className="font-mono">{minEffective}°</span></span>}
           {samples != null && <span>({samples} samples)</span>}
           {marginDet.required_rate != null && (
             <span>Krav: <span className="font-mono">{r1(marginDet.required_rate as number)}°/h</span></span>

@@ -8,7 +8,7 @@ interface MarginHistoryEntry {
   controller_id: string;
   temp_bucket: string;
   margin_value: number;
-  max_effective: number | null;
+  min_effective: number | null;
   utilization: number | null;
   cooling_rate: number | null;
   sample_count: number;
