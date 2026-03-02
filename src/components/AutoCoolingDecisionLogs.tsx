@@ -142,7 +142,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
   return 'glykol';
 }
 
-function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNode) {
+function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNode, colorOverride?: string) {
   const styles: Record<AdjustmentCategory, { bg: string; color: string; border: string; icon: React.ReactNode; label: string }> = {
     'pill-comp': { bg: 'hsl(280 60% 60% / 0.2)', color: 'hsl(280 60% 60%)', border: 'hsl(280 60% 60% / 0.3)', icon: <Pill className="h-2.5 w-2.5 mr-0.5" />, label: 'PID' },
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
@@ -150,8 +150,11 @@ function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNod
     'passthrough': { bg: 'hsl(170 60% 45% / 0.2)', color: 'hsl(170 60% 45%)', border: 'hsl(170 60% 45% / 0.3)', icon: <RefreshCw className="h-2.5 w-2.5 mr-0.5" />, label: 'Synk' },
   };
   const s = styles[category];
+  const color = colorOverride || s.color;
+  const bg = colorOverride ? `${colorOverride}33` : s.bg;
+  const border = colorOverride ? `${colorOverride}4d` : s.border;
   return (
-    <Badge variant="default" className="text-[10px] px-1.5" style={{ background: s.bg, color: s.color, borderColor: s.border }}>
+    <Badge variant="default" className="text-[10px] px-1.5" style={{ background: bg, color, borderColor: border }}>
       {s.icon}{s.label}{adjText && <span className="ml-1">{adjText}</span>}
     </Badge>
   );
@@ -194,12 +197,27 @@ function parsePillCompActionTarget(msg: string): { name: string; newTarget: numb
 export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
   const [hideSystem, setHideSystem] = useState(false);
   const [hideGlykol, setHideGlykol] = useState(false);
   const [hidePid, setHidePid] = useState(false);
   const [hideSync, setHideSync] = useState(false);
 
   useEffect(() => {
+    // Fetch controller→pill color map
+    (async () => {
+      const { data: controllers } = await supabase.from('rapt_temp_controllers').select('name, linked_pill_id');
+      const { data: pills } = await supabase.from('rapt_pills').select('pill_id, color');
+      if (controllers && pills) {
+        const pillColorMap = Object.fromEntries(pills.map(p => [p.pill_id, p.color]));
+        const map: Record<string, string> = {};
+        for (const c of controllers) {
+          const color = c.linked_pill_id ? pillColorMap[c.linked_pill_id] : null;
+          if (color && color !== '#000000') map[c.name] = color;
+        }
+        setControllerColors(map);
+      }
+    })();
     loadAll();
     const ch1 = supabase
       .channel('decision-logs')
@@ -302,7 +320,7 @@ export function AutoCoolingDecisionLogs() {
           <>
             {filteredEntries.length === 0 && <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>}
             {filteredEntries.map((entry) => (
-              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} />
+              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} />
             ))}
           </>
         );
@@ -313,9 +331,10 @@ export function AutoCoolingDecisionLogs() {
 
 // --- Entry Row ---
 
-function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
+function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, controllerColors }: {
   entry: UnifiedEntry; hideSync: boolean; hidePid: boolean; formatTime: (ts: string) => string;
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
+  controllerColors: Record<string, string>;
 }) {
   const { log, adjustments: adjs } = entry;
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
@@ -334,16 +353,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs }: {
   } else if (hasPidAdj && hasGlykolAdj) {
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
     const glykolAdj = adjs.find(a => a.category === 'glykol')!;
+    const pidColor = pidAdj.followed_controller_name ? controllerColors[pidAdj.followed_controller_name] : undefined;
     const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
     headerBadge = (
       <div className="flex gap-1 items-center flex-wrap">
-        {getCategoryBadge('pill-comp', adjStr(pidAdj))}
+        {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
       </div>
     );
   } else {
     const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
-    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr);
+    const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
+    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
   }
 
   return (
