@@ -657,44 +657,54 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                         <div className="pl-4 pr-2 pb-2 pt-1 text-[10px] space-y-1 text-muted-foreground/70 font-mono">
                           {(() => {
                             const at = det.actual_target as number;
-                            const rawComp = det.raw_compensation as number;
+                            const computedRawComp = delta != null ? delta / 2 : null;
+                            const rawComp = det.raw_compensation as number ?? computedRawComp;
                             const finalComp = det.compensation as number;
                             const ec = det.error_correction as number;
                             const pCorr = det.p_correction as number;
                             const iCorr = det.i_correction as number;
                             const learned = det.learned_baseline as number;
-                            const rawResult = det.raw_ctrl_target_pid as number;
+                            const computedRaw = at != null && finalComp != null ? at - finalComp + (ec ?? 0) : null;
+                            const rawResult = det.raw_ctrl_target_pid as number ?? computedRaw;
                             const finalResult = det.ctrl_target_pid as number;
                             const dmp = det.damping as number;
                             const lims = det.limits as string[];
+                            let step = 1;
                             return (
                               <>
-                                <div className="text-muted-foreground/50 text-[9px] font-sans mb-1">Formel: ctrl_target_pid = actual_target − komp + PI</div>
+                                <div className="text-muted-foreground/50 text-[9px] font-sans mb-1">ctrl_target_pid = actual_target − komp + PI</div>
                                 <div>
-                                  <span className="text-muted-foreground/50">1. Delta/2:</span>{' '}
-                                  {delta != null ? `${r1(delta)}/2 = ${rawComp != null ? r1(rawComp) : '?'}` : '—'}
+                                  <span className="text-muted-foreground/50">{step++}. Rå komp (delta/2):</span>{' '}
+                                  {delta != null ? <><span>{r1(delta)}</span> / 2 = <span className="text-accent">{rawComp != null ? r1(rawComp) : '?'}</span></> : '—'}
                                 </div>
                                 {dmp != null && dmp < 1.0 && (
                                   <div>
-                                    <span className="text-muted-foreground/50">2. × Damping:</span>{' '}
-                                    {rawComp != null ? `${r1(rawComp)} × ${r1(dmp)} = ${finalComp != null ? r1(finalComp) : '?'}` : '—'}
+                                    <span className="text-muted-foreground/50">{step++}. × Damping:</span>{' '}
+                                    {rawComp != null ? <><span>{r1(rawComp)}</span> × {r1(dmp)} = <span className="text-accent">{finalComp != null ? r1(finalComp) : '?'}</span></> : '—'}
                                   </div>
                                 )}
+                                {dmp == null || dmp >= 1.0 ? (
+                                  <div>
+                                    <span className="text-muted-foreground/50">{step++}. Komp = Rå komp:</span>{' '}
+                                    <span className="text-accent">{finalComp != null ? r1(finalComp) : '—'}</span>
+                                    <span className="text-muted-foreground/40 ml-1">(damping=1, ingen skalning)</span>
+                                  </div>
+                                ) : null}
                                 <div>
-                                  <span className="text-muted-foreground/50">{dmp != null && dmp < 1.0 ? '3' : '2'}. Komp (slutlig):</span>{' '}
-                                  <span className="text-accent">{finalComp != null ? r1(finalComp) : '—'}</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground/50">{dmp != null && dmp < 1.0 ? '4' : '3'}. PI-term:</span>{' '}
-                                  P={pCorr != null ? r1(pCorr) : '?'} + I={iCorr != null ? r1(iCorr) : '?'}
-                                  {learned != null && learned > 0 && <span> (learned={r1(learned)})</span>}
-                                  {' = '}<span className="text-green-400">{ec != null ? `+${r1(ec)}` : '?'}</span>
+                                  <span className="text-muted-foreground/50">{step++}. PI-korrigering:</span>{' '}
+                                  {pCorr != null || iCorr != null ? (
+                                    <>P={pCorr != null ? r1(pCorr) : '?'} + I={iCorr != null ? r1(iCorr) : '?'}
+                                    {learned != null && learned > 0 && <span className="text-muted-foreground/40"> (learned={r1(learned)})</span>}
+                                    {' = '}<span className="text-green-400">{ec != null ? `+${r1(ec)}` : '?'}</span></>
+                                  ) : (
+                                    <span className="text-green-400">{ec != null && Math.abs(ec) > 0.01 ? `+${r1(ec)}` : '0'}</span>
+                                  )}
                                 </div>
                                 <div className="border-t border-border/20 pt-1 mt-1">
-                                  <span className="text-muted-foreground/50">Rå beräkning:</span>{' '}
+                                  <span className="text-muted-foreground/50">{step++}. Resultat:</span>{' '}
                                   <span style={{ color: 'hsl(280 60% 60%)' }}>{at != null ? r1(at) : '?'}</span>
                                   {' − '}<span className="text-accent">{finalComp != null ? r1(finalComp) : '?'}</span>
-                                  {' + '}<span className="text-green-400">{ec != null ? r1(ec) : '?'}</span>
+                                  {' + '}<span className="text-green-400">{ec != null ? r1(ec) : '0'}</span>
                                   {' = '}<span className="font-bold">{rawResult != null ? `${r1(rawResult)}°` : '?'}</span>
                                 </div>
                                 {rawResult != null && finalResult != null && Math.abs(rawResult - finalResult) > 0.05 && (
