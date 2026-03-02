@@ -208,6 +208,28 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     sample_count: learnedMargin.sampleCount,
   })
 
+  // ── Hysteresis kick: force relay ON if cooler is in dead band ──
+  const coolerHysteresis = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
+  const coolerTemp = parseFloat(String(coolerController.current_temp ?? '0'))
+  const coolerRelayThreshold = clampedTarget + coolerHysteresis
+  const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
+
+  if (coolerInDeadBand) {
+    const anyActivelyCooling = utilizations.some(u => u.isActivelyCooling)
+    if (anyActivelyCooling) {
+      // Tanks need cooling but cooler relay is off (in dead band)
+      // Temporarily kick target below threshold: target = current - hysteresis - 0.1
+      const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
+      log('HYSTERESIS_KICK', 'action', `Kylare i dead band (${round1(coolerTemp)}° mellan ${round1(clampedTarget)}° och ${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C för att starta relä`)
+      await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
+        `⚡ Hysteres-kick: ${round1(coolerTemp)}° i dead band → kickar till ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
+        adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+      return adjustments
+    } else {
+      log('HYSTERESIS_DEADBAND', 'info', `Kylare i dead band (${round1(coolerTemp)}° < ${round1(coolerRelayThreshold)}°) men ingen tank behöver kyla`)
+    }
+  }
+
   // ── Apply if different enough ─────────────────────────────
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   if (diff < 0.1) {
