@@ -12,14 +12,12 @@ const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('
 /** Build a tooltip showing rolling avg + per-timestamp utilization */
 const buildUtilTooltip = (data: {
   lastUpdate?: string | null;
-  runTime?: number | null;
   recentPct?: number | null;
   pct?: number | null;
   prevAt?: string | null;
   prevRunTime?: number | null;
   anchorAt?: string | null;
   anchorRunTime?: number | null;
-  starts?: number | null;
 }): string => {
   const lines: string[] = [];
 
@@ -415,14 +413,12 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
   // Format RAPT timestamp for tooltip
   const coolerUtilTooltip = buildUtilTooltip({
     lastUpdate: statusDet.last_update as string | null,
-    runTime: statusDet.cooling_run_time as number | null,
     recentPct: statusDet.recent_utilization as number | null,
     pct: statusDet.cooler_utilization as number | null,
     prevAt: statusDet.prev_at as string | null,
     prevRunTime: statusDet.prev_run_time as number | null,
     anchorAt: statusDet.anchor_at as string | null,
     anchorRunTime: statusDet.anchor_run_time as number | null,
-    starts: statusDet.cooling_starts as number | null,
   });
 
   return (
@@ -459,7 +455,6 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const mUtilPct = mUtilMatch ? parseInt(mUtilMatch[1]) : null;
           const mTip = buildUtilTooltip({
             lastUpdate: mDet.last_update as string | null,
-            runTime: mDet.cooling_run_time as number | null,
             recentPct: mDet.recent_utilization as number | null,
             pct: mUtilPct,
             prevAt: mDet.prev_at as string | null,
@@ -498,7 +493,6 @@ function CoolerDecisionView({ entries }: { entries: DecisionEntry[] }) {
           const uDet = u.details || {};
           const tankUtilTip = buildUtilTooltip({
             lastUpdate: uDet.last_update as string | null,
-            runTime: uDet.cooling_run_time as number | null,
             recentPct: uDet.recent_utilization as number | null,
             pct: utilPct,
             prevAt: uDet.prev_at as string | null,
@@ -609,7 +603,7 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     brewSgByName.set(name, d);
   });
   // Build a map of utilization per controller name
-  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; runTime: number | null; lastUpdate: string | null; prevAt: string | null; prevRunTime: number | null; anchorAt: string | null; anchorRunTime: number | null }>();
+  const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; lastUpdate: string | null; prevAt: string | null; prevRunTime: number | null; anchorAt: string | null; anchorRunTime: number | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
     const utilMatch = d.message.match(/util=(\d+)%/);
@@ -617,13 +611,12 @@ function PipelineView({ decisions, hideSync, hidePid }: {
     const active = d.message.includes('❄️');
     const det = d.details || {};
     const recentPct = det.recent_utilization as number | null;
-    const runTime = det.cooling_run_time as number | null;
     const lastUpdate = det.last_update as string | null;
     const prevAt = det.prev_at as string | null;
     const prevRunTime = det.prev_run_time as number | null;
     const anchorAt = det.anchor_at as string | null;
     const anchorRunTime = det.anchor_run_time as number | null;
-    utilByName.set(name, { pct, active, recentPct, runTime, lastUpdate, prevAt, prevRunTime, anchorAt, anchorRunTime });
+    utilByName.set(name, { pct, active, recentPct, lastUpdate, prevAt, prevRunTime, anchorAt, anchorRunTime });
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -688,7 +681,6 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                         {util ? (() => {
                           const utilTip = buildUtilTooltip({
                             lastUpdate: util.lastUpdate,
-                            runTime: util.runTime,
                             recentPct: util.recentPct,
                             pct: util.pct,
                             prevAt: util.prevAt,
