@@ -653,35 +653,59 @@ function PipelineView({ decisions, hideSync, hidePid }: {
                       </div>
                       {(() => {
                         // Use limits from STATUS data directly, fall back to ACTION brakes
-                        const brakes: string[] = [];
+                        const brakes: { label: string; tip: string }[] = [];
+                        const rawVal = rawValue;
+                        const clampedVal = ctrlTargetPid;
+                        const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
+                        const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
                         if (statusLimits.length > 0) {
-                          if (statusLimits.includes('overshoot-clamp')) brakes.push('🔒 Overshoot');
-                          if (statusLimits.includes('overshoot-release')) brakes.push('🛑 Release');
-                          if (statusLimits.includes('ramp-hold')) brakes.push('🔒 Ramp');
-                          if (statusLimits.includes('approach-release')) brakes.push('🚀 Approach');
-                          if (statusLimits.includes('dir-clamp')) brakes.push('🔒 Riktning');
+                          if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
+                          if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
+                          if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: `Håller target under ramp — låter profilen komma ikapp. ${clampDiffStr}` });
+                          if (statusLimits.includes('approach-release')) brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål i approach zone. ${clampDiffStr}` });
+                          if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: `Kan inte överskrida profilmål under ramp. ${clampDiffStr}` });
                           const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
-                          if (rateLimitC) brakes.push(`⏱ ${rateLimitC.split('=')[1]}°/c`);
+                          if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel. ${clampDiffStr}` }); }
                           const hwMin = statusLimits.find(c => c.startsWith('hw-min='));
-                          if (hwMin) brakes.push(`⬇ Min ${hwMin.split('=')[1]}°`);
+                          if (hwMin) brakes.push({ label: `⬇ Min ${hwMin.split('=')[1]}°`, tip: `Hårdvarugräns min ${hwMin.split('=')[1]}°C. ${clampDiffStr}` });
                           const hwMax = statusLimits.find(c => c.startsWith('hw-max='));
-                          if (hwMax) brakes.push(`⬆ Max ${hwMax.split('=')[1]}°`);
+                          if (hwMax) brakes.push({ label: `⬆ Max ${hwMax.split('=')[1]}°`, tip: `Hårdvarugräns max ${hwMax.split('=')[1]}°C. ${clampDiffStr}` });
                           const approachC = statusLimits.find(c => c.startsWith('approach='));
-                          if (approachC) brakes.push(`🎯 Approach ${approachC.split('=')[1]}`);
+                          if (approachC) brakes.push({ label: `🎯 ${approachC.split('=')[1]}`, tip: `Approach-skalning: delta-komp × ${approachC.split('=')[1]} (nära mål)` });
                           const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
-                          if (deltaDamp) brakes.push(`🌊 ΔDamp ${deltaDamp.split('=')[1]}`);
+                          if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
                         } else if (action?.brakes && action.brakes.length > 0) {
-                          brakes.push(...action.brakes);
+                          action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
                         }
                         return brakes.length > 0 ? (
                           <div className="flex flex-wrap gap-0.5 mt-0.5">
                             {brakes.map((b, bi) => (
-                              <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b}</span>
+                              <TooltipProvider key={bi} delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap cursor-help">{b.label}</span>
+                                  </TooltipTrigger>
+                                  {b.tip && (
+                                    <TooltipContent side="bottom" className="text-[10px] max-w-[220px]">
+                                      {b.tip}
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
                             ))}
                           </div>
                         ) : damping != null && damping < 1.0 ? (
                           <div className="mt-0.5">
-                            <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400">damp={r1(damping)}</span>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">damp={r1(damping)}</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="text-[10px]">
+                                  D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         ) : null;
                       })()}
