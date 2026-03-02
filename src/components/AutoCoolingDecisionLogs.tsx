@@ -1007,8 +1007,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="text-[10px] max-w-[200px]">
                               <div className="space-y-0.5">
-                                <div>Δ sensorskillnad = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
-                                <div>Δ/2 = {rawComp != null ? r1(rawComp) : delta != null ? r1(delta / 2) : '?'}°</div>
+                                <div>Δ = avg − probe = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
                                 {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
                                 <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° kompensation</div>
                               </div>

@@ -53,7 +53,7 @@ const MODE_PARAMS = {
 /**
  * Calculate PID-compensated target temperature.
  * Targets the AVERAGE of pill (surface) and probe (core) to equal the actual target.
- * Formula: ctrlTargetPid = actualTarget - avgDelta/2
+ * Formula: ctrlTargetPid = actualTarget - avgDelta
  *
  * @param actualTarget  The user's desired temperature (SSOT: profile_target_temp)
  * @param ctrlTarget    The current hardware target (target_temp before PID)
@@ -168,7 +168,7 @@ export async function calculateCompensatedTarget(
   const isAtTarget = distanceToTarget < 1.0
   const approachScale = isAtTarget ? 1.0 : Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
   
-  const rawCompensation = avgDelta / 2
+  const rawCompensation = avgDelta
   let compensation = rawCompensation * dampingFactor * approachScale
   
   if (approachScale < 1.0) {
