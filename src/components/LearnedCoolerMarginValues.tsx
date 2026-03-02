@@ -11,7 +11,7 @@ interface LearnedMargin {
   learned_value: number;
   sample_count: number;
   last_updated_at: string;
-  max_effective?: number | null;
+  min_effective?: number | null;
 }
 
 const BUCKET_LABELS: Record<string, string> = {
@@ -57,15 +57,15 @@ export function LearnedCoolerMarginValues() {
         return;
       }
 
-      const { data: maxEffectives } = await supabase
+      const { data: minEffectives } = await supabase
         .from("fermentation_learnings")
         .select("controller_id, parameter_name, learned_value")
-        .like("parameter_name", "max_effective_margin:%");
+        .like("parameter_name", "min_effective_margin:%");
 
-      const maxEffMap = new Map<string, number>();
-      maxEffectives?.forEach((m) => {
-        const bucket = m.parameter_name.replace("max_effective_margin:", "");
-        maxEffMap.set(`${m.controller_id}:${bucket}`, parseFloat(String(m.learned_value)));
+      const minEffMap = new Map<string, number>();
+      minEffectives?.forEach((m) => {
+        const bucket = m.parameter_name.replace("min_effective_margin:", "");
+        minEffMap.set(`${m.controller_id}:${bucket}`, parseFloat(String(m.learned_value)));
       });
 
       const controllerIds = [...new Set(learnings.map((l) => l.controller_id))];
@@ -86,7 +86,7 @@ export function LearnedCoolerMarginValues() {
             learned_value: l.learned_value,
             sample_count: l.sample_count,
             last_updated_at: l.last_updated_at,
-            max_effective: maxEffMap.get(`${l.controller_id}:${raw}`) ?? null,
+            min_effective: minEffMap.get(`${l.controller_id}:${raw}`) ?? null,
           };
         })
       );
@@ -133,7 +133,7 @@ export function LearnedCoolerMarginValues() {
     });
   }
 
-  const hasAnyMaxEff = entries.some((e) => e.max_effective != null);
+  const hasAnyMinEff = entries.some((e) => e.min_effective != null);
 
   return (
     <div className="space-y-2">
@@ -155,7 +155,7 @@ export function LearnedCoolerMarginValues() {
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 <th className="text-left font-medium pb-1">Zon</th>
                 <th className="text-right font-medium pb-1">Marginal</th>
-                {hasAnyMaxEff && <th className="text-right font-medium pb-1">Tak</th>}
+                {hasAnyMinEff && <th className="text-right font-medium pb-1">Min</th>}
                 <th className="text-right font-medium pb-1">Prov</th>
                 <th className="text-right font-medium pb-1">Senast</th>
               </tr>
@@ -165,9 +165,9 @@ export function LearnedCoolerMarginValues() {
                 <tr key={`${item.controller_id}-${item.bucket}`}>
                   <td className="py-1.5">{formatBucketLabel(item.bucket)}</td>
                   <td className="py-1.5 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
-                  {hasAnyMaxEff && (
-                    <td className="py-1.5 text-right font-mono text-amber-400">
-                      {item.max_effective != null ? `${item.max_effective.toFixed(1)}°C` : "–"}
+                  {hasAnyMinEff && (
+                    <td className="py-1.5 text-right font-mono text-green-400">
+                      {item.min_effective != null ? `${item.min_effective.toFixed(1)}°C` : "–"}
                     </td>
                   )}
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>

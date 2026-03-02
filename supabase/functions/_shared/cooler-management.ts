@@ -179,10 +179,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Get learned margin for this temperature zone ──────────
   const tempBucket = getTempBucket(effectiveTarget.temp)
   const learnedMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
-  const maxEffective = await getLearnedParam(supabase, coolerController.controller_id, `max_effective_margin:${tempBucket}`, 15.0)
+  const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
 
-  // Clamp margin to max effective (no point going beyond diminishing returns)
-  const effectiveMargin = Math.min(learnedMargin.value, maxEffective.value)
+  // Clamp margin downward: don't go below the minimum margin that still produces cooling
+  const effectiveMargin = Math.max(learnedMargin.value, minEffective.sampleCount > 0 ? minEffective.value : 1.0)
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
@@ -190,7 +190,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     temp_bucket: tempBucket,
     margin_samples: learnedMargin.sampleCount,
     learned_margin: learnedMargin.value,
-    max_effective: maxEffective.value,
+    min_effective: minEffective.value,
     current_cooler: currentCoolerTarget,
     required_rate: effectiveTarget.requiredRatePerHour,
   })
@@ -202,7 +202,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
     margin_value: Math.round(effectiveMargin * 100) / 100,
-    max_effective: maxEffective.sampleCount > 0 ? Math.round(maxEffective.value * 100) / 100 : null,
+    max_effective: minEffective.sampleCount > 0 ? Math.round(minEffective.value * 100) / 100 : null,
     utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
     cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
     sample_count: learnedMargin.sampleCount,
@@ -753,7 +753,7 @@ async function learnFromCurrentState(
       log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     }
 
-    await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+    await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
     return
   }
 
@@ -791,7 +791,7 @@ async function learnFromCurrentState(
 
     // Also learn max effective during hold if we have rate data
     if (actualRate !== null) {
-      await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+      await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
     }
     return
   }
@@ -815,7 +815,7 @@ async function learnFromCurrentState(
   }
 
   if (actualRate !== null) {
-    await learnMaxEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
+    await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log)
   }
 }
 
@@ -845,9 +845,9 @@ async function measureCoolingRate(
   return tempDiff / hoursDiff // positive = cooling
 }
 
-// ─── Learn max effective margin ──────────────────────────────
+// ─── Learn min effective margin ──────────────────────────────
 
-async function learnMaxEffectiveMargin(
+async function learnMinEffectiveMargin(
   supabase: ReturnType<typeof createClient>,
   coolerId: string,
   tempBucket: string,
@@ -855,40 +855,16 @@ async function learnMaxEffectiveMargin(
   currentRate: number,
   log: CoolerContext['log'],
 ): Promise<void> {
-  // Load previous observation
-  const prev = await getLearnedParam(supabase, coolerId, `prev_margin_rate:${tempBucket}`, 0)
-  const prevMargin = prev.value
-  const prevRate = await getLearnedParam(supabase, coolerId, `prev_cooling_rate:${tempBucket}`, 0)
+  // Only learn from cycles where cooling is actually happening (rate > 0)
+  if (currentRate <= 0 || currentMargin < 0.5) return
 
-  // Save current observation for next cycle
-  await supabase.from('fermentation_learnings').upsert({
-    controller_id: coolerId,
-    parameter_name: `prev_margin_rate:${tempBucket}`,
-    learned_value: Math.round(currentMargin * 100) / 100,
-    sample_count: 1,
-    last_updated_at: new Date().toISOString(),
-  }, { onConflict: 'controller_id,parameter_name' })
+  // This margin produced cooling — it's a candidate for min_effective
+  const current = await getLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin)
 
-  await supabase.from('fermentation_learnings').upsert({
-    controller_id: coolerId,
-    parameter_name: `prev_cooling_rate:${tempBucket}`,
-    learned_value: Math.round(currentRate * 100) / 100,
-    sample_count: 1,
-    last_updated_at: new Date().toISOString(),
-  }, { onConflict: 'controller_id,parameter_name' })
-
-  // Need previous data to compare
-  if (prevMargin < 0.5 || prevRate.value < 0.05) return
-
-  // Margin increased by >1°C but rate didn't improve (within 10% tolerance)
-  const marginIncrease = currentMargin - prevMargin
-  const rateImprovement = currentRate - prevRate.value
-
-  if (marginIncrease > 1.0 && rateImprovement < prevRate.value * 0.1) {
-    // Diminishing returns detected — the previous margin was already effective enough
-    const ceilingMargin = prevMargin + 0.5 // small buffer
-    const result = await updateLearnedParam(supabase, coolerId, `max_effective_margin:${tempBucket}`, ceilingMargin, 3.0, 15.0)
-    log('MAX_MARGIN', 'action', `[${tempBucket}] Diminishing returns at margin ${currentMargin.toFixed(1)}°C — ceiling: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`)
+  if (current.sampleCount === 0 || currentMargin < current.value) {
+    // New minimum found — update with EMA toward this lower value
+    const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
+    log('MIN_MARGIN', 'action', `[${tempBucket}] Ny lägsta effektiva marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h)`)
   }
 }
 
