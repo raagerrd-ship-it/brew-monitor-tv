@@ -44,17 +44,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      console.error('VAPID keys not configured');
-      return new Response(
-        JSON.stringify({ error: 'Push notifications not configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
-    }
-
     let successCount = 0;
     let failCount = 0;
     const expiredEndpoints: string[] = [];
@@ -66,13 +55,10 @@ Deno.serve(async (req) => {
           title,
           body,
           data || {},
-          vapidPublicKey,
-          vapidPrivateKey
         );
 
         if (result.success) {
           successCount++;
-          // Update last_used_at
           await supabase
             .from('push_subscriptions')
             .update({ last_used_at: new Date().toISOString() })

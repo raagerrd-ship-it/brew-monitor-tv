@@ -1,10 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// VAPID public key is safe to expose in client code
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BOE0gfE2YUhgJTFtzhJzXhAOH9Rdhbkh0UwAGV692INKb0bjN0WYyvxTbzJHIcZHW7AMjGcOFMPD-oni7QnqJVA";
-
 let swRegistration: ServiceWorkerRegistration | null = null;
 let registrationPromise: Promise<ServiceWorkerRegistration> | null = null;
+let cachedVapidKey: string | null = null;
+
+/**
+ * Fetch the VAPID public key from the edge function (reads from DB)
+ */
+async function getVapidPublicKey(): Promise<string | null> {
+  if (cachedVapidKey) return cachedVapidKey;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-vapid-keys', {
+      body: { action: 'get_current' },
+    });
+
+    if (error || !data?.publicKeyForBrowser) {
+      console.warn('Could not fetch VAPID key:', error || 'no key returned');
+      return null;
+    }
+
+    cachedVapidKey = data.publicKeyForBrowser;
+    return cachedVapidKey;
+  } catch (err) {
+    console.error('Failed to fetch VAPID key:', err);
+    return null;
+  }
+}
 
 /**
  * Register the push service worker (separate from PWA workbox SW)
@@ -63,30 +85,28 @@ export async function subscribeToWebPush(vapidPublicKey: string): Promise<PushSu
 
 /**
  * Auto-register push subscription silently if permission already granted.
- * Saves/updates subscription in push_subscriptions table.
  */
 export async function autoRegisterWebPush(): Promise<void> {
   const isSupported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
   if (!isSupported) return;
 
-  // Don't prompt — only proceed if already granted
   if (Notification.permission !== "granted") return;
 
   // Skip in iframe (Lovable preview / Chromecast)
   if (window.self !== window.top) return;
 
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn('VITE_VAPID_PUBLIC_KEY not set, skipping push registration');
+  const vapidKey = await getVapidPublicKey();
+  if (!vapidKey) {
+    console.warn('No VAPID key available, skipping push registration');
     return;
   }
 
   try {
     await getServiceWorkerRegistration();
-    const subscription = await subscribeToWebPush(VAPID_PUBLIC_KEY);
+    const subscription = await subscribeToWebPush(vapidKey);
     const subscriptionJSON = subscription.toJSON();
     const deviceInfo = navigator.userAgent;
 
-    // Upsert by endpoint
     const subData = subscriptionJSON as unknown as Record<string, unknown>;
     const { data: existing } = await supabase
       .from('push_subscriptions')

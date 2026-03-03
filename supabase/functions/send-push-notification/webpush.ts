@@ -1,12 +1,31 @@
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+async function getVapidKeysFromDB() {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  const { data, error } = await supabase
+    .from('vapid_keys')
+    .select('public_key_jwk, private_key_jwk')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error('VAPID keys not found in database');
+  }
+
+  return data;
+}
 
 export async function sendWebPushNotification(
   subscriptionJson: string | any,
   title: string,
   body: string,
   data: Record<string, string>,
-  vapidPublicKey: string,
-  vapidPrivateKey: string
 ): Promise<{ success: boolean; expired?: boolean }> {
   try {
     const subscription = typeof subscriptionJson === 'string'
@@ -15,26 +34,11 @@ export async function sendWebPushNotification(
 
     console.log('Sending Web Push to:', subscription.endpoint?.substring(0, 50));
 
-    const extractJSON = (str: string): string => {
-      const firstBrace = str.indexOf('{');
-      const lastBrace = str.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        return str.substring(firstBrace, lastBrace + 1);
-      }
-      return str;
-    };
-
-    const publicKeyObj = typeof vapidPublicKey === 'string'
-      ? JSON.parse(extractJSON(vapidPublicKey))
-      : vapidPublicKey;
-
-    const privateKeyObj = typeof vapidPrivateKey === 'string'
-      ? JSON.parse(extractJSON(vapidPrivateKey))
-      : vapidPrivateKey;
+    const dbKeys = await getVapidKeysFromDB();
 
     const vapidKeys = await webpush.importVapidKeys({
-      publicKey: publicKeyObj,
-      privateKey: privateKeyObj,
+      publicKey: dbKeys.public_key_jwk,
+      privateKey: dbKeys.private_key_jwk,
     }, { extractable: false });
 
     const appServer = await webpush.ApplicationServer.new({
