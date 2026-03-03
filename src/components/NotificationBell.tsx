@@ -187,6 +187,7 @@ function NotificationBellComponent() {
                       try {
                         const { getServiceWorkerRegistration } = await import("@/lib/web-push-registration");
                         const reg = await getServiceWorkerRegistration();
+                        // @ts-ignore - pushManager exists in browsers
                         const sub = await reg.pushManager?.getSubscription();
                         if (sub) {
                           const endpoint = sub.endpoint;
