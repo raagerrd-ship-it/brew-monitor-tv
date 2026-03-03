@@ -691,7 +691,7 @@ serve(async (req) => {
 
       const { data: controllers } = await supabase
         .from('rapt_temp_controllers')
-        .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp')
+        .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp, cooling_run_time')
         .in('controller_id', selectedControllerIds);
 
       if (!controllers || controllers.length === 0) return;
@@ -703,6 +703,7 @@ serve(async (req) => {
         target_temp: c.target_temp,
         cooling_enabled: c.cooling_enabled || false,
         profile_target_temp: c.profile_target_temp ?? c.target_temp,
+        cooling_run_time: c.cooling_run_time ?? null,
       }));
 
       const deltaRecords = controllers
