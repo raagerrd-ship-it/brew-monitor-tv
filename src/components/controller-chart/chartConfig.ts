@@ -10,6 +10,7 @@ export const CHART_MARGINS = {
 export const COLORS = {
   target: '#f59e0b', // Amber for target temp
   grid: 'hsl(var(--muted))',
+  cooling: '#3b82f6', // Blue for cooling percentage
 };
 
 export const AXIS_CONFIG = {

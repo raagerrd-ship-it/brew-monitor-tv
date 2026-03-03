@@ -1,4 +1,4 @@
-import { LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
+import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { useControllerTempData } from './hooks/useControllerTempData';
 import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from './chartConfig';
@@ -67,24 +67,50 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               minTickGap={AXIS_CONFIG.minTickGap}
             />
             <YAxis 
+              yAxisId="temp"
               domain={[minTemp, maxTemp]}
               tick={AXIS_CONFIG.tick}
               className="text-muted-foreground"
               tickFormatter={(value) => `${value}°`}
             />
+            <YAxis 
+              yAxisId="cooling"
+              orientation="right"
+              domain={[0, 100]}
+              tick={AXIS_CONFIG.tick}
+              className="text-muted-foreground"
+              tickFormatter={(value) => `${value}%`}
+              width={35}
+            />
             <Tooltip 
               contentStyle={TOOLTIP_STYLE}
-              formatter={(value: number, name: string) => [
-                `${value.toFixed(1)}°`, 
-                name === 'currentTemp' ? 'Aktuell' : 'Mål'
-              ]}
+              formatter={(value: number, name: string) => {
+                if (name === 'coolingPercent') return [`${value}%`, 'Kylning'];
+                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? 'Aktuell' : 'Mål'];
+              }}
               labelFormatter={(label) => `Tid: ${label}`}
             />
             <Legend 
-              formatter={(value) => value === 'currentTemp' ? 'Aktuell temp' : 'Måltemp'}
+              formatter={(value) => {
+                if (value === 'currentTemp') return 'Aktuell temp';
+                if (value === 'targetTemp') return 'Måltemp';
+                return 'Kylning %';
+              }}
               wrapperStyle={{ fontSize: '11px' }}
             />
             <Area 
+              yAxisId="cooling"
+              type="stepAfter"
+              dataKey="coolingPercent"
+              stroke={COLORS.cooling}
+              strokeWidth={0}
+              fill={COLORS.cooling}
+              fillOpacity={0.15}
+              dot={false}
+              name="coolingPercent"
+            />
+            <Area 
+              yAxisId="temp"
               type={LINE_CONFIG.current.type}
               dataKey="currentTemp" 
               stroke={controllerColor}
@@ -95,6 +121,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               name="currentTemp"
             />
             <Line 
+              yAxisId="temp"
               type={LINE_CONFIG.target.type}
               dataKey="targetTemp" 
               stroke={COLORS.target}

@@ -1,53 +1,124 @@
 
 
-## Kylningshistorik-graf med kylnings-% — Plan
+# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
 
-### Nuläge
+## Klarifiering
 
-Kylnings-% (utilization) loggas redan löpande på två ställen:
-1. **`cooler_margin_history.utilization`** — sparas varje auto-cooling-cykel (ca var 5:e min) per controller
-2. **`temp_controller_history.cooling_enabled`** — boolean per rad, kan räknas om till ratio per tidsbucket via RPC
+Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
 
-Alternativ 1 (`cooler_margin_history`) ger direkt access till den redan beräknade utilization-procenten utan RPC-ändring. Alternativ 2 kräver en RPC-uppdatering men ger exaktare data per tidsbucket.
+1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
+2. **Minska hysteres** om controllern inte når mål inom en viss tid
 
-### Rekommendation
+## Relay-val per controller
 
-Använd **alternativ 2** (uppdatera RPC:n) — det ger jämnare data som passar bättre i en tidsgraf och matchar temperaturhistorikens tidslinje exakt. `cooler_margin_history` loggas bara vid auto-cooling-körningar och kan ha luckor.
-
-### Ändringar
-
-**1. DB-migrering — Utöka `get_temp_history_sampled` med `cooling_ratio`**
-```sql
-COUNT(*) FILTER (WHERE cooling_enabled)::NUMERIC 
-  / NULLIF(COUNT(*), 0) AS cooling_ratio
+```text
+Target < Actual (ska sjunka)  → cooling ON, heating OFF
+Target > Actual (ska stiga)   → heating ON, cooling OFF
+Hold-zon (inom 0.5°C)         → temperaturband:
+  target < 15°C → cooling only (jäsning genererar värme)
+  target > 20°C → heating only (temp sjunker naturligt)
+  annars        → båda ON
 ```
-Returnerar 0.0–1.0 per tidsbucket.
 
-**2. `useControllerTempData.ts`**
-- Lägg till `coolingPercent: number` i `ChartDataPoint`
-- Mappa `record.cooling_ratio * 100` → `coolingPercent`
+## Adaptiv Hysteresis
 
-**3. `ControllerTempChart.tsx`**
-- Sekundär Y-axel (höger, 0–100%) för kylning
-- Semi-transparent blå `<Area>` med `dataKey="coolingPercent"` mot höger-axeln
-- Tooltip: "Kylning: 45%"
-- Legend: "Kylning %"
+Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
 
-**4. `CombinedControllerChart.tsx`** (ny komponent)
-- Toggle-knappar per controller (färgkodade) + glykolkylare (❄️)
-- Visa/dölj individuella linjer i en gemensam `ComposedChart`
-- Kylnings-% som blå area i bakgrunden (per controller eller summerat)
+## Teknisk plan
 
-**5. Integration i `Settings.tsx`**
-- Ny `SettingsSection` under Historik → "Kylning" med `Snowflake`-ikon
-- Renderar `CombinedControllerChart` med alla följda controllers
+### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+
+Lägg till tre actions i `ALLOWED_ACTIONS`:
+- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
+- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
+- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+
+### 2. Wrapper-funktioner i `temp-utils.ts`
+
+Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
+
+### 3. Databasändringar
+
+**`auto_cooling_settings`** — nya kolumner:
+- `smart_relay_enabled` boolean default false
+- `smart_relay_cooling_only_below` numeric default 15
+- `smart_relay_heating_only_above` numeric default 20
+- `smart_relay_min_hysteresis` numeric default 0.3
+- `smart_relay_tighten_after_minutes` integer default 30
+
+**`rapt_temp_controllers`** — nya kolumner:
+- `smart_relay_active` boolean default false
+- `pre_smart_heating_enabled` boolean nullable
+- `pre_smart_cooling_enabled` boolean nullable
+- `pre_smart_heating_hysteresis` numeric nullable
+- `pre_smart_cooling_hysteresis` numeric nullable
+- `smart_relay_off_target_since` timestamptz nullable
+
+### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+
+Placeras **före** PID i pipeline:
+
+```text
+Pipeline:
+  1. Bootstrap
+  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
+  3. PID Control
+  4. Pass-through
+  5. Stall Detection
+```
+
+Per controller (alla steg-typer):
+1. Läs `profile_target_temp` och `actual_temp`
+2. Bestäm riktning → toggle reläer via RAPT API
+3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
+4. Om on-target: återställ hysteres till original
+5. Spara originalvärden i `pre_smart_*` vid första ändring
+
+Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
+
+### 5. UI i Settings (automation-tab)
+
+Nytt avsnitt "Smart Relay" med:
+- Enable/disable toggle
+- Temperaturband-inputs (kylning-under, värme-över)
+- Min hysteres
+- Minuter innan tightening
+
+### 6. Beslutsloggning
+
+- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
+- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
+- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
 
 ### Filer som ändras
-- **DB-migrering**: `get_temp_history_sampled` — lägg till `cooling_ratio`
-- `src/components/controller-chart/hooks/useControllerTempData.ts` — nytt fält
-- `src/components/controller-chart/ControllerTempChart.tsx` — blå area + höger Y-axel
-- `src/components/controller-chart/CombinedControllerChart.tsx` — ny
-- `src/components/controller-chart/hooks/useMultiControllerTempData.ts` — ny
-- `src/components/controller-chart/index.ts` — exports
-- `src/pages/Settings.tsx` — ny sektion
 
+- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
+- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
+- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
+- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
+- DB-migration för nya kolumner
+
+---
+
+## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+
+**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
+
+**Fix:** 
+- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
+- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
+- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
+
+---
+
+## ✅ Web Push-notifieringar (2026-03-03)
+
+**Implementerat:**
+- `push_subscriptions` tabell med RLS (anyone can CRUD)
+- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
+- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
+- `public/push-sw.js` — service worker för push-event + notificationclick
+- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
+- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
+- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
+- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad

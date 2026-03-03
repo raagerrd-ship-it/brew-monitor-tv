@@ -1654,6 +1654,7 @@ export type Database = {
         }
         Returns: {
           cooling_enabled: boolean
+          cooling_ratio: number
           current_temp: number
           profile_target_temp: number
           recorded_at: string

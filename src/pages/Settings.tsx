@@ -11,6 +11,7 @@ import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValue
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
+import { CombinedControllerChart } from "@/components/controller-chart";
 
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
@@ -30,7 +31,7 @@ import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Al
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
@@ -75,6 +76,29 @@ export default function Settings() {
     if (settings.visibleBrewsCount === 0) return null;
     return { type: 'info' as const, count: settings.visibleBrewsCount };
   }, [settings.visibleBrewsCount]);
+
+  // Build combined chart controller list with colors from linked pills
+  const combinedChartControllers = useMemo(() => {
+    const pillColorMap = new Map<string, string>();
+    for (const pill of (settings.headerPillsData ?? [])) {
+      pillColorMap.set(pill.pill_id, pill.color || '#3b82f6');
+    }
+    const defaultColors = ['#eab308', '#3b82f6', '#22c55e', '#ef4444', '#a855f7'];
+    let colorIdx = 0;
+    return settings.availableControllers.map(c => {
+      let color = c.linked_pill_id ? pillColorMap.get(c.linked_pill_id) : undefined;
+      if (!color) {
+        color = defaultColors[colorIdx % defaultColors.length];
+        colorIdx++;
+      }
+      return {
+        id: c.id,
+        name: c.name,
+        color,
+        isGlycolCooler: c.is_glycol_cooler,
+      };
+    });
+  }, [settings.availableControllers, settings.headerPillsData]);
 
   if (settings.loading) {
     return (
@@ -573,6 +597,9 @@ export default function Settings() {
             </SettingsSection>
 
             <CategorySeparator icon={History} label="Historik" />
+            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
+              <CombinedControllerChart controllers={combinedChartControllers} />
+            </SettingsSection>
             <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar" collapsible defaultOpen={false}>
               <AutoCoolingDecisionLogs />
             </SettingsSection>
