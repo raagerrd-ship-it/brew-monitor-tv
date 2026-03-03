@@ -538,7 +538,7 @@ export default function Settings() {
 
             {/* Smart Relay Settings (expanded when enabled) */}
             {settings.smartRelayEnabled && (
-              <SettingsSection icon={Zap} title="Smart Relay-inställningar" description="Temperaturband och adaptiv hysteres per tank-controller" variant="muted">
+              <SettingsSection icon={Zap} title="Smart Relay-inställningar" description="Temperaturband och adaptiv hysteres per tank-controller" variant="muted" collapsible defaultOpen={false}>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
