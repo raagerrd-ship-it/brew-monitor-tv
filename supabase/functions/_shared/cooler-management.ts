@@ -264,16 +264,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       if (timeSinceLastKick < kickCooldownMs) {
         log('HYSTERESIS_COOLDOWN', 'info', `Hysteres-kick cooldown — ${Math.round((kickCooldownMs - timeSinceLastKick) / 60000)} min kvar`)
       } else {
-        // Temporarily lower hysteresis so the relay actually triggers
+        // Kick target = 1°C below minimum allowed → clearly signals automation is active
         const kickHysteresis = 0.3
-        const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - kickHysteresis - 0.1) * 10) / 10)
+        const kickTarget = round1(coolerMinTemp - 1)
         // Guard: skip if current target is already at or below kick target (no-op kick)
         if (currentCoolerTarget <= kickTarget) {
           log('HYSTERESIS_KICK_NOOP', 'info', `Hysteres-kick onödig — mål redan ${round1(currentCoolerTarget)}° ≤ kick ${kickTarget}°`)
         } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
         // Step 1: Lower hysteresis on hardware
-        log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — sänker hysteres ${coolerHysteresis}° → ${kickHysteresis}° och kickar till ${kickTarget}°C`)
+        log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — sänker hysteres ${coolerHysteresis}° → ${kickHysteresis}° och kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
         const hystOk = await setCoolerHysteresis(supabaseUrl, serviceRoleKey, coolerController.controller_id, kickHysteresis)
         if (hystOk) {
           await supabase.from('rapt_temp_controllers')
