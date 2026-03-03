@@ -1,100 +1,46 @@
 
 
-# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
+## Granskning av cooler-management.ts — Autonoma glykolstyrningen
 
-## Klarifiering
+Jag har läst igenom hela filen (1016 rader). Överlag är logiken väl strukturerad och stabil. Här är min analys:
 
-Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
+### Styrkor
+- Tydlig separation: kylaren bryr sig bara om att upprätthålla marginal under lägsta tankens mål
+- Demand guard förhindrar onödiga sänkningar när ingen tank faktiskt kyler
+- Relay-aware no-op guard sparar API-anrop vid meningslösa justeringar
+- Hysteresis-kick med 15-min cooldown och kick-stuck guard
+- Proaktiv look-ahead (1h ramp + 2h nästa steg)
+- Inlärning separerad i rate-based (rampar) vs utilization-based (hold)
 
-1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
-2. **Minska hysteres** om controllern inte når mål inom en viss tid
+### Identifierade problem
 
-## Relay-val per controller
+**1. `setCoolerHysteresis` fungerar inte (RAPT API 404)**
+Rad 230 och 285 anropar `setCoolerHysteresis` — men vi vet från konversationen att RAPT API:et returnerar 404 för hysteres-endpoints på TemperatureControllers. Hela hysteresis-kick-flödet (sänk hysteres → kick → revert hysteres) bygger på en funktion som inte fungerar. Kicken med target `minTemp - 1` fungerar, men hysteresis-delen är död kod som genererar tysta fel.
 
-```text
-Target < Actual (ska sjunka)  → cooling ON, heating OFF
-Target > Actual (ska stiga)   → heating ON, cooling OFF
-Hold-zon (inom 0.5°C)         → temperaturband:
-  target < 15°C → cooling only (jäsning genererar värme)
-  target > 20°C → heating only (temp sjunker naturligt)
-  annars        → båda ON
-```
+**2. Idle shutdown sätter target ovanför nuvarande temp — men vad händer vid återstart?**
+Rad 345: `idleTarget = coolerTemp + hysteresis`. Om kylaren är vid 5°C och hysteres 2°C, sätts idle till 7.2°C. När en tank sedan behöver kylning igen, hanteras det av demand guard + normal apply — detta fungerar. Inget problem.
 
-## Adaptiv Hysteresis
+**3. Inlärningens min/max-gränser**
+`updateLearnedParam` har bounds 2.0–15.0 för margin och 0.5–20.0 för min_effective. 20°C min_effective margin verkar överdrivet högt som övre gräns — i praktiken borde en marginal aldrig behöva vara >10°C. Dock en kosmetisk fråga, inte ett funktionellt problem.
 
-Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
+### Rekommenderad plan
 
-## Teknisk plan
+**Enda åtgärd som behövs:** Ta bort alla `setCoolerHysteresis`-anrop och förenkla hysteresis-kick-flödet.
 
-### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+Konkret:
+1. **Rad 228-238 (hysteresis restore):** Ta bort — RAPT API stöder inte detta. Behåll bara flagg-rensningen.
+2. **Rad 284-299 (hysteresis kick steg 1):** Ta bort hysteresis-sänkningen. Behåll kick-target och DB-flaggan.
+3. **Ta bort importen av `setCoolerHysteresis`** från `temp-utils.ts`.
+4. **Ta bort `pre_kick_cooling_hysteresis`-hanteringen** i DB-uppdateringarna (sätts/läses men gör inget).
 
-Lägg till tre actions i `ALLOWED_ACTIONS`:
-- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
-- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
-- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+Resultatet: kicken sätter fortfarande target till `minTemp - 1°C` (fungerar) och revert hanteras nästa cykel (fungerar). Enda skillnaden är att vi slutar göra meningslösa API-anrop som ger 404.
 
-### 2. Wrapper-funktioner i `temp-utils.ts`
-
-Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
-
-### 3. Databasändringar
-
-**`auto_cooling_settings`** — nya kolumner:
-- `smart_relay_enabled` boolean default false
-- `smart_relay_cooling_only_below` numeric default 15
-- `smart_relay_heating_only_above` numeric default 20
-- `smart_relay_min_hysteresis` numeric default 0.3
-- `smart_relay_tighten_after_minutes` integer default 30
-
-**`rapt_temp_controllers`** — nya kolumner:
-- `smart_relay_active` boolean default false
-- `pre_smart_heating_enabled` boolean nullable
-- `pre_smart_cooling_enabled` boolean nullable
-- `pre_smart_heating_hysteresis` numeric nullable
-- `pre_smart_cooling_hysteresis` numeric nullable
-- `smart_relay_off_target_since` timestamptz nullable
-
-### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
-
-Placeras **före** PID i pipeline:
+### Teknisk sammanfattning
 
 ```text
-Pipeline:
-  1. Bootstrap
-  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
-  3. PID Control
-  4. Pass-through
-  5. Stall Detection
+Före:  kick = sänk hysteres + sänk target → revert hysteres + revert target
+Efter: kick = sänk target → revert target
 ```
 
-Per controller (alla steg-typer):
-1. Läs `profile_target_temp` och `actual_temp`
-2. Bestäm riktning → toggle reläer via RAPT API
-3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
-4. Om on-target: återställ hysteres till original
-5. Spara originalvärden i `pre_smart_*` vid första ändring
-
-Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
-
-### 5. UI i Settings (automation-tab)
-
-Nytt avsnitt "Smart Relay" med:
-- Enable/disable toggle
-- Temperaturband-inputs (kylning-under, värme-över)
-- Min hysteres
-- Minuter innan tightening
-
-### 6. Beslutsloggning
-
-- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
-- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
-- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
-
-### Filer som ändras
-
-- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
-- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
-- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
-- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
-- DB-migration för nya kolumner
+Resten av logiken (demand guard, utilization, inlärning, proaktiv, rate-limit) ser stabil och korrekt ut.
 
