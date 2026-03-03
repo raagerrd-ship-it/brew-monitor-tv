@@ -10,6 +10,7 @@ interface SampledRecord {
   current_temp: number;
   target_temp: number;
   cooling_enabled: boolean;
+  cooling_ratio: number | null;
 }
 
 export interface ChartDataPoint {
@@ -17,6 +18,7 @@ export interface ChartDataPoint {
   timestamp: number;
   currentTemp: number;
   targetTemp: number;
+  coolingPercent: number;
 }
 
 interface UseControllerTempDataProps {
@@ -74,6 +76,7 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
         timestamp: new Date(record.recorded_at).getTime(),
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),
+        coolingPercent: Math.round((Number(record.cooling_ratio ?? 0)) * 100),
       }));
 
       setData(chartData);
