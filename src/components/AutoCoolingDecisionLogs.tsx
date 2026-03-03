@@ -231,9 +231,11 @@ export function AutoCoolingDecisionLogs() {
 
   const loadAll = async () => {
     try {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
       const [decisionRes, adjustmentRes] = await Promise.all([
-        supabase.from('auto_cooling_decision_logs').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('auto_cooling_adjustments').select('*').order('created_at', { ascending: false }).limit(500),
+        supabase.from('auto_cooling_decision_logs').select('*').gte('created_at', cutoff).order('created_at', { ascending: false }).limit(500),
+        supabase.from('auto_cooling_adjustments').select('*').gte('created_at', cutoff).order('created_at', { ascending: false }).limit(500),
       ]);
 
       const decisions = (decisionRes.data || []).map(log => ({
@@ -244,26 +246,44 @@ export function AutoCoolingDecisionLogs() {
         ...(adj as unknown as AdjustmentLog), category: categorizeAdjustment(adj.reason),
       }));
 
-      const unified: UnifiedEntry[] = [];
-      const usedAdjIds = new Set<string>();
-
-      for (const dec of decisions) {
-        const decTime = new Date(dec.created_at).getTime();
-        const related = adjustments.filter(adj => {
-          if (usedAdjIds.has(adj.id)) return false;
-          return Math.abs(new Date(adj.created_at).getTime() - decTime) < 15000;
-        });
-        related.forEach(adj => usedAdjIds.add(adj.id));
-        unified.push({ log: dec, adjustments: related, timestamp: dec.created_at });
+      // Build adjustment lookup by time for quick access in EntryRow
+      const adjByTime = new Map<string, (AdjustmentLog & { category: AdjustmentCategory })[]>();
+      for (const adj of adjustments) {
+        // Find closest decision log (within 15s)
+        let matched = false;
+        for (const dec of decisions) {
+          if (Math.abs(new Date(adj.created_at).getTime() - new Date(dec.created_at).getTime()) < 15000) {
+            const list = adjByTime.get(dec.id) || [];
+            list.push(adj);
+            adjByTime.set(dec.id, list);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          // Orphan adjustment — create standalone entry
+          const orphanId = `orphan-${adj.id}`;
+          adjByTime.set(orphanId, [adj]);
+        }
       }
 
-      // Orphan adjustments (manual, no matching decision)
-      const orphans = adjustments.filter(adj => !usedAdjIds.has(adj.id));
-      for (const adj of orphans) {
-        unified.push({
-          log: { id: `orphan-${adj.id}`, created_at: adj.created_at, duration_ms: 0, decision_count: 0, decisions: [], final_result: adj.category === 'manuell' ? 'Manuell justering' : 'Adjustment', adjustment_made: true },
-          adjustments: [adj], timestamp: adj.created_at,
-        });
+      // One entry per decision log — no merging, every 5-min cycle is its own row
+      const unified: UnifiedEntry[] = decisions.map(dec => ({
+        log: dec,
+        adjustments: adjByTime.get(dec.id) || [],
+        timestamp: dec.created_at,
+      }));
+
+      // Add orphan adjustments as standalone entries
+      for (const [key, adjs] of adjByTime.entries()) {
+        if (key.startsWith('orphan-')) {
+          const adj = adjs[0];
+          unified.push({
+            log: { id: key, created_at: adj.created_at, duration_ms: 0, decision_count: 0, decisions: [], final_result: adj.category === 'manuell' ? 'Manuell justering' : 'Adjustment', adjustment_made: true },
+            adjustments: adjs,
+            timestamp: adj.created_at,
+          });
+        }
       }
 
       unified.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
