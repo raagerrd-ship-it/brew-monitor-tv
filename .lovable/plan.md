@@ -98,3 +98,13 @@ Nytt avsnitt "Smart Relay" med:
 - `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
 - DB-migration för nya kolumner
 
+---
+
+## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+
+**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
+
+**Fix:** 
+- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
+- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
+- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
