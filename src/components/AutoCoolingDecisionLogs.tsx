@@ -1131,12 +1131,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
       )}
 
       {/* Smart Relay */}
-      {smartRelayEntries.length > 0 && (() => {
-        // Split into info (config/status), actions (relay toggles), tighten, and restore
+      {(() => {
         const actionEntries = smartRelayEntries.filter(d => d.result === 'action');
-        const infoEntries = smartRelayEntries.filter(d => d.result === 'info' && !d.message.startsWith('Smart Relay active') && !d.message.startsWith('Smart Relay disabled'));
-        const hasActions = actionEntries.length > 0;
-        if (!hasActions && infoEntries.length === 0) return null;
+        const infoEntries = smartRelayEntries.filter(d => d.result === 'info');
+        const isDisabled = infoEntries.some(d => d.message.includes('disabled'));
+        const configEntry = infoEntries.find(d => d.message.startsWith('Smart Relay active'));
+        const statusEntries = infoEntries.filter(d => d !== configEntry && !d.message.includes('disabled'));
         return (
           <PipelineSection
             icon={<Zap className="h-3 w-3" />}
@@ -1146,6 +1146,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
             bgColor="hsl(45 93% 47% / 0.05)"
           >
             <div className="space-y-1">
+              {isDisabled && (
+                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
+                  <Info className="h-3 w-3 flex-shrink-0" />
+                  <span>Inaktiverad</span>
+                </div>
+              )}
+              {configEntry && (
+                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500/60" />
+                  <span>{configEntry.message.replace('Smart Relay active ', '')}</span>
+                </div>
+              )}
               {actionEntries.map((d, i) => {
                 const isTighten = d.step === 'SMART_RELAY_TIGHTEN';
                 const isRestore = d.step === 'SMART_RELAY_RESTORE';
@@ -1169,7 +1181,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                   </div>
                 );
               })}
-              {infoEntries.map((d, i) => (
+              {actionEntries.length === 0 && !isDisabled && configEntry && (
+                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500/40" />
+                  <span>Inga ändringar behövdes</span>
+                </div>
+              )}
+              {statusEntries.map((d, i) => (
                 <div key={`info-${i}`} className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
                   <Info className="h-3 w-3 flex-shrink-0" />
                   <span>{d.message}</span>
