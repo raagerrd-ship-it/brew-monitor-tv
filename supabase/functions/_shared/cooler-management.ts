@@ -261,21 +261,21 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       } else {
         // Kick target = 1°C below minimum allowed → clearly signals automation is active
         const kickTarget = round1(coolerMinTemp - 1)
-        const kickTarget = round1(coolerMinTemp - 1)
         // Guard: skip if current target is already at or below kick target (no-op kick)
         if (currentCoolerTarget <= kickTarget) {
           log('HYSTERESIS_KICK_NOOP', 'info', `Hysteres-kick onödig — mål redan ${round1(currentCoolerTarget)}° ≤ kick ${kickTarget}°`)
         } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
         log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
-        // Set kick flag in DB
-        await supabase.from('rapt_temp_controllers')
-          .update({ hysteresis_kick_active: true })
-          .eq('controller_id', coolerController.controller_id)
-        // Set kick target
-        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
+        // Set kick target first, then flag — so flag is only set on success
+        const kickApplied = await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
           `⚡ Hysteres-kick: tank 100% + kylare 0% → mål ${kickTarget}° (återgår nästa cykel)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        if (kickApplied) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ hysteresis_kick_active: true })
+            .eq('controller_id', coolerController.controller_id)
+        }
         return adjustments
         }
       }
