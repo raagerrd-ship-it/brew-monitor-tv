@@ -51,42 +51,10 @@ serve(async (req) => {
 
     if (supabase) {
       try {
-        // Deduplicate consecutive "No adjustment" logs: update the latest instead of inserting
-        let shouldInsert = true;
-        if (!adjustmentMade) {
-          const { data: prev, error: prevError } = await supabase
-            .from('auto_cooling_decision_logs')
-            .select('id, adjustment_made')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          if (!prevError && prev && !prev.adjustment_made) {
-            // Latest log is also no-adjustment — update it in place
-            const { error: updateError } = await supabase.from('auto_cooling_decision_logs')
-              .update({
-                duration_ms: duration,
-                decision_count: decisionLog.length,
-                decisions: decisionLog as any,
-                final_result: finalResult,
-                created_at: new Date().toISOString(),
-              } as any)
-              .eq('id', prev.id);
-            
-            if (!updateError) {
-              shouldInsert = false;
-            } else {
-              console.error('Dedup update failed, will insert instead:', updateError.message);
-            }
-          }
-        }
-
-        if (shouldInsert) {
-          await supabase.from('auto_cooling_decision_logs').insert({
-            duration_ms: duration, decision_count: decisionLog.length,
-            decisions: decisionLog, final_result: finalResult, adjustment_made: adjustmentMade,
-          } as any);
-        }
+        await supabase.from('auto_cooling_decision_logs').insert({
+          duration_ms: duration, decision_count: decisionLog.length,
+          decisions: decisionLog, final_result: finalResult, adjustment_made: adjustmentMade,
+        } as any);
       } catch (e) { console.error('Error saving decision log:', e); }
     }
   };
