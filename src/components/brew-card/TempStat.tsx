@@ -89,7 +89,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     : undefined;
 
   // Temperature span bar: visual range showing pill↔controller with target marker
-  const spanBar = hasBothSensors && !isPillStale && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
+  const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
     const pTemp = brew.currentTemp;       // pill (surface)
     const cTemp = controller.current_temp!; // controller (core)
     const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
