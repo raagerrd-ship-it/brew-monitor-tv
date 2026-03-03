@@ -181,8 +181,26 @@ function NotificationBellComponent() {
                       } finally {
                         setPushLoading(false);
                       }
+                    } else {
+                      // Unsubscribe: remove push subscription
+                      setPushLoading(true);
+                      try {
+                        const { getServiceWorkerRegistration } = await import("@/lib/web-push-registration");
+                        const reg = await getServiceWorkerRegistration();
+                        const sub = await reg.pushManager?.getSubscription();
+                        if (sub) {
+                          const endpoint = sub.endpoint;
+                          await sub.unsubscribe();
+                          await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
+                        }
+                        setPushEnabled(false);
+                      } catch {
+                        // Keep current state on error
+                      } finally {
+                        setPushLoading(false);
+                      }
                     }
-                  }}
+                  }
                 />
               </div>
             )}
