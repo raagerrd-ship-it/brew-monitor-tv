@@ -329,7 +329,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
   const oldRelayOn = coolerTemp > currentCoolerTarget + coolerHysteresis
   const newRelayOn = coolerTemp > clampedTarget + coolerHysteresis
-  if (oldRelayOn === newRelayOn && diff < coolerHysteresis) {
+  if (oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
