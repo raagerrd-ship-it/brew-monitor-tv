@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { round1, TempController, setControllerTargetTemp, setCoolerHysteresis, RaptUpdateBatch } from './temp-utils.ts'
+import { round1, TempController, setControllerTargetTemp, RaptUpdateBatch } from './temp-utils.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 
@@ -223,23 +223,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const previousWasKick = !!(coolerController as any).hysteresis_kick_active
 
   if (previousWasKick) {
-    // Restore hysteresis if it was temporarily lowered
-    const preKickHyst = (coolerController as any).pre_kick_cooling_hysteresis as number | null
-    if (preKickHyst != null && preKickHyst !== coolerHysteresis) {
-      log('HYSTERESIS_RESTORE', 'action', `Återställer hysteres: ${coolerHysteresis}° → ${preKickHyst}°`)
-      const hystOk = await setCoolerHysteresis(supabaseUrl, serviceRoleKey, coolerController.controller_id, preKickHyst)
-      if (hystOk) {
-        await supabase.from('rapt_temp_controllers')
-          .update({ cooling_hysteresis: preKickHyst, pre_kick_cooling_hysteresis: null })
-          .eq('controller_id', coolerController.controller_id)
-      } else {
-        log('HYSTERESIS_RESTORE', 'fail', `Kunde inte återställa hysteres till ${preKickHyst}°`)
-      }
-    }
     log('HYSTERESIS_REVERT', 'action', `Föregående cykel var hysteres-kick (${round1(currentCoolerTarget)}°) — återgår till ${round1(clampedTarget)}°C`)
-    // Clear the flag
+    // Clear the kick flag
     await supabase.from('rapt_temp_controllers')
-      .update({ hysteresis_kick_active: false, pre_kick_cooling_hysteresis: null })
+      .update({ hysteresis_kick_active: false })
       .eq('controller_id', coolerController.controller_id)
     // Fall through to the normal "apply if different" logic below
   } else if (currentCoolerTarget <= coolerMinTemp - 0.5) {
@@ -280,26 +267,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
           log('HYSTERESIS_KICK_NOOP', 'info', `Hysteres-kick onödig — mål redan ${round1(currentCoolerTarget)}° ≤ kick ${kickTarget}°`)
         } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
-        // Step 1: Lower hysteresis on hardware
-        log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — sänker hysteres ${coolerHysteresis}° → ${kickHysteresis}° och kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
-        const hystOk = await setCoolerHysteresis(supabaseUrl, serviceRoleKey, coolerController.controller_id, kickHysteresis)
-        if (hystOk) {
-          await supabase.from('rapt_temp_controllers')
-            .update({
-              hysteresis_kick_active: true,
-              pre_kick_cooling_hysteresis: coolerHysteresis,
-              cooling_hysteresis: kickHysteresis,
-            })
-            .eq('controller_id', coolerController.controller_id)
-        } else {
-          log('HYSTERESIS_KICK', 'fail', `Kunde inte sänka hysteres — kickar ändå med befintlig hysteres`)
-          await supabase.from('rapt_temp_controllers')
-            .update({ hysteresis_kick_active: true })
-            .eq('controller_id', coolerController.controller_id)
-        }
-        // Step 2: Set kick target
+        log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
+        // Set kick flag in DB
+        await supabase.from('rapt_temp_controllers')
+          .update({ hysteresis_kick_active: true })
+          .eq('controller_id', coolerController.controller_id)
+        // Set kick target
         await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
-          `⚡ Hysteres-kick: tank 100% + kylare 0% → hysteres ${coolerHysteresis}°→${kickHysteresis}°, mål ${kickTarget}° (återgår nästa cykel)`,
+          `⚡ Hysteres-kick: tank 100% + kylare 0% → mål ${kickTarget}° (återgår nästa cykel)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
         return adjustments
         }
