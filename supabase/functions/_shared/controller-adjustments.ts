@@ -330,6 +330,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const avgTemp = round1(actualTemp)
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
+    // Effective delta: what actually gets subtracted from profile to reach ctrl_target_pid
+    // This ensures Profil - Δ + PI = Nytt mål always balances in the UI
+    const effectiveDelta = round1(actualTarget - ctrlTargetPid + round1(pidResult.errorCorrection ?? 0))
+
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
       pill_temp: pillTempLog,
       probe_temp: probeTempLog,
@@ -338,7 +342,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(ctrlTargetPid),
-      delta: round1(pidResult.avgDelta),
+      delta: effectiveDelta,
+      raw_delta: round1(pidResult.avgDelta),
       raw_compensation: round1(pidResult.avgDelta),
       compensation: round1(pidResult.compensation),
       error_correction: round1(pidResult.errorCorrection ?? 0),
