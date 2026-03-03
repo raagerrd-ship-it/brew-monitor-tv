@@ -11,6 +11,7 @@ import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValue
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
 import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
+import { CombinedControllerChart } from "@/components/controller-chart";
 
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
@@ -573,6 +574,9 @@ export default function Settings() {
             </SettingsSection>
 
             <CategorySeparator icon={History} label="Historik" />
+            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
+              <CombinedControllerChart controllers={combinedChartControllers} />
+            </SettingsSection>
             <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar" collapsible defaultOpen={false}>
               <AutoCoolingDecisionLogs />
             </SettingsSection>
