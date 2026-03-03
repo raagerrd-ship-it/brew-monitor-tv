@@ -254,6 +254,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         // Tanks maxing out cooling but cooler relay is off (in dead band)
         // Temporarily kick target below threshold: target = current - hysteresis - 0.1
         const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
+        // Guard: skip if current target is already at or below kick target (no-op kick)
+        if (currentCoolerTarget <= kickTarget) {
+          log('HYSTERESIS_KICK_NOOP', 'info', `Hysteres-kick onödig — mål redan ${round1(currentCoolerTarget)}° ≤ kick ${kickTarget}°`)
+        } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
         log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% (dead band ${round1(coolerTemp)}° mellan ${round1(clampedTarget)}°–${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C`)
         // Set the flag so next cycle knows to revert
@@ -264,6 +268,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
           `⚡ Hysteres-kick: tank 100% + kylare 0% → kickar ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
         return adjustments
+        }
       }
     } else {
       log('HYSTERESIS_DEADBAND', 'info', `Kylare i dead band (${round1(coolerTemp)}° < ${round1(coolerRelayThreshold)}°)${anyTankMaxUtil ? '' : ' — ingen tank vid 100%'}${coolerAtZero ? '' : ` — kylare util ${coolerUtil != null ? Math.round(coolerUtil * 100) : '?'}%`}`)
