@@ -449,8 +449,9 @@ serve(async (req) => {
     // ══════════════════════════════════════════════════════════════
     // COOLER MANAGEMENT (shared cooling unit)
     // ══════════════════════════════════════════════════════════════
+    let coolerCtx: CoolerContext | null = null;
     if (coolingEnabled) {
-      const coolerCtx: CoolerContext = {
+      coolerCtx = {
         supabase, supabaseUrl, serviceRoleKey: supabaseKey,
         allControllers, followedControllersFullData, followedControllerIds,
         settings: { id: settings.id, last_check_at: settings.last_check_at }, log,
@@ -506,6 +507,20 @@ serve(async (req) => {
         const dbFailed = dbResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
         if (dbFailed.length > 0) {
           log('BATCH_DB', 'fail', `${dbFailed.length} DB update(s) failed`);
+        }
+      }
+
+      // Set hysteresis_kick_active flag ONLY after confirming the kick was flushed successfully
+      if (coolingEnabled && coolerCtx?.pendingKickControllerId) {
+        const kickId = coolerCtx.pendingKickControllerId;
+        const kickSucceeded = batchResults.get(kickId) === true;
+        if (kickSucceeded) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ hysteresis_kick_active: true })
+            .eq('controller_id', kickId);
+          log('KICK_FLAG', 'pass', `Hysteres-kick bekräftad — flagga satt efter lyckad flush`);
+        } else {
+          log('KICK_FLAG', 'fail', `Hysteres-kick flush misslyckades — flagga EJ satt`);
         }
       }
     }

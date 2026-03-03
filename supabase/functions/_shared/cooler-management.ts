@@ -36,6 +36,8 @@ export interface CoolerContext {
   settings: { id: string; last_check_at: string | null }
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
+  /** Set by runCoolerCooling when a kick is queued — caller must set DB flag after flush succeeds */
+  pendingKickControllerId?: string
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -267,14 +269,13 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
         log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
-        // Set kick target first, then flag — so flag is only set on success
+        // Queue the kick — DB flag will be set AFTER batch flush succeeds (in auto-adjust-cooling)
         const kickApplied = await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
           `⚡ Hysteres-kick: tank 100% + kylare 0% → mål ${kickTarget}° (återgår nästa cykel)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
         if (kickApplied) {
-          await supabase.from('rapt_temp_controllers')
-            .update({ hysteresis_kick_active: true })
-            .eq('controller_id', coolerController.controller_id)
+          // Signal to caller that kick flag should be set after flush confirms success
+          ctx.pendingKickControllerId = coolerController.controller_id
         }
         return adjustments
         }
