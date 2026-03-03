@@ -232,8 +232,8 @@ export function AutoCoolingDecisionLogs() {
   const loadAll = async () => {
     try {
       const [decisionRes, adjustmentRes] = await Promise.all([
-        supabase.from('auto_cooling_decision_logs').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('auto_cooling_adjustments').select('*').order('created_at', { ascending: false }).limit(150),
+        supabase.from('auto_cooling_decision_logs').select('*').order('created_at', { ascending: false }).limit(500),
+        supabase.from('auto_cooling_adjustments').select('*').order('created_at', { ascending: false }).limit(500),
       ]);
 
       const decisions = (decisionRes.data || []).map(log => ({
@@ -267,7 +267,7 @@ export function AutoCoolingDecisionLogs() {
       }
 
       unified.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setEntries(unified.slice(0, 100));
+      setEntries(unified);
     } catch (error) {
       console.error('Error loading logs:', error);
     } finally {
