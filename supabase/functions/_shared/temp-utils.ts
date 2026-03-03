@@ -225,8 +225,6 @@ export async function setCoolerHysteresis(
 
 // setHeatingHysteresis, setHeatingEnabled, setCoolingEnabled removed
 // — RAPT API does not support these endpoints for TemperatureControllers (404).
-  }
-}
 
 // ============================================================
 // Batched RAPT Updates
