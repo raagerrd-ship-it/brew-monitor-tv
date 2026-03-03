@@ -184,44 +184,7 @@ export async function setControllerTargetTemp(
   }
 }
 
-/**
- * Set the cooling hysteresis on a RAPT controller via the edge function.
- */
-export async function setCoolerHysteresis(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  controllerId: string,
-  hysteresis: number,
-  timeoutMs: number = 10000,
-): Promise<boolean> {
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-      body: JSON.stringify({
-        controllerId,
-        action: 'setCoolingHysteresis',
-        value: hysteresis,
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Failed to set hysteresis for ${controllerId}: ${response.status} ${errorText}`)
-      return false
-    }
-
-    const data = await response.json()
-    return data?.success === true
-  } catch (error) {
-    console.error(`Error setting hysteresis for ${controllerId}: ${String(error)}`)
-    return false
-  }
-}
+// setCoolerHysteresis removed — RAPT API returns 404 for TemperatureControllers.
 
 // setHeatingHysteresis, setHeatingEnabled, setCoolingEnabled removed
 // — RAPT API does not support these endpoints for TemperatureControllers (404).
