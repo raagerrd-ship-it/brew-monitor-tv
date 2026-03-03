@@ -35,16 +35,14 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
   if (swRegistration) return swRegistration;
   if (registrationPromise) return registrationPromise;
 
-  registrationPromise = navigator.serviceWorker
-    .register('/push-sw.js')
-    .then(async (reg) => {
-      await navigator.serviceWorker.ready;
+  registrationPromise = navigator.serviceWorker.ready
+    .then((reg) => {
       swRegistration = reg;
-      console.log('✅ Push service worker registered');
+      console.log('✅ Using PWA service worker for push');
       return reg;
     })
     .catch((error) => {
-      console.error('❌ Failed to register push SW:', error);
+      console.error('❌ Failed to get SW registration:', error);
       registrationPromise = null;
       throw error;
     });
