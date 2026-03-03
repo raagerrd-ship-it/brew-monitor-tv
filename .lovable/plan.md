@@ -1,100 +1,115 @@
 
 
-# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
+## RAPT-avbrottsscenarier — Analys av cooler-management.ts
 
-## Klarifiering
+Jag har gått igenom hela flödet med fokus på vad som händer när RAPT API:et eller RAPT-hårdvaran går ner i olika faser.
 
-Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
+---
 
-1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
-2. **Minska hysteres** om controllern inte når mål inom en viss tid
+### Scenario A: RAPT API nere under normal justering (batch flush)
 
-## Relay-val per controller
+**Flöde:** `runCoolerCooling` beräknar nytt mål → `applyCoolerTarget` lägger till i `updateBatch` → `flush()` anropar RAPT API → **timeout/500-fel** → `batchResults` visar `false` för controllern.
 
-```text
-Target < Actual (ska sjunka)  → cooling ON, heating OFF
-Target > Actual (ska stiga)   → heating ON, cooling OFF
-Hold-zon (inom 0.5°C)         → temperaturband:
-  target < 15°C → cooling only (jäsning genererar värme)
-  target > 20°C → heating only (temp sjunker naturligt)
-  annars        → båda ON
-```
+**Vad händer:** Loggas som `BATCH_FLUSH fail`. DB-uppdateringen (rad 497-510) körs bara för succeeded-entries, så **databasen behåller det gamla målet**. Nästa cykel (5 min) beräknar samma diff och försöker igen.
 
-## Adaptiv Hysteresis
+**Risk:** Ingen. Kylaren stannar på sitt senaste fungerande mål. Om det var rätt mål sedan innan — ingen effekt. Om tanken behöver lägre temp — max 5 min fördröjning per försök.
 
-Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
+**Bedömning: STABIL** ✅
 
-## Teknisk plan
+---
 
-### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+### Scenario B: RAPT API nere under hysteresis-kick
 
-Lägg till tre actions i `ALLOWED_ACTIONS`:
-- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
-- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
-- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+**Flöde:** Kick-logiken kör `applyCoolerTarget` (som returnerar `true` för batched, men flush misslyckas) → DB-flaggan `hysteresis_kick_active = true` sätts.
 
-### 2. Wrapper-funktioner i `temp-utils.ts`
+**Problem:** Med batch-flödet returnerar `applyCoolerTarget` alltid `true` (rad 968-970) så länge `ctx.updateBatch` finns. Flaggan sätts FÖRE flush. Om flush sedan misslyckas:
+- DB har `hysteresis_kick_active = true`
+- Hårdvaran har det gamla målet
+- Nästa cykel: `previousWasKick = true` → rensar flaggan → faller igenom till normal apply
 
-Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
+**Risk:** En bortslösad cykel (5 min), men ingen farlig situation. Kick-stuck guard (rad 232-239) fångar eventuella kvarvarande problem.
 
-### 3. Databasändringar
+**Men — detta är ett designfel:** `applyCoolerTarget` returnerar `true` för batched updates utan att veta om flush lyckas. DB-flaggan borde sättas efter flush, inte efter queue.
 
-**`auto_cooling_settings`** — nya kolumner:
-- `smart_relay_enabled` boolean default false
-- `smart_relay_cooling_only_below` numeric default 15
-- `smart_relay_heating_only_above` numeric default 20
-- `smart_relay_min_hysteresis` numeric default 0.3
-- `smart_relay_tighten_after_minutes` integer default 30
+**Bedömning: MINOR DESIGNFEL** ⚠️
 
-**`rapt_temp_controllers`** — nya kolumner:
-- `smart_relay_active` boolean default false
-- `pre_smart_heating_enabled` boolean nullable
-- `pre_smart_cooling_enabled` boolean nullable
-- `pre_smart_heating_hysteresis` numeric nullable
-- `pre_smart_cooling_hysteresis` numeric nullable
-- `smart_relay_off_target_since` timestamptz nullable
+---
 
-### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+### Scenario C: RAPT-hårdvaran offline (inga sensoruppdateringar)
 
-Placeras **före** PID i pipeline:
+**Flöde:** `last_update` slutar uppdateras. Efter 30 min: stale sensor guard (rad 92-101) triggas → `COOLER_STALE` → return tidigt.
 
-```text
-Pipeline:
-  1. Bootstrap
-  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
-  3. PID Control
-  4. Pass-through
-  5. Stall Detection
-```
+**Vad händer:** Hela cooler-management avbryts. Kylaren behåller sitt senaste mål från hårdvaran.
 
-Per controller (alla steg-typer):
-1. Läs `profile_target_temp` och `actual_temp`
-2. Bestäm riktning → toggle reläer via RAPT API
-3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
-4. Om on-target: återställ hysteres till original
-5. Spara originalvärden i `pre_smart_*` vid första ändring
+**Risk:** Om kylaren var i idle (högt mål) när den gick offline — inget problem. Om den var i aktiv kylning — den fortsätter kyla med det senaste hardware-målet. Tankar skyddas av sina egna hysteresis-inställningar.
 
-Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
+**Bedömning: STABIL** ✅ (men ingen recovery-åtgärd — kylaren kan sitta fast på ett gammalt mål tills RAPT kommer tillbaka)
 
-### 5. UI i Settings (automation-tab)
+---
 
-Nytt avsnitt "Smart Relay" med:
-- Enable/disable toggle
-- Temperaturband-inputs (kylning-under, värme-över)
-- Min hysteres
-- Minuter innan tightening
+### Scenario D: RAPT API nere under kick-revert
 
-### 6. Beslutsloggning
+**Flöde:** Kick lyckades förra cykeln → `previousWasKick = true` → flagga rensas → normal apply → flush misslyckas.
 
-- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
-- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
-- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+**Vad händer:** Flaggan är redan rensad (rad 228-230). Hårdvaran sitter kvar på kick-target (minTemp - 1). Nästa cykel: `previousWasKick = false`, `currentCoolerTarget ≈ minTemp - 1` → **kick-stuck guard** (rad 232-239) triggas → nytt försök att applicera clampedTarget.
 
-### Filer som ändras
+**Risk:** Kylaren kyler maximalt under 1-2 extra cykler (5-10 min). Tankens egen hysteresis förhindrar att ölen skadas.
 
-- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
-- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
-- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
-- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
-- DB-migration för nya kolumner
+**Bedömning: STABIL** ✅
+
+---
+
+### Scenario E: RAPT API går ner MITT UNDER en ramp (cold crash)
+
+**Flöde:** Profilen sänker mål steg för steg. API-anrop misslyckas upprepat.
+
+**Vad händer:** Kylaren behåller sitt senaste lyckade mål. Tankarnas PID-kompensation slutar också fungera (samma batch). Hårdvaran kör på sitt senaste mål → tanken kyler (eller inte) baserat på senaste hardware-target.
+
+**Risk:** Om det senaste lyckade målet var högre än vad cold crash behöver → tanken kyler långsammare. Men tanken har sin egen kylkrets med hysteresis som fortsätter fungera oberoende av automationen.
+
+**Bedömning: STABIL** ✅ (graceful degradation)
+
+---
+
+### Scenario F: RAPT API intermittent (fungerar ibland)
+
+**Flöde:** Varannan flush lyckas, varannan misslyckas.
+
+**Vad händer:** Lyckade flushes uppdaterar DB. Misslyckade flushes lämnar DB orörd. Nästa cykel läser DB-värdet (som speglar senaste lyckade flush) och beräknar diff mot det.
+
+**Risk:** Oscillation möjlig men begränsad av rate-limit (5 min) och relay-aware no-op guard.
+
+**Bedömning: STABIL** ✅
+
+---
+
+### Identifierat problem: Batch + kick-flagga
+
+Det enda reella problemet:
+
+**`applyCoolerTarget` returnerar alltid `true` vid batch-läge** (rad 968-970), men det faktiska API-anropet sker först vid `flush()`. Kick-flaggan `hysteresis_kick_active` sätts baserat på denna tidiga `true`, vilket innebär att vid flush-fel:
+1. DB-flaggan står som `true` 
+2. Hårdvaran fick aldrig kicken
+3. Nästa cykel "revertar" en kick som aldrig hände
+
+**Konsekvens:** Inte farligt (kick-stuck guard fångar det om det eskalerar), men det slösar 1-2 cykler.
+
+### Rekommenderad fix
+
+Flytta kick-flaggans `hysteresis_kick_active = true` till **efter batch flush** i `auto-adjust-cooling/index.ts`, genom att kontrollera `batchResults` för coolern. Alternativt: skicka kick-uppdateringar direkt (`setControllerTargetTemp`) istället för via batch, eftersom kicks är tidskritiska.
+
+---
+
+### Sammanfattning
+
+| Scenario | Status | Risk |
+|---|---|---|
+| API nere under normal justering | ✅ Stabil | Ingen |
+| API nere under kick | ⚠️ Minor | 1-2 bortslösade cykler |
+| Hårdvara offline (stale) | ✅ Stabil | Kylare fastnar på senaste mål |
+| API nere under kick-revert | ✅ Stabil | Kick-stuck guard fångar |
+| API nere under ramp/cold crash | ✅ Stabil | Graceful degradation |
+| Intermittent API | ✅ Stabil | Rate-limit skyddar |
+
+**En åtgärd rekommenderas:** Fixa kick-flaggans timing relativt batch flush.
 
