@@ -158,35 +158,36 @@ function NotificationBellComponent() {
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Notifikationer</span>
-            <div className="flex items-center gap-2">
-              {notifications.some((n) => n.read_at) && (
-                <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
-                  Rensa lästa
-                </Button>
-              )}
-              {isMobile && (
-                <Switch
-                  checked={pushEnabled}
-                  disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
-                  onCheckedChange={async (checked) => {
-                    if (checked) {
-                      setPushLoading(true);
-                      try {
-                        const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
-                        const ok = await requestAndRegisterPush();
-                        setPushEnabled(ok);
-                      } catch {
-                        setPushEnabled(false);
-                      } finally {
-                        setPushLoading(false);
-                      }
-                    }
-                  }}
-                />
-              )}
-            </div>
+            {notifications.some((n) => n.read_at) && (
+              <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
+                Rensa lästa
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
+        {isMobile && (
+          <div className="flex items-center justify-between px-1 pb-2">
+            <span className="text-sm text-muted-foreground">Push-notiser</span>
+            <Switch
+              checked={pushEnabled}
+              disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
+              onCheckedChange={async (checked) => {
+                if (checked) {
+                  setPushLoading(true);
+                  try {
+                    const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
+                    const ok = await requestAndRegisterPush();
+                    setPushEnabled(ok);
+                  } catch {
+                    setPushEnabled(false);
+                  } finally {
+                    setPushLoading(false);
+                  }
+                }
+              }}
+            />
+          </div>
+        )}
         <ScrollArea className="max-h-[400px]">
           {notifications.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
