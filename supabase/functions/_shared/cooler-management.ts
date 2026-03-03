@@ -36,6 +36,8 @@ export interface CoolerContext {
   settings: { id: string; last_check_at: string | null }
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
+  /** Set by runCoolerCooling when a kick is queued — caller must set DB flag after flush succeeds */
+  pendingKickControllerId?: string
 }
 
 // Cached profile data shared between functions to avoid duplicate queries

@@ -508,6 +508,20 @@ serve(async (req) => {
           log('BATCH_DB', 'fail', `${dbFailed.length} DB update(s) failed`);
         }
       }
+
+      // Set hysteresis_kick_active flag ONLY after confirming the kick was flushed successfully
+      if (coolingEnabled && coolerCtx?.pendingKickControllerId) {
+        const kickId = coolerCtx.pendingKickControllerId;
+        const kickSucceeded = batchResults.get(kickId) === true;
+        if (kickSucceeded) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ hysteresis_kick_active: true })
+            .eq('controller_id', kickId);
+          log('KICK_FLAG', 'pass', `Hysteres-kick bekräftad — flagga satt efter lyckad flush`);
+        } else {
+          log('KICK_FLAG', 'fail', `Hysteres-kick flush misslyckades — flagga EJ satt`);
+        }
+      }
     }
 
     // ── Summary ──────────────────────────────────────────────────
