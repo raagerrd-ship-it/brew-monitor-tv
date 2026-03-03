@@ -355,7 +355,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
     })
 
-    if (Math.abs(ctrlTargetPid - ctrlTarget) < 0.1) {
+    const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
+    if (pidDiff < 0.1) {
       continue
     }
 
