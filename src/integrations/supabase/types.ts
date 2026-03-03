@@ -1615,6 +1615,30 @@ export type Database = {
         }
         Relationships: []
       }
+      vapid_keys: {
+        Row: {
+          created_at: string
+          id: string
+          private_key_jwk: Json
+          public_key_base64: string
+          public_key_jwk: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          private_key_jwk: Json
+          public_key_base64: string
+          public_key_jwk: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          private_key_jwk?: Json
+          public_key_base64?: string
+          public_key_jwk?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
