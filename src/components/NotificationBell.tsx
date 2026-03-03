@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { Bell } from "lucide-react";
+import { useIsMobile } from "@/hooks";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -38,6 +39,7 @@ function NotificationBellComponent() {
   const [open, setOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   // Check push permission state on mount
   useEffect(() => {
@@ -162,25 +164,26 @@ function NotificationBellComponent() {
                   Rensa lästa
                 </Button>
               )}
-              <Switch
-                checked={pushEnabled}
-                disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
-                onCheckedChange={async (checked) => {
-                  if (checked) {
-                    setPushLoading(true);
-                    try {
-                      const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
-                      const ok = await requestAndRegisterPush();
-                      setPushEnabled(ok);
-                    } catch {
-                      setPushEnabled(false);
-                    } finally {
-                      setPushLoading(false);
+              {isMobile && (
+                <Switch
+                  checked={pushEnabled}
+                  disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
+                  onCheckedChange={async (checked) => {
+                    if (checked) {
+                      setPushLoading(true);
+                      try {
+                        const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
+                        const ok = await requestAndRegisterPush();
+                        setPushEnabled(ok);
+                      } catch {
+                        setPushEnabled(false);
+                      } finally {
+                        setPushLoading(false);
+                      }
                     }
-                  }
-                  // Can't programmatically revoke — just inform
-                }}
-              />
+                  }}
+                />
+              )}
             </div>
           </DialogTitle>
         </DialogHeader>
