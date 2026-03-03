@@ -446,7 +446,7 @@ async function loadSmartRelaySettings(supabase: ReturnType<typeof createClient>)
 }
 
 async function runSmartRelay(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
-  const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, log } = ctx
+  const { supabase, supabaseUrl, serviceRoleKey, followedControllersFullData, pillCompSettings, log } = ctx
   const settings = await loadSmartRelaySettings(supabase)
 
   if (!settings.enabled) {
