@@ -108,10 +108,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerUtilResult = await calculateSingleUtilization(supabase, coolerController)
   const coolerUtil = coolerUtilResult.rolling
 
-  log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}`, {
+  // ── Measure cooler's own cooling rate ──
+  const coolerCoolingRate = await measureCoolingRate(supabase, coolerController.controller_id)
+
+  log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}${coolerCoolingRate != null ? ` rate=${coolerCoolingRate.toFixed(2)}°C/h` : ''}`, {
     target_temp: round1(currentCoolerTarget),
     current_temp: round1(coolerController.current_temp),
     cooler_utilization: coolerUtil != null ? Math.round(coolerUtil * 100) : null,
+    cooling_rate_per_hour: coolerCoolingRate != null ? Math.round(coolerCoolingRate * 100) / 100 : null,
+    cooling_hysteresis: coolerController.cooling_hysteresis ?? 0.2,
     recent_utilization: coolerUtilResult.recent != null ? Math.round(coolerUtilResult.recent * 100) : null,
     mid_utilization: coolerUtilResult.mid != null ? Math.round(coolerUtilResult.mid * 100) : null,
     oldest_utilization: coolerUtilResult.oldest != null ? Math.round(coolerUtilResult.oldest * 100) : null,
@@ -230,19 +235,36 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     const coolerAtZero = coolerUtil != null && coolerUtil < 0.01
 
     if (anyTankMaxUtil && coolerAtZero) {
-      // Tanks maxing out cooling but cooler relay is off (in dead band)
-      // Temporarily kick target below threshold: target = current - hysteresis - 0.1
-      const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
-      const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
-      log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% (dead band ${round1(coolerTemp)}° mellan ${round1(clampedTarget)}°–${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C`)
-      // Set the flag so next cycle knows to revert
-      await supabase.from('rapt_temp_controllers')
-        .update({ hysteresis_kick_active: true })
-        .eq('controller_id', coolerController.controller_id)
-      await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
-        `⚡ Hysteres-kick: tank 100% + kylare 0% → kickar ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
-        adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
-      return adjustments
+      // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
+      const { data: lastKickAdj } = await supabase
+        .from('auto_cooling_adjustments')
+        .select('created_at')
+        .eq('cooler_controller_id', coolerController.controller_id)
+        .like('reason', '%Hysteres-kick%')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      const kickCooldownMs = 15 * 60 * 1000
+      const timeSinceLastKick = lastKickAdj
+        ? Date.now() - new Date(lastKickAdj.created_at).getTime()
+        : Infinity
+      if (timeSinceLastKick < kickCooldownMs) {
+        log('HYSTERESIS_COOLDOWN', 'info', `Hysteres-kick cooldown — ${Math.round((kickCooldownMs - timeSinceLastKick) / 60000)} min kvar`)
+      } else {
+        // Tanks maxing out cooling but cooler relay is off (in dead band)
+        // Temporarily kick target below threshold: target = current - hysteresis - 0.1
+        const kickTarget = Math.max(coolerMinTemp, Math.round((coolerTemp - coolerHysteresis - 0.1) * 10) / 10)
+        const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
+        log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% (dead band ${round1(coolerTemp)}° mellan ${round1(clampedTarget)}°–${round1(coolerRelayThreshold)}°) — kickar till ${kickTarget}°C`)
+        // Set the flag so next cycle knows to revert
+        await supabase.from('rapt_temp_controllers')
+          .update({ hysteresis_kick_active: true })
+          .eq('controller_id', coolerController.controller_id)
+        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
+          `⚡ Hysteres-kick: tank 100% + kylare 0% → kickar ${kickTarget}° (återgår till ${clampedTarget}° nästa cykel)`,
+          adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        return adjustments
+      }
     } else {
       log('HYSTERESIS_DEADBAND', 'info', `Kylare i dead band (${round1(coolerTemp)}° < ${round1(coolerRelayThreshold)}°)${anyTankMaxUtil ? '' : ' — ingen tank vid 100%'}${coolerAtZero ? '' : ` — kylare util ${coolerUtil != null ? Math.round(coolerUtil * 100) : '?'}%`}`)
     }
@@ -287,10 +309,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
 
-  // ── Apply if different enough ─────────────────────────────
+  // ── Relay-aware no-op guard ────────────────────────────────
+  // Instead of a fixed 0.1°C threshold, check if the new target would
+  // actually change the cooler relay state. With large hysteresis (e.g. 2°C),
+  // small adjustments (0.2°C) are meaningless API calls.
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
-  if (diff < 0.1) {
-    log('COOLER_OK', 'pass', `Kylare vid ${currentCoolerTarget}°C, mål ${clampedTarget}°C — nära nog (${diff.toFixed(1)}°C diff)`)
+  const oldRelayOn = coolerTemp > currentCoolerTarget + coolerHysteresis
+  const newRelayOn = coolerTemp > clampedTarget + coolerHysteresis
+  if (oldRelayOn === newRelayOn && diff < coolerHysteresis) {
+    log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
   }
