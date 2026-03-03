@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap, Zap } from "lucide-react";
@@ -201,10 +199,8 @@ export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
-  const [hideSystem, setHideSystem] = useState(false);
-  const [hideGlykol, setHideGlykol] = useState(false);
-  const [hidePid, setHidePid] = useState(false);
-  const [hideSync, setHideSync] = useState(false);
+  const hideSync = false;
+  const hidePid = false;
 
   useEffect(() => {
     // Fetch controller→pill color map
@@ -236,8 +232,8 @@ export function AutoCoolingDecisionLogs() {
   const loadAll = async () => {
     try {
       const [decisionRes, adjustmentRes] = await Promise.all([
-        supabase.from('auto_cooling_decision_logs').select('*').order('created_at', { ascending: false }).limit(30),
-        supabase.from('auto_cooling_adjustments').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('auto_cooling_decision_logs').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('auto_cooling_adjustments').select('*').order('created_at', { ascending: false }).limit(150),
       ]);
 
       const decisions = (decisionRes.data || []).map(log => ({
@@ -248,12 +244,10 @@ export function AutoCoolingDecisionLogs() {
         ...(adj as unknown as AdjustmentLog), category: categorizeAdjustment(adj.reason),
       }));
 
-      const filteredResults = new Set(['Not actively cooling', 'Not sustained cooling', 'Lowest not cooling']);
       const unified: UnifiedEntry[] = [];
       const usedAdjIds = new Set<string>();
 
       for (const dec of decisions) {
-        if (filteredResults.has(dec.final_result)) continue;
         const decTime = new Date(dec.created_at).getTime();
         const related = adjustments.filter(adj => {
           if (usedAdjIds.has(adj.id)) return false;
@@ -273,7 +267,7 @@ export function AutoCoolingDecisionLogs() {
       }
 
       unified.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setEntries(unified.slice(0, 30));
+      setEntries(unified.slice(0, 100));
     } catch (error) {
       console.error('Error loading logs:', error);
     } finally {
@@ -286,34 +280,8 @@ export function AutoCoolingDecisionLogs() {
   if (loading) return <p className="text-sm text-muted-foreground">Laddar...</p>;
   if (entries.length === 0) return <p className="text-sm text-muted-foreground italic">Inga justeringar har gjorts ännu.</p>;
 
-  const filteredEntries = entries.filter(entry => {
-    const hasAdj = entry.adjustments.length > 0;
-    const hasPid = entry.adjustments.some(a => a.category === 'pill-comp');
-    const hasGlykol = entry.adjustments.some(a => a.category === 'glykol');
-    const isSystemOnly = !hasAdj;
-    if (hideSystem && isSystemOnly) return false;
-    if (hidePid && hasPid && !hasGlykol && entry.adjustments.every(a => a.category === 'pill-comp' || a.category === 'passthrough')) return false;
-    if (hideGlykol && hasGlykol && !hasPid && entry.adjustments.every(a => a.category === 'glykol')) return false;
-    return true;
-  });
-
   return (
     <div className="space-y-2">
-      {/* Filter toggles */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-1">
-        {[
-          { id: 'hide-system', label: 'Dölj system', checked: hideSystem, onChange: setHideSystem },
-          { id: 'hide-glykol', label: 'Dölj glykol', checked: hideGlykol, onChange: setHideGlykol },
-          { id: 'hide-pid', label: 'Dölj PID', checked: hidePid, onChange: setHidePid },
-          { id: 'hide-sync', label: 'Dölj synk', checked: hideSync, onChange: setHideSync },
-        ].map(t => (
-          <div key={t.id} className="flex items-center gap-2">
-            <Switch id={t.id} checked={t.checked} onCheckedChange={t.onChange} />
-            <Label htmlFor={t.id} className="text-xs text-muted-foreground cursor-pointer">{t.label}</Label>
-          </div>
-        ))}
-      </div>
-      {/* Compute recent cooler adjustments for tooltip */}
       {(() => {
         const allCoolerAdjs = entries
           .flatMap(e => e.adjustments.filter(a => a.category === 'glykol'))
@@ -321,8 +289,7 @@ export function AutoCoolingDecisionLogs() {
           .slice(0, 4);
         return (
           <>
-            {filteredEntries.length === 0 && <p className="text-sm text-muted-foreground italic">Inga poster att visa.</p>}
-            {filteredEntries.map((entry) => (
+            {entries.map((entry) => (
               <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} />
             ))}
           </>
