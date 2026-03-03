@@ -1,67 +1,110 @@
 
 
-## Web Push-notifieringar — Plan
+# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
 
-Baserat på den fungerande implementationen i [Truck Flow](/projects/2d769743-6835-47c6-b301-6d6c6881931f) skapar vi samma Web Push-system här, anpassat för Brew Monitor.
+## Klarifiering
 
-### Arkitektur
+Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
+
+1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
+2. **Minska hysteres** om controllern inte når mål inom en viss tid
+
+## Relay-val per controller
 
 ```text
-pending_notifications INSERT
-        │
-        ▼
-  insertNotification()  ──►  send-push-notification (edge fn)
-                                    │
-                                    ▼
-                            push_subscriptions (tabell)
-                                    │
-                                    ▼
-                            webpush.ts (@negrel/webpush)
-                                    │
-                                    ▼
-                            Browser Push API → sw.js → OS-notis
+Target < Actual (ska sjunka)  → cooling ON, heating OFF
+Target > Actual (ska stiga)   → heating ON, cooling OFF
+Hold-zon (inom 0.5°C)         → temperaturband:
+  target < 15°C → cooling only (jäsning genererar värme)
+  target > 20°C → heating only (temp sjunker naturligt)
+  annars        → båda ON
 ```
 
-### Steg
+## Adaptiv Hysteresis
 
-**1. Databastabell `push_subscriptions`**
-- Kolumner: `id`, `endpoint` (text, unique), `subscription` (jsonb — full PushSubscription), `device_info` (text), `created_at`, `last_used_at`
-- RLS: Anyone can insert/update/delete/select (appen har inga autentiserade användare för denna funktionalitet)
-- Ingen koppling till user_id — brew monitor har en enda användare
+Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
 
-**2. VAPID-nycklar**
-- Edge function `generate-vapid-keys` (kopierat och anpassat från Truck Flow) — genererar JWK-nycklar
-- Resultatet sparas som secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
-- `VITE_VAPID_PUBLIC_KEY` sparas som env-variabel i `.env` (publik nyckel i browser-format)
+## Teknisk plan
 
-**3. Service Worker (`public/push-sw.js`)**
-- Separat från PWA:s workbox-genererade SW — registreras parallellt
-- Lyssnar på `push`-event, visar OS-notis med titel/body/ikon
-- `notificationclick` öppnar/fokuserar appen
+### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
 
-**4. Client-side registration (`src/lib/web-push-registration.ts`)**
-- `getServiceWorkerRegistration()` — registrerar push-SW
-- `subscribeToWebPush(vapidPublicKey)` — skapar PushSubscription
-- `autoRegisterWebPush()` — körs vid app-load om permission redan granted, sparar subscription till `push_subscriptions`-tabellen
+Lägg till tre actions i `ALLOWED_ACTIONS`:
+- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
+- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
+- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
 
-**5. Edge function `send-push-notification`**
-- `webpush.ts` — samma implementation som Truck Flow (`jsr:@negrel/webpush@0.5.0`)
-- `index.ts` — tar emot `{ title, body, data }`, hämtar alla subscriptions, skickar push till alla, rensar expired (410)
+### 2. Wrapper-funktioner i `temp-utils.ts`
 
-**6. Koppla ihop med `insertNotification`**
-- I `supabase/functions/_shared/notifications.ts`: efter insert i `pending_notifications`, anropa `send-push-notification` edge function via `fetch()` med titel och body
-- Alternativt: DB webhook/trigger — men direkt fetch är enklare och mer pålitligt
+Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
 
-**7. UI-integration**
-- I `App.tsx` eller `DashboardHeader.tsx`: kör `autoRegisterWebPush()` vid mount
-- Befintlig `NotificationBell` behöver ingen ändring — den visar redan notiser från `pending_notifications`
-- Lägg till en "Aktivera push-notiser"-knapp i Settings om permission inte redan är granted
+### 3. Databasändringar
 
-### Beroenden
-- Inga nya npm-paket (Web Push API är inbyggt i browser)
-- Edge function använder `jsr:@negrel/webpush@0.5.0` (Deno-kompatibelt, samma som Truck Flow)
+**`auto_cooling_settings`** — nya kolumner:
+- `smart_relay_enabled` boolean default false
+- `smart_relay_cooling_only_below` numeric default 15
+- `smart_relay_heating_only_above` numeric default 20
+- `smart_relay_min_hysteresis` numeric default 0.3
+- `smart_relay_tighten_after_minutes` integer default 30
 
-### Säkerhet
-- VAPID private key lagras bara som Supabase-secret, aldrig i klientkod
-- VAPID public key är publik och säker att exponera i `.env`
+**`rapt_temp_controllers`** — nya kolumner:
+- `smart_relay_active` boolean default false
+- `pre_smart_heating_enabled` boolean nullable
+- `pre_smart_cooling_enabled` boolean nullable
+- `pre_smart_heating_hysteresis` numeric nullable
+- `pre_smart_cooling_hysteresis` numeric nullable
+- `smart_relay_off_target_since` timestamptz nullable
 
+### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+
+Placeras **före** PID i pipeline:
+
+```text
+Pipeline:
+  1. Bootstrap
+  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
+  3. PID Control
+  4. Pass-through
+  5. Stall Detection
+```
+
+Per controller (alla steg-typer):
+1. Läs `profile_target_temp` och `actual_temp`
+2. Bestäm riktning → toggle reläer via RAPT API
+3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
+4. Om on-target: återställ hysteres till original
+5. Spara originalvärden i `pre_smart_*` vid första ändring
+
+Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
+
+### 5. UI i Settings (automation-tab)
+
+Nytt avsnitt "Smart Relay" med:
+- Enable/disable toggle
+- Temperaturband-inputs (kylning-under, värme-över)
+- Min hysteres
+- Minuter innan tightening
+
+### 6. Beslutsloggning
+
+- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
+- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
+- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+
+### Filer som ändras
+
+- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
+- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
+- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
+- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
+- DB-migration för nya kolumner
+
+---
+
+## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+
+**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
+
+**Fix:** 
+- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
+- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
+- Nytt fält `pendingKickControllerId` på `CoolerContext` interface

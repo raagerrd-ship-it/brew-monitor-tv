@@ -29,6 +29,7 @@ const TYPE_ICONS: Record<string, string> = {
   ready_to_crash: "🧊",
   delta_alert: "⚠️",
   profile_completed: "✅",
+  rapt_api_degraded: "📡",
 };
 
 function NotificationBellComponent() {
