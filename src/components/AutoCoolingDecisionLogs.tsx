@@ -926,11 +926,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                   ? ctrlTargetPid - ctrlTarget
                   : null;
 
-                // Compute display-consistent delta so that Profil − Δ + PI = Nytt mål always balances visually
-                // (avoids rounding discrepancies when each term is rounded independently)
-                const displayComp = actualTargetVal != null && ctrlTargetPid != null
-                  ? Math.round((actualTargetVal - ctrlTargetPid + (errCorr ?? 0)) * 10) / 10
-                  : comp;
+                // delta is now the effective delta from backend (actualTarget - ctrlTargetPid + PI)
+                // so Profil − Δ + PI = Nytt mål always balances without UI-side recalculation
 
                 return (
                   <React.Fragment key={i}>
@@ -1021,20 +1018,20 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     </td>
                     {/* Calc: Δ (delta/2 = compensation) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                      color: displayComp != null && Math.abs(displayComp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
+                      color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
-                    {displayComp != null ? (
-                        Math.abs(displayComp) > 0.01 ? (
+                    {comp != null ? (
+                        Math.abs(comp) > 0.01 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(displayComp))}°</span>
+                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(comp))}°</span>
                             </TooltipTrigger>
                              <TooltipContent side="top" className="text-[10px] max-w-[200px]">
                                <div className="space-y-0.5">
-                                 <div>Δ = avg − probe = {delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
+                                 <div>Rå Δ = avg − probe = {(det.raw_delta as number) != null ? `${(det.raw_delta as number) >= 0 ? '+' : ''}${r1(det.raw_delta as number)}°` : delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
                                 {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
-                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° kompensation</div>
+                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° effektiv kompensation</div>
                               </div>
                             </TooltipContent>
                           </Tooltip>
