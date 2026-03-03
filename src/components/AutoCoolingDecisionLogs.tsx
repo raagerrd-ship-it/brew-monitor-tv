@@ -201,10 +201,8 @@ export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
-  const [hideSystem, setHideSystem] = useState(false);
-  const [hideGlykol, setHideGlykol] = useState(false);
-  const [hidePid, setHidePid] = useState(false);
-  const [hideSync, setHideSync] = useState(false);
+  const hideSync = false;
+  const hidePid = false;
 
   useEffect(() => {
     // Fetch controller→pill color map
@@ -248,7 +246,7 @@ export function AutoCoolingDecisionLogs() {
         ...(adj as unknown as AdjustmentLog), category: categorizeAdjustment(adj.reason),
       }));
 
-      const filteredResults = new Set(['Not actively cooling', 'Not sustained cooling', 'Lowest not cooling']);
+      const filteredResults = new Set<string>([]);
       const unified: UnifiedEntry[] = [];
       const usedAdjIds = new Set<string>();
 
