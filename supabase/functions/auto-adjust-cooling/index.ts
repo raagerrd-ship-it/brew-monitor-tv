@@ -449,8 +449,9 @@ serve(async (req) => {
     // ══════════════════════════════════════════════════════════════
     // COOLER MANAGEMENT (shared cooling unit)
     // ══════════════════════════════════════════════════════════════
+    let coolerCtx: CoolerContext | null = null;
     if (coolingEnabled) {
-      const coolerCtx: CoolerContext = {
+      coolerCtx = {
         supabase, supabaseUrl, serviceRoleKey: supabaseKey,
         allControllers, followedControllersFullData, followedControllerIds,
         settings: { id: settings.id, last_check_at: settings.last_check_at }, log,
