@@ -989,6 +989,33 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          endpoint: string
+          id: string
+          last_used_at: string
+          subscription: Json
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          endpoint: string
+          id?: string
+          last_used_at?: string
+          subscription: Json
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          endpoint?: string
+          id?: string
+          last_used_at?: string
+          subscription?: Json
+        }
+        Relationships: []
+      }
       rapt_outage_log: {
         Row: {
           created_at: string
