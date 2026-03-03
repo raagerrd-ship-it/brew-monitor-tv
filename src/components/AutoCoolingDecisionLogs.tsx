@@ -3,7 +3,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -130,6 +130,7 @@ const PIPELINE_STEPS = new Set([
   'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
+  'SMART_RELAY', 'SMART_RELAY_TIGHTEN', 'SMART_RELAY_RESTORE',
 ]);
 
 // --- Helpers ---
@@ -340,16 +341,27 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
+  const hasSmartRelay = log.decisions.some(d =>
+    (d.step === 'SMART_RELAY' || d.step === 'SMART_RELAY_TIGHTEN' || d.step === 'SMART_RELAY_RESTORE') && d.result === 'action'
+  );
 
   // Header badge (includes adjustment summary)
   let headerBadge: React.ReactNode;
 
-  if (adjs.length === 0) {
+  const smartRelayBadge = hasSmartRelay ? (
+    <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(45 93% 47% / 0.2)', color: 'hsl(45 93% 47%)', borderColor: 'hsl(45 93% 47% / 0.3)' }}>
+      <Zap className="h-2.5 w-2.5 mr-0.5" />Relay
+    </Badge>
+  ) : null;
+
+  if (adjs.length === 0 && !hasSmartRelay) {
     headerBadge = (
       <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
         <Gauge className="h-2.5 w-2.5 mr-0.5" />System
       </Badge>
     );
+  } else if (adjs.length === 0 && hasSmartRelay) {
+    headerBadge = smartRelayBadge;
   } else if (hasPidAdj && hasGlykolAdj) {
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
     const glykolAdj = adjs.find(a => a.category === 'glykol')!;
@@ -359,12 +371,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
       <div className="flex gap-1 items-center flex-wrap">
         {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
+        {smartRelayBadge}
       </div>
     );
   } else {
     const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
     const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
-    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
+    headerBadge = hasSmartRelay ? (
+      <div className="flex gap-1 items-center flex-wrap">
+        {getCategoryBadge(primaryAdj!.category, adjStr, pidColor)}
+        {smartRelayBadge}
+      </div>
+    ) : getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
   }
 
   return (
@@ -731,6 +749,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
     d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN' ||
     d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN'
+  );
+  const smartRelayEntries = decisions.filter(d =>
+    d.step === 'SMART_RELAY' || d.step === 'SMART_RELAY_TIGHTEN' || d.step === 'SMART_RELAY_RESTORE'
   );
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
@@ -1109,6 +1130,56 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
         </PipelineSection>
       )}
 
+      {/* Smart Relay */}
+      {smartRelayEntries.length > 0 && (() => {
+        // Split into info (config/status), actions (relay toggles), tighten, and restore
+        const actionEntries = smartRelayEntries.filter(d => d.result === 'action');
+        const infoEntries = smartRelayEntries.filter(d => d.result === 'info' && !d.message.startsWith('Smart Relay active') && !d.message.startsWith('Smart Relay disabled'));
+        const hasActions = actionEntries.length > 0;
+        if (!hasActions && infoEntries.length === 0) return null;
+        return (
+          <PipelineSection
+            icon={<Zap className="h-3 w-3" />}
+            title="Smart Relay"
+            color="hsl(45 93% 47%)"
+            borderColor="hsl(45 93% 47% / 0.3)"
+            bgColor="hsl(45 93% 47% / 0.05)"
+          >
+            <div className="space-y-1">
+              {actionEntries.map((d, i) => {
+                const isTighten = d.step === 'SMART_RELAY_TIGHTEN';
+                const isRestore = d.step === 'SMART_RELAY_RESTORE';
+                const isToggle = d.step === 'SMART_RELAY' && d.result === 'action';
+                return (
+                  <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+                    {isTighten ? (
+                      <Wrench className="h-3 w-3 flex-shrink-0 text-amber-400" />
+                    ) : isRestore ? (
+                      <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-400" />
+                    ) : isToggle ? (
+                      <Zap className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(45 93% 47%)' }} />
+                    ) : (
+                      <Info className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                    )}
+                    <span className={
+                      isTighten ? 'text-amber-400' :
+                      isRestore ? 'text-green-400' :
+                      ''
+                    }>{d.message}</span>
+                  </div>
+                );
+              })}
+              {infoEntries.map((d, i) => (
+                <div key={`info-${i}`} className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
+                  <Info className="h-3 w-3 flex-shrink-0" />
+                  <span>{d.message}</span>
+                </div>
+              ))}
+            </div>
+          </PipelineSection>
+        );
+      })()}
+
       {/* 4. Pass-through */}
       {passThroughEntries.length > 0 && (
         <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="Pass-through" color="hsl(170 60% 45%)" borderColor="hsl(170 60% 45% / 0.3)" bgColor="hsl(170 60% 45% / 0.05)">
@@ -1173,8 +1244,11 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
 
       {/* Section 6 removed — merged into section 3 "PID-reglering" above */}
 
-      {/* 7. RAPT_SEND + BATCH_FLUSH */}
-      {raptSendEntries.length > 0 && (() => {
+      {/* 7. RAPT_SEND + BATCH_FLUSH + Smart Relay RAPT actions */}
+      {(() => {
+        const smartRelayRaptActions = smartRelayEntries.filter(d => d.result === 'action');
+        const allRaptEntries = [...raptSendEntries, ...smartRelayRaptActions];
+        if (allRaptEntries.length === 0) return null;
         const hasFailure = raptSendEntries.some(d => d.result === 'fail');
         const sectionColor = hasFailure ? 'hsl(0 84% 60%)' : 'hsl(25 95% 53%)';
         const sectionBorder = hasFailure ? 'hsl(0 84% 60% / 0.3)' : 'hsl(25 95% 53% / 0.3)';
@@ -1185,12 +1259,27 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
             {raptSendEntries.map((d, i) => {
               const isFail = d.result === 'fail';
               return (
-                <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+                <div key={`rapt-${i}`} className="flex items-center gap-2 text-[11px] py-0.5">
                   {isFail
                     ? <XCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
                     : <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
                   }
                   <span className="font-medium" style={{ color: isFail ? 'hsl(0 84% 60%)' : 'hsl(25 80% 60%)' }}>{d.message}</span>
+                </div>
+              );
+            })}
+            {smartRelayRaptActions.length > 0 && raptSendEntries.length > 0 && (
+              <div className="h-px bg-border/30 my-1" />
+            )}
+            {smartRelayRaptActions.map((d, i) => {
+              const isTighten = d.step === 'SMART_RELAY_TIGHTEN';
+              const isRestore = d.step === 'SMART_RELAY_RESTORE';
+              return (
+                <div key={`sr-${i}`} className="flex items-center gap-2 text-[11px] py-0.5">
+                  <Zap className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(45 93% 47%)' }} />
+                  <span className="font-medium" style={{ color: isTighten ? 'hsl(38 92% 55%)' : isRestore ? 'hsl(142 71% 45%)' : 'hsl(45 93% 47%)' }}>
+                    {d.message}
+                  </span>
                 </div>
               );
             })}
