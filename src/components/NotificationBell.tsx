@@ -164,25 +164,26 @@ function NotificationBellComponent() {
                   Rensa lästa
                 </Button>
               )}
-              <Switch
-                checked={pushEnabled}
-                disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
-                onCheckedChange={async (checked) => {
-                  if (checked) {
-                    setPushLoading(true);
-                    try {
-                      const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
-                      const ok = await requestAndRegisterPush();
-                      setPushEnabled(ok);
-                    } catch {
-                      setPushEnabled(false);
-                    } finally {
-                      setPushLoading(false);
+              {isMobile && (
+                <Switch
+                  checked={pushEnabled}
+                  disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
+                  onCheckedChange={async (checked) => {
+                    if (checked) {
+                      setPushLoading(true);
+                      try {
+                        const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
+                        const ok = await requestAndRegisterPush();
+                        setPushEnabled(ok);
+                      } catch {
+                        setPushEnabled(false);
+                      } finally {
+                        setPushLoading(false);
+                      }
                     }
-                  }
-                  // Can't programmatically revoke — just inform
-                }}
-              />
+                  }}
+                />
+              )}
             </div>
           </DialogTitle>
         </DialogHeader>
