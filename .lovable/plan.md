@@ -1,100 +1,29 @@
 
 
-# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
+## Granskningsresultat — Kritisk bugg + stabilitetsproblem
 
-## Klarifiering
+### KRITISK BUGG: Duplicerad variabeldeklaration (rad 263-264)
 
-Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
-
-1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
-2. **Minska hysteres** om controllern inte når mål inom en viss tid
-
-## Relay-val per controller
-
-```text
-Target < Actual (ska sjunka)  → cooling ON, heating OFF
-Target > Actual (ska stiga)   → heating ON, cooling OFF
-Hold-zon (inom 0.5°C)         → temperaturband:
-  target < 15°C → cooling only (jäsning genererar värme)
-  target > 20°C → heating only (temp sjunker naturligt)
-  annars        → båda ON
+```typescript
+const kickTarget = round1(coolerMinTemp - 1)
+const kickTarget = round1(coolerMinTemp - 1)  // ← DUPLICATE
 ```
 
-## Adaptiv Hysteresis
+Denna dubbla `const` kommer att krascha edge-funktionen med ett syntax-/runtime-fel i exakt det scenariot där en hysteres-kick behövs (tank kyler 100%, kylare 0%). Resultatet: **ingen justering görs alls** — kylaren förblir i dead band och tanken överhettas.
 
-Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
+### Övriga stabilitetsproblem
 
-## Teknisk plan
+**1. Felordning vid kick: DB-flagga sätts före API-anrop**
+Rad 272-278: `hysteresis_kick_active = true` skrivs till DB *innan* `applyCoolerTarget` körs. Om API-anropet misslyckas, står flaggan kvar som `true`. Nästa cykel tror systemet att det var en lyckad kick och försöker "reverta" — men det finns inget att reverta. Detta är dock **inte farligt** tack vare kick-stuck guard (rad 232), men det slösar en cykel.
 
-### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+**2. Idle shutdown sätter target baserat på kylarens aktuella temp**
+Rad 320: `idleTarget = coolerTemp + coolerHyst`. Om kylaren är vid -5°C → idle = -4.8°C. Kylaren fortsätter köra i onödan. Inte farligt för ölen (tankar är redan vid mål), men slösar energi.
 
-Lägg till tre actions i `ALLOWED_ACTIONS`:
-- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
-- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
-- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+### Plan
 
-### 2. Wrapper-funktioner i `temp-utils.ts`
+1. **Ta bort duplicerad `const kickTarget`** (rad 264) — fixar crashen
+2. **Byt ordning på kick-flödet**: sätt DB-flagga *efter* lyckat API-anrop, inte före
+3. **Sätt idle-target till minst `effectiveTarget.temp`** istället för `coolerTemp + hyst` — så kylaren stängs av ordentligt
 
-Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
-
-### 3. Databasändringar
-
-**`auto_cooling_settings`** — nya kolumner:
-- `smart_relay_enabled` boolean default false
-- `smart_relay_cooling_only_below` numeric default 15
-- `smart_relay_heating_only_above` numeric default 20
-- `smart_relay_min_hysteresis` numeric default 0.3
-- `smart_relay_tighten_after_minutes` integer default 30
-
-**`rapt_temp_controllers`** — nya kolumner:
-- `smart_relay_active` boolean default false
-- `pre_smart_heating_enabled` boolean nullable
-- `pre_smart_cooling_enabled` boolean nullable
-- `pre_smart_heating_hysteresis` numeric nullable
-- `pre_smart_cooling_hysteresis` numeric nullable
-- `smart_relay_off_target_since` timestamptz nullable
-
-### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
-
-Placeras **före** PID i pipeline:
-
-```text
-Pipeline:
-  1. Bootstrap
-  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
-  3. PID Control
-  4. Pass-through
-  5. Stall Detection
-```
-
-Per controller (alla steg-typer):
-1. Läs `profile_target_temp` och `actual_temp`
-2. Bestäm riktning → toggle reläer via RAPT API
-3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
-4. Om on-target: återställ hysteres till original
-5. Spara originalvärden i `pre_smart_*` vid första ändring
-
-Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
-
-### 5. UI i Settings (automation-tab)
-
-Nytt avsnitt "Smart Relay" med:
-- Enable/disable toggle
-- Temperaturband-inputs (kylning-under, värme-över)
-- Min hysteres
-- Minuter innan tightening
-
-### 6. Beslutsloggning
-
-- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
-- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
-- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
-
-### Filer som ändras
-
-- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
-- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
-- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
-- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
-- DB-migration för nya kolumner
+Dessa tre åtgärder eliminerar risken att kylaren "hänger sig" i ett felaktigt tillstånd.
 
