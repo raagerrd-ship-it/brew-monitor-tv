@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { Bell } from "lucide-react";
+import { useIsMobile } from "@/hooks";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
