@@ -33,7 +33,7 @@ interface UseMultiControllerTempDataReturn {
 export function useMultiControllerTempData({ controllers }: UseMultiControllerTempDataProps): UseMultiControllerTempDataReturn {
   const [data, setData] = useState<MultiChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [timeRange, setTimeRange] = useState<TimeRange>('3h');
 
   useEffect(() => {
     if (controllers.length === 0) {
@@ -46,9 +46,9 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
       setLoading(true);
 
       const now = new Date();
-      const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
+      const hoursAgo = timeRange === '3h' ? 3 : 24;
       const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
-      const sampleInterval = timeRange === '24h' ? 5 : 30;
+      const sampleInterval = timeRange === '3h' ? 1 : 5;
 
       const results = await Promise.all(
         controllers.map(async (ctrl) => {
@@ -70,7 +70,7 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
           const ts = new Date(record.recorded_at).getTime();
           if (!bucketMap.has(ts)) {
             bucketMap.set(ts, {
-              time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
+              time: format(new Date(record.recorded_at), 'HH:mm', { locale: sv }),
               timestamp: ts,
             });
           }
