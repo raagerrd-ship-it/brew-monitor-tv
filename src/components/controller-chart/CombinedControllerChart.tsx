@@ -61,7 +61,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">Temperaturhistorik</span>
         <div className="flex gap-1">
-          {(['24h', '7d'] as const).map(range => (
+          {(['3h', '24h'] as const).map(range => (
             <button
               key={range}
               onClick={() => setTimeRange(range)}
