@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
-export type TimeRange = '24h' | '7d';
+export type TimeRange = '3h' | '24h';
 
 interface SampledRecord {
   recorded_at: string;
@@ -37,7 +37,7 @@ interface UseControllerTempDataReturn {
 export function useControllerTempData({ controllerId }: UseControllerTempDataProps): UseControllerTempDataReturn {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [timeRange, setTimeRange] = useState<TimeRange>('3h');
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -45,11 +45,11 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
       
       // Calculate time range
       const now = new Date();
-      const hoursAgo = timeRange === '24h' ? 24 : 24 * 7;
+      const hoursAgo = timeRange === '3h' ? 3 : 24;
       const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
       
-      // Use different sample intervals: 5 min for 24h, 30 min for 7d
-      const sampleInterval = timeRange === '24h' ? 5 : 30;
+      // Use different sample intervals: 1 min for 3h, 5 min for 24h
+      const sampleInterval = timeRange === '3h' ? 1 : 5;
       
       const { data: history, error } = await supabase
         .rpc('get_temp_history_sampled', {
@@ -72,7 +72,7 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
       }
 
       const chartData: ChartDataPoint[] = history.map((record: SampledRecord) => ({
-        time: format(new Date(record.recorded_at), timeRange === '24h' ? 'HH:mm' : 'dd/MM HH:mm', { locale: sv }),
+        time: format(new Date(record.recorded_at), timeRange === '3h' ? 'HH:mm' : 'HH:mm', { locale: sv }),
         timestamp: new Date(record.recorded_at).getTime(),
         currentTemp: Number(record.current_temp),
         targetTemp: Number(record.target_temp),

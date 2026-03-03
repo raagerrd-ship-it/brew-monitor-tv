@@ -33,6 +33,16 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
         <span className="text-xs font-medium text-muted-foreground">Temperaturhistorik</span>
         <div className="flex gap-1">
           <button
+            onClick={() => setTimeRange('3h')}
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              timeRange === '3h' 
+                ? 'bg-primary text-primary-foreground' 
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            3h
+          </button>
+          <button
             onClick={() => setTimeRange('24h')}
             className={`px-2 py-0.5 text-xs rounded transition-colors ${
               timeRange === '24h' 
@@ -41,16 +51,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             }`}
           >
             24h
-          </button>
-          <button
-            onClick={() => setTimeRange('7d')}
-            className={`px-2 py-0.5 text-xs rounded transition-colors ${
-              timeRange === '7d' 
-                ? 'bg-primary text-primary-foreground' 
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            7d
           </button>
         </div>
       </div>
