@@ -39,6 +39,8 @@ function NotificationBellComponent() {
   const [open, setOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const isMobile = useIsMobile();
+  const [pushLoading, setPushLoading] = useState(false);
 
   // Check push permission state on mount
   useEffect(() => {
