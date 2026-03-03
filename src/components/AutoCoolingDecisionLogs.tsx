@@ -132,7 +132,7 @@ const PIPELINE_STEPS = new Set([
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
-  'SMART_RELAY', 'SMART_RELAY_TIGHTEN', 'SMART_RELAY_RESTORE', 'SMART_RELAY_STATUS',
+  
 ]);
 
 // --- Helpers ---
@@ -343,18 +343,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
-  const hasSmartRelay = log.decisions.some(d =>
-    (d.step === 'SMART_RELAY' || d.step === 'SMART_RELAY_TIGHTEN' || d.step === 'SMART_RELAY_RESTORE') && d.result === 'action'
-  );
-
-  // Header badge (includes adjustment summary)
-  let headerBadge: React.ReactNode;
-
-  const smartRelayBadge = hasSmartRelay ? (
-    <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(45 93% 47% / 0.2)', color: 'hsl(45 93% 47%)', borderColor: 'hsl(45 93% 47% / 0.3)' }}>
-      <Zap className="h-2.5 w-2.5 mr-0.5" />Relay
-    </Badge>
-  ) : null;
+  const hasSmartRelay = false;
+  const smartRelayBadge = null;
 
   if (adjs.length === 0 && !hasSmartRelay) {
     headerBadge = (
@@ -811,9 +801,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN' || d.step === 'MIN_MARGIN' ||
     d.step === 'HYSTERESIS_KICK' || d.step === 'HYSTERESIS_KICK_NOOP'
   );
-  const smartRelayEntries = decisions.filter(d =>
-    d.step === 'SMART_RELAY' || d.step === 'SMART_RELAY_TIGHTEN' || d.step === 'SMART_RELAY_RESTORE' || d.step === 'SMART_RELAY_STATUS'
-  );
+  const smartRelayEntries: typeof decisions = [];
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
   const otherEntries = decisions.filter(d =>
@@ -1191,174 +1179,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
         </PipelineSection>
       )}
 
-      {/* Smart Relay */}
-      {(() => {
-        const actionEntries = smartRelayEntries.filter(d => d.result === 'action');
-        const statusTableEntries = smartRelayEntries.filter(d => d.step === 'SMART_RELAY_STATUS');
-        const infoEntries = smartRelayEntries.filter(d => d.result === 'info' && d.step !== 'SMART_RELAY_STATUS');
-        const isDisabled = infoEntries.some(d => d.message.includes('disabled'));
-        const configEntry = infoEntries.find(d => d.message.startsWith('Smart Relay active'));
-        return (
-          <PipelineSection
-            icon={<Zap className="h-3 w-3" />}
-            title="Smart Relay"
-            color="hsl(45 93% 47%)"
-            borderColor="hsl(45 93% 47% / 0.3)"
-            bgColor="hsl(45 93% 47% / 0.05)"
-          >
-            <div className="space-y-2">
-              {isDisabled && (
-                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
-                  <Info className="h-3 w-3 flex-shrink-0" />
-                  <span>Inaktiverad</span>
-                </div>
-              )}
-              {/* Config details hidden — not needed in log view */}
-
-              {/* Status table — same style as SYNK-DATA / PID */}
-              {statusTableEntries.length > 0 && (
-                <div className="overflow-x-auto -mx-2 px-2">
-                  <table className="w-full text-[10px] min-w-[520px]">
-                    <thead>
-                      <tr className="text-muted-foreground/80 border-b border-border/40 bg-[hsl(45_93%_47%/0.08)]">
-                        <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
-                        <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
-                        <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
-                        <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Riktning</th>
-                        <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-                        <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Orig H</th>
-                        <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Orig K</th>
-                        <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">→</th>
-                        <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Nu H</th>
-                        <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Nu K</th>
-                        <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-                        <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">H hyst</th>
-                        <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">K hyst</th>
-                        <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Off-target</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statusTableEntries.map((d, i) => {
-                        const det = d.details || {};
-                        const name = det.name as string ?? d.message.replace('Controller: ', '');
-                        const direction = det.direction as string;
-                        const origHeat = det.orig_heating as boolean;
-                        const origCool = det.orig_cooling as boolean;
-                        const curHeat = det.cur_heating as boolean;
-                        const curCool = det.cur_cooling as boolean;
-                        const origHeatHyst = det.orig_heat_hyst as number;
-                        const origCoolHyst = det.orig_cool_hyst as number;
-                        const curHeatHyst = det.cur_heat_hyst as number;
-                        const curCoolHyst = det.cur_cool_hyst as number;
-                        const offMin = det.off_target_minutes as number | null;
-                        const heatChanged = origHeat !== curHeat;
-                        const coolChanged = origCool !== curCool;
-                        const heatHystChanged = origHeatHyst != null && curHeatHyst != null && Math.abs(origHeatHyst - curHeatHyst) > 0.05;
-                        const coolHystChanged = origCoolHyst != null && curCoolHyst != null && Math.abs(origCoolHyst - curCoolHyst) > 0.05;
-
-                        const relayIcon = (on: boolean, changed: boolean) => (
-                          <span className={`font-mono font-medium ${changed ? (on ? 'text-green-400' : 'text-red-400') : on ? 'text-foreground' : 'text-muted-foreground/40'}`}>
-                            {on ? 'ON' : 'OFF'}
-                          </span>
-                        );
-
-                        return (
-                          <tr key={i} className={`border-b border-border/10 ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
-                            <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">{name}</td>
-                            <td className="py-1 px-1.5 text-right font-mono whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.target as number)}°</td>
-                            <td className="py-1 px-1.5 text-right font-mono whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.actual as number)}°</td>
-                            <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                                direction === 'cooling' ? 'bg-sky-500/15 text-sky-400' :
-                                direction === 'heating' ? 'bg-orange-500/15 text-orange-400' :
-                                'bg-muted text-muted-foreground'
-                              }`}>
-                                {direction === 'cooling' ? '❄️ kyl' : direction === 'heating' ? '🔥 värm' : '⚖️ hold'}
-                              </span>
-                            </td>
-                            <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
-                            {/* Original relay states */}
-                            <td className="py-1 px-1.5 text-center whitespace-nowrap">{relayIcon(origHeat, heatChanged)}</td>
-                            <td className="py-1 px-1.5 text-center whitespace-nowrap">{relayIcon(origCool, coolChanged)}</td>
-                            <td className="py-1 px-0 text-center text-muted-foreground/25">→</td>
-                            {/* Current relay states */}
-                            <td className="py-1 px-1.5 text-center whitespace-nowrap">{relayIcon(curHeat, heatChanged)}</td>
-                            <td className="py-1 px-1.5 text-center whitespace-nowrap">{relayIcon(curCool, coolChanged)}</td>
-                            <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
-                            {/* Hysteresis */}
-                            <td className={`py-1 px-1.5 text-right font-mono whitespace-nowrap ${heatHystChanged ? 'text-amber-400' : 'text-muted-foreground'}`}>
-                              {curHeatHyst != null ? (
-                                heatHystChanged ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="cursor-help border-b border-dotted border-current/30">{r1(curHeatHyst)}°</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs">Original: {r1(origHeatHyst)}° → Nu: {r1(curHeatHyst)}°</TooltipContent>
-                                  </Tooltip>
-                                ) : `${r1(curHeatHyst)}°`
-                              ) : '—'}
-                            </td>
-                            <td className={`py-1 px-1.5 text-right font-mono whitespace-nowrap ${coolHystChanged ? 'text-amber-400' : 'text-muted-foreground'}`}>
-                              {curCoolHyst != null ? (
-                                coolHystChanged ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="cursor-help border-b border-dotted border-current/30">{r1(curCoolHyst)}°</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs">Original: {r1(origCoolHyst)}° → Nu: {r1(curCoolHyst)}°</TooltipContent>
-                                  </Tooltip>
-                                ) : `${r1(curCoolHyst)}°`
-                              ) : '—'}
-                            </td>
-                            <td className="py-1 px-1.5 text-right font-mono whitespace-nowrap">
-                              {offMin != null ? (
-                                <span className={offMin >= 30 ? 'text-amber-400' : 'text-muted-foreground'}>{offMin}min</span>
-                              ) : (
-                                <span className="text-green-400/60">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Action entries below table */}
-              {actionEntries.map((d, i) => {
-                const isTighten = d.step === 'SMART_RELAY_TIGHTEN';
-                const isRestore = d.step === 'SMART_RELAY_RESTORE';
-                const isToggle = d.step === 'SMART_RELAY' && d.result === 'action';
-                return (
-                  <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
-                    {isTighten ? (
-                      <Wrench className="h-3 w-3 flex-shrink-0 text-amber-400" />
-                    ) : isRestore ? (
-                      <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-400" />
-                    ) : isToggle ? (
-                      <Zap className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(45 93% 47%)' }} />
-                    ) : (
-                      <Info className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                    )}
-                    <span className={
-                      isTighten ? 'text-amber-400' :
-                      isRestore ? 'text-green-400' :
-                      ''
-                    }>{d.message}</span>
-                  </div>
-                );
-              })}
-              {actionEntries.length === 0 && !isDisabled && statusTableEntries.length > 0 && (
-                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
-                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500/40" />
-                  <span>Inga ändringar behövdes</span>
-                </div>
-              )}
-            </div>
-          </PipelineSection>
-        );
-      })()}
+      {/* Smart Relay removed — not supported by RAPT API */}
 
       {/* 4. Pass-through */}
       {passThroughEntries.length > 0 && (
@@ -1424,11 +1245,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
 
       {/* Section 6 removed — merged into section 3 "PID-reglering" above */}
 
-      {/* 7. RAPT_SEND + BATCH_FLUSH + Smart Relay RAPT actions */}
+      {/* 7. RAPT_SEND + BATCH_FLUSH */}
       {(() => {
-        const smartRelayRaptActions = smartRelayEntries.filter(d => d.result === 'action');
-        const allRaptEntries = [...raptSendEntries, ...smartRelayRaptActions];
-        if (allRaptEntries.length === 0) return null;
+        if (raptSendEntries.length === 0) return null;
         const hasFailure = raptSendEntries.some(d => d.result === 'fail');
         const sectionColor = hasFailure ? 'hsl(0 84% 60%)' : 'hsl(25 95% 53%)';
         const sectionBorder = hasFailure ? 'hsl(0 84% 60% / 0.3)' : 'hsl(25 95% 53% / 0.3)';
@@ -1445,21 +1264,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     : <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
                   }
                   <span className="font-medium" style={{ color: isFail ? 'hsl(0 84% 60%)' : 'hsl(25 80% 60%)' }}>{d.message}</span>
-                </div>
-              );
-            })}
-            {smartRelayRaptActions.length > 0 && raptSendEntries.length > 0 && (
-              <div className="h-px bg-border/30 my-1" />
-            )}
-            {smartRelayRaptActions.map((d, i) => {
-              const isTighten = d.step === 'SMART_RELAY_TIGHTEN';
-              const isRestore = d.step === 'SMART_RELAY_RESTORE';
-              return (
-                <div key={`sr-${i}`} className="flex items-center gap-2 text-[11px] py-0.5">
-                  <Zap className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(45 93% 47%)' }} />
-                  <span className="font-medium" style={{ color: isTighten ? 'hsl(38 92% 55%)' : isRestore ? 'hsl(142 71% 45%)' : 'hsl(45 93% 47%)' }}>
-                    {d.message}
-                  </span>
                 </div>
               );
             })}
