@@ -21,7 +21,7 @@ serve(async (req) => {
     if (!action || typeof action !== 'string') {
       throw new Error('Action is required');
     }
-    const ALLOWED_ACTIONS = ['setTargetTemperature', 'setPIDEnabled', 'setPID'];
+    const ALLOWED_ACTIONS = ['setTargetTemperature', 'setPIDEnabled', 'setPID', 'setCoolingHysteresis'];
     if (!ALLOWED_ACTIONS.includes(action)) {
       throw new Error(`Unknown action: ${action}. Allowed: ${ALLOWED_ACTIONS.join(', ')}`);
     }
@@ -37,6 +37,10 @@ serve(async (req) => {
     } else if (action === 'setPID') {
       if (!value || typeof value !== 'object' || typeof value.proportionalGain !== 'number' || typeof value.integralTime !== 'number' || typeof value.derivativeTime !== 'number') {
         throw new Error('setPID requires proportionalGain, integralTime, and derivativeTime as numbers');
+      }
+    } else if (action === 'setCoolingHysteresis') {
+      if (typeof value !== 'number' || value < 0.1 || value > 10) {
+        throw new Error('Cooling hysteresis must be a number between 0.1 and 10');
       }
     }
 
@@ -102,6 +106,12 @@ serve(async (req) => {
         queryParams.append('proportionalGain', value.proportionalGain.toString());
         queryParams.append('integralTime', value.integralTime.toString());
         queryParams.append('derivativeTime', value.derivativeTime.toString());
+        break;
+      
+      case 'setCoolingHysteresis':
+        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingHysteresis';
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('hysteresis', value.toString());
         break;
       
       default:

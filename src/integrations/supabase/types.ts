@@ -1057,6 +1057,7 @@ export type Database = {
           min_target_temp: number | null
           name: string
           pill_temp: number | null
+          pre_kick_cooling_hysteresis: number | null
           profile_target_temp: number | null
           target_temp: number | null
           updated_at: string
@@ -1083,6 +1084,7 @@ export type Database = {
           min_target_temp?: number | null
           name: string
           pill_temp?: number | null
+          pre_kick_cooling_hysteresis?: number | null
           profile_target_temp?: number | null
           target_temp?: number | null
           updated_at?: string
@@ -1109,6 +1111,7 @@ export type Database = {
           min_target_temp?: number | null
           name?: string
           pill_temp?: number | null
+          pre_kick_cooling_hysteresis?: number | null
           profile_target_temp?: number | null
           target_temp?: number | null
           updated_at?: string

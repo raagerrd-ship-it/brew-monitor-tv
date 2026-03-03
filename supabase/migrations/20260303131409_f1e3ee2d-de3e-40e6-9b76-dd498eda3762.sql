@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_temp_controllers ADD COLUMN pre_kick_cooling_hysteresis numeric DEFAULT NULL;
