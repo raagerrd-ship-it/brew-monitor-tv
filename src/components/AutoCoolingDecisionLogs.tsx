@@ -1153,12 +1153,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                   <span>Inaktiverad</span>
                 </div>
               )}
-              {configEntry && (
-                <div className="flex items-center gap-2 text-[11px] py-0.5 text-muted-foreground">
-                  <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500/60" />
-                  <span>{configEntry.message.replace('Smart Relay active ', '')}</span>
-                </div>
-              )}
+              {/* Config details hidden — not needed in log view */}
 
               {/* Status table — same style as SYNK-DATA / PID */}
               {statusTableEntries.length > 0 && (
