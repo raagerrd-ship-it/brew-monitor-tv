@@ -261,21 +261,21 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       } else {
         // Kick target = 1°C below minimum allowed → clearly signals automation is active
         const kickTarget = round1(coolerMinTemp - 1)
-        const kickTarget = round1(coolerMinTemp - 1)
         // Guard: skip if current target is already at or below kick target (no-op kick)
         if (currentCoolerTarget <= kickTarget) {
           log('HYSTERESIS_KICK_NOOP', 'info', `Hysteres-kick onödig — mål redan ${round1(currentCoolerTarget)}° ≤ kick ${kickTarget}°`)
         } else {
         const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99)
         log('HYSTERESIS_KICK', 'action', `Tank ${maxUtilTank?.controllerName} kyler 100% men glykolkylare 0% — kickar till ${kickTarget}°C (min ${coolerMinTemp}° - 1°)`)
-        // Set kick flag in DB
-        await supabase.from('rapt_temp_controllers')
-          .update({ hysteresis_kick_active: true })
-          .eq('controller_id', coolerController.controller_id)
-        // Set kick target
-        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
+        // Set kick target first, then flag — so flag is only set on success
+        const kickApplied = await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, kickTarget, effectiveTarget.temp,
           `⚡ Hysteres-kick: tank 100% + kylare 0% → mål ${kickTarget}° (återgår nästa cykel)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        if (kickApplied) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ hysteresis_kick_active: true })
+            .eq('controller_id', coolerController.controller_id)
+        }
         return adjustments
         }
       }
@@ -317,7 +317,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       log('COOLER_IDLE', 'info', `Alla tankar 0% util — cooldown (${Math.round((idleCooldownMs - timeSinceLastIdle) / 60000)} min kvar)`)
     } else {
       const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
-      const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst) * 10) / 10)
+      // Use effectiveTarget (based on tank demands) to ensure idle is above cooling threshold
+      const idleTarget = Math.min(coolerMaxTemp, round1(Math.max(coolerTemp + coolerHyst, effectiveTarget.temp + 0.5)))
       if (currentCoolerTarget < idleTarget - 0.1) {
         log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
         await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
@@ -958,7 +959,7 @@ async function applyCoolerTarget(
   adjustments: AdjustmentResult[],
   followedControllerId?: string,
   followedControllerName?: string,
-): Promise<void> {
+): Promise<boolean> {
   const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
 
   log('ADJUSTMENT', 'action', `${oldTarget}°C → ${newTarget}°C: ${reason}`)
@@ -988,4 +989,5 @@ async function applyCoolerTarget(
   } else {
     log('ADJUSTMENT', 'fail', 'Kunde inte sätta glykolmål')
   }
+  return success
 }
