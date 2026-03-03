@@ -82,6 +82,11 @@ export function useSettingsData() {
   const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
   const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
   const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
+  const [smartRelayEnabled, setSmartRelayEnabled] = useState(false);
+  const [smartRelayCoolingOnlyBelow, setSmartRelayCoolingOnlyBelow] = useState<string>("15");
+  const [smartRelayHeatingOnlyAbove, setSmartRelayHeatingOnlyAbove] = useState<string>("20");
+  const [smartRelayMinHysteresis, setSmartRelayMinHysteresis] = useState<string>("0.3");
+  const [smartRelayTightenAfterMinutes, setSmartRelayTightenAfterMinutes] = useState<string>("30");
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
   const [lastAdjustment, setLastAdjustment] = useState<LastAdjustment | null>(null);
 
@@ -185,6 +190,11 @@ export function useSettingsData() {
         setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
         setAiAuditEnabled(data.ai_audit_enabled ?? true);
         setSgTempCorrectionEnabled((data as any).sg_temp_correction_enabled ?? false);
+        setSmartRelayEnabled((data as any).smart_relay_enabled ?? false);
+        setSmartRelayCoolingOnlyBelow(((data as any).smart_relay_cooling_only_below ?? 15).toString());
+        setSmartRelayHeatingOnlyAbove(((data as any).smart_relay_heating_only_above ?? 20).toString());
+        setSmartRelayMinHysteresis(((data as any).smart_relay_min_hysteresis ?? 0.3).toString());
+        setSmartRelayTightenAfterMinutes(((data as any).smart_relay_tighten_after_minutes ?? 30).toString());
       }
       const { data: adjData } = await supabase.from('auto_cooling_adjustments')
         .select('created_at, old_target_temp, new_target_temp, reason, followed_controller_name, followed_current_temp, followed_target_temp')
@@ -309,6 +319,11 @@ export function useSettingsData() {
           if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
           if ((newData as any).sg_temp_correction_enabled !== undefined) setSgTempCorrectionEnabled((newData as any).sg_temp_correction_enabled);
+          if ((newData as any).smart_relay_enabled !== undefined) setSmartRelayEnabled((newData as any).smart_relay_enabled);
+          if ((newData as any).smart_relay_cooling_only_below !== undefined) setSmartRelayCoolingOnlyBelow(String((newData as any).smart_relay_cooling_only_below));
+          if ((newData as any).smart_relay_heating_only_above !== undefined) setSmartRelayHeatingOnlyAbove(String((newData as any).smart_relay_heating_only_above));
+          if ((newData as any).smart_relay_min_hysteresis !== undefined) setSmartRelayMinHysteresis(String((newData as any).smart_relay_min_hysteresis));
+          if ((newData as any).smart_relay_tighten_after_minutes !== undefined) setSmartRelayTightenAfterMinutes(String((newData as any).smart_relay_tighten_after_minutes));
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers' }, (payload) => {
@@ -500,6 +515,31 @@ export function useSettingsData() {
     await updateAutoCoolingSetting('sg_temp_correction_enabled', checked);
   }, [updateAutoCoolingSetting]);
 
+  const handleSmartRelayEnabledChange = useCallback(async (checked: boolean) => {
+    setSmartRelayEnabled(checked);
+    await updateAutoCoolingSetting('smart_relay_enabled', checked);
+  }, [updateAutoCoolingSetting]);
+
+  const handleSmartRelayCoolingOnlyBelowChange = useCallback(async (value: string) => {
+    setSmartRelayCoolingOnlyBelow(value);
+    await updateAutoCoolingSetting('smart_relay_cooling_only_below', parseFloat(value));
+  }, [updateAutoCoolingSetting]);
+
+  const handleSmartRelayHeatingOnlyAboveChange = useCallback(async (value: string) => {
+    setSmartRelayHeatingOnlyAbove(value);
+    await updateAutoCoolingSetting('smart_relay_heating_only_above', parseFloat(value));
+  }, [updateAutoCoolingSetting]);
+
+  const handleSmartRelayMinHysteresisChange = useCallback(async (value: string) => {
+    setSmartRelayMinHysteresis(value);
+    await updateAutoCoolingSetting('smart_relay_min_hysteresis', parseFloat(value));
+  }, [updateAutoCoolingSetting]);
+
+  const handleSmartRelayTightenAfterMinutesChange = useCallback(async (value: string) => {
+    setSmartRelayTightenAfterMinutes(value);
+    await updateAutoCoolingSetting('smart_relay_tighten_after_minutes', parseInt(value));
+  }, [updateAutoCoolingSetting]);
+
   const handleCoolerControllerChange = useCallback(async (value: string) => {
     setCoolerControllerId(value);
     await updateAutoCoolingSetting('cooler_controller_id', value);
@@ -552,6 +592,7 @@ export function useSettingsData() {
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
     pillCompEnabled, pillCompMaxCompensation,
     stallDetectionEnabled, stallBoostDegrees, overshootPreventionEnabled, aiAuditEnabled, sgTempCorrectionEnabled,
+    smartRelayEnabled, smartRelayCoolingOnlyBelow, smartRelayHeatingOnlyAbove, smartRelayMinHysteresis, smartRelayTightenAfterMinutes,
     lastAutoCoolingCheck, lastAdjustment,
     // Controllers & devices
     availableControllers, headerControllers, headerPillsData,
@@ -565,7 +606,10 @@ export function useSettingsData() {
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
     handlePillCompEnabledChange, handlePillCompMaxCompensationChange,
     handleStallDetectionEnabledChange, handleStallBoostDegreesChange,
-    handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange, handleCoolerControllerChange,
+    handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
+    handleSmartRelayEnabledChange, handleSmartRelayCoolingOnlyBelowChange, handleSmartRelayHeatingOnlyAboveChange,
+    handleSmartRelayMinHysteresisChange, handleSmartRelayTightenAfterMinutesChange,
+    handleCoolerControllerChange,
     handleFollowedControllerToggle,
     handleLogout, handleForceTvRefresh,
   };

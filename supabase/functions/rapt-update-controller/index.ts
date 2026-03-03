@@ -21,7 +21,7 @@ serve(async (req) => {
     if (!action || typeof action !== 'string') {
       throw new Error('Action is required');
     }
-    const ALLOWED_ACTIONS = ['setTargetTemperature', 'setPIDEnabled', 'setPID', 'setCoolingHysteresis'];
+    const ALLOWED_ACTIONS = ['setTargetTemperature', 'setPIDEnabled', 'setPID', 'setCoolingHysteresis', 'setHeatingHysteresis', 'setHeatingEnabled', 'setCoolingEnabled'];
     if (!ALLOWED_ACTIONS.includes(action)) {
       throw new Error(`Unknown action: ${action}. Allowed: ${ALLOWED_ACTIONS.join(', ')}`);
     }
@@ -38,9 +38,13 @@ serve(async (req) => {
       if (!value || typeof value !== 'object' || typeof value.proportionalGain !== 'number' || typeof value.integralTime !== 'number' || typeof value.derivativeTime !== 'number') {
         throw new Error('setPID requires proportionalGain, integralTime, and derivativeTime as numbers');
       }
-    } else if (action === 'setCoolingHysteresis') {
+    } else if (action === 'setCoolingHysteresis' || action === 'setHeatingHysteresis') {
       if (typeof value !== 'number' || value < 0.1 || value > 10) {
-        throw new Error('Cooling hysteresis must be a number between 0.1 and 10');
+        throw new Error('Hysteresis must be a number between 0.1 and 10');
+      }
+    } else if (action === 'setHeatingEnabled' || action === 'setCoolingEnabled') {
+      if (typeof value !== 'boolean') {
+        throw new Error(`${action} value must be a boolean`);
       }
     }
 
@@ -112,6 +116,24 @@ serve(async (req) => {
         endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingHysteresis';
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('hysteresis', value.toString());
+        break;
+
+      case 'setHeatingHysteresis':
+        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetHeatingHysteresis';
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('hysteresis', value.toString());
+        break;
+
+      case 'setHeatingEnabled':
+        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetHeatingEnabled';
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('enabled', value.toString());
+        break;
+
+      case 'setCoolingEnabled':
+        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingEnabled';
+        queryParams.append('temperatureControllerId', controllerId);
+        queryParams.append('enabled', value.toString());
         break;
       
       default:

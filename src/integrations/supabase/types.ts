@@ -178,6 +178,11 @@ export type Database = {
           pill_compensation_min_scale: number
           pill_compensation_rate_limit: number
           sg_temp_correction_enabled: boolean
+          smart_relay_cooling_only_below: number
+          smart_relay_enabled: boolean
+          smart_relay_heating_only_above: number
+          smart_relay_min_hysteresis: number
+          smart_relay_tighten_after_minutes: number
           stall_max_attenuation: number
           stall_min_attenuation: number
           stall_rate_threshold: number
@@ -206,6 +211,11 @@ export type Database = {
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           sg_temp_correction_enabled?: boolean
+          smart_relay_cooling_only_below?: number
+          smart_relay_enabled?: boolean
+          smart_relay_heating_only_above?: number
+          smart_relay_min_hysteresis?: number
+          smart_relay_tighten_after_minutes?: number
           stall_max_attenuation?: number
           stall_min_attenuation?: number
           stall_rate_threshold?: number
@@ -234,6 +244,11 @@ export type Database = {
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           sg_temp_correction_enabled?: boolean
+          smart_relay_cooling_only_below?: number
+          smart_relay_enabled?: boolean
+          smart_relay_heating_only_above?: number
+          smart_relay_min_hysteresis?: number
+          smart_relay_tighten_after_minutes?: number
           stall_max_attenuation?: number
           stall_min_attenuation?: number
           stall_rate_threshold?: number
@@ -1058,7 +1073,13 @@ export type Database = {
           name: string
           pill_temp: number | null
           pre_kick_cooling_hysteresis: number | null
+          pre_smart_cooling_enabled: boolean | null
+          pre_smart_cooling_hysteresis: number | null
+          pre_smart_heating_enabled: boolean | null
+          pre_smart_heating_hysteresis: number | null
           profile_target_temp: number | null
+          smart_relay_active: boolean
+          smart_relay_off_target_since: string | null
           target_temp: number | null
           updated_at: string
         }
@@ -1085,7 +1106,13 @@ export type Database = {
           name: string
           pill_temp?: number | null
           pre_kick_cooling_hysteresis?: number | null
+          pre_smart_cooling_enabled?: boolean | null
+          pre_smart_cooling_hysteresis?: number | null
+          pre_smart_heating_enabled?: boolean | null
+          pre_smart_heating_hysteresis?: number | null
           profile_target_temp?: number | null
+          smart_relay_active?: boolean
+          smart_relay_off_target_since?: string | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -1112,7 +1139,13 @@ export type Database = {
           name?: string
           pill_temp?: number | null
           pre_kick_cooling_hysteresis?: number | null
+          pre_smart_cooling_enabled?: boolean | null
+          pre_smart_cooling_hysteresis?: number | null
+          pre_smart_heating_enabled?: boolean | null
+          pre_smart_heating_hysteresis?: number | null
           profile_target_temp?: number | null
+          smart_relay_active?: boolean
+          smart_relay_off_target_since?: string | null
           target_temp?: number | null
           updated_at?: string
         }
