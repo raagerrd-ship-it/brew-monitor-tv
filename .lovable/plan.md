@@ -108,3 +108,17 @@ Nytt avsnitt "Smart Relay" med:
 - `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
 - `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
 - Nytt fält `pendingKickControllerId` på `CoolerContext` interface
+
+---
+
+## ✅ Web Push-notifieringar (2026-03-03)
+
+**Implementerat:**
+- `push_subscriptions` tabell med RLS (anyone can CRUD)
+- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
+- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
+- `public/push-sw.js` — service worker för push-event + notificationclick
+- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
+- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
+- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
+- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad
