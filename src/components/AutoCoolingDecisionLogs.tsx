@@ -926,6 +926,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                   ? ctrlTargetPid - ctrlTarget
                   : null;
 
+                // Compute display-consistent delta so that Profil − Δ + PI = Nytt mål always balances visually
+                // (avoids rounding discrepancies when each term is rounded independently)
+                const displayComp = actualTargetVal != null && ctrlTargetPid != null
+                  ? Math.round((actualTargetVal - ctrlTargetPid + (errCorr ?? 0)) * 10) / 10
+                  : comp;
+
                 return (
                   <React.Fragment key={i}>
                   <tr className={`border-b border-border/10 ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
@@ -1015,14 +1021,14 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     </td>
                     {/* Calc: Δ (delta/2 = compensation) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                      color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
+                      color: displayComp != null && Math.abs(displayComp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
                     }}>
-                      {comp != null ? (
-                        Math.abs(comp) > 0.01 ? (
+                    {displayComp != null ? (
+                        Math.abs(displayComp) > 0.01 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(comp))}°</span>
+                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(displayComp))}°</span>
                             </TooltipTrigger>
                              <TooltipContent side="top" className="text-[10px] max-w-[200px]">
                                <div className="space-y-0.5">
