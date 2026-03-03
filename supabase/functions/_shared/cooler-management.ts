@@ -278,6 +278,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     u => u.utilization != null && u.utilization < 0.01
   )
   if (allTanksZeroUtil && !previousWasKick) {
+    // If cooler relay is already off (0% util), no need to send another shutdown
+    const coolerAlreadyOff = coolerUtil != null && coolerUtil < 0.01
+    if (coolerAlreadyOff) {
+      log('COOLER_IDLE', 'info', `Alla tankar 0% util — kylare redan 0% util (relä av), skippar`)
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+      return adjustments
+    }
+
     // Cooldown: only idle once per 30 min to let new utilization data arrive
     const { data: lastIdleAdj } = await ctx.supabase
       .from('auto_cooling_adjustments')
