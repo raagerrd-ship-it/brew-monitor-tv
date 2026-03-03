@@ -163,7 +163,7 @@ function NotificationBellComponent() {
                 Rensa lästa
               </Button>
             )}
-            {isMobile && (
+            {("Notification" in window) && (
               <div className="flex items-center gap-2 ml-auto">
                 <span className="text-xs text-muted-foreground">Push</span>
                 <Switch
