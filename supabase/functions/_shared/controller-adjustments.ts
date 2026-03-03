@@ -462,7 +462,12 @@ async function runSmartRelay(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
     const actualTarget = parseFloat(String((fc as any).profile_target_temp ?? fc.target_temp ?? '20'))
-    const actualTemp = fc.pill_temp ?? fc.current_temp ?? actualTarget
+    // Use same fused actual_temp as PID pipeline (dual sensors → average, otherwise probe)
+    const hasDualSensors = pillCompSettings.enabled && fc.pill_temp != null
+    const probeTemp = fc.current_temp ?? fc.pill_temp ?? actualTarget
+    const actualTemp = hasDualSensors
+      ? ((fc.pill_temp! + (fc.current_temp ?? fc.pill_temp!)) / 2)
+      : probeTemp
     const diff = actualTarget - actualTemp
     const holdZone = Math.abs(diff) < 0.5
     const isSmartActive = (fc as any).smart_relay_active === true
