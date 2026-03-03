@@ -182,7 +182,6 @@ function NotificationBellComponent() {
                         setPushLoading(false);
                       }
                     } else {
-                      // Unsubscribe: remove push subscription
                       setPushLoading(true);
                       try {
                         const { getServiceWorkerRegistration } = await import("@/lib/web-push-registration");
@@ -196,13 +195,31 @@ function NotificationBellComponent() {
                         }
                         setPushEnabled(false);
                       } catch {
-                        // Keep current state on error
                       } finally {
                         setPushLoading(false);
                       }
                     }
                   }}
                 />
+                {pushEnabled && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground h-6 px-2"
+                    disabled={pushLoading}
+                    onClick={async () => {
+                      setPushLoading(true);
+                      try {
+                        await supabase.functions.invoke('send-push-notification', {
+                          body: { title: '🧪 Testnotis', body: 'Push fungerar!' },
+                        });
+                      } catch {}
+                      setPushLoading(false);
+                    }}
+                  >
+                    Test
+                  </Button>
+                )}
               </div>
             )}
           </DialogTitle>
