@@ -35,6 +35,7 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
 export async function subscribeToWebPush(vapidPublicKey: string): Promise<PushSubscription> {
   const registration = await getServiceWorkerRegistration();
 
+  // @ts-ignore - pushManager exists on ServiceWorkerRegistration in browsers
   let subscription = await registration.pushManager.getSubscription();
   if (subscription) return subscription;
 
@@ -49,6 +50,7 @@ export async function subscribeToWebPush(vapidPublicKey: string): Promise<PushSu
     return outputArray;
   };
 
+  // @ts-ignore - pushManager exists on ServiceWorkerRegistration in browsers
   subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
@@ -84,6 +86,7 @@ export async function autoRegisterWebPush(): Promise<void> {
     const deviceInfo = navigator.userAgent;
 
     // Upsert by endpoint
+    const subData = subscriptionJSON as unknown as Record<string, unknown>;
     const { data: existing } = await supabase
       .from('push_subscriptions')
       .select('id')
@@ -94,7 +97,7 @@ export async function autoRegisterWebPush(): Promise<void> {
       await supabase
         .from('push_subscriptions')
         .update({ 
-          subscription: subscriptionJSON, 
+          subscription: subData as any, 
           device_info: deviceInfo,
           last_used_at: new Date().toISOString() 
         })
@@ -102,11 +105,11 @@ export async function autoRegisterWebPush(): Promise<void> {
     } else {
       await supabase
         .from('push_subscriptions')
-        .insert({
+        .insert([{
           endpoint: subscriptionJSON.endpoint!,
-          subscription: subscriptionJSON,
+          subscription: subData as any,
           device_info: deviceInfo,
-        });
+        }]);
     }
 
     console.log('✅ Push subscription registered');
