@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
+import { Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart } from 'recharts';
 import { Loader2, Snowflake } from 'lucide-react';
 import { useMultiControllerTempData } from './hooks/useMultiControllerTempData';
-import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from './chartConfig';
+import { CHART_MARGINS, AXIS_CONFIG, TOOLTIP_STYLE } from './chartConfig';
 
 interface ControllerInfo {
   id: string;
@@ -32,9 +32,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
   const labelMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const c of controllers) {
-      map[`${c.id}_current`] = c.name;
-      map[`${c.id}_target`] = `${c.name} mål`;
-      map[`${c.id}_cooling`] = `${c.name} kylning`;
+      map[`${c.id}_cooling`] = `${c.name}`;
     }
     return map;
   }, [controllers]);
@@ -59,7 +57,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
     <div className="space-y-3">
       {/* Time range buttons */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Temperaturhistorik</span>
+        <span className="text-xs font-medium text-muted-foreground">Kylningsutnyttjande</span>
         <div className="flex gap-1">
           {(['3h', '24h'] as const).map(range => (
             <button
@@ -118,71 +116,28 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               minTickGap={AXIS_CONFIG.minTickGap}
             />
             <YAxis
-              yAxisId="temp"
-              domain={[minTemp, maxTemp]}
-              tick={AXIS_CONFIG.tick}
-              className="text-muted-foreground"
-              tickFormatter={(value) => `${value}°`}
-            />
-            <YAxis
-              yAxisId="cooling"
-              orientation="right"
               domain={[0, 100]}
               tick={AXIS_CONFIG.tick}
               className="text-muted-foreground"
               tickFormatter={(value) => `${value}%`}
-              width={35}
             />
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
-              formatter={(value: number, name: string) => {
-                if (name.endsWith('_cooling')) return [`${value}%`, labelMap[name] || name];
-                return [`${Number(value).toFixed(1)}°`, labelMap[name] || name];
-              }}
+              formatter={(value: number, name: string) => [`${value}%`, labelMap[name] || name]}
               labelFormatter={(label) => `Tid: ${label}`}
             />
 
-            {/* Cooling areas — only for glycol coolers */}
-            {controllers.filter(c => visibleIds.has(c.id) && c.isGlycolCooler).map(ctrl => (
+            {controllers.filter(c => visibleIds.has(c.id)).map(ctrl => (
               <Area
                 key={`${ctrl.id}_cooling`}
-                yAxisId="cooling"
                 type="stepAfter"
                 dataKey={`${ctrl.id}_cooling`}
                 stroke={ctrl.color}
-                strokeWidth={0}
+                strokeWidth={1.5}
                 fill={ctrl.color}
-                fillOpacity={0.12}
+                fillOpacity={0.15}
                 dot={false}
                 name={`${ctrl.id}_cooling`}
-                legendType="none"
-              />
-            ))}
-            {/* Temperature lines (not areas, to avoid stacking) */}
-            {controllers.filter(c => visibleIds.has(c.id)).map(ctrl => (
-              <Line
-                key={`${ctrl.id}_current`}
-                yAxisId="temp"
-                type={LINE_CONFIG.current.type}
-                dataKey={`${ctrl.id}_current`}
-                stroke={ctrl.color}
-                strokeWidth={LINE_CONFIG.current.strokeWidth}
-                dot={false}
-                name={`${ctrl.id}_current`}
-              />
-            ))}
-            {controllers.filter(c => visibleIds.has(c.id)).map(ctrl => (
-              <Line
-                key={`${ctrl.id}_target`}
-                yAxisId="temp"
-                type={LINE_CONFIG.target.type}
-                dataKey={`${ctrl.id}_target`}
-                stroke={ctrl.color}
-                strokeWidth={1}
-                strokeDasharray={LINE_CONFIG.target.strokeDasharray}
-                dot={false}
-                name={`${ctrl.id}_target`}
-                opacity={0.4}
               />
             ))}
           </ComposedChart>
