@@ -47,10 +47,21 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
       const hoursAgo = timeRange === '3h' ? 3 : 24;
       const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
 
-      // Fetch cooling_enabled history from temp_controller_history for all controllers
+      // Fetch controller hysteresis values for relay inference
+      const { data: controllerInfo } = await supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, cooling_hysteresis')
+        .in('controller_id', controllers.map(c => c.id));
+
+      const hysteresisMap = new Map<string, number>();
+      for (const c of controllerInfo ?? []) {
+        hysteresisMap.set(c.controller_id, parseFloat(String(c.cooling_hysteresis ?? 0.2)));
+      }
+
+      // Fetch temp history for all controllers
       const { data: history, error } = await supabase
         .from('temp_controller_history')
-        .select('controller_id, recorded_at, cooling_enabled')
+        .select('controller_id, recorded_at, current_temp, target_temp, cooling_enabled')
         .gte('recorded_at', startTime.toISOString())
         .lte('recorded_at', now.toISOString())
         .in('controller_id', controllers.map(c => c.id))
@@ -63,13 +74,17 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
         return;
       }
 
-      // Group records into time buckets (5-min windows) and calculate % of cooling_enabled=true
-      const bucketSizeMs = 5 * 60 * 1000; // 5 minutes
+      // Group into 5-min buckets, infer relay state from temp vs target+hysteresis
+      const bucketSizeMs = 5 * 60 * 1000;
       const bucketMap = new Map<number, MultiChartDataPoint>();
-      // Track counts per bucket per controller: { true: n, total: n }
       const countsMap = new Map<string, { on: number; total: number }>();
 
       for (const record of history) {
+        if (!record.cooling_enabled) {
+          // Cooling mode disabled on this controller — relay definitely off
+          continue;
+        }
+
         const ts = new Date(record.recorded_at).getTime();
         const bucketTs = Math.floor(ts / bucketSizeMs) * bucketSizeMs;
         const key = `${bucketTs}_${record.controller_id}`;
@@ -79,7 +94,15 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
         }
         const counts = countsMap.get(key)!;
         counts.total++;
-        if (record.cooling_enabled) counts.on++;
+
+        // Infer relay state: relay is ON when current_temp > target_temp + hysteresis
+        // (RAPT turns relay ON at target+hysteresis, OFF at target)
+        const hysteresis = hysteresisMap.get(record.controller_id) ?? 0.2;
+        const currentTemp = parseFloat(String(record.current_temp));
+        const targetTemp = parseFloat(String(record.target_temp));
+        const relayOn = currentTemp > targetTemp;
+        
+        if (relayOn) counts.on++;
 
         if (!bucketMap.has(bucketTs)) {
           bucketMap.set(bucketTs, {
@@ -91,8 +114,9 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
 
       // Calculate percentages
       for (const [key, counts] of countsMap) {
-        const [bucketTsStr, controllerId] = [key.substring(0, key.indexOf('_')), key.substring(key.indexOf('_') + 1)];
-        const bucketTs = parseInt(bucketTsStr);
+        const sepIdx = key.indexOf('_');
+        const bucketTs = parseInt(key.substring(0, sepIdx));
+        const controllerId = key.substring(sepIdx + 1);
         const point = bucketMap.get(bucketTs);
         if (point) {
           point[`${controllerId}_cooling`] = Math.round((counts.on / counts.total) * 100);
