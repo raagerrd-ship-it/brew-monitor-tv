@@ -271,7 +271,7 @@ export function AutoCoolingDecisionLogs() {
       }
 
       unified.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setEntries(unified.slice(0, 30));
+      setEntries(unified.slice(0, 100));
     } catch (error) {
       console.error('Error loading logs:', error);
     } finally {
