@@ -17,7 +17,7 @@ interface CombinedControllerChartProps {
 
 export function CombinedControllerChart({ controllers }: CombinedControllerChartProps) {
   const [visibleIds, setVisibleIds] = useState<Set<string>>(() => new Set(controllers.map(c => c.id)));
-  const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useMultiControllerTempData({ controllers });
+  const { data, loading, timeRange, setTimeRange } = useMultiControllerTempData({ controllers });
 
   const toggleController = (id: string) => {
     setVisibleIds(prev => {
