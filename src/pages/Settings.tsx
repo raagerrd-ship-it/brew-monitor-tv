@@ -26,7 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot, Gauge, Zap } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot, Gauge } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
@@ -522,80 +522,8 @@ export default function Settings() {
                   </div>
                   <Switch checked={settings.sgTempCorrectionEnabled} onCheckedChange={settings.handleSgTempCorrectionEnabledChange} />
                 </div>
-                <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <Zap className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-medium">Smart Relay</p>
-                      <p className="text-[11px] text-muted-foreground">Styr reläer automatiskt baserat på riktning + adaptiv hysteres</p>
-                    </div>
-                  </div>
-                  <Switch checked={settings.smartRelayEnabled} onCheckedChange={settings.handleSmartRelayEnabledChange} />
-                </div>
               </div>
             </SettingsSection>
-
-            {/* Smart Relay Settings (expanded when enabled) */}
-            {settings.smartRelayEnabled && (
-              <SettingsSection icon={Zap} title="Smart Relay-inställningar" description="Temperaturband och adaptiv hysteres per tank-controller" variant="muted" collapsible defaultOpen={false}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Kylning under (°C)</label>
-                      <Select value={settings.smartRelayCoolingOnlyBelow} onValueChange={settings.handleSmartRelayCoolingOnlyBelowChange}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          {[5, 8, 10, 12, 15, 18].map(v => (
-                            <SelectItem key={v} value={v.toString()}>{v}°C</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">Under denna temp: bara kylning</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Värme över (°C)</label>
-                      <Select value={settings.smartRelayHeatingOnlyAbove} onValueChange={settings.handleSmartRelayHeatingOnlyAboveChange}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          {[15, 18, 20, 22, 25, 28].map(v => (
-                            <SelectItem key={v} value={v.toString()}>{v}°C</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">Över denna temp: bara värme</p>
-                    </div>
-                  </div>
-                  <SettingsDivider />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Min hysteres (°C)</label>
-                      <Select value={settings.smartRelayMinHysteresis} onValueChange={settings.handleSmartRelayMinHysteresisChange}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          {['0.1', '0.2', '0.3', '0.5', '0.8', '1.0'].map(v => (
-                            <SelectItem key={v} value={v}>{v}°C</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">Lägsta tillåtna hysteres</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Stramar åt efter (min)</label>
-                      <Select value={settings.smartRelayTightenAfterMinutes} onValueChange={settings.handleSmartRelayTightenAfterMinutesChange}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-card border-border z-50">
-                          {[10, 15, 20, 30, 45, 60].map(v => (
-                            <SelectItem key={v} value={v.toString()}>{v} min</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">Minuter off-target innan hysteres minskas</p>
-                    </div>
-                  </div>
-                </div>
-              </SettingsSection>
-            )}
 
             {/* Live-status */}
             {settings.autoCoolingEnabled && settings.coolerControllerId && (

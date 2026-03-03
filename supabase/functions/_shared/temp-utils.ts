@@ -223,81 +223,8 @@ export async function setCoolerHysteresis(
   }
 }
 
-/**
- * Set the heating hysteresis on a RAPT controller via the edge function.
- */
-export async function setHeatingHysteresis(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  controllerId: string,
-  hysteresis: number,
-  timeoutMs: number = 10000,
-): Promise<boolean> {
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
-      body: JSON.stringify({ controllerId, action: 'setHeatingHysteresis', value: hysteresis }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!response.ok) { console.error(`Failed to set heating hysteresis for ${controllerId}: ${response.status}`); return false }
-    const data = await response.json()
-    return data?.success === true
-  } catch (error) {
-    console.error(`Error setting heating hysteresis for ${controllerId}: ${String(error)}`)
-    return false
-  }
-}
-
-/**
- * Set heating relay enabled/disabled on a RAPT controller.
- */
-export async function setHeatingEnabled(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  controllerId: string,
-  enabled: boolean,
-  timeoutMs: number = 10000,
-): Promise<boolean> {
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
-      body: JSON.stringify({ controllerId, action: 'setHeatingEnabled', value: enabled }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!response.ok) { console.error(`Failed to set heating enabled for ${controllerId}: ${response.status}`); return false }
-    const data = await response.json()
-    return data?.success === true
-  } catch (error) {
-    console.error(`Error setting heating enabled for ${controllerId}: ${String(error)}`)
-    return false
-  }
-}
-
-/**
- * Set cooling relay enabled/disabled on a RAPT controller.
- */
-export async function setCoolingEnabled(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  controllerId: string,
-  enabled: boolean,
-  timeoutMs: number = 10000,
-): Promise<boolean> {
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
-      body: JSON.stringify({ controllerId, action: 'setCoolingEnabled', value: enabled }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!response.ok) { console.error(`Failed to set cooling enabled for ${controllerId}: ${response.status}`); return false }
-    const data = await response.json()
-    return data?.success === true
-  } catch (error) {
-    console.error(`Error setting cooling enabled for ${controllerId}: ${String(error)}`)
-    return false
+// setHeatingHysteresis, setHeatingEnabled, setCoolingEnabled removed
+// — RAPT API does not support these endpoints for TemperatureControllers (404).
   }
 }
 
