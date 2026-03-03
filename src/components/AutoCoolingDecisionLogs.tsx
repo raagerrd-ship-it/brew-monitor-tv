@@ -439,6 +439,9 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   const noCooling = entries.find(d => d.step === 'COOLING_CAPABILITY');
   const noConfig = entries.find(d => d.step === 'COOLER_CONFIG');
   const utilEntries = entries.filter(d => d.step === 'COOLING_UTIL');
+  const hystKick = entries.find(d => d.step === 'HYSTERESIS_KICK');
+  const hystKickNoop = entries.find(d => d.step === 'HYSTERESIS_KICK_NOOP');
+  const minMargin = entries.find(d => d.step === 'MIN_MARGIN');
 
   // Error/skip states
   if (noConfig) return <div className="text-[11px] text-muted-foreground flex items-center gap-2"><XCircle className="h-3 w-3 text-red-400" />{noConfig.message}</div>;
@@ -692,6 +695,39 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             <span className="font-mono">{utilLearn.message.replace(/.*→\s*/, '').trim()}</span>
           </span>
         )}
+        {minMargin && (() => {
+          const mm = minMargin.details || {};
+          const oldVal = mm.old_value as number;
+          const newVal = mm.new_value as number;
+          return (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+              <GraduationCap className="h-2.5 w-2.5" />
+              Min eff
+              {oldVal != null && newVal != null ? (
+                <span className="font-mono">{oldVal.toFixed(2)}° → {newVal.toFixed(2)}°</span>
+              ) : (
+                <span className="font-mono">{minMargin.message.replace(/^.*:/, '').trim()}</span>
+              )}
+            </span>
+          );
+        })()}
+        {hystKick && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px]">
+            <Zap className="h-2.5 w-2.5" />
+            Hyst-kick
+          </span>
+        )}
+        {hystKickNoop && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] cursor-help">
+                <Info className="h-2.5 w-2.5" />
+                Hyst-kick ej nödvändig
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">{hystKickNoop.message}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
       {/* Show relay-aware no-op reason when OK */}
       {isOk && coolerOk?.message && (
@@ -750,7 +786,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     d.step === 'RATE_LIMIT' || d.step === 'DEMAND_GUARD' ||
     d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
     d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN' ||
-    d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN'
+    d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN' || d.step === 'MIN_MARGIN' ||
+    d.step === 'HYSTERESIS_KICK' || d.step === 'HYSTERESIS_KICK_NOOP'
   );
   const smartRelayEntries = decisions.filter(d =>
     d.step === 'SMART_RELAY' || d.step === 'SMART_RELAY_TIGHTEN' || d.step === 'SMART_RELAY_RESTORE' || d.step === 'SMART_RELAY_STATUS'
