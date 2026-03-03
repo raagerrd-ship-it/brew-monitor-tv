@@ -260,7 +260,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         log('HYSTERESIS_COOLDOWN', 'info', `Hysteres-kick cooldown — ${Math.round((kickCooldownMs - timeSinceLastKick) / 60000)} min kvar`)
       } else {
         // Kick target = 1°C below minimum allowed → clearly signals automation is active
-        const kickHysteresis = 0.3
+        const kickTarget = round1(coolerMinTemp - 1)
         const kickTarget = round1(coolerMinTemp - 1)
         // Guard: skip if current target is already at or below kick target (no-op kick)
         if (currentCoolerTarget <= kickTarget) {
