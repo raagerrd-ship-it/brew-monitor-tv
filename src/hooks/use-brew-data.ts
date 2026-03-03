@@ -769,12 +769,13 @@ export function useBrewData(): UseBrewDataReturn {
     loadAllData();
   }, [loadAllData]);
 
-  // TV mode: polling fallback for fermentation session changes
-  // Realtime can silently drop on Chromecast hardware, so poll every 60s
+  // TV mode: polling fallback for fermentation session changes AND RAPT data
+  // Realtime can silently drop on Chromecast hardware, so poll periodically
   useEffect(() => {
     if (!isTvMode) return;
 
     const lastSessionHash = { current: '' };
+    const lastRaptHash = { current: '' };
 
     const checkSessions = async () => {
       try {
@@ -786,7 +787,6 @@ export function useBrewData(): UseBrewDataReturn {
         const hash = JSON.stringify(data || []);
         if (hash !== lastSessionHash.current) {
           if (lastSessionHash.current !== '') {
-            // Session changed — reload brews to get updated preloadedSession
             console.log('[TV] Fermentation session change detected via polling, reloading...');
             loadBrews();
           }
@@ -797,12 +797,40 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
+    // Poll RAPT pills + controllers to keep pill.last_update fresh
+    // Without this, pill becomes "stale" after 30min when realtime drops,
+    // causing TempStat to fall back to controller temp and hide PID/span bars
+    const checkRaptData = async () => {
+      try {
+        const raptData = await loadRaptDataInternal();
+        const hash = JSON.stringify(raptData.pills.map(p => `${p.pill_id}:${p.last_update}`))
+          + JSON.stringify(raptData.controllers.map(c => `${c.controller_id}:${c.current_temp}:${c.target_temp}:${c.profile_target_temp}`));
+        
+        if (hash !== lastRaptHash.current) {
+          if (lastRaptHash.current !== '') {
+            console.log('[TV] RAPT data change detected via polling, updating...');
+            setPills(raptData.pills);
+            setControllers(raptData.controllers);
+            setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
+          }
+          lastRaptHash.current = hash;
+        }
+      } catch (e) {
+        console.error('[TV] RAPT poll error:', e);
+      }
+    };
+
     // Initial hash capture
     checkSessions();
+    checkRaptData();
 
-    const intervalId = setInterval(checkSessions, 300_000); // 5 minutes
-    return () => clearInterval(intervalId);
-  }, [isTvMode, loadBrews]);
+    const sessionInterval = setInterval(checkSessions, 300_000); // 5 minutes
+    const raptInterval = setInterval(checkRaptData, 120_000); // 2 minutes
+    return () => {
+      clearInterval(sessionInterval);
+      clearInterval(raptInterval);
+    };
+  }, [isTvMode, loadBrews, loadRaptDataInternal]);
 
   return {
     brews,
