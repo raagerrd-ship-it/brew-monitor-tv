@@ -142,8 +142,8 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               labelFormatter={(label) => `Tid: ${label}`}
             />
 
-            {/* Render cooling areas + temp lines per visible controller */}
-            {controllers.filter(c => visibleIds.has(c.id)).map(ctrl => (
+            {/* Cooling areas — only for glycol coolers */}
+            {controllers.filter(c => visibleIds.has(c.id) && c.isGlycolCooler).map(ctrl => (
               <Area
                 key={`${ctrl.id}_cooling`}
                 yAxisId="cooling"
@@ -152,22 +152,21 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                 stroke={ctrl.color}
                 strokeWidth={0}
                 fill={ctrl.color}
-                fillOpacity={0.1}
+                fillOpacity={0.12}
                 dot={false}
                 name={`${ctrl.id}_cooling`}
                 legendType="none"
               />
             ))}
+            {/* Temperature lines (not areas, to avoid stacking) */}
             {controllers.filter(c => visibleIds.has(c.id)).map(ctrl => (
-              <Area
+              <Line
                 key={`${ctrl.id}_current`}
                 yAxisId="temp"
                 type={LINE_CONFIG.current.type}
                 dataKey={`${ctrl.id}_current`}
                 stroke={ctrl.color}
                 strokeWidth={LINE_CONFIG.current.strokeWidth}
-                fill={ctrl.color}
-                fillOpacity={0.06}
                 dot={false}
                 name={`${ctrl.id}_current`}
               />
@@ -183,7 +182,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                 strokeDasharray={LINE_CONFIG.target.strokeDasharray}
                 dot={false}
                 name={`${ctrl.id}_target`}
-                opacity={0.5}
+                opacity={0.4}
               />
             ))}
           </ComposedChart>
