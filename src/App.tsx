@@ -52,6 +52,15 @@ function useGlobalErrorHandler() {
 function AppContent() {
   useGlobalErrorHandler();
   const { isTvMode } = useTvMode();
+
+  // Auto-register Web Push if permission already granted
+  useEffect(() => {
+    if (!isTvMode) {
+      import("@/lib/web-push-registration").then(({ autoRegisterWebPush }) => {
+        autoRegisterWebPush().catch(() => {});
+      });
+    }
+  }, [isTvMode]);
   
   return (
     <ExternalAuthProvider>

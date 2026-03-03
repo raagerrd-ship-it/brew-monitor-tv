@@ -38,4 +38,26 @@ export async function insertNotification(
   });
 
   console.log(`🔔 Notification: [${opts.type}] ${opts.title}`);
+
+  // Send Web Push notification to all subscribed devices
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (supabaseUrl && anonKey) {
+      await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          title: opts.title,
+          body: opts.body,
+          data: { url: "/" },
+        }),
+      });
+    }
+  } catch (pushError) {
+    console.error("Failed to send push notification:", pushError);
+  }
 }
