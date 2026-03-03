@@ -740,6 +740,17 @@ serve(async (req) => {
             outage_start: lastSuccess, outage_end: now.toISOString(), duration_seconds: Math.round(gap)
           });
         }
+        // Notify user if RAPT has been down >15 minutes
+        const fifteenMinutes = 15 * 60;
+        if (raptFailed && gap >= fifteenMinutes) {
+          const minutes = Math.round(gap / 60);
+          const { insertNotification } = await import('../_shared/notifications.ts');
+          await insertNotification(supabase, {
+            type: 'rapt_api_degraded',
+            title: 'RAPT API otillgängligt',
+            body: `RAPT har inte svarat på ${minutes} minuter. Automationen kör i degraderat läge med cachad data.`,
+          });
+        }
       }
       // Only mark successful if RAPT actually synced
       if (syncSettingsRow?.id && !raptFailed) {
