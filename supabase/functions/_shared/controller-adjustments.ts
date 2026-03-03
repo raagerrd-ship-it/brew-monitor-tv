@@ -489,6 +489,40 @@ async function runSmartRelay(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
+    // Log per-controller status with original + current state
+    const preHeat = (fc as any).pre_smart_heating_enabled
+    const preCool = (fc as any).pre_smart_cooling_enabled
+    const preHeatHyst = (fc as any).pre_smart_heating_hysteresis
+    const preCoolHyst = (fc as any).pre_smart_cooling_hysteresis
+    const offTargetSinceVal: string | null = (fc as any).smart_relay_off_target_since
+    const minutesOffTarget = offTargetSinceVal ? (Date.now() - new Date(offTargetSinceVal).getTime()) / 60000 : null
+
+    log('SMART_RELAY_STATUS', 'info', `Controller: ${fc.name}`, {
+      controller_id: fc.controller_id,
+      name: fc.name,
+      target: actualTarget,
+      actual: actualTemp,
+      diff: round1(diff),
+      hold_zone: holdZone,
+      direction: holdZone ? 'hold' : (diff < 0 ? 'cooling' : 'heating'),
+      // Original (pre-smart) values
+      orig_heating: preHeat ?? fc.heating_enabled,
+      orig_cooling: preCool ?? fc.cooling_enabled,
+      orig_heat_hyst: preHeatHyst ?? fc.heating_hysteresis,
+      orig_cool_hyst: preCoolHyst ?? fc.cooling_hysteresis,
+      // Current values
+      cur_heating: fc.heating_enabled,
+      cur_cooling: fc.cooling_enabled,
+      cur_heat_hyst: fc.heating_hysteresis,
+      cur_cool_hyst: fc.cooling_hysteresis,
+      // Desired
+      want_heating: wantHeating,
+      want_cooling: wantCooling,
+      // Off-target tracking
+      off_target_minutes: minutesOffTarget != null ? Math.round(minutesOffTarget) : null,
+      smart_active: isSmartActive,
+    })
+
     // Save original values before first modification
     if (!isSmartActive) {
       await supabase.from('rapt_temp_controllers').update({
