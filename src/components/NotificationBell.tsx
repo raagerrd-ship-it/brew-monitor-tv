@@ -200,7 +200,7 @@ function NotificationBellComponent() {
                         setPushLoading(false);
                       }
                     }
-                  }
+                  }}
                 />
               </div>
             )}
