@@ -620,7 +620,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
               <CheckCircle2 className="h-2.5 w-2.5" />OK
               {(() => {
-                const diffMatch = coolerOk.message.match(/\(([0-9.]+)°C diff\)/);
+                const diffMatch = coolerOk.message.match(/Ändring ([0-9.]+)°C/);
                 return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
               })()}
             </span>
@@ -633,7 +633,9 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
           return (
             <Tooltip>
               <TooltipTrigger asChild>{badge}</TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono">{historyLines}</TooltipContent>
+              <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono max-w-[300px]">
+                {isOk && coolerOk?.message ? `${coolerOk.message}\n\n` : ''}{historyLines}
+              </TooltipContent>
             </Tooltip>
           );
         })()}
@@ -671,6 +673,13 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
           </span>
         )}
       </div>
+      {/* Show relay-aware no-op reason when OK */}
+      {isOk && coolerOk?.message && (
+        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+          <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-green-500/60" />
+          <span className="break-words">{coolerOk.message}</span>
+        </div>
+      )}
     </div>
   );
 }
