@@ -22,7 +22,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const options: NotificationOptions = {
+  const options = {
     body: data.body,
     icon: data.icon || '/brew-icon.png',
     badge: data.badge || '/brew-icon.png',
@@ -30,7 +30,7 @@ self.addEventListener('push', (event) => {
     vibrate: [200, 100, 200],
     tag: data.tag || 'brew-notification',
     renotify: true,
-  };
+  } as NotificationOptions & { vibrate?: number[]; renotify?: boolean };
 
   event.waitUntil(
     self.registration.showNotification(data.title, options)
