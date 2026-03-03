@@ -420,6 +420,20 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   );
 }
 
+// --- Cooler Sub-Section (always-visible labeled row) ---
+
+function CoolerSubSection({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 text-[11px]">
+      <div className="flex items-center gap-1 text-muted-foreground min-w-[100px] shrink-0 pt-0.5">
+        {icon}
+        <span className="font-medium text-[10px] uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="flex-1 flex flex-wrap items-center gap-1">{children}</div>
+    </div>
+  );
+}
+
 // --- Cooler Decision View ---
 
 function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[] }) {
@@ -596,146 +610,154 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
         </div>
       )}
 
-      {/* Row 3: Proactive look-ahead */}
-      {proactive && (
-        <div className="flex items-center gap-2 text-[10px]">
-          <Info className="h-2.5 w-2.5 text-blue-400" />
-          <span style={{ color: 'hsl(210 80% 70%)' }}>{proactive.message}</span>
-        </div>
-      )}
+      {/* Sub-sections — always visible */}
+      <div className="space-y-1 pt-1 border-t border-border/20">
 
-      {/* Row 3: Decision + Learning — compact card */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border/20">
-        {/* Decision outcome badge with recent history tooltip */}
-        {(() => {
-          const historyLines = recentCoolerAdjs.length > 0
-            ? recentCoolerAdjs.map(a => {
-                const time = new Date(a.created_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-                return `${time}: ${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
-              }).join('\n')
-            : 'Inga justeringar ännu';
-
-          const badge = isAdjusted ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium cursor-help">
-              <Wrench className="h-2.5 w-2.5" />
-              {(() => {
-                const adjDet = adjustment.details || {};
-                const oldT = adjDet.old_target as number;
-                const newT = adjDet.new_target as number;
-                return oldT != null && newT != null
-                  ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
-                  : <span>{adjustment.message}</span>;
-              })()}
-            </span>
-          ) : isDemandGuarded ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
-              <ShieldAlert className="h-2.5 w-2.5" />Demand guard
-            </span>
-          ) : isBlocked ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
-              <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
-            </span>
-          ) : isRateLimited ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
-              <Clock className="h-2.5 w-2.5" />Rate-limit
-            </span>
-          ) : isOk ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
-              <CheckCircle2 className="h-2.5 w-2.5" />OK
-              {(() => {
-                const diffMatch = coolerOk.message.match(/Ändring ([0-9.]+)°C/);
-                return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
-              })()}
-            </span>
+        {/* ── Proaktiv ── */}
+        <CoolerSubSection label="Proaktiv" icon={<Info className="h-2.5 w-2.5 text-blue-400" />}>
+          {proactive ? (
+            <span style={{ color: 'hsl(210 80% 70%)' }}>{proactive.message}</span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
-              <Info className="h-2.5 w-2.5" />Ingen åtgärd
-            </span>
-          );
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </CoolerSubSection>
 
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>{badge}</TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono max-w-[300px]">
-                {isOk && coolerOk?.message ? `${coolerOk.message}\n\n` : ''}{historyLines}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })()}
+        {/* ── Beslut ── */}
+        <CoolerSubSection label="Beslut" icon={<Wrench className="h-2.5 w-2.5" />}>
+          {(() => {
+            const historyLines = recentCoolerAdjs.length > 0
+              ? recentCoolerAdjs.map(a => {
+                  const time = new Date(a.created_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                  return `${time}: ${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
+                }).join('\n')
+              : 'Inga justeringar ännu';
 
-        {/* Learning badges (inline, subtle) */}
-        {marginLearn && (() => {
-          const ml = marginLearn.details || {};
-          const oldVal = ml.old_value as number;
-          const newVal = ml.new_value as number;
-          const direction = (oldVal != null && newVal != null && newVal < oldVal) ? '↓' : '↑';
-          return (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
-              <GraduationCap className="h-2.5 w-2.5" />
-              Marginal
-              {oldVal != null && newVal != null ? (
-                <span className="font-mono">{oldVal.toFixed(2)}° {direction} {newVal.toFixed(2)}°</span>
-              ) : (
-                <span>{marginLearn.message.replace(/.*tightening:|.*widening:|.*nudging:/, '').trim()}</span>
-              )}
-            </span>
-          );
-        })()}
-        {rateLearn && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
-            <GraduationCap className="h-2.5 w-2.5" />
-            Rate
-            <span className="font-mono">{rateLearn.message.replace(/.*→\s*/, '').trim()}</span>
-          </span>
-        )}
-        {utilLearn && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
-            <GraduationCap className="h-2.5 w-2.5" />
-            Util
-            <span className="font-mono">{utilLearn.message.replace(/.*→\s*/, '').trim()}</span>
-          </span>
-        )}
-        {minMargin && (() => {
-          const mm = minMargin.details || {};
-          const oldVal = mm.old_value as number;
-          const newVal = mm.new_value as number;
-          return (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
-              <GraduationCap className="h-2.5 w-2.5" />
-              Min eff
-              {oldVal != null && newVal != null ? (
-                <span className="font-mono">{oldVal.toFixed(2)}° → {newVal.toFixed(2)}°</span>
-              ) : (
-                <span className="font-mono">{minMargin.message.replace(/^.*:/, '').trim()}</span>
-              )}
-            </span>
-          );
-        })()}
-        {hystKick && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px]">
-            <Zap className="h-2.5 w-2.5" />
-            Hyst-kick
-          </span>
-        )}
-        {hystKickNoop && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] cursor-help">
-                <Info className="h-2.5 w-2.5" />
-                Hyst-kick ej nödvändig
+            const badge = isAdjusted ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium cursor-help">
+                <Wrench className="h-2.5 w-2.5" />
+                {(() => {
+                  const adjDet = adjustment.details || {};
+                  const oldT = adjDet.old_target as number;
+                  const newT = adjDet.new_target as number;
+                  return oldT != null && newT != null
+                    ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
+                    : <span>{adjustment.message}</span>;
+                })()}
               </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">{hystKickNoop.message}</TooltipContent>
-          </Tooltip>
-        )}
+            ) : isDemandGuarded ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
+                <ShieldAlert className="h-2.5 w-2.5" />Demand guard
+              </span>
+            ) : isBlocked ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
+                <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
+              </span>
+            ) : isRateLimited ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Clock className="h-2.5 w-2.5" />Rate-limit
+              </span>
+            ) : isOk ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
+                <CheckCircle2 className="h-2.5 w-2.5" />OK
+                {(() => {
+                  const diffMatch = coolerOk.message.match(/Ändring ([0-9.]+)°C/);
+                  return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
+                })()}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Info className="h-2.5 w-2.5" />Ingen åtgärd
+              </span>
+            );
+
+            return (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono max-w-[300px]">
+                    {isOk && coolerOk?.message ? `${coolerOk.message}\n\n` : ''}{historyLines}
+                  </TooltipContent>
+                </Tooltip>
+                {isOk && coolerOk?.message && (
+                  <span className="text-muted-foreground/70 text-[10px] ml-1 break-words">{coolerOk.message}</span>
+                )}
+              </>
+            );
+          })()}
+        </CoolerSubSection>
+
+        {/* ── Hysteres-kick ── */}
+        <CoolerSubSection label="Hysteres-kick" icon={<Zap className="h-2.5 w-2.5" />}>
+          {hystKick ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px]">
+              <Zap className="h-2.5 w-2.5" />
+              Aktiverad
+            </span>
+          ) : hystKickNoop ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground/50 cursor-help">Ej nödvändig</span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">{hystKickNoop.message}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </CoolerSubSection>
+
+        {/* ── Inlärning ── */}
+        <CoolerSubSection label="Inlärning" icon={<GraduationCap className="h-2.5 w-2.5 text-purple-400" />}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {marginLearn ? (() => {
+              const ml = marginLearn.details || {};
+              const oldVal = ml.old_value as number;
+              const newVal = ml.new_value as number;
+              const direction = (oldVal != null && newVal != null && newVal < oldVal) ? '↓' : '↑';
+              return (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+                  Marginal
+                  {oldVal != null && newVal != null ? (
+                    <span className="font-mono">{oldVal.toFixed(2)}° {direction} {newVal.toFixed(2)}°</span>
+                  ) : (
+                    <span>{marginLearn.message.replace(/.*tightening:|.*widening:|.*nudging:/, '').trim()}</span>
+                  )}
+                </span>
+              );
+            })() : null}
+            {rateLearn ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+                Rate
+                <span className="font-mono">{rateLearn.message.replace(/.*→\s*/, '').trim()}</span>
+              </span>
+            ) : null}
+            {utilLearn ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+                Util
+                <span className="font-mono">{utilLearn.message.replace(/.*→\s*/, '').trim()}</span>
+              </span>
+            ) : null}
+            {minMargin ? (() => {
+              const mm = minMargin.details || {};
+              const oldVal = mm.old_value as number;
+              const newVal = mm.new_value as number;
+              return (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
+                  Min eff
+                  {oldVal != null && newVal != null ? (
+                    <span className="font-mono">{oldVal.toFixed(2)}° → {newVal.toFixed(2)}°</span>
+                  ) : (
+                    <span className="font-mono">{minMargin.message.replace(/^.*:/, '').trim()}</span>
+                  )}
+                </span>
+              );
+            })() : null}
+            {!marginLearn && !rateLearn && !utilLearn && !minMargin && (
+              <span className="text-muted-foreground/50">—</span>
+            )}
+          </div>
+        </CoolerSubSection>
+
       </div>
-      {/* Show relay-aware no-op reason when OK */}
-      {isOk && coolerOk?.message && (
-        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
-          <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-green-500/60" />
-          <span className="break-words">{coolerOk.message}</span>
-        </div>
-      )}
     </div>
   );
 }
