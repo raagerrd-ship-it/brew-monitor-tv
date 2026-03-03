@@ -343,17 +343,15 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
-  const hasSmartRelay = false;
-  const smartRelayBadge = null;
+  // Header badge
+  let headerBadge: React.ReactNode;
 
-  if (adjs.length === 0 && !hasSmartRelay) {
+  if (adjs.length === 0) {
     headerBadge = (
       <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
         <Gauge className="h-2.5 w-2.5 mr-0.5" />System
       </Badge>
     );
-  } else if (adjs.length === 0 && hasSmartRelay) {
-    headerBadge = smartRelayBadge;
   } else if (hasPidAdj && hasGlykolAdj) {
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
     const glykolAdj = adjs.find(a => a.category === 'glykol')!;
@@ -363,18 +361,12 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
       <div className="flex gap-1 items-center flex-wrap">
         {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
-        {smartRelayBadge}
       </div>
     );
   } else {
     const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
     const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
-    headerBadge = hasSmartRelay ? (
-      <div className="flex gap-1 items-center flex-wrap">
-        {getCategoryBadge(primaryAdj!.category, adjStr, pidColor)}
-        {smartRelayBadge}
-      </div>
-    ) : getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
+    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
   }
 
   return (
