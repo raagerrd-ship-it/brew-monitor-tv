@@ -242,6 +242,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       .update({ hysteresis_kick_active: false, pre_kick_cooling_hysteresis: null })
       .eq('controller_id', coolerController.controller_id)
     // Fall through to the normal "apply if different" logic below
+  } else if (currentCoolerTarget <= coolerMinTemp - 0.5) {
+    // Safety: if target is still at/below kick level (minTemp - 1°C) but flag was cleared,
+    // RAPT may not have applied the revert. Force it back to the calculated target now.
+    log('KICK_STUCK_GUARD', 'action', `Mål fortfarande vid kick-nivå (${round1(currentCoolerTarget)}° ≤ min ${round1(coolerMinTemp)}°) — tvingar tillbaka till ${round1(clampedTarget)}°C`)
+    await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, clampedTarget, effectiveTarget.temp,
+      `🔧 Kick-stuck guard: mål ${round1(currentCoolerTarget)}° under min ${round1(coolerMinTemp)}° — återställer till ${round1(clampedTarget)}°C`,
+      adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+    return adjustments
   } else if (coolerInDeadBand) {
     // Only kick if: a tank is at 100% util AND cooler itself is at 0% util
     const anyTankMaxUtil = utilizations.some(u => u.utilization != null && u.utilization >= 0.99)
