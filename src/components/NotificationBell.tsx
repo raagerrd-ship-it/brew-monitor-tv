@@ -154,7 +154,7 @@ function NotificationBellComponent() {
           )}
         </div>
       </DialogTrigger>
-      <DialogContent className="max-w-md [&>button]:top-[18px] [&>button]:right-4">
+      <DialogContent className="max-w-md [&>button]:top-6 [&>button]:right-6">
         <DialogHeader className="space-y-0">
           <DialogTitle className="flex items-center gap-3 pr-8">
             <span>Notifikationer</span>
