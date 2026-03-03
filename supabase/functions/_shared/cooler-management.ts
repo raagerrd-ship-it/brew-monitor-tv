@@ -317,7 +317,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       log('COOLER_IDLE', 'info', `Alla tankar 0% util — cooldown (${Math.round((idleCooldownMs - timeSinceLastIdle) / 60000)} min kvar)`)
     } else {
       const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
-      const idleTarget = Math.min(coolerMaxTemp, Math.round((coolerTemp + coolerHyst) * 10) / 10)
+      // Use effectiveTarget (based on tank demands) to ensure idle is above cooling threshold
+      const idleTarget = Math.min(coolerMaxTemp, round1(Math.max(coolerTemp + coolerHyst, effectiveTarget.temp + 0.5)))
       if (currentCoolerTarget < idleTarget - 0.1) {
         log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
         await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
@@ -958,7 +959,7 @@ async function applyCoolerTarget(
   adjustments: AdjustmentResult[],
   followedControllerId?: string,
   followedControllerName?: string,
-): Promise<void> {
+): Promise<boolean> {
   const { supabase, supabaseUrl, serviceRoleKey, log } = ctx
 
   log('ADJUSTMENT', 'action', `${oldTarget}°C → ${newTarget}°C: ${reason}`)
@@ -988,4 +989,5 @@ async function applyCoolerTarget(
   } else {
     log('ADJUSTMENT', 'fail', 'Kunde inte sätta glykolmål')
   }
+  return success
 }
