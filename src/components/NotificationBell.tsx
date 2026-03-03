@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, memo } from "react";
 import { Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -35,11 +36,13 @@ const TYPE_ICONS: Record<string, string> = {
 function NotificationBellComponent() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
-  // Request browser notification permission on mount
+  // Check push permission state on mount
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    if ("Notification" in window) {
+      setPushEnabled(Notification.permission === "granted");
     }
   }, []);
 
@@ -153,11 +156,32 @@ function NotificationBellComponent() {
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Notifikationer</span>
-            {notifications.some((n) => n.read_at) && (
-              <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
-                Rensa lästa
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {notifications.some((n) => n.read_at) && (
+                <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
+                  Rensa lästa
+                </Button>
+              )}
+              <Switch
+                checked={pushEnabled}
+                disabled={pushLoading || ("Notification" in window && Notification.permission === "denied")}
+                onCheckedChange={async (checked) => {
+                  if (checked) {
+                    setPushLoading(true);
+                    try {
+                      const { requestAndRegisterPush } = await import("@/lib/web-push-registration");
+                      const ok = await requestAndRegisterPush();
+                      setPushEnabled(ok);
+                    } catch {
+                      setPushEnabled(false);
+                    } finally {
+                      setPushLoading(false);
+                    }
+                  }
+                  // Can't programmatically revoke — just inform
+                }}
+              />
+            </div>
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[400px]">
