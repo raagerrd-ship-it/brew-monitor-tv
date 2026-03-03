@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+// VAPID public key is safe to expose in client code
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BOE0gfE2YUhgJTFtzhJzXhAOH9Rdhbkh0UwAGV692INKb0bjN0WYyvxTbzJHIcZHW7AMjGcOFMPD-oni7QnqJVA";
 
 let swRegistration: ServiceWorkerRegistration | null = null;
 let registrationPromise: Promise<ServiceWorkerRegistration> | null = null;
