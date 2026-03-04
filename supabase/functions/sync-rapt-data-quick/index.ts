@@ -321,22 +321,43 @@ serve(async (req) => {
             if (targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
               const controllerLabel = controller.name || controller.id;
               const source = isCoolerController ? 'kylare' : isPidManaged ? 'PID' : 'profil';
-              console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
 
-              // Accept the hardware value so the change is only logged once
-              updateData.target_temp = targetTemp;
-              if (isCoolerController) {
-                updateData.profile_target_temp = targetTemp;
+              // Check if this "change" is just RAPT API latency from a recent PID/automation adjustment.
+              // If the hardware value matches the old or new target of a recent adjustment, skip.
+              const { data: recentAdj } = await supabase
+                .from('auto_cooling_adjustments')
+                .select('old_target_temp, new_target_temp')
+                .eq('cooler_controller_id', controller.id)
+                .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+              const isAutomationLatency = recentAdj?.[0] && (
+                Math.abs(targetTemp - recentAdj[0].old_target_temp) < 0.15 ||
+                Math.abs(targetTemp - recentAdj[0].new_target_temp) < 0.15
+              );
+
+              if (isAutomationLatency) {
+                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (old=${recentAdj![0].old_target_temp}, new=${recentAdj![0].new_target_temp}), ignorerar`);
+                updateData.target_temp = preservedTarget; // Keep DB value
+              } else {
+                console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
+
+                // Accept the hardware value so the change is only logged once
+                updateData.target_temp = targetTemp;
+                if (isCoolerController) {
+                  updateData.profile_target_temp = targetTemp;
+                }
+
+                // Log as manual adjustment so it appears in decision history
+                manualChangeDetections.push({
+                  controllerId: controller.id,
+                  controllerName: controllerLabel,
+                  hardwareTarget: targetTemp,
+                  dbTarget: preservedTarget,
+                  source,
+                });
               }
-
-              // Log as manual adjustment so it appears in decision history
-              manualChangeDetections.push({
-                controllerId: controller.id,
-                controllerName: controllerLabel,
-                hardwareTarget: targetTemp,
-                dbTarget: preservedTarget,
-                source,
-              });
             } else {
               updateData.target_temp = preservedTarget;
             }
