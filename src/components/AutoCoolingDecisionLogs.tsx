@@ -339,6 +339,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
 
+  // Check if any controller is offline (stale)
+  const hasOfflineController = log.decisions.some(d => d.step === 'SYNC_DATA' && d.details?.stale);
+
   // Check if automation features are disabled from SETTINGS decision
   const settingsDecision = log.decisions.find(d => d.step === 'SETTINGS');
   const settingsDetails = settingsDecision?.details as Record<string, boolean> | undefined;
@@ -351,6 +354,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
+  const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Header badge
   let headerBadge: React.ReactNode;
