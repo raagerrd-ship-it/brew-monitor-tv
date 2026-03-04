@@ -883,10 +883,30 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const pillDet = pillData?.details || {};
                 const util = utilByName.get(name);
                 const lastUpdate = det.last_update as string | null;
+                const isStale = !!det.stale;
+                const isGlycol = !!det.glycol;
+                const isInactive = !!det.inactive;
+                const rowDimmed = isStale || isInactive;
                 return (
                   <React.Fragment key={i}>
-                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
-                      <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">{name}</td>
+                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''} ${rowDimmed ? 'opacity-50' : ''}`}>
+                      <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          {name}
+                          {isStale && (
+                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-destructive/20 text-destructive cursor-help">offline</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Ingen sensordata — controllern exkluderas från automation</TooltipContent></Tooltip>
+                          )}
+                          {isGlycol && (
+                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">glykol</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Glykolkylare — styrs av automationens kylarmodul</TooltipContent></Tooltip>
+                          )}
+                          {isInactive && !isStale && (
+                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground cursor-help">av</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Varken kyla eller värme är aktiverad — inte inkluderad i automation</TooltipContent></Tooltip>
+                          )}
+                        </span>
+                      </td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_temp as number)}</td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
