@@ -1,6 +1,14 @@
-import { ReactNode, useEffect, useState, createContext, useContext } from "react";
-import { useIsMobile } from "@/hooks";
+import { ReactNode, useEffect, useState, useMemo, createContext, useContext } from "react";
 import { useTvMode } from "@/contexts/TvModeContext";
+
+// Detect actual mobile device (not just narrow viewport)
+function useIsRealMobileDevice() {
+  return useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      && navigator.maxTouchPoints > 0;
+  }, []);
+}
 
 // Reference resolution - layout is designed for 720p TV
 const REFERENCE_WIDTH = 1280;
@@ -34,7 +42,7 @@ export function AspectRatioContainer({
   children, 
   aspectRatio = 16 / 9 
 }: AspectRatioContainerProps) {
-  const isMobile = useIsMobile();
+  const isMobile = useIsRealMobileDevice();
   const { isTvMode } = useTvMode();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0, scale: 1 });
   const [tvDimensions, setTvDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
