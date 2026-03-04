@@ -795,7 +795,9 @@ async function learnFromCurrentState(
   // If no tank has active demand, the observed margin is meaningless
   const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
   if (!anyActive) {
-    log('MARGIN_LEARN', 'info', `Hoppar inlärning — ingen controller kyler aktivt`)
+    // ── Learn warming rate when no controller is actively cooling ──
+    await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
+    log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — ingen controller kyler aktivt`)
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
