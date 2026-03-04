@@ -329,6 +329,7 @@ export function useSettingsData() {
               cooling_hysteresis: newData.cooling_hysteresis ?? c.cooling_hysteresis,
               linked_pill_id: newData.linked_pill_id ?? c.linked_pill_id,
               is_glycol_cooler: newData.is_glycol_cooler ?? c.is_glycol_cooler,
+              last_update: newData.last_update ?? c.last_update,
             } : c
           ));
         }
