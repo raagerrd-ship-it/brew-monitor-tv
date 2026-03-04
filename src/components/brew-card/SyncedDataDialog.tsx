@@ -143,8 +143,36 @@ export function SyncedDataDialog({
         <DialogHeader>
           <DialogTitle>Synkad data - {brewName}</DialogTitle>
         </DialogHeader>
-        <div className="text-sm text-muted-foreground mb-2">
-          {snapshots.length} mätpunkter
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-muted-foreground">
+            {snapshots.length} mätpunkter
+          </span>
+          {controllerStatus && (
+            <div className="flex gap-1.5">
+              <Badge
+                variant="outline"
+                className={`text-[10px] px-1.5 py-0 gap-1 ${
+                  controllerStatus.heating_enabled
+                    ? 'border-orange-500/40 text-orange-500'
+                    : 'border-border/40 text-muted-foreground/40'
+                }`}
+              >
+                <Flame className="w-3 h-3" />
+                {controllerStatus.heating_enabled ? 'På' : 'Av'}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={`text-[10px] px-1.5 py-0 gap-1 ${
+                  controllerStatus.cooling_enabled
+                    ? 'border-blue-500/40 text-blue-500'
+                    : 'border-border/40 text-muted-foreground/40'
+                }`}
+              >
+                <Snowflake className="w-3 h-3" />
+                {controllerStatus.cooling_enabled ? 'På' : 'Av'}
+              </Badge>
+            </div>
+          )}
         </div>
         <ScrollArea className="h-[400px] pr-2">
           <div className="space-y-1">
