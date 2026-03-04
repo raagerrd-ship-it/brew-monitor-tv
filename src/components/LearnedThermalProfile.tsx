@@ -169,7 +169,7 @@ export function LearnedThermalProfile() {
                       {item.bucket === "all" ? "Alla" : BUCKET_LABELS[item.bucket] ?? item.bucket}
                     </td>
                     {type !== "warming_rate" && (
-                      <td className="py-1.5">{LOAD_LABELS[item.load] ?? item.load || "–"}</td>
+                      <td className="py-1.5">{LOAD_LABELS[item.load] ?? (item.load || "–")}</td>
                     )}
                     <td className={`py-1.5 text-right font-mono ${meta.color}`}>
                       {item.value.toFixed(2)}{meta.unit}
