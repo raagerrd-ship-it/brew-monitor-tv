@@ -199,6 +199,7 @@ export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
+  const [lastSuccessfulRaptSync, setLastSuccessfulRaptSync] = useState<string | null>(null);
   const hideSync = false;
   const hidePid = false;
 
