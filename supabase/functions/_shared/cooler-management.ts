@@ -201,21 +201,54 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── Get learned margin for this temperature zone ──────────
   const tempBucket = getTempBucket(effectiveTarget.temp)
-  const learnedMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
+  const activeTankCount = utilizations.filter(u => u.isActivelyCooling).length
+  const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
+
+  // Use context-specific margin (hold vs ramp) when available, fall back to generic cooler_margin
+  const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
+  const specificMarginKey = isRamp ? `ramp_margin:${tempBucket}:${loadBucket}` : `hold_margin:${tempBucket}:${loadBucket}`
+  const specificMargin = await getLearnedParam(supabase, coolerController.controller_id, specificMarginKey, -1)
+  const genericMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
+  // Prefer specific margin if it has enough samples (≥3), otherwise use generic
+  const learnedMargin = specificMargin.sampleCount >= 3 ? specificMargin : genericMargin
+  const marginSource = specificMargin.sampleCount >= 3 ? specificMarginKey : `cooler_margin:${tempBucket}`
+
   const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
 
+  // ── Rate-aware margin boost during ramps ──────────────────
+  // If we know the required cooling rate AND the learned cooling rate for this zone,
+  // predict whether the current margin is sufficient
+  let rateBoostFactor = 1.0
+  if (isRamp && effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0) {
+    const learnedRate = await getLearnedParam(supabase, coolerController.controller_id, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
+    if (learnedRate.sampleCount >= 3 && learnedRate.value > 0.05) {
+      const rateRatio = effectiveTarget.requiredRatePerHour / learnedRate.value
+      if (rateRatio > 1.1) {
+        // Required rate exceeds learned rate — need more margin
+        rateBoostFactor = Math.min(rateRatio, 1.5)
+        log('RATE_PREDICT', 'action', `Ramp kräver ${effectiveTarget.requiredRatePerHour.toFixed(2)}°C/h men lärd rate är ${learnedRate.value.toFixed(2)}°C/h — ökar marginal ×${rateBoostFactor.toFixed(2)}`)
+      } else {
+        log('RATE_PREDICT', 'pass', `Ramp kräver ${effectiveTarget.requiredRatePerHour.toFixed(2)}°C/h, lärd rate ${learnedRate.value.toFixed(2)}°C/h — marginal OK`)
+      }
+    }
+  }
+
   // Clamp margin downward: don't go below the minimum margin that still produces cooling
-  const effectiveMargin = Math.max(learnedMargin.value, minEffective.sampleCount > 0 ? minEffective.value : 1.0)
+  const baseMargin = Math.max(learnedMargin.value, minEffective.sampleCount > 0 ? minEffective.value : 1.0)
+  const effectiveMargin = Math.round(baseMargin * rateBoostFactor * 10) / 10
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
   log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
+    margin_source: marginSource,
     margin_samples: learnedMargin.sampleCount,
     learned_margin: learnedMargin.value,
+    rate_boost: rateBoostFactor > 1.0 ? rateBoostFactor : null,
     min_effective: minEffective.value,
     current_cooler: currentCoolerTarget,
     required_rate: effectiveTarget.requiredRatePerHour,
+    load_bucket: loadBucket,
   })
 
   // ── Log margin history snapshot ───────────────────────────
