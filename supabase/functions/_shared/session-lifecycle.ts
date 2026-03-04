@@ -38,14 +38,8 @@ export async function completeProfile(
     .eq('cooler_controller_id', session.controller_id)
     .like('reason', '🎯%')
 
-  // Notification
-  await insertNotification(supabase, {
-    type: 'profile_completed',
-    title: 'Fermenteringsprofil klar',
-    body: `Controller ${session.controller_id} har slutfört sin profil`,
-    controller_id: session.controller_id,
-    brew_id: session.brew_id,
-  })
+  // Normal completion — no notification needed
+  console.log(`✅ Profile completed for controller ${session.controller_id}`)
 
   // Learning
   await saveFermentationLearnings(supabase, session.controller_id, session.started_at)

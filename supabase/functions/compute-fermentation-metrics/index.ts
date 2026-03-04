@@ -326,14 +326,7 @@ Deno.serve(async (req) => {
               },
             });
 
-            // Find brew name for notification
-            const brew = brews!.find(b => b.id === rb.brew_id);
-            await insertNotification(supabase, {
-              type: 'ready_to_crash',
-              title: 'Redo för cold crash',
-              body: `${brew?.name ?? 'Bryggning'} — SG stabil, aktivitet ${rb.activity_score}%`,
-              brew_id: rb.brew_id,
-            });
+            // Normal event — no notification needed
 
             console.log(`🧊 READY_TO_CRASH logged for brew ${rb.brew_id}`);
           }

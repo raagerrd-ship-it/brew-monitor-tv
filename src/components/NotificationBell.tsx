@@ -28,15 +28,9 @@ interface Notification {
 
 const TYPE_ICONS: Record<string, string> = {
   stall_boost: "🔥",
-  ready_to_crash: "🧊",
   delta_alert: "⚠️",
-  profile_completed: "✅",
   rapt_api_degraded: "📡",
   stale_sensor: "📴",
-  diacetyl_rest_triggered: "🧪",
-  diacetyl_rest_completed: "✅",
-  gradual_ramp_triggered: "📈",
-  gradual_ramp_completed: "✅",
   unknown_step_type: "❓",
 };
 
