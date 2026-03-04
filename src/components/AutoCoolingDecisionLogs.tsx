@@ -204,10 +204,16 @@ export function AutoCoolingDecisionLogs() {
   const hidePid = false;
 
   useEffect(() => {
-    // Fetch controller→pill color map
+    // Fetch controller→pill color map + last RAPT sync
     (async () => {
-      const { data: controllers } = await supabase.from('rapt_temp_controllers').select('name, linked_pill_id');
-      const { data: pills } = await supabase.from('rapt_pills').select('pill_id, color');
+      const [{ data: controllers }, { data: pills }, { data: syncSettings }] = await Promise.all([
+        supabase.from('rapt_temp_controllers').select('name, linked_pill_id'),
+        supabase.from('rapt_pills').select('pill_id, color'),
+        supabase.from('sync_settings').select('last_successful_rapt_sync_at').limit(1).maybeSingle(),
+      ]);
+      if (syncSettings?.last_successful_rapt_sync_at) {
+        setLastSuccessfulRaptSync(syncSettings.last_successful_rapt_sync_at);
+      }
       if (controllers && pills) {
         const pillColorMap = Object.fromEntries(pills.map(p => [p.pill_id, p.color]));
         const map: Record<string, string> = {};
