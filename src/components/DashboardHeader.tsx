@@ -262,44 +262,49 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
                 >
-                  {!isMobile && (
-                    <AirVent style={{
-                      width: '1rem',
-                      height: '1rem',
-                      color: controllerColor,
-                      flexShrink: 0,
-                      opacity: 0.7
-                    }} />
-                  )}
+                   {isControllerStale && (
+                     <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
+                   )}
+                   {!isMobile && !isControllerStale && (
+                     <AirVent style={{
+                       width: '1rem',
+                       height: '1rem',
+                       color: controllerColor,
+                       flexShrink: 0,
+                       opacity: 0.7
+                     }} />
+                   )}
 
-                  <span className={`font-semibold tabular-nums whitespace-nowrap text-foreground ${isMobile ? 'text-sm' : ''}`} style={{
-                    fontSize: isMobile ? undefined : '16px',
-                    ...(linkedPill?.color ? { color: linkedPill.color } : {})
-                  }}>
-                    {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
-                  </span>
+                   <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                     fontSize: isMobile ? undefined : '16px',
+                     ...(linkedPill?.color ? { color: isControllerStale ? 'hsl(0 84% 60%)' : linkedPill.color } : isControllerStale ? { color: 'hsl(0 84% 60%)' } : {})
+                   }}>
+                     {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
+                   </span>
 
-                  {linkedPill && (
-                    <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
-                      <div className="relative flex items-center">
-                      {!isMobile && (
-                        <Pill style={{
-                          width: '0.7rem',
-                          height: '0.7rem',
-                          flexShrink: 0
-                        }} color={linkedPill.color} strokeWidth={2} />
-                      )}
-                      </div>
-                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
-                        fontSize: isMobile ? undefined : '14px',
-                        color: linkedPill.color
-                      }}>
-                        {Math.floor(linkedPill.battery_level)}<span style={{ opacity: 0.4 }}>.{(linkedPill.battery_level % 1).toFixed(1).slice(2)}%</span>
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                   {linkedPill && (
+                     <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
+                       <div className="relative flex items-center">
+                       {!isMobile && (
+                         <Pill style={{
+                           width: '0.7rem',
+                           height: '0.7rem',
+                           flexShrink: 0
+                         }} color={linkedPill.color} strokeWidth={2} />
+                       )}
+                       </div>
+                       <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
+                         fontSize: isMobile ? undefined : '14px',
+                         color: linkedPill.color
+                       }}>
+                         {Math.floor(linkedPill.battery_level)}<span style={{ opacity: 0.4 }}>.{(linkedPill.battery_level % 1).toFixed(1).slice(2)}%</span>
+                       </span>
+                     </div>
+                   )}
+                 </div>
+                   );
+                 })()}
+               </div>
             );
           })}
         </div>
