@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -155,6 +156,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isTvMode = false
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
+  const [raptDegraded, setRaptDegraded] = useState(false);
+  const [lastSuccessfulSync, setLastSuccessfulSync] = useState<Date | null>(null);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -171,30 +174,70 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
   const isStale = staleMinutes > 15; // 3x the 5-min sync interval
 
+  // Check RAPT degraded mode: last_successful differs from last_quick_sync
+  useEffect(() => {
+    const check = async () => {
+      const { data } = await supabase
+        .from('sync_settings')
+        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at')
+        .limit(1)
+        .maybeSingle();
+      if (!data) return;
+      const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
+      const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
+      setLastSuccessfulSync(lastSuccess);
+      // Degraded if last quick sync ran but success is >10 min older
+      if (lastSuccess && lastQuick) {
+        const drift = lastQuick.getTime() - lastSuccess.getTime();
+        setRaptDegraded(drift > 10 * 60 * 1000);
+      } else {
+        setRaptDegraded(false);
+      }
+    };
+    check();
+    // Re-check when controllers update (means a sync just ran)
+    const interval = setInterval(check, 60000);
+    return () => clearInterval(interval);
+  }, [controllers]);
+
+  const showWarning = isStale || raptDegraded;
+
   // Tick every 30s to keep duration updated
   useEffect(() => {
-    if (!isStale) return;
+    if (!showWarning) return;
     const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
-  }, [isStale]);
+  }, [showWarning]);
 
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
       <div className="relative">
         <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1'} overflow-x-auto scrollbar-hide backdrop-blur-xl`} style={{
           background: 'hsl(222 20% 11% / 0.65)',
-          border: isStale ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
-          boxShadow: isStale
-            ? '0 0 20px rgba(200, 50, 50, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            : '0 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+          border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
+          boxShadow: showWarning
+            ? '0 0 20px hsl(0 50% 30% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.1)'
+            : '0 0 20px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.1)',
         }}>
-          {/* RAPT API status indicator */}
+          {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
             <>
               <div className="flex items-center gap-1.5 flex-shrink-0 pr-1" title={`RAPT API svarar inte sedan ${formatTime(latestUpdate)}. Senaste data är ${formatDuration(now - latestUpdate.getTime())} gammal.`}>
-                <WifiOff className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                <span className="text-[11px] font-medium text-red-400 whitespace-nowrap">
+                <WifiOff className="w-3.5 h-3.5 text-destructive animate-pulse" />
+                <span className="text-[11px] font-medium text-destructive whitespace-nowrap">
                   {formatTime(latestUpdate)}–{formatTime(new Date(now))} ({formatDuration(now - latestUpdate.getTime())})
+                </span>
+              </div>
+              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+            </>
+          )}
+          {/* RAPT API degraded mode — syncs run but API fails */}
+          {!isStale && raptDegraded && lastSuccessfulSync && (
+            <>
+              <div className="flex items-center gap-1.5 flex-shrink-0 pr-1" title={`RAPT API nere. Senaste lyckade synk: ${formatTime(lastSuccessfulSync)}. Systemet kör på cachad data.`}>
+                <WifiOff className="w-3.5 h-3.5 text-destructive animate-pulse" />
+                <span className="text-[11px] font-medium text-destructive whitespace-nowrap">
+                  API nere sedan {formatTime(lastSuccessfulSync)}
                 </span>
               </div>
               <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
