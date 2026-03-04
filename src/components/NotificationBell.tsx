@@ -32,6 +32,12 @@ const TYPE_ICONS: Record<string, string> = {
   delta_alert: "⚠️",
   profile_completed: "✅",
   rapt_api_degraded: "📡",
+  stale_sensor: "📴",
+  diacetyl_rest_triggered: "🧪",
+  diacetyl_rest_completed: "✅",
+  gradual_ramp_triggered: "📈",
+  gradual_ramp_completed: "✅",
+  unknown_step_type: "❓",
 };
 
 function NotificationBellComponent() {
@@ -203,25 +209,6 @@ function NotificationBellComponent() {
                     }
                   }}
                 />
-                {pushEnabled && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground h-6 px-2"
-                    disabled={pushLoading}
-                    onClick={async () => {
-                      setPushLoading(true);
-                      try {
-                        await supabase.functions.invoke('send-push-notification', {
-                          body: { title: '🧪 Testnotis', body: 'Push fungerar!' },
-                        });
-                      } catch {}
-                      setPushLoading(false);
-                    }}
-                  >
-                    Test
-                  </Button>
-                )}
               </div>
             )}
           </div>
