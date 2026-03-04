@@ -136,7 +136,7 @@ const PIPELINE_STEPS = new Set([
 // --- Helpers ---
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
-  if (reason.startsWith('✏️')) return 'manuell';
+  if (reason.startsWith('✏️') || reason.startsWith('🔧')) return 'manuell';
   if (reason.startsWith('🔄')) return 'passthrough';
   if (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠')) return 'pill-comp';
   if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
