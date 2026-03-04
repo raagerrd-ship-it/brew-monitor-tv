@@ -1,5 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateLearnedParam } from './learning-utils.ts'
+import { updateLearnedParam, getLearnedParam } from './learning-utils.ts'
+
+/**
+ * Retrieve the learned cooling rate for a specific temp bucket and load.
+ * Returns null if insufficient data (< 3 samples).
+ */
+async function getLearnedCoolingRate(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  tempBucket: string,
+  loadBucket: string,
+): Promise<number | null> {
+  const param = await getLearnedParam(supabase, controllerId, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
+  return param.sampleCount >= 3 ? param.value : null
+}
 
 // ============================================================
 // PID Control & Thermal Learning
@@ -72,6 +86,7 @@ export async function calculateCompensatedTarget(
   actualTemp?: number,
   probeTemp?: number,
   coolingUtilization?: number | null,
+  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -304,6 +319,30 @@ export async function calculateCompensatedTarget(
       if (errorCorrection > prevComp) {
         errorCorrection = prevComp
         console.log(`⚡ Saturation cap: begränsar PI till ${errorCorrection.toFixed(2)}°C (hårdvaran redan vid max)`)
+      }
+    }
+    
+    // === Ramp-rate-aware PI boost ===
+    // During ramp steps, use the learned cooling_rate to detect if the system
+    // is cooling too slowly for the required ramp. If so, boost PI to push
+    // the target lower, giving the cooler more thermal headroom.
+    if (rampContext && mode === 'cooling' && !isSaturated && _pillRate !== null) {
+      const { requiredRatePerHour, tempBucket: rampBucket, loadBucket: rampLoad } = rampContext
+      const learnedCoolingRate = await getLearnedCoolingRate(supabase, controllerId, rampBucket, rampLoad)
+      if (learnedCoolingRate != null && learnedCoolingRate > 0.05) {
+        const observedRate = Math.abs(_pillRate) // current rate
+        const rateDeficit = requiredRatePerHour - observedRate
+        if (rateDeficit > 0.1) {
+          // System is cooling too slowly — boost PI proportionally to the deficit
+          const rateBoost = Math.min(rateDeficit / learnedCoolingRate, 1.0) * mp.pGain
+          const boostedCorrection = errorCorrection + rateBoost
+          const cappedBoost = Math.min(boostedCorrection, mp.errorCorrectionCap)
+          console.log(`🚀 Ramp rate boost ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h, learned=${learnedCoolingRate.toFixed(2)}°C/h → PI +${rateBoost.toFixed(2)}°C (${errorCorrection.toFixed(2)}→${cappedBoost.toFixed(2)})`)
+          errorCorrection = cappedBoost
+          constraints.push(`ramp-boost=${rateBoost.toFixed(2)}`)
+        } else {
+          console.log(`✅ Ramp rate OK ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h`)
+        }
       }
     }
     
