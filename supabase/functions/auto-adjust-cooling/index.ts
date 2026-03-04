@@ -273,8 +273,8 @@ serve(async (req) => {
 
     // originalTargetMap removed — profile_target_temp is now SSOT for all controllers
 
-    // Log sync data per controller (post-sync state from DB)
-    for (const controller of followedControllersFullData) {
+    // Log sync data per controller (post-sync state from DB) — ALL controllers for visibility
+    for (const controller of allControllers) {
       const pillTemp = round1(controller.pill_temp);
       const currentTemp = round1(controller.current_temp ?? controller.pill_temp) ?? 0;
       const targetTemp = round1(controller.target_temp) ?? 999;
@@ -290,6 +290,11 @@ serve(async (req) => {
       // Check if target_temp was preserved (differs from what RAPT hardware would have set)
       const isPreserved = profileOwnedControllerIds.has(controller.controller_id) || (controller as any).is_glycol_cooler;
 
+      // Check if this controller is stale or excluded
+      const isStale = staleControllers.some(s => s.controller_id === controller.controller_id);
+      const isGlycol = !!(controller as any).is_glycol_cooler;
+      const isFollowed = followedControllerIds.includes(controller.controller_id);
+
       const details: Record<string, unknown> = {
         last_update: controller.last_update ? new Date(controller.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
         pill_temp: pillTemp, ctrl_temp: currentTemp, ctrl_target: targetTemp,
@@ -297,6 +302,9 @@ serve(async (req) => {
         cooling_enabled: controller.cooling_enabled, is_actively_cooling: isActivelyCooling,
         preserved: isPreserved,
       };
+      if (isStale) details.stale = true;
+      if (isGlycol) details.glycol = true;
+      if (!isFollowed && !isGlycol) details.inactive = true;
       const profileInfo = profileStatusMap.get(controller.controller_id);
       if (profileInfo) {
         if (profileInfo.activeTarget != null && profileInfo.activeTarget !== profileInfo.profileTarget) details.ramp_target = profileInfo.activeTarget;
