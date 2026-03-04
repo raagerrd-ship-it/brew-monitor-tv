@@ -97,28 +97,32 @@ export function useSettingsData() {
 
   // Convert availableControllers to TempController[] for the header
   const headerControllers: TempController[] = useMemo(() => 
-    availableControllers.map(c => ({
-      id: c.id,
-      controller_id: c.controller_id,
-      name: c.name,
-      current_temp: c.current_temp,
-      pill_temp: c.pill_temp,
-      target_temp: c.target_temp,
-      last_update: null,
-      min_target_temp: null,
-      max_target_temp: null,
-      cooling_enabled: c.cooling_enabled,
-      heating_enabled: null,
-      heating_utilisation: null,
-      linked_pill_id: c.linked_pill_id,
-      cooling_hysteresis: null,
-      heating_hysteresis: null,
-      cooling_run_time: null,
-      cooling_starts: null,
-      heating_run_time: null,
-      heating_starts: null,
-    })),
-    [availableControllers]
+    availableControllers.map(c => {
+      // Look up last_update from the raw controller data
+      const rawController = rawControllers.find(rc => rc.id === c.id);
+      return {
+        id: c.id,
+        controller_id: c.controller_id,
+        name: c.name,
+        current_temp: c.current_temp,
+        pill_temp: c.pill_temp,
+        target_temp: c.target_temp,
+        last_update: rawController?.last_update ?? null,
+        min_target_temp: null,
+        max_target_temp: null,
+        cooling_enabled: c.cooling_enabled,
+        heating_enabled: null,
+        heating_utilisation: null,
+        linked_pill_id: c.linked_pill_id,
+        cooling_hysteresis: null,
+        heating_hysteresis: null,
+        cooling_run_time: null,
+        cooling_starts: null,
+        heating_run_time: null,
+        heating_starts: null,
+      };
+    }),
+    [availableControllers, rawControllers]
   );
 
   // Auto-derive cooler and followed controllers
