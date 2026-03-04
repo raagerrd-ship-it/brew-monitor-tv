@@ -363,6 +363,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       continue
     }
 
+    // ── No-op guard: skip if we already applied this exact target ─────
+    // Prevents duplicate "PID 5.8→5.7" log entries when the PID
+    // recalculates the same compensation across consecutive cycles
+    // but RAPT hardware hasn't confirmed the change yet (API latency).
+    const { data: lastAdj } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('new_target_temp')
+      .eq('cooler_controller_id', fc.controller_id)
+      .like('reason', '%PID%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    
+    if (lastAdj?.[0] && Math.abs(ctrlTargetPid - lastAdj[0].new_target_temp) < 0.05) {
+      log('PID_SKIP', 'info', `${fc.name}: Target already at ${ctrlTargetPid}°C from previous cycle, skipping duplicate`)
+      continue
+    }
+
     const learnedInfo = pidResult.learnedBaseline > 0 ? `, learned=${pidResult.learnedBaseline.toFixed(2)}[${pidResult.deltaBucket}]n=${pidResult.convergenceCount}` : ''
     const piTermInfo = pidResult.errorCorrection !== 0 ? `, PI=${pidResult.errorCorrection >= 0 ? '+' : ''}${pidResult.errorCorrection.toFixed(2)}°C(P=${pidResult.pCorrection?.toFixed(2) ?? '0'},I=${pidResult.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
     const probeRateInfo = pidResult.probeRate != null ? `, probeRate=${pidResult.probeRate.toFixed(2)}°/h` : ''
