@@ -1,5 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateLearnedParam } from './learning-utils.ts'
+import { updateLearnedParam, getLearnedParam } from './learning-utils.ts'
+
+/**
+ * Retrieve the learned cooling rate for a specific temp bucket and load.
+ * Returns null if insufficient data (< 3 samples).
+ */
+async function getLearnedCoolingRate(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  tempBucket: string,
+  loadBucket: string,
+): Promise<number | null> {
+  const param = await getLearnedParam(supabase, controllerId, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
+  return param.sampleCount >= 3 ? param.value : null
+}
 
 // ============================================================
 // PID Control & Thermal Learning
