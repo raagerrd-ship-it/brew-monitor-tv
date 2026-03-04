@@ -328,7 +328,7 @@ serve(async (req) => {
                 .from('auto_cooling_adjustments')
                 .select('old_target_temp, new_target_temp')
                 .eq('cooler_controller_id', controller.id)
-                .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+                .gte('created_at', new Date(Date.now() - 20 * 60 * 1000).toISOString())
                 .order('created_at', { ascending: false })
                 .limit(1);
 
