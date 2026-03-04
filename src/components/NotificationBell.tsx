@@ -155,16 +155,18 @@ function NotificationBellComponent() {
         </div>
       </DialogTrigger>
       <DialogContent className="max-w-md pt-3 [&>button]:top-3 [&>button]:right-4">
-        <DialogHeader className="space-y-0">
-          <DialogTitle className="flex items-center gap-3 pr-8">
-            <span>Notifikationer</span>
-            {notifications.some((n) => n.read_at) && (
-              <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
-                Rensa lästa
-              </Button>
-            )}
+        <DialogHeader className="space-y-2">
+          <div className="flex items-center justify-between pr-8">
+            <DialogTitle className="flex items-center gap-3">
+              <span>Notifikationer</span>
+              {notifications.some((n) => n.read_at) && (
+                <Button variant="ghost" size="sm" onClick={clearRead} className="text-xs text-muted-foreground">
+                  Rensa lästa
+                </Button>
+              )}
+            </DialogTitle>
             {("Notification" in window) && (
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Push</span>
                 <Switch
                   checked={pushEnabled}
@@ -222,7 +224,7 @@ function NotificationBellComponent() {
                 )}
               </div>
             )}
-          </DialogTitle>
+          </div>
         </DialogHeader>
         <ScrollArea className="max-h-[400px]">
           {notifications.length === 0 ? (
