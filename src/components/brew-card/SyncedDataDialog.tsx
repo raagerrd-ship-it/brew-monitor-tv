@@ -39,6 +39,10 @@ export function SyncedDataDialog({
 }: SyncedDataDialogProps) {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [controllerStatus, setControllerStatus] = useState<{
+    heating_enabled: boolean | null;
+    cooling_enabled: boolean | null;
+  } | null>(null);
 
   const fetchSnapshots = useCallback(async (silent = false) => {
     if (!brewId) return;
@@ -74,6 +78,43 @@ export function SyncedDataDialog({
     }
   }, [brewId]);
 
+  // Fetch controller heating/cooling status
+  useEffect(() => {
+    if (!open || !controllerId) {
+      setControllerStatus(null);
+      return;
+    }
+
+    const fetchStatus = async () => {
+      const { data } = await supabase
+        .from("rapt_temp_controllers")
+        .select("heating_enabled, cooling_enabled")
+        .eq("controller_id", controllerId)
+        .maybeSingle();
+      if (data) setControllerStatus(data);
+    };
+
+    fetchStatus();
+
+    const channel = supabase
+      .channel(`synced-dialog-ctrl-${controllerId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'rapt_temp_controllers',
+        filter: `controller_id=eq.${controllerId}`,
+      }, (payload) => {
+        const p = payload.new as any;
+        setControllerStatus({
+          heating_enabled: p.heating_enabled,
+          cooling_enabled: p.cooling_enabled,
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [open, controllerId]);
+
   useEffect(() => {
     if (!open || !brewId) {
       setSnapshots([]);
@@ -83,7 +124,6 @@ export function SyncedDataDialog({
 
     fetchSnapshots(false);
 
-    // Keep dialog fresh while open
     const intervalId = window.setInterval(() => {
       fetchSnapshots(true);
     }, 15000);
