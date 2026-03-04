@@ -137,12 +137,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     p4_run_time: coolerUtilResult.p4RunTime,
   })
 
-  // ── Alert: prolonged cooler utilization ────────────────────
-  if (coolerUtil != null && coolerUtil >= 0.95) {
+  // ── Alert: prolonged cooler utilization (all 4 buckets ≥95% ≈ 1h+) ──
+  const allBucketsHigh = coolerUtil != null && coolerUtil >= 0.95
+    && coolerUtilResult.recent != null && coolerUtilResult.recent >= 0.95
+    && coolerUtilResult.mid != null && coolerUtilResult.mid >= 0.95
+    && coolerUtilResult.oldest != null && coolerUtilResult.oldest >= 0.95
+  if (allBucketsHigh) {
     await insertNotification(supabase, {
       type: 'cooler_high_utilization',
       title: 'Glykolkylare hög belastning',
-      body: `${coolerController.name} har kört med ${Math.round(coolerUtil * 100)}% kapacitet — kontrollera att systemet fungerar normalt`,
+      body: `${coolerController.name} har kört på ${Math.round(coolerUtil! * 100)}% i över 1 timme — kontrollera systemet`,
       controller_id: coolerController.controller_id,
     })
   }
