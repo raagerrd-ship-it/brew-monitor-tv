@@ -156,6 +156,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isTvMode = false
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
+  const [raptDegraded, setRaptDegraded] = useState(false);
+  const [lastSuccessfulSync, setLastSuccessfulSync] = useState<Date | null>(null);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -172,12 +174,40 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
   const isStale = staleMinutes > 15; // 3x the 5-min sync interval
 
+  // Check RAPT degraded mode: last_successful differs from last_quick_sync
+  useEffect(() => {
+    const check = async () => {
+      const { data } = await supabase
+        .from('sync_settings')
+        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at')
+        .limit(1)
+        .maybeSingle();
+      if (!data) return;
+      const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
+      const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
+      setLastSuccessfulSync(lastSuccess);
+      // Degraded if last quick sync ran but success is >10 min older
+      if (lastSuccess && lastQuick) {
+        const drift = lastQuick.getTime() - lastSuccess.getTime();
+        setRaptDegraded(drift > 10 * 60 * 1000);
+      } else {
+        setRaptDegraded(false);
+      }
+    };
+    check();
+    // Re-check when controllers update (means a sync just ran)
+    const interval = setInterval(check, 60000);
+    return () => clearInterval(interval);
+  }, [controllers]);
+
+  const showWarning = isStale || raptDegraded;
+
   // Tick every 30s to keep duration updated
   useEffect(() => {
-    if (!isStale) return;
+    if (!showWarning) return;
     const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
-  }, [isStale]);
+  }, [showWarning]);
 
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
