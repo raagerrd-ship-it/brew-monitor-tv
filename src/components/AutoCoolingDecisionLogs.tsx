@@ -328,23 +328,43 @@ export function AutoCoolingDecisionLogs() {
 
 // --- Entry Row ---
 
-function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, controllerColors }: {
+function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, controllerColors, lastSuccessfulRaptSync }: {
   entry: UnifiedEntry; hideSync: boolean; hidePid: boolean; formatTime: (ts: string) => string;
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
   controllerColors: Record<string, string>;
+  lastSuccessfulRaptSync: string | null;
 }) {
   const { log, adjustments: adjs } = entry;
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
+
+  // Check if automation features are disabled from SETTINGS decision
+  const settingsDecision = log.decisions.find(d => d.step === 'SETTINGS');
+  const settingsDetails = settingsDecision?.details as Record<string, boolean> | undefined;
+  const allDisabled = log.final_result === 'All disabled';
+  const disabledFeatures: string[] = [];
+  if (settingsDetails) {
+    if (!settingsDetails.cooling) disabledFeatures.push('Glykolkylare');
+    if (!settingsDetails.pill_compensation) disabledFeatures.push('PID-kompensation');
+    if (!settingsDetails.stall_boost) disabledFeatures.push('Stall-boost');
+    if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
+  }
+  const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
+
   // Header badge
   let headerBadge: React.ReactNode;
 
   if (adjs.length === 0) {
     headerBadge = (
-      <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
-        <Gauge className="h-2.5 w-2.5 mr-0.5" />System
-      </Badge>
+      <div className="flex gap-1 items-center">
+        {hasDisabledFeatures && (
+          <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+        )}
+        <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
+          <Gauge className="h-2.5 w-2.5 mr-0.5" />System
+        </Badge>
+      </div>
     );
   } else if (hasPidAdj && hasGlykolAdj) {
     const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
@@ -353,6 +373,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
     headerBadge = (
       <div className="flex gap-1 items-center flex-wrap">
+        {hasDisabledFeatures && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
         {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
       </div>
@@ -360,7 +381,12 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   } else {
     const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
     const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
-    headerBadge = getCategoryBadge(primaryAdj!.category, adjStr, pidColor);
+    headerBadge = (
+      <div className="flex gap-1 items-center">
+        {hasDisabledFeatures && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+        {getCategoryBadge(primaryAdj!.category, adjStr, pidColor)}
+      </div>
+    );
   }
 
   return (
@@ -372,6 +398,25 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mt-1 p-3 bg-background rounded-lg border border-border space-y-3 overflow-x-auto">
+          {/* Disabled features warning */}
+          {hasDisabledFeatures && (
+            <div className="flex items-start gap-2 text-[11px] text-destructive bg-destructive/10 rounded px-2 py-1.5 border border-destructive/20">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <div>
+                {allDisabled ? (
+                  <span className="font-medium">All automation är avstängd</span>
+                ) : (
+                  <span><span className="font-medium">Avstängt:</span> {disabledFeatures.join(', ')}</span>
+                )}
+                {lastSuccessfulRaptSync && (
+                  <div className="text-muted-foreground mt-0.5">
+                    Senaste lyckade RAPT-synk: {new Date(lastSuccessfulRaptSync).toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Meta header */}
           {log.decision_count > 0 && (
             <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border">
