@@ -128,10 +128,10 @@ All colors MUST be HSL.
   }
 
   /* Remove focus ring from collapsible elements (keyboard arrow nav) */
-  [data-radix-collapsible-root],
-  [data-radix-collapsible-trigger],
-  button[data-state="open"],
-  button[data-state="closed"] {
+  [data-radix-collapsible-root]:focus,
+  [data-radix-collapsible-root]:focus-visible,
+  [data-radix-collapsible-trigger]:focus,
+  [data-radix-collapsible-trigger]:focus-visible {
     outline: none !important;
     box-shadow: none !important;
   }
