@@ -317,7 +317,7 @@ export function AutoCoolingDecisionLogs() {
         return (
           <>
             {entries.map((entry) => (
-              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} />
+              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} lastSuccessfulRaptSync={lastSuccessfulRaptSync} />
             ))}
           </>
         );
