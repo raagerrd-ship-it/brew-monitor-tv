@@ -261,6 +261,7 @@ serve(async (req) => {
         const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
         const isPillCompEnabled = autoCoolingSettings?.enabled && autoCoolingSettings?.pill_compensation_enabled;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
+        const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
@@ -316,9 +317,21 @@ serve(async (req) => {
           } else {
             const preservedTarget = existingMap.get(controller.id)?.target_temp ?? targetTemp;
             updateData.target_temp = preservedTarget;
-            // Log when we preserve a PID-managed target that differs from hardware
-            if (isPidManaged && targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
-              console.log(`SYNC_PRESERVE: ${controller.name || controller.id}: Bevarar DB target ${preservedTarget}°C (RAPT hardware: ${targetTemp}°C) — PID-hanterad controller`);
+
+            // Detect manual hardware changes on managed controllers
+            if (targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
+              const controllerLabel = controller.name || controller.id;
+              const source = isCoolerController ? 'kylare' : isPidManaged ? 'PID' : 'profil';
+              console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
+
+              // Log as manual adjustment so it appears in decision history
+              manualChangeDetections.push({
+                controllerId: controller.id,
+                controllerName: controllerLabel,
+                hardwareTarget: targetTemp,
+                dbTarget: preservedTarget,
+                source,
+              });
             }
           }
 
@@ -330,6 +343,21 @@ serve(async (req) => {
           const { error: upsertError } = await supabase.from('rapt_temp_controllers')
             .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
           if (upsertError) throw upsertError;
+        }
+
+        // Log detected manual hardware changes to adjustment history
+        for (const mc of manualChangeDetections) {
+          await supabase.from('auto_cooling_adjustments').insert({
+            cooler_controller_id: mc.controllerId,
+            cooler_controller_name: mc.controllerName,
+            old_target_temp: mc.dbTarget,
+            new_target_temp: mc.hardwareTarget,
+            lowest_followed_temp: mc.hardwareTarget,
+            reason: `🔧 Manuell hårdvaruändring detekterad: ${mc.dbTarget.toFixed(1)}° → ${mc.hardwareTarget.toFixed(1)}° (${mc.source}-hanterad, automation bevarar DB-värde)`,
+            original_target_temp: mc.hardwareTarget,
+            followed_controller_name: mc.controllerName,
+          });
+          console.log(`SYNC_MANUAL_LOGGED: ${mc.controllerName}: Loggade manuell ändring ${mc.dbTarget}° → ${mc.hardwareTarget}°`);
         }
       }
 
