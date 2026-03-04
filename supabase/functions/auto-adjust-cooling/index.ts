@@ -287,8 +287,8 @@ serve(async (req) => {
         : null;
       const originalTarget = profileTarget ?? controllerProfileTarget ?? targetTemp;
 
-      // Check if target_temp was preserved (differs from what RAPT hardware would have set)
-      const isPreserved = profileOwnedControllerIds.has(controller.controller_id) || (controller as any).is_glycol_cooler;
+      // Check if target_temp was preserved (profile or PID controls target, not hardware)
+      const isPreserved = profileOwnedControllerIds.has(controller.controller_id);
 
       // Check if this controller is stale or excluded
       const isStale = staleControllers.some(s => s.controller_id === controller.controller_id);
