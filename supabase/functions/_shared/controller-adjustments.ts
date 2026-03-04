@@ -290,10 +290,27 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       recentUtil = utilResult.recent
     }
 
+    // Build ramp context for PID rate-aware boost
+    let rampContext: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null = null
+    if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
+      // Check if there's a ramp rate from the profile status
+      const tempBucket = getTempBucket(actualTarget)
+      const activeCoolingCount = followedControllersFullData.filter(c => c.cooling_enabled).length
+      const loadBucket = activeCoolingCount === 0 ? 'load_0' : activeCoolingCount === 1 ? 'load_1' : 'load_2plus'
+      // Estimate required rate from profile target vs current temp
+      const distance = actualTemp - actualTarget
+      if (distance > 0.5) {
+        // Approximate: need to cover this distance — use a reasonable ramp horizon
+        // If profile provides a specific rate, use that; otherwise estimate from distance
+        const estimatedRate = Math.max(0.5, distance / 4) // assume 4h to close gap minimum
+        rampContext = { requiredRatePerHour: estimatedRate, tempBucket, loadBucket }
+      }
+    }
+
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil
+      actualTemp, probeTemp, coolingUtil, rampContext
     )
 
     // Safety bounds — respect hardware min/max strictly
