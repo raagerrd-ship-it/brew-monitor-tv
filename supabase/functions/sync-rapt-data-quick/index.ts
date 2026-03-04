@@ -344,6 +344,21 @@ serve(async (req) => {
             .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
           if (upsertError) throw upsertError;
         }
+
+        // Log detected manual hardware changes to adjustment history
+        for (const mc of manualChangeDetections) {
+          await supabase.from('auto_cooling_adjustments').insert({
+            cooler_controller_id: mc.controllerId,
+            cooler_controller_name: mc.controllerName,
+            old_target_temp: mc.dbTarget,
+            new_target_temp: mc.hardwareTarget,
+            lowest_followed_temp: mc.hardwareTarget,
+            reason: `🔧 Manuell hårdvaruändring detekterad: ${mc.dbTarget.toFixed(1)}° → ${mc.hardwareTarget.toFixed(1)}° (${mc.source}-hanterad, automation bevarar DB-värde)`,
+            original_target_temp: mc.hardwareTarget,
+            followed_controller_name: mc.controllerName,
+          });
+          console.log(`SYNC_MANUAL_LOGGED: ${mc.controllerName}: Loggade manuell ändring ${mc.dbTarget}° → ${mc.hardwareTarget}°`);
+        }
       }
 
       console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
