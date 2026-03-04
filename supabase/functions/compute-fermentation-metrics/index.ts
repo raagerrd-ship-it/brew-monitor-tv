@@ -327,7 +327,6 @@ Deno.serve(async (req) => {
             });
 
             // Normal event — no notification needed
-            console.log(`🧊 READY_TO_CRASH logged for brew ${rb.brew_id}`);
 
             console.log(`🧊 READY_TO_CRASH logged for brew ${rb.brew_id}`);
           }
