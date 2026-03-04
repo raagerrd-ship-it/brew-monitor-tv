@@ -198,9 +198,10 @@ export function useSettingsData() {
 
   const loadAvailableControllers = useCallback(async () => {
     try {
-      const { data: selected } = await supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true);
+      const { data: selected } = await supabase.from('selected_rapt_temp_controllers').select('controller_id, display_order').eq('is_visible', true).order('display_order');
       if (selected && selected.length > 0) {
         const controllerIds = selected.map(s => s.controller_id);
+        const orderMap = new Map(selected.map(s => [s.controller_id, s.display_order]));
         const { data: controllers } = await supabase.from('rapt_temp_controllers')
           .select('controller_id, name, current_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler, last_update')
           .in('controller_id', controllerIds);
