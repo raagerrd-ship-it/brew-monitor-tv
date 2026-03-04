@@ -897,6 +897,9 @@ async function learnFromCurrentState(
       }
     }
 
+    // Learn hold-specific margin
+    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+
     // Also learn max effective during hold if we have rate data
     if (actualRate !== null) {
       await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
@@ -922,8 +925,35 @@ async function learnFromCurrentState(
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   }
 
+  // Learn hold-specific margin
+  await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+
   if (actualRate !== null) {
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+  }
+}
+
+// ─── Learn passive warming rate ──────────────────────────────
+// When no controller is actively cooling (cooler util ~0%), measure
+// how fast each controller's probe temp rises passively.
+
+async function learnWarmingRate(
+  ctx: CoolerContext,
+  controllersWithCooling: TempController[],
+  tempBucket: string,
+): Promise<void> {
+  const { supabase, log } = ctx
+
+  for (const c of controllersWithCooling) {
+    const rate = await measureCoolingRate(supabase, c.controller_id)
+    // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
+    if (rate !== null && rate < -0.05) {
+      const warmingRate = Math.abs(rate) // °C/h of passive warming
+      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${tempBucket}`, warmingRate, 0.01, 10.0)
+      if (Math.abs(result.oldValue - result.newValue) > 0.01) {
+        log('WARMING_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
+      }
+    }
   }
 }
 
