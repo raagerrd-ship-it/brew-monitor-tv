@@ -55,41 +55,19 @@ export function AspectRatioContainer({
     return () => window.removeEventListener("resize", updateTvDimensions);
   }, [isTvMode]);
 
-  // Desktop: calculate scaling
+  // Desktop: calculate uniform scale to fit 1280×720 in viewport
   useEffect(() => {
     if (!needsScaling) return;
 
     const calculateDimensions = () => {
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      let containerWidth: number;
-      let containerHeight: number;
-
-      if (viewportWidth / viewportHeight > aspectRatio) {
-        // Viewport is too wide → use height as base (pillarboxing)
-        containerHeight = viewportHeight;
-        containerWidth = containerHeight * aspectRatio;
-      } else {
-        // Viewport is too tall → use width as base (letterboxing)
-        containerWidth = viewportWidth;
-        containerHeight = containerWidth / aspectRatio;
-      }
-
-      // Calculate scale factor based on reference resolution
-      const scaleX = containerWidth / REFERENCE_WIDTH;
-      const scaleY = containerHeight / REFERENCE_HEIGHT;
-      const scale = Math.min(scaleX, scaleY);
-
-      setDimensions({ 
-        width: containerWidth, 
-        height: containerHeight, 
-        scale 
-      });
+      const scale = Math.min(
+        window.innerWidth / REFERENCE_WIDTH,
+        window.innerHeight / REFERENCE_HEIGHT
+      );
+      setDimensions({ width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT, scale });
     };
 
     calculateDimensions();
-
     window.addEventListener("resize", calculateDimensions);
     return () => window.removeEventListener("resize", calculateDimensions);
   }, [needsScaling, aspectRatio]);
