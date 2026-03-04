@@ -310,6 +310,19 @@ export async function calculateCompensatedTarget(
     if (learnedBaseline > 0) {
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
+    // === Pill overshoot guard ===
+    // When the pill is already ABOVE actualTarget, positive PI would push the hardware
+    // target up, disengaging the cooler and letting the pill rise further.
+    // This is the main cause of overshoot after target step increases:
+    // probe is still catching up (below target) but pill is already warm.
+    // Fix: block positive PI when pill > actualTarget. Delta compensation alone suffices.
+    const latestPillForGuard = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : null
+    if (latestPillForGuard != null && latestPillForGuard > actualTarget + 0.3 && errorCorrection > 0) {
+      console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > mål ${actualTarget}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
+      errorCorrection = 0
+      constraints.push('pill-guard')
+    }
+
     console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentAvgForError.toFixed(1)}°C, mål=${actualTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
     await supabase.from('controller_learned_compensation').upsert({
