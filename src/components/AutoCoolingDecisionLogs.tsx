@@ -339,6 +339,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
 
+  // Check if any controller is offline (stale)
+  const hasOfflineController = log.decisions.some(d => d.step === 'SYNC_DATA' && d.details?.stale);
+
   // Check if automation features are disabled from SETTINGS decision
   const settingsDecision = log.decisions.find(d => d.step === 'SETTINGS');
   const settingsDetails = settingsDecision?.details as Record<string, boolean> | undefined;
@@ -351,6 +354,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
+  const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Header badge
   let headerBadge: React.ReactNode;
@@ -358,7 +362,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   if (adjs.length === 0) {
     headerBadge = (
       <div className="flex gap-1 items-center">
-        {hasDisabledFeatures && (
+        {showWarningTriangle && (
           <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
         )}
         <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
@@ -373,7 +377,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
     headerBadge = (
       <div className="flex gap-1 items-center flex-wrap">
-        {hasDisabledFeatures && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+        {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
         {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
       </div>
@@ -383,7 +387,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
     headerBadge = (
       <div className="flex gap-1 items-center">
-        {hasDisabledFeatures && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+        {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
         {getCategoryBadge(primaryAdj!.category, adjStr, pidColor)}
       </div>
     );
