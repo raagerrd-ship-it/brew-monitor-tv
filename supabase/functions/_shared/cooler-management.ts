@@ -350,6 +350,35 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       return adjustments
     }
 
+    // ── Warming rate prediction: keep cooler ready if temp will exceed target soon ──
+    // Check if any tank's learned warming rate predicts it'll need cooling within 15 min
+    let keepCoolerReady = false
+    for (const c of controllersWithCooling) {
+      const cTempBucket = getTempBucket(parseFloat(String(c.target_temp ?? '20')))
+      const warmingParam = await getLearnedParam(supabase, c.controller_id, `warming_rate:${cTempBucket}`, -1)
+      if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
+        const probeTemp = parseFloat(String(c.current_temp ?? '0'))
+        const targetTemp = parseFloat(String(c.target_temp ?? '999'))
+        const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
+        const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
+        if (headroom > 0) {
+          const minutesUntilCooling = (headroom / warmingParam.value) * 60
+          if (minutesUntilCooling < 15) {
+            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min — håller kylare redo`)
+            keepCoolerReady = true
+            break
+          }
+        }
+      }
+    }
+
+    if (keepCoolerReady) {
+      // Don't shut down cooler — keep at current target
+      log('COOLER_IDLE', 'info', `Alla tankar 0% men warming prediction → håller kylare aktiv`)
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+      return adjustments
+    }
+
     // Cooldown: only idle once per 30 min to let new utilization data arrive
     const { data: lastIdleAdj } = await ctx.supabase
       .from('auto_cooling_adjustments')
