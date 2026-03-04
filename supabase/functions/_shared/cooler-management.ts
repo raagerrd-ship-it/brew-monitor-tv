@@ -470,8 +470,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── Apply ─────────────────────────────────────────────────
   const direction = clampedTarget < currentCoolerTarget ? 'Sänker' : 'Höjer'
+  const rateInfo = rateBoostFactor > 1.0 ? `, rate-boost ×${rateBoostFactor.toFixed(2)}` : ''
   await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, clampedTarget, effectiveTarget.temp,
-    `${direction} kylare: margin ${learnedMargin.value.toFixed(1)}°C under ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`,
+    `${direction} kylare: margin ${effectiveMargin.toFixed(1)}°C [${marginSource}] under ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source}${rateInfo})`,
     adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
 
   return adjustments
