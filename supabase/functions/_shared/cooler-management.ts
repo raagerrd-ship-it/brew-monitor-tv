@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, RaptUpdateBatch } from './temp-utils.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
+import { insertNotification } from './notifications.ts'
 
 // ============================================================
 // Cooler Management
@@ -135,6 +136,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     p4_at: coolerUtilResult.p4TimestampMs > 0 ? new Date(coolerUtilResult.p4TimestampMs).toISOString() : null,
     p4_run_time: coolerUtilResult.p4RunTime,
   })
+
+  // ── Alert: prolonged cooler utilization ────────────────────
+  if (coolerUtil != null && coolerUtil >= 0.95) {
+    await insertNotification(supabase, {
+      type: 'cooler_high_utilization',
+      title: 'Glykolkylare hög belastning',
+      body: `${coolerController.name} har kört med ${Math.round(coolerUtil * 100)}% kapacitet — kontrollera att systemet fungerar normalt`,
+      controller_id: coolerController.controller_id,
+    })
+  }
 
   // ── Find followed controllers with cooling enabled ────────
   const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true)

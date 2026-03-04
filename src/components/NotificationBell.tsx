@@ -32,6 +32,7 @@ const TYPE_ICONS: Record<string, string> = {
   rapt_api_degraded: "📡",
   stale_sensor: "📴",
   unknown_step_type: "❓",
+  cooler_high_utilization: "🧊",
 };
 
 function NotificationBellComponent() {
