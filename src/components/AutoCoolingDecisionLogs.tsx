@@ -894,16 +894,16 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         <span className="flex items-center gap-1">
                           {name}
                           {isStale && (
-                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-destructive/20 text-destructive cursor-help">offline</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Ingen sensordata — controllern exkluderas från automation</TooltipContent></Tooltip>
+                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-destructive/20 text-destructive cursor-help">offline</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Ingen sensordata — controllern exkluderas från automation</TooltipContent></Tooltip></TooltipProvider>
                           )}
                           {isGlycol && (
-                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">glykol</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Glykolkylare — styrs av automationens kylarmodul</TooltipContent></Tooltip>
+                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">glykol</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Glykolkylare — styrs av automationens kylarmodul</TooltipContent></Tooltip></TooltipProvider>
                           )}
                           {isInactive && !isStale && (
-                            <Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground cursor-help">av</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Varken kyla eller värme är aktiverad — inte inkluderad i automation</TooltipContent></Tooltip>
+                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground cursor-help">av</span></TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Varken kyla eller värme är aktiverad — inte inkluderad i automation</TooltipContent></Tooltip></TooltipProvider>
                           )}
                         </span>
                       </td>
@@ -926,39 +926,39 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             p4At: util.p4At,
                           });
                           return (
-                            <Tooltip>
+                            <TooltipProvider delayDuration={200}><Tooltip>
                               <TooltipTrigger asChild>
                                 <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
                                   {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
-                            </Tooltip>
+                            </Tooltip></TooltipProvider>
                           );
                         })() : (
-                          <Tooltip>
+                          <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
-                          </Tooltip>
+                          </Tooltip></TooltipProvider>
                         )}
                       </td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {det.preserved ? (
-                          <Tooltip>
+                          <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
-                          </Tooltip>
+                          </Tooltip></TooltipProvider>
                         ) : (
-                          <Tooltip>
+                          <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
-                          </Tooltip>
+                          </Tooltip></TooltipProvider>
                         )}
                       </td>
                       <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
