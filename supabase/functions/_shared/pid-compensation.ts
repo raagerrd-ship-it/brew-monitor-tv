@@ -308,6 +308,30 @@ export async function calculateCompensatedTarget(
       }
     }
     
+    // === Ramp-rate-aware PI boost ===
+    // During ramp steps, use the learned cooling_rate to detect if the system
+    // is cooling too slowly for the required ramp. If so, boost PI to push
+    // the target lower, giving the cooler more thermal headroom.
+    if (rampContext && mode === 'cooling' && !isSaturated && _pillRate !== null) {
+      const { requiredRatePerHour, tempBucket: rampBucket, loadBucket: rampLoad } = rampContext
+      const learnedCoolingRate = await getLearnedCoolingRate(supabase, controllerId, rampBucket, rampLoad)
+      if (learnedCoolingRate != null && learnedCoolingRate > 0.05) {
+        const observedRate = Math.abs(_pillRate) // current rate
+        const rateDeficit = requiredRatePerHour - observedRate
+        if (rateDeficit > 0.1) {
+          // System is cooling too slowly — boost PI proportionally to the deficit
+          const rateBoost = Math.min(rateDeficit / learnedCoolingRate, 1.0) * mp.pGain
+          const boostedCorrection = errorCorrection + rateBoost
+          const cappedBoost = Math.min(boostedCorrection, mp.errorCorrectionCap)
+          console.log(`🚀 Ramp rate boost ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h, learned=${learnedCoolingRate.toFixed(2)}°C/h → PI +${rateBoost.toFixed(2)}°C (${errorCorrection.toFixed(2)}→${cappedBoost.toFixed(2)})`)
+          errorCorrection = cappedBoost
+          constraints.push(`ramp-boost=${rateBoost.toFixed(2)}`)
+        } else {
+          console.log(`✅ Ramp rate OK ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h`)
+        }
+      }
+    }
+    
     if (learnedBaseline > 0) {
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
