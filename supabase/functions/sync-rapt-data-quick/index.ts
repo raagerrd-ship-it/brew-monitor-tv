@@ -316,13 +316,18 @@ serve(async (req) => {
             updateData.target_temp = targetTemp;
           } else {
             const preservedTarget = existingMap.get(controller.id)?.target_temp ?? targetTemp;
-            updateData.target_temp = preservedTarget;
 
             // Detect manual hardware changes on managed controllers
             if (targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
               const controllerLabel = controller.name || controller.id;
               const source = isCoolerController ? 'kylare' : isPidManaged ? 'PID' : 'profil';
               console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
+
+              // Accept the hardware value so the change is only logged once
+              updateData.target_temp = targetTemp;
+              if (isCoolerController) {
+                updateData.profile_target_temp = targetTemp;
+              }
 
               // Log as manual adjustment so it appears in decision history
               manualChangeDetections.push({
@@ -332,6 +337,8 @@ serve(async (req) => {
                 dbTarget: preservedTarget,
                 source,
               });
+            } else {
+              updateData.target_temp = preservedTarget;
             }
           }
 
