@@ -206,7 +206,7 @@ export function useSettingsData() {
           .select('controller_id, name, current_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler, last_update')
           .in('controller_id', controllerIds);
         if (controllers) {
-          setAvailableControllers(controllers.map(c => ({
+          const mapped = controllers.map(c => ({
             id: c.controller_id, controller_id: c.controller_id, name: c.name,
             current_temp: c.current_temp, pill_temp: c.pill_temp, target_temp: c.target_temp,
             profile_target_temp: c.profile_target_temp,
@@ -214,7 +214,9 @@ export function useSettingsData() {
             cooling_hysteresis: c.cooling_hysteresis, linked_pill_id: c.linked_pill_id,
             is_glycol_cooler: c.is_glycol_cooler ?? false,
             last_update: c.last_update,
-          })));
+          }));
+          mapped.sort((a, b) => (orderMap.get(a.controller_id) ?? 0) - (orderMap.get(b.controller_id) ?? 0));
+          setAvailableControllers(mapped);
         }
       }
     } catch (error) {
