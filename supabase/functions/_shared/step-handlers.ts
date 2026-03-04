@@ -405,13 +405,7 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
       .update({ ramp_triggered_at: new Date().toISOString() })
       .eq('id', session.id)
 
-    await insertNotification(supabase, {
-      type: 'diacetyl_rest_triggered',
-      title: 'Diacetylvila startad',
-      body: `Attenuation nått ${Math.round(currentAtt)}% — temperaturen höjs med ${tempIncrease}°C`,
-      controller_id: session.controller_id,
-      brew_id: session.brew_id,
-    })
+    // Normal operation — no notification needed
   }
 
   const effectiveTarget = getEffectiveTargetTemp(steps, session.current_step_index)
@@ -432,13 +426,7 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
     actionDetails = { ...actionDetails, condition: 'diacetyl_rest_complete', stable_days: stableDays, activity_score: metrics?.activity_score ?? null }
     console.log(`✅ Diacetyl rest complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
 
-    await insertNotification(supabase, {
-      type: 'diacetyl_rest_completed',
-      title: 'Diacetylvila klar',
-      body: `SG stabil i ${stableDays} dagar och aktivitet ${Math.round(metrics?.activity_score ?? 0)}% — redo för nästa steg`,
-      controller_id: session.controller_id,
-      brew_id: session.brew_id,
-    })
+    // Normal completion — no notification needed
   } else if (sgStable && !activityLow) {
     console.log(`Diacetyl rest: SG stable but activity still high (${metrics?.activity_score}%) - waiting`)
     actionDetails = { ...actionDetails, phase: 'diacetyl_active_waiting', sg_stable: true, activity_score: metrics?.activity_score }
@@ -516,14 +504,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     })
     console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C`)
 
-    // Notify user that the smart diacetyl rest has started
-    await insertNotification(supabase, {
-      type: 'gradual_ramp_triggered',
-      title: 'Smart diacetylvila startad',
-      body: `Aktivitet sjunkit till ${Math.round(activityScore)}% — temperaturhöjning påbörjas från ${baseTemp}°C (+${tempIncrease}°C)`,
-      controller_id: session.controller_id,
-      brew_id: session.brew_id,
-    })
+    // Normal operation — no notification needed
   }
 
   // Phase 2: Ramping (always exponential curve for gentler start)
@@ -587,14 +568,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     }
     console.log(`✅ Gradual ramp complete: SG stable ${stableDays}d, activity=${metrics?.activity_score ?? '?'}%`)
 
-    // Notify user that the smart diacetyl rest is complete
-    await insertNotification(supabase, {
-      type: 'gradual_ramp_completed',
-      title: 'Smart diacetylvila klar',
-      body: `SG stabil i ${stableDays} dagar och aktivitet ${Math.round(metrics?.activity_score ?? 0)}% — redo för nästa steg`,
-      controller_id: session.controller_id,
-      brew_id: session.brew_id,
-    })
+    // Normal completion — no notification needed
   } else if (sgStable && !activityLow) {
     console.log(`Gradual ramp: SG stable but activity still ${metrics?.activity_score}% (need <15) - continuing`)
     actionDetails = { ...actionDetails, phase: 'gradual_ramping_waiting', sg_stable: true, activity_score: metrics?.activity_score }
