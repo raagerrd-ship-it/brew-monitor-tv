@@ -122,20 +122,22 @@ export function AspectRatioContainer({
     );
   }
 
-  // Desktop: centered 16:9 container with letterboxing/pillarboxing
+  // Desktop: render at reference resolution and scale uniformly (like a static image)
   return (
     <AspectRatioContext.Provider value={{ 
       isLocked: true, 
-      width: dimensions.width,
-      height: dimensions.height,
+      width: REFERENCE_WIDTH,
+      height: REFERENCE_HEIGHT,
       scale: dimensions.scale
     }}>
-      <div className="fixed inset-0 flex items-center justify-center bg-black">
+      <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden">
         <div 
           className="overflow-hidden flex flex-col"
           style={{ 
-            width: dimensions.width, 
-            height: dimensions.height,
+            width: REFERENCE_WIDTH, 
+            height: REFERENCE_HEIGHT,
+            transform: `scale(${dimensions.scale})`,
+            transformOrigin: 'center center',
             background: 'transparent'
           }}
         >
