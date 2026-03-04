@@ -6,8 +6,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { Flame, Snowflake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SnapshotRow {
