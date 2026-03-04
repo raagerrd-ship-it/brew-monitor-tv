@@ -204,10 +204,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
   // Tick every 30s to keep duration updated
   useEffect(() => {
-    if (!showWarning) return;
     const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
-  }, [showWarning]);
+  }, []);
 
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : ""}>
