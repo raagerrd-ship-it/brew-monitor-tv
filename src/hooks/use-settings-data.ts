@@ -19,6 +19,7 @@ interface AvailableController {
   cooling_hysteresis: number | null;
   linked_pill_id: string | null;
   is_glycol_cooler: boolean;
+  last_update: string | null;
 }
 
 interface ApiSettings {
@@ -104,7 +105,7 @@ export function useSettingsData() {
       current_temp: c.current_temp,
       pill_temp: c.pill_temp,
       target_temp: c.target_temp,
-      last_update: null,
+      last_update: c.last_update,
       min_target_temp: null,
       max_target_temp: null,
       cooling_enabled: c.cooling_enabled,
@@ -201,7 +202,7 @@ export function useSettingsData() {
       if (selected && selected.length > 0) {
         const controllerIds = selected.map(s => s.controller_id);
         const { data: controllers } = await supabase.from('rapt_temp_controllers')
-          .select('controller_id, name, current_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler')
+          .select('controller_id, name, current_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, cooling_hysteresis, linked_pill_id, is_glycol_cooler, last_update')
           .in('controller_id', controllerIds);
         if (controllers) {
           setAvailableControllers(controllers.map(c => ({
@@ -210,7 +211,8 @@ export function useSettingsData() {
             profile_target_temp: c.profile_target_temp,
             cooling_enabled: c.cooling_enabled, heating_enabled: c.heating_enabled,
             cooling_hysteresis: c.cooling_hysteresis, linked_pill_id: c.linked_pill_id,
-            is_glycol_cooler: c.is_glycol_cooler ?? false
+            is_glycol_cooler: c.is_glycol_cooler ?? false,
+            last_update: c.last_update,
           })));
         }
       }
@@ -327,6 +329,7 @@ export function useSettingsData() {
               cooling_hysteresis: newData.cooling_hysteresis ?? c.cooling_hysteresis,
               linked_pill_id: newData.linked_pill_id ?? c.linked_pill_id,
               is_glycol_cooler: newData.is_glycol_cooler ?? c.is_glycol_cooler,
+              last_update: newData.last_update ?? c.last_update,
             } : c
           ));
         }
