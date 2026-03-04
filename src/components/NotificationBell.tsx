@@ -203,25 +203,6 @@ function NotificationBellComponent() {
                     }
                   }}
                 />
-                {pushEnabled && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground h-6 px-2"
-                    disabled={pushLoading}
-                    onClick={async () => {
-                      setPushLoading(true);
-                      try {
-                        await supabase.functions.invoke('send-push-notification', {
-                          body: { title: '🧪 Testnotis', body: 'Push fungerar!' },
-                        });
-                      } catch {}
-                      setPushLoading(false);
-                    }}
-                  >
-                    Test
-                  </Button>
-                )}
               </div>
             )}
           </div>
