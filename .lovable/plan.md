@@ -122,3 +122,18 @@ Nytt avsnitt "Smart Relay" med:
 - `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
 - VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
 - Auto-register körs vid app-load i `App.tsx` om permission redan beviljad
+
+---
+
+## ✅ Förbättrad passiv inlärning — Termisk profil (2026-03-04)
+
+**Implementerat:**
+- `cooler-management.ts`: `learnFromCurrentState()` utökad med:
+  - `cooling_rate:{bucket}:{load}` — kylhastighet per temperaturzon och antal aktiva tankar
+  - `warming_rate:{bucket}` — passiv uppvärmningshastighet (lärs när ingen tank kyler)
+  - `hold_margin:{bucket}:{load}` — optimal marginal under hold-steg
+  - `ramp_margin:{bucket}:{load}` — optimal marginal under ramp-steg
+  - `cooling_capacity:{load}` — max kylkapacitet vid ~100% utilization
+- Ny `learnWarmingRate()` funktion för passiv inlärning vid 0% kylaktivitet
+- Ny `LearnedThermalProfile.tsx` UI-komponent i Settings > Kylare-inlärning
+- Ingen databasändring — alla parametrar ryms i befintlig `fermentation_learnings` tabell
