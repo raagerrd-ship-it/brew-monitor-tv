@@ -363,6 +363,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       continue
     }
 
+    // ── No-op guard: skip if we already applied this exact target ─────
+    // Prevents duplicate "PID 5.8→5.7" log entries when the PID
+    // recalculates the same compensation across consecutive cycles.
+    const batchApplied = ctx.updateBatch?.getAppliedTarget(fc.controller_id)
+    const lastAppliedTarget = batchApplied ?? ctrlTarget
+    if (Math.abs(ctrlTargetPid - lastAppliedTarget) < 0.05) {
+      log('PID_SKIP', 'info', `${fc.name}: Target already at ${ctrlTargetPid}°C, skipping duplicate adjustment`)
+      continue
+    }
+
     const learnedInfo = pidResult.learnedBaseline > 0 ? `, learned=${pidResult.learnedBaseline.toFixed(2)}[${pidResult.deltaBucket}]n=${pidResult.convergenceCount}` : ''
     const piTermInfo = pidResult.errorCorrection !== 0 ? `, PI=${pidResult.errorCorrection >= 0 ? '+' : ''}${pidResult.errorCorrection.toFixed(2)}°C(P=${pidResult.pCorrection?.toFixed(2) ?? '0'},I=${pidResult.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
     const probeRateInfo = pidResult.probeRate != null ? `, probeRate=${pidResult.probeRate.toFixed(2)}°/h` : ''
