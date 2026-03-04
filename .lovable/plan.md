@@ -1,31 +1,124 @@
 
 
-## Varför AI:n tror det är cold crash
+# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
 
-**Problemet:** AI-auditen ser dessa data för "Temp Controller Gul":
-- `fermentation_phase: stationary` (SG rör sig inte)
-- `ready_to_crash: true`
-- Pill: 8.97°C, Probe: 6.97°C → delta ≈ 2.0°C
-- Target: 8°C
+## Klarifiering
 
-Prompten säger: "Stort delta + låg jäsningsaktivitet = kylningen driver för hårt (cold crash)". AI:n tolkar detta som en aktiv cold crash — men 8°C är bara normal lagertemperatur.
+Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
 
-**Grundorsak:** AI:n har ingen information om vilken typ av steg som körs (hold vs crash) eller vad som är "normalt" för denna bryggning. Den ser bara fas + delta + target och gissar.
+1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
+2. **Minska hysteres** om controllern inte når mål inom en viss tid
 
-## Plan: Ge AI:n bättre kontext
+## Relay-val per controller
 
-1. **Lägg till step-typ och profil-kontext i AI-prompten** — Inkludera data om aktiv fermentationssession (om det finns en), vilken stegtyp som körs (hold/ramp/crash/wait_for_sg), och profilens namn. Om ingen session körs, flagga det explicit.
+```text
+Target < Actual (ska sjunka)  → cooling ON, heating OFF
+Target > Actual (ska stiga)   → heating ON, cooling OFF
+Hold-zon (inom 0.5°C)         → temperaturband:
+  target < 15°C → cooling only (jäsning genererar värme)
+  target > 20°C → heating only (temp sjunker naturligt)
+  annars        → båda ON
+```
 
-2. **Definiera "cold crash" tydligt i prompten** — Lägg till en regel: "Cold crash innebär att måltemperaturen **aktivt sänks mot ≤4°C**. En stabil hold vid 6-10°C är INTE cold crash — det är normal lagerjäsning. Bedöm inte enbart baserat på delta."
+## Adaptiv Hysteresis
 
-3. **Skicka med `profile_target_temp` och ev. step-mål i controller-data** — Så AI:n kan se om temperaturen är stabil (hold) eller sjunkande (ramp/crash).
+Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
 
-### Tekniska ändringar
+## Teknisk plan
 
-**Fil: `supabase/functions/ai-automation-audit/index.ts`**
+### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
 
-- Hämta `fermentation_sessions` med `current_step_index` och `step_started_at` och joina med `fermentation_profiles` (name) för running sessions
-- Hämta `fermentation_profile_steps` för running sessions för att veta aktuellt steg-typ
-- Lägg till i controller-objektet: `active_step_type` (hold/ramp/crash/wait_for_sg/null), `profile_name`
-- Uppdatera systemprompten med tydlig definition av cold crash vs normal hold
+Lägg till tre actions i `ALLOWED_ACTIONS`:
+- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
+- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
+- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
 
+### 2. Wrapper-funktioner i `temp-utils.ts`
+
+Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
+
+### 3. Databasändringar
+
+**`auto_cooling_settings`** — nya kolumner:
+- `smart_relay_enabled` boolean default false
+- `smart_relay_cooling_only_below` numeric default 15
+- `smart_relay_heating_only_above` numeric default 20
+- `smart_relay_min_hysteresis` numeric default 0.3
+- `smart_relay_tighten_after_minutes` integer default 30
+
+**`rapt_temp_controllers`** — nya kolumner:
+- `smart_relay_active` boolean default false
+- `pre_smart_heating_enabled` boolean nullable
+- `pre_smart_cooling_enabled` boolean nullable
+- `pre_smart_heating_hysteresis` numeric nullable
+- `pre_smart_cooling_hysteresis` numeric nullable
+- `smart_relay_off_target_since` timestamptz nullable
+
+### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+
+Placeras **före** PID i pipeline:
+
+```text
+Pipeline:
+  1. Bootstrap
+  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
+  3. PID Control
+  4. Pass-through
+  5. Stall Detection
+```
+
+Per controller (alla steg-typer):
+1. Läs `profile_target_temp` och `actual_temp`
+2. Bestäm riktning → toggle reläer via RAPT API
+3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
+4. Om on-target: återställ hysteres till original
+5. Spara originalvärden i `pre_smart_*` vid första ändring
+
+Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
+
+### 5. UI i Settings (automation-tab)
+
+Nytt avsnitt "Smart Relay" med:
+- Enable/disable toggle
+- Temperaturband-inputs (kylning-under, värme-över)
+- Min hysteres
+- Minuter innan tightening
+
+### 6. Beslutsloggning
+
+- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
+- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
+- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+
+### Filer som ändras
+
+- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
+- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
+- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
+- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
+- DB-migration för nya kolumner
+
+---
+
+## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+
+**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
+
+**Fix:** 
+- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
+- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
+- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
+
+---
+
+## ✅ Web Push-notifieringar (2026-03-03)
+
+**Implementerat:**
+- `push_subscriptions` tabell med RLS (anyone can CRUD)
+- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
+- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
+- `public/push-sw.js` — service worker för push-event + notificationclick
+- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
+- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
+- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
+- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad

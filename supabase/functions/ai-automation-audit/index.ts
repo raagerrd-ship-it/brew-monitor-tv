@@ -120,6 +120,25 @@ Deno.serve(async (req) => {
       .select('id, linked_controller_id, attenuation, status')
       .not('linked_controller_id', 'is', null);
 
+    // Fetch profile names and step types for running sessions
+    const sessionProfileMap = new Map<string, { profile_name: string; active_step_type: string; step_target_temp: number | null }>();
+    if (runningSessions && runningSessions.length > 0) {
+      const profileIds = [...new Set(runningSessions.map((s: any) => s.profile_id))];
+      const [{ data: profiles }, { data: steps }] = await Promise.all([
+        supabase.from('fermentation_profiles').select('id, name').in('id', profileIds),
+        supabase.from('fermentation_profile_steps').select('profile_id, step_order, step_type, target_temp').in('profile_id', profileIds),
+      ]);
+      for (const session of runningSessions) {
+        const profile = (profiles || []).find((p: any) => p.id === session.profile_id);
+        const currentStep = (steps || []).find((s: any) => s.profile_id === session.profile_id && s.step_order === session.current_step_index);
+        sessionProfileMap.set(session.controller_id, {
+          profile_name: profile?.name ?? 'Okänd profil',
+          active_step_type: currentStep?.step_type ?? 'unknown',
+          step_target_temp: currentStep?.target_temp ?? null,
+        });
+      }
+    }
+
     // ========================================
     // BUILD PROMPT WITH ALL SYSTEM DATA
     // ========================================
@@ -136,9 +155,16 @@ Deno.serve(async (req) => {
 - **Pill (pill-temp)** sitter i TOPPEN av vätskan. Den reagerar LÅNGSAMT på kylning.
 - Under **aktiv jäsning**: CO₂-produktion driver värme uppåt → pill blir naturligt varmare än probe → högt delta är FÖRVÄNTAT och normalt. Ändra INTE PID-parametrar pga högt delta under aktiv jäsning.
 - Under **cold crash / temperatursänkning**: Om delta (pill - probe) är STORT betyder det att kylningen är FÖR AGGRESSIV — probe sjunker snabbt (nära kylslangen) medan pill hänger kvar (långt från kylning).
-  → Rätt åtgärd: ÖKA damping (lugnare PID), MINSKA rate_limit (mindre steg per cykel) — INTE tvärtom!
-  → FEL åtgärd: Sänka damping eller öka rate_limit — det gör kylningen ännu mer aggressiv och ÖKAR delta.
+   → Rätt åtgärd: ÖKA damping (lugnare PID), MINSKA rate_limit (mindre steg per cykel) — INTE tvärtom!
+   → FEL åtgärd: Sänka damping eller öka rate_limit — det gör kylningen ännu mer aggressiv och ÖKAR delta.
 - Tumregel: Stort delta + låg jäsningsaktivitet = kylningen driver för hårt. Lösning = lugnare reglering.
+
+## KRITISK DEFINITION: Cold Crash vs Normal Hold
+- **Cold crash** = måltemperaturen AKTIVT SÄNKS mot ≤4°C via ett ramp-steg. Stegtypen är typiskt 'ramp' med target_temp ≤ 4°C.
+- **Normal lagerjäsning** = temperatur hålls STABIL vid 6-18°C via ett 'hold'-steg. Detta är INTE cold crash, oavsett delta eller jäsningsfas.
+- Varje controller har nu fälten 'active_step_type' och 'profile_name'. Använd dessa för att avgöra om controllern gör cold crash eller bara håller temperatur.
+- Om active_step_type = 'hold' eller 'wait_for_sg' eller 'wait_for_gravity_stable' → det är INTE cold crash. Delta kan vara normalt pga fysik.
+- Om active_step_type = 'ramp' OCH step_target_temp ≤ 4°C → DÅ är det cold crash.
 
 ## Regler för parameterändringar
 - Du FÅR ändra parametrar direkt. Returnera dem i "parameter_changes".
@@ -198,6 +224,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             return (activeBrews || []).some((b: any) => b.id === m.brew_id && b.linked_controller_id === c.controller_id);
           }) : metrics;
           const fm = metrics || directMetrics;
+          const sessionCtx = sessionProfileMap.get(c.controller_id);
           return {
             id: c.controller_id,
             name: sanitize(c.name),
@@ -213,6 +240,9 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             activity_score: fm?.activity_score ?? null,
             sg_rate_per_hour: fm?.sg_rate_per_hour ?? null,
             ready_to_crash: fm?.ready_to_crash ?? null,
+            active_step_type: sessionCtx?.active_step_type ?? null,
+            profile_name: sessionCtx ? sanitize(sessionCtx.profile_name, 40) : null,
+            step_target_temp: sessionCtx?.step_target_temp ?? null,
           };
         }),
       running_sessions: (runningSessions || []).length,
