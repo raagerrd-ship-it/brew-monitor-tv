@@ -275,9 +275,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    )}
 
                    <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                     fontSize: isMobile ? undefined : '16px',
-                     ...(linkedPill?.color ? { color: isControllerStale ? 'hsl(0 84% 60%)' : linkedPill.color } : isControllerStale ? { color: 'hsl(0 84% 60%)' } : {})
-                   }}>
+                      fontSize: isMobile ? undefined : '16px',
+                      ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
+                    }}>
                      {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
                    </span>
 
