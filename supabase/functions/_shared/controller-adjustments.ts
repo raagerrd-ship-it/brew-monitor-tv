@@ -92,14 +92,25 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
 // ─── Bootstrap ───────────────────────────────────────────────
 
 async function bootstrapProfileTargets(ctx: ControllerAdjustmentContext): Promise<void> {
-  const { supabase, followedControllersFullData, log } = ctx
+  const { supabase, followedControllersFullData, profileOwnedControllerIds, log } = ctx
 
   for (const fc of followedControllersFullData) {
     if ((fc as any).profile_target_temp != null) continue
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
+    // SAFETY: Only bootstrap profile_target_temp for controllers with an active
+    // fermentation session. Without a session, there is no authoritative source
+    // for the profile target, and using target_temp would capture the PID-adjusted
+    // value instead of the user's intended temperature.
+    if (!profileOwnedControllerIds.has(fc.controller_id)) {
+      log('BOOTSTRAP', 'info', `${fc.name}: profile_target_temp is null but no active session — using target_temp as read-only fallback`)
+      ;(fc as any).profile_target_temp = parseFloat(String(fc.target_temp ?? '20'))
+      // Do NOT write to DB — let the user or a session set it explicitly
+      continue
+    }
+
     const targetTemp = parseFloat(String(fc.target_temp ?? '20'))
-    log('BOOTSTRAP', 'info', `${fc.name}: Setting profile_target_temp = ${targetTemp}°C from target_temp`)
+    log('BOOTSTRAP', 'info', `${fc.name}: Setting profile_target_temp = ${targetTemp}°C from target_temp (has active session)`)
     
     await supabase
       .from('rapt_temp_controllers')
