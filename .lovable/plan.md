@@ -1,124 +1,75 @@
 
 
-# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
+# Analys: Är aktiv kalibrering rätt approach?
 
-## Klarifiering
+## Problemet med den föreslagna kalibreringen
 
-Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
+Den aktiva kalibreringen (24h, dedicerad controller, steging genom temperaturer) har flera grundläggande svagheter:
 
-1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
-2. **Minska hysteres** om controllern inte når mål inom en viss tid
+1. **Tom tank ≠ jäsande tank**: En tom tank (eller vattenfylld) har helt annan termisk massa och noll exoterm värme från jäsning. Kalibreringsdatan överför sig inte till verkliga förhållanden.
 
-## Relay-val per controller
+2. **Omgivningstemperatur varierar**: Marginalen vid 22°C omgivning skiljer sig drastiskt från 5°C omgivning. En engångskalibrering fångar bara ett tillfälle.
 
-```text
-Target < Actual (ska sjunka)  → cooling ON, heating OFF
-Target > Actual (ska stiga)   → heating ON, cooling OFF
-Hold-zon (inom 0.5°C)         → temperaturband:
-  target < 15°C → cooling only (jäsning genererar värme)
-  target > 20°C → heating only (temp sjunker naturligt)
-  annars        → båda ON
-```
+3. **Antalet tankar påverkar**: En glykolkylare som kyler 1 tank vs 3 tankar har helt olika kapacitet per tank. Kalibrering med 1 controller säger lite om multi-tank-scenarion.
 
-## Adaptiv Hysteresis
+4. **Controller ur drift i 18h+**: Opraktiskt.
 
-Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
+## Vad systemet egentligen behöver lära sig
 
-## Teknisk plan
+Det du beskriver --- marginal för hold, kylhastighet vid marginal, uppvärmningshastighet --- är *driftsparametrar* som varierar med:
+- Omgivningstemperatur
+- Antal aktiva tankar (last)
+- Jäsningsaktivitet (exoterm värme)
+- Tankinnehåll (volym, typ)
 
-### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+## Bättre approach: Förbättrad passiv inlärning
 
-Lägg till tre actions i `ALLOWED_ACTIONS`:
-- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
-- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
-- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+Istället för aktiv kalibrering, utöka den befintliga passiva inlärningen med fler parametrar:
 
-### 2. Wrapper-funktioner i `temp-utils.ts`
+### Nya inlärda parametrar (via `fermentation_learnings`)
 
-Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
+| Parameter | Vad den fångar | När den lärs |
+|-----------|---------------|--------------|
+| `cooling_rate:{bucket}:{load}` | °C/h kylhastighet vid given marginal och last | Under aktiv kylning |
+| `warming_rate:{bucket}` | °C/h passiv uppvärmning (kylare av) | När cooler util = 0% och temp stiger |
+| `hold_margin:{bucket}:{load}` | Optimal marginal för att hålla stabil temp | Under hold-steg med stabil temp |
+| `ramp_margin:{bucket}:{load}` | Optimal marginal under aktiv ramp | Under ramp-steg |
+| `cooling_capacity:{load}` | Max kylkapacitet vid given last | Vid 100% utilization |
 
-### 3. Databasändringar
+`load` = antal aktiva tankar (0, 1, 2plus) --- detta finns redan delvis i bucket-systemet.
 
-**`auto_cooling_settings`** — nya kolumner:
-- `smart_relay_enabled` boolean default false
-- `smart_relay_cooling_only_below` numeric default 15
-- `smart_relay_heating_only_above` numeric default 20
-- `smart_relay_min_hysteresis` numeric default 0.3
-- `smart_relay_tighten_after_minutes` integer default 30
+### Förändringar i befintlig kod
 
-**`rapt_temp_controllers`** — nya kolumner:
-- `smart_relay_active` boolean default false
-- `pre_smart_heating_enabled` boolean nullable
-- `pre_smart_cooling_enabled` boolean nullable
-- `pre_smart_heating_hysteresis` numeric nullable
-- `pre_smart_cooling_hysteresis` numeric nullable
-- `smart_relay_off_target_since` timestamptz nullable
+**`cooler-management.ts`**:
+- `learnFromCurrentState()` utökas med:
+  - Logga `cooling_rate:{bucket}:{load}` varje cykel med aktiv kylning
+  - Logga `warming_rate:{bucket}` när kylare util=0% och temp stiger
+  - Separera `hold_margin` vs `ramp_margin` baserat på om steg är hold/ramp
+- `measureCoolingRate()` redan finns --- återanvänd för warming rate (negativ = uppvärmning)
 
-### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+**`controller-adjustments.ts`**:
+- PID kan använda inlärd `cooling_rate` för att bättre prediktera hur mycket kompensation som behövs
+- Vid ramp: använd `ramp_margin` istället för generell `cooler_margin`
 
-Placeras **före** PID i pipeline:
+### Ny UI-komponent: `LearnedThermalProfile.tsx`
 
-```text
-Pipeline:
-  1. Bootstrap
-  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
-  3. PID Control
-  4. Pass-through
-  5. Stall Detection
-```
+Visar en sammanfattning av alla inlärda termiska parametrar:
+- Kylhastighet per zon och last
+- Uppvärmningshastighet per zon  
+- Hold-marginal vs ramp-marginal
+- "Confidence" baserat på sample_count
 
-Per controller (alla steg-typer):
-1. Läs `profile_target_temp` och `actual_temp`
-2. Bestäm riktning → toggle reläer via RAPT API
-3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
-4. Om on-target: återställ hysteres till original
-5. Spara originalvärden i `pre_smart_*` vid första ändring
+### Databas
 
-Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
-
-### 5. UI i Settings (automation-tab)
-
-Nytt avsnitt "Smart Relay" med:
-- Enable/disable toggle
-- Temperaturband-inputs (kylning-under, värme-över)
-- Min hysteres
-- Minuter innan tightening
-
-### 6. Beslutsloggning
-
-- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
-- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
-- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+Inga schemaändringar behövs --- allt ryms i befintliga `fermentation_learnings` med nya `parameter_name`-nycklar.
 
 ### Filer som ändras
 
-- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
-- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
-- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
-- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
-- DB-migration för nya kolumner
+1. `supabase/functions/_shared/cooler-management.ts` --- utöka `learnFromCurrentState()` med cooling rate, warming rate, hold/ramp-separering
+2. `src/components/LearnedCoolerMarginValues.tsx` --- utöka med nya parametrar (eller ny komponent)
+3. Eventuellt `supabase/functions/_shared/controller-adjustments.ts` --- PID använder inlärda rates
 
----
+### Sammanfattning
 
-## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+Aktiv kalibrering med dedikerad tank är inte värt komplexiteten. Förbättrad passiv inlärning med fler parametrar (kylhastighet, uppvärmningshastighet, hold vs ramp) ger bättre data eftersom den lär sig under verkliga förhållanden. Systemet konvergerar inom 2-3 dagar istället för att ge en opålitlig engångsmätning.
 
-**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
-
-**Fix:** 
-- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
-- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
-- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
-
----
-
-## ✅ Web Push-notifieringar (2026-03-03)
-
-**Implementerat:**
-- `push_subscriptions` tabell med RLS (anyone can CRUD)
-- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
-- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
-- `public/push-sw.js` — service worker för push-event + notificationclick
-- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
-- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
-- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
-- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad
