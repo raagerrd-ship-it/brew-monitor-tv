@@ -795,7 +795,9 @@ async function learnFromCurrentState(
   // If no tank has active demand, the observed margin is meaningless
   const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
   if (!anyActive) {
-    log('MARGIN_LEARN', 'info', `Hoppar inlärning — ingen controller kyler aktivt`)
+    // ── Learn warming rate when no controller is actively cooling ──
+    await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
+    log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — ingen controller kyler aktivt`)
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
@@ -816,6 +818,30 @@ async function learnFromCurrentState(
 
   const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
 
+  // ── Determine load bucket (how many tanks are actively cooling) ──
+  const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
+  const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
+
+  // ── Learn cooling rate per bucket+load ──
+  if (actualRate !== null && actualRate > 0.05) {
+    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
+    const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
+    if (Math.abs(rateResult.oldValue - rateResult.newValue) > 0.01) {
+      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
+    }
+  }
+
+  // ── Learn cooling capacity at near-100% utilization ──
+  if (lowestUtil?.utilization != null && lowestUtil.utilization >= 0.95 && actualRate !== null && actualRate > 0) {
+    const capParam = `cooling_capacity:${loadBucket}`
+    await updateLearnedParam(supabase, coolerController.controller_id, capParam, actualRate, 0.01, 20.0)
+  }
+
+  // ── Determine if current state is hold or ramp for separate margin learning ──
+  const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
+  const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
+  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
+
   // ── Rate-based learning during active ramps ──
   if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
     const requiredRate = effectiveTarget.requiredRatePerHour
@@ -832,6 +858,9 @@ async function learnFromCurrentState(
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     }
+
+    // Learn ramp-specific margin
+    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
 
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
     return
@@ -868,6 +897,9 @@ async function learnFromCurrentState(
       }
     }
 
+    // Learn hold-specific margin
+    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+
     // Also learn max effective during hold if we have rate data
     if (actualRate !== null) {
       await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
@@ -893,8 +925,35 @@ async function learnFromCurrentState(
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   }
 
+  // Learn hold-specific margin
+  await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+
   if (actualRate !== null) {
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+  }
+}
+
+// ─── Learn passive warming rate ──────────────────────────────
+// When no controller is actively cooling (cooler util ~0%), measure
+// how fast each controller's probe temp rises passively.
+
+async function learnWarmingRate(
+  ctx: CoolerContext,
+  controllersWithCooling: TempController[],
+  tempBucket: string,
+): Promise<void> {
+  const { supabase, log } = ctx
+
+  for (const c of controllersWithCooling) {
+    const rate = await measureCoolingRate(supabase, c.controller_id)
+    // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
+    if (rate !== null && rate < -0.05) {
+      const warmingRate = Math.abs(rate) // °C/h of passive warming
+      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${tempBucket}`, warmingRate, 0.01, 10.0)
+      if (Math.abs(result.oldValue - result.newValue) > 0.01) {
+        log('WARMING_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
+      }
+    }
   }
 }
 

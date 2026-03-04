@@ -14,6 +14,7 @@ import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
+import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -580,6 +581,8 @@ export default function Settings() {
                 </SettingsSection>
 
                 <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren" collapsible defaultOpen={false}>
+                  <LearnedThermalProfile />
+                  <SettingsDivider />
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
