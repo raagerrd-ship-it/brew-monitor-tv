@@ -886,7 +886,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const isStale = !!det.stale;
                 const isGlycol = !!det.glycol;
                 const isInactive = !!det.inactive;
-                const rowDimmed = isStale || isInactive;
+                const rowDimmed = isInactive && !isStale;
                 return (
                   <React.Fragment key={i}>
                     <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''} ${rowDimmed ? 'opacity-50' : ''}`}>
