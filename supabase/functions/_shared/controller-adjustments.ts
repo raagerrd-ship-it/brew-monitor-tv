@@ -390,11 +390,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
 
     // ── Duty-cycle PWM modulation (per tank) ────────────────
-    // When PID has stabilised temperature (pidDiff < 0.3), PWM takes over
-    // instead of continuous PID micro-adjustments. This reduces API calls
-    // and relay wear while maintaining temperature via on/off cycling.
+    // PWM activates when the controller's actual temperature (ctrl) is within
+    // ±0.3°C of the hardware target (ctrl_target). This means the tank is
+    // thermally stable and micro-adjustments can be replaced by on/off cycling.
     // 1 hour = 12 segments à 5 min. duty 18% → cooling active in ~2 of 12 segments.
-    if (pidMode === 'cooling' && (stepType === 'hold' || stepType === 'standalone') && pidDiff < 0.3) {
+    const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
+    if (pidMode === 'cooling' && (stepType === 'hold' || stepType === 'standalone') && ctrlTempDiff < 0.3) {
       const cBucket = getTempBucket(ctrlTarget)
       const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
@@ -418,7 +419,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             segment: segmentIndex + 1,
             total_segments: totalSegments,
             active_segments: activeSegments,
-            pid_diff: pidDiff,
+            ctrl_temp_diff: ctrlTempDiff,
           })
 
           // During off-segment, sync target to delta-compensated target if it differs
