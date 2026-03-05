@@ -100,6 +100,16 @@ serve(async (req) => {
       return new Response(JSON.stringify({ message: 'All features disabled', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── Retry: load pending RAPT retries from previous failed flushes ──
+    const { data: pendingRetries } = await supabase
+      .from('pending_rapt_retries')
+      .select('*')
+      .order('created_at', { ascending: true });
+    const retriesToProcess = (pendingRetries ?? []) as { id: string; controller_id: string; target_temp: number; reason: string; attempts: number }[];
+    if (retriesToProcess.length > 0) {
+      log('RETRY', 'info', `Found ${retriesToProcess.length} pending retry(ies) from previous cycle(s)`);
+    }
+
     // ── Load controllers ─────────────────────────────────────────
     const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
     const allControllers = (allControllersData || []) as TempController[];
