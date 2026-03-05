@@ -69,7 +69,7 @@ const r1 = (v: number | null | undefined): string => {
 
 const r2 = (v: number | null | undefined): string => {
   if (v === null || v === undefined) return '—';
-  return parseFloat(Number(v).toFixed(2)).toString();
+  return Number(v).toFixed(2);
 };
 
 // --- Types ---
