@@ -363,8 +363,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-          if (minutesUntilCooling < 15) {
-            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min — håller kylare redo`)
+
+          // Use learned duty cycle for smarter prediction:
+          // High duty cycle = controller spends a lot of time cooling = keep cooler ready sooner
+          const dutyParam = await getLearnedParam(supabase, c.controller_id, `steady_state_duty:${cTempBucket}`, -1)
+          const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
+            ? 20  // high duty cycle → longer lookahead (keep cooler ready earlier)
+            : 15  // default
+
+          if (minutesUntilCooling < dutyThresholdMinutes) {
+            const dutyInfo = dutyParam.sampleCount >= 3 ? ` duty=${Math.round(dutyParam.value * 100)}%` : ''
+            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min${dutyInfo} — håller kylare redo`)
             keepCoolerReady = true
             break
           }
