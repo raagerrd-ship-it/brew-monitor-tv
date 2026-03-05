@@ -1530,18 +1530,30 @@ function AdjustmentCard({ adj }: { adj: AdjustmentLog & { category: AdjustmentCa
 
   if (category === 'pwm') {
     const isOff = adj.reason.includes('PWM OFF') || adj.reason.includes('PWM off');
-    const isOn = !isOff;
     const labelMatch = adj.reason.match(/PWM (\d+%\s*ON|OFF)/i);
     const label = labelMatch ? labelMatch[1] : (isOff ? 'OFF' : 'ON');
     return (
-      <div className="pt-2 border-t border-border text-xs space-y-1">
+      <div className="pt-2 border-t border-border text-xs space-y-2">
         <p className="font-semibold" style={{ color: isOff ? 'hsl(38 80% 55%)' : 'hsl(45 90% 55%)' }}>
           ⚡ PWM {label}
         </p>
         <p className="text-[11px]">{adj.cooler_controller_name}: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</p>
-        <p className="text-[11px]" style={{ color: 'hsl(142 60% 50%)' }}>
-          ✅ RAPT-kommando skickat och bekräftat
-        </p>
+        <div className="p-2 rounded border" style={{
+          borderColor: 'hsl(25 95% 53% / 0.3)',
+          background: 'hsl(25 95% 53% / 0.05)',
+        }}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Send className="h-3 w-3" style={{ color: 'hsl(25 95% 53%)' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(25 95% 53%)' }}>Skickat till RAPT</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
+            <span style={{ color: 'hsl(25 80% 60%)' }}>{adj.cooler_controller_name}: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</span>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: 'hsl(142 60% 50%)' }}>
+            ✅ RAPT-kommando skickat och bekräftat
+          </p>
+        </div>
       </div>
     );
   }
