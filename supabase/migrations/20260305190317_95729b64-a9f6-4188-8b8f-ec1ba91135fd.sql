@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_temp_controllers ADD COLUMN pwm_stable_count integer NOT NULL DEFAULT 0;
