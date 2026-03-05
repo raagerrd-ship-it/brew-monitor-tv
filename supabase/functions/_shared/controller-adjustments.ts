@@ -263,6 +263,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // whether actual_temp is an average of pill+probe or just probe.
   log('PID_CONTROL', 'info', `PID control check (dual sensors: ${pillCompSettings.enabled ? 'ON' : 'OFF'})`)
 
+  // Pre-load pending PWM reverts so PID can use the revert target as baseline
+  // instead of the temporary 0°C PWM ON value
+  const controllerIds = followedControllersFullData.map(c => c.controller_id)
+  const { data: pendingPwmReverts } = await supabase
+    .from('pending_rapt_retries')
+    .select('controller_id, target_temp')
+    .in('controller_id', controllerIds)
+    .like('reason', '%PWM OFF%')
+  const pwmRevertMap = new Map(
+    (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
+  )
+
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
 
@@ -272,7 +284,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
+    // If a pending PWM revert exists, the current target_temp is the temporary
+    // PWM ON value (0°C). Use the revert target as the true baseline instead,
+    // so PID rate-limits don't try to step up from 0°C.
+    const rawCtrlTarget = parseFloat(String(fc.target_temp ?? '20'))
+    const pwmRevertTarget = pwmRevertMap.get(fc.controller_id)
+    const ctrlTarget = pwmRevertTarget != null ? pwmRevertTarget : rawCtrlTarget
+    if (pwmRevertTarget != null) {
+      log('PID_PWM_BASELINE', 'info', `${fc.name}: Using PWM revert target ${pwmRevertTarget}° as baseline (hw target is ${rawCtrlTarget}°)`)
+    }
 
     // PID always runs every cycle — no same-data guard.
     // Even if RAPT telemetry hasn't changed, the PID integral and learned
