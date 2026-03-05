@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
+import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
 import { StallSettings } from '../_shared/stall-detection.ts';
@@ -312,6 +313,17 @@ serve(async (req) => {
         if (profileInfo.currentStepType) details.step_type = profileInfo.currentStepType;
         if (profileInfo.hasCooloff) details.cooloff = true;
       }
+
+      // Add learned duty cycle percentage if available (for non-glycol, active controllers)
+      if (!isGlycol && isFollowed && !isStale) {
+        const cBucket = getTempBucket(originalTarget);
+        const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
+        if (dutyParam.sampleCount >= 3 && dutyParam.value > 0) {
+          details.duty_pct = Math.round(dutyParam.value * 100);
+          details.duty_samples = dutyParam.sampleCount;
+        }
+      }
+
       log('SYNC_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 

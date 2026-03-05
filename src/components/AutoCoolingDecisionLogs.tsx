@@ -919,6 +919,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
                 <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
                 <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
+                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Behov</th>
                 <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
                 <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
               </tr>
@@ -993,6 +994,23 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         )}
                       </td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
+                        {det.duty_pct != null ? (
+                          <TooltipProvider delayDuration={200}><Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`font-mono cursor-help ${(det.duty_pct as number) >= 50 ? 'text-amber-400' : (det.duty_pct as number) >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {String(det.duty_pct)}%
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              Inlärt kylbehov: {String(det.duty_pct)}% = ~{Math.round((det.duty_pct as number) / 100 * 300)}s per 5 min
+                              {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
+                            </TooltipContent>
+                          </Tooltip></TooltipProvider>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">—</span>
+                        )}
+                      </td>
+                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {det.preserved ? (
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
@@ -1015,7 +1033,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     </tr>
                     {pillData && (
                       <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
-                        <td colSpan={8} className="py-1 px-1.5 pl-4">
+                        <td colSpan={9} className="py-1 px-1.5 pl-4">
                           <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
                             <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                               <Pill className="h-2.5 w-2.5" />
