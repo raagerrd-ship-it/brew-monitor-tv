@@ -1159,7 +1159,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-current/30">−{r1(Math.abs(comp))}°</span>
+                              <span className="cursor-help border-b border-dotted border-current/30">{r1(comp)}°</span>
                             </TooltipTrigger>
                              <TooltipContent side="top" className="text-[10px] max-w-[200px]">
                                <div className="space-y-0.5">
