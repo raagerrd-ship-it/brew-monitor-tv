@@ -1,0 +1,2 @@
+UPDATE fermentation_learnings SET learned_value = 3.0, sample_count = 1 WHERE parameter_name = 'min_effective_margin:cold' AND controller_id = '7e57bd3c-a1bf-4634-a39e-e2f60b23d429';
+UPDATE fermentation_learnings SET learned_value = 3.0, sample_count = 1 WHERE parameter_name = 'min_effective_margin:cool' AND controller_id = '7e57bd3c-a1bf-4634-a39e-e2f60b23d429';
