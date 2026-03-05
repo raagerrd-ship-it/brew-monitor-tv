@@ -1079,10 +1079,10 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       {(() => {
                         // Use limits from STATUS data directly, fall back to ACTION brakes
                         const brakes: { label: string; tip: string }[] = [];
-                        const rawVal = rawValue;
-                        const clampedVal = ctrlTargetPid;
-                        const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
-                        const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
+                         const rawVal = formulaResult;
+                         const clampedVal = ctrlTargetPid;
+                         const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
+                         const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
                         if (statusLimits.length > 0) {
                           if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
                           if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
@@ -1201,24 +1201,24 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     </td>
                     {/* = */}
                     <td className="py-1 px-0 text-center text-muted-foreground/25">=</td>
-                    {/* Nytt mål (PID result sent to hardware) */}
-                    <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
-                      {ctrlTargetPid != null ? (
-                        rawValue != null && Math.abs(rawValue - ctrlTargetPid) >= 0.05 ? (
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="cursor-help border-b border-dotted border-current/30">{r1(ctrlTargetPid)}°</span>
-                              </TooltipTrigger>
-                               <TooltipContent side="top" className="text-[10px]">
-                                 <div>Rått: {r1(rawValue)}° → {r1(ctrlTargetPid)}°</div>
-                                {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : `${r1(ctrlTargetPid)}°`
-                      ) : rawValue != null ? `${r1(rawValue)}°` : '—'}
-                    </td>
+                     {/* Nytt mål = Profil − Δ + PI (formula result) */}
+                     <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
+                       {formulaResult != null ? (
+                         ctrlTargetPid != null && Math.abs(formulaResult - ctrlTargetPid) >= 0.05 ? (
+                           <TooltipProvider delayDuration={200}>
+                             <Tooltip>
+                               <TooltipTrigger asChild>
+                                 <span className="cursor-help border-b border-dotted border-current/30">{r1(formulaResult)}°</span>
+                               </TooltipTrigger>
+                                <TooltipContent side="top" className="text-[10px]">
+                                  <div>Formel: {r1(formulaResult)}° → Hårdvara: {r1(ctrlTargetPid)}°</div>
+                                 {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
+                               </TooltipContent>
+                             </Tooltip>
+                           </TooltipProvider>
+                         ) : `${r1(formulaResult)}°`
+                       ) : ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : '—'}
+                     </td>
                     {/* Separator */}
                     <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
                     {/* Ctrl mål (before) */}
