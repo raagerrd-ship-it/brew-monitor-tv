@@ -292,7 +292,25 @@ export async function calculateCompensatedTarget(
     constraints.push(`util-sat=${Math.round(coolingUtilization * 100)}%`)
   }
 
-  if (avgError >= 0.35) {
+  if (Math.abs(avgError) <= 0.1) {
+    // === DEADBAND — within ±0.1°C of target ===
+    // Neither heater nor cooler will activate for such tiny differences.
+    // Decay integral slowly toward zero to avoid windup.
+    const decayedIntegral = persistedIntegral * 0.9
+    iCorrection = decayedIntegral
+    pCorrection = 0
+    errorCorrection = 0
+    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (±0.1° = vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
+
+    await supabase.from('controller_learned_compensation').upsert({
+      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
+      latest_p_correction: 0, latest_i_correction: decayedIntegral,
+      latest_d_damping: dampingFactor, latest_avg_error: avgError,
+      accumulated_integral: decayedIntegral,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    constraints.push('deadband')
+  } else if (avgError >= 0.35) {
     // === UNDERSHOOT ===
     pCorrection = avgError * mp.pGain
 
