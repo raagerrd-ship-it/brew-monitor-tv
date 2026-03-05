@@ -137,10 +137,11 @@ export function LearnedDutyCycle() {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                <th className="text-left font-medium pb-1 w-[30%]">Zon</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Duty</th>
-                <th className="text-right font-medium pb-1 w-[25%]">Warm/Kyl</th>
-                <th className="text-right font-medium pb-1 w-[25%]">Senast</th>
+                <th className="text-left font-medium pb-1 w-[25%]">Zon</th>
+                <th className="text-right font-medium pb-1 w-[15%]">Duty</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Per cykel</th>
+                <th className="text-right font-medium pb-1 w-[20%]">W/K °C/h</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Senast</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
@@ -151,7 +152,10 @@ export function LearnedDutyCycle() {
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
                     <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
                     <td className={`py-1.5 text-right font-mono ${color}`}>{dutyPct}%</td>
-                    <td className="py-1.5 text-right text-muted-foreground font-mono">
+                    <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
+                      {dutyPct > 0 ? `${Math.round(dutyPct * 3)}s/5min` : "—"}
+                    </td>
+                    <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
                       {item.warming_rate > 0 ? item.warming_rate.toFixed(2) : "—"}/{item.cooling_rate > 0 ? item.cooling_rate.toFixed(2) : "—"}
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
