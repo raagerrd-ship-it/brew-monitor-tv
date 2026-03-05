@@ -482,6 +482,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   const hystKickNoop = entries.find(d => d.step === 'HYSTERESIS_KICK_NOOP');
   const hystDeadband = entries.find(d => d.step === 'HYSTERESIS_DEADBAND');
   const hystRevert = entries.find(d => d.step === 'HYSTERESIS_REVERT');
+  const kickFlag = entries.find(d => d.step === 'KICK_FLAG');
   const minMargin = entries.find(d => d.step === 'MIN_MARGIN');
 
   // Error/skip states
