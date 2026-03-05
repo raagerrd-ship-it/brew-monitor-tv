@@ -354,6 +354,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
+  const hasError = log.final_result === 'Error';
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Header badge
@@ -362,7 +363,10 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   if (adjs.length === 0) {
     headerBadge = (
       <div className="flex gap-1 items-center">
-        {showWarningTriangle && (
+        {hasError && (
+          <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+        )}
+        {showWarningTriangle && !hasError && (
           <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
         )}
         <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
