@@ -453,17 +453,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         pid_diff: pidDiff,
       })
 
-      // 1. Send ON immediately via batch
+      // 1. Send ON immediately via batch (batch handles DB sync on flush)
       if (ctx.updateBatch) {
         ctx.updateBatch.add(fc.controller_id, onTarget, ctrlTarget)
       } else {
-        await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+        const sent = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+        if (sent) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+        }
       }
-
-      // Update DB target_temp (NOT profile_target_temp — this is automation)
-      await supabase.from('rapt_temp_controllers')
-        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
 
       // Log the ON adjustment
       await logAdjustment(supabase, {
