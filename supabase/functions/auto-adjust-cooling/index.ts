@@ -448,6 +448,8 @@ serve(async (req) => {
       maxAttenuation: parseFloat(String(settings.stall_max_attenuation ?? 90)),
     };
 
+    const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = [];
+
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
       followedControllersFullData, profileOwnedControllerIds,
@@ -455,6 +457,7 @@ serve(async (req) => {
       profileStatusMap, lastAdjTimestampMap, pillCompSettings,
       stallSettings, log,
       updateBatch,
+      pwmBursts,
     };
 
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
@@ -594,7 +597,7 @@ serve(async (req) => {
     log('COMPLETE', 'info', `Completed`, { adjustments_made: allAdjustments.length });
     await printSummary(supabase, allAdjustments.length > 0 ? 'Adjustment made' : 'No adjustment needed', allAdjustments.length > 0);
 
-    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog }), {
+    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog, pwm_bursts: pwmBursts.length > 0 ? pwmBursts : undefined }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
