@@ -693,6 +693,10 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
                   return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
                 })()}
               </span>
+            ) : coolerIdle ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Info className="h-2.5 w-2.5" />{coolerIdle.message}
+              </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
                 <Info className="h-2.5 w-2.5" />Ingen åtgärd
