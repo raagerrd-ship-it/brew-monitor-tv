@@ -1017,13 +1017,15 @@ async function learnWarmingRate(
   const { supabase, log } = ctx
 
   for (const c of controllersWithCooling) {
+    // Use the controller's own target temp for bucket, not the cooler's
+    const controllerBucket = getTempBucket(parseFloat(String(c.target_temp ?? '20')))
     const rate = await measureCoolingRate(supabase, c.controller_id)
     // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
     if (rate !== null && rate < -0.05) {
       const warmingRate = Math.abs(rate) // °C/h of passive warming
-      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${tempBucket}`, warmingRate, 0.01, 10.0)
+      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${controllerBucket}`, warmingRate, 0.01, 10.0)
       if (Math.abs(result.oldValue - result.newValue) > 0.01) {
-        log('WARMING_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
+        log('WARMING_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
       }
 
       // ── Learn steady-state duty cycle ──────────────────────
@@ -1031,9 +1033,9 @@ async function learnWarmingRate(
       const coolingRate = await getLearnedParam(supabase, c.controller_id, `thermal_rate_cooling`, -1)
       if (coolingRate.sampleCount >= 3 && coolingRate.value > 0.1) {
         const dutyCycle = Math.min(1.0, result.newValue / coolingRate.value)
-        const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${tempBucket}`, dutyCycle, 0.01, 1.0)
+        const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${controllerBucket}`, dutyCycle, 0.01, 1.0)
         if (Math.abs(dutyResult.oldValue - dutyResult.newValue) > 0.005) {
-          log('DUTY_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
+          log('DUTY_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
         }
       }
     }
