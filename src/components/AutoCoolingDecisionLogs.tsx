@@ -67,6 +67,11 @@ const r1 = (v: number | null | undefined): string => {
   return parseFloat(Number(v).toFixed(1)).toString();
 };
 
+const r2 = (v: number | null | undefined): string => {
+  if (v === null || v === undefined) return '—';
+  return parseFloat(Number(v).toFixed(2)).toString();
+};
+
 // --- Types ---
 
 interface DecisionEntry {
@@ -976,7 +981,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         </span>
                       </td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
-                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_temp as number)}</td>
+                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r2(det.ctrl_temp as number)}</td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
                       <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
