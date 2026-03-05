@@ -113,7 +113,7 @@ export function AspectRatioContainer({
       height: REFERENCE_HEIGHT,
       scale: dimensions.scale
     }}>
-      <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden">
+      <div className="fixed inset-0 flex items-start justify-center bg-black overflow-hidden">
         <div 
           className="overflow-hidden flex flex-col"
           style={{ 
