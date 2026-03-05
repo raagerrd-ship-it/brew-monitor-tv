@@ -294,11 +294,18 @@ export async function calculateCompensatedTarget(
 
   if (Math.abs(avgError) <= 0.1) {
     // === DEADBAND — within ±0.1°C of target ===
-    // Neither heater nor cooler will activate for such tiny differences.
-    // Freeze target at current hardware value to prevent delta-rounding oscillation.
-    // Decay integral slowly toward zero to avoid windup.
+    // Average temp is at target — freeze PI error correction to prevent oscillation.
+    // BUT: still apply delta compensation so the hardware target stays offset
+    // to maintain the equilibrium (e.g., target 8°C with delta 1.7°C → hw target 6.3°C).
     const decayedIntegral = persistedIntegral * 0.9
-    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (±0.1° = vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, behåller target=${ctrlTarget}°C`)
+    
+    // Delta compensation: offset hardware target so avg(pill,probe) stays at actualTarget
+    const deadbandCompensation = absDelta >= 0.1 ? compensation : 0
+    const deadbandCtrlTarget = absDelta >= 0.1
+      ? Math.round((actualTarget - deadbandCompensation) * 10) / 10
+      : ctrlTarget
+    
+    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (±0.1° = vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C${absDelta >= 0.1 ? ` (delta-komp: ${avgDelta.toFixed(1)}°C)` : ''}`)
 
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -309,8 +316,7 @@ export async function calculateCompensatedTarget(
     }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
     constraints.push('deadband')
 
-    // Return early — keep current hardware target, no recalculation needed
-    return { ctrlTargetPid: ctrlTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
+    return { ctrlTargetPid: deadbandCtrlTarget, compensation: deadbandCompensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
   } else if (avgError >= 0.35) {
     // === UNDERSHOOT ===
     pCorrection = avgError * mp.pGain
