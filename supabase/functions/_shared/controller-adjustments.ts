@@ -314,7 +314,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let pwmSegmentIndex = 0
     let pwmTotalSegments = 12
     let pwmActiveSegments = 0
-    const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - (actualTarget - (actualTemp - probeTemp) / 2)) * 10) / 10
+    const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTarget) * 10) / 10
 
     if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
       const cBucket = getTempBucket(ctrlTarget)
