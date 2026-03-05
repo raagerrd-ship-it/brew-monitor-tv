@@ -374,7 +374,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
     if (keepCoolerReady) {
       // Don't shut down cooler — keep at current target
-      log('COOLER_IDLE', 'info', `Alla tankar 0% men warming prediction → håller kylare aktiv`)
+      log('COOLER_IDLE', 'info', `Alla controllers aktiverade 0% men warming prediction → håller kylare aktiv`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
@@ -393,19 +393,19 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
       : Infinity
     if (timeSinceLastIdle < idleCooldownMs) {
-      log('COOLER_IDLE', 'info', `Alla tankar 0% util — cooldown (${Math.round((idleCooldownMs - timeSinceLastIdle) / 60000)} min kvar)`)
+      log('COOLER_IDLE', 'info', `Alla controllers aktiverade 0% — cooldown (${Math.round((idleCooldownMs - timeSinceLastIdle) / 60000)} min kvar)`)
     } else {
       const coolerHyst = coolerController.cooling_hysteresis ?? 0.2
       // Use effectiveTarget (based on tank demands) to ensure idle is above cooling threshold
       const idleTarget = Math.min(coolerMaxTemp, round1(Math.max(coolerTemp + coolerHyst, effectiveTarget.temp + 0.5)))
       if (currentCoolerTarget < idleTarget - 0.1) {
-        log('COOLER_IDLE', 'action', `Alla tankar 0% util — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
+        log('COOLER_IDLE', 'action', `Alla controllers aktiverade 0% — stänger av kylare (${round1(currentCoolerTarget)}° → ${round1(idleTarget)}°C)`)
         await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTarget, effectiveTarget.temp,
-          `💤 Alla tankar 0% — höjer kylare till ${idleTarget}°C (stänger av)`,
+          `💤 Alla controllers aktiverade 0% — höjer kylare till ${idleTarget}°C (stänger av)`,
           adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
         return adjustments
       } else {
-        log('COOLER_IDLE', 'info', `Alla tankar 0% util — kylare redan av (mål ${round1(currentCoolerTarget)}°)`)
+        log('COOLER_IDLE', 'info', `Alla controllers aktiverade 0% — kylare redan av (mål ${round1(currentCoolerTarget)}°)`)
       }
     }
   }
