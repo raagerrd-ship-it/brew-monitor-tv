@@ -394,7 +394,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // instead of continuous PID micro-adjustments. This reduces API calls
     // and relay wear while maintaining temperature via on/off cycling.
     // 1 hour = 12 segments à 5 min. duty 18% → cooling active in ~2 of 12 segments.
-    if (pidMode === 'cooling' && stepType === 'hold' && pidDiff < 0.3) {
+    if (pidMode === 'cooling' && (stepType === 'hold' || stepType === 'standalone') && pidDiff < 0.3) {
       const cBucket = getTempBucket(actualTarget)
       const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
