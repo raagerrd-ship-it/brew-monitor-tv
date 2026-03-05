@@ -413,7 +413,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Setting target to raw actualTarget would undo the probe/pill offset,
           // causing the average to drift above target until the next active segment.
           const pwmOffTarget = round1(actualTarget - pidResult.compensation)
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, sätter target=${pwmOffTarget.toFixed(1)}°C (profil=${actualTarget}°C, delta-komp=${pidResult.compensation.toFixed(1)}°C)`, {
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, sätter target=${pwmOffTarget.toFixed(1)}°C (mål=${actualTarget}°C, Δ=${pidResult.compensation.toFixed(1)}°C)`, {
             duty: Math.round(dutyParam.value * 100),
             segment: segmentIndex + 1,
             total_segments: totalSegments,
@@ -449,7 +449,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
                 followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
                 followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
                 followed_hysteresis: 0,
-                reason: `⏱️ PWM av-segment: target → ${pwmOffTarget.toFixed(1)}°C (profil=${actualTarget.toFixed(1)}°C, delta-komp=${pidResult.compensation.toFixed(1)}°C, duty=${Math.round(dutyParam.value * 100)}%, seg=${segmentIndex + 1}/${totalSegments})`,
+                reason: `⏱️ PWM av-segment: target → ${pwmOffTarget.toFixed(1)}°C (mål=${actualTarget.toFixed(1)}°C, Δ=${pidResult.compensation.toFixed(1)}°C, duty=${Math.round(dutyParam.value * 100)}%, seg=${segmentIndex + 1}/${totalSegments})`,
                 adjusted_against_timestamp: fc.last_update,
               })
             }
