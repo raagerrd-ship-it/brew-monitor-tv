@@ -532,8 +532,11 @@ export async function calculateCompensatedTarget(
       constraints.push('ramp-hold')
       console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
     } else if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
-      if (distanceFromIdeal <= bypassLimit) {
+      if (distanceFromIdeal <= 0.5) {
+        // Small change toward target — bypass rate limit entirely (0.5° is safe)
         console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → actual_target ${actualTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
+      } else if (distanceFromIdeal <= bypassLimit) {
+        console.log(`✅ Rate-limit bypass: inom bypassLimit (${distanceFromIdeal.toFixed(2)}° ≤ ${bypassLimit.toFixed(2)}° → actual_target ${actualTarget}°) [approach zone]`)
       } else {
         ctrlTargetPid = ctrlTarget + (isIncreasing ? bypassLimit : -bypassLimit)
         constraints.push('approach-release')
