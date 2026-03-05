@@ -446,8 +446,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const offTarget = round1(ctrlTarget)
       const onTarget = 0
 
-      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → burst ON (on=${onTarget}°C, revert=${offTarget}°C nästa cykel)`, {
+      const dutySeconds = Math.max(30, Math.min(240, Math.round(pwmDutyPct / 100 * 300)))
+
+      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${dutySeconds}s burst av 300s (on=${onTarget}°C, revert=${offTarget}°C nästa cykel)`, {
         duty_pct: pwmDutyPct,
+        duty_seconds: dutySeconds,
         on_target: onTarget,
         off_target: offTarget,
         pid_diff: pidDiff,
