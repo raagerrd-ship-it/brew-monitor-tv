@@ -647,7 +647,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
           {proactive ? (
             <span style={{ color: 'hsl(210 80% 70%)' }}>{proactive.message}</span>
           ) : (
-            <span className="text-muted-foreground/50">—</span>
+            <span className="text-muted-foreground/40 text-[10px]">Ej aktiv</span>
           )}
         </CoolerSubSection>
 
@@ -726,31 +726,26 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
               <Zap className="h-2.5 w-2.5" />
               Aktiverad
             </span>
+          ) : hystRevert ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 text-[10px]">
+              <Zap className="h-2.5 w-2.5" />
+              {hystRevert.message}
+            </span>
           ) : hystKickNoop ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-muted-foreground/50 cursor-help">Ej nödvändig</span>
+                <span className="text-muted-foreground/40 text-[10px] cursor-help">Ej aktiv</span>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">{hystKickNoop.message}</TooltipContent>
             </Tooltip>
           ) : (
-            <span className="text-muted-foreground/50">—</span>
+            <span className="text-muted-foreground/40 text-[10px]">Ej aktiv</span>
           )}
           {hystDeadband && (
-            <div className="mt-1">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px]">
-                <Info className="h-2.5 w-2.5" />
-                <span>{hystDeadband.message}</span>
-              </span>
-            </div>
-          )}
-          {hystRevert && (
-            <div className="mt-1">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 text-[10px]">
-                <Zap className="h-2.5 w-2.5" />
-                <span>{hystRevert.message}</span>
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px]">
+              <Info className="h-2.5 w-2.5" />
+              <span>{hystDeadband.message}</span>
+            </span>
           )}
         </CoolerSubSection>
 
@@ -801,7 +796,12 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
               );
             })() : null}
             {!marginLearn && !rateLearn && !utilLearn && !minMargin && (
-              <span className="text-muted-foreground/50">—</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground/40 text-[10px] cursor-help">Ej aktiv</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">Ingen controller kyler aktivt</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </CoolerSubSection>
