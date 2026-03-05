@@ -1043,8 +1043,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                               return (
                                 <TooltipProvider delayDuration={200}><Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium ${pwm.isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
-                                      PWM {pwm.isActive ? '▶' : '⏸'}
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
+                                      PWM {pwm.burstSeconds}s
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="text-xs max-w-[220px]">
