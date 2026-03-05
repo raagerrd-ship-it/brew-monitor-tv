@@ -181,7 +181,7 @@ serve(async (req) => {
         if (dbError) {
           console.error('Error updating database:', dbError);
         } else {
-          console.log(`Updated database: controller ${controllerId} target_temp = ${value}, profile_target_temp = ${value}`);
+          console.log(`Updated database: controller ${controllerId} target_temp = ${value}${isAutomationSource ? '' : `, profile_target_temp = ${value}`}`);
 
           // Log the manual adjustment to decision history
           if (oldTarget !== value) {
