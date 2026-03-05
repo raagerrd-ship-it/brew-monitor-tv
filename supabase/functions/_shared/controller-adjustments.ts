@@ -23,7 +23,7 @@ import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 //   Return adjustments for modified controllers; untouched ones pass through.
 // ============================================================
 
-/** PWM burst descriptor — returned from PID, executed by run-automation */
+/** PWM burst descriptor — kept for type reference in logs */
 export interface PwmBurst {
   controller_id: string
   controller_name: string
