@@ -487,6 +487,17 @@ serve(async (req) => {
       if (failed.length > 0) {
         log('BATCH_FLUSH', 'fail', `${failed.length} update(s) failed: ${failed.map(([id]) => id).join(', ')}`);
 
+        // Remove adjustment log entries for failed controllers — they were logged
+        // before the flush and would otherwise block cooldown timers from allowing retries
+        const cycleStart = new Date(startTime).toISOString();
+        for (const [controllerId] of failed) {
+          await supabase.from('auto_cooling_adjustments')
+            .delete()
+            .eq('cooler_controller_id', controllerId)
+            .gte('created_at', cycleStart);
+          log('FLUSH_CLEANUP', 'info', `Tog bort adjustment-log för ${allControllers.find(c => c.controller_id === controllerId)?.name ?? controllerId} (flush misslyckades)`);
+        }
+
         // Save failed updates for retry next cycle
         for (const [controllerId] of failed) {
           const target = updateBatch.getAppliedTarget(controllerId);
@@ -497,19 +508,16 @@ serve(async (req) => {
           const name = controllerData?.name ?? controllerId;
 
           if (attempts >= 5) {
-            // Give up after 5 attempts
             log('RETRY', 'fail', `Ger upp retry för ${name} efter ${attempts} försök`);
             if (existingRetry) {
               await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
             }
           } else if (existingRetry) {
-            // Update existing retry
             await supabase.from('pending_rapt_retries')
               .update({ target_temp: target, attempts })
               .eq('id', existingRetry.id);
             log('RETRY', 'info', `Sparar retry för ${name} → ${target}°C (försök ${attempts})`);
           } else {
-            // Create new retry
             await supabase.from('pending_rapt_retries').insert({
               controller_id: controllerId,
               target_temp: target,
