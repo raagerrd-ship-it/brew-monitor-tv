@@ -3,7 +3,7 @@ import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, 
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
-import { getTempBucket } from './learning-utils.ts'
+import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // Controller Adjustments — Pipeline Architecture
