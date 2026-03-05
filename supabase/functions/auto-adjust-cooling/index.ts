@@ -535,7 +535,6 @@ serve(async (req) => {
       }
 
       // Log individual RAPT_SEND entries for each successfully sent update
-      const succeeded = [...batchResults.entries()].filter(([, ok]) => ok);
       for (const [controllerId] of succeeded) {
         const target = updateBatch.getAppliedTarget(controllerId);
         const controllerData = followedControllersFullData.find(c => c.controller_id === controllerId)
