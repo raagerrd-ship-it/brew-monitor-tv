@@ -307,10 +307,36 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
+    // ── Pre-calculate PWM segment (needed before PID to set skipRateLimit) ──
+    let isPwmActiveSegment = false
+    let isPwmMode = false
+    let pwmDutyPct = 0
+    let pwmSegmentIndex = 0
+    let pwmTotalSegments = 12
+    let pwmActiveSegments = 0
+    const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - (actualTarget - (actualTemp - probeTemp) / 2)) * 10) / 10
+
+    if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
+      const cBucket = getTempBucket(ctrlTarget)
+      const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
+
+      if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
+        const skipPwm = coolingUtil != null && coolingUtil > 0.70
+        if (!skipPwm) {
+          isPwmMode = true
+          pwmDutyPct = Math.round(dutyParam.value * 100)
+          pwmActiveSegments = Math.max(1, Math.round(pwmTotalSegments * dutyParam.value))
+          const period = Math.floor(pwmTotalSegments / pwmActiveSegments)
+          pwmSegmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % pwmTotalSegments
+          isPwmActiveSegment = (pwmSegmentIndex % period) === 0
+        }
+      }
+    }
+
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext
+      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment
     )
 
     // Safety bounds — respect hardware min/max strictly
@@ -389,47 +415,26 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
 
-    // ── Duty-cycle PWM modulation (per tank) ────────────────
-    // PWM activates when the controller's actual temperature (ctrl) is within
-    // ±0.3°C of the hardware target (ctrl_target). This means the tank is
-    // thermally stable and micro-adjustments can be replaced by on/off cycling.
-    // 1 hour = 12 segments à 5 min. duty 18% → cooling active in ~2 of 12 segments.
-    const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
-    if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiff < 0.3) {
-      const cBucket = getTempBucket(ctrlTarget)
-      const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
-
-      if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
-        const totalSegments = 12
-        const activeSegments = Math.max(1, Math.round(totalSegments * dutyParam.value))
-        const period = Math.floor(totalSegments / activeSegments)
-        const segmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % totalSegments
-        const isActiveSegment = (segmentIndex % period) === 0
-
-        // Safety: skip modulation if utilization is already high (tank struggling)
-        const skipPwm = coolingUtil != null && coolingUtil > 0.70
-
-        if (!isActiveSegment && !skipPwm) {
-          // "Off" segment — keep current hardware target unchanged, just skip PID.
-          // PWM only controls whether PID runs this cycle; it never changes the target.
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, behåller ctrl mål=${ctrlTargetPid.toFixed(1)}°C`, {
-            duty: Math.round(dutyParam.value * 100),
-            segment: segmentIndex + 1,
-            total_segments: totalSegments,
-            active_segments: activeSegments,
-            ctrl_temp_diff: ctrlTempDiff,
-          })
-          continue // Skip PID for this cycle
-        } else if (!skipPwm) {
-          // Active segment — fall through to PID logic below
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (aktiv, aktiva=${activeSegments}) — PID kör`, {
-            duty: Math.round(dutyParam.value * 100),
-            segment: segmentIndex + 1,
-            total_segments: totalSegments,
-            active_segments: activeSegments,
-            pid_diff: pidDiff,
-          })
-        }
+    // ── Duty-cycle PWM modulation (use pre-calculated segment) ──
+    if (isPwmMode) {
+      const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
+      if (!isPwmActiveSegment) {
+        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (av, aktiva=${pwmActiveSegments}) — PWM av-cykel, behåller ctrl mål=${ctrlTargetPid.toFixed(1)}°C`, {
+          duty: pwmDutyPct,
+          segment: pwmSegmentIndex + 1,
+          total_segments: pwmTotalSegments,
+          active_segments: pwmActiveSegments,
+          ctrl_temp_diff: ctrlTempDiff,
+        })
+        continue // Skip PID for this cycle
+      } else {
+        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (aktiv, aktiva=${pwmActiveSegments}) — PID kör`, {
+          duty: pwmDutyPct,
+          segment: pwmSegmentIndex + 1,
+          total_segments: pwmTotalSegments,
+          active_segments: pwmActiveSegments,
+          pid_diff: pidDiff,
+        })
       }
     }
 
