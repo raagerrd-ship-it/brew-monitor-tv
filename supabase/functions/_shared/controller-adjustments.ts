@@ -321,15 +321,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
       if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
-        const skipPwm = coolingUtil != null && coolingUtil > 0.80
-        if (!skipPwm) {
           isPwmMode = true
           pwmDutyPct = Math.round(dutyParam.value * 100)
           pwmActiveSegments = Math.max(1, Math.round(pwmTotalSegments * dutyParam.value))
           const period = Math.floor(pwmTotalSegments / pwmActiveSegments)
           pwmSegmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % pwmTotalSegments
           isPwmActiveSegment = (pwmSegmentIndex % period) === 0
-        }
       }
     }
 
