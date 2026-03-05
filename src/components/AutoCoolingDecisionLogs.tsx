@@ -838,7 +838,21 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
   decisions: DecisionEntry[]; hideSync: boolean; hidePid: boolean;
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
 }) {
-  const syncEntries = decisions.filter(d => d.step === 'SYNC_DATA');
+  const syncEntriesRaw = decisions.filter(d => d.step === 'SYNC_DATA');
+  // Sort: active controllers first (alphabetically), then inactive, then glycol last
+  const syncEntries = [...syncEntriesRaw].sort((a, b) => {
+    const aD = a.details || {};
+    const bD = b.details || {};
+    const aGlycol = !!aD.glycol;
+    const bGlycol = !!bD.glycol;
+    if (aGlycol !== bGlycol) return aGlycol ? 1 : -1;
+    const aInactive = !!aD.inactive && !aD.stale;
+    const bInactive = !!bD.inactive && !bD.stale;
+    if (aInactive !== bInactive) return aInactive ? 1 : -1;
+    const aName = a.message.replace('Controller: ', '');
+    const bName = b.message.replace('Controller: ', '');
+    return aName.localeCompare(bName);
+  });
   const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
   const utilEntries = decisions.filter(d => d.step === 'COOLING_UTIL');
   // Build a map of pill/brew data per controller name for merging into SYNC_DATA
