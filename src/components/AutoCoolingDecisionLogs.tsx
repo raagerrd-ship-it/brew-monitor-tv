@@ -998,12 +998,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className={`font-mono cursor-help ${(det.duty_pct as number) >= 50 ? 'text-amber-400' : (det.duty_pct as number) >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                {det.duty_pct}%
+                                {String(det.duty_pct)}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
-                              Inlärt kylbehov: {det.duty_pct}% = ~{Math.round((det.duty_pct as number) / 100 * 300)}s per 5 min
-                              {det.duty_samples != null && ` (${det.duty_samples} mätningar)`}
+                              Inlärt kylbehov: {String(det.duty_pct)}% = ~{Math.round((det.duty_pct as number) / 100 * 300)}s per 5 min
+                              {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         ) : (
