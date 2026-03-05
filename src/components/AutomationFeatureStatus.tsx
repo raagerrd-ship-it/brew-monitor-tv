@@ -53,6 +53,8 @@ interface ControllerLine {
   name: string;
   status: string;
   variant: "action" | "idle" | "skip";
+  badge?: string;
+  badgeVariant?: "pwm" | "pid";
 }
 
 interface FeatureBlock {
