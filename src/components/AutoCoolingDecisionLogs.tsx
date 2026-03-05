@@ -885,18 +885,15 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
       p4At: det.p4_at as string | null,
     });
   });
-  // Build a map of DUTY_PWM status per controller name
-  const dutyPwmByName = new Map<string, { duty: number; segment: number; totalSegments: number; activeSegments: number; isActive: boolean }>();
-  decisions.filter(d => d.step === 'DUTY_PWM').forEach(d => {
+  // Build a map of DUTY_PWM_BURST status per controller name
+  const dutyPwmByName = new Map<string, { duty: number; burstSeconds: number }>();
+  decisions.filter(d => d.step === 'DUTY_PWM_BURST').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) {
       const det = d.details || {};
       dutyPwmByName.set(nameMatch[1].trim(), {
-        duty: (det.duty as number) ?? 0,
-        segment: (det.segment as number) ?? 0,
-        totalSegments: (det.total_segments as number) ?? 12,
-        activeSegments: (det.active_segments as number) ?? 0,
-        isActive: !d.message.includes('(av'),
+        duty: (det.duty_pct as number) ?? 0,
+        burstSeconds: (det.duty_seconds as number) ?? 0,
       });
     }
   });
