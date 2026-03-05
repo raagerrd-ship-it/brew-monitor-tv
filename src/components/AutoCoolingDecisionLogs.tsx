@@ -1050,12 +1050,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                 <TooltipProvider delayDuration={200}><Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium ${pwm.isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
-                                      {pwm.isActive ? 'PID' : 'PWM'}
+                                      PWM {pwm.isActive ? '▶' : '⏸'}
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="text-xs max-w-[220px]">
                                     {pwm.isActive
-                                      ? `PID aktivt segment ${pwm.segment}/${pwm.totalSegments} — duty ${pwm.duty}%`
+                                      ? `PWM aktivt segment ${pwm.segment}/${pwm.totalSegments} — PID kör, duty ${pwm.duty}%`
                                       : `PWM av-segment ${pwm.segment}/${pwm.totalSegments} — duty ${pwm.duty}%, delta-komp bevarad`}
                                   </TooltipContent>
                                 </Tooltip></TooltipProvider>
