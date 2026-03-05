@@ -316,7 +316,7 @@ serve(async (req) => {
 
       // Add learned duty cycle percentage if available (for non-glycol, active controllers)
       if (!isGlycol && isFollowed && !isStale) {
-        const cBucket = getTempBucket(originalTarget);
+        const cBucket = getTempBucket(targetTemp);
         const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
         if (dutyParam.sampleCount >= 3 && dutyParam.value > 0) {
           details.duty_pct = Math.round(dutyParam.value * 100);
