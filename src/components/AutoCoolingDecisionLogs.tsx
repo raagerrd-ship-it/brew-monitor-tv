@@ -1194,7 +1194,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     {/* Info: Är-temp */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
                       {r1(actualTempVal)}°
-                      {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5">⌀</span>}
+                      {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5"></span>}
                     </td>
                     {/* Separator */}
                     <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
