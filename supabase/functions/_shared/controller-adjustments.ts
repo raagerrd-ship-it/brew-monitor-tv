@@ -388,23 +388,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     })
 
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
-    if (pidDiff < 0.1) {
-      continue
-    }
 
     // ── Duty-cycle PWM modulation (per tank) ────────────────
-    // During hold steps in cooling mode, use the learned steady-state duty cycle
-    // to only apply PID cooling compensation in a fraction of 5-min cycles.
+    // When PID has stabilised temperature (pidDiff < 0.3), PWM takes over
+    // instead of continuous PID micro-adjustments. This reduces API calls
+    // and relay wear while maintaining temperature via on/off cycling.
     // 1 hour = 12 segments à 5 min. duty 18% → cooling active in ~2 of 12 segments.
-    // This prevents over-cooling and saves energy.
-    if (pidMode === 'cooling' && stepType === 'hold' && ctrlTargetPid < actualTarget) {
+    if (pidMode === 'cooling' && stepType === 'hold' && pidDiff < 0.3) {
       const cBucket = getTempBucket(actualTarget)
       const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
       if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
-        // 12 segments per hour (5 min each). Active segments = round(12 * duty)
-        // Distribute active segments evenly: period = floor(total / active)
-        // e.g. 2 active of 12 → period 6 → segments 0,6 are active (evenly spaced)
         const totalSegments = 12
         const activeSegments = Math.max(1, Math.round(totalSegments * dutyParam.value))
         const period = Math.floor(totalSegments / activeSegments)
@@ -415,23 +409,66 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const skipPwm = coolingUtil != null && coolingUtil > 0.70
 
         if (!isActiveSegment && !skipPwm) {
-          // "Off" segment — don't apply PID compensation, keep target at profile
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — skippar PID-kylning`, {
+          // "Off" segment — set target to profile target (no PID compensation),
+          // letting temperature drift up naturally until next active segment.
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, sätter target=${actualTarget.toFixed(1)}°C`, {
             duty: Math.round(dutyParam.value * 100),
             segment: segmentIndex + 1,
             total_segments: totalSegments,
             active_segments: activeSegments,
+            pid_diff: pidDiff,
           })
-          continue // Skip applying PID for this cycle
+
+          // During off-segment, sync target to profile target if it differs
+          if (Math.abs(ctrlTarget - actualTarget) > 0.05) {
+            let success: boolean
+            if (ctx.updateBatch) {
+              ctx.updateBatch.add(fc.controller_id, actualTarget, ctrlTarget)
+              success = true
+            } else {
+              success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, actualTarget)
+            }
+            if (success) {
+              adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: actualTarget })
+              if (!ctx.updateBatch) {
+                await supabase.from('rapt_temp_controllers')
+                  .update({ target_temp: actualTarget, updated_at: new Date().toISOString() })
+                  .eq('controller_id', fc.controller_id)
+              }
+              await logAdjustment(supabase, {
+                cooler_controller_id: fc.controller_id,
+                cooler_controller_name: fc.name,
+                old_target_temp: ctrlTarget,
+                new_target_temp: actualTarget,
+                original_target_temp: actualTarget,
+                lowest_followed_temp: actualTarget,
+                followed_controller_id: fc.controller_id,
+                followed_controller_name: fc.name,
+                followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
+                followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
+                followed_hysteresis: 0,
+                reason: `⏱️ PWM av-segment: target → ${actualTarget.toFixed(1)}°C (duty=${Math.round(dutyParam.value * 100)}%, seg=${segmentIndex + 1}/${totalSegments})`,
+                adjusted_against_timestamp: fc.last_update,
+              })
+            }
+          }
+          continue // Skip PID for this cycle
         } else if (!skipPwm) {
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (aktiv, aktiva=${activeSegments})`, {
+          // Active segment — fall through to PID logic below
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (aktiv, aktiva=${activeSegments}) — PID kör`, {
             duty: Math.round(dutyParam.value * 100),
             segment: segmentIndex + 1,
             total_segments: totalSegments,
             active_segments: activeSegments,
+            pid_diff: pidDiff,
           })
         }
       }
+    }
+
+    // ── No-op: PID diff too small to justify an update ──────
+    if (pidDiff < 0.1) {
+      continue
     }
 
     // ── No-op guard: skip if we already applied this exact target ─────
