@@ -416,9 +416,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (isPwmMode) {
       const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
       if (!isPwmActiveSegment) {
-        // During off-segment, restore target to profile target so cooling relay deactivates.
-        // The PID-lowered target from the active segment would otherwise keep cooling running.
-        const offTarget = round1(actualTarget)
+        // During off-segment, restore target to pre-PID ctrl_target (includes delta compensation)
+        // so the relay deactivates without losing the sensor compensation baseline.
+        const offTarget = round1(ctrlTarget)
         const offDiff = Math.round(Math.abs(offTarget - ctrlTarget) * 10) / 10
 
         log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (av, aktiva=${pwmActiveSegments}) — PWM av-cykel, återställer mål ${ctrlTarget.toFixed(1)}→${offTarget.toFixed(1)}°C`, {
@@ -463,7 +463,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
             followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
             followed_hysteresis: pidResult.avgDelta,
-            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (profil)`,
+            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (ctrl_target)`,
             adjusted_against_timestamp: fc.last_update,
           })
         }
