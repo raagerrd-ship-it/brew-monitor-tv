@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { controllerId, action, value, access_token: providedToken } = await req.json();
+    const { controllerId, action, value, access_token: providedToken, source } = await req.json();
     
     if (!controllerId || typeof controllerId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(controllerId)) {
       throw new Error('Valid Controller ID is required');
@@ -183,7 +183,7 @@ serve(async (req) => {
               old_target_temp: oldTarget,
               new_target_temp: value,
               lowest_followed_temp: value,
-              reason: `✏️ Manuell justering: ${oldTarget}° → ${value}°`,
+              reason: source === 'pwm' ? `⚡ PWM burst: ${oldTarget}° → ${value}°` : `✏️ Manuell justering: ${oldTarget}° → ${value}°`,
               original_target_temp: value,
               followed_controller_name: controllerName,
             });
