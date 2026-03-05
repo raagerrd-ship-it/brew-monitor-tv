@@ -127,7 +127,7 @@ const PIPELINE_STEPS = new Set([
   'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
   'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
   'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
-  'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT',
+  'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
   
@@ -482,6 +482,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   const hystKickNoop = entries.find(d => d.step === 'HYSTERESIS_KICK_NOOP');
   const hystDeadband = entries.find(d => d.step === 'HYSTERESIS_DEADBAND');
   const hystRevert = entries.find(d => d.step === 'HYSTERESIS_REVERT');
+  const kickFlag = entries.find(d => d.step === 'KICK_FLAG');
   const minMargin = entries.find(d => d.step === 'MIN_MARGIN');
 
   // Error/skip states
@@ -852,7 +853,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
     d.step === 'RAMP_BLOCK' || d.step === 'PROACTIVE' ||
     d.step === 'RATE_LEARN' || d.step === 'MARGIN_LEARN' || d.step === 'UTIL_LEARN' ||
     d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN' || d.step === 'MIN_MARGIN' ||
-    d.step === 'HYSTERESIS_KICK' || d.step === 'HYSTERESIS_KICK_NOOP' || d.step === 'HYSTERESIS_DEADBAND' || d.step === 'HYSTERESIS_REVERT'
+    d.step === 'HYSTERESIS_KICK' || d.step === 'HYSTERESIS_KICK_NOOP' || d.step === 'HYSTERESIS_DEADBAND' || d.step === 'HYSTERESIS_REVERT' || d.step === 'KICK_FLAG'
   );
   const smartRelayEntries: typeof decisions = [];
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
