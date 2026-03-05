@@ -523,16 +523,23 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
 
   return (
     <div className="space-y-1.5">
-      {/* Row 1: Current state + effective target + util per tank */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+      {/* Row 1: Cooler current state */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Kylare:</span>
-          <span className="font-mono font-medium">{coolerTarget}°</span>
-          <span className="text-muted-foreground text-[10px]">(är {coolerTemp}°)</span>
+          <span className="font-mono font-medium">{coolerTemp}°</span>
+          <span className="text-muted-foreground text-[10px]">(Mål {coolerTarget}°)</span>
+        </div>
+      </div>
+
+      {/* Row 2: Utilization */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Aktiverad:</span>
           {statusDet.cooler_utilization != null ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={`font-mono text-[10px] font-medium cursor-help ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span className={`font-mono font-medium cursor-help ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {statusDet.cooler_utilization as number}%
                 </span>
               </TooltipTrigger>
@@ -547,6 +554,10 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             </Tooltip>
           )}
         </div>
+      </div>
+
+      {/* Row 3: Effective target + tank utilization */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
         {effectiveTarget && (() => {
           const effCtrlName = effectiveDet.controller as string;
           const matchingUtil = utilEntries.find(u => u.message.split(':')[0].trim() === effCtrlName);
@@ -590,7 +601,6 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
           const name = u.message.split(':')[0].trim();
           const utilMatch = u.message.match(/util=(\d+)%/);
           const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
-          // Skip if this is the same controller already shown in "Lägsta behov"
           const effectiveCtrlName = effectiveDet.controller as string;
           if (effectiveCtrlName && name === effectiveCtrlName) return null;
           const uDet = u.details || {};
