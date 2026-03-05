@@ -139,7 +139,7 @@ export function LearnedDutyCycle() {
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 <th className="text-left font-medium pb-1 w-[25%]">Zon</th>
                 <th className="text-right font-medium pb-1 w-[15%]">Duty</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Per cykel</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Burst</th>
                 <th className="text-right font-medium pb-1 w-[20%]">W/K °C/h</th>
                 <th className="text-right font-medium pb-1 w-[20%]">Senast</th>
               </tr>
@@ -153,7 +153,7 @@ export function LearnedDutyCycle() {
                     <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
                     <td className={`py-1.5 text-right font-mono ${color}`}>{dutyPct}%</td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
-                      {dutyPct > 0 ? `${Math.max(1, Math.round(dutyPct / 100 * 12))} av 12/h` : "—"}
+                      {dutyPct > 0 ? `${Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)))}s/5m` : "—"}
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
                       {item.warming_rate > 0 ? item.warming_rate.toFixed(2) : "—"}/{item.cooling_rate > 0 ? item.cooling_rate.toFixed(2) : "—"}
@@ -168,7 +168,7 @@ export function LearnedDutyCycle() {
       ))}
 
       <p className="text-[10px] text-muted-foreground/60 italic">
-        Duty cycle = warming / cooling hastighet. Styr PWM-modulering: vid låg duty (&lt;60%) pausas kylaren i "av-cykler" för att spara energi.
+        Duty cycle = warming / cooling hastighet. Styr PWM-burst: vid varje 5-min cykel kyls i duty% av 300s (min 30s, max 240s).
       </p>
     </div>
   );

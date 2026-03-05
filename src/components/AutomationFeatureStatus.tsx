@@ -137,18 +137,16 @@ function buildFeatureBlocks(
 
   // 2. PID / Pill compensation — show ALL controllers with profilmål → börvärde
   // Build a map of PWM status per controller name from DUTY_PWM decisions
-  const pwmStatusMap = new Map<string, { duty: number; segment: number; total: number; active: number; isOn: boolean }>();
+  const pwmStatusMap = new Map<string, { duty: number; burstSeconds: number; isOn: boolean }>();
   for (const d of decisions) {
-    if (d.step === "DUTY_PWM" && d.result === "info") {
-      // Parse: "ControllerName: duty 18% → segment 1/12 (av, aktiva=2) — ..."
-      const match = d.message.match(/^(.+?):\s*duty\s*(\d+)%\s*→\s*segment\s*(\d+)\/(\d+)\s*\((av|aktiv)/);
+    if (d.step === "DUTY_PWM_BURST" && d.result === "action") {
+      // Parse: "ControllerName: duty 22% → 66s burst av 300s (on=X°C, off=Y°C)"
+      const match = d.message.match(/^(.+?):\s*duty\s*(\d+)%\s*→\s*(\d+)s\s*burst/);
       if (match) {
         pwmStatusMap.set(match[1].trim(), {
           duty: parseInt(match[2]),
-          segment: parseInt(match[3]),
-          total: parseInt(match[4]),
-          active: d.details?.active_segments as number ?? 0,
-          isOn: match[5] === "aktiv",
+          burstSeconds: parseInt(match[3]),
+          isOn: true,
         });
       }
     }
@@ -168,7 +166,7 @@ function buildFeatureBlocks(
 
       // Check if this controller has PWM active
       const pwm = pwmStatusMap.get(name);
-      const pwmBadge = pwm ? `PWM ${pwm.duty}% ${pwm.isOn ? "⚡" : "💤"} ${pwm.segment}/${pwm.total}` : undefined;
+      const pwmBadge = pwm ? `PWM ${pwm.duty}% ${pwm.burstSeconds}s` : undefined;
       const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : undefined;
 
       const action = decisions.find(d =>
