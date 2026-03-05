@@ -1030,10 +1030,11 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const det = d.details || {};
                 const name = d.message.replace('Controller: ', '');
                 const delta = det.delta as number;
-                const loggedComp = (det.compensation as number) ?? delta ?? 0;
-                // delta is already avgDelta (= rawDelta/2) from backend — use directly as compensation
-                // even when PID skips ("redan nära mål"), unlike compensation which resets to 0
-                const comp = delta ?? loggedComp;
+                const rawDelta = (det.raw_delta as number) ?? delta;
+                const loggedComp = (det.compensation as number) ?? rawDelta ?? 0;
+                // Use raw_delta (= avgDelta = sensor delta / 2) for display,
+                // NOT the back-calculated effectiveDelta which includes clamps/limits
+                const comp = rawDelta ?? loggedComp;
                 const errCorr = (det.error_correction as number) ?? 0;
                 const pCorr = det.p_correction as number;
                 const iCorr = det.i_correction as number;
