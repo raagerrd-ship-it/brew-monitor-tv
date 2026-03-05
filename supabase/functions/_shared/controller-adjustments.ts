@@ -277,7 +277,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ? ((fc.pill_temp! + (fc.current_temp ?? fc.pill_temp!)) / 2)
       : probeTemp
 
-    const pidMode: 'heating' | 'cooling' = actualTemp < actualTarget ? 'heating' : 'cooling'
+    const pidMode: 'heating' | 'cooling' = (fc.current_temp ?? 0) < ctrlTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
