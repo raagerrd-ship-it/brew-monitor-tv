@@ -477,6 +477,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       })
 
       // 2. Store revert as pending retry — next cycle will restore off_target
+      // Delete any existing PWM reverts for this controller first to avoid stacking
+      await supabase.from('pending_rapt_retries')
+        .delete()
+        .eq('controller_id', fc.controller_id)
+        .like('reason', '%PWM OFF%')
       await supabase.from('pending_rapt_retries').insert({
         controller_id: fc.controller_id,
         target_temp: offTarget,
