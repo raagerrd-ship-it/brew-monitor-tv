@@ -367,7 +367,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       if (isHoldingStable && ctrlTargetPid > heaterThreshold) {
         const before = ctrlTargetPid
-        ctrlTargetPid = Math.max(actualTarget, heaterThreshold) // never below profile target
+        ctrlTargetPid = Math.max(ctrlTarget, heaterThreshold) // never below ctrl target (profile target is virtual)
         pidResult.constraints = pidResult.constraints ?? []
         pidResult.constraints.push(`heat-guard=${heatingHyst}`)
         console.log(`🔥 Heater guard ${fc.name}: capped ${before.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (probe=${probeTemp.toFixed(1)}, hyst=${heatingHyst}, threshold=${heaterThreshold.toFixed(1)})`)

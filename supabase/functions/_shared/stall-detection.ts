@@ -438,7 +438,7 @@ async function handleUnBoost(
   } else {
     // Direct un-boost: the boost was applied as a direct temp change, reverse it
     const boostOldTarget = parseFloat(String(recentBoost[0].old_target_temp))
-    const restoredTarget = Math.max(effectiveProfileTarget, boostOldTarget)
+    const restoredTarget = boostOldTarget // restore to pre-boost hardware target, not virtual profile target
 
     if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
       let success: boolean
@@ -469,7 +469,7 @@ async function handleUnBoost(
     cooler_controller_id: fc.controller_id,
     cooler_controller_name: fc.name,
     old_target_temp: currentTarget,
-    new_target_temp: existingComp ? currentTarget : effectiveProfileTarget,
+    new_target_temp: existingComp ? currentTarget : boostOldTarget,
     original_target_temp: effectiveProfileTarget,
     lowest_followed_temp: currentTarget,
     followed_controller_id: fc.controller_id,
