@@ -1061,6 +1061,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                 </Tooltip></TooltipProvider>
                               );
                             }
+                            // Show PID badge when not in PWM mode (controller is active)
+                            if (!isInactive && !isGlycol) {
+                              return (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/70 font-medium">PID</span>
+                              );
+                            }
                             return null;
                           })()}
                           {det.preserved ? (
