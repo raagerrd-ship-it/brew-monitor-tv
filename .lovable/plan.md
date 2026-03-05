@@ -156,3 +156,16 @@ Nytt avsnitt "Smart Relay" med:
 - `learning-utils.ts`: `updateLearnedParam()` accepterar nu `alphaOverride` parameter
 - Vid låg utilization (<50%) används snabbare alpha (0.3) för nedåt-konvergens
 - DB: Återställt `min_effective_margin:cold` 7.21→3.0°C och `min_effective_margin:cool` 5.4→3.0°C
+
+---
+
+## ✅ Fix: Profilmål användes som hårdvarumål (2026-03-05)
+
+**Princip:** `profile_target_temp` är ALLTID virtuellt — det enda riktiga målet som skickas till hårdvara eller används som golv/referens är `ctrlTarget` eller `ctrlTargetPid`.
+
+**Problem:** `actualTarget` (= profilmålet 8°C) användes som golv i heater guard och som restore-mål vid stall un-boost, vilket aktiverade värmaren och skapade oscillationer.
+
+**Fix:**
+- `controller-adjustments.ts`: Heater guard-golv ändrat från `actualTarget` → `ctrlTarget`
+- `stall-detection.ts`: Un-boost restore använder `boostOldTarget` (pre-boost hårdvarumål) istället för `effectiveProfileTarget`
+- `stall-detection.ts`: Loggning av `new_target_temp` vid un-boost använder `boostOldTarget` istf profilmålet
