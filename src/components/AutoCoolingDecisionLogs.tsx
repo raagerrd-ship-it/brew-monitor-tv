@@ -105,7 +105,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough';
+type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
 
 interface UnifiedEntry {
   log: DecisionLog;
@@ -141,6 +141,7 @@ const PIPELINE_STEPS = new Set([
 // --- Helpers ---
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
+  if (reason.startsWith('⚡')) return 'pwm';
   if (reason.startsWith('✏️') || reason.startsWith('🔧')) return 'manuell';
   if (reason.startsWith('🔄')) return 'passthrough';
   if (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠')) return 'pill-comp';
