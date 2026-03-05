@@ -513,6 +513,19 @@ export async function calculateCompensatedTarget(
       constraints.push(`delta-damp=${deltaRateScale.toFixed(2)}`)
       console.log(`🌊 High-delta damping ${controllerName}: delta=${absDelta.toFixed(1)}°C > ${HIGH_DELTA_THRESHOLD}°C, rate ${effectiveMaxRate}→${deltaScaledMaxRate.toFixed(2)}°C/cykel (×${deltaRateScale.toFixed(2)})`)
     }
+
+    // === Delta compensation bypass ===
+    // When the change is primarily driven by delta compensation (not PI error correction),
+    // it represents a physical measurement of the probe/pill gradient.
+    // Rate-limiting this slowly would keep the hardware target wrong for many cycles.
+    // Allow up to 1.0°C/cycle for pure delta compensation to converge quickly.
+    const isDeltaDriven = Math.abs(errorCorrection) < 0.1 && absDelta >= 0.3
+    if (isDeltaDriven && distanceFromIdeal > 0.1) {
+      const deltaBypassLimit = Math.min(distanceFromIdeal, 1.0) // max 1°C/cycle
+      ctrlTargetPid = ctrlTarget + (isIncreasing ? deltaBypassLimit : -deltaBypassLimit)
+      constraints.push(`delta-bypass=${deltaBypassLimit.toFixed(2)}`)
+      console.log(`⚡ Delta-comp bypass ${controllerName}: errorCorrection≈0, delta=${absDelta.toFixed(1)}°C → snabbsteg ${deltaBypassLimit.toFixed(2)}°C/cykel (${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C)`)
+    } else {
     
     let baseLimit: number
     if (mode === 'cooling') {
@@ -574,6 +587,8 @@ export async function calculateCompensatedTarget(
       constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
+
+    } // end else (non-delta-driven)
     
     // Safety clamp: never set target above probe during cooling (would start heater)
     // or below probe during heating (would start cooler)
