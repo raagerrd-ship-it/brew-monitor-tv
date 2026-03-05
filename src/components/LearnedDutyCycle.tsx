@@ -153,7 +153,7 @@ export function LearnedDutyCycle() {
                     <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
                     <td className={`py-1.5 text-right font-mono ${color}`}>{dutyPct}%</td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
-                      {dutyPct > 0 ? `${Math.round(dutyPct * 3)}s/5min` : "—"}
+                      {dutyPct > 0 ? `${Math.max(1, Math.round(dutyPct / 100 * 12))} av 12/h` : "—"}
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
                       {item.warming_rate > 0 ? item.warming_rate.toFixed(2) : "—"}/{item.cooling_rate > 0 ? item.cooling_rate.toFixed(2) : "—"}
