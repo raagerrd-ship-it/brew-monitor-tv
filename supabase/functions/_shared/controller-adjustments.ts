@@ -419,14 +419,58 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (isPwmMode) {
       const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
       if (!isPwmActiveSegment) {
-        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (av, aktiva=${pwmActiveSegments}) — PWM av-cykel, behåller ctrl mål=${ctrlTargetPid.toFixed(1)}°C`, {
+        // During off-segment, restore target to profile target so cooling relay deactivates.
+        // The PID-lowered target from the active segment would otherwise keep cooling running.
+        const offTarget = round1(actualTarget)
+        const offDiff = Math.round(Math.abs(offTarget - ctrlTarget) * 10) / 10
+
+        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (av, aktiva=${pwmActiveSegments}) — PWM av-cykel, återställer mål ${ctrlTarget.toFixed(1)}→${offTarget.toFixed(1)}°C`, {
           duty: pwmDutyPct,
           segment: pwmSegmentIndex + 1,
           total_segments: pwmTotalSegments,
           active_segments: pwmActiveSegments,
           ctrl_temp_diff: ctrlTempDiff,
+          off_target: offTarget,
         })
-        continue // Skip PID for this cycle
+
+        // If hardware target already matches profile target, no update needed
+        if (offDiff < 0.1) {
+          continue
+        }
+
+        // Send profile target to hardware to stop cooling
+        let offSuccess: boolean
+        if (ctx.updateBatch) {
+          ctx.updateBatch.add(fc.controller_id, offTarget, ctrlTarget)
+          offSuccess = true
+        } else {
+          offSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, offTarget)
+        }
+
+        if (offSuccess) {
+          adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: offTarget })
+          if (!ctx.updateBatch) {
+            await supabase.from('rapt_temp_controllers')
+              .update({ target_temp: offTarget, updated_at: new Date().toISOString() })
+              .eq('controller_id', fc.controller_id)
+          }
+          await logAdjustment(supabase, {
+            cooler_controller_id: fc.controller_id,
+            cooler_controller_name: fc.name,
+            old_target_temp: ctrlTarget,
+            new_target_temp: offTarget,
+            original_target_temp: actualTarget,
+            lowest_followed_temp: actualTarget,
+            followed_controller_id: fc.controller_id,
+            followed_controller_name: fc.name,
+            followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
+            followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
+            followed_hysteresis: pidResult.avgDelta,
+            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (profil)`,
+            adjusted_against_timestamp: fc.last_update,
+          })
+        }
+        continue
       } else {
         log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (aktiv, aktiva=${pwmActiveSegments}) — PID kör`, {
           duty: pwmDutyPct,
