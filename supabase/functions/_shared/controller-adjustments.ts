@@ -403,10 +403,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
         // 12 segments per hour (5 min each). Active segments = round(12 * duty)
+        // Distribute active segments evenly: period = floor(total / active)
+        // e.g. 2 active of 12 → period 6 → segments 0,6 are active (evenly spaced)
         const totalSegments = 12
         const activeSegments = Math.max(1, Math.round(totalSegments * dutyParam.value))
+        const period = Math.floor(totalSegments / activeSegments)
         const segmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % totalSegments
-        const isActiveSegment = segmentIndex < activeSegments
+        const isActiveSegment = (segmentIndex % period) === 0
 
         // Safety: skip modulation if utilization is already high (tank struggling)
         const skipPwm = coolingUtil != null && coolingUtil > 0.70
