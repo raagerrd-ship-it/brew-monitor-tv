@@ -23,6 +23,16 @@ import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 //   Return adjustments for modified controllers; untouched ones pass through.
 // ============================================================
 
+/** PWM burst descriptor — returned from PID, executed by run-automation */
+export interface PwmBurst {
+  controller_id: string
+  controller_name: string
+  on_target: number
+  off_target: number
+  duty_seconds: number
+  duty_pct: number
+}
+
 export interface ControllerAdjustmentContext {
   supabase: ReturnType<typeof createClient>
   supabaseUrl: string
@@ -38,6 +48,7 @@ export interface ControllerAdjustmentContext {
   stallSettings: StallSettings
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
+  pwmBursts: PwmBurst[]
 }
 
 /**
@@ -307,13 +318,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // ── Pre-calculate PWM segment (needed before PID to set skipRateLimit) ──
+    // ── Pre-calculate PWM mode (burst-per-cycle model) ──
     let isPwmActiveSegment = false
     let isPwmMode = false
     let pwmDutyPct = 0
-    let pwmSegmentIndex = 0
-    let pwmTotalSegments = 12
-    let pwmActiveSegments = 0
+    let pwmDutySeconds = 0
     const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTarget) * 10) / 10
 
     // ── PWM stability counter: require 4 consecutive stable cycles before activating PWM ──
@@ -322,7 +331,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
       const newStableCount = prevStableCount + 1
-      // Update counter in DB (will be written later if changed)
       if (newStableCount !== prevStableCount) {
         await supabase.from('rapt_temp_controllers')
           .update({ pwm_stable_count: newStableCount })
@@ -335,11 +343,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
         if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
             isPwmMode = true
+            isPwmActiveSegment = true // burst model: always "active" — run-automation handles timing
             pwmDutyPct = Math.round(dutyParam.value * 100)
-            pwmActiveSegments = Math.max(1, Math.round(pwmTotalSegments * dutyParam.value))
-            const period = Math.floor(pwmTotalSegments / pwmActiveSegments)
-            pwmSegmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % pwmTotalSegments
-            isPwmActiveSegment = (pwmSegmentIndex % period) === 0
+            // Burst duration: duty% of 300s cycle, min 30s, max 240s
+            pwmDutySeconds = Math.max(30, Math.min(240, Math.round(dutyParam.value * 300)))
         }
       }
     } else if (prevStableCount > 0) {
@@ -431,71 +438,32 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
 
-    // ── Duty-cycle PWM modulation (use pre-calculated segment) ──
+    // ── Duty-cycle PWM burst (per-cycle model) ──
+    // Instead of on/off segments, queue a burst for run-automation to execute:
+    // Set on_target (PID-computed) → sleep duty_seconds → set off_target (ctrl_target)
     if (isPwmMode) {
-      const ctrlTempDiff = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTargetPid) * 10) / 10
-      if (!isPwmActiveSegment) {
-        // During off-segment, restore target to pre-PID ctrl_target (includes delta compensation)
-        // so the relay deactivates without losing the sensor compensation baseline.
-        const offTarget = round1(ctrlTarget)
-        const offDiff = Math.round(Math.abs(offTarget - ctrlTarget) * 10) / 10
+      const offTarget = round1(ctrlTarget)
+      const onTarget = round1(ctrlTargetPid)
 
-        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (av, aktiva=${pwmActiveSegments}) — PWM av-cykel, återställer mål ${ctrlTarget.toFixed(1)}→${offTarget.toFixed(1)}°C`, {
-          duty: pwmDutyPct,
-          segment: pwmSegmentIndex + 1,
-          total_segments: pwmTotalSegments,
-          active_segments: pwmActiveSegments,
-          ctrl_temp_diff: ctrlTempDiff,
-          off_target: offTarget,
-        })
+      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${pwmDutySeconds}s burst av 300s (on=${onTarget}°C, off=${offTarget}°C)`, {
+        duty_pct: pwmDutyPct,
+        duty_seconds: pwmDutySeconds,
+        on_target: onTarget,
+        off_target: offTarget,
+        pid_diff: pidDiff,
+      })
 
-        // If hardware target already matches profile target, no update needed
-        if (offDiff < 0.1) {
-          continue
-        }
+      ctx.pwmBursts.push({
+        controller_id: fc.controller_id,
+        controller_name: fc.name,
+        on_target: onTarget,
+        off_target: offTarget,
+        duty_seconds: pwmDutySeconds,
+        duty_pct: pwmDutyPct,
+      })
 
-        // Send profile target to hardware to stop cooling
-        let offSuccess: boolean
-        if (ctx.updateBatch) {
-          ctx.updateBatch.add(fc.controller_id, offTarget, ctrlTarget)
-          offSuccess = true
-        } else {
-          offSuccess = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, offTarget)
-        }
-
-        if (offSuccess) {
-          adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: offTarget })
-          if (!ctx.updateBatch) {
-            await supabase.from('rapt_temp_controllers')
-              .update({ target_temp: offTarget, updated_at: new Date().toISOString() })
-              .eq('controller_id', fc.controller_id)
-          }
-          await logAdjustment(supabase, {
-            cooler_controller_id: fc.controller_id,
-            cooler_controller_name: fc.name,
-            old_target_temp: ctrlTarget,
-            new_target_temp: offTarget,
-            original_target_temp: actualTarget,
-            lowest_followed_temp: actualTarget,
-            followed_controller_id: fc.controller_id,
-            followed_controller_name: fc.name,
-            followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
-            followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
-            followed_hysteresis: pidResult.avgDelta,
-            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (ctrl_target)`,
-            adjusted_against_timestamp: fc.last_update,
-          })
-        }
-        continue
-      } else {
-        log('DUTY_PWM', 'info', `${fc.name}: duty ${pwmDutyPct}% → segment ${pwmSegmentIndex + 1}/${pwmTotalSegments} (aktiv, aktiva=${pwmActiveSegments}) — PID kör`, {
-          duty: pwmDutyPct,
-          segment: pwmSegmentIndex + 1,
-          total_segments: pwmTotalSegments,
-          active_segments: pwmActiveSegments,
-          pid_diff: pidDiff,
-        })
-      }
+      // Don't send any target change now — run-automation handles the burst timing
+      continue
     }
 
     // ── No-op: PID diff too small to justify an update ──────
