@@ -53,6 +53,8 @@ interface ControllerLine {
   name: string;
   status: string;
   variant: "action" | "idle" | "skip";
+  badge?: string;
+  badgeVariant?: "pwm" | "pid";
 }
 
 interface FeatureBlock {
@@ -134,6 +136,24 @@ function buildFeatureBlocks(
   }
 
   // 2. PID / Pill compensation — show ALL controllers with profilmål → börvärde
+  // Build a map of PWM status per controller name from DUTY_PWM decisions
+  const pwmStatusMap = new Map<string, { duty: number; segment: number; total: number; active: number; isOn: boolean }>();
+  for (const d of decisions) {
+    if (d.step === "DUTY_PWM" && d.result === "info") {
+      // Parse: "ControllerName: duty 18% → segment 1/12 (av, aktiva=2) — ..."
+      const match = d.message.match(/^(.+?):\s*duty\s*(\d+)%\s*→\s*segment\s*(\d+)\/(\d+)\s*\((av|aktiv)/);
+      if (match) {
+        pwmStatusMap.set(match[1].trim(), {
+          duty: parseInt(match[2]),
+          segment: parseInt(match[3]),
+          total: parseInt(match[4]),
+          active: d.details?.active_segments as number ?? 0,
+          isOn: match[5] === "aktiv",
+        });
+      }
+    }
+  }
+
   if (props.pillCompEnabled) {
     const controllers: ControllerLine[] = [];
 
@@ -145,6 +165,11 @@ function buildFeatureBlocks(
         controllers.push({ name, status: "Ej följd", variant: "skip" });
         continue;
       }
+
+      // Check if this controller has PWM active
+      const pwm = pwmStatusMap.get(name);
+      const pwmBadge = pwm ? `PWM ${pwm.duty}% ${pwm.isOn ? "⚡" : "💤"} ${pwm.segment}/${pwm.total}` : undefined;
+      const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : undefined;
 
       const action = decisions.find(d =>
         d.step === "PILL_COMP_ACTION" && d.result === "action" && d.message.startsWith(name)
@@ -161,36 +186,37 @@ function buildFeatureBlocks(
             name,
             status: `${match[1]}° → ${match[2]}° (${komp >= 0 ? "+" : ""}${match[3]}°)`,
             variant: "action",
+            badge: pwmBadge ?? "PID",
+            badgeVariant: pwmBadgeVariant ?? "pid",
           });
         } else {
-          controllers.push({ name, status: "Justerad", variant: "action" });
+          controllers.push({ name, status: "Justerad", variant: "action", badge: pwmBadge ?? "PID", badgeVariant: pwmBadgeVariant ?? "pid" });
         }
       } else if (skip) {
         if (skip.message.includes("Samma data")) {
-          // Show current profile→setpoint even when no change
           const { actualTarget: dt, pidCompensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
           if (dt != null && c.target_temp != null) {
             const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
-            controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
+            controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle", badge: pwmBadge, badgeVariant: pwmBadgeVariant });
           } else {
-            controllers.push({ name, status: "Ingen ny data", variant: "idle" });
+            controllers.push({ name, status: "Ingen ny data", variant: "idle", badge: pwmBadge, badgeVariant: pwmBadgeVariant });
           }
         } else if (skip.message.includes("cooloff")) {
           controllers.push({ name, status: "Cooloff aktiv", variant: "skip" });
         } else if (skip.message.includes("no active session") || skip.message.includes("profile-owned but no")) {
           controllers.push({ name, status: "Ingen session", variant: "skip" });
         } else {
-          controllers.push({ name, status: "Skippade", variant: "idle" });
+          controllers.push({ name, status: "Skippade", variant: "idle", badge: pwmBadge, badgeVariant: pwmBadgeVariant });
         }
       } else {
-        // No PID decision — show current profile→setpoint if available
+        // No PID decision — could be PWM off-segment (which does continue before PID logs)
         const { actualTarget: dt, pidCompensation: comp } = getDisplayTarget(c.profile_target_temp, c.target_temp);
         if (dt != null && c.target_temp != null) {
           const kompStr = comp != null && Math.abs(comp) >= 0.1 ? ` (${comp >= 0 ? "+" : ""}${comp.toFixed(1)}°)` : "";
-          controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: "idle" });
+          controllers.push({ name, status: `${dt.toFixed(1)}° → ${Number(c.target_temp).toFixed(1)}°${kompStr}`, variant: pwm ? "idle" : "idle", badge: pwmBadge, badgeVariant: pwmBadgeVariant });
         } else {
           const isActive = c.cooling_enabled || c.heating_enabled;
-          controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip" });
+          controllers.push({ name, status: isActive ? "Ingen ändring" : "Ej aktiv", variant: isActive ? "idle" : "skip", badge: pwmBadge, badgeVariant: pwmBadgeVariant });
         }
       }
     }
@@ -447,7 +473,18 @@ export function AutomationFeatureStatus(props: Props) {
 
           {block.controllers.map((ctrl) => (
             <div key={`${block.label}-${ctrl.name}`} className="flex items-center justify-between text-[11px] pl-6 pr-1 py-px">
-              <span className={`truncate ${variantColor(ctrl.variant)}`}>{ctrl.name}</span>
+              <span className={`truncate ${variantColor(ctrl.variant)}`}>
+                {ctrl.name}
+                {ctrl.badge && (
+                  <span className={`ml-1.5 inline-flex items-center px-1 py-px rounded text-[9px] font-medium leading-none ${
+                    ctrl.badgeVariant === "pwm"
+                      ? "bg-accent/20 text-accent"
+                      : "bg-muted text-muted-foreground/70"
+                  }`}>
+                    {ctrl.badge}
+                  </span>
+                )}
+              </span>
               <span className={`shrink-0 ml-2 text-right ${ctrl.variant === "action" ? "text-accent font-medium" : variantColor(ctrl.variant)}`}>
                 {ctrl.status}
               </span>
