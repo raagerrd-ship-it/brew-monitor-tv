@@ -168,7 +168,7 @@ export function LearnedDutyCycle() {
       ))}
 
       <p className="text-[10px] text-muted-foreground/60 italic">
-        Duty cycle = warming / cooling hastighet. Visar hur stor andel av tiden kylning behöver vara aktiv för att hålla stabil temperatur.
+        Duty cycle = warming / cooling hastighet. Styr PWM-modulering: vid låg duty (&lt;60%) pausas kylaren i "av-cykler" för att spara energi.
       </p>
     </div>
   );
