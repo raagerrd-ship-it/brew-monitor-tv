@@ -876,6 +876,21 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
       p4At: det.p4_at as string | null,
     });
   });
+  // Build a map of DUTY_PWM status per controller name
+  const dutyPwmByName = new Map<string, { duty: number; segment: number; totalSegments: number; activeSegments: number; isActive: boolean }>();
+  decisions.filter(d => d.step === 'DUTY_PWM').forEach(d => {
+    const nameMatch = d.message.match(/^([^:]+):/);
+    if (nameMatch) {
+      const det = d.details || {};
+      dutyPwmByName.set(nameMatch[1].trim(), {
+        duty: (det.duty as number) ?? 0,
+        segment: (det.segment as number) ?? 0,
+        totalSegments: (det.total_segments as number) ?? 12,
+        activeSegments: (det.active_segments as number) ?? 0,
+        isActive: !d.message.includes('(av'),
+      });
+    }
+  });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
   const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
@@ -994,21 +1009,28 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         )}
                       </td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                        {det.duty_pct != null ? (
-                          <TooltipProvider delayDuration={200}><Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`font-mono cursor-help ${(det.duty_pct as number) >= 50 ? 'text-amber-400' : (det.duty_pct as number) >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                {String(det.duty_pct)}%
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">
-                              Inlärt kylbehov: {String(det.duty_pct)}% = {Math.max(1, Math.round((det.duty_pct as number) / 100 * 12))} av 12 segment/h
-                              {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
-                            </TooltipContent>
-                          </Tooltip></TooltipProvider>
-                        ) : (
-                          <span className="text-muted-foreground/40 font-mono">—</span>
-                        )}
+                        {(() => {
+                          const dutyPct = det.duty_pct as number | undefined;
+                          const pwm = dutyPwmByName.get(name);
+                          if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
+                          const activeSegs = Math.max(1, Math.round(dutyPct / 100 * 12));
+                          const pwmIcon = pwm ? (pwm.isActive ? '▶' : '⏸') : '';
+                          const pwmLabel = pwm ? ` — segment ${pwm.segment}/${pwm.totalSegments} ${pwm.isActive ? '(aktiv)' : '(pausad)'}` : '';
+                          return (
+                            <TooltipProvider delayDuration={200}><Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`font-mono cursor-help ${pwm && !pwm.isActive ? 'text-muted-foreground/60' : dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                  {String(dutyPct)}% {pwmIcon}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Inlärt kylbehov: {String(dutyPct)}% = {activeSegs} av 12 segment/h
+                                {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
+                                {pwmLabel}
+                              </TooltipContent>
+                            </Tooltip></TooltipProvider>
+                          );
+                        })()}
                       </td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {det.preserved ? (
