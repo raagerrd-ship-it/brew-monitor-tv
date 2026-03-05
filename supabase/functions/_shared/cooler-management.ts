@@ -233,8 +233,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
-  // Clamp margin downward: don't go below the minimum margin that still produces cooling
-  const baseMargin = Math.max(learnedMargin.value, minEffective.sampleCount > 0 ? minEffective.value : 1.0)
+  // Use learned margin directly — min_effective is logged as reference only (no hard floor)
+  const baseMargin = learnedMargin.value
   const effectiveMargin = Math.round(baseMargin * rateBoostFactor * 10) / 10
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
@@ -955,9 +955,11 @@ async function learnFromCurrentState(
       log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util < 0.7 && currentMargin > 2.0) {
       // Under 70% — actively tighten to reduce condensation risk
+      // Use faster alpha (0.3) at low util for quicker downward convergence
       const tighterMargin = currentMargin * 0.93  // 7% decrease (more aggressive)
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+      const alphaOverride = util < 0.5 ? 0.3 : undefined
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
+      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util >= 0.7 && util < 0.99) {
       // 70–99%: good zone, but still try to nudge tighter slowly
       if (currentMargin > 2.5) {
@@ -1081,32 +1083,18 @@ async function learnMinEffectiveMargin(
 ): Promise<void> {
   // Only learn from cycles where cooling is actually happening (rate > 0)
   if (currentRate <= 0 || currentMargin < 0.5) {
-    // Special case: if util=100% but rate<=0, the margin is clearly too small
-    // Push min_effective upward aggressively
-    if (utilization != null && utilization >= 0.99 && currentMargin >= 0.5) {
-      const boostedMargin = currentMargin * 1.15  // 15% above current (which isn't working)
-      const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, boostedMargin, 0.5, 20.0)
-      if (Math.abs(result.oldValue - result.newValue) > 0.01) {
-        log('MIN_MARGIN', 'action', `🎓 [${tempBucket}] Util 100% + rate≤0 — höjer min eff: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`)
-      }
+    // No boost at 100% util — cooler_margin learning already handles escalation
+    if (utilization != null && utilization >= 0.99) {
+      log('MIN_MARGIN', 'info', `[${tempBucket}] Util 100% + rate≤0 — skipping min_effective boost (cooler_margin handles escalation)`)
     }
     return
   }
 
-  // If util=100%, the current margin isn't enough — push min_effective UP
-  if (utilization != null && utilization >= 0.99) {
-    const boostedMargin = currentMargin * 1.10  // 10% above current margin
-    const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, boostedMargin, 0.5, 20.0)
-    if (Math.abs(result.oldValue - result.newValue) > 0.01) {
-      log('MIN_MARGIN', 'action', `🎓 [${tempBucket}] Util 100% — höjer min eff: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C (rate ${currentRate.toFixed(2)}°C/h)`)
-    }
-    return
-  }
-
-  // Normal learning: converge toward current margin via EMA when cooling works
+  // Pure observation: converge toward current margin when cooling actually works
+  // No boost logic — this is just tracking what margin produces cooling
   const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
   if (Math.abs(result.oldValue - result.newValue) > 0.05) {
-    log('MIN_MARGIN', 'action', `[${tempBucket}] Min eff marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h, n=${result.sampleCount})`)
+    log('MIN_MARGIN', 'info', `[${tempBucket}] Min eff marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h, util ${utilization != null ? Math.round(utilization * 100) : '?'}%, n=${result.sampleCount})`)
   }
 }
 

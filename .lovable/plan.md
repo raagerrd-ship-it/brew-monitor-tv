@@ -1,65 +1,158 @@
 
 
-# Fix: Kylarmarginalen fastnar för högt (ratchet-effekt)
+# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
 
-## Analys
+## Klarifiering
 
-Nuvarande data visar problemet tydligt:
+Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
 
-```text
-cooler_margin:cold       = 6.98°C  (233 prover)
-min_effective_margin:cold = 7.21°C  (129 prover)
-hold_margin:cold:load_1  = 6.77°C  (32 prover)
+1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
+2. **Minska hysteres** om controllern inte når mål inom en viss tid
 
-Effektiv marginal = max(cooler_margin, min_effective) = 7.21°C
-→ Kylare mål = 8°C - 7.2°C ≈ 0.8°C (clamped till -1°C)
-```
-
-**Rotorsak:** `min_effective_margin` fungerar som ett golv (rad 237 i `cooler-management.ts`) OCH har en uppåtgående ratchet:
-
-1. Vid 100% utilization: boostar 10–15% uppåt (rad 1086-1103)
-2. Vid normal drift: konvergerar via EMA — men EMA rör sig långsamt nedåt
-3. Golvet på rad 237 (`baseMargin = max(learnedMargin, minEffective)`) gör att marginalen **aldrig kan sjunka under min_effective**, oavsett hur låg utilization är
-
-Resultatet: `min_effective` har klättrat till 7.21°C under perioder med 100% util och kan inte sjunka tillbaka trots att nuvarande util är 0–74%.
-
-## Lösning
-
-### 1. Ändra min_effective_margin från golv till referens
-
-Sluta använda `min_effective_margin` som hårt golv. Istället:
+## Relay-val per controller
 
 ```text
-Nuvarande (rad 237):
-  baseMargin = max(learnedMargin, minEffective)  ← hård spärr
-
-Nytt:
-  baseMargin = learnedMargin  ← marginalen styr själv
-  // min_effective används bara som varningssignal i loggen
+Target < Actual (ska sjunka)  → cooling ON, heating OFF
+Target > Actual (ska stiga)   → heating ON, cooling OFF
+Hold-zon (inom 0.5°C)         → temperaturband:
+  target < 15°C → cooling only (jäsning genererar värme)
+  target > 20°C → heating only (temp sjunker naturligt)
+  annars        → båda ON
 ```
 
-### 2. Sluta boosta min_effective vid hög utilization
+## Adaptiv Hysteresis
 
-100% util betyder att marginalen behöver öka — men det hanteras redan av `cooler_margin`-inlärningen (rad 951-955, +8%). Att ÄVEN höja golvet skapar dubbel-eskalering.
+Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
 
-Ändra `learnMinEffectiveMargin()`:
-- Ta bort boost-logiken vid util ≥ 99%
-- Lär bara från cykler där kylning faktiskt fungerar (rate > 0) — konvergera mot det observerade deltatat
-- Detta gör min_effective till en ren observation: "vid denna marginal producerades kylning"
+## Teknisk plan
 
-### 3. Snabbare nedåt-konvergens för cooler_margin
+### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
 
-EMA med alpha=0.2 konvergerar långsamt. Vid låg utilization (<50%), använd alpha=0.3 för snabbare justering nedåt. Behåll alpha=0.2 vid hög util (skydd mot för snabb sänkning).
+Lägg till tre actions i `ALLOWED_ACTIONS`:
+- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
+- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
+- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
 
-### 4. Återställ nuvarande min_effective
+### 2. Wrapper-funktioner i `temp-utils.ts`
 
-Sätt `min_effective_margin:cold` till ett rimligare värde (t.ex. 3.0°C) så systemet kan börja lära sig rätt från en lägre utgångspunkt.
+Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
 
-## Filer som ändras
+### 3. Databasändringar
 
-- `supabase/functions/_shared/cooler-management.ts`:
-  - Rad 237: Ta bort `min_effective` som golv, använd `learnedMargin.value` direkt
-  - `learnMinEffectiveMargin()`: Ta bort boost vid util ≥ 99%, behåll bara EMA-konvergens
-  - `learnFromCurrentState()`: Snabbare alpha vid låg util
-- DB: Manuell reset av `min_effective_margin:cold` → 3.0
+**`auto_cooling_settings`** — nya kolumner:
+- `smart_relay_enabled` boolean default false
+- `smart_relay_cooling_only_below` numeric default 15
+- `smart_relay_heating_only_above` numeric default 20
+- `smart_relay_min_hysteresis` numeric default 0.3
+- `smart_relay_tighten_after_minutes` integer default 30
 
+**`rapt_temp_controllers`** — nya kolumner:
+- `smart_relay_active` boolean default false
+- `pre_smart_heating_enabled` boolean nullable
+- `pre_smart_cooling_enabled` boolean nullable
+- `pre_smart_heating_hysteresis` numeric nullable
+- `pre_smart_cooling_hysteresis` numeric nullable
+- `smart_relay_off_target_since` timestamptz nullable
+
+### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+
+Placeras **före** PID i pipeline:
+
+```text
+Pipeline:
+  1. Bootstrap
+  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
+  3. PID Control
+  4. Pass-through
+  5. Stall Detection
+```
+
+Per controller (alla steg-typer):
+1. Läs `profile_target_temp` och `actual_temp`
+2. Bestäm riktning → toggle reläer via RAPT API
+3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
+4. Om on-target: återställ hysteres till original
+5. Spara originalvärden i `pre_smart_*` vid första ändring
+
+Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
+
+### 5. UI i Settings (automation-tab)
+
+Nytt avsnitt "Smart Relay" med:
+- Enable/disable toggle
+- Temperaturband-inputs (kylning-under, värme-över)
+- Min hysteres
+- Minuter innan tightening
+
+### 6. Beslutsloggning
+
+- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
+- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
+- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+
+### Filer som ändras
+
+- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
+- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
+- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
+- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
+- DB-migration för nya kolumner
+
+---
+
+## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
+
+**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
+
+**Fix:** 
+- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
+- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
+- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
+
+---
+
+## ✅ Web Push-notifieringar (2026-03-03)
+
+**Implementerat:**
+- `push_subscriptions` tabell med RLS (anyone can CRUD)
+- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
+- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
+- `public/push-sw.js` — service worker för push-event + notificationclick
+- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
+- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
+- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
+- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad
+
+---
+
+## ✅ Förbättrad passiv inlärning — Termisk profil (2026-03-04)
+
+**Implementerat:**
+- `cooler-management.ts`: `learnFromCurrentState()` utökad med:
+  - `cooling_rate:{bucket}:{load}` — kylhastighet per temperaturzon och antal aktiva tankar
+  - `warming_rate:{bucket}` — passiv uppvärmningshastighet (lärs när ingen tank kyler)
+  - `hold_margin:{bucket}:{load}` — optimal marginal under hold-steg
+  - `ramp_margin:{bucket}:{load}` — optimal marginal under ramp-steg
+  - `cooling_capacity:{load}` — max kylkapacitet vid ~100% utilization
+- Ny `learnWarmingRate()` funktion för passiv inlärning vid 0% kylaktivitet
+- Ny `LearnedThermalProfile.tsx` UI-komponent i Settings > Kylare-inlärning
+- Ingen databasändring — alla parametrar ryms i befintlig `fermentation_learnings` tabell
+
+---
+
+## ✅ Steady-state duty cycle (2026-03-05)
+
+// ... keep existing code
+
+---
+
+## ✅ Fix kylarmarginalen ratchet-effekt (2026-03-05)
+
+**Problem:** `min_effective_margin` fungerade som ett hårt golv (`baseMargin = max(learnedMargin, minEffective)`) och hade en uppåtgående ratchet vid 100% utilization (+10–15%), vilket drev marginalen till 7.21°C utan möjlighet att sjunka tillbaka.
+
+**Fix:**
+- `cooler-management.ts`: `baseMargin` använder nu `learnedMargin.value` direkt — `min_effective` loggas bara som referens
+- `learnMinEffectiveMargin()`: Borttagen boost-logik vid util ≥ 99%, nu ren EMA-observation
+- `learning-utils.ts`: `updateLearnedParam()` accepterar nu `alphaOverride` parameter
+- Vid låg utilization (<50%) används snabbare alpha (0.3) för nedåt-konvergens
+- DB: Återställt `min_effective_margin:cold` 7.21→3.0°C och `min_effective_margin:cool` 5.4→3.0°C
