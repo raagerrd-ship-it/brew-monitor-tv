@@ -425,23 +425,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           if (Math.abs(ctrlTarget - pwmOffTarget) > 0.05) {
             let success: boolean
             if (ctx.updateBatch) {
-              ctx.updateBatch.add(fc.controller_id, actualTarget, ctrlTarget)
+              ctx.updateBatch.add(fc.controller_id, pwmOffTarget, ctrlTarget)
               success = true
             } else {
-              success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, actualTarget)
+              success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, pwmOffTarget)
             }
             if (success) {
-              adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: actualTarget })
+              adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: pwmOffTarget })
               if (!ctx.updateBatch) {
                 await supabase.from('rapt_temp_controllers')
-                  .update({ target_temp: actualTarget, updated_at: new Date().toISOString() })
+                  .update({ target_temp: pwmOffTarget, updated_at: new Date().toISOString() })
                   .eq('controller_id', fc.controller_id)
               }
               await logAdjustment(supabase, {
                 cooler_controller_id: fc.controller_id,
                 cooler_controller_name: fc.name,
                 old_target_temp: ctrlTarget,
-                new_target_temp: actualTarget,
+                new_target_temp: pwmOffTarget,
                 original_target_temp: actualTarget,
                 lowest_followed_temp: actualTarget,
                 followed_controller_id: fc.controller_id,
@@ -449,7 +449,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
                 followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
                 followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
                 followed_hysteresis: 0,
-                reason: `⏱️ PWM av-segment: target → ${actualTarget.toFixed(1)}°C (duty=${Math.round(dutyParam.value * 100)}%, seg=${segmentIndex + 1}/${totalSegments})`,
+                reason: `⏱️ PWM av-segment: target → ${pwmOffTarget.toFixed(1)}°C (profil=${actualTarget.toFixed(1)}°C, delta-komp=${pidResult.compensation.toFixed(1)}°C, duty=${Math.round(dutyParam.value * 100)}%, seg=${segmentIndex + 1}/${totalSegments})`,
                 adjusted_against_timestamp: fc.last_update,
               })
             }
