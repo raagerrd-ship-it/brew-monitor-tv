@@ -87,6 +87,7 @@ export async function calculateCompensatedTarget(
   probeTemp?: number,
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
+  skipRateLimit?: boolean,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
