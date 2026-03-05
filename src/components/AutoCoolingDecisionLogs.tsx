@@ -758,7 +758,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
         {/* ── Inlärning ── */}
         <CoolerSubSection label="Inlärning" icon={<GraduationCap className="h-2.5 w-2.5 text-purple-400" />}>
           <div className="flex flex-wrap items-center gap-1.5">
-            {marginLearn ? (() => {
+            {marginLearn && marginLearn.result === 'action' ? (() => {
               const ml = marginLearn.details || {};
               const oldVal = ml.old_value as number;
               const newVal = ml.new_value as number;
@@ -774,19 +774,19 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
                 </span>
               );
             })() : null}
-            {rateLearn ? (
+            {rateLearn && rateLearn.result === 'action' ? (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
                 Rate
                 <span className="font-mono">{rateLearn.message.replace(/.*→\s*/, '').trim()}</span>
               </span>
             ) : null}
-            {utilLearn ? (
+            {utilLearn && utilLearn.result === 'action' ? (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px]">
                 Util
                 <span className="font-mono">{utilLearn.message.replace(/.*→\s*/, '').trim()}</span>
               </span>
             ) : null}
-            {minMargin ? (() => {
+            {minMargin && minMargin.result === 'action' ? (() => {
               const mm = minMargin.details || {};
               const oldVal = mm.old_value as number;
               const newVal = mm.new_value as number;
@@ -801,14 +801,19 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
                 </span>
               );
             })() : null}
-            {!marginLearn && !rateLearn && !utilLearn && !minMargin && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-muted-foreground/40 text-[10px] cursor-help">Ej aktiv</span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">Ingen controller kyler aktivt</TooltipContent>
-              </Tooltip>
-            )}
+            {(() => {
+              const hasActiveLearn = (marginLearn?.result === 'action') || (rateLearn?.result === 'action') || (utilLearn?.result === 'action') || (minMargin?.result === 'action');
+              if (hasActiveLearn) return null;
+              const skipReason = marginLearn?.message || 'Ingen aktiv inlärning';
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-muted-foreground/40 text-[10px] cursor-help">Ej aktiv</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">{skipReason}</TooltipContent>
+                </Tooltip>
+              );
+            })()}
           </div>
         </CoolerSubSection>
 
