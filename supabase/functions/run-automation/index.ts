@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemp", value: burst.on_target }),
+          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.on_target }),
           signal: AbortSignal.timeout(10000),
         });
         
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemp", value: burst.off_target }),
+          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.off_target }),
           signal: AbortSignal.timeout(10000),
         });
 
