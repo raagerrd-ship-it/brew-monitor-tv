@@ -409,9 +409,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const skipPwm = coolingUtil != null && coolingUtil > 0.70
 
         if (!isActiveSegment && !skipPwm) {
-          // "Off" segment — set target to profile target (no PID compensation),
-          // letting temperature drift up naturally until next active segment.
-          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, sätter target=${actualTarget.toFixed(1)}°C`, {
+          // "Off" segment — relax PI correction but KEEP delta compensation.
+          // Setting target to raw actualTarget would undo the probe/pill offset,
+          // causing the average to drift above target until the next active segment.
+          const pwmOffTarget = round1(actualTarget - pidResult.compensation)
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — PWM av-cykel, sätter target=${pwmOffTarget.toFixed(1)}°C (profil=${actualTarget}°C, delta-komp=${pidResult.compensation.toFixed(1)}°C)`, {
             duty: Math.round(dutyParam.value * 100),
             segment: segmentIndex + 1,
             total_segments: totalSegments,
@@ -419,8 +421,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             pid_diff: pidDiff,
           })
 
-          // During off-segment, sync target to profile target if it differs
-          if (Math.abs(ctrlTarget - actualTarget) > 0.05) {
+          // During off-segment, sync target to delta-compensated target if it differs
+          if (Math.abs(ctrlTarget - pwmOffTarget) > 0.05) {
             let success: boolean
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, actualTarget, ctrlTarget)
