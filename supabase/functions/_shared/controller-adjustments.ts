@@ -419,7 +419,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             segment: segmentIndex + 1,
             total_segments: totalSegments,
             active_segments: activeSegments,
-            pid_diff: pidDiff,
+            ctrl_temp_diff: ctrlTempDiff,
           })
 
           // During off-segment, sync target to delta-compensated target if it differs
