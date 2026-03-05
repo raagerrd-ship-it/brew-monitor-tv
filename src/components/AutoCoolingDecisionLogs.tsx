@@ -1002,7 +1002,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
-                              Inlärt kylbehov: {String(det.duty_pct)}% = ~{Math.round((det.duty_pct as number) / 100 * 300)}s per 5 min
+                              Inlärt kylbehov: {String(det.duty_pct)}% = {Math.max(1, Math.round((det.duty_pct as number) / 100 * 12))} av 12 segment/h
                               {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
