@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap, Zap } from "lucide-react";
+import { ChevronDown, CheckCircle2, XCircle, Info, Wrench, Snowflake, Pill, Gauge, Pencil, RefreshCw, Send, Database, AlertTriangle, ShieldAlert, Clock, GraduationCap, Zap, Thermometer, Activity, TrendingDown, Ruler } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -522,43 +522,39 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   });
 
   return (
-    <div className="space-y-1.5">
-      {/* Row 1: Cooler current state */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Kylare:</span>
-          <span className="font-mono font-medium">{coolerTemp}°</span>
-          <span className="text-muted-foreground text-[10px]">(Mål {coolerTarget}°)</span>
-        </div>
-      </div>
+    <div className="space-y-1">
+      {/* All rows use CoolerSubSection for consistent alignment */}
 
-      {/* Row 2: Utilization */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Aktiverad:</span>
-          {statusDet.cooler_utilization != null ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={`font-mono font-medium cursor-help ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {statusDet.cooler_utilization as number}%
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="font-mono text-[10px] text-muted-foreground/40 cursor-help">- %</span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      </div>
+      {/* ── Kylare ── */}
+      <CoolerSubSection label="Kylare" icon={<Thermometer className="h-2.5 w-2.5" />}>
+        <span className="font-mono font-medium">{coolerTemp}°</span>
+        <span className="text-muted-foreground text-[10px]">(Mål {coolerTarget}°)</span>
+      </CoolerSubSection>
 
-      {/* Row 3: Effective target + tank utilization */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
-        {effectiveTarget && (() => {
+      {/* ── Aktiverad ── */}
+      <CoolerSubSection label="Aktiverad" icon={<Activity className="h-2.5 w-2.5" />}>
+        {statusDet.cooler_utilization != null ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`font-mono font-medium cursor-help ${(statusDet.cooler_utilization as number) >= 80 ? 'text-amber-400' : (statusDet.cooler_utilization as number) >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {statusDet.cooler_utilization as number}%
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-[10px] text-muted-foreground/40 cursor-help">- %</span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs whitespace-pre-line">{coolerUtilTooltip}</TooltipContent>
+          </Tooltip>
+        )}
+      </CoolerSubSection>
+
+      {/* ── Lägsta behov ── */}
+      <CoolerSubSection label="Lägsta behov" icon={<TrendingDown className="h-2.5 w-2.5" />}>
+        {effectiveTarget ? (() => {
           const effCtrlName = effectiveDet.controller as string;
           const matchingUtil = utilEntries.find(u => u.message.split(':')[0].trim() === effCtrlName);
           const mDet = matchingUtil?.details || {};
@@ -577,8 +573,7 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             p4At: mDet.p4_at as string | null,
           });
           return (
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">Lägsta behov:</span>
+            <>
               <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
                 {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
               </span>
@@ -592,65 +587,64 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
               ) : (
                 <span className="text-muted-foreground text-[10px]">({effCtrlName})</span>
               )}
-            </div>
+              {/* Extra tank utilizations */}
+              {utilEntries.map((u, i) => {
+                const isActive = u.message.includes('❄️');
+                const name = u.message.split(':')[0].trim();
+                const utilMatch = u.message.match(/util=(\d+)%/);
+                const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
+                if (effCtrlName && name === effCtrlName) return null;
+                const uDet = u.details || {};
+                const tankUtilTip = buildUtilTooltip({
+                  lastUpdate: uDet.last_update as string | null,
+                  recentPct: uDet.recent_utilization as number | null,
+                  midPct: uDet.mid_utilization as number | null,
+                  oldestPct: uDet.oldest_utilization as number | null,
+                  ancientPct: uDet.ancient_utilization as number | null,
+                  pct: utilPct,
+                  prevAt: uDet.prev_at as string | null,
+                  p2At: uDet.p2_at as string | null,
+                  anchorAt: uDet.anchor_at as string | null,
+                  p4At: uDet.p4_at as string | null,
+                });
+                return (
+                  <Tooltip key={i}>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-help">
+                        <span>{isActive ? '❄️' : '⏸️'}</span>
+                        <span>{name}</span>
+                        {utilPct != null ? (
+                          <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {utilPct}%
+                          </span>
+                        ) : (
+                          <span className="font-mono text-muted-foreground/50">—</span>
+                        )}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs whitespace-pre-line">{tankUtilTip}</TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </>
           );
-        })()}
-        {/* Inline tank utilization */}
-        {utilEntries.map((u, i) => {
-          const isActive = u.message.includes('❄️');
-          const name = u.message.split(':')[0].trim();
-          const utilMatch = u.message.match(/util=(\d+)%/);
-          const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
-          const effectiveCtrlName = effectiveDet.controller as string;
-          if (effectiveCtrlName && name === effectiveCtrlName) return null;
-          const uDet = u.details || {};
-          const tankUtilTip = buildUtilTooltip({
-            lastUpdate: uDet.last_update as string | null,
-            recentPct: uDet.recent_utilization as number | null,
-            midPct: uDet.mid_utilization as number | null,
-            oldestPct: uDet.oldest_utilization as number | null,
-            ancientPct: uDet.ancient_utilization as number | null,
-            pct: utilPct,
-            prevAt: uDet.prev_at as string | null,
-            p2At: uDet.p2_at as string | null,
-            anchorAt: uDet.anchor_at as string | null,
-            p4At: uDet.p4_at as string | null,
-          });
-          return (
-            <Tooltip key={i}>
-              <TooltipTrigger asChild>
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-help">
-                  <span>{isActive ? '❄️' : '⏸️'}</span>
-                  <span>{name}</span>
-                  {utilPct != null ? (
-                    <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {utilPct}%
-                    </span>
-                  ) : (
-                    <span className="font-mono text-muted-foreground/50">—</span>
-                  )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs whitespace-pre-line">{tankUtilTip}</TooltipContent>
-            </Tooltip>
-          );
-        })}
-      </div>
+        })() : <span className="text-muted-foreground/40 text-[10px]">—</span>}
+      </CoolerSubSection>
 
-      {/* Row 2: Margin calculation */}
+      {/* ── Marginal ── */}
       {marginCalc && (
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-          <span>Marginal: <span className="font-mono text-foreground">{learnedMargin}°</span></span>
-          {minEffective && <span>Min eff: <span className="font-mono">{minEffective}°</span></span>}
-          {samples != null && <span>({samples} samples)</span>}
+        <CoolerSubSection label="Marginal" icon={<Ruler className="h-2.5 w-2.5" />}>
+          <span className="font-mono text-foreground">{learnedMargin}°</span>
+          {minEffective && <span className="text-muted-foreground text-[10px]">Min eff: <span className="font-mono">{minEffective}°</span></span>}
+          {samples != null && <span className="text-muted-foreground text-[10px]">({samples} samples)</span>}
           {marginDet.required_rate != null && (
-            <span>Krav: <span className="font-mono">{r1(marginDet.required_rate as number)}°/h</span></span>
+            <span className="text-muted-foreground text-[10px]">Krav: <span className="font-mono">{r1(marginDet.required_rate as number)}°/h</span></span>
           )}
-        </div>
+        </CoolerSubSection>
       )}
 
-      {/* Sub-sections — always visible */}
-      <div className="space-y-1 pt-1 border-t border-border/20">
+      {/* Separator before feature toggles */}
+      <div className="pt-1 border-t border-border/20 space-y-1">
 
         {/* ── Proaktiv ── */}
         <CoolerSubSection label="Proaktiv" icon={<Info className="h-2.5 w-2.5 text-blue-400" />}>
