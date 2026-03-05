@@ -142,20 +142,17 @@ Nytt avsnitt "Smart Relay" med:
 
 ## ✅ Steady-state duty cycle (2026-03-05)
 
-**Implementerat:**
-- `cooler-management.ts`: `learnWarmingRate()` beräknar nu `steady_state_duty:{bucket}` = warming_rate / cooling_rate per controller per temperaturzon
-- Duty cycle används i proaktiv kylarprediction: controllers med hög duty (>30%) får utökad lookahead (20 min istället för 15)
-- Ny `LearnedDutyCycle.tsx` UI-komponent i Settings > Controller-inlärning
-- Färgkodad visning: grön (<40%), gul (40-70%), röd (>70%)
-- **PWM-modulering per tank** (i `controller-adjustments.ts`, EJ kylaren):
-  - 1 timme = 12 segment à 5 min. Duty 18% → PID-kylning aktiv i ~2 av 12 segment
-  - **PWM ersätter PID vid stabil temperatur**: aktiveras när pidDiff < 0.3 (nära mål), FÖRE no-op-guarden
-  - Vid av-segment: target sätts till profilmålet (ingen PID-kompensation), temp driftar naturligt
-  - Vid aktivt segment: PID kör som vanligt (fall-through)
-  - Säkerhetsåterställning: PID tar över om pidDiff > 0.3 eller utilization > 70%
-  - Segment fördelas jämnt: period = floor(12 / aktiva), aktiva segment vid `index % period === 0`
-  - Skippar modulering om tankens utilization >70% (tanken kämpar)
-  - Loggas som `DUTY_PWM` i beslutsloggen med segment-position
-  - Kylaren (cooler-management) påverkas EJ — fungerar som innan
-- UI visar duty som procent + sekunder per 5-min cykel
-- Ingen databasändring — använder befintlig `fermentation_learnings` tabell
+// ... keep existing code
+
+---
+
+## ✅ Fix kylarmarginalen ratchet-effekt (2026-03-05)
+
+**Problem:** `min_effective_margin` fungerade som ett hårt golv (`baseMargin = max(learnedMargin, minEffective)`) och hade en uppåtgående ratchet vid 100% utilization (+10–15%), vilket drev marginalen till 7.21°C utan möjlighet att sjunka tillbaka.
+
+**Fix:**
+- `cooler-management.ts`: `baseMargin` använder nu `learnedMargin.value` direkt — `min_effective` loggas bara som referens
+- `learnMinEffectiveMargin()`: Borttagen boost-logik vid util ≥ 99%, nu ren EMA-observation
+- `learning-utils.ts`: `updateLearnedParam()` accepterar nu `alphaOverride` parameter
+- Vid låg utilization (<50%) används snabbare alpha (0.3) för nedåt-konvergens
+- DB: Återställt `min_effective_margin:cold` 7.21→3.0°C och `min_effective_margin:cool` 5.4→3.0°C
