@@ -105,7 +105,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough';
+type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
 
 interface UnifiedEntry {
   log: DecisionLog;
@@ -141,6 +141,7 @@ const PIPELINE_STEPS = new Set([
 // --- Helpers ---
 
 function categorizeAdjustment(reason: string): AdjustmentCategory {
+  if (reason.startsWith('⚡')) return 'pwm';
   if (reason.startsWith('✏️') || reason.startsWith('🔧')) return 'manuell';
   if (reason.startsWith('🔄')) return 'passthrough';
   if (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠')) return 'pill-comp';
@@ -154,6 +155,7 @@ function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNod
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
     'manuell': { bg: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', border: 'hsl(38 92% 55% / 0.3)', icon: <Pencil className="h-2.5 w-2.5 mr-0.5" />, label: 'Manuell' },
     'passthrough': { bg: 'hsl(170 60% 45% / 0.2)', color: 'hsl(170 60% 45%)', border: 'hsl(170 60% 45% / 0.3)', icon: <RefreshCw className="h-2.5 w-2.5 mr-0.5" />, label: 'Synk' },
+    'pwm': { bg: 'hsl(45 90% 55% / 0.2)', color: 'hsl(45 90% 55%)', border: 'hsl(45 90% 55% / 0.3)', icon: <Zap className="h-2.5 w-2.5 mr-0.5" />, label: 'PWM' },
   };
   const s = styles[category];
   const color = colorOverride || s.color;
@@ -1522,6 +1524,15 @@ function AdjustmentCard({ adj }: { adj: AdjustmentLog & { category: AdjustmentCa
             <><div className="text-muted-foreground">Inlärd marginal:</div><div className="font-medium">{margin.toFixed(1)}°C</div></>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (category === 'pwm') {
+    return (
+      <div className="pt-2 border-t border-border text-xs space-y-1">
+        <p className="font-semibold" style={{ color: 'hsl(45 90% 55%)' }}>⚡ PWM burst</p>
+        <p className="text-[11px]">{adj.cooler_controller_name}: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</p>
       </div>
     );
   }
