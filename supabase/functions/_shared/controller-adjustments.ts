@@ -463,7 +463,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // in pending_rapt_retries and handled by auto-adjust-cooling next cycle.
     // This eliminates the need for sleeping inside edge functions (timeout-safe).
     if (isPwmMode) {
-      const offTarget = round1(ctrlTarget)
+      const offTarget = round1(ctrlTargetPid)
       const onTarget = 0
 
       const dutySeconds = Math.max(30, Math.min(240, Math.round(pwmDutyPct / 100 * 300)))
