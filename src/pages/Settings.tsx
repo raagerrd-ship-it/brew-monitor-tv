@@ -15,6 +15,7 @@ import { CombinedControllerChart } from "@/components/controller-chart";
 
 import { LearnedThermalRates } from "@/components/LearnedThermalRates";
 import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
+import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -578,6 +579,8 @@ export default function Settings() {
                   <LearnedStallBoostValues />
                   <SettingsDivider />
                   <LearnedThermalRates />
+                  <SettingsDivider />
+                  <LearnedDutyCycle />
                 </SettingsSection>
 
                 <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren" collapsible defaultOpen={false}>

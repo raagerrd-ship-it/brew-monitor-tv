@@ -363,8 +363,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-          if (minutesUntilCooling < 15) {
-            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min — håller kylare redo`)
+
+          // Use learned duty cycle for smarter prediction:
+          // High duty cycle = controller spends a lot of time cooling = keep cooler ready sooner
+          const dutyParam = await getLearnedParam(supabase, c.controller_id, `steady_state_duty:${cTempBucket}`, -1)
+          const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
+            ? 20  // high duty cycle → longer lookahead (keep cooler ready earlier)
+            : 15  // default
+
+          if (minutesUntilCooling < dutyThresholdMinutes) {
+            const dutyInfo = dutyParam.sampleCount >= 3 ? ` duty=${Math.round(dutyParam.value * 100)}%` : ''
+            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min${dutyInfo} — håller kylare redo`)
             keepCoolerReady = true
             break
           }
@@ -1015,6 +1024,17 @@ async function learnWarmingRate(
       const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${tempBucket}`, warmingRate, 0.01, 10.0)
       if (Math.abs(result.oldValue - result.newValue) > 0.01) {
         log('WARMING_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
+      }
+
+      // ── Learn steady-state duty cycle ──────────────────────
+      // duty = warming_rate / cooling_rate → fraction of time cooling needs to run
+      const coolingRate = await getLearnedParam(supabase, c.controller_id, `thermal_rate_cooling`, -1)
+      if (coolingRate.sampleCount >= 3 && coolingRate.value > 0.1) {
+        const dutyCycle = Math.min(1.0, result.newValue / coolingRate.value)
+        const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${tempBucket}`, dutyCycle, 0.01, 1.0)
+        if (Math.abs(dutyResult.oldValue - dutyResult.newValue) > 0.005) {
+          log('DUTY_LEARN', 'info', `🎓 [${tempBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
+        }
       }
     }
   }
