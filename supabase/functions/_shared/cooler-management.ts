@@ -477,6 +477,57 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
+  // ── Duty-cycle PWM modulation ─────────────────────────────
+  // During hold states (not ramping), use the aggregate learned duty cycle
+  // to only keep the cooler target low for the needed fraction of 5-min cycles.
+  // E.g., 18% duty → cooler active ~1 of every 6 cycles (every 30 min).
+  // This saves energy and reduces glycol condensation risk.
+  if (!effectiveTarget.isRampingDown && !previousWasKick) {
+    // Find the highest duty cycle among all tanks (worst case drives the cooler)
+    let maxDuty = -1
+    let maxDutyController = ''
+    let dutySamples = 0
+    for (const c of controllersWithCooling) {
+      const cBucket = getTempBucket(parseFloat(String(c.target_temp ?? '20')))
+      const dutyParam = await getLearnedParam(supabase, c.controller_id, `steady_state_duty:${cBucket}`, -1)
+      if (dutyParam.sampleCount >= 5 && dutyParam.value > maxDuty) {
+        maxDuty = dutyParam.value
+        maxDutyController = c.name
+        dutySamples = dutyParam.sampleCount
+      }
+    }
+
+    // Only modulate when we have reliable duty data AND duty is below 60%
+    // Above 60% → cooling needed most of the time, don't skip cycles
+    if (maxDuty > 0.05 && maxDuty < 0.60 && dutySamples >= 5) {
+      // Calculate PWM: how many 5-min cycles per period?
+      // Period = 1/duty cycles. E.g., 18% → period ≈ 6 cycles (30 min)
+      const periodCycles = Math.round(1 / maxDuty)
+      const cycleIndex = Math.floor(Date.now() / (5 * 60 * 1000))
+      const isActiveCycle = (cycleIndex % periodCycles) === 0
+
+      // Also check: don't modulate if any tank has high utilization (>70%)
+      const anyHighUtil = utilizations.some(u => u.utilization != null && u.utilization > 0.70)
+
+      if (!isActiveCycle && !anyHighUtil) {
+        // This is an "off" cycle — raise cooler target above relay threshold
+        const offTarget = Math.min(coolerMaxTemp, round1(coolerTemp + coolerHysteresis + 0.5))
+        if (currentCoolerTarget < offTarget - 0.1) {
+          log('DUTY_PWM', 'action', `Duty cycle ${Math.round(maxDuty * 100)}% (${maxDutyController}) → cykel ${cycleIndex % periodCycles + 1}/${periodCycles} (av) — pausar kylare`)
+          await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, offTarget, effectiveTarget.temp,
+            `⏱ Duty-PWM: ${Math.round(maxDuty * 100)}% duty → cykel ${cycleIndex % periodCycles + 1}/${periodCycles} av — pausar kylare`,
+            adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        } else {
+          log('DUTY_PWM', 'info', `Duty cycle ${Math.round(maxDuty * 100)}% → av-cykel, kylare redan pausad (mål ${round1(currentCoolerTarget)}°)`)
+        }
+        await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+        return adjustments
+      } else if (!anyHighUtil) {
+        log('DUTY_PWM', 'info', `Duty cycle ${Math.round(maxDuty * 100)}% (${maxDutyController}) → cykel ${cycleIndex % periodCycles + 1}/${periodCycles} (aktiv) — kylare kör`)
+      }
+    }
+  }
+
   // ── Apply ─────────────────────────────────────────────────
   const direction = clampedTarget < currentCoolerTarget ? 'Sänker' : 'Höjer'
   const rateInfo = rateBoostFactor > 1.0 ? `, rate-boost ×${rateBoostFactor.toFixed(2)}` : ''
