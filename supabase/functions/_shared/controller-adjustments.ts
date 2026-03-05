@@ -463,7 +463,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
             followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
             followed_hysteresis: pidResult.avgDelta,
-            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (profil)`,
+            reason: `⏸ PWM av-cykel: återställer mål ${ctrlTarget.toFixed(1)}°C → ${offTarget.toFixed(1)}°C (ctrl_target)`,
             adjusted_against_timestamp: fc.last_update,
           })
         }
