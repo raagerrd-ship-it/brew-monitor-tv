@@ -1,171 +1,67 @@
 
 
-# Smart Relay & Adaptiv Hysteresis — Per Tank Controller
+## PWM per 5-minuterscykel (burst-modell)
 
-## Klarifiering
+### Koncept
 
-Denna feature gäller **individuella tank-controllers** (ej glykolkylaren). Varje tank-controller har egna heating/cooling-reläer med hysteres. Logiken ska automatiskt:
+Nuvarande modell delar upp en timme i 12 segment (5 min var) och bestämmer om hela segmentet är "på" eller "av". Det ger grov granularitet — antingen 5 min kylning eller 0.
 
-1. **Stänga av onödiga reläer** baserat på riktning (target vs actual)
-2. **Minska hysteres** om controllern inte når mål inom en viss tid
-
-## Relay-val per controller
+Ny modell: varje 5-minuterscykel gör en **kort burst** proportionell mot duty cycle. Vid 22% duty = 66 sekunder aktiv kylning, sedan av resten av cykeln. Minimum 30 sekunder.
 
 ```text
-Target < Actual (ska sjunka)  → cooling ON, heating OFF
-Target > Actual (ska stiga)   → heating ON, cooling OFF
-Hold-zon (inom 0.5°C)         → temperaturband:
-  target < 15°C → cooling only (jäsning genererar värme)
-  target > 20°C → heating only (temp sjunker naturligt)
-  annars        → båda ON
+Nuvarande (12-segment/timme):
+|████|    |    |████|    |    |████|    |    |████|    |    |
+ 5min                                                  60min
+
+Ny (burst per cykel):
+|█|   |█|   |█|   |█|   |█|   |█|   |█|   |█|   |█|   ...
+ 66s   66s   66s   ...                                  varje 5 min
 ```
 
-## Adaptiv Hysteresis
+### Teknisk utmaning: "Av"-kommandot
 
-Om controllern inte når mål (±0.5°C) inom t.ex. 30 min, minska det aktiva reläets hysteres stegvis (0.2°C/cykel) ned till min 0.3°C. Återställ vid uppnått mål.
+Edge-funktionen körs en gång per 5 minuter. Den kan skicka "på"-kommandot, men måste också skicka "av"-kommandot efter duty-tiden. Tre alternativ:
 
-## Teknisk plan
+**A) Sleep i funktionen** — Funktionen väntar (`await sleep(dutyMs)`) innan den skickar av-kommandot. Problemet: `run-automation` har 20s timeout på anropet till `auto-adjust-cooling`, och duty kan vara 66+ sekunder.
 
-### 1. Nya RAPT API-actions i `rapt-update-controller/index.ts`
+**B) Tvåfas via DB-timestamp** — Spara `pwm_off_at` i DB. En separat funktion (eller pg_cron varje minut) kollar och stänger av. Ger ~1 min granularitet — för grovt för 30s minimum.
 
-Lägg till tre actions i `ALLOWED_ACTIONS`:
-- `setHeatingHysteresis` → `SetHeatingHysteresis` endpoint
-- `setHeatingEnabled` → `SetHeatingEnabled` endpoint
-- `setCoolingEnabled` → `SetCoolingEnabled` endpoint
+**C) Fire-and-forget med fördröjd fetch (rekommenderad)** — Funktionen skickar "på"-kommandot, startar en bakgrunds-fetch till en liten `pwm-deactivate` edge function med en `delay_ms` parameter som sover och sedan stänger av. Huvudfunktionen returnerar direkt.
 
-### 2. Wrapper-funktioner i `temp-utils.ts`
+### Rekommendation: Alternativ A med omstrukturering
 
-Skapa `setHeatingHysteresis()`, `setHeatingEnabled()`, `setCoolingEnabled()` — samma mönster som `setCoolerHysteresis()`.
+Enklast och mest pålitligt. Vi gör följande:
 
-### 3. Databasändringar
+1. **PWM-logiken körs EFTER att `auto-adjust-cooling` returnerat** — separera PWM-burst till ett eget steg i `run-automation`
+2. `auto-adjust-cooling` returnerar PWM-metadata (controllerId, duty_seconds, on-target, off-target) i sitt svar
+3. `run-automation` kör PWM-bursten som ett eget steg: skickar "på" via RAPT API, `await sleep(duty_seconds * 1000)`, skickar "av"
+4. `run-automation` har ingen strikt timeout på detta steg (eller hög timeout)
 
-**`auto_cooling_settings`** — nya kolumner:
-- `smart_relay_enabled` boolean default false
-- `smart_relay_cooling_only_below` numeric default 15
-- `smart_relay_heating_only_above` numeric default 20
-- `smart_relay_min_hysteresis` numeric default 0.3
-- `smart_relay_tighten_after_minutes` integer default 30
+### Teknisk plan
 
-**`rapt_temp_controllers`** — nya kolumner:
-- `smart_relay_active` boolean default false
-- `pre_smart_heating_enabled` boolean nullable
-- `pre_smart_cooling_enabled` boolean nullable
-- `pre_smart_heating_hysteresis` numeric nullable
-- `pre_smart_cooling_hysteresis` numeric nullable
-- `smart_relay_off_target_since` timestamptz nullable
+**1. `controller-adjustments.ts`** — Ändra PWM-logiken:
+- Istället för att skicka on/off-target direkt, returnera PWM-metadata i resultatet
+- Ta bort 12-segment/timme-beräkningen
+- Beräkna `duty_seconds = max(30, round(duty_pct * 300))`
+- Cap duty_seconds vid 240 (80% av 300s, lämnar margin för API-latens)
 
-### 4. Ny processor: `runSmartRelay` i `controller-adjustments.ts`
+**2. `auto-adjust-cooling/index.ts`** — Returnera PWM-actions i response:
+- Om PWM-burst behövs: inkludera `{ pwm_bursts: [{ controller_id, on_target, off_target, duty_seconds }] }` i JSON-svaret
 
-Placeras **före** PID i pipeline:
+**3. `run-automation/index.ts`** — Nytt steg 3b: PWM Burst:
+- Läs `pwm_bursts` från auto-adjust-cooling-svaret
+- För varje burst: skicka on-target till RAPT API, sleep, skicka off-target
+- Kör detta parallellt med health check (steg 4)
 
-```text
-Pipeline:
-  1. Bootstrap
-  2. Smart Relay (NEW)  ← toggle reläer + adaptiv hysteres per tank
-  3. PID Control
-  4. Pass-through
-  5. Stall Detection
-```
+**4. DB: `pwm_stable_count` behålls** — ingen schemaändring
 
-Per controller (alla steg-typer):
-1. Läs `profile_target_temp` och `actual_temp`
-2. Bestäm riktning → toggle reläer via RAPT API
-3. Kolla `smart_relay_off_target_since` — om > N min, minska hysteres
-4. Om on-target: återställ hysteres till original
-5. Spara originalvärden i `pre_smart_*` vid första ändring
-
-Återställning sker vid: session avslutad, feature avstängd, manuell ändring.
-
-### 5. UI i Settings (automation-tab)
-
-Nytt avsnitt "Smart Relay" med:
-- Enable/disable toggle
-- Temperaturband-inputs (kylning-under, värme-över)
-- Min hysteres
-- Minuter innan tightening
-
-### 6. Beslutsloggning
-
-- `SMART_RELAY`: "Ramp ned → disabled heating (target 12°C < actual 14°C)"
-- `SMART_RELAY_TIGHTEN`: "Minskade cooling hysteres 2.0 → 1.8°C (35min off-target)"
-- `SMART_RELAY_RESTORE`: "Återställde heating hysteres 2.0°C"
+**5. Beslutslogg:**
+- `DUTY_PWM_BURST`: "22% duty → 66s burst av 300s (min 30s)"
+- `DUTY_PWM_OFF`: "Burst klar, återställer mål"
 
 ### Filer som ändras
 
-- `supabase/functions/rapt-update-controller/index.ts` — 3 nya actions
-- `supabase/functions/_shared/temp-utils.ts` — 3 nya wrappers
-- `supabase/functions/_shared/controller-adjustments.ts` — ny `runSmartRelay` processor
-- `src/pages/Settings.tsx` (eller automation-settings komponent) — UI
-- DB-migration för nya kolumner
+- `supabase/functions/_shared/controller-adjustments.ts` — PWM-logik → returnerar metadata istf direkta API-anrop
+- `supabase/functions/auto-adjust-cooling/index.ts` — propagerar PWM-metadata i response
+- `supabase/functions/run-automation/index.ts` — nytt PWM-burst-steg med sleep
 
----
-
-## ✅ Genomförd fix: Kick-flagga timing (2026-03-03)
-
-**Problem:** `hysteresis_kick_active` sattes i DB direkt efter att kicken köades i batch, men FÖRE flush. Om flush misslyckades hade DB en felaktig flagga.
-
-**Fix:** 
-- `cooler-management.ts`: Sätter `ctx.pendingKickControllerId` istället för att skriva direkt till DB
-- `auto-adjust-cooling/index.ts`: Kontrollerar `batchResults` efter flush och sätter flaggan BARA om RAPT API-anropet lyckades
-- Nytt fält `pendingKickControllerId` på `CoolerContext` interface
-
----
-
-## ✅ Web Push-notifieringar (2026-03-03)
-
-**Implementerat:**
-- `push_subscriptions` tabell med RLS (anyone can CRUD)
-- `generate-vapid-keys` edge function — genererar/hämtar VAPID-nycklar
-- `send-push-notification` edge function — skickar push till alla prenumeranter via `@negrel/webpush`
-- `public/push-sw.js` — service worker för push-event + notificationclick
-- `src/lib/web-push-registration.ts` — auto-registrering, subscription-hantering
-- `_shared/notifications.ts` — varje `insertNotification()` triggar nu push via fetch
-- VAPID-nycklar sparade som secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`)
-- Auto-register körs vid app-load i `App.tsx` om permission redan beviljad
-
----
-
-## ✅ Förbättrad passiv inlärning — Termisk profil (2026-03-04)
-
-**Implementerat:**
-- `cooler-management.ts`: `learnFromCurrentState()` utökad med:
-  - `cooling_rate:{bucket}:{load}` — kylhastighet per temperaturzon och antal aktiva tankar
-  - `warming_rate:{bucket}` — passiv uppvärmningshastighet (lärs när ingen tank kyler)
-  - `hold_margin:{bucket}:{load}` — optimal marginal under hold-steg
-  - `ramp_margin:{bucket}:{load}` — optimal marginal under ramp-steg
-  - `cooling_capacity:{load}` — max kylkapacitet vid ~100% utilization
-- Ny `learnWarmingRate()` funktion för passiv inlärning vid 0% kylaktivitet
-- Ny `LearnedThermalProfile.tsx` UI-komponent i Settings > Kylare-inlärning
-- Ingen databasändring — alla parametrar ryms i befintlig `fermentation_learnings` tabell
-
----
-
-## ✅ Steady-state duty cycle (2026-03-05)
-
-// ... keep existing code
-
----
-
-## ✅ Fix kylarmarginalen ratchet-effekt (2026-03-05)
-
-**Problem:** `min_effective_margin` fungerade som ett hårt golv (`baseMargin = max(learnedMargin, minEffective)`) och hade en uppåtgående ratchet vid 100% utilization (+10–15%), vilket drev marginalen till 7.21°C utan möjlighet att sjunka tillbaka.
-
-**Fix:**
-- `cooler-management.ts`: `baseMargin` använder nu `learnedMargin.value` direkt — `min_effective` loggas bara som referens
-- `learnMinEffectiveMargin()`: Borttagen boost-logik vid util ≥ 99%, nu ren EMA-observation
-- `learning-utils.ts`: `updateLearnedParam()` accepterar nu `alphaOverride` parameter
-- Vid låg utilization (<50%) används snabbare alpha (0.3) för nedåt-konvergens
-- DB: Återställt `min_effective_margin:cold` 7.21→3.0°C och `min_effective_margin:cool` 5.4→3.0°C
-
----
-
-## ✅ Fix: Profilmål användes som hårdvarumål (2026-03-05)
-
-**Princip:** `profile_target_temp` är ALLTID virtuellt — det enda riktiga målet som skickas till hårdvara eller används som golv/referens är `ctrlTarget` eller `ctrlTargetPid`.
-
-**Problem:** `actualTarget` (= profilmålet 8°C) användes som golv i heater guard och som restore-mål vid stall un-boost, vilket aktiverade värmaren och skapade oscillationer.
-
-**Fix:**
-- `controller-adjustments.ts`: Heater guard-golv ändrat från `actualTarget` → `ctrlTarget`
-- `stall-detection.ts`: Un-boost restore använder `boostOldTarget` (pre-boost hårdvarumål) istället för `effectiveProfileTarget`
-- `stall-detection.ts`: Loggning av `new_target_temp` vid un-boost använder `boostOldTarget` istf profilmålet
