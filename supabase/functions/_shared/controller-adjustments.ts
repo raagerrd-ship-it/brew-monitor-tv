@@ -294,7 +294,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let rampContext: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null = null
     if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
       // Check if there's a ramp rate from the profile status
-      const tempBucket = getTempBucket(actualTarget)
+      const tempBucket = getTempBucket(ctrlTarget)
       const activeCoolingCount = followedControllersFullData.filter(c => c.cooling_enabled).length
       const loadBucket = activeCoolingCount === 0 ? 'load_0' : activeCoolingCount === 1 ? 'load_1' : 'load_2plus'
       // Estimate required rate from profile target vs current temp
