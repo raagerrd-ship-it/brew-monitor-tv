@@ -68,10 +68,7 @@ export function AspectRatioContainer({
     if (!needsScaling) return;
 
     const calculateDimensions = () => {
-      const scale = Math.min(
-        window.innerWidth / REFERENCE_WIDTH,
-        window.innerHeight / REFERENCE_HEIGHT
-      );
+      const scale = window.innerWidth / REFERENCE_WIDTH;
       setDimensions({ width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT, scale });
     };
 
