@@ -1033,21 +1033,43 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         })()}
                       </td>
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                        {det.preserved ? (
-                          <TooltipProvider delayDuration={200}><Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
-                          </Tooltip></TooltipProvider>
-                        ) : (
-                          <TooltipProvider delayDuration={200}><Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
-                          </Tooltip></TooltipProvider>
-                        )}
+                        <span className="flex items-center justify-center gap-1">
+                          {(() => {
+                            const pwm = dutyPwmByName.get(name);
+                            if (pwm) {
+                              return (
+                                <TooltipProvider delayDuration={200}><Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium ${pwm.isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                                      {pwm.isActive ? 'PID' : 'PWM'}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                    {pwm.isActive
+                                      ? `PID aktivt segment ${pwm.segment}/${pwm.totalSegments} — duty ${pwm.duty}%`
+                                      : `PWM av-segment ${pwm.segment}/${pwm.totalSegments} — duty ${pwm.duty}%, delta-komp bevarad`}
+                                  </TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {det.preserved ? (
+                            <TooltipProvider delayDuration={200}><Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
+                            </Tooltip></TooltipProvider>
+                          ) : (
+                            <TooltipProvider delayDuration={200}><Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
+                            </Tooltip></TooltipProvider>
+                          )}
+                        </span>
                       </td>
                       <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
                         {lastUpdate || '—'}
