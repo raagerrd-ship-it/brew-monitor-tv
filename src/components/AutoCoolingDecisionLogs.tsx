@@ -1087,7 +1087,15 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
                           if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
                           if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: `Håller target under ramp — låter profilen komma ikapp. ${clampDiffStr}` });
-                          if (statusLimits.includes('approach-release')) brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål i approach zone. ${clampDiffStr}` });
+                          if (statusLimits.includes('approach-release')) {
+                            const dist = actualTempVal != null && actualTargetVal != null ? Math.abs(actualTempVal - actualTargetVal) : null;
+                            const approachC2 = statusLimits.find(c => c.startsWith('approach='));
+                            const scale = approachC2 ? approachC2.split('=')[1] : null;
+                            const distStr = dist != null ? ` Avstånd: ${r1(dist)}° från mål.` : '';
+                            const scaleStr = scale ? ` Δ-skalning: ×${scale}.` : '';
+                            const releaseStr = ' Släpper vid <1° från mål.';
+                            brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål.${distStr}${scaleStr}${releaseStr} ${clampDiffStr}` });
+                          }
                           if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: `Kan inte överskrida profilmål under ramp. ${clampDiffStr}` });
                           const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
                           if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel. ${clampDiffStr}` }); }
