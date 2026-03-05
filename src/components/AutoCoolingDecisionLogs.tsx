@@ -67,6 +67,11 @@ const r1 = (v: number | null | undefined): string => {
   return parseFloat(Number(v).toFixed(1)).toString();
 };
 
+const r2 = (v: number | null | undefined): string => {
+  if (v === null || v === undefined) return '—';
+  return parseFloat(Number(v).toFixed(2)).toString();
+};
+
 // --- Types ---
 
 interface DecisionEntry {
