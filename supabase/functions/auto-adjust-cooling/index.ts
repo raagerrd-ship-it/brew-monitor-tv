@@ -486,8 +486,52 @@ serve(async (req) => {
       const failed = [...batchResults.entries()].filter(([, ok]) => !ok);
       if (failed.length > 0) {
         log('BATCH_FLUSH', 'fail', `${failed.length} update(s) failed: ${failed.map(([id]) => id).join(', ')}`);
+
+        // Save failed updates for retry next cycle
+        for (const [controllerId] of failed) {
+          const target = updateBatch.getAppliedTarget(controllerId);
+          if (target == null) continue;
+          const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+          const attempts = (existingRetry?.attempts ?? 0) + 1;
+          const controllerData = allControllers.find(c => c.controller_id === controllerId);
+          const name = controllerData?.name ?? controllerId;
+
+          if (attempts >= 5) {
+            // Give up after 5 attempts
+            log('RETRY', 'fail', `Ger upp retry för ${name} efter ${attempts} försök`);
+            if (existingRetry) {
+              await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+            }
+          } else if (existingRetry) {
+            // Update existing retry
+            await supabase.from('pending_rapt_retries')
+              .update({ target_temp: target, attempts })
+              .eq('id', existingRetry.id);
+            log('RETRY', 'info', `Sparar retry för ${name} → ${target}°C (försök ${attempts})`);
+          } else {
+            // Create new retry
+            await supabase.from('pending_rapt_retries').insert({
+              controller_id: controllerId,
+              target_temp: target,
+              reason: `Flush failed for ${name}`,
+              attempts: 1,
+            } as any);
+            log('RETRY', 'info', `Sparar retry för ${name} → ${target}°C (försök 1)`);
+          }
+        }
       } else {
         log('BATCH_FLUSH', 'pass', `All ${batchResults.size} update(s) sent successfully`);
+      }
+
+      // Clean up retries that succeeded
+      const succeeded = [...batchResults.entries()].filter(([, ok]) => ok);
+      for (const [controllerId] of succeeded) {
+        const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+        if (existingRetry) {
+          await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+          const ctrlName = allControllers.find(c => c.controller_id === controllerId)?.name ?? controllerId;
+          log('RETRY', 'pass', `Retry lyckades för ${ctrlName}`);
+        }
       }
 
       // Log individual RAPT_SEND entries for each successfully sent update
