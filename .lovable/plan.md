@@ -149,7 +149,11 @@ Nytt avsnitt "Smart Relay" med:
 - Färgkodad visning: grön (<40%), gul (40-70%), röd (>70%)
 - **PWM-modulering per tank** (i `controller-adjustments.ts`, EJ kylaren):
   - 1 timme = 12 segment à 5 min. Duty 18% → PID-kylning aktiv i ~2 av 12 segment
-  - Gäller enbart under hold-steg i cooling-mode med duty <60% (≥5 samples)
+  - **PWM ersätter PID vid stabil temperatur**: aktiveras när pidDiff < 0.3 (nära mål), FÖRE no-op-guarden
+  - Vid av-segment: target sätts till profilmålet (ingen PID-kompensation), temp driftar naturligt
+  - Vid aktivt segment: PID kör som vanligt (fall-through)
+  - Säkerhetsåterställning: PID tar över om pidDiff > 0.3 eller utilization > 70%
+  - Segment fördelas jämnt: period = floor(12 / aktiva), aktiva segment vid `index % period === 0`
   - Skippar modulering om tankens utilization >70% (tanken kämpar)
   - Loggas som `DUTY_PWM` i beslutsloggen med segment-position
   - Kylaren (cooler-management) påverkas EJ — fungerar som innan
