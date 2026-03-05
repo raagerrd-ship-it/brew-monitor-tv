@@ -611,7 +611,7 @@ export async function calculateCompensatedTarget(
 
   if (Math.abs(ctrlTargetPid - ctrlTarget) < 0.05) {
     console.log(`🎯 PID ${controllerName}: redan nära mål (${ctrlTarget}°C ≈ ${ctrlTargetPid}°C), skippar`)
-    return { ctrlTargetPid: ctrlTarget, compensation: 0, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
+    return { ctrlTargetPid: ctrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
   }
 
   console.log(`🎯 PID ${controllerName}: actual_target=${actualTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ctrl_target_pid=${ctrlTargetPid}°C (ctrl_target=${ctrlTarget}°C)`)
