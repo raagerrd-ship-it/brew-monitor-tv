@@ -592,7 +592,9 @@ export async function calculateCompensatedTarget(
     
     // Safety clamp: never set target above probe during cooling (would start heater)
     // or below probe during heating (would start cooler)
-    if (overshootRelease) {
+    const probeDistToTargetFinal = Math.abs(latestCtrlForComp - actualTarget)
+    const overshootReleaseFinal = probeDistToTargetFinal <= 1.0
+    if (overshootReleaseFinal) {
       if (mode === 'cooling' && ctrlTargetPid > latestCtrlForComp) {
         ctrlTargetPid = Math.min(ctrlTargetPid, latestCtrlForComp)
         constraints.push('overshoot-clamp')
