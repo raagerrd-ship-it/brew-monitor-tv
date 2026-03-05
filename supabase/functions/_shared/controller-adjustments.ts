@@ -23,7 +23,7 @@ import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 //   Return adjustments for modified controllers; untouched ones pass through.
 // ============================================================
 
-/** PWM burst descriptor — returned from PID, executed by run-automation */
+/** PWM burst descriptor — kept for type reference in logs */
 export interface PwmBurst {
   controller_id: string
   controller_name: string
@@ -438,31 +438,61 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
 
-    // ── Duty-cycle PWM burst (per-cycle model) ──
-    // Instead of on/off segments, queue a burst for run-automation to execute:
-    // Set on_target (PID-computed) → sleep duty_seconds → set off_target (ctrl_target)
+    // ── Duty-cycle PWM burst (cycle-aligned model) ──
+    // ON is sent immediately via updateBatch. OFF is stored as a pending revert
+    // in pending_rapt_retries and handled by auto-adjust-cooling next cycle.
+    // This eliminates the need for sleeping inside edge functions (timeout-safe).
     if (isPwmMode) {
       const offTarget = round1(ctrlTarget)
       const onTarget = 0
 
-      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${pwmDutySeconds}s burst av 300s (on=${onTarget}°C, off=${offTarget}°C)`, {
+      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → burst ON (on=${onTarget}°C, revert=${offTarget}°C nästa cykel)`, {
         duty_pct: pwmDutyPct,
-        duty_seconds: pwmDutySeconds,
         on_target: onTarget,
         off_target: offTarget,
         pid_diff: pidDiff,
       })
 
-      ctx.pwmBursts.push({
-        controller_id: fc.controller_id,
-        controller_name: fc.name,
-        on_target: onTarget,
-        off_target: offTarget,
-        duty_seconds: pwmDutySeconds,
-        duty_pct: pwmDutyPct,
+      // 1. Send ON immediately via batch (batch handles DB sync on flush)
+      if (ctx.updateBatch) {
+        ctx.updateBatch.add(fc.controller_id, onTarget, ctrlTarget)
+      } else {
+        const sent = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+        if (sent) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+        }
+      }
+
+      // Log the ON adjustment
+      await logAdjustment(supabase, {
+        cooler_controller_id: fc.controller_id,
+        cooler_controller_name: fc.name,
+        old_target_temp: ctrlTarget,
+        new_target_temp: onTarget,
+        lowest_followed_temp: onTarget,
+        reason: `⚡ PWM ${pwmDutyPct}% ON: ${ctrlTarget}° → ${onTarget}°`,
+        original_target_temp: actualTarget,
       })
 
-      // Don't send any target change now — run-automation handles the burst timing
+      // 2. Store revert as pending retry — next cycle will restore off_target
+      // Delete any existing PWM reverts for this controller first to avoid stacking
+      await supabase.from('pending_rapt_retries')
+        .delete()
+        .eq('controller_id', fc.controller_id)
+        .like('reason', '%PWM OFF%')
+      await supabase.from('pending_rapt_retries').insert({
+        controller_id: fc.controller_id,
+        target_temp: offTarget,
+        reason: `⚡ PWM OFF: → ${offTarget}°`,
+      })
+
+      adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
+
+      // Sync in-memory so cooler sees the ON target
+      ;(fc as any).target_temp = onTarget
+
       continue
     }
 
