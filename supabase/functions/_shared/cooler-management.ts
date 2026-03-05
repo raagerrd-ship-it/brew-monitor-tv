@@ -384,7 +384,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       .from('auto_cooling_adjustments')
       .select('created_at')
       .eq('cooler_controller_id', coolerController.controller_id)
-      .like('reason', '%Alla tankar 0%%')
+      .like('reason', '%Alla controllers aktiverade 0%%')
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
