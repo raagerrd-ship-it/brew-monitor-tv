@@ -146,6 +146,18 @@ Nytt avsnitt "Smart Relay" med:
 
 ---
 
+## ✅ PWM burst-per-cycle modell (2026-03-05)
+
+**Problem:** Gamla PWM-modellen delade upp en timme i 12 segment (5 min/segment), hela segmentet antingen "på" eller "av". Grov granularitet — antingen 5 min kylning eller 0.
+
+**Fix:**
+- `controller-adjustments.ts`: Ny `PwmBurst` interface. PWM-logik returnerar nu burst-metadata (on_target, off_target, duty_seconds) istället för att direkt styra target_temp. Duty beräknas som `max(30, min(240, duty_pct × 300))` sekunder per 5-minuterscykel.
+- `auto-adjust-cooling/index.ts`: `pwmBursts` array propageras i context och returneras i JSON-response.
+- `run-automation/index.ts`: Nytt steg 3b efter PID: för varje burst skickas on-target via RAPT API → sleep(duty_seconds) → off-target via RAPT API. Körs sekventiellt efter PID-steget.
+- Stabilitetskrav (4 cykler ±0.3°C) behålls.
+
+---
+
 ## ✅ Fix kylarmarginalen ratchet-effekt (2026-03-05)
 
 **Problem:** `min_effective_margin` fungerade som ett hårt golv (`baseMargin = max(learnedMargin, minEffective)`) och hade en uppåtgående ratchet vid 100% utilization (+10–15%), vilket drev marginalen till 7.21°C utan möjlighet att sjunka tillbaka.
