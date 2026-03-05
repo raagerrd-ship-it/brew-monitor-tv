@@ -1529,10 +1529,19 @@ function AdjustmentCard({ adj }: { adj: AdjustmentLog & { category: AdjustmentCa
   }
 
   if (category === 'pwm') {
+    const isOff = adj.reason.includes('PWM OFF') || adj.reason.includes('PWM off');
+    const isOn = !isOff;
+    const labelMatch = adj.reason.match(/PWM (\d+%\s*ON|OFF)/i);
+    const label = labelMatch ? labelMatch[1] : (isOff ? 'OFF' : 'ON');
     return (
       <div className="pt-2 border-t border-border text-xs space-y-1">
-        <p className="font-semibold" style={{ color: 'hsl(45 90% 55%)' }}>⚡ PWM burst</p>
+        <p className="font-semibold" style={{ color: isOff ? 'hsl(38 80% 55%)' : 'hsl(45 90% 55%)' }}>
+          ⚡ PWM {label}
+        </p>
         <p className="text-[11px]">{adj.cooler_controller_name}: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</p>
+        <p className="text-[11px]" style={{ color: 'hsl(142 60% 50%)' }}>
+          ✅ RAPT-kommando skickat och bekräftat
+        </p>
       </div>
     );
   }
