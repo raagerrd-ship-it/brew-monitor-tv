@@ -143,37 +143,45 @@ serve(async (req) => {
     console.log('RAPT API response:', result);
 
     // Update database with new value immediately
-    // SSOT: profile_target_temp = user's desired target (for both manual and profile modes)
-    //       target_temp = what PID sends to hardware (may differ when pill-comp is active)
-    if (action === 'setTargetTemperature' && result === true) {
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+     // SSOT: profile_target_temp = user's desired target (virtual, set by user or profile)
+     //       target_temp = what PID sends to hardware (may differ when pill-comp is active)
+     // CRITICAL: Only manual user changes should update profile_target_temp.
+     // PWM bursts and automation (source='pwm'/'automation') only change target_temp.
+     if (action === 'setTargetTemperature' && result === true) {
+       try {
+         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // Read current target before updating
-        const { data: currentData } = await supabase
-          .from('rapt_temp_controllers')
-          .select('target_temp, name')
-          .eq('controller_id', controllerId)
-          .single();
+         // Read current target before updating
+         const { data: currentData } = await supabase
+           .from('rapt_temp_controllers')
+           .select('target_temp, name')
+           .eq('controller_id', controllerId)
+           .single();
 
-        const oldTarget = currentData?.target_temp ?? value;
-        const controllerName = currentData?.name ?? controllerId;
+         const oldTarget = currentData?.target_temp ?? value;
+         const controllerName = currentData?.name ?? controllerId;
 
-        const { error: dbError } = await supabase
-          .from('rapt_temp_controllers')
-          .update({ 
-            target_temp: value,
-            profile_target_temp: value,
-            updated_at: new Date().toISOString()
-          })
-          .eq('controller_id', controllerId);
+         const isAutomationSource = source === 'pwm' || source === 'automation' || source === 'pid';
+         const updateData: Record<string, unknown> = {
+           target_temp: value,
+           updated_at: new Date().toISOString(),
+         };
+         // Only update profile_target_temp for manual user changes
+         if (!isAutomationSource) {
+           updateData.profile_target_temp = value;
+         }
+
+         const { error: dbError } = await supabase
+           .from('rapt_temp_controllers')
+           .update(updateData)
+           .eq('controller_id', controllerId);
 
         if (dbError) {
           console.error('Error updating database:', dbError);
         } else {
-          console.log(`Updated database: controller ${controllerId} target_temp = ${value}, profile_target_temp = ${value}`);
+          console.log(`Updated database: controller ${controllerId} target_temp = ${value}${isAutomationSource ? '' : `, profile_target_temp = ${value}`}`);
 
           // Log the manual adjustment to decision history
           if (oldTarget !== value) {

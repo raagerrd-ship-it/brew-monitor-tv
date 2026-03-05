@@ -1,0 +1,1 @@
+UPDATE rapt_temp_controllers SET profile_target_temp = 8, updated_at = now() WHERE controller_id = '618b29b0-fa02-4f27-a8f1-a215f44235b3';
