@@ -316,18 +316,37 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let pwmActiveSegments = 0
     const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTarget) * 10) / 10
 
-    if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
-      const cBucket = getTempBucket(ctrlTarget)
-      const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
+    // ── PWM stability counter: require 4 consecutive stable cycles before activating PWM ──
+    const PWM_STABLE_THRESHOLD = 4
+    const prevStableCount = parseInt(String((fc as any).pwm_stable_count ?? '0'), 10)
 
-      if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
-          isPwmMode = true
-          pwmDutyPct = Math.round(dutyParam.value * 100)
-          pwmActiveSegments = Math.max(1, Math.round(pwmTotalSegments * dutyParam.value))
-          const period = Math.floor(pwmTotalSegments / pwmActiveSegments)
-          pwmSegmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % pwmTotalSegments
-          isPwmActiveSegment = (pwmSegmentIndex % period) === 0
+    if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
+      const newStableCount = prevStableCount + 1
+      // Update counter in DB (will be written later if changed)
+      if (newStableCount !== prevStableCount) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ pwm_stable_count: newStableCount })
+          .eq('controller_id', fc.controller_id)
       }
+
+      if (newStableCount >= PWM_STABLE_THRESHOLD) {
+        const cBucket = getTempBucket(ctrlTarget)
+        const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
+
+        if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
+            isPwmMode = true
+            pwmDutyPct = Math.round(dutyParam.value * 100)
+            pwmActiveSegments = Math.max(1, Math.round(pwmTotalSegments * dutyParam.value))
+            const period = Math.floor(pwmTotalSegments / pwmActiveSegments)
+            pwmSegmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % pwmTotalSegments
+            isPwmActiveSegment = (pwmSegmentIndex % period) === 0
+        }
+      }
+    } else if (prevStableCount > 0) {
+      // Temperature drifted — reset counter
+      await supabase.from('rapt_temp_controllers')
+        .update({ pwm_stable_count: 0 })
+        .eq('controller_id', fc.controller_id)
     }
 
     const pidResult = await calculateCompensatedTarget(
