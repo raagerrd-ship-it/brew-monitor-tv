@@ -120,7 +120,7 @@ export function AspectRatioContainer({
             width: REFERENCE_WIDTH, 
             height: REFERENCE_HEIGHT,
             transform: `scale(${dimensions.scale})`,
-            transformOrigin: 'center center',
+            transformOrigin: 'top center',
             background: 'transparent'
           }}
         >
