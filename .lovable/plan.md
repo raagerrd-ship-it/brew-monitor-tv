@@ -147,9 +147,11 @@ Nytt avsnitt "Smart Relay" med:
 - Duty cycle används i proaktiv kylarprediction: controllers med hög duty (>30%) får utökad lookahead (20 min istället för 15)
 - Ny `LearnedDutyCycle.tsx` UI-komponent i Settings > Controller-inlärning
 - Färgkodad visning: grön (<40%), gul (40-70%), röd (>70%)
-- **PWM-modulering**: Vid duty <60% (≥5 samples) pausar kylaren i "av-cykler"
-  - Period = 1/duty cykler. T.ex. 18% → 1 av 6 cykler aktiv (5 min av 30)
-  - Blockeras om någon tank har >70% utilization
-  - Loggas som `DUTY_PWM` i beslutsloggen
+- **PWM-modulering per tank** (i `controller-adjustments.ts`, EJ kylaren):
+  - 1 timme = 12 segment à 5 min. Duty 18% → PID-kylning aktiv i ~2 av 12 segment
+  - Gäller enbart under hold-steg i cooling-mode med duty <60% (≥5 samples)
+  - Skippar modulering om tankens utilization >70% (tanken kämpar)
+  - Loggas som `DUTY_PWM` i beslutsloggen med segment-position
+  - Kylaren (cooler-management) påverkas EJ — fungerar som innan
 - UI visar duty som procent + sekunder per 5-min cykel
 - Ingen databasändring — använder befintlig `fermentation_learnings` tabell
