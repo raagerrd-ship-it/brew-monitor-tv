@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.on_target, source: "pwm" }),
+          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.on_target, source: "pwm", pwm_label: `PWM ${burst.duty_pct}% ON` }),
           signal: AbortSignal.timeout(10000),
         });
         
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.off_target, source: "pwm" }),
+          body: JSON.stringify({ controllerId: burst.controller_id, action: "setTargetTemperature", value: burst.off_target, source: "pwm", pwm_label: "PWM OFF" }),
           signal: AbortSignal.timeout(10000),
         });
 
