@@ -1022,20 +1022,17 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           const dutyPct = det.duty_pct as number | undefined;
                           const pwm = dutyPwmByName.get(name);
                           if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
-                          const activeSegs = Math.max(1, Math.round(dutyPct / 100 * 12));
-                          const pwmIcon = pwm ? (pwm.isActive ? '▶' : '⏸') : '';
-                          const pwmLabel = pwm ? ` — segment ${pwm.segment}/${pwm.totalSegments} ${pwm.isActive ? '(aktiv)' : '(pausad)'}` : '';
+                          const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
                           return (
                             <TooltipProvider delayDuration={200}><Tooltip>
                               <TooltipTrigger asChild>
-                                <span className={`font-mono cursor-help ${pwm && !pwm.isActive ? 'text-muted-foreground/60' : dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                  {String(dutyPct)}% {pwmIcon}
+                                <span className={`font-mono cursor-help ${dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                  {String(dutyPct)}%
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent side="top" className="text-xs">
-                                Inlärt kylbehov: {String(dutyPct)}% = {activeSegs} av 12 segment/h
+                                Inlärt kylbehov: {String(dutyPct)}% = {burstSecs}s burst per 5-min cykel
                                 {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
-                                {pwmLabel}
                               </TooltipContent>
                             </Tooltip></TooltipProvider>
                           );
@@ -1054,9 +1051,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="text-xs max-w-[220px]">
-                                    {pwm.isActive
-                                      ? `PWM aktivt segment ${pwm.segment}/${pwm.totalSegments} — PID kör, duty ${pwm.duty}%`
-                                      : `PWM av-segment ${pwm.segment}/${pwm.totalSegments} — duty ${pwm.duty}%, delta-komp bevarad`}
+                                    {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(30, Math.min(240, Math.round(pwm.duty / 100 * 300)))}s burst per cykel`}
                                   </TooltipContent>
                                 </Tooltip></TooltipProvider>
                               );
