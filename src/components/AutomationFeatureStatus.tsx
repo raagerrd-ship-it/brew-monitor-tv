@@ -473,7 +473,18 @@ export function AutomationFeatureStatus(props: Props) {
 
           {block.controllers.map((ctrl) => (
             <div key={`${block.label}-${ctrl.name}`} className="flex items-center justify-between text-[11px] pl-6 pr-1 py-px">
-              <span className={`truncate ${variantColor(ctrl.variant)}`}>{ctrl.name}</span>
+              <span className={`truncate ${variantColor(ctrl.variant)}`}>
+                {ctrl.name}
+                {ctrl.badge && (
+                  <span className={`ml-1.5 inline-flex items-center px-1 py-px rounded text-[9px] font-medium leading-none ${
+                    ctrl.badgeVariant === "pwm"
+                      ? "bg-accent/20 text-accent"
+                      : "bg-muted text-muted-foreground/70"
+                  }`}>
+                    {ctrl.badge}
+                  </span>
+                )}
+              </span>
               <span className={`shrink-0 ml-2 text-right ${ctrl.variant === "action" ? "text-accent font-medium" : variantColor(ctrl.variant)}`}>
                 {ctrl.status}
               </span>
