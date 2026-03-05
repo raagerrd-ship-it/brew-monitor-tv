@@ -39,7 +39,8 @@ export async function updateLearnedParam(
   paramName: string,
   newObservation: number,
   clampMin: number,
-  clampMax: number
+  clampMax: number,
+  alphaOverride?: number
 ): Promise<{ oldValue: number; newValue: number; sampleCount: number }> {
   const { data: existing } = await supabase
     .from('fermentation_learnings')
@@ -49,7 +50,7 @@ export async function updateLearnedParam(
     .maybeSingle()
 
   const sampleCount = existing?.sample_count ?? 0
-  const alpha = sampleCount < 5 ? 0.5 : 0.2 // Learn faster initially
+  const alpha = alphaOverride ?? (sampleCount < 5 ? 0.5 : 0.2) // Learn faster initially
   const currentValue = existing ? parseFloat(String(existing.learned_value)) : newObservation
   const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
 
