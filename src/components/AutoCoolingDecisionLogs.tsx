@@ -1107,20 +1107,14 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
                         }
                         return brakes.length > 0 ? (
-                          <div className="flex flex-wrap gap-0.5 mt-0.5">
-                            {brakes.map((b, bi) => (
-                              <TooltipProvider key={bi} delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap cursor-help">{b.label}</span>
-                                  </TooltipTrigger>
-                                  {b.tip && (
-                                    <TooltipContent side="top" className="text-[10px] max-w-[220px]">
-                                      {b.tip}
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
+                          <div className="flex flex-col gap-0.5 mt-0.5">
+                            <div className="flex flex-wrap gap-0.5">
+                              {brakes.map((b, bi) => (
+                                <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b.label}</span>
+                              ))}
+                            </div>
+                            {brakes.filter(b => b.tip).map((b, bi) => (
+                              <span key={bi} className="text-[8px] text-muted-foreground/70 leading-tight">{b.tip}</span>
                             ))}
                           </div>
                         ) : damping != null && damping < 1.0 ? (
