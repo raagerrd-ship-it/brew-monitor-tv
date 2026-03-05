@@ -1051,18 +1051,17 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                 const rawCtrlTargetPid = det.raw_ctrl_target_pid as number;
                 const statusLimits = (det.limits as string[]) ?? [];
 
-                // Computed raw from formula (fallback if backend doesn't log it yet)
-                const computedRaw = actualTargetVal != null && comp != null
+                // "Nytt mål" = formula result: Profil − Δ + PI (using displayed values)
+                // This matches what the user sees in the formula columns.
+                // ctrlTargetPid (from backend) may differ due to rate limits, clamps etc.
+                const formulaResult = actualTargetVal != null && comp != null
                   ? actualTargetVal - comp + (errCorr ?? 0)
                   : null;
-                const rawValue = rawCtrlTargetPid ?? computedRaw;
 
-                const diff = ctrlTargetPid != null && ctrlTarget != null
-                  ? ctrlTargetPid - ctrlTarget
+                // Show diff between formula result and current hardware target
+                const diff = formulaResult != null && ctrlTarget != null
+                  ? formulaResult - ctrlTarget
                   : null;
-
-                // delta is now the effective delta from backend (actualTarget - ctrlTargetPid + PI)
-                // so Profil − Δ + PI = Nytt mål always balances without UI-side recalculation
 
                 return (
                   <React.Fragment key={i}>
