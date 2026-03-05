@@ -443,7 +443,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Set on_target (PID-computed) → sleep duty_seconds → set off_target (ctrl_target)
     if (isPwmMode) {
       const offTarget = round1(ctrlTarget)
-      const onTarget = round1(ctrlTargetPid)
+      const onTarget = 0
 
       log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${pwmDutySeconds}s burst av 300s (on=${onTarget}°C, off=${offTarget}°C)`, {
         duty_pct: pwmDutyPct,
