@@ -674,9 +674,14 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
                 })()}
               </span>
             ) : isDemandGuarded ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
-                <ShieldAlert className="h-2.5 w-2.5" />Demand guard
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
+                    <ShieldAlert className="h-2.5 w-2.5" />Demand guard
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-[300px]">{demandGuard!.message}</TooltipContent>
+              </Tooltip>
             ) : isBlocked ? (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
                 <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
@@ -731,6 +736,13 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
               <Zap className="h-2.5 w-2.5" />
               {hystRevert.message}
             </span>
+          ) : hystDeadband ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground/40 text-[10px] cursor-help">Ej aktiv</span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[300px]">{hystDeadband.message}{hystKickNoop ? `\n${hystKickNoop.message}` : ''}</TooltipContent>
+            </Tooltip>
           ) : hystKickNoop ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -740,12 +752,6 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
             </Tooltip>
           ) : (
             <span className="text-muted-foreground/40 text-[10px]">Ej aktiv</span>
-          )}
-          {hystDeadband && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px]">
-              <Info className="h-2.5 w-2.5" />
-              <span>{hystDeadband.message}</span>
-            </span>
           )}
         </CoolerSubSection>
 
