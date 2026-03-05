@@ -448,7 +448,7 @@ serve(async (req) => {
       maxAttenuation: parseFloat(String(settings.stall_max_attenuation ?? 90)),
     };
 
-    const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = [];
+    const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = []; // kept for type compat
 
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
@@ -597,7 +597,7 @@ serve(async (req) => {
     log('COMPLETE', 'info', `Completed`, { adjustments_made: allAdjustments.length });
     await printSummary(supabase, allAdjustments.length > 0 ? 'Adjustment made' : 'No adjustment needed', allAdjustments.length > 0);
 
-    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog, pwm_bursts: pwmBursts.length > 0 ? pwmBursts : undefined }), {
+    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
