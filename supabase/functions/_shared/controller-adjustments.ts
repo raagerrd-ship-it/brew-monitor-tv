@@ -321,7 +321,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
       if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
-        const skipPwm = coolingUtil != null && coolingUtil > 0.70
+        const skipPwm = coolingUtil != null && coolingUtil > 0.80
         if (!skipPwm) {
           isPwmMode = true
           pwmDutyPct = Math.round(dutyParam.value * 100)
