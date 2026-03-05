@@ -100,6 +100,16 @@ serve(async (req) => {
       return new Response(JSON.stringify({ message: 'All features disabled', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── Retry: load pending RAPT retries from previous failed flushes ──
+    const { data: pendingRetries } = await supabase
+      .from('pending_rapt_retries')
+      .select('*')
+      .order('created_at', { ascending: true });
+    const retriesToProcess = (pendingRetries ?? []) as { id: string; controller_id: string; target_temp: number; reason: string; attempts: number }[];
+    if (retriesToProcess.length > 0) {
+      log('RETRY', 'info', `Found ${retriesToProcess.length} pending retry(ies) from previous cycle(s)`);
+    }
+
     // ── Load controllers ─────────────────────────────────────────
     const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
     const allControllers = (allControllersData || []) as TempController[];
@@ -412,6 +422,22 @@ serve(async (req) => {
     // Create shared batch for all RAPT API updates (reuse token if passed from orchestrator)
     const updateBatch = new RaptUpdateBatch(reqBody?.rapt_access_token);
 
+    // ── Add pending retries to the batch (before new adjustments) ──
+    for (const retry of retriesToProcess) {
+      // Only retry if the controller still exists and the current target differs
+      const ctrl = allControllers.find(c => c.controller_id === retry.controller_id);
+      if (ctrl && Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
+        updateBatch.add(retry.controller_id, retry.target_temp, ctrl.target_temp ?? undefined);
+        log('RETRY', 'action', `Retrying ${ctrl.name}: → ${retry.target_temp}°C (attempt ${retry.attempts + 1}, reason: ${retry.reason.slice(0, 60)})`);
+      } else {
+        // Target already matches or controller gone — clean up
+        await supabase.from('pending_rapt_retries').delete().eq('id', retry.id);
+        if (ctrl) {
+          log('RETRY', 'pass', `Retry no longer needed for ${ctrl.name} (target already ${ctrl.target_temp}°C)`);
+        }
+      }
+    }
+
     // ══════════════════════════════════════════════════════════════
     // CONTROLLER ADJUSTMENTS (PID + Stall — tank-level)
     // ══════════════════════════════════════════════════════════════
@@ -460,12 +486,55 @@ serve(async (req) => {
       const failed = [...batchResults.entries()].filter(([, ok]) => !ok);
       if (failed.length > 0) {
         log('BATCH_FLUSH', 'fail', `${failed.length} update(s) failed: ${failed.map(([id]) => id).join(', ')}`);
+
+        // Save failed updates for retry next cycle
+        for (const [controllerId] of failed) {
+          const target = updateBatch.getAppliedTarget(controllerId);
+          if (target == null) continue;
+          const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+          const attempts = (existingRetry?.attempts ?? 0) + 1;
+          const controllerData = allControllers.find(c => c.controller_id === controllerId);
+          const name = controllerData?.name ?? controllerId;
+
+          if (attempts >= 5) {
+            // Give up after 5 attempts
+            log('RETRY', 'fail', `Ger upp retry för ${name} efter ${attempts} försök`);
+            if (existingRetry) {
+              await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+            }
+          } else if (existingRetry) {
+            // Update existing retry
+            await supabase.from('pending_rapt_retries')
+              .update({ target_temp: target, attempts })
+              .eq('id', existingRetry.id);
+            log('RETRY', 'info', `Sparar retry för ${name} → ${target}°C (försök ${attempts})`);
+          } else {
+            // Create new retry
+            await supabase.from('pending_rapt_retries').insert({
+              controller_id: controllerId,
+              target_temp: target,
+              reason: `Flush failed for ${name}`,
+              attempts: 1,
+            } as any);
+            log('RETRY', 'info', `Sparar retry för ${name} → ${target}°C (försök 1)`);
+          }
+        }
       } else {
         log('BATCH_FLUSH', 'pass', `All ${batchResults.size} update(s) sent successfully`);
       }
 
-      // Log individual RAPT_SEND entries for each successfully sent update
+      // Clean up retries that succeeded
       const succeeded = [...batchResults.entries()].filter(([, ok]) => ok);
+      for (const [controllerId] of succeeded) {
+        const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+        if (existingRetry) {
+          await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+          const ctrlName = allControllers.find(c => c.controller_id === controllerId)?.name ?? controllerId;
+          log('RETRY', 'pass', `Retry lyckades för ${ctrlName}`);
+        }
+      }
+
+      // Log individual RAPT_SEND entries for each successfully sent update
       for (const [controllerId] of succeeded) {
         const target = updateBatch.getAppliedTarget(controllerId);
         const controllerData = followedControllersFullData.find(c => c.controller_id === controllerId)

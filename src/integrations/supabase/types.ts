@@ -935,6 +935,33 @@ export type Database = {
           },
         ]
       }
+      pending_rapt_retries: {
+        Row: {
+          attempts: number
+          controller_id: string
+          created_at: string
+          id: string
+          reason: string
+          target_temp: number
+        }
+        Insert: {
+          attempts?: number
+          controller_id: string
+          created_at?: string
+          id?: string
+          reason: string
+          target_temp: number
+        }
+        Update: {
+          attempts?: number
+          controller_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          target_temp?: number
+        }
+        Relationships: []
+      }
       pill_sg_calibration: {
         Row: {
           anchor_recorded_at: string | null
