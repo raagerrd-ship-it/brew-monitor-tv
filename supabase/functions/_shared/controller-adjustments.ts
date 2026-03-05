@@ -3,7 +3,7 @@ import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, 
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
-import { getTempBucket } from './learning-utils.ts'
+import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // Controller Adjustments — Pipeline Architecture
@@ -390,6 +390,45 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
     if (pidDiff < 0.1) {
       continue
+    }
+
+    // ── Duty-cycle PWM modulation (per tank) ────────────────
+    // During hold steps in cooling mode, use the learned steady-state duty cycle
+    // to only apply PID cooling compensation in a fraction of 5-min cycles.
+    // 1 hour = 12 segments à 5 min. duty 18% → cooling active in ~2 of 12 segments.
+    // This prevents over-cooling and saves energy.
+    if (pidMode === 'cooling' && stepType === 'hold' && ctrlTargetPid < actualTarget) {
+      const cBucket = getTempBucket(actualTarget)
+      const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
+
+      if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
+        // 12 segments per hour (5 min each). Active segments = round(12 * duty)
+        const totalSegments = 12
+        const activeSegments = Math.max(1, Math.round(totalSegments * dutyParam.value))
+        const segmentIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % totalSegments
+        const isActiveSegment = segmentIndex < activeSegments
+
+        // Safety: skip modulation if utilization is already high (tank struggling)
+        const skipPwm = coolingUtil != null && coolingUtil > 0.70
+
+        if (!isActiveSegment && !skipPwm) {
+          // "Off" segment — don't apply PID compensation, keep target at profile
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (av, aktiva=${activeSegments}) — skippar PID-kylning`, {
+            duty: Math.round(dutyParam.value * 100),
+            segment: segmentIndex + 1,
+            total_segments: totalSegments,
+            active_segments: activeSegments,
+          })
+          continue // Skip applying PID for this cycle
+        } else if (!skipPwm) {
+          log('DUTY_PWM', 'info', `${fc.name}: duty ${Math.round(dutyParam.value * 100)}% → segment ${segmentIndex + 1}/${totalSegments} (aktiv, aktiva=${activeSegments})`, {
+            duty: Math.round(dutyParam.value * 100),
+            segment: segmentIndex + 1,
+            total_segments: totalSegments,
+            active_segments: activeSegments,
+          })
+        }
+      }
     }
 
     // ── No-op guard: skip if we already applied this exact target ─────
