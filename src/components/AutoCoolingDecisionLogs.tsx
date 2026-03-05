@@ -1528,6 +1528,15 @@ function AdjustmentCard({ adj }: { adj: AdjustmentLog & { category: AdjustmentCa
     );
   }
 
+  if (category === 'pwm') {
+    return (
+      <div className="pt-2 border-t border-border text-xs space-y-1">
+        <p className="font-semibold" style={{ color: 'hsl(45 90% 55%)' }}>⚡ PWM burst</p>
+        <p className="text-[11px]">{adj.cooler_controller_name}: {r1(adj.old_target_temp)}° → {r1(adj.new_target_temp)}°</p>
+      </div>
+    );
+  }
+
   if (category === 'manuell') {
     return (
       <div className="pt-2 border-t border-border text-xs space-y-1">
