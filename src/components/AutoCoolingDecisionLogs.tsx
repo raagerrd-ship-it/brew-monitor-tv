@@ -651,79 +651,6 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
           )}
         </CoolerSubSection>
 
-        {/* ── Beslut ── */}
-        <CoolerSubSection label="Beslut" icon={<Wrench className="h-2.5 w-2.5" />}>
-          {(() => {
-            const historyLines = recentCoolerAdjs.length > 0
-              ? recentCoolerAdjs.map(a => {
-                  const time = new Date(a.created_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-                  return `${time}: ${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
-                }).join('\n')
-              : 'Inga justeringar ännu';
-
-            const badge = isAdjusted ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium cursor-help">
-                <Wrench className="h-2.5 w-2.5" />
-                {(() => {
-                  const adjDet = adjustment.details || {};
-                  const oldT = adjDet.old_target as number;
-                  const newT = adjDet.new_target as number;
-                  return oldT != null && newT != null
-                    ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
-                    : <span>{adjustment.message}</span>;
-                })()}
-              </span>
-            ) : isDemandGuarded ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
-                    <ShieldAlert className="h-2.5 w-2.5" />Demand guard
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs max-w-[300px]">{demandGuard!.message}</TooltipContent>
-              </Tooltip>
-            ) : isBlocked ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
-                <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
-              </span>
-            ) : isRateLimited ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
-                <Clock className="h-2.5 w-2.5" />Rate-limit
-              </span>
-            ) : isOk ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
-                <CheckCircle2 className="h-2.5 w-2.5" />OK
-                {(() => {
-                  const diffMatch = coolerOk.message.match(/Ändring ([0-9.]+)°C/);
-                  return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
-                })()}
-              </span>
-            ) : coolerIdle ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
-                <Info className="h-2.5 w-2.5" />{coolerIdle.message}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
-                <Info className="h-2.5 w-2.5" />Ingen åtgärd
-              </span>
-            );
-
-            return (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>{badge}</TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono max-w-[300px]">
-                    {isOk && coolerOk?.message ? `${coolerOk.message}\n\n` : ''}{historyLines}
-                  </TooltipContent>
-                </Tooltip>
-                {isOk && coolerOk?.message && (
-                  <span className="text-muted-foreground/70 text-[10px] ml-1 break-words">{coolerOk.message}</span>
-                )}
-              </>
-            );
-          })()}
-        </CoolerSubSection>
-
         {/* ── Hysteres-kick ── */}
         <CoolerSubSection label="Hysteres-kick" icon={<Zap className="h-2.5 w-2.5" />}>
           {hystKick ? (
@@ -815,6 +742,79 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
               );
             })()}
           </div>
+        </CoolerSubSection>
+
+        {/* ── Beslut (sist — resultat) ── */}
+        <CoolerSubSection label="Beslut" icon={<Wrench className="h-2.5 w-2.5" />}>
+          {(() => {
+            const historyLines = recentCoolerAdjs.length > 0
+              ? recentCoolerAdjs.map(a => {
+                  const time = new Date(a.created_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                  return `${time}: ${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
+                }).join('\n')
+              : 'Inga justeringar ännu';
+
+            const badge = isAdjusted ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium cursor-help">
+                <Wrench className="h-2.5 w-2.5" />
+                {(() => {
+                  const adjDet = adjustment.details || {};
+                  const oldT = adjDet.old_target as number;
+                  const newT = adjDet.new_target as number;
+                  return oldT != null && newT != null
+                    ? <span className="font-mono">{r1(oldT)}° → {r1(newT)}°</span>
+                    : <span>{adjustment.message}</span>;
+                })()}
+              </span>
+            ) : isDemandGuarded ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">
+                    <ShieldAlert className="h-2.5 w-2.5" />Demand guard
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-[300px]">{demandGuard!.message}</TooltipContent>
+              </Tooltip>
+            ) : isBlocked ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 cursor-help">
+                <ShieldAlert className="h-2.5 w-2.5" />Ramp-block
+              </span>
+            ) : isRateLimited ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Clock className="h-2.5 w-2.5" />Rate-limit
+              </span>
+            ) : isOk ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 cursor-help">
+                <CheckCircle2 className="h-2.5 w-2.5" />OK
+                {(() => {
+                  const diffMatch = coolerOk.message.match(/Ändring ([0-9.]+)°C/);
+                  return diffMatch ? <span className="font-mono text-[10px] opacity-70">Δ{diffMatch[1]}°</span> : null;
+                })()}
+              </span>
+            ) : coolerIdle ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Info className="h-2.5 w-2.5" />{coolerIdle.message}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">
+                <Info className="h-2.5 w-2.5" />Ingen åtgärd
+              </span>
+            );
+
+            return (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs whitespace-pre-line font-mono max-w-[300px]">
+                    {isOk && coolerOk?.message ? `${coolerOk.message}\n\n` : ''}{historyLines}
+                  </TooltipContent>
+                </Tooltip>
+                {isOk && coolerOk?.message && (
+                  <span className="text-muted-foreground/70 text-[10px] ml-1 break-words">{coolerOk.message}</span>
+                )}
+              </>
+            );
+          })()}
         </CoolerSubSection>
 
       </div>
