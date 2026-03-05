@@ -87,6 +87,7 @@ export async function calculateCompensatedTarget(
   probeTemp?: number,
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
+  skipRateLimit?: boolean,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -520,7 +521,12 @@ export async function calculateCompensatedTarget(
     // Rate-limiting this slowly would keep the hardware target wrong for many cycles.
     // Allow up to 1.0°C/cycle for pure delta compensation to converge quickly.
     const isDeltaDriven = Math.abs(errorCorrection) < 0.1 && absDelta >= 0.3
-    if (isDeltaDriven && distanceFromIdeal > 0.1) {
+    if (skipRateLimit) {
+      // PWM active segment — bypass rate limit entirely to ensure target moves
+      // past hysteresis and actually triggers the relay
+      constraints.push('pwm-bypass')
+      console.log(`⚡ PWM rate-limit bypass ${controllerName}: skipRateLimit=true, target ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (diff=${distanceFromIdeal.toFixed(2)}°C)`)
+    } else if (isDeltaDriven && distanceFromIdeal > 0.1) {
       const deltaBypassLimit = Math.min(distanceFromIdeal, 1.0) // max 1°C/cycle
       ctrlTargetPid = ctrlTarget + (isIncreasing ? deltaBypassLimit : -deltaBypassLimit)
       constraints.push(`delta-bypass=${deltaBypassLimit.toFixed(2)}`)
