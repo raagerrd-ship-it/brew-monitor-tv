@@ -320,7 +320,7 @@ export async function calculateCompensatedTarget(
     }
     
     if (isSaturated && errorCorrection > learnedBaseline && learnedBaseline > 0) {
-      const prevComp = Math.abs(actualTarget - ctrlTarget)
+      const prevComp = Math.abs(baseTarget - ctrlTarget)
       if (errorCorrection > prevComp) {
         errorCorrection = prevComp
         console.log(`⚡ Saturation cap: begränsar PI till ${errorCorrection.toFixed(2)}°C (hårdvaran redan vid max)`)
@@ -355,13 +355,11 @@ export async function calculateCompensatedTarget(
       console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
     }
     // === Pill overshoot guard (COOLING ONLY) ===
-    // When COOLING and the pill is already ABOVE actualTarget, positive PI would push the hardware
-    // target up, disengaging the cooler and letting the pill rise further.
-    // This is the main cause of overshoot after target step increases:
-    // probe is still catching up (below target) but pill is already warm.
-    // Fix: block positive PI when pill > actualTarget in cooling mode.
-    // In HEATING mode, pill being above target is normal (thermal stratification) —
-    // we still need PI to raise the probe to bring the average up.
+    // When COOLING and the pill is already ABOVE its virtual target, positive PI would push
+    // the hardware target up, disengaging the cooler and letting the pill rise further.
+    // pillVirtualTarget mirrors baseTarget into pill domain: profileTarget + (profileTarget - baseTarget).
+    // Fix: block positive PI when pill > pillVirtualTarget in cooling mode.
+    // In HEATING mode, pill being above target is normal (thermal stratification).
     if (mode === 'cooling') {
       const latestPillForGuard = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : null
       // Pill's virtual target = mirror of baseTarget in pill domain
