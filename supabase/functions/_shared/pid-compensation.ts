@@ -243,11 +243,13 @@ export async function calculateCompensatedTarget(
   }
 
   // Use pre-computed actualTemp for error calculation when available
-  // Error is measured against baseTarget (the sensor-fused grundmål)
+  // Error is measured against profileTarget (user intent) vs actualTemp (fused reading).
+  // baseTarget already has sensorDelta baked in for the hardware, so comparing it
+  // against the fused actualTemp would double-count the sensor compensation.
   const currentAvgForError = actualTemp ?? (deltaHistory?.[0]
     ? (parseFloat(String(deltaHistory[0].pill_temp)) + parseFloat(String(deltaHistory[0].controller_temp))) / 2
-    : baseTarget)
-  const avgError = baseTarget - currentAvgForError
+    : profileTarget)
+  const avgError = profileTarget - currentAvgForError
 
   let pCorrection = 0
   let iCorrection = 0
