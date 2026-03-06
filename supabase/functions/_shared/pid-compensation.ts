@@ -22,7 +22,7 @@ async function getLearnedCoolingRate(
 //   baseTarget    = sensor-fused target from dual-sensor module
 //                   (= profileTarget - sensorDelta)
 //   profileTarget = user's desired temperature (profile_target_temp)
-//                   Used for safety bounds, directional clamp, logging
+//                   Used ONLY for logging and delta calculation (avgDelta)
 //   ctrlTarget    = current hardware target (target_temp before PID)
 //   ctrlTargetPid = PID-computed target sent to RAPT hardware
 //   actualTemp    = fused sensor reading (avg or probe-only)
@@ -77,7 +77,7 @@ const MODE_PARAMS = {
  *   ctrlTargetPid = baseTarget + errorCorrection
  *
  * @param baseTarget     Sensor-fused target from dual-sensor module (grundmål)
- * @param profileTarget  User's desired temperature (for safety bounds, logging)
+ * @param profileTarget  User's desired temperature (for logging and delta calc only)
  * @param ctrlTarget     The current hardware target (target_temp before PID)
  * @param actualTemp     Pre-computed fused sensor reading (avg or probe-only)
  * @param probeTemp      The controller's probe temperature
