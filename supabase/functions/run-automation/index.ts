@@ -151,6 +151,8 @@ Deno.serve(async (req) => {
                 controllerId: burst.controller_id,
                 action: "setTargetTemperature",
                 value: burst.off_target,
+                source: "pwm",
+                pwm_label: `PWM OFF: → ${burst.off_target}°`,
               }),
               signal: AbortSignal.timeout(10000),
             });
