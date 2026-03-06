@@ -137,23 +137,38 @@ Deno.serve(async (req) => {
         console.log(`PWM burst: sleeping ${burst.duty_seconds}s for ${burst.controller_name} (${burst.duty_pct}% duty)...`);
         await new Promise(resolve => setTimeout(resolve, burst.duty_seconds * 1000));
 
-        // Send OFF — restore hardware to PID target
-        const offResp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${serviceRoleKey}`,
-          },
-          body: JSON.stringify({
-            controller_id: burst.controller_id,
-            action: "setTargetTemp",
-            value: burst.off_target,
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
+        // Send OFF — restore hardware to PID target (with retry)
+        let offOk = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const offResp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                controller_id: burst.controller_id,
+                action: "setTargetTemp",
+                value: burst.off_target,
+              }),
+              signal: AbortSignal.timeout(10000),
+            });
+
+            if (offResp.ok) {
+              offOk = true;
+              break;
+            }
+            const errText = await offResp.text();
+            console.error(`PWM OFF attempt ${attempt}/3 failed for ${burst.controller_name}: ${offResp.status}: ${errText}`);
+          } catch (retryErr) {
+            console.error(`PWM OFF attempt ${attempt}/3 error for ${burst.controller_name}: ${retryErr}`);
+          }
+          if (attempt < 3) await new Promise(r => setTimeout(r, 2000)); // 2s between retries
+        }
 
         const burstDuration = Date.now() - burstStart;
-        if (offResp.ok) {
+        if (offOk) {
           // Success — remove pending fallback since we handled it
           await supabase.from('pending_rapt_retries')
             .delete()
@@ -162,9 +177,8 @@ Deno.serve(async (req) => {
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "ok", duration_ms: burstDuration, details: { duty_seconds: burst.duty_seconds, off_target: burst.off_target } });
           console.log(`PWM OFF sent for ${burst.controller_name}: → ${burst.off_target}°C after ${burst.duty_seconds}s`);
         } else {
-          const errText = await offResp.text();
-          results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: `${offResp.status}: ${errText}` });
-          console.error(`PWM OFF failed for ${burst.controller_name}: ${offResp.status} — pending fallback retained`);
+          results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: "All 3 attempts failed" });
+          console.error(`PWM OFF failed for ${burst.controller_name} after 3 attempts — pending fallback retained`);
         }
       } catch (err) {
         const burstDuration = Date.now() - burstStart;
