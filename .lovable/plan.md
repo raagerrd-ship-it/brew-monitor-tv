@@ -158,6 +158,17 @@ Nytt avsnitt "Smart Relay" med:
 
 ---
 
+## ✅ PWM burst OFF-timing fix (2026-03-06)
+
+**Problem:** PWM ON skickade 0°C direkt men OFF lagrades i `pending_rapt_retries` och kördes först nästa cykel (5 min senare). Vid 20% duty (60s) kyldes tanken i 300s istället för 60s.
+
+**Fix:**
+- `controller-adjustments.ts`: Populerar `pwmBursts` arrayen med burst-metadata OCH behåller `pending_rapt_retries` som fallback-säkerhet.
+- `auto-adjust-cooling/index.ts`: Returnerar `pwmBursts` i JSON-response.
+- `run-automation/index.ts`: Steg 3b efter PID — `sleep(dutySeconds)` → skickar OFF via `rapt-update-controller` → tar bort pending vid success. Om sleep/OFF misslyckas behålls pending och körs nästa cykel.
+
+---
+
 ## ✅ Fix kylarmarginalen ratchet-effekt (2026-03-05)
 
 **Problem:** `min_effective_margin` fungerade som ett hårt golv (`baseMargin = max(learnedMargin, minEffective)`) och hade en uppåtgående ratchet vid 100% utilization (+10–15%), vilket drev marginalen till 7.21°C utan möjlighet att sjunka tillbaka.
