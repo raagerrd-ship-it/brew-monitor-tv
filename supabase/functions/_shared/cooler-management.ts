@@ -888,6 +888,17 @@ async function learnFromCurrentState(
 ): Promise<void> {
   const { supabase, log } = ctx
 
+  // ── Skip learning during PWM ON phases — targets are temporary ──
+  const { data: activePwmReverts } = await supabase
+    .from('pending_rapt_retries')
+    .select('controller_id')
+    .like('reason', '%PWM OFF%')
+    .limit(1)
+  if (activePwmReverts && activePwmReverts.length > 0) {
+    log('MARGIN_LEARN', 'info', `Hoppar inlärning — PWM-burst aktiv (temporära mål)`)
+    return
+  }
+
   // ── Only learn when at least one controller is actively cooling ──
   // If no tank has active demand, the observed margin is meaningless
   const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
