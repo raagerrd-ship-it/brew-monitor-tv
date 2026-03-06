@@ -275,6 +275,26 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
   )
 
+  for (const fc of followedControllersFullData) {
+    const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
+
+    if (cooloffControllerIds.has(fc.controller_id)) {
+      log('PID_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping PID`)
+      continue
+    }
+    if (!fc.heating_enabled && !fc.cooling_enabled) continue
+
+    // ── PWM lock: if controller is in active PWM cycle, skip PID entirely ──
+    // DB target_temp is still the real PID value (PWM only sends 0°C to hardware).
+    // PID must not run because it would try to send a new target that conflicts.
+    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
+    if (hasPendingPwmRevert) {
+      log('PID_PWM_LOCKED', 'info', `${fc.name}: PWM cykel aktiv — PID låst (revert → ${pwmRevertMap.get(fc.controller_id)}°)`)
+      continue
+    }
+
+    const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
+
     // PID always runs every cycle — no same-data guard.
     // Even if RAPT telemetry hasn't changed, the PID integral and learned
     // baselines evolve, so skipping would allow drift.
