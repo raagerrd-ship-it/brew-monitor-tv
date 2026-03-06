@@ -614,7 +614,7 @@ serve(async (req) => {
     log('COMPLETE', 'info', `Completed`, { adjustments_made: allAdjustments.length });
     await printSummary(supabase, allAdjustments.length > 0 ? 'Adjustment made' : 'No adjustment needed', allAdjustments.length > 0);
 
-    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog }), {
+    return new Response(JSON.stringify({ success: true, adjustments: allAdjustments, message: `Made ${allAdjustments.length} adjustments`, decisionLog, pwmBursts: pwmBursts.length > 0 ? pwmBursts : undefined }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
