@@ -5,6 +5,7 @@
  */
 import { BrewData } from "@/types/brew";
 import QRCode from 'qrcode';
+import dbLogo from "@/assets/db-logo.png";
 
 export const LABEL_WIDTH = 384;
 export const LABEL_HEIGHT = 555;
