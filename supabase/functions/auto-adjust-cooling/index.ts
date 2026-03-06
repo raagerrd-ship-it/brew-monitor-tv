@@ -563,18 +563,23 @@ serve(async (req) => {
       }
 
       // Persist successful target_temp changes to DB so next cycle reads the correct value
+      // SKIP hardware-only updates (PWM bursts) — DB target_temp stays at the real PID value
       if (succeeded.length > 0) {
-        const dbUpdates = succeeded.map(([controllerId]) => {
-          const target = updateBatch.getAppliedTarget(controllerId);
-          return supabase
-            .from('rapt_temp_controllers')
-            .update({ target_temp: target, updated_at: new Date().toISOString() })
-            .eq('controller_id', controllerId);
-        });
-        const dbResults = await Promise.allSettled(dbUpdates);
-        const dbFailed = dbResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
-        if (dbFailed.length > 0) {
-          log('BATCH_DB', 'fail', `${dbFailed.length} DB update(s) failed`);
+        const dbUpdates = succeeded
+          .filter(([controllerId]) => !updateBatch.isHardwareOnly(controllerId))
+          .map(([controllerId]) => {
+            const target = updateBatch.getAppliedTarget(controllerId);
+            return supabase
+              .from('rapt_temp_controllers')
+              .update({ target_temp: target, updated_at: new Date().toISOString() })
+              .eq('controller_id', controllerId);
+          });
+        if (dbUpdates.length > 0) {
+          const dbResults = await Promise.allSettled(dbUpdates);
+          const dbFailed = dbResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+          if (dbFailed.length > 0) {
+            log('BATCH_DB', 'fail', `${dbFailed.length} DB update(s) failed`);
+          }
         }
       }
 
