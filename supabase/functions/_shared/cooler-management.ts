@@ -194,8 +194,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Load profile data once (used for ramp detection + blocking) ──
   const profileCache = await loadProfileCache(ctx, controllersWithCooling)
 
-  // ── Determine effective lowest target (using PWM-corrected targets) ──
-  const effectiveTarget = resolveEffectiveLowestTarget(ctx, correctedControllers, profileCache)
+  // ── Determine effective lowest target ─────────────────────
+  // No PWM correction needed — DB target_temp is always the real PID value
+  const effectiveTarget = resolveEffectiveLowestTarget(ctx, controllersWithCooling, profileCache)
 
   log('EFFECTIVE_TARGET', 'info', `Lowest effective target: ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`, {
     controller: effectiveTarget.controllerName,
