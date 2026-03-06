@@ -405,6 +405,7 @@ serve(async (req) => {
             battery: brew.battery,
             status: brew.status,
             last_update: brew.last_update ? new Date(brew.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' }) : null,
+            last_update_raw: brew.last_update || null,
             ...(m ? {
               sg_rate: parseFloat((m.sg_rate_per_hour ?? 0).toFixed(4)),
               phase: m.fermentation_phase,
