@@ -428,10 +428,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // Instead of a fixed 0.1°C threshold, check if the new target would
   // actually change the cooler relay state. With large hysteresis (e.g. 2°C),
   // small adjustments (0.2°C) are meaningless API calls.
+  //
+  // IMPORTANT: Only block LOWERING when relay state is unchanged.
+  // RAISING (less aggressive) is always applied so the cooler target
+  // tracks the formula (lowest target − margin) accurately.
+  // Without this, the target gets stuck at an overly aggressive value
+  // and margin learning can never validate whether a higher target suffices.
   const diff = Math.abs(clampedTarget - currentCoolerTarget)
+  const isRaising = clampedTarget > currentCoolerTarget
   const oldRelayOn = coolerTemp > currentCoolerTarget + coolerHysteresis
   const newRelayOn = coolerTemp > clampedTarget + coolerHysteresis
-  if (oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
+  if (!isRaising && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
