@@ -1050,7 +1050,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       </td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>
                         <span className="inline-flex items-center gap-0.5 justify-end">
-                          {(() => {
+                          {pillData && (() => {
                             const pillRaw = pillDet.last_update_raw as string | null;
                             const pillLu = pillRaw || (pillDet.last_update as string | null);
                             if (!pillLu || isNaN(new Date(pillLu).getTime()) || Date.now() - new Date(pillLu).getTime() > 30 * 60 * 1000) {
