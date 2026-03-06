@@ -164,30 +164,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     return adjustments
   }
 
-  // ── Pre-load pending PWM reverts to fix baseline ──────────
-  // During PWM ON, target_temp is 0°C. The cooler must use the revert
-  // target (the real baseline) to avoid following the temporary 0° value.
-  const controllerIds = controllersWithCooling.map(c => c.controller_id)
-  const { data: pendingPwmReverts } = await supabase
-    .from('pending_rapt_retries')
-    .select('controller_id, target_temp')
-    .in('controller_id', controllerIds)
-    .like('reason', '%PWM OFF%')
-
-  const pwmRevertMap = new Map<string, number>()
-  pendingPwmReverts?.forEach(r => {
-    pwmRevertMap.set(r.controller_id, r.target_temp)
-  })
-
-  // Create a view of controllers with PWM-corrected targets
-  const correctedControllers = controllersWithCooling.map(c => {
-    const revertTarget = pwmRevertMap.get(c.controller_id)
-    if (revertTarget != null) {
-      log('PWM_BASELINE_FIX', 'info', `${c.name}: cooler använder PWM revert-mål ${revertTarget}° istället för ${c.target_temp}°`)
-      return { ...c, target_temp: revertTarget }
-    }
-    return c
-  })
+  // No PWM baseline fix needed — PWM now uses hardware-only mode,
+  // so DB target_temp always reflects the real PID value.
 
   // ── Calculate cooling utilization per controller ───────────
   const utilizations = await calculateCoolingUtilizations(ctx, controllersWithCooling)
@@ -216,8 +194,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Load profile data once (used for ramp detection + blocking) ──
   const profileCache = await loadProfileCache(ctx, controllersWithCooling)
 
-  // ── Determine effective lowest target (using PWM-corrected targets) ──
-  const effectiveTarget = resolveEffectiveLowestTarget(ctx, correctedControllers, profileCache)
+  // ── Determine effective lowest target ─────────────────────
+  // No PWM correction needed — DB target_temp is always the real PID value
+  const effectiveTarget = resolveEffectiveLowestTarget(ctx, controllersWithCooling, profileCache)
 
   log('EFFECTIVE_TARGET', 'info', `Lowest effective target: ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source})`, {
     controller: effectiveTarget.controllerName,

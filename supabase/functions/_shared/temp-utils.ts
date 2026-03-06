@@ -219,6 +219,8 @@ export class RaptUpdateBatch {
   /** Preserved old targets — survives flush() so RAPT_SEND logging can read them */
   private oldTargets: Map<string, number> = new Map()
   private preAuthToken: string | null = null
+  /** Controllers where target should be sent to hardware but NOT persisted to DB */
+  private hwOnlyIds: Set<string> = new Set()
 
   /**
    * Optionally provide a pre-fetched RAPT access token to avoid
@@ -245,6 +247,18 @@ export class RaptUpdateBatch {
         this.oldTargets.set(controllerId, currentTarget)
       }
     }
+  }
+
+  /** Queue a hardware-only update: sent to RAPT but NOT persisted to DB target_temp.
+   *  Used for PWM bursts where the temporary 0°C should not corrupt the DB state. */
+  addHardwareOnly(controllerId: string, targetTemp: number, currentTarget?: number): void {
+    this.add(controllerId, targetTemp, currentTarget)
+    this.hwOnlyIds.add(controllerId)
+  }
+
+  /** Check if a controller update is hardware-only (should skip DB sync) */
+  isHardwareOnly(controllerId: string): boolean {
+    return this.hwOnlyIds.has(controllerId)
   }
 
   /** Look up the original target temp before any updates were queued (survives flush) */

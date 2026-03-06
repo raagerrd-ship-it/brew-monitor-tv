@@ -263,8 +263,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // whether actual_temp is an average of pill+probe or just probe.
   log('PID_CONTROL', 'info', `PID control check (dual sensors: ${pillCompSettings.enabled ? 'ON' : 'OFF'})`)
 
-  // Pre-load pending PWM reverts so PID can use the revert target as baseline
-  // instead of the temporary 0°C PWM ON value
+  // Pre-load pending PWM reverts to detect controllers in active PWM cycles.
+  // During PWM, PID is completely locked — no calculations or adjustments.
   const controllerIds = followedControllersFullData.map(c => c.controller_id)
   const { data: pendingPwmReverts } = await supabase
     .from('pending_rapt_retries')
@@ -284,15 +284,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // If a pending PWM revert exists, the current target_temp is the temporary
-    // PWM ON value (0°C). Use the revert target as the true baseline instead,
-    // so PID rate-limits don't try to step up from 0°C.
-    const rawCtrlTarget = parseFloat(String(fc.target_temp ?? '20'))
-    const pwmRevertTarget = pwmRevertMap.get(fc.controller_id)
-    const ctrlTarget = pwmRevertTarget != null ? pwmRevertTarget : rawCtrlTarget
-    if (pwmRevertTarget != null) {
-      log('PID_PWM_BASELINE', 'info', `${fc.name}: Using PWM revert target ${pwmRevertTarget}° as baseline (hw target is ${rawCtrlTarget}°)`)
+    // ── PWM lock: if controller is in active PWM cycle, skip PID entirely ──
+    // DB target_temp is still the real PID value (PWM only sends 0°C to hardware).
+    // PID must not run because it would try to send a new target that conflicts.
+    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
+    if (hasPendingPwmRevert) {
+      log('PID_PWM_LOCKED', 'info', `${fc.name}: PWM cykel aktiv — PID låst (revert → ${pwmRevertMap.get(fc.controller_id)}°)`)
+      continue
     }
+
+    const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
     // PID always runs every cycle — no same-data guard.
     // Even if RAPT telemetry hasn't changed, the PID integral and learned
@@ -458,28 +459,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
 
-    // ── Duty-cycle PWM burst (cycle-aligned model) ──
-    // ON is sent immediately via updateBatch. OFF is stored as a pending revert
-    // in pending_rapt_retries and handled by auto-adjust-cooling next cycle.
-    // This eliminates the need for sleeping inside edge functions (timeout-safe).
+    // ── Duty-cycle PWM burst (hardware-only model) ──
+    // PWM sends 0°C to RAPT hardware but does NOT update DB target_temp.
+    // This keeps the DB state clean — "Mål" always shows the real PID target.
+    // PID is completely locked during active PWM cycles (checked at loop start).
     //
-    // CRITICAL: If a PWM OFF revert is pending, we MUST let it execute first.
-    // Otherwise the new ON command overwrites the revert in the same batch,
-    // and the controller stays at 0°C forever.
-    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
-    if (isPwmMode && hasPendingPwmRevert) {
-      log('PWM_SKIP', 'info', `${fc.name}: Skipping PWM ON — pending OFF revert must execute first (revert → ${pwmRevertMap.get(fc.controller_id)}°)`)
-      // Let the revert (already added to batch by retry logic) go through.
-      // Next cycle, PWM can re-engage if still in steady state.
-      continue
-    }
+    // The PWM OFF revert sends the PID-compensated target back to hardware.
+    // Since DB target_temp was never changed, no DB update is needed on revert either.
     if (isPwmMode) {
       const offTarget = round1(ctrlTargetPid)
       const onTarget = 0
 
       const dutySeconds = Math.max(30, Math.min(240, Math.round(pwmDutyPct / 100 * 300)))
 
-      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${dutySeconds}s burst av 300s (on=${onTarget}°C, revert=${offTarget}°C nästa cykel)`, {
+      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${dutySeconds}s burst av 300s (hw=${onTarget}°C, db behåller ${ctrlTarget}°, revert=${offTarget}°C nästa cykel)`, {
         duty_pct: pwmDutyPct,
         duty_seconds: dutySeconds,
         on_target: onTarget,
@@ -487,16 +480,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         pid_diff: pidDiff,
       })
 
-      // 1. Send ON immediately via batch (batch handles DB sync on flush)
+      // 1. Send ON to hardware ONLY — skip DB sync so target_temp stays at real value
       if (ctx.updateBatch) {
-        ctx.updateBatch.add(fc.controller_id, onTarget, ctrlTarget)
+        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, ctrlTarget)
       } else {
-        const sent = await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
-        if (sent) {
-          await supabase.from('rapt_temp_controllers')
-            .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-            .eq('controller_id', fc.controller_id)
-        }
+        // Fallback: send directly to RAPT without DB update
+        await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
       }
 
       // Log the ON adjustment
@@ -506,12 +495,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         old_target_temp: ctrlTarget,
         new_target_temp: onTarget,
         lowest_followed_temp: onTarget,
-        reason: `⚡ PWM ${pwmDutyPct}% ON: ${ctrlTarget}° → ${onTarget}°`,
+        reason: `⚡ PWM ${pwmDutyPct}% ON: hw ${ctrlTarget}° → ${onTarget}° (db oförändrad)`,
         original_target_temp: actualTarget,
       })
 
-      // 2. Store revert as pending retry — next cycle will restore off_target
-      // Delete any existing PWM reverts for this controller first to avoid stacking
+      // 2. Store revert as pending — next cycle sends ctrlTargetPid back to hardware
       await supabase.from('pending_rapt_retries')
         .delete()
         .eq('controller_id', fc.controller_id)
@@ -519,13 +507,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       await supabase.from('pending_rapt_retries').insert({
         controller_id: fc.controller_id,
         target_temp: offTarget,
-        reason: `⚡ PWM OFF: → ${offTarget}°`,
+        reason: `⚡ PWM OFF: hw → ${offTarget}° (db oförändrad)`,
       })
 
       adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
 
-      // Sync in-memory so cooler sees the ON target
-      ;(fc as any).target_temp = onTarget
+      // DO NOT mutate in-memory target_temp — DB and in-memory stay at the real PID value.
+      // The cooler will see the real target, not the temporary 0°C.
 
       continue
     }
