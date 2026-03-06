@@ -366,45 +366,112 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasError = log.final_result === 'Error';
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
-  // Header badge
+  // Extract RAPT_SEND outcomes from decisions
+  const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND');
+  const batchFlushFail = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.result === 'fail');
+  const batchFlushTimeout = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.message?.includes('Timeout'));
+  const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
+  const pidDbOnly = log.decisions.filter(d => d.step === 'PID_PWM_UPDATE');
+
+  // Build header badge from RAPT communication outcomes
   let headerBadge: React.ReactNode;
 
-  if (adjs.length === 0) {
-    headerBadge = (
-      <div className="flex gap-1 items-center">
-        {hasError && (
-          <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-        )}
-        {showWarningTriangle && !hasError && (
-          <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-        )}
-        <Badge variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
-          <Gauge className="h-2.5 w-2.5 mr-0.5" />System
-        </Badge>
-      </div>
-    );
-  } else if (hasPidAdj && hasGlykolAdj) {
-    const pidAdj = adjs.find(a => a.category === 'pill-comp' || a.category === 'pill-comp-db')!;
-    const glykolAdj = adjs.find(a => a.category === 'glykol')!;
-    const pidColor = pidAdj.followed_controller_name ? controllerColors[pidAdj.followed_controller_name] : undefined;
-    const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
-    headerBadge = (
-      <div className="flex gap-1 items-center flex-wrap">
-        {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-        {getCategoryBadge(pidAdj.category, adjStr(pidAdj), pidColor)}
-        {getCategoryBadge('glykol', adjStr(glykolAdj))}
-      </div>
-    );
-  } else {
-    const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
-    const pidColor = (primaryAdj!.category === 'pill-comp' || primaryAdj!.category === 'pill-comp-db') && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
-    headerBadge = (
-      <div className="flex gap-1 items-center">
-        {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-        {getCategoryBadge(primaryAdj!.category, adjStr, pidColor)}
-      </div>
+  const raptBadges: React.ReactNode[] = [];
+
+  // Add warning indicators
+  if (hasError) {
+    raptBadges.push(<XCircle key="err" className="h-3.5 w-3.5 text-destructive shrink-0" />);
+  } else if (showWarningTriangle) {
+    raptBadges.push(<AlertTriangle key="warn" className="h-3 w-3 text-destructive shrink-0" />);
+  }
+
+  // RAPT_SEND badges — actual hardware commands sent
+  for (const send of raptSends) {
+    const details = send.details as { old_target?: number; new_target?: number; controller_id?: string } | undefined;
+    // Extract short controller name from message (e.g. "Temp Controller Gul: 0°C → 6.4°C")
+    const nameMatch = send.message?.match(/^(.+?):\s/);
+    const shortName = nameMatch ? nameMatch[1].replace('Temp Controller ', '') : '?';
+    const controllerFullName = nameMatch ? nameMatch[1] : '';
+    const color = controllerColors[controllerFullName];
+    const oldT = details?.old_target ?? null;
+    const newT = details?.new_target ?? null;
+    const adjText = oldT != null && newT != null ? `${r1(oldT)}° → ${r1(newT)}°` : send.message;
+
+    raptBadges.push(
+      <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}33` : 'hsl(150 60% 45% / 0.2)',
+        color: color || 'hsl(150 60% 45%)',
+        borderColor: color ? `${color}4d` : 'hsl(150 60% 45% / 0.3)',
+      }}>
+        <Send className="h-2.5 w-2.5 mr-0.5" />{shortName} {adjText}
+      </Badge>
     );
   }
+
+  // BATCH_FLUSH failure badge
+  if (batchFlushFail || batchFlushTimeout) {
+    const label = batchFlushTimeout ? 'RAPT Timeout' : 'RAPT Fel';
+    raptBadges.push(
+      <Badge key="flush-fail" variant="default" className="text-[10px] px-1.5" style={{
+        background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)',
+      }}>
+        <XCircle className="h-2.5 w-2.5 mr-0.5" />{label}
+      </Badge>
+    );
+  }
+
+  // Retry actions (fallback sends)
+  for (const retry of retryActions) {
+    const nameMatch = retry.message?.match(/Temp Controller (\S+)/);
+    const shortName = nameMatch ? nameMatch[1] : '?';
+    raptBadges.push(
+      <Badge key={`retry-${retry.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', borderColor: 'hsl(38 92% 55% / 0.3)',
+      }}>
+        <RefreshCw className="h-2.5 w-2.5 mr-0.5" />Retry {shortName}
+      </Badge>
+    );
+  }
+
+  // DB-only PID updates (no hw send)
+  for (const dbUpdate of pidDbOnly) {
+    const nameMatch = dbUpdate.message?.match(/^(.+?):\s/);
+    const shortName = nameMatch ? nameMatch[1].replace('Temp Controller ', '') : '?';
+    raptBadges.push(
+      <Badge key={`db-${dbUpdate.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: 'hsl(280 40% 50% / 0.15)', color: 'hsl(280 40% 55%)', borderColor: 'hsl(280 40% 50% / 0.25)',
+      }}>
+        <Database className="h-2.5 w-2.5 mr-0.5" />{shortName} DB
+      </Badge>
+    );
+  }
+
+  // PWM ON badges from adjustments (these are direct hw sends logged as adjustments)
+  const pwmAdjs = adjs.filter(a => a.category === 'pwm');
+  for (const pwm of pwmAdjs) {
+    const shortName = pwm.cooler_controller_name.replace('Temp Controller ', '');
+    const color = controllerColors[pwm.cooler_controller_name];
+    raptBadges.push(
+      <Badge key={`pwm-${pwm.id}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+        color: color || 'hsl(45 90% 55%)',
+        borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
+      }}>
+        <Zap className="h-2.5 w-2.5 mr-0.5" />{shortName} {r1(pwm.old_target_temp)}° → {r1(pwm.new_target_temp)}°
+      </Badge>
+    );
+  }
+
+  // Fallback: no RAPT communication at all
+  if (raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle))) {
+    raptBadges.push(
+      <Badge key="system" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
+        <Gauge className="h-2.5 w-2.5 mr-0.5" />System
+      </Badge>
+    );
+  }
+
+  headerBadge = <div className="flex gap-1 items-center flex-wrap">{raptBadges}</div>;
 
   return (
     <Collapsible className="outline-none" tabIndex={-1}>
