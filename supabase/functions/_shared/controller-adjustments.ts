@@ -529,6 +529,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         reason: `⚡ PWM OFF: hw → ${offTarget}° (db oförändrad)`,
       })
 
+      // 4. Reset PI integral so PID starts fresh after PWM ends.
+      // During PWM the probe cools artificially — any accumulated integral is invalid.
+      await supabase.from('controller_learned_compensation')
+        .update({ accumulated_integral: 0, latest_p_correction: 0, latest_i_correction: 0, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+      log('PID_RESET', 'info', `${fc.name}: PI-integral nollställd inför PWM (startar rent efter revert)`)
+
       adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
 
       // DO NOT mutate in-memory target_temp — DB and in-memory stay at the real PID value.
