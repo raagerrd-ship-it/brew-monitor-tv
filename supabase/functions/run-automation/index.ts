@@ -120,8 +120,59 @@ Deno.serve(async (req) => {
   const [pidResult, healthData] = await Promise.all(step3and4);
   pidAndGlycolData = pidResult;
 
-  // PWM bursts are now handled cycle-aligned: ON is sent by auto-adjust-cooling,
-  // OFF is stored as pending_rapt_retries and handled next cycle. No sleeping needed.
+  // ============================================================
+  // STEP 3b: PWM burst OFF timing
+  // ON was sent by auto-adjust-cooling. Now sleep(dutySeconds) then send OFF.
+  // Pending_rapt_retries serves as fallback if this times out.
+  // ============================================================
+  const pwmBursts = pidResult?.pwmBursts as Array<{
+    controller_id: string; controller_name: string;
+    off_target: number; duty_seconds: number; duty_pct: number;
+  }> | undefined;
+
+  if (pwmBursts && pwmBursts.length > 0) {
+    for (const burst of pwmBursts) {
+      const burstStart = Date.now();
+      try {
+        console.log(`PWM burst: sleeping ${burst.duty_seconds}s for ${burst.controller_name} (${burst.duty_pct}% duty)...`);
+        await new Promise(resolve => setTimeout(resolve, burst.duty_seconds * 1000));
+
+        // Send OFF — restore hardware to PID target
+        const offResp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            controller_id: burst.controller_id,
+            action: "setTargetTemp",
+            value: burst.off_target,
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        const burstDuration = Date.now() - burstStart;
+        if (offResp.ok) {
+          // Success — remove pending fallback since we handled it
+          await supabase.from('pending_rapt_retries')
+            .delete()
+            .eq('controller_id', burst.controller_id)
+            .like('reason', '%PWM OFF%');
+          results.push({ step: `pwm-off:${burst.controller_name}`, status: "ok", duration_ms: burstDuration, details: { duty_seconds: burst.duty_seconds, off_target: burst.off_target } });
+          console.log(`PWM OFF sent for ${burst.controller_name}: → ${burst.off_target}°C after ${burst.duty_seconds}s`);
+        } else {
+          const errText = await offResp.text();
+          results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: `${offResp.status}: ${errText}` });
+          console.error(`PWM OFF failed for ${burst.controller_name}: ${offResp.status} — pending fallback retained`);
+        }
+      } catch (err) {
+        const burstDuration = Date.now() - burstStart;
+        results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: String(err) });
+        console.error(`PWM OFF error for ${burst.controller_name}: ${err} — pending fallback retained`);
+      }
+    }
+  }
 
   // Log health summary to pending_notifications if critical
   if (healthData?.overall_status === 'critical') {

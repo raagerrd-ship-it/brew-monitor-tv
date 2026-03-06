@@ -508,7 +508,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         original_target_temp: actualTarget,
       })
 
-      // 2. Store revert as pending — next cycle sends ctrlTargetPid back to hardware
+      // 2. Populate burst metadata for run-automation to execute sleep+OFF
+      ctx.pwmBursts.push({
+        controller_id: fc.controller_id,
+        controller_name: fc.name,
+        on_target: onTarget,
+        off_target: offTarget,
+        duty_seconds: dutySeconds,
+        duty_pct: pwmDutyPct,
+      })
+
+      // 3. Also store as pending fallback — if run-automation crashes/times out,
+      //    next cycle will still revert. run-automation deletes this on success.
       await supabase.from('pending_rapt_retries')
         .delete()
         .eq('controller_id', fc.controller_id)
