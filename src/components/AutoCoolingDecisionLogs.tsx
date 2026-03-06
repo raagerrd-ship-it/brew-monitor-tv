@@ -1107,7 +1107,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {(() => {
                           const dutyPct = det.duty_pct as number | undefined;
-                          const pwm = dutyPwmByName.get(name);
                           if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                           const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
                           return (
@@ -1129,6 +1128,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         <span className="flex items-center justify-center gap-1">
                           {(() => {
                             const pwm = dutyPwmByName.get(name);
+                            const dutyPctSync = det.duty_pct as number | undefined;
                             if (pwm) {
                               return (
                                 <TooltipProvider delayDuration={200}><Tooltip>
@@ -1139,6 +1139,22 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="text-xs max-w-[220px]">
                                     {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(30, Math.min(240, Math.round(pwm.duty / 100 * 300)))}s burst per cykel`}
+                                  </TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              );
+                            }
+                            // Fallback: if SYNC_DATA has duty_pct, PWM is active even without DUTY_PWM_BURST step
+                            if (dutyPctSync != null && dutyPctSync > 0) {
+                              const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPctSync / 100 * 300)));
+                              return (
+                                <TooltipProvider delayDuration={200}><Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
+                                      PWM {burstSecs}s
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                    {`PWM burst-läge — duty ${dutyPctSync}%, ${burstSecs}s burst per cykel (PID hoppad denna cykel)`}
                                   </TooltipContent>
                                 </Tooltip></TooltipProvider>
                               );
