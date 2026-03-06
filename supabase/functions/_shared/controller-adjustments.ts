@@ -50,6 +50,9 @@ export interface ControllerAdjustmentContext {
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
+  /** Populated by PID: maps controller_id → dual-sensor baseTarget (grundmål).
+   *  Used by cooler to plan against a stable target, not the PID-fluctuating target_temp. */
+  baseTargetMap: Map<string, number>
 }
 
 /**
@@ -314,6 +317,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     )
     const { sensorDelta, actualTemp, enabled: hasDualSensors } = dualSensor
     const probeTemp = fc.current_temp ?? fc.pill_temp ?? ctrlTarget
+
+    // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
+    ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
 
     const pidMode: 'heating' | 'cooling' = (fc.current_temp ?? 0) < ctrlTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
