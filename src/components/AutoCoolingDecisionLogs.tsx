@@ -1048,7 +1048,26 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           )}
                         </span>
                       </td>
-                      <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>{r1(det.pill_temp as number)}</td>
+                      <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>
+                        <span className="inline-flex items-center gap-0.5 justify-end">
+                          {(() => {
+                            const pillRaw = pillDet.last_update_raw as string | null;
+                            const pillLu = pillRaw || (pillDet.last_update as string | null);
+                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || Date.now() - new Date(pillLu).getTime() > 30 * 60 * 1000) {
+                              return (
+                                <TooltipProvider delayDuration={200}><Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {r1(det.pill_temp as number)}
+                        </span>
+                      </td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap">{r2(det.ctrl_temp as number)}</td>
                       <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
                       <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
