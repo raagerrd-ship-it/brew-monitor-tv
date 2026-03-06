@@ -414,34 +414,34 @@ export async function sendRasterJob(
   try {
     // ── Setup commands ──
     await bleWrite(connection, new Uint8Array([0x1b, 0x40]), 'init');
-    await delay(50);
+    await delay(300);
 
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
-    await delay(50);
+    await delay(200);
 
     const mc = mediaTypeCode(settings.mediaType);
     if (mc !== null) {
       await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media-type');
-      await delay(50);
+      await delay(200);
     }
 
     if (settings.sendSpeed) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-      await delay(50);
+      await delay(100);
     }
 
     if (settings.sendDensity) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-      await delay(50);
+      await delay(100);
     }
 
     // Margin/position reset
     await bleWrite(connection, new Uint8Array([0x1d, 0x4c, 0x00, 0x00]), 'margin-0');
-    await delay(20);
+    await delay(50);
     await bleWrite(connection, new Uint8Array([0x1b, 0x24, 0x00, 0x00]), 'abs-pos-0');
-    await delay(20);
+    await delay(50);
     await bleWrite(connection, new Uint8Array([0x1b, 0x42, 0x00]), 'esc-b-0');
-    await delay(20);
+    await delay(100);
 
     // Raster header
     onProgress?.({ phase: `Skickar raster-header${copyLabel}...`, percent: 15 });
@@ -450,7 +450,7 @@ export async function sendRasterJob(
       widthBytes & 0xff, 0x00,
       height & 0xff, (height >> 8) & 0xff,
     ]), 'raster-header');
-    await delay(50);
+    await delay(100);
 
     // Escape 0x0a → 0x14
     const escapedData = new Uint8Array(rasterData);
@@ -480,24 +480,24 @@ export async function sendRasterJob(
 
     // M110 footer: feed lines then positioning commands
     onProgress?.({ phase: `Matar papper${copyLabel}...`, percent: 95 });
-    await delay(50);
+    await delay(200);
     await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines');
-    await delay(50);
+    await delay(100);
     await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines-2');
-    await delay(50);
+    await delay(100);
 
     // Phomemo positioning/end commands
     await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00]), 'position-1');
-    await delay(50);
+    await delay(100);
     await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x03, 0x00]), 'position-2');
-    await delay(500);
+    await delay(1000);
 
     // End-job + optional ACK wait
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
     notify?.clear();
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
     await notify?.waitForPacket('ACK efter end-job', 5000);
-    await delay(200);
+    await delay(500);
   } finally {
     await notify?.stop();
   }
