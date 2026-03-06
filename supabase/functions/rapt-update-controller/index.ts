@@ -183,8 +183,9 @@ serve(async (req) => {
         } else {
           console.log(`Updated database: controller ${controllerId} target_temp = ${value}${isAutomationSource ? '' : `, profile_target_temp = ${value}`}`);
 
-          // Log the manual adjustment to decision history
-          if (oldTarget !== value) {
+           // Log the adjustment to decision history
+           // Skip for PWM source — run-automation logs PWM OFF separately with correct context
+           if (oldTarget !== value && source !== 'pwm') {
             await supabase.from('auto_cooling_adjustments').insert({
               cooler_controller_id: controllerId,
               cooler_controller_name: controllerName,
