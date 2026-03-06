@@ -522,14 +522,14 @@ export async function calculateCompensatedTarget(
       }
     }
     
-    const currentDistToProfile = Math.abs(ctrlTarget - profileTarget)
-    const newDistToProfile = Math.abs(ctrlTargetPid - profileTarget)
-    const isTowardTarget = newDistToProfile < currentDistToProfile
+    const currentDistToBase = Math.abs(ctrlTarget - baseTarget)
+    const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
+    const isTowardTarget = newDistToBase < currentDistToBase
     
-    // When in approach zone AND moving toward profile, allow faster release
+    // When in approach zone AND moving toward baseTarget, allow faster release
     // BUT: during ramp steps, don't release AGAINST the ramp direction.
-    // Overshoot-release: disable ramp hold when probe is within 1°C of actual target
-    const probeDistToTarget = Math.abs(latestCtrlForComp - profileTarget)
+    // Overshoot-release: disable ramp hold when probe is within 1°C of baseTarget
+    const probeDistToTarget = Math.abs(latestCtrlForComp - baseTarget)
     const overshootRelease = probeDistToTarget <= 1.0
     if (overshootRelease) {
       constraints.push('overshoot-release')
@@ -558,7 +558,7 @@ export async function calculateCompensatedTarget(
     
     // Safety clamp: never set target above probe during cooling (would start heater)
     // or below probe during heating (would start cooler)
-    const probeDistToTargetFinal = Math.abs(latestCtrlForComp - profileTarget)
+    const probeDistToTargetFinal = Math.abs(latestCtrlForComp - baseTarget)
     const overshootReleaseFinal = probeDistToTargetFinal <= 1.0
     if (overshootReleaseFinal) {
       if (mode === 'cooling' && ctrlTargetPid > latestCtrlForComp) {
