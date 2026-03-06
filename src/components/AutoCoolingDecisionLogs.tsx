@@ -1107,7 +1107,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                       <td className="py-1 px-1.5 text-center whitespace-nowrap">
                         {(() => {
                           const dutyPct = det.duty_pct as number | undefined;
-                          const pwm = dutyPwmByName.get(name);
                           if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                           const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
                           return (
