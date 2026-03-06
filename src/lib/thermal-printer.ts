@@ -419,15 +419,10 @@ export async function sendRasterJob(
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(300);
 
-    if (settings.mediaType === 'gap') {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media-type');
       await delay(300);
-    } else {
-      const mc = mediaTypeCode(settings.mediaType);
-      if (mc !== null) {
-        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media');
-        await delay(300);
-      }
     }
 
     if (settings.sendSpeed) {
