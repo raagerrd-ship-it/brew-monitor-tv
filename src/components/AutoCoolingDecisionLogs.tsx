@@ -105,7 +105,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
+type AdjustmentCategory = 'pill-comp' | 'pill-comp-db' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
 
 interface UnifiedEntry {
   log: DecisionLog;
@@ -144,6 +144,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('⚡')) return 'pwm';
   if (reason.startsWith('✏️') || reason.startsWith('🔧')) return 'manuell';
   if (reason.startsWith('🔄')) return 'passthrough';
+  if (reason.includes('PWM aktiv') && (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠'))) return 'pill-comp-db';
   if (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠')) return 'pill-comp';
   if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
   return 'glykol';
@@ -152,6 +153,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
 function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNode, colorOverride?: string) {
   const styles: Record<AdjustmentCategory, { bg: string; color: string; border: string; icon: React.ReactNode; label: string }> = {
     'pill-comp': { bg: 'hsl(280 60% 60% / 0.2)', color: 'hsl(280 60% 60%)', border: 'hsl(280 60% 60% / 0.3)', icon: <Pill className="h-2.5 w-2.5 mr-0.5" />, label: 'PID' },
+    'pill-comp-db': { bg: 'hsl(280 40% 50% / 0.15)', color: 'hsl(280 40% 55%)', border: 'hsl(280 40% 50% / 0.25)', icon: <Database className="h-2.5 w-2.5 mr-0.5" />, label: 'PID (DB)' },
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
     'manuell': { bg: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', border: 'hsl(38 92% 55% / 0.3)', icon: <Pencil className="h-2.5 w-2.5 mr-0.5" />, label: 'Manuell' },
     'passthrough': { bg: 'hsl(170 60% 45% / 0.2)', color: 'hsl(170 60% 45%)', border: 'hsl(170 60% 45% / 0.3)', icon: <RefreshCw className="h-2.5 w-2.5 mr-0.5" />, label: 'Synk' },
@@ -343,7 +345,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 }) {
   const { log, adjustments: adjs } = entry;
   const primaryAdj = adjs.length > 0 ? adjs[0] : null;
-  const hasPidAdj = adjs.some(a => a.category === 'pill-comp');
+  const hasPidAdj = adjs.some(a => a.category === 'pill-comp' || a.category === 'pill-comp-db');
   const hasGlykolAdj = adjs.some(a => a.category === 'glykol');
 
   // Check if any controller is offline (stale)
@@ -382,20 +384,20 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
       </div>
     );
   } else if (hasPidAdj && hasGlykolAdj) {
-    const pidAdj = adjs.find(a => a.category === 'pill-comp')!;
+    const pidAdj = adjs.find(a => a.category === 'pill-comp' || a.category === 'pill-comp-db')!;
     const glykolAdj = adjs.find(a => a.category === 'glykol')!;
     const pidColor = pidAdj.followed_controller_name ? controllerColors[pidAdj.followed_controller_name] : undefined;
     const adjStr = (a: typeof pidAdj) => `${r1(a.old_target_temp)}° → ${r1(a.new_target_temp)}°`;
     headerBadge = (
       <div className="flex gap-1 items-center flex-wrap">
         {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-        {getCategoryBadge('pill-comp', adjStr(pidAdj), pidColor)}
+        {getCategoryBadge(pidAdj.category, adjStr(pidAdj), pidColor)}
         {getCategoryBadge('glykol', adjStr(glykolAdj))}
       </div>
     );
   } else {
     const adjStr = `${r1(primaryAdj!.old_target_temp)}° → ${r1(primaryAdj!.new_target_temp)}°`;
-    const pidColor = primaryAdj!.category === 'pill-comp' && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
+    const pidColor = (primaryAdj!.category === 'pill-comp' || primaryAdj!.category === 'pill-comp-db') && primaryAdj!.followed_controller_name ? controllerColors[primaryAdj!.followed_controller_name] : undefined;
     headerBadge = (
       <div className="flex gap-1 items-center">
         {showWarningTriangle && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
@@ -447,7 +449,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
           )}
 
           {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
-          {adjs.filter(a => a.category !== 'pill-comp' && a.category !== 'glykol').map(adj => (
+          {adjs.filter(a => a.category !== 'pill-comp' && a.category !== 'pill-comp-db' && a.category !== 'glykol').map(adj => (
             <AdjustmentCard key={adj.id} adj={adj} />
           ))}
         </div>
