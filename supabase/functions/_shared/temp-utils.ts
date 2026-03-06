@@ -377,3 +377,7 @@ export class RaptUpdateBatch {
 // Re-export PID compensation types and functions for backward compatibility
 export type { PillCompensationSettings } from './pid-compensation.ts'
 export { calculateCompensatedTarget, learnThermalRate, learnGlycolCoolerRate, getGlycolRatesSummary, loadPillCompSettings } from './pid-compensation.ts'
+
+// Re-export dual sensor fusion
+export { computeDualSensorTarget } from './dual-sensor.ts'
+export type { DualSensorResult } from './dual-sensor.ts'

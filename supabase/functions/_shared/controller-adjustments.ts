@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
+import { computeDualSensorTarget } from './dual-sensor.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
@@ -304,12 +305,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Pre-calculate actual_temp: dual sensors ON + pill available → average, otherwise probe
-    const hasDualSensors = pillCompSettings.enabled && fc.pill_temp != null
+    // Dual sensor fusion: compute baseTarget and actualTemp
+    const dualSensor = computeDualSensorTarget(
+      actualTarget,
+      fc.current_temp ?? null,
+      fc.pill_temp ?? null,
+      pillCompSettings.enabled,
+    )
+    const { sensorDelta, actualTemp, enabled: hasDualSensors } = dualSensor
     const probeTemp = fc.current_temp ?? fc.pill_temp ?? ctrlTarget
-    const actualTemp = hasDualSensors
-      ? ((fc.pill_temp! + (fc.current_temp ?? fc.pill_temp!)) / 2)
-      : probeTemp
 
     const pidMode: 'heating' | 'cooling' = (fc.current_temp ?? 0) < ctrlTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
@@ -382,7 +386,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment
+      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment,
+      sensorDelta,
     )
 
     // Safety bounds — respect hardware min/max strictly
@@ -429,9 +434,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const avgTemp = round1(actualTemp)
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
-    // Effective delta: what actually gets subtracted from profile to reach ctrl_target_pid
-    // This ensures Profil - Δ + PI = Nytt mål always balances in the UI
-    const effectiveDelta = round1(actualTarget - ctrlTargetPid + round1(pidResult.errorCorrection ?? 0))
+    // Sensor delta: the pure geometric correction from dual-sensor module
+    const effectiveDelta = round1(sensorDelta)
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
       pill_temp: pillTempLog,
@@ -442,9 +446,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(ctrlTargetPid),
       delta: effectiveDelta,
-      raw_delta: round1(pidResult.avgDelta),
-      raw_compensation: round1(pidResult.avgDelta),
-      compensation: round1(pidResult.compensation),
+      sensor_delta: round1(sensorDelta),
       error_correction: round1(pidResult.errorCorrection ?? 0),
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
