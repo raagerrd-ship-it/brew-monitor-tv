@@ -483,13 +483,15 @@ export async function sendRasterJob(
       },
     );
 
-    // Short pause then form feed immediately to trigger gap detection
-    onProgress?.({ phase: `Söker gap${copyLabel}...`, percent: 95 });
-    await delay(200);
+    // Wait for printer to finish processing raster data
+    onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
+    await delay(1500);
+
+    // Form feed triggers gap detection — must come after print is done but before paper stops
     await bleWrite(connection, new Uint8Array([0x0c]), 'form-feed');
 
     // Wait for printer to seek gap and stop
-    await delay(3000);
+    await delay(2000);
 
     // End-job + optional ACK wait
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
