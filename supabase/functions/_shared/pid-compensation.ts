@@ -508,18 +508,19 @@ export async function calculateCompensatedTarget(
     
     let baseLimit: number
     if (mode === 'cooling') {
-      const avgBelowTarget = currentAvg < baseTarget - 0.2
+      // Compare fused temp against profileTarget (user intent), not baseTarget (hardware-adjusted)
+      const avgBelowTarget = currentAvg < profileTarget - 0.2
       const upwardLimit = avgBelowTarget ? deltaScaledMaxRate : mp.upwardRelease
       baseLimit = isIncreasing ? Math.min(deltaScaledMaxRate * scaleFactor, upwardLimit) : deltaScaledMaxRate * scaleFactor
       if (avgBelowTarget && isIncreasing) {
-        console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${actualTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
+        console.log(`🔥 Medel (${currentAvg.toFixed(1)}°) under mål (${profileTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
       }
     } else {
-      const avgAboveTarget = currentAvg > baseTarget + 0.2
+      const avgAboveTarget = currentAvg > profileTarget + 0.2
       const downwardLimit = avgAboveTarget ? deltaScaledMaxRate : mp.upwardRelease
       baseLimit = isIncreasing ? deltaScaledMaxRate * scaleFactor : Math.min(deltaScaledMaxRate * scaleFactor, downwardLimit)
       if (avgAboveTarget && !isIncreasing) {
-        console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${actualTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
+        console.log(`❄️ Medel (${currentAvg.toFixed(1)}°) över mål (${profileTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
       }
     }
     
