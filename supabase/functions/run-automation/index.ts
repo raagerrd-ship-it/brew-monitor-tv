@@ -178,6 +178,24 @@ Deno.serve(async (req) => {
             .like('reason', '%PWM OFF%');
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "ok", duration_ms: burstDuration, details: { duty_seconds: burst.duty_seconds, off_target: burst.off_target } });
           console.log(`PWM OFF sent for ${burst.controller_name}: → ${burst.off_target}°C after ${burst.duty_seconds}s`);
+
+          // Log PWM OFF to adjustment history (rapt-update-controller skips this
+          // because addHardwareOnly kept DB target_temp at the real value, so
+          // oldTarget === value and the log guard filters it out)
+          try {
+            await supabase.from('auto_cooling_adjustments').insert({
+              cooler_controller_id: burst.controller_id,
+              cooler_controller_name: burst.controller_name,
+              old_target_temp: 0,
+              new_target_temp: burst.off_target,
+              lowest_followed_temp: burst.off_target,
+              reason: `⚡ PWM OFF: 0° → ${burst.off_target}°`,
+              original_target_temp: burst.off_target,
+              followed_controller_name: burst.controller_name,
+            });
+          } catch (logErr) {
+            console.error(`Failed to log PWM OFF adjustment: ${logErr}`);
+          }
         } else {
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: "All 3 attempts failed" });
           console.error(`PWM OFF failed for ${burst.controller_name} after 3 attempts — pending fallback retained`);
