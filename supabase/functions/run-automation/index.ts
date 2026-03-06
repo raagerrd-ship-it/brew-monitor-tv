@@ -148,8 +148,8 @@ Deno.serve(async (req) => {
                 "Authorization": `Bearer ${serviceRoleKey}`,
               },
               body: JSON.stringify({
-                controller_id: burst.controller_id,
-                action: "setTargetTemp",
+                controllerId: burst.controller_id,
+                action: "setTargetTemperature",
                 value: burst.off_target,
               }),
               signal: AbortSignal.timeout(10000),
