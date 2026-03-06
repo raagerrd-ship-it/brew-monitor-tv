@@ -242,14 +242,12 @@ export async function calculateCompensatedTarget(
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
   }
 
-  // Use pre-computed actualTemp for error calculation when available
-  // Error is measured against profileTarget (user intent) vs actualTemp (fused reading).
-  // baseTarget already has sensorDelta baked in for the hardware, so comparing it
-  // against the fused actualTemp would double-count the sensor compensation.
-  const currentAvgForError = actualTemp ?? (deltaHistory?.[0]
-    ? (parseFloat(String(deltaHistory[0].pill_temp)) + parseFloat(String(deltaHistory[0].controller_temp))) / 2
-    : profileTarget)
-  const avgError = profileTarget - currentAvgForError
+  // Error: probe vs baseTarget (both in probe domain, no domain mismatch)
+  // profileTarget is only for logging — PID works entirely in baseTarget domain.
+  const currentProbeForError = probeTemp ?? (deltaHistory?.[0]
+    ? parseFloat(String(deltaHistory[0].controller_temp))
+    : baseTarget)
+  const avgError = baseTarget - currentProbeForError
 
   let pCorrection = 0
   let iCorrection = 0
@@ -366,8 +364,8 @@ export async function calculateCompensatedTarget(
     // we still need PI to raise the probe to bring the average up.
     if (mode === 'cooling') {
       const latestPillForGuard = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : null
-      if (latestPillForGuard != null && latestPillForGuard > profileTarget + 0.3 && errorCorrection > 0) {
-        console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > profil ${profileTarget}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
+      if (latestPillForGuard != null && latestPillForGuard > baseTarget + 0.3 && errorCorrection > 0) {
+        console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > baseTarget ${baseTarget}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
         errorCorrection = 0
         constraints.push('pill-guard')
       }
@@ -456,21 +454,21 @@ export async function calculateCompensatedTarget(
   // Core formula: baseTarget already has sensorDelta baked in, just add PI correction
   let ctrlTargetPid = baseTarget + errorCorrection
 
-  // Safety bounds — use profileTarget so PID can't drift too far from user intent
-  ctrlTargetPid = Math.max(profileTarget - effectiveMaxComp, Math.min(profileTarget + effectiveMaxComp, ctrlTargetPid))
+  // Safety bounds — PID can't drift too far from baseTarget
+  ctrlTargetPid = Math.max(baseTarget - effectiveMaxComp, Math.min(baseTarget + effectiveMaxComp, ctrlTargetPid))
 
-  // Directional clamp: during ramp/gradual_ramp steps, never push target past profileTarget
-  // in the wrong direction. Hold steps need bidirectional compensation to hit exact average.
+  // Directional clamp: during ramp/gradual_ramp steps, never push target past baseTarget
+  // in the wrong direction. Hold steps need bidirectional compensation.
   const isRampStep = ['ramp', 'gradual_ramp'].includes(stepType)
   if (isRampStep) {
-    if (mode === 'cooling' && ctrlTargetPid > profileTarget) {
-      console.log(`🔒 Directional clamp [cooling/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte överskrida profilmål under ramp)`)
+    if (mode === 'cooling' && ctrlTargetPid > baseTarget) {
+      console.log(`🔒 Directional clamp [cooling/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${baseTarget.toFixed(1)}°C (kan inte överskrida baseTarget under ramp)`)
       constraints.push('dir-clamp')
-      ctrlTargetPid = profileTarget
-    } else if (mode === 'heating' && ctrlTargetPid < profileTarget) {
-      console.log(`🔒 Directional clamp [heating/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${profileTarget.toFixed(1)}°C (kan inte understiga profilmål under ramp)`)
+      ctrlTargetPid = baseTarget
+    } else if (mode === 'heating' && ctrlTargetPid < baseTarget) {
+      console.log(`🔒 Directional clamp [heating/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${baseTarget.toFixed(1)}°C (kan inte understiga baseTarget under ramp)`)
       constraints.push('dir-clamp')
-      ctrlTargetPid = profileTarget
+      ctrlTargetPid = baseTarget
     }
   }
 
