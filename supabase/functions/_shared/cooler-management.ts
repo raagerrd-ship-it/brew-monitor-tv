@@ -888,6 +888,17 @@ async function learnFromCurrentState(
 ): Promise<void> {
   const { supabase, log } = ctx
 
+  // ── Skip learning during PWM ON phases — targets are temporary ──
+  const { data: activePwmReverts } = await supabase
+    .from('pending_rapt_retries')
+    .select('controller_id')
+    .like('reason', '%PWM OFF%')
+    .limit(1)
+  if (activePwmReverts && activePwmReverts.length > 0) {
+    log('MARGIN_LEARN', 'info', `Hoppar inlärning — PWM-burst aktiv (temporära mål)`)
+    return
+  }
+
   // ── Only learn when at least one controller is actively cooling ──
   // If no tank has active demand, the observed margin is meaningless
   const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
@@ -978,12 +989,13 @@ async function learnFromCurrentState(
       const scaledMargin = currentMargin * 1.08  // conservative 8% increase
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
-    } else if (util < 0.7 && currentMargin > 2.0) {
+    } else if (util < 0.7 && currentMargin > 1.2) {
       // Under 70% — actively tighten to reduce condensation risk
       // Use faster alpha (0.3) at low util for quicker downward convergence
+      // Threshold lowered from 2.0 to 1.2 so margins approaching min_effective can still converge
       const tighterMargin = currentMargin * 0.93  // 7% decrease (more aggressive)
       const alphaOverride = util < 0.5 ? 0.3 : undefined
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 1.0, 15.0, alphaOverride)
       log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util >= 0.7 && util < 0.99) {
       // 70–99%: good zone, but still try to nudge tighter slowly
