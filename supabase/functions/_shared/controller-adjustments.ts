@@ -515,7 +515,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ── No-op: PID diff too small to justify an update ──────
-    if (pidDiff < 0.1) {
+    // During PWM, still check if revert target needs updating
+    if (pidDiff < 0.1 && !hasPendingPwmRevert) {
+      continue
+    }
+    if (pidDiff < 0.1 && hasPendingPwmRevert) {
+      // PID result same as DB — no revert update needed
       continue
     }
 
