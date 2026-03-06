@@ -26,9 +26,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   // Use pill temp only if pill exists AND data is fresh; otherwise fall back to controller probe
   const pillTemp = (pill && !isPillStale) ? brew.currentTemp : null;
   const probeTemp = controller?.current_temp ?? null;
-  // Always show average when both sensors are available — this is the user-facing "virtual" temp
-  // pillCompEnabled only controls PID compensation, not UI display
-  const displayTemp = getActualTemp(pillTemp, probeTemp, /* alwaysFuse */ pillTemp != null && probeTemp != null ? true : pillCompEnabled) ?? brew.currentTemp;
+  // Always show fused (average) temp when both sensors are available — matches dual-sensor logic
+  // This is the user-facing "virtual" temp, independent of PID's pillCompEnabled setting
+  const displayTemp = (pillTemp != null && probeTemp != null)
+    ? (pillTemp + probeTemp) / 2
+    : (probeTemp ?? pillTemp ?? brew.currentTemp);
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
   const showStaleWarning = pill && isPillStale && !isInactive;
