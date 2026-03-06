@@ -17,7 +17,7 @@ const LABEL_IMG_SIZE = 144;
 const QR_SIZE = 144;
 const PUBLISHED_URL = 'https://brew-monitor-tv.lovable.app';
 function getLogoUrl(): string {
-  return `${window.location.origin}/brew-icon.png`;
+  return dbLogo;
 }
 
 /** Get the share URL for a brew */
