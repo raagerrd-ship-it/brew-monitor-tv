@@ -105,7 +105,7 @@ interface AdjustmentLog {
   followed_hysteresis: number | null;
 }
 
-type AdjustmentCategory = 'pill-comp' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
+type AdjustmentCategory = 'pill-comp' | 'pill-comp-db' | 'glykol' | 'manuell' | 'passthrough' | 'pwm';
 
 interface UnifiedEntry {
   log: DecisionLog;
@@ -144,6 +144,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
   if (reason.startsWith('⚡')) return 'pwm';
   if (reason.startsWith('✏️') || reason.startsWith('🔧')) return 'manuell';
   if (reason.startsWith('🔄')) return 'passthrough';
+  if (reason.includes('PWM aktiv') && (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠'))) return 'pill-comp-db';
   if (reason.startsWith('🎯') || reason.startsWith('🔥') || reason.startsWith('🌡️') || reason.startsWith('🧠')) return 'pill-comp';
   if (reason.includes('Cooling recovery') || reason.includes('colder than needed') || reason.includes('struggling to cool') || reason.includes('Ingen följd controller')) return 'glykol';
   return 'glykol';
@@ -152,6 +153,7 @@ function categorizeAdjustment(reason: string): AdjustmentCategory {
 function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNode, colorOverride?: string) {
   const styles: Record<AdjustmentCategory, { bg: string; color: string; border: string; icon: React.ReactNode; label: string }> = {
     'pill-comp': { bg: 'hsl(280 60% 60% / 0.2)', color: 'hsl(280 60% 60%)', border: 'hsl(280 60% 60% / 0.3)', icon: <Pill className="h-2.5 w-2.5 mr-0.5" />, label: 'PID' },
+    'pill-comp-db': { bg: 'hsl(280 40% 50% / 0.15)', color: 'hsl(280 40% 55%)', border: 'hsl(280 40% 50% / 0.25)', icon: <Database className="h-2.5 w-2.5 mr-0.5" />, label: 'PID (DB)' },
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
     'manuell': { bg: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', border: 'hsl(38 92% 55% / 0.3)', icon: <Pencil className="h-2.5 w-2.5 mr-0.5" />, label: 'Manuell' },
     'passthrough': { bg: 'hsl(170 60% 45% / 0.2)', color: 'hsl(170 60% 45%)', border: 'hsl(170 60% 45% / 0.3)', icon: <RefreshCw className="h-2.5 w-2.5 mr-0.5" />, label: 'Synk' },
