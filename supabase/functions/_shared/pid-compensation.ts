@@ -88,6 +88,7 @@ export async function calculateCompensatedTarget(
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   skipRateLimit?: boolean,
+  sensorDelta?: number,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -95,12 +96,11 @@ export async function calculateCompensatedTarget(
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
   const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
 
-  // Calculate avgDelta from pre-computed actualTemp and probeTemp if provided
-  // Otherwise fall back to delta history (backward compat)
-  let avgDelta: number
-  let absDelta: number
+  // Sensor delta from dual-sensor module (pure geometric correction)
+  const avgDelta = sensorDelta ?? 0
+  const absDelta = Math.abs(avgDelta)
 
-  // Fetch delta history — still needed for D-term rate calculations and EMA
+  // Fetch delta history — still needed for D-term rate calculations
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
     .select('delta, pill_temp, controller_temp, recorded_at')
@@ -108,24 +108,15 @@ export async function calculateCompensatedTarget(
     .order('recorded_at', { ascending: false })
     .limit(8)
 
-  if (actualTemp != null && probeTemp != null) {
-    // Use pre-computed values from sensor fusion
-    avgDelta = actualTemp - probeTemp
-    absDelta = Math.abs(avgDelta)
-  } else if (deltaHistory && deltaHistory.length > 0) {
-    // Fallback: compute from history (backward compat)
-    const deltas = deltaHistory.map((d: any) => parseFloat(String(d.delta)))
-    avgDelta = deltas.reduce((sum: number, d: number) => sum + d, 0) / deltas.length
-    absDelta = Math.abs(avgDelta)
-  } else {
-    console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar compensation=0`)
-    return { ctrlTargetPid: actualTarget, compensation: 0, avgDelta: 0 }
+  if (!deltaHistory || deltaHistory.length === 0) {
+    if (actualTemp == null) {
+      console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar compensation=0`)
+      return { ctrlTargetPid: actualTarget, compensation: 0, avgDelta: 0 }
+    }
   }
 
   if (absDelta < 0.1) {
-    // Sensors are synced (or single sensor) — no delta compensation needed
-    // but still run PI-loop for error correction
-    console.log(`✅ PID ${controllerName}: delta ${avgDelta.toFixed(2)}°C < 0.1 — hoppar delta-komp, kör PI`)
+    console.log(`✅ PID ${controllerName}: sensorΔ ${avgDelta.toFixed(2)}°C < 0.1 — kör PI utan sensorkorrigering`)
   }
 
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
@@ -171,30 +162,11 @@ export async function calculateCompensatedTarget(
     }
   }
 
-  // Target average: compensate by half the delta, scaled by damping factor
-  // === Approach Zone: anticipate that delta will shrink as we near the target ===
-  const latestPillForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? actualTarget)
+  // Sensor compensation: pure geometric correction from dual-sensor module.
+  // Always applied at 100% — no approach zone or D-term scaling on the delta.
+  // The dual-sensor formula (pill-probe)/2 is the single source of truth.
+  const compensation = avgDelta
   const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? actualTarget)
-  const currentAvgForComp = actualTemp ?? (latestPillForComp + latestCtrlForComp) / 2
-  const distanceToTarget = Math.abs(currentAvgForComp - actualTarget)
-  const APPROACH_ZONE_SIZE = 8.0 // °C — within this range, start scaling down delta compensation
-  // When avg is already near target (within ±1°C), the current delta is steady-state:
-  // the compensation is what's MAINTAINING the average at target.
-  // Don't scale it down — that would cause avg to drift away.
-  const isAtTarget = distanceToTarget < 1.0
-  const approachScale = isAtTarget ? 1.0 : Math.min(1.0, Math.max(0.3, distanceToTarget / APPROACH_ZONE_SIZE))
-  
-  const rawCompensation = avgDelta
-  let compensation = rawCompensation * dampingFactor * approachScale
-  
-  if (approachScale < 1.0) {
-    constraints.push(`approach=${approachScale.toFixed(2)}`)
-    console.log(`🛑 Approach zone ${controllerName}: avstånd=${distanceToTarget.toFixed(1)}°C till mål=${actualTarget}°C, approachScale=${approachScale.toFixed(2)} — anticiperar att delta (${avgDelta.toFixed(1)}°C) kommer minska`)
-  }
-  
-  // Delta-compensation adjusts controller target so avg(pill,probe) = actualTarget.
-  // It should always apply when there's a meaningful delta — the D-term damping
-  // and approach-zone scaling already handle convergence safely.
 
   // === Adaptive PI-term ===
   const deltaBucket = absDelta > 3 ? 'high' : absDelta > 1.5 ? 'medium' : 'low'
@@ -300,13 +272,10 @@ export async function calculateCompensatedTarget(
     // to maintain the equilibrium (e.g., target 8°C with delta 1.7°C → hw target 6.3°C).
     const decayedIntegral = persistedIntegral * 0.9
     
-    // Delta compensation: offset hardware target so avg(pill,probe) stays at actualTarget
-    const deadbandCompensation = absDelta >= 0.1 ? compensation : 0
-    const deadbandCtrlTarget = absDelta >= 0.1
-      ? Math.round((actualTarget - deadbandCompensation) * 10) / 10
-      : ctrlTarget
+    // Sensor compensation maintains the probe offset so avg(pill,probe) stays at target
+    const deadbandCtrlTarget = Math.round((actualTarget - compensation) * 10) / 10
     
-    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (±0.1° = vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C${absDelta >= 0.1 ? ` (delta-komp: ${avgDelta.toFixed(1)}°C)` : ''}`)
+    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C (sensorΔ=${avgDelta.toFixed(1)}°C)`)
 
     await supabase.from('controller_learned_compensation').upsert({
       controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -317,7 +286,7 @@ export async function calculateCompensatedTarget(
     }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
     constraints.push('deadband')
 
-    return { ctrlTargetPid: deadbandCtrlTarget, compensation: deadbandCompensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
+    return { ctrlTargetPid: deadbandCtrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
   } else if (avgError >= 0.35) {
     // === UNDERSHOOT ===
     pCorrection = avgError * mp.pGain
@@ -446,10 +415,10 @@ export async function calculateCompensatedTarget(
     const totalCompApplied = Math.abs(actualTarget - ctrlTarget)
     if (totalCompApplied > 0.1) {
       const alpha = convergenceCount < 5 ? mp.convergenceAlpha0 : mp.convergenceAlphaN
-      const absRawComp = Math.abs(rawCompensation * dampingFactor)
+      const absSensorComp = Math.abs(avgDelta)
       const newLearned = learnedBaseline > 0
-        ? learnedBaseline * (1 - alpha) + (absRawComp > 0 ? totalCompApplied - absRawComp : 0) * alpha
-        : Math.max(0, totalCompApplied - absRawComp)
+        ? learnedBaseline * (1 - alpha) + (absSensorComp > 0 ? totalCompApplied - absSensorComp : 0) * alpha
+        : Math.max(0, totalCompApplied - absSensorComp)
       const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
       
       await supabase.from('controller_learned_compensation').upsert({
@@ -564,28 +533,16 @@ export async function calculateCompensatedTarget(
     }
     
     const rampDirectionConflict = isRampStep && !overshootRelease && (
-      (mode === 'cooling' && isIncreasing) ||  // downward ramp but pushing target up
-      (mode === 'heating' && !isIncreasing)     // upward ramp but pushing target down
+      (mode === 'cooling' && isIncreasing) ||
+      (mode === 'heating' && !isIncreasing)
     )
-    const approachRelease = approachScale < 1.0 && isTowardTarget && !rampDirectionConflict
-    const bypassLimit = approachRelease ? Math.max(baseLimit, effectiveMaxRate * 0.8) : baseLimit
     
-    if (rampDirectionConflict && isTowardTarget && approachScale < 1.0) {
-      // During ramp: hold current target, let ramp bring profile down/up naturally
+    if (rampDirectionConflict && isTowardTarget) {
       ctrlTargetPid = ctrlTarget
       constraints.push('ramp-hold')
-      console.log(`🛑 Ramp hold ${controllerName}: approach zone aktiv men ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C (låter rampen komma ikapp)`)
-    } else if (isTowardTarget && (distanceFromIdeal <= 0.5 || approachRelease)) {
-      if (distanceFromIdeal <= 0.5) {
-        // Small change toward target — bypass rate limit entirely (0.5° is safe)
-        console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → actual_target ${actualTarget}°)${approachRelease ? ' [approach zone]' : ''}`)
-      } else if (distanceFromIdeal <= bypassLimit) {
-        console.log(`✅ Rate-limit bypass: inom bypassLimit (${distanceFromIdeal.toFixed(2)}° ≤ ${bypassLimit.toFixed(2)}° → actual_target ${actualTarget}°) [approach zone]`)
-      } else {
-        ctrlTargetPid = ctrlTarget + (isIncreasing ? bypassLimit : -bypassLimit)
-        constraints.push('approach-release')
-        console.log(`🎯 Approach release (${isIncreasing ? '↑' : '↓'}): ${bypassLimit.toFixed(2)}°C/cykel mot actual_target ${actualTarget}°C (approach zone fast-release)`)
-      }
+      console.log(`🛑 Ramp hold ${controllerName}: ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C`)
+    } else if (isTowardTarget && distanceFromIdeal <= 0.5) {
+      console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → actual_target ${actualTarget}°)`)
     } else if (distanceFromIdeal > baseLimit) {
       // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
@@ -620,7 +577,7 @@ export async function calculateCompensatedTarget(
     return { ctrlTargetPid: ctrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
   }
 
-  console.log(`🎯 PID ${controllerName}: actual_target=${actualTarget}°C, avgDelta=${avgDelta.toFixed(2)}°C [${deltaBucket}], rawKomp=${rawCompensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, komp=${compensation.toFixed(2)}°C, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ctrl_target_pid=${ctrlTargetPid}°C (ctrl_target=${ctrlTarget}°C)`)
+  console.log(`🎯 PID ${controllerName}: actual_target=${actualTarget}°C, sensorΔ=${avgDelta.toFixed(2)}°C [${deltaBucket}], komp=${compensation.toFixed(2)}°C, damping=${dampingFactor.toFixed(2)}, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ctrl_target_pid=${ctrlTargetPid}°C (ctrl_target=${ctrlTarget}°C)`)
 
   return { ctrlTargetPid, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
 }
