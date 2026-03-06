@@ -364,8 +364,11 @@ export async function calculateCompensatedTarget(
     // we still need PI to raise the probe to bring the average up.
     if (mode === 'cooling') {
       const latestPillForGuard = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : null
-      if (latestPillForGuard != null && latestPillForGuard > baseTarget + 0.3 && errorCorrection > 0) {
-        console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > baseTarget ${baseTarget}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
+      // Pill's virtual target = mirror of baseTarget in pill domain
+      // baseTarget is adjusted DOWN for probe → pill target is adjusted UP by same amount
+      const pillVirtualTarget = profileTarget + (profileTarget - baseTarget)
+      if (latestPillForGuard != null && latestPillForGuard > pillVirtualTarget + 0.3 && errorCorrection > 0) {
+        console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > pillMål ${pillVirtualTarget.toFixed(1)}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
         errorCorrection = 0
         constraints.push('pill-guard')
       }
