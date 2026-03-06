@@ -424,17 +424,26 @@ serve(async (req) => {
 
     // ── Add pending retries to the batch (before new adjustments) ──
     for (const retry of retriesToProcess) {
-      // Only retry if the controller still exists and the current target differs
       const ctrl = allControllers.find(c => c.controller_id === retry.controller_id);
-      if (ctrl && Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
+      const isPwmRevert = retry.reason.includes('PWM OFF');
+
+      if (!ctrl) {
+        await supabase.from('pending_rapt_retries').delete().eq('id', retry.id);
+        continue;
+      }
+
+      if (isPwmRevert) {
+        // PWM OFF reverts: hardware is at 0°C but DB has the real target.
+        // Always send to hardware (hardware-only) since DB is already correct.
+        updateBatch.addHardwareOnly(retry.controller_id, retry.target_temp, 0);
+        log('RETRY', 'action', `PWM OFF revert ${ctrl.name}: hw 0° → ${retry.target_temp}°C (db oförändrad)`);
+      } else if (Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
         updateBatch.add(retry.controller_id, retry.target_temp, ctrl.target_temp ?? undefined);
         log('RETRY', 'action', `Retrying ${ctrl.name}: → ${retry.target_temp}°C (attempt ${retry.attempts + 1}, reason: ${retry.reason.slice(0, 60)})`);
       } else {
         // Target already matches or controller gone — clean up
         await supabase.from('pending_rapt_retries').delete().eq('id', retry.id);
-        if (ctrl) {
-          log('RETRY', 'pass', `Retry no longer needed for ${ctrl.name} (target already ${ctrl.target_temp}°C)`);
-        }
+        log('RETRY', 'pass', `Retry no longer needed for ${ctrl.name} (target already ${ctrl.target_temp}°C)`);
       }
     }
 
