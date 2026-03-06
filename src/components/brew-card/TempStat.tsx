@@ -23,11 +23,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   const pillLastUpdate = pill?.last_update ? new Date(pill.last_update).getTime() : 0;
   const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
 
-  // Use pill temp only if pill exists AND data is fresh; otherwise fall back to controller probe
-  const pillTemp = (pill && !isPillStale) ? brew.currentTemp : null;
+  // Pill temp: prefer controller's pill_temp (synced with RAPT, always fresh when controller is online)
+  // Fall back to brew.currentTemp from Brewfather pill if available
+  const pillTemp = controller?.pill_temp ?? ((pill && !isPillStale) ? brew.currentTemp : null);
   const probeTemp = controller?.current_temp ?? null;
   // Always show fused (average) temp when both sensors are available — matches dual-sensor logic
-  // This is the user-facing "virtual" temp, independent of PID's pillCompEnabled setting
   const displayTemp = (pillTemp != null && probeTemp != null)
     ? (pillTemp + probeTemp) / 2
     : (probeTemp ?? pillTemp ?? brew.currentTemp);
