@@ -474,7 +474,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     //
     // The PWM OFF revert sends the PID-compensated target back to hardware.
     // Since DB target_temp was never changed, no DB update is needed on revert either.
-    if (isPwmMode && !hasPendingPwmRevert) {
+    if (isPwmMode) {
       const offTarget = round1(ctrlTargetPid)
       const onTarget = 0
 
@@ -538,12 +538,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ── No-op: PID diff too small to justify an update ──────
-    // During PWM, still check if revert target needs updating
-    if (pidDiff < 0.1 && !hasPendingPwmRevert) {
-      continue
-    }
-    if (pidDiff < 0.1 && hasPendingPwmRevert) {
-      // PID result same as DB — no revert update needed
+    if (pidDiff < 0.1) {
       continue
     }
 
@@ -572,43 +567,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       : `, D-term: rate=${pidResult.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, damp=1.0${piTermInfo}`
     const constraintInfo = pidResult.constraints && pidResult.constraints.length > 0 ? `, limits=[${pidResult.constraints.join(',')}]` : ''
 
-    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})${hasPendingPwmRevert ? ' [PWM aktiv — uppdaterar DB+revert, ej hw]' : ''}`)
-
-    // ── PWM active: update DB target + pending revert, but do NOT send to hardware ──
-    // Hardware is at 0°C during the burst; the revert will send the fresh PID target.
-    if (hasPendingPwmRevert) {
-      // Update DB target_temp so it reflects the latest PID calculation
-      await supabase.from('rapt_temp_controllers')
-        .update({ target_temp: ctrlTargetPid, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
-
-      // Update pending revert to use the fresh PID target
-      await supabase.from('pending_rapt_retries')
-        .update({ target_temp: ctrlTargetPid, reason: `⚡ PWM OFF: hw → ${ctrlTargetPid}° (db oförändrad)` })
-        .eq('controller_id', fc.controller_id)
-        .like('reason', '%PWM OFF%')
-
-      log('PID_PWM_UPDATE', 'pass', `${fc.name}: DB+revert uppdaterat → ${ctrlTargetPid}°C (hw fortfarande 0° — väntar på PWM OFF)`)
-      adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: ctrlTargetPid })
-
-      await logAdjustment(supabase, {
-        cooler_controller_id: fc.controller_id,
-        cooler_controller_name: fc.name,
-        old_target_temp: ctrlTarget,
-        new_target_temp: ctrlTargetPid,
-        original_target_temp: actualTarget,
-        lowest_followed_temp: actualTarget,
-        followed_controller_id: fc.controller_id,
-        followed_controller_name: fc.name,
-        followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
-        followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
-        followed_hysteresis: pidResult.avgDelta,
-        reason: `🎯 PID (PWM aktiv): ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
-        adjusted_against_timestamp: fc.last_update,
-      })
-
-      continue
-    }
+    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
 
     // Queue update in batch (or send immediately if no batch)
     let success: boolean
