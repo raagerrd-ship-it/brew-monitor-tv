@@ -133,6 +133,7 @@ export async function setControllerTargetTemp(
         controllerId,
         action: 'setTargetTemperature',
         value: targetTemp,
+        source: 'automation',
         ...(accessToken ? { access_token: accessToken } : {}),
       }),
       signal: AbortSignal.timeout(timeoutMs),
