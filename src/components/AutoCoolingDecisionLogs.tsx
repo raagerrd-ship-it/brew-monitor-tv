@@ -1153,9 +1153,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         {lastUpdate || '—'}
                       </td>
                     </tr>
-                    {pillData && (
+                    {pillData && (() => {
+                      const pillLastUpdate = pillDet.last_update as string | null;
+                      const pillIsStale = (() => {
+                        if (!pillLastUpdate) return true;
+                        try {
+                          const pillDate = new Date(pillLastUpdate);
+                          return Date.now() - pillDate.getTime() > 30 * 60 * 1000;
+                        } catch { return false; }
+                      })();
+                      return (
                       <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
-                        <td colSpan={9} className="py-1 px-1.5 pl-4">
+                        <td colSpan={8} className="py-1 px-1.5 pl-4">
                           <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
                             <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                               <Pill className="h-2.5 w-2.5" />
@@ -1169,8 +1178,22 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                             )}
                           </div>
                         </td>
+                        <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
+                          <span className="flex items-center justify-end gap-1">
+                            {pillIsStale && (
+                              <TooltipProvider delayDuration={200}><Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
+                              </Tooltip></TooltipProvider>
+                            )}
+                            {pillLastUpdate || '—'}
+                          </span>
+                        </td>
                       </tr>
-                    )}
+                      );
+                    })()}
                   </React.Fragment>
                 );
               })}
