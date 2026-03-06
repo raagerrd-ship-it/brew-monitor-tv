@@ -663,9 +663,8 @@ serve(async (req) => {
           if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
           console.log(`Updated custom brew ${brew.name} with ${uniqueNewData.length} new data points`);
 
-          if (uniqueNewData.length > 0) {
-            pendingSnapshots.push({ brewId: brew.id, controllerId: brew.linked_controller_id, sgData: mergedSgData });
-          }
+          // Always push snapshot — even with 0 new SG points, controller temp/PID/target change each cycle
+          pendingSnapshots.push({ brewId: brew.id, controllerId: brew.linked_controller_id, sgData: mergedSgData });
           customBrewsUpdated++;
           
           // Run SG calibration learning only when correction is enabled
