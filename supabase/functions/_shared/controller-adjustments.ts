@@ -288,18 +288,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // ── PWM lock flag: if controller is in active PWM cycle, PID still calculates
-    // and updates DB + revert target, but does NOT send to hardware.
-    // This ensures the revert target is always fresh (not stale from when PWM started).
+    // ── PWM lock: skip PID entirely during active PWM cycles ──
+    // Hardware is at 0°C during the burst, so probe temp is artificially dropping.
+    // Running PID on this transient state produces a falsely aggressive target.
+    // The revert target was set when PWM was initiated and should remain unchanged.
     const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
+    if (hasPendingPwmRevert) {
+      log('PID_SKIP', 'info', `${fc.name}: PWM burst active — skipping PID (revert=${pwmRevertMap.get(fc.controller_id)}°C)`)
+      continue
+    }
 
-    // During active PWM, hardware is at 0°C and DB may have a stale target.
-    // Use the pending revert target as the PID baseline — it represents the
-    // last known good PID value. This prevents rate-limit brakes from
-    // throttling based on the stale 0°C/old hardware target.
-    const ctrlTarget = hasPendingPwmRevert
-      ? pwmRevertMap.get(fc.controller_id)!
-      : parseFloat(String(fc.target_temp ?? '20'))
+    const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
     // PID always runs every cycle — no same-data guard.
     // Even if RAPT telemetry hasn't changed, the PID integral and learned
