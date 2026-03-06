@@ -433,11 +433,20 @@ serve(async (req) => {
       }
 
       if (isPwmRevert) {
-        // PWM OFF reverts are now handled by run-automation (sleep + OFF).
-        // Skip here — the pending entry is kept as fallback only.
-        // If run-automation handled it, the pending was already deleted.
-        log('RETRY', 'pass', `PWM OFF revert ${ctrl.name}: skipping — handled by run-automation sleep+OFF`);
-        continue;
+        // PWM OFF reverts are normally handled by run-automation (sleep + OFF).
+        // Only process here as FALLBACK if the pending is stale (>6 min = run-automation failed).
+        const pendingAge = Date.now() - new Date(retry.created_at).getTime();
+        const STALE_THRESHOLD_MS = 6 * 60 * 1000; // 6 minutes
+
+        if (pendingAge < STALE_THRESHOLD_MS) {
+          // Fresh pending — run-automation will handle it
+          log('RETRY', 'pass', `PWM OFF revert ${ctrl.name}: skipping — run-automation handles sleep+OFF (age ${Math.round(pendingAge/1000)}s)`);
+          continue;
+        }
+
+        // Stale pending — run-automation failed, process as fallback
+        updateBatch.addHardwareOnly(retry.controller_id, retry.target_temp, 0);
+        log('RETRY', 'action', `PWM OFF revert ${ctrl.name}: FALLBACK hw 0° → ${retry.target_temp}°C (stale ${Math.round(pendingAge/1000)}s, run-automation missed)`);
       } else if (Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
         updateBatch.add(retry.controller_id, retry.target_temp, ctrl.target_temp ?? undefined);
         log('RETRY', 'action', `Retrying ${ctrl.name}: → ${retry.target_temp}°C (attempt ${retry.attempts + 1}, reason: ${retry.reason.slice(0, 60)})`);
