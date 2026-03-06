@@ -462,6 +462,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // ON is sent immediately via updateBatch. OFF is stored as a pending revert
     // in pending_rapt_retries and handled by auto-adjust-cooling next cycle.
     // This eliminates the need for sleeping inside edge functions (timeout-safe).
+    //
+    // CRITICAL: If a PWM OFF revert is pending, we MUST let it execute first.
+    // Otherwise the new ON command overwrites the revert in the same batch,
+    // and the controller stays at 0°C forever.
+    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
+    if (isPwmMode && hasPendingPwmRevert) {
+      log('PWM_SKIP', 'info', `${fc.name}: Skipping PWM ON — pending OFF revert must execute first (revert → ${pwmRevertMap.get(fc.controller_id)}°)`)
+      // Let the revert (already added to batch by retry logic) go through.
+      // Next cycle, PWM can re-engage if still in steady state.
+      continue
+    }
     if (isPwmMode) {
       const offTarget = round1(ctrlTargetPid)
       const onTarget = 0
