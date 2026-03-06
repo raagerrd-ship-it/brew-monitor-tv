@@ -421,7 +421,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // Heater activates when probe < target - hysteresis
       // → prevent by keeping target ≤ probe + hysteresis - buffer
       const heaterThreshold = probeTemp + heatingHyst - 0.1
-      const avgError = actualTarget - actualTemp
+      const avgError = dualSensor.baseTarget - actualTemp
       const isHoldingStable = Math.abs(avgError) < 1.0
 
       if (isHoldingStable && ctrlTargetPid > heaterThreshold) {
