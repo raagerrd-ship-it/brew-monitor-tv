@@ -384,10 +384,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     const pidResult = await calculateCompensatedTarget(
-      supabase, fc.controller_id, actualTarget, ctrlTarget,
+      supabase, fc.controller_id, dualSensor.baseTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
       actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment,
-      sensorDelta,
     )
 
     // Safety bounds — respect hardware min/max strictly
@@ -452,7 +451,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       i_correction: round1(pidResult.iCorrection ?? 0),
       learned_baseline: round1(pidResult.learnedBaseline ?? 0),
       damping: round1(pidResult.dampingFactor),
-      raw_ctrl_target_pid: round1(actualTarget - pidResult.compensation + (pidResult.errorCorrection ?? 0)),
+      raw_ctrl_target_pid: round1(dualSensor.baseTarget + (pidResult.errorCorrection ?? 0)),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
