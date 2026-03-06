@@ -458,6 +458,7 @@ serve(async (req) => {
     };
 
     const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = []; // kept for type compat
+    const baseTargetMap = new Map<string, number>();
 
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
@@ -467,6 +468,7 @@ serve(async (req) => {
       stallSettings, log,
       updateBatch,
       pwmBursts,
+      baseTargetMap,
     };
 
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
@@ -482,6 +484,7 @@ serve(async (req) => {
         allControllers, followedControllersFullData, followedControllerIds,
         settings: { id: settings.id, last_check_at: settings.last_check_at }, log,
         updateBatch,
+        baseTargetMap,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);

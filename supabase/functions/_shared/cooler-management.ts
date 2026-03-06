@@ -39,6 +39,9 @@ export interface CoolerContext {
   updateBatch?: RaptUpdateBatch
   /** Set by runCoolerCooling when a kick is queued — caller must set DB flag after flush succeeds */
   pendingKickControllerId?: string
+  /** Maps controller_id → dual-sensor baseTarget (grundmål).
+   *  Cooler plans against this stable target instead of the PID-fluctuating target_temp. */
+  baseTargetMap?: Map<string, number>
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -358,11 +361,12 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     // Check if any tank's learned warming rate predicts it'll need cooling within 15 min
     let keepCoolerReady = false
     for (const c of controllersWithCooling) {
-      const cTempBucket = getTempBucket(parseFloat(String(c.target_temp ?? '20')))
+      const cBaseTarget = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
+      const cTempBucket = getTempBucket(cBaseTarget)
       const warmingParam = await getLearnedParam(supabase, c.controller_id, `warming_rate:${cTempBucket}`, -1)
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
         const probeTemp = parseFloat(String(c.current_temp ?? '0'))
-        const targetTemp = parseFloat(String(c.target_temp ?? '999'))
+        const targetTemp = cBaseTarget
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
         const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
         if (headroom > 0) {
@@ -767,18 +771,23 @@ interface EffectiveTarget {
 function resolveEffectiveLowestTarget(ctx: CoolerContext, controllersWithCooling: TempController[], cache: ProfileCache): EffectiveTarget {
   const { log } = ctx
 
-  // Start with the static lowest probe target
+  // Helper: get the stable baseTarget (grundmål) for a controller.
+  // Falls back to target_temp if no baseTarget is available (e.g. no active session).
+  const getBaseTarget = (c: TempController): number =>
+    ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
+
+  // Start with the static lowest baseTarget (not PID-adjusted target_temp)
   const lowestStatic = controllersWithCooling.reduce((lowest, c) => {
-    const t = parseFloat(String(c.target_temp ?? '999'))
-    const lt = parseFloat(String(lowest.target_temp ?? '999'))
+    const t = getBaseTarget(c)
+    const lt = getBaseTarget(lowest)
     return t < lt ? c : lowest
   })
 
   let result: EffectiveTarget = {
-    temp: parseFloat(String(lowestStatic.target_temp ?? '999')),
+    temp: getBaseTarget(lowestStatic),
     controllerName: lowestStatic.name,
     controllerId: lowestStatic.controller_id,
-    source: 'probe target',
+    source: 'baseTarget',
     isRampingDown: false,
     requiredRatePerHour: null,
   }
@@ -897,14 +906,18 @@ async function learnFromCurrentState(
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
   const currentMargin = Math.abs(effectiveTarget.temp - currentCoolerTarget)
 
+  // Use baseTarget (grundmål) for margin learning — stable and not affected by PI fluctuations
+  const getBaseTarget = (c: TempController): number =>
+    ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
+
   const lowestController = controllersWithCooling.reduce((lowest, c) => {
-    const t = parseFloat(String(c.target_temp ?? '999'))
-    const lt = parseFloat(String(lowest.target_temp ?? '999'))
+    const t = getBaseTarget(c)
+    const lt = getBaseTarget(lowest)
     return t < lt ? c : lowest
   })
 
   const probeTemp = parseFloat(String(lowestController.current_temp ?? '999'))
-  const targetTemp = parseFloat(String(lowestController.target_temp ?? '999'))
+  const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
   // ── Measure actual cooling rate from history (last 30 min) ──
@@ -1043,7 +1056,7 @@ async function learnWarmingRate(
 
   for (const c of controllersWithCooling) {
     // Use the controller's own target temp for bucket, not the cooler's
-    const controllerBucket = getTempBucket(parseFloat(String(c.target_temp ?? '20')))
+    const controllerBucket = getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20')))
     const rate = await measureCoolingRate(supabase, c.controller_id)
     // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
     if (rate !== null && rate < -0.05) {
