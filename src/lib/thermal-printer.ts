@@ -419,25 +419,20 @@ export async function sendRasterJob(
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x02, 0x00]), 'start-job');
     await delay(200);
 
-    if (settings.mediaType === 'gap') {
-      await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x0e, 0x01]), 'gap-mode');
-      await delay(200);
-    } else {
-      const mc = mediaTypeCode(settings.mediaType);
-      if (mc !== null) {
-        await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media-type');
-        await delay(200);
-      }
+    const mc = mediaTypeCode(settings.mediaType);
+    if (mc !== null) {
+      await bleWrite(connection, new Uint8Array([0x1f, 0x11, mc]), 'media-type');
+      await delay(300);
     }
 
     if (settings.sendSpeed) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x0d, Math.max(1, Math.min(5, settings.speed))]), 'speed');
-      await delay(100);
+      await delay(300);
     }
 
     if (settings.sendDensity) {
       await bleWrite(connection, new Uint8Array([0x1b, 0x4e, 0x04, Math.max(1, Math.min(15, settings.density))]), 'density');
-      await delay(100);
+      await delay(300);
     }
 
     // Margin/position reset
@@ -483,18 +478,12 @@ export async function sendRasterJob(
       },
     );
 
-    // M110 footer: feed lines then positioning commands
-    onProgress?.({ phase: `Matar papper${copyLabel}...`, percent: 95 });
-    await delay(100);
-    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines');
-    await delay(50);
-    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines-2');
-    await delay(50);
+    // Wait for printer to process raster data
+    onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
+    await delay(3000);
 
-    // Phomemo positioning/end commands
-    await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00]), 'position-1');
-    await delay(50);
-    await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x03, 0x00]), 'position-2');
+    // Form feed — advance to next gap position
+    await bleWrite(connection, new Uint8Array([0x0c]), 'form-feed');
     await delay(500);
 
     // End-job + optional ACK wait
@@ -502,7 +491,7 @@ export async function sendRasterJob(
     notify?.clear();
     await bleWrite(connection, new Uint8Array([0x1f, 0x11, 0x03, 0x00]), 'end-job');
     await notify?.waitForPacket('ACK efter end-job', 5000);
-    await delay(500);
+    await delay(600);
   } finally {
     await notify?.stop();
   }
