@@ -181,3 +181,40 @@ Nytt avsnitt "Smart Relay" med:
 - `controller-adjustments.ts`: Heater guard-golv ändrat från `actualTarget` → `ctrlTarget`
 - `stall-detection.ts`: Un-boost restore använder `boostOldTarget` (pre-boost hårdvarumål) istället för `effectiveProfileTarget`
 - `stall-detection.ts`: Loggning av `new_target_temp` vid un-boost använder `boostOldTarget` istf profilmålet
+
+---
+
+## ✅ Dual Sensor Fusion — Isolerad modul (2026-03-06)
+
+**Problem:** Sensorkompensering (pill-probe delta) var djupt sammanflätad med PID-regleringen i `pid-compensation.ts`. Termer som "delta", "compensation", "avgDelta", "rawCompensation", "approachScale" gjorde logiken svår att förstå.
+
+**Arkitektur (ny):**
+```text
+profileTarget ──→ dualSensorTarget() ──→ baseTarget ──→ PID(baseTarget) ──→ ctrlTargetPid
+                  (ren formel)                          (PI + D-term + guards)
+```
+
+**Ny fil:** `supabase/functions/_shared/dual-sensor.ts`
+- Ren funktion utan sidoeffekter: `baseTarget = profileTarget - (pill - probe) / 2`
+- `actualTemp = (pill + probe) / 2` (eller probe ?? pill om ej dual)
+- Exporterar `DualSensorResult` interface
+
+**Refaktorering `pid-compensation.ts`:**
+- Tar emot `sensorDelta` parameter (från dual-sensor)
+- `compensation = sensorDelta` (ren, ingen approach zone eller D-term-skalning)
+- Borttaget: approach zone (`approachScale`, `APPROACH_ZONE_SIZE`, `distanceToTarget`)
+- Borttaget: `rawCompensation`, `deadbandCompensation`
+- D-term damping kvarstår enbart på `errorCorrection` (PI-loop)
+- Formel i logg: `Profil − Δ(sensor) + PI = Mål`
+
+**Refaktorering `controller-adjustments.ts`:**
+- Anropar `computeDualSensorTarget()` före PID
+- Skickar `sensorDelta` till PID
+- `effectiveDelta` = ren `sensorDelta` (ingen bakåtberäkning)
+- Loggfält: `sensor_delta` ersätter `raw_delta`/`raw_compensation`
+
+**Filer:**
+- **NY** `supabase/functions/_shared/dual-sensor.ts`
+- **ÄNDRAD** `supabase/functions/_shared/pid-compensation.ts`
+- **ÄNDRAD** `supabase/functions/_shared/controller-adjustments.ts`
+- **ÄNDRAD** `supabase/functions/_shared/temp-utils.ts` (re-exports)
