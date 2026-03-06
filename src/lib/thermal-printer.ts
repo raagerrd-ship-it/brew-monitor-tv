@@ -480,17 +480,17 @@ export async function sendRasterJob(
 
     // M110 footer: feed lines then positioning commands
     onProgress?.({ phase: `Matar papper${copyLabel}...`, percent: 95 });
-    await delay(200);
+    await delay(100);
     await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines');
-    await delay(100);
+    await delay(50);
     await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines-2');
-    await delay(100);
+    await delay(50);
 
     // Phomemo positioning/end commands
     await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00]), 'position-1');
-    await delay(100);
+    await delay(50);
     await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x03, 0x00]), 'position-2');
-    await delay(1000);
+    await delay(500);
 
     // End-job + optional ACK wait
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
