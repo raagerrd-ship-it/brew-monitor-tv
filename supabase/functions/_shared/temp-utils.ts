@@ -298,32 +298,44 @@ export class RaptUpdateBatch {
         return resultMap
       }
 
-      try {
-        const formData = new URLSearchParams()
-        formData.append('client_id', 'rapt-user')
-        formData.append('grant_type', 'password')
-        formData.append('username', RAPT_USERNAME)
-        formData.append('password', RAPT_API_SECRET)
+      // Auth with retry (3 attempts)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const formData = new URLSearchParams()
+          formData.append('client_id', 'rapt-user')
+          formData.append('grant_type', 'password')
+          formData.append('username', RAPT_USERNAME)
+          formData.append('password', RAPT_API_SECRET)
 
-        const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io'
-        const authRes = await fetch(`${authBaseUrl}/connect/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData.toString(),
-          signal: AbortSignal.timeout(15000),
-        })
+          const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io'
+          const authRes = await fetch(`${authBaseUrl}/connect/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString(),
+            signal: AbortSignal.timeout(15000),
+          })
 
-        if (!authRes.ok) {
-          const errText = await authRes.text()
-          console.error(`RAPT batch auth failed: ${authRes.status} ${errText}`)
-          for (const p of this.pending) resultMap.set(p.controllerId, false)
-          return resultMap
+          if (!authRes.ok) {
+            const errText = await authRes.text()
+            console.error(`RAPT batch auth attempt ${attempt}/3 failed: ${authRes.status} ${errText}`)
+          } else {
+            const authData = await authRes.json()
+            accessToken = authData.access_token
+            if (attempt > 1) console.log(`🔑 RAPT auth succeeded on attempt ${attempt}/3`)
+            break
+          }
+        } catch (authErr) {
+          console.error(`RAPT batch auth attempt ${attempt}/3 error:`, authErr)
         }
+        if (attempt < 3) {
+          const delay = attempt * 2000 // 2s, 4s
+          console.log(`⏳ Retrying RAPT auth in ${delay/1000}s...`)
+          await new Promise(r => setTimeout(r, delay))
+        }
+      }
 
-        const authData = await authRes.json()
-        accessToken = authData.access_token
-      } catch (authErr) {
-        console.error('RAPT batch auth error:', authErr)
+      if (!accessToken) {
+        console.error('RAPT batch auth failed after 3 attempts')
         for (const p of this.pending) resultMap.set(p.controllerId, false)
         return resultMap
       }
@@ -331,26 +343,36 @@ export class RaptUpdateBatch {
       console.log('🔑 Using pre-authenticated RAPT token for batch flush')
     }
 
-    // Fire all updates in parallel
+    // Fire all updates in parallel, each with retry (3 attempts)
     const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io'
     const results = await Promise.allSettled(
       this.pending.map(async ({ controllerId, targetTemp }) => {
         const url = `${apiBaseUrl}/api/TemperatureControllers/SetTargetTemperature?temperatureControllerId=${encodeURIComponent(controllerId)}&target=${targetTemp}`
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(timeoutMs),
-        })
 
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`RAPT API ${res.status}: ${errText}`)
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(timeoutMs),
+            })
+
+            if (!res.ok) {
+              const errText = await res.text()
+              console.error(`RAPT API attempt ${attempt}/3 for ${controllerId}: ${res.status} ${errText}`)
+            } else {
+              await res.json()
+              if (attempt > 1) console.log(`✅ ${controllerId} succeeded on attempt ${attempt}/3`)
+              return { controllerId, success: true }
+            }
+          } catch (err) {
+            console.error(`RAPT API attempt ${attempt}/3 for ${controllerId}: ${err}`)
+          }
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, attempt * 1500)) // 1.5s, 3s
+          }
         }
-
-        // RAPT API returns true for actual change, false for no-op (already at target)
-        // Both are successful — the hardware is at the desired temperature
-        await res.json()
-        return { controllerId, success: true }
+        throw new Error(`All 3 attempts failed for ${controllerId}`)
       })
     )
 
