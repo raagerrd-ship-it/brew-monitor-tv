@@ -883,24 +883,26 @@ async function learnFromCurrentState(
 ): Promise<void> {
   const { supabase, log } = ctx
 
-  // ── Skip learning during PWM ON phases — targets are temporary ──
+  // ── Only learn when at least one controller is actively cooling ──
+  // If no tank has active demand, the observed margin is meaningless
+  const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
+  if (!anyActive) {
+    // ── Learn warming rate + duty cycle even during PWM — these use probe history, not hardware targets ──
+    await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
+    log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — ingen controller kyler aktivt`)
+    return
+  }
+
+  // ── Skip margin/cooling-rate learning during PWM ON phases — targets are temporary ──
   const { data: activePwmReverts } = await supabase
     .from('pending_rapt_retries')
     .select('controller_id')
     .like('reason', '%PWM OFF%')
     .limit(1)
   if (activePwmReverts && activePwmReverts.length > 0) {
-    log('MARGIN_LEARN', 'info', `Hoppar inlärning — PWM-burst aktiv (temporära mål)`)
-    return
-  }
-
-  // ── Only learn when at least one controller is actively cooling ──
-  // If no tank has active demand, the observed margin is meaningless
-  const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
-  if (!anyActive) {
-    // ── Learn warming rate when no controller is actively cooling ──
+    // Still learn warming rate + duty cycle — PWM only affects hardware target, not thermal behavior
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
-    log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — ingen controller kyler aktivt`)
+    log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (duty cycle uppdateras separat)`)
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
