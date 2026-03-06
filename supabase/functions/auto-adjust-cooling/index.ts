@@ -433,10 +433,11 @@ serve(async (req) => {
       }
 
       if (isPwmRevert) {
-        // PWM OFF reverts: hardware is at 0°C but DB has the real target.
-        // Always send to hardware (hardware-only) since DB is already correct.
-        updateBatch.addHardwareOnly(retry.controller_id, retry.target_temp, 0);
-        log('RETRY', 'action', `PWM OFF revert ${ctrl.name}: hw 0° → ${retry.target_temp}°C (db oförändrad)`);
+        // PWM OFF reverts are now handled by run-automation (sleep + OFF).
+        // Skip here — the pending entry is kept as fallback only.
+        // If run-automation handled it, the pending was already deleted.
+        log('RETRY', 'pass', `PWM OFF revert ${ctrl.name}: skipping — handled by run-automation sleep+OFF`);
+        continue;
       } else if (Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
         updateBatch.add(retry.controller_id, retry.target_temp, ctrl.target_temp ?? undefined);
         log('RETRY', 'action', `Retrying ${ctrl.name}: → ${retry.target_temp}°C (attempt ${retry.attempts + 1}, reason: ${retry.reason.slice(0, 60)})`);
