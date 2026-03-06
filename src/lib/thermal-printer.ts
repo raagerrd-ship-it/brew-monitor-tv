@@ -478,15 +478,19 @@ export async function sendRasterJob(
       },
     );
 
-    // Wait for printer to finish processing raster data
-    onProgress?.({ phase: `Väntar på utskrift${copyLabel}...`, percent: 95 });
+    // M110 footer: feed lines to advance past printed area, then positioning commands
+    onProgress?.({ phase: `Matar papper${copyLabel}...`, percent: 95 });
+    await delay(300);
+    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines');
+    await delay(200);
+    await bleWrite(connection, new Uint8Array([0x1b, 0x64, 0x02]), 'feed-2-lines-2');
+    await delay(200);
+
+    // Phomemo positioning/end commands (from reverse-engineered M110 protocol)
+    await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x05, 0x00]), 'position-1');
+    await delay(200);
+    await bleWrite(connection, new Uint8Array([0x1f, 0xf0, 0x03, 0x00]), 'position-2');
     await delay(1500);
-
-    // Form feed triggers gap detection — must come after print is done but before paper stops
-    await bleWrite(connection, new Uint8Array([0x0c]), 'form-feed');
-
-    // Wait for printer to seek gap and stop
-    await delay(2000);
 
     // End-job + optional ACK wait
     onProgress?.({ phase: `Avslutar${copyLabel}...`, percent: 96 });
