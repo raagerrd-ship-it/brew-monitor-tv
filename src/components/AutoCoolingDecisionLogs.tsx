@@ -1155,10 +1155,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                     </tr>
                     {pillData && (() => {
                       const pillLastUpdate = pillDet.last_update as string | null;
+                      const pillLastUpdateRaw = pillDet.last_update_raw as string | null;
                       const pillIsStale = (() => {
-                        if (!pillLastUpdate) return true;
+                        const raw = pillLastUpdateRaw || pillLastUpdate;
+                        if (!raw) return true;
                         try {
-                          const pillDate = new Date(pillLastUpdate);
+                          const pillDate = new Date(raw);
+                          if (isNaN(pillDate.getTime())) return true;
                           return Date.now() - pillDate.getTime() > 30 * 60 * 1000;
                         } catch { return false; }
                       })();
