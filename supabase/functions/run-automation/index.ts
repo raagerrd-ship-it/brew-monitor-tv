@@ -72,9 +72,9 @@ Deno.serve(async (req) => {
       .or("cooling_enabled.eq.true,heating_enabled.eq.true")
       .not("is_glycol_cooler", "eq", true)
       .limit(1),
-    // Check if cooler is already in idle (target ~18°C) to allow skipping
+    // Check if cooler is already in idle to allow skipping
     supabase.from("rapt_temp_controllers")
-      .select("target_temp")
+      .select("target_temp, max_target_temp")
       .eq("is_glycol_cooler", true)
       .limit(1),
   ]);
@@ -84,9 +84,10 @@ Deno.serve(async (req) => {
   const hasCooling = settings?.enabled;
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
   const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
-  // Cooler is idle if the DB target matches idle temp (set by applyCoolerTarget after RAPT confirmation)
-  const IDLE_TEMP = 18;
-  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - IDLE_TEMP) <= 0.5;
+  const coolerMaxTemp = coolerStatus?.[0]?.max_target_temp != null ? parseFloat(String(coolerStatus[0].max_target_temp)) : 25;
+  // Idle temp is min(18, coolerMaxTemp) — same logic as cooler-management.ts
+  const idleTemp = Math.min(18, coolerMaxTemp);
+  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - idleTemp) <= 0.5;
 
   // ============================================================
   // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
