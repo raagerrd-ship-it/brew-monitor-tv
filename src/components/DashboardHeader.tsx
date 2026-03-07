@@ -5,6 +5,7 @@ import { Clock } from "./Clock";
 import { memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
+import { getActualTemp } from "@/lib/temp-display";
 import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
@@ -279,12 +280,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    )}
 
                    {(() => {
-                     const probeTemp = controller.current_temp;
-                     const pillT = controller.pill_temp;
-                     const hasBoth = probeTemp != null && pillT != null;
-                     const displayTemp = pillCompEnabled && hasBoth
-                       ? (probeTemp + pillT) / 2
-                       : probeTemp;
+                     const displayTemp = getActualTemp(controller.pill_temp, controller.current_temp, pillCompEnabled);
                      return (
                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
                        fontSize: isMobile ? undefined : '16px',
