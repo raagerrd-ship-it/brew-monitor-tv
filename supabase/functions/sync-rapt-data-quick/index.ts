@@ -206,7 +206,7 @@ serve(async (req) => {
       // Get auth token (use passed token if available)
       const tAuth = Date.now();
       access_token = passedToken || await getRaptToken();
-      console.log(`⏱️ RAPT auth: ${Date.now() - tAuth}ms`);
+      console.log(`TIMING RAPT auth: ${Date.now() - tAuth}ms`);
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
       const tFetch = Date.now();
@@ -214,7 +214,7 @@ serve(async (req) => {
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
-      console.log(`⏱️ RAPT fetch pills+controllers: ${Date.now() - tFetch}ms`);
+      console.log(`TIMING RAPT fetch pills+controllers: ${Date.now() - tFetch}ms`);
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
