@@ -891,7 +891,7 @@ serve(async (req) => {
         if (pillInfo) {
           syncDecisions.push({ step: 'BREW_SG_STATUS', result: 'info', message: `Controller: ${cu.name}`, details: {
             pill_name: pillInfo.name,
-            current_sg: pillInfo.gravity != null ? Math.round(pillInfo.gravity * 10000) / 10000 : null,
+            current_sg: pillInfo.gravity != null ? Math.round((pillInfo.gravity > 100 ? pillInfo.gravity / 1000 : pillInfo.gravity) * 10000) / 10000 : null,
             battery: pillInfo.battery,
             pill_temp: pillInfo.temp != null ? Math.round(pillInfo.temp * 10) / 10 : null,
             last_update: pillInfo.last_update ? new Date(pillInfo.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
