@@ -9,8 +9,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// ── Inlined RAPT auth (saves 1 HTTP hop) ──
-async function getRaptToken(): Promise<string> {
+// ── Inlined RAPT auth with DB token cache ──
+async function getRaptToken(supabase?: any): Promise<string> {
+  // Try cached token first (valid if expires > 2 min from now)
+  if (supabase) {
+    try {
+      const { data: cached } = await supabase
+        .from('rapt_token_cache')
+        .select('access_token, expires_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cached?.access_token && cached?.expires_at) {
+        const expiresAt = new Date(cached.expires_at).getTime();
+        if (expiresAt > Date.now() + 2 * 60 * 1000) {
+          console.log('🔑 Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
+          return cached.access_token;
+        }
+      }
+    } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
+  }
+
   const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
   const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
   if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
@@ -34,6 +53,16 @@ async function getRaptToken(): Promise<string> {
     throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
   }
   const data = await res.json();
+
+  // Cache the new token
+  if (supabase && data.expires_in) {
+    const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+    supabase.from('rapt_token_cache')
+      .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' })
+      .then(({ error }: any) => { if (error) console.error('Token cache write failed:', error); });
+    console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
+  }
+
   return data.access_token;
 }
 
