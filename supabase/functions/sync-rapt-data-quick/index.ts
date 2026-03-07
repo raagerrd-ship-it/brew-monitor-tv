@@ -200,7 +200,7 @@ serve(async (req) => {
     ]);
     selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
     selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
-    console.log(`⏱️ DB selected devices: ${Date.now() - t0}ms`);
+    console.log(`TIMING DB selected devices: ${Date.now() - t0}ms`);
 
     try {
       // Get auth token (use passed token if available)
