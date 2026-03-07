@@ -136,7 +136,7 @@ export async function calculateCompensatedTarget(
   let _etaMinutes: number | null = null
   const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours
 
-  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode)
+  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode, skipLearning)
 
   if (deltaHistory && deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
