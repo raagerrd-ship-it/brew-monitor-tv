@@ -607,7 +607,7 @@ export default function Settings() {
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
               <CombinedControllerChart controllers={combinedChartControllers} />
             </SettingsSection>
-            <SettingsSection icon={History} title="Justeringshistorik" description="Historik över alla automatiska justeringar" collapsible defaultOpen={false}>
+            <SettingsSection icon={History} title="Synkroniseringshistorik" description="Loggar RAPT-synk, PID-reglering, kylautomatik och hårdvaruändringar varje cykel" collapsible defaultOpen={false}>
               <AutoCoolingDecisionLogs />
             </SettingsSection>
             <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar" collapsible defaultOpen={false}>
