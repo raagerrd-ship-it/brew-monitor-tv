@@ -134,6 +134,7 @@ interface RaptControllerBarProps {
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
   isTvMode?: boolean;
+  pillCompEnabled?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
@@ -155,7 +156,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   pills,
   onControllerClick,
   isMobile,
-  isTvMode = false
+  isTvMode = false,
+  pillCompEnabled = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
