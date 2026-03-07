@@ -192,7 +192,6 @@ serve(async (req) => {
     let raptFailed = false;
 
     // Always fetch selected devices (needed for temp history even on RAPT failure)
-    const t0 = Date.now();
     console.log('Getting RAPT auth token + selected devices...');
     const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
       supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
@@ -200,21 +199,16 @@ serve(async (req) => {
     ]);
     selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
     selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
-    console.log(`TIMING DB selected devices: ${Date.now() - t0}ms`);
 
     try {
       // Get auth token (use passed token if available)
-      const tAuth = Date.now();
       access_token = passedToken || await getRaptToken();
-      console.log(`TIMING RAPT auth: ${Date.now() - tAuth}ms`);
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
-      const tFetch = Date.now();
       const [fetchedPills, fetchedControllers] = await Promise.all([
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
-      console.log(`TIMING RAPT fetch pills+controllers: ${Date.now() - tFetch}ms`);
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
