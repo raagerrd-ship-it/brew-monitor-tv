@@ -86,7 +86,7 @@ export function DashboardHeader({
 
       {/* RAPT Section - Mobile */}
       {isMobile && controllers.length > 0 && (
-        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} />
+        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
       )}
 
       {/* Desktop: Three-column layout */}
@@ -98,7 +98,7 @@ export function DashboardHeader({
 
           <div className="flex-1 flex items-center justify-center">
             {controllers.length > 0 && (
-              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
+              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
             )}
           </div>
 
