@@ -177,7 +177,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, [controllers]);
 
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
-  const isStale = staleMinutes > 15; // 3x the 5-min sync interval
+  const isStale = staleMinutes > 31;
 
   // Check RAPT degraded mode: last_successful differs from last_quick_sync
   useEffect(() => {
