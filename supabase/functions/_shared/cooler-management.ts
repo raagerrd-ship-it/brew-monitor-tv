@@ -160,9 +160,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   if (controllersWithCooling.length === 0) {
     log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
-    // Set cooler to idle: use max allowed temp (clamped to cooler's range)
-    const idleTemp = Math.min(18, coolerMaxTemp)
-    if (Math.abs(currentCoolerTarget - idleTemp) > 0.5 && idleTemp >= coolerMinTemp) {
+    // Idle = cooler's max allowed temp (highest possible = least cooling)
+    const idleTemp = coolerMaxTemp
+    if (Math.abs(currentCoolerTarget - idleTemp) > 0.5) {
       await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, idleTemp, 0, `Ingen tank kyler — viloläge (${idleTemp}°C)`, adjustments)
     }
     return adjustments
