@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
   }
 
   // Check what needs to run
-  const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }] = await Promise.all([
+  const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }, { data: coolerStatus }] = await Promise.all([
     supabase.from("fermentation_sessions").select("id, controller_id").eq("status", "running").limit(100),
     supabase.from("auto_cooling_settings").select("enabled, pill_compensation_enabled").limit(1),
     supabase.from("rapt_temp_controllers")
@@ -72,12 +72,19 @@ Deno.serve(async (req) => {
       .or("cooling_enabled.eq.true,heating_enabled.eq.true")
       .not("is_glycol_cooler", "eq", true)
       .limit(1),
+    // Check if cooler is already in idle (target ~18°C) to allow skipping
+    supabase.from("rapt_temp_controllers")
+      .select("target_temp")
+      .eq("is_glycol_cooler", true)
+      .limit(1),
   ]);
 
   const settings = coolingSettings?.[0];
   const hasPillComp = (settings as any)?.pill_compensation_enabled;
   const hasCooling = settings?.enabled;
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
+  const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
+  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - 18) <= 0.5;
 
   // ============================================================
   // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
