@@ -1589,7 +1589,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
           {raptSyncEntries.map((d, i) => (
             <div key={i} className="flex items-start gap-2 text-[11px]">
               <div className="mt-0.5 flex-shrink-0">
-                {d.result === 'error' ? <XCircle className="h-3 w-3 text-red-500" /> :
+                {(d.result as string) === 'error' ? <XCircle className="h-3 w-3 text-red-500" /> :
                  d.result === 'action' ? <Wrench className="h-3 w-3 text-amber-500" /> :
                  <CheckCircle2 className="h-3 w-3 text-green-500" />}
               </div>
