@@ -97,6 +97,7 @@ export async function calculateCompensatedTarget(
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   skipRateLimit?: boolean,
+  skipLearning?: boolean,
 ): Promise<{ ctrlTargetPid: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
   const constraints: string[] = [];
   const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
@@ -135,7 +136,7 @@ export async function calculateCompensatedTarget(
   let _etaMinutes: number | null = null
   const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours
 
-  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode)
+  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode, skipLearning)
 
   if (deltaHistory && deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
@@ -596,7 +597,8 @@ export async function calculateCompensatedTarget(
 export async function learnThermalRate(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
-  mode: 'heating' | 'cooling'
+  mode: 'heating' | 'cooling',
+  skipLearning?: boolean,
 ): Promise<number | null> {
   const paramName = `thermal_rate_${mode}`
 
@@ -656,7 +658,12 @@ export async function learnThermalRate(
   const p80Index = Math.floor(rates.length * 0.8)
   const measuredRate = rates[p80Index]
 
-  // Use shared EMA learning (SSOT)
+  // Use shared EMA learning (SSOT) — skip during idle mode
+  if (skipLearning) {
+    console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: skip learning (idle) — using measured p80=${measuredRate.toFixed(2)}`)
+    return existing ? parseFloat(String(existing.learned_value)) : Math.round(measuredRate * 100) / 100
+  }
+
   const result = await updateLearnedParam(supabase, controllerId, paramName, measuredRate, 0.1, 20.0)
 
   console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: ${result.newValue.toFixed(2)}°C/h (${rates.length} samples, p80=${measuredRate.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
@@ -674,7 +681,8 @@ export async function learnThermalRate(
 export async function learnGlycolCoolerRate(
   supabase: ReturnType<typeof createClient>,
   coolerId: string,
-  currentLoad: number
+  currentLoad: number,
+  skipLearning?: boolean,
 ): Promise<{ rate: number; sampleCount: number } | null> {
   const loadBucket = currentLoad >= 2 ? '2plus' : String(currentLoad)
   const paramName = `glycol_rate:load_${loadBucket}`
@@ -732,7 +740,12 @@ export async function learnGlycolCoolerRate(
   rates.sort((a, b) => a - b)
   const p80 = rates[Math.floor(rates.length * 0.8)]
 
-  // Use shared EMA learning (SSOT)
+  // Use shared EMA learning (SSOT) — skip during idle mode
+  if (skipLearning) {
+    console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: skip learning (idle)`)
+    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
+  }
+
   const result = await updateLearnedParam(supabase, coolerId, paramName, p80, 0.1, 20.0)
   const rounded = Math.round(result.newValue * 100) / 100
 

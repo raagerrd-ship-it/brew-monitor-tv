@@ -53,6 +53,8 @@ export interface ControllerAdjustmentContext {
   /** Populated by PID: maps controller_id → dual-sensor baseTarget (grundmål).
    *  Used by cooler to plan against a stable target, not the PID-fluctuating target_temp. */
   baseTargetMap: Map<string, number>
+  /** When true, skip all learning (EMA updates) — system is in idle mode */
+  skipLearning?: boolean
 }
 
 /**
@@ -391,7 +393,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, dualSensor.baseTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment,
+      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment, ctx.skipLearning,
     )
 
     // Safety bounds — respect hardware min/max strictly

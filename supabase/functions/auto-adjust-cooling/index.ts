@@ -458,6 +458,24 @@ serve(async (req) => {
       }
     }
 
+    // ── Idle detection: skip learning when system is idle ──
+    // Idle = no running fermentation sessions (any controller) AND
+    // cooler already at max or cooling disabled
+    const { data: anyRunningSessions } = await supabase
+      .from('fermentation_sessions')
+      .select('id')
+      .eq('status', 'running')
+      .limit(1);
+    const hasAnySessions = (anyRunningSessions?.length ?? 0) > 0;
+    const coolerControllerData = allControllers.find(c => (c as any).is_glycol_cooler);
+    const coolerAtMaxTemp = coolerControllerData
+      ? parseFloat(String(coolerControllerData.target_temp ?? '0')) >= parseFloat(String(coolerControllerData.max_target_temp ?? '25'))
+      : true;
+    const systemIsIdle = !hasAnySessions && (!coolingEnabled || coolerAtMaxTemp);
+    if (systemIsIdle) {
+      log('LEARNING', 'info', 'Systemet i viloläge — hoppar all inlärning');
+    }
+
     // ══════════════════════════════════════════════════════════════
     // CONTROLLER ADJUSTMENTS (PID + Stall — tank-level)
     // ══════════════════════════════════════════════════════════════
@@ -480,6 +498,7 @@ serve(async (req) => {
       updateBatch,
       pwmBursts,
       baseTargetMap,
+      skipLearning: systemIsIdle,
     };
 
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
@@ -496,6 +515,7 @@ serve(async (req) => {
         settings: { id: settings.id, last_check_at: settings.last_check_at }, log,
         updateBatch,
         baseTargetMap,
+        skipLearning: systemIsIdle,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);
