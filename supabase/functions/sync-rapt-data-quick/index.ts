@@ -231,10 +231,13 @@ serve(async (req) => {
     selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
 
     try {
-      // Get auth token (use passed token if available)
-      access_token = passedToken || await getRaptToken();
+      // Get auth token (use passed token if available, then cache, then fresh)
+      const tAuth = Date.now();
+      access_token = passedToken || await getRaptToken(supabase);
+      console.log(`  ⏱️ Phase 1a (auth): ${Date.now() - tAuth}ms`);
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
+      const tFetch = Date.now();
       const [fetchedPills, fetchedControllers] = await Promise.all([
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
