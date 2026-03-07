@@ -185,6 +185,7 @@ serve(async (req) => {
     let allPills: any[] = [];
     let allControllers: any[] = [];
     const pillTempMap = new Map<string, number>();
+    const pillDataMap = new Map<string, { name: string; gravity: number | null; battery: number; temp: number | null; last_update: string | null }>();
     let pillsUpdated = 0;
     let controllersUpdated = 0;
     let controllerUpdates: Record<string, any>[] = [];
@@ -212,7 +213,7 @@ serve(async (req) => {
       allControllers = fetchedControllers;
 
       // Build pill temperature map + pill data map (for sync log)
-      const pillDataMap = new Map<string, { name: string; gravity: number | null; battery: number; temp: number | null; last_update: string | null }>();
+      pillDataMap.clear();
       for (const pill of allPills) {
         const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
         if (temp !== undefined && temp !== null && temp !== 0) {
