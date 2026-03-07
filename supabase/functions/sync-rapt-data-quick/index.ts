@@ -831,19 +831,18 @@ serve(async (req) => {
     // ── Dynamic sync frequency: 5 min when active, 15 min when idle ──
     try {
       const currentInterval = syncSettingsRow?.rapt_sync_interval ?? 300;
-      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }, { data: coolerController }] = await Promise.all([
+      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }] = await Promise.all([
         supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
         supabase.from('auto_cooling_settings').select('enabled, cooler_controller_id').limit(1).maybeSingle(),
-        // Check if cooler is actually active (not idling at max temp)
-        supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle()
-          .then(async ({ data }) => {
-            if (!data?.cooler_controller_id) return null;
-            const { data: ctrl } = await supabase.from('rapt_temp_controllers')
-              .select('target_temp, max_target_temp')
-              .eq('controller_id', data.cooler_controller_id).maybeSingle();
-            return ctrl;
-          }),
       ]);
+      // Check if cooler is idling at max temp (uses cooler_controller_id from settings query above)
+      let coolerController: { target_temp: number | null; max_target_temp: number | null } | null = null;
+      if (autoCoolingCheck?.cooler_controller_id) {
+        const { data: ctrl } = await supabase.from('rapt_temp_controllers')
+          .select('target_temp, max_target_temp')
+          .eq('controller_id', autoCoolingCheck.cooler_controller_id).maybeSingle();
+        coolerController = ctrl;
+      }
       const hasActiveSessions = activeSessionsCheck && activeSessionsCheck.length > 0;
       // Automation is "active" only if enabled AND cooler is not idling at max temp
       const coolerIsIdle = coolerController && coolerController.max_target_temp != null
