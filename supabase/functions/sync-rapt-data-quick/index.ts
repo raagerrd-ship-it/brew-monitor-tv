@@ -192,6 +192,7 @@ serve(async (req) => {
     let raptFailed = false;
 
     // Always fetch selected devices (needed for temp history even on RAPT failure)
+    const tPhase1 = Date.now();
     console.log('Getting RAPT auth token + selected devices...');
     const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
       supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
@@ -401,9 +402,11 @@ serve(async (req) => {
         }
       }
 
+      console.log(`⏱️ Phase 1 (RAPT fetch+upsert): ${Date.now() - tPhase1}ms`);
       console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
     } catch (raptError) {
       raptFailed = true;
+      console.log(`⏱️ Phase 1 (RAPT FAILED): ${Date.now() - tPhase1}ms`);
       console.error('RAPT sync failed (non-fatal, continuing with remaining tasks):', raptError);
     }
 
@@ -694,10 +697,12 @@ serve(async (req) => {
       }
     };
 
+    const tPhase2a = Date.now();
     const [bfResult, customBrewResult] = await Promise.allSettled([
       brewfatherSync(),
       customBrewSync(),
     ]);
+    console.log(`⏱️ Phase 2a (Brewfather+custom): ${Date.now() - tPhase2a}ms`);
 
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
@@ -737,6 +742,7 @@ serve(async (req) => {
     }
 
     let automationResult = null;
+    const tPhase2b = Date.now();
     try {
       const autoResponse = await supabase.functions.invoke('run-automation', {
         body: { rapt_access_token: access_token, brew_sg_data }
@@ -746,6 +752,7 @@ serve(async (req) => {
     } catch (autoErr) {
       console.error('Automation error:', autoErr);
     }
+    console.log(`⏱️ Phase 2b (automation): ${Date.now() - tPhase2b}ms`);
 
     // PHASE 2c: Log temp history + outage detection + snapshots in PARALLEL after automation
     // All are independent. Temp history needs PID-adjusted values (hence after automation).
@@ -834,7 +841,9 @@ serve(async (req) => {
       }
     };
 
+    const tPhase2c = Date.now();
     const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
+    console.log(`⏱️ Phase 2c (history+outage+snapshots): ${Date.now() - tPhase2c}ms`);
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
     if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
