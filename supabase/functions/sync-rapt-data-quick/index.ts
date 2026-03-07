@@ -235,6 +235,7 @@ serve(async (req) => {
     let controllersUpdated = 0;
     let controllerUpdates: Record<string, any>[] = [];
     let raptFailed = false;
+    let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
 
     // Always fetch selected devices (needed for temp history even on RAPT failure)
     const tPhase1 = Date.now();
@@ -250,7 +251,8 @@ serve(async (req) => {
       // Get auth token (use passed token if available, then cache, then fresh)
       const tAuth = Date.now();
       access_token = passedToken || await getRaptToken(supabase);
-      console.log(`  ⏱️ Phase 1a (auth): ${Date.now() - tAuth}ms`);
+      tPhase1Auth = Date.now() - tAuth;
+      console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
       const tFetch = Date.now();
@@ -258,7 +260,9 @@ serve(async (req) => {
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
-      console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${Date.now() - tFetch}ms`);
+      tPhase1Fetch = Date.now() - tFetch;
+      console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${tPhase1Fetch}ms`);
+      const tUpsertStart = Date.now();
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
@@ -451,7 +455,9 @@ serve(async (req) => {
         }
       }
 
-      console.log(`⏱️ Phase 1 (RAPT fetch+upsert): ${Date.now() - tPhase1}ms`);
+      tPhase1Upsert = Date.now() - tUpsertStart;
+      console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
+      console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
       console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
     } catch (raptError) {
       raptFailed = true;
@@ -987,6 +993,9 @@ serve(async (req) => {
         step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
         details: {
           '1_rapt_ms': Math.round(tPhase2a - tPhase1),
+          '1a_auth_ms': tPhase1Auth,
+          '1b_fetch_ms': tPhase1Fetch,
+          '1c_upsert_ms': tPhase1Upsert,
           '2a_brew_ms': Math.round(tPhase2b - tPhase2a),
           '2b_auto_ms': Math.round(tPhase2c - tPhase2b),
           '2c_hist_ms': Math.round(totalMs - (tPhase2c - syncStartTime)),

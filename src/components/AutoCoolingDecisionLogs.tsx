@@ -513,7 +513,15 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
                 const phaseEntry = log.decisions.find(d => d.step === 'PHASE_TIMINGS');
                 if (!phaseEntry?.details) return null;
                 const d = phaseEntry.details as Record<string, unknown>;
-                const phases = [
+                const has1Sub = d['1a_auth_ms'] != null;
+                const phases = has1Sub ? [
+                  { label: '1a Auth', ms: d['1a_auth_ms'] },
+                  { label: '1b Fetch', ms: d['1b_fetch_ms'] },
+                  { label: '1c Upsert', ms: d['1c_upsert_ms'] },
+                  { label: '2a Brew', ms: d['2a_brew_ms'] },
+                  { label: '2b Auto', ms: d['2b_auto_ms'] },
+                  { label: '2c Hist', ms: d['2c_hist_ms'] },
+                ] : [
                   { label: '1 RAPT', ms: d['1_rapt_ms'] },
                   { label: '2a Brew', ms: d['2a_brew_ms'] },
                   { label: '2b Auto', ms: d['2b_auto_ms'] },
