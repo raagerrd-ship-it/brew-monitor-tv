@@ -503,10 +503,33 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
           {/* Meta header */}
           {log.decision_count > 0 && (
-            <div className="flex gap-4 text-[10px] text-muted-foreground pb-2 border-b border-border">
-              <span>Steg: {log.decision_count}</span>
-              <span>Tid: {log.duration_ms}ms</span>
-              <span>Resultat: {log.final_result}</span>
+            <div className="flex flex-col gap-1 pb-2 border-b border-border">
+              <div className="flex gap-4 text-[10px] text-muted-foreground">
+                <span>Steg: {log.decision_count}</span>
+                <span>Tid: {log.duration_ms}ms</span>
+                <span>Resultat: {log.final_result}</span>
+              </div>
+              {(() => {
+                const phaseEntry = log.decisions.find(d => d.step === 'PHASE_TIMINGS');
+                if (!phaseEntry?.details) return null;
+                const d = phaseEntry.details as Record<string, unknown>;
+                const phases = [
+                  { label: '1 RAPT', ms: d['1_rapt_ms'] },
+                  { label: '2a Brew', ms: d['2a_brew_ms'] },
+                  { label: '2b Auto', ms: d['2b_auto_ms'] },
+                  { label: '2c Hist', ms: d['2c_hist_ms'] },
+                ];
+                return (
+                  <div className="flex gap-3 text-[10px] text-muted-foreground/70">
+                    {phases.map(p => (
+                      <span key={p.label} className="tabular-nums">
+                        <span className="opacity-60">{p.label}</span>{' '}
+                        {p.ms != null ? `${p.ms}ms` : '—'}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

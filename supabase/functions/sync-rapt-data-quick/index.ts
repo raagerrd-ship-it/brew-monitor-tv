@@ -982,8 +982,19 @@ serve(async (req) => {
       syncDecisions.push(
         { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
       );
+      const totalMs = Date.now() - syncStartTime;
+      syncDecisions.push({
+        step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
+        details: {
+          '1_rapt_ms': Math.round(tPhase2a - tPhase1),
+          '2a_brew_ms': Math.round(tPhase2b - tPhase2a),
+          '2b_auto_ms': Math.round(tPhase2c - tPhase2b),
+          '2c_hist_ms': Math.round(totalMs - (tPhase2c - syncStartTime)),
+          total_ms: totalMs,
+        }
+      });
       await supabase.from('auto_cooling_decision_logs').insert({
-        duration_ms: Date.now() - syncStartTime,
+        duration_ms: totalMs,
         decision_count: syncDecisions.length,
         decisions: syncDecisions,
         final_result: `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
