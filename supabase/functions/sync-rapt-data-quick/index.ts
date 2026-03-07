@@ -168,11 +168,27 @@ serve(async (req) => {
 
   try {
     const syncStartTime = Date.now();
-    console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ── Concurrency guard: skip if another sync ran <30s ago ──
+    const { data: recentLog } = await supabase
+      .from('auto_cooling_decision_logs')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recentLog?.created_at) {
+      const secsSinceLast = (Date.now() - new Date(recentLog.created_at).getTime()) / 1000;
+      if (secsSinceLast < 30) {
+        console.log(`⏭️ Skipping sync — last ran ${secsSinceLast.toFixed(0)}s ago`);
+        return new Response(JSON.stringify({ skipped: 'concurrent', seconds_since_last: Math.round(secsSinceLast) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
     // Accept pre-fetched token from caller (e.g. full-sync-brew-data) to avoid double auth
     let passedToken: string | null = null;

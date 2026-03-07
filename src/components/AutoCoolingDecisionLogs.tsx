@@ -1054,7 +1054,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           {pillData && (() => {
                             const pillRaw = pillDet.last_update_raw as string | null;
                             const pillLu = pillRaw || (pillDet.last_update as string | null);
-                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || Date.now() - new Date(pillLu).getTime() > 30 * 60 * 1000) {
+                            const logTime = new Date(entry.log.created_at).getTime();
+                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || logTime - new Date(pillLu).getTime() > 30 * 60 * 1000) {
                               return (
                                 <TooltipProvider delayDuration={200}><Tooltip>
                                   <TooltipTrigger asChild>
@@ -1198,7 +1199,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         try {
                           const pillDate = new Date(raw);
                           if (isNaN(pillDate.getTime())) return true;
-                          return Date.now() - pillDate.getTime() > 30 * 60 * 1000;
+                          const logTs = new Date(entry.log.created_at).getTime();
+                          return logTs - pillDate.getTime() > 30 * 60 * 1000;
                         } catch { return false; }
                       })();
                       return (
