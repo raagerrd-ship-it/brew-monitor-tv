@@ -53,6 +53,8 @@ export interface ControllerAdjustmentContext {
   /** Populated by PID: maps controller_id → dual-sensor baseTarget (grundmål).
    *  Used by cooler to plan against a stable target, not the PID-fluctuating target_temp. */
   baseTargetMap: Map<string, number>
+  /** When true, skip all learning (EMA updates) — system is in idle mode */
+  skipLearning?: boolean
 }
 
 /**

@@ -42,6 +42,8 @@ export interface CoolerContext {
   /** Maps controller_id → dual-sensor baseTarget (grundmål).
    *  Cooler plans against this stable target instead of the PID-fluctuating target_temp. */
   baseTargetMap?: Map<string, number>
+  /** When true, skip all learning (EMA updates) — system is in idle mode */
+  skipLearning?: boolean
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -883,6 +885,12 @@ async function learnFromCurrentState(
   utilizations?: CoolingUtilization[],
 ): Promise<void> {
   const { supabase, log } = ctx
+
+  // ── Skip all learning during idle mode ──
+  if (ctx.skipLearning) {
+    log('LEARN_SKIP', 'info', 'Hoppar all inlärning — systemet i viloläge')
+    return
+  }
 
   // ── Only learn when at least one controller is actively cooling ──
   // If no tank has active demand, the observed margin is meaningless
