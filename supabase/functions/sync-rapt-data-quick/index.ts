@@ -982,8 +982,20 @@ serve(async (req) => {
       syncDecisions.push(
         { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
       );
+      const totalMs = Date.now() - syncStartTime;
+      // Phase timings entry for UI display
+      syncDecisions.push({
+        step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
+        details: {
+          '1_rapt': (typeof tPhase1 !== 'undefined') ? ((() => { try { return Date.now() - tPhase1 < totalMs * 2 ? undefined : undefined; } catch { return undefined; } })(), Math.round((tPhase2a - tPhase1))) : null,
+          '2a_brew': Math.round((tPhase2b - tPhase2a)),
+          '2b_auto': Math.round((tPhase2c - tPhase2b)),
+          '2c_hist': Math.round((Date.now() - tPhase2c)),
+          total: totalMs,
+        }
+      });
       await supabase.from('auto_cooling_decision_logs').insert({
-        duration_ms: Date.now() - syncStartTime,
+        duration_ms: totalMs,
         decision_count: syncDecisions.length,
         decisions: syncDecisions,
         final_result: `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
