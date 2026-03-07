@@ -172,6 +172,7 @@ export function BrewingDashboard() {
         onControllerClick={handleControllerClick}
         hasAlbumArtBackground={!!visibleBgUrl}
         onRefresh={isMobile ? handleManualRefresh : undefined}
+        pillCompEnabled={pillCompEnabled}
         sonosSlot={(!isMobile || isTvMode) ? (
           <SonosWidget isMobile={false} variant="header" onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
         ) : undefined}

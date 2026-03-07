@@ -115,6 +115,7 @@ export default function Settings() {
       <DashboardHeader
         controllers={settings.headerControllers}
         pills={settings.headerPillsData}
+        pillCompEnabled={settings.pillCompEnabled}
       />
       <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${settings.headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">

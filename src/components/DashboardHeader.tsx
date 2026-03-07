@@ -29,6 +29,7 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
+  pillCompEnabled?: boolean;
   sonosSlot?: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
+  pillCompEnabled = false,
   sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
@@ -84,7 +86,7 @@ export function DashboardHeader({
 
       {/* RAPT Section - Mobile */}
       {isMobile && controllers.length > 0 && (
-        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} />
+        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
       )}
 
       {/* Desktop: Three-column layout */}
@@ -96,7 +98,7 @@ export function DashboardHeader({
 
           <div className="flex-1 flex items-center justify-center">
             {controllers.length > 0 && (
-              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
+              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
             )}
           </div>
 
@@ -132,6 +134,7 @@ interface RaptControllerBarProps {
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
   isTvMode?: boolean;
+  pillCompEnabled?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
@@ -153,7 +156,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   pills,
   onControllerClick,
   isMobile,
-  isTvMode = false
+  isTvMode = false,
+  pillCompEnabled = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
@@ -274,12 +278,22 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                      }} />
                    )}
 
-                   <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                      fontSize: isMobile ? undefined : '16px',
-                      ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                    }}>
-                     {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
-                   </span>
+                   {(() => {
+                     const probeTemp = controller.current_temp;
+                     const pillT = controller.pill_temp;
+                     const hasBoth = probeTemp != null && pillT != null;
+                     const displayTemp = pillCompEnabled && hasBoth
+                       ? (probeTemp + pillT) / 2
+                       : probeTemp;
+                     return (
+                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                       fontSize: isMobile ? undefined : '16px',
+                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
+                     }}>
+                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                    </span>
+                     );
+                   })()}
 
                    {linkedPill && (
                      <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
