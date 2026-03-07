@@ -138,6 +138,7 @@ serve(async (req) => {
   }
 
   try {
+    const syncStartTime = Date.now();
     console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
