@@ -138,6 +138,7 @@ serve(async (req) => {
   }
 
   try {
+    const syncStartTime = Date.now();
     console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -846,16 +847,20 @@ serve(async (req) => {
         console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
 
-      // Log sync frequency decision to decision logs for UI visibility
-      const syncDecisions = [
-        { step: 'SYNC_FREQ', result: 'info', message: `Intervall: ${currentInterval / 60} min → ${desiredInterval / 60} min`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, reasons } },
-        ...(changed ? [{ step: 'SYNC_FREQ', result: 'action' as const, message: `⏱️ Synkfrekvens ändrad: ${currentInterval / 60} → ${desiredInterval / 60} min (${reasons})`, details: { from: currentInterval, to: desiredInterval } }] : []),
+      // Log sync + frequency decision to decision logs for UI visibility
+      const syncElapsed = Date.now() - syncStartTime;
+      const syncDecisions: any[] = [
+        { step: 'RAPT_SYNC', result: raptFailed ? 'error' : 'info', message: raptFailed ? '❌ RAPT API misslyckades' : `✅ ${pillsUpdated} pills, ${controllersUpdated} styrenheter`, details: { pillsUpdated, controllersUpdated, raptFailed } },
+        { step: 'BREW_SYNC', result: 'info', message: `${brewsUpdated} öl, ${customBrewsUpdated} egna öl`, details: { brewsUpdated, customBrewsUpdated, brewfatherEnabled } },
+        { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${currentInterval / 60} min → ${desiredInterval / 60} min`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, reasons } },
       ];
+      const freqLabel = changed ? `${currentInterval / 60} → ${desiredInterval / 60} min` : `${desiredInterval / 60} min`;
+      const raptLabel = raptFailed ? ' ❌ RAPT' : '';
       await supabase.from('auto_cooling_decision_logs').insert({
-        duration_ms: 0,
+        duration_ms: syncElapsed,
         decision_count: syncDecisions.length,
         decisions: syncDecisions,
-        final_result: changed ? `Synkfrekvens: ${currentInterval / 60} → ${desiredInterval / 60} min` : `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
+        final_result: `Synk: ${pillsUpdated}p ${controllersUpdated}c ${brewsUpdated}b | ${freqLabel} (${reasons})${raptLabel}`,
         adjustment_made: changed,
       } as any);
     } catch (e) {
