@@ -730,7 +730,8 @@ serve(async (req) => {
       }
     }
 
-    const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2) && !hasPillComp;
+    // PID only matters if there are active sessions — no sessions = nothing to compensate
+    const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2);
 
     let automationResult = null;
     const tPhase2b = Date.now();
