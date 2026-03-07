@@ -984,7 +984,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
   const smartRelayEntries: typeof decisions = [];
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
-  const raptSyncEntries = decisions.filter(d => d.step === 'RAPT_SYNC' || d.step === 'BREW_SYNC' || d.step === 'SYNC_FREQ');
+  
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
   );
