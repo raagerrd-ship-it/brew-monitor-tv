@@ -29,6 +29,7 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
+  pillCompEnabled?: boolean;
   sonosSlot?: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
+  pillCompEnabled = false,
   sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
