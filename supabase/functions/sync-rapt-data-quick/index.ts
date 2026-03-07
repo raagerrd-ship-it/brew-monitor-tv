@@ -708,51 +708,72 @@ serve(async (req) => {
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
 
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
-    // Automation uses cached DB data, so it can run even without fresh RAPT data
-    console.log('All data synced — running automation...');
+    // Skip entirely when system is idle (no active sessions, no active cooling, cooler at max)
+    const [{ data: activeSessCheck }, { data: autoCoolingCheck2 }] = await Promise.all([
+      supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
+      supabase.from('auto_cooling_settings').select('enabled, pill_compensation_enabled, cooler_controller_id').limit(1).maybeSingle(),
+    ]);
+    const hasActiveSessions2 = activeSessCheck && activeSessCheck.length > 0;
+    const hasCoolingEnabled = autoCoolingCheck2?.enabled === true;
+    const hasPillComp = autoCoolingCheck2?.pill_compensation_enabled === true;
 
-    // Build brew_sg_data map from already-synced brew data (avoids redundant DB queries in automation)
-    const brew_sg_data: Record<string, any> = {};
-    {
-      // Collect from brew_readings for all visible brews (Brewfather + custom)
-      const { data: allBrews } = await supabase
-        .from('brew_readings')
-        .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, status, last_update, linked_controller_id')
-        .in('status', ['Jäsning', 'Fermenting']);
-
-      if (allBrews) {
-        for (const brew of allBrews) {
-          if (brew.linked_controller_id) {
-            brew_sg_data[brew.linked_controller_id] = {
-              brew_id: brew.id,
-              name: brew.name,
-              current_sg: brew.current_sg,
-              og: brew.original_gravity,
-              fg: brew.final_gravity,
-              attenuation: brew.attenuation,
-              pill_temp: brew.current_temp,
-              battery: brew.battery,
-              status: brew.status,
-              last_update: brew.last_update,
-            };
-          }
-        }
+    // Check if cooler is idle (at max temp)
+    let coolerIsIdle2 = true;
+    if (hasCoolingEnabled && autoCoolingCheck2?.cooler_controller_id) {
+      const { data: coolerCtrl } = await supabase.from('rapt_temp_controllers')
+        .select('target_temp, max_target_temp')
+        .eq('controller_id', autoCoolingCheck2.cooler_controller_id).maybeSingle();
+      if (coolerCtrl) {
+        const ct = parseFloat(String(coolerCtrl.target_temp ?? 0));
+        const cm = parseFloat(String(coolerCtrl.max_target_temp ?? 25));
+        coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
       }
-      console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
     }
+
+    const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2) && !hasPillComp;
 
     let automationResult = null;
     const tPhase2b = Date.now();
-    try {
-      const autoResponse = await supabase.functions.invoke('run-automation', {
-        body: { rapt_access_token: access_token, brew_sg_data }
-      });
-      if (autoResponse.error) console.error('Automation error:', autoResponse.error);
-      else automationResult = autoResponse.data;
-    } catch (autoErr) {
-      console.error('Automation error:', autoErr);
+
+    if (systemIsIdle) {
+      console.log('⏱️ Phase 2b (automation): SKIPPED — system idle');
+    } else {
+      console.log('All data synced — running automation...');
+
+      // Build brew_sg_data map from already-synced brew data (avoids redundant DB queries in automation)
+      const brew_sg_data: Record<string, any> = {};
+      {
+        const { data: allBrews } = await supabase
+          .from('brew_readings')
+          .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, status, last_update, linked_controller_id')
+          .in('status', ['Jäsning', 'Fermenting']);
+
+        if (allBrews) {
+          for (const brew of allBrews) {
+            if (brew.linked_controller_id) {
+              brew_sg_data[brew.linked_controller_id] = {
+                brew_id: brew.id, name: brew.name, current_sg: brew.current_sg,
+                og: brew.original_gravity, fg: brew.final_gravity, attenuation: brew.attenuation,
+                pill_temp: brew.current_temp, battery: brew.battery, status: brew.status,
+                last_update: brew.last_update,
+              };
+            }
+          }
+        }
+        console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
+      }
+
+      try {
+        const autoResponse = await supabase.functions.invoke('run-automation', {
+          body: { rapt_access_token: access_token, brew_sg_data }
+        });
+        if (autoResponse.error) console.error('Automation error:', autoResponse.error);
+        else automationResult = autoResponse.data;
+      } catch (autoErr) {
+        console.error('Automation error:', autoErr);
+      }
+      console.log(`⏱️ Phase 2b (automation): ${Date.now() - tPhase2b}ms`);
     }
-    console.log(`⏱️ Phase 2b (automation): ${Date.now() - tPhase2b}ms`);
 
     // PHASE 2c: Log temp history + outage detection + snapshots in PARALLEL after automation
     // All are independent. Temp history needs PID-adjusted values (hence after automation).
