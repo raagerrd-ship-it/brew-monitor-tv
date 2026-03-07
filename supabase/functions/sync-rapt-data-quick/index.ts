@@ -244,6 +244,8 @@ serve(async (req) => {
               name: pill.name || pill.id,
               color,
               battery_level: Math.round(pill.battery || 0),
+              gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
+              temperature: pill.temperature ?? pill.telemetry?.[0]?.temperature ?? null,
               last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
               paired_device_id: pill.pairedDeviceId || null,
               updated_at: new Date().toISOString()
