@@ -839,11 +839,25 @@ serve(async (req) => {
       const isActive = hasActiveSessions || automationEnabled;
       const desiredInterval = isActive ? 300 : 900;
       const reasons = [hasActiveSessions && 'sessions', automationEnabled && 'automation'].filter(Boolean).join('+') || 'none';
+      const changed = desiredInterval !== currentInterval;
       console.log(`⏱️ Sync: ${currentInterval}s interval, active=${isActive} (${reasons})`);
-      if (desiredInterval !== currentInterval && syncSettingsRow?.id) {
+      if (changed && syncSettingsRow?.id) {
         await supabase.from('sync_settings').update({ rapt_sync_interval: desiredInterval }).eq('id', syncSettingsRow.id);
         console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
+
+      // Log sync frequency decision to decision logs for UI visibility
+      const syncDecisions = [
+        { step: 'SYNC_FREQ', result: 'info', message: `Intervall: ${currentInterval / 60} min → ${desiredInterval / 60} min`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, reasons } },
+        ...(changed ? [{ step: 'SYNC_FREQ', result: 'action' as const, message: `⏱️ Synkfrekvens ändrad: ${currentInterval / 60} → ${desiredInterval / 60} min (${reasons})`, details: { from: currentInterval, to: desiredInterval } }] : []),
+      ];
+      await supabase.from('auto_cooling_decision_logs').insert({
+        duration_ms: 0,
+        decision_count: syncDecisions.length,
+        decisions: syncDecisions,
+        final_result: changed ? `Synkfrekvens: ${currentInterval / 60} → ${desiredInterval / 60} min` : `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
+        adjustment_made: changed,
+      } as any);
     } catch (e) {
       console.error('Dynamic sync frequency error:', e);
     }
