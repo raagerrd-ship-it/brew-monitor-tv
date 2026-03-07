@@ -312,21 +312,50 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 4: AI audit
+    // STEP 4: AI audit (with idle detection)
     // ──────────────────────────────────────────────────────
 
-    const { data: autoCoolingSettings } = await supabase
-      .from('auto_cooling_settings').select('ai_audit_enabled').limit(1).maybeSingle()
-    const aiAuditEnabled = autoCoolingSettings?.ai_audit_enabled ?? true
+    const [{ data: autoCoolingSettings2 }, { data: runningSessions }, { data: coolerController }] = await Promise.all([
+      supabase.from('auto_cooling_settings').select('ai_audit_enabled, enabled, cooler_controller_id').limit(1).maybeSingle(),
+      supabase.from('fermentation_sessions').select('id').eq('status', 'running').limit(1),
+      supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle()
+        .then(async ({ data }) => {
+          if (!data?.cooler_controller_id) return { data: null }
+          return supabase.from('rapt_temp_controllers')
+            .select('target_temp, max_target_temp')
+            .eq('controller_id', data.cooler_controller_id)
+            .limit(1).maybeSingle()
+        }),
+    ])
+
+    const aiAuditEnabled = autoCoolingSettings2?.ai_audit_enabled ?? true
+    const hasRunningSessions = (runningSessions?.length ?? 0) > 0
+    const coolerAtMax = coolerController?.target_temp != null && coolerController?.max_target_temp != null
+      && coolerController.target_temp >= coolerController.max_target_temp
+    const autoEnabled = autoCoolingSettings2?.enabled ?? false
+    const systemIsIdle = !hasRunningSessions && (!autoEnabled || coolerAtMax)
 
     if (aiAuditEnabled) {
-      console.log('Running AI audit...')
-      try {
-        const aiResult = await supabase.functions.invoke('ai-automation-audit', { body: {} })
-        if (aiResult.error) console.error('AI audit error:', aiResult.error)
-        else console.log('AI audit completed')
-      } catch (e) {
-        console.error('AI audit failed:', e)
+      if (systemIsIdle) {
+        console.log('AI audit skipped: system idle')
+        await supabase.from('ai_audit_log').insert({
+          analysis: 'Skipped — system idle',
+          actions_taken: [],
+          parameters_changed: [],
+          anomalies_detected: [],
+          recommendations: [],
+          duration_ms: 0,
+          prompt_summary: 'idle',
+        })
+      } else {
+        console.log('Running AI audit...')
+        try {
+          const aiResult = await supabase.functions.invoke('ai-automation-audit', { body: {} })
+          if (aiResult.error) console.error('AI audit error:', aiResult.error)
+          else console.log('AI audit completed')
+        } catch (e) {
+          console.error('AI audit failed:', e)
+        }
       }
     } else {
       console.log('AI audit disabled, skipping')
