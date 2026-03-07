@@ -1072,33 +1072,39 @@ export type Database = {
           battery_level: number
           color: string
           created_at: string
+          gravity: number | null
           id: string
           last_update: string | null
           name: string
           paired_device_id: string | null
           pill_id: string
+          temperature: number | null
           updated_at: string
         }
         Insert: {
           battery_level: number
           color: string
           created_at?: string
+          gravity?: number | null
           id?: string
           last_update?: string | null
           name: string
           paired_device_id?: string | null
           pill_id: string
+          temperature?: number | null
           updated_at?: string
         }
         Update: {
           battery_level?: number
           color?: string
           created_at?: string
+          gravity?: number | null
           id?: string
           last_update?: string | null
           name?: string
           paired_device_id?: string | null
           pill_id?: string
+          temperature?: number | null
           updated_at?: string
         }
         Relationships: []
