@@ -211,12 +211,20 @@ serve(async (req) => {
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
-      // Build pill temperature map
+      // Build pill temperature map + pill data map (for sync log)
+      const pillDataMap = new Map<string, { name: string; gravity: number | null; battery: number; temp: number | null; last_update: string | null }>();
       for (const pill of allPills) {
         const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
         if (temp !== undefined && temp !== null && temp !== 0) {
           pillTempMap.set(pill.id, temp);
         }
+        pillDataMap.set(pill.id, {
+          name: pill.name || pill.id,
+          gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
+          battery: Math.round(pill.battery || 0),
+          temp: temp ?? null,
+          last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn || null,
+        });
       }
 
       // Update Pills — batch upsert instead of sequential updates
@@ -874,15 +882,17 @@ serve(async (req) => {
         if (isGlycol) details.glycol = true;
         syncDecisions.push({ step: 'SYNC_DATA', result: 'info', message: `Controller: ${cu.name}`, details });
 
-        // Add pill/brew data for this controller (so pill row always shows in UI)
-        const brewData = brew_sg_data[cu.controller_id];
-        if (brewData) {
+        // Add pill data from RAPT API (so pill row always shows in UI)
+        const linkedPillId = cu.linked_pill_id;
+        const pillInfo = linkedPillId ? pillDataMap.get(linkedPillId) : null;
+        if (pillInfo) {
           syncDecisions.push({ step: 'BREW_SG_STATUS', result: 'info', message: `Controller: ${cu.name}`, details: {
-            brew_name: brewData.name,
-            current_sg: brewData.current_sg,
-            battery: brewData.battery,
-            last_update: brewData.last_update ? new Date(brewData.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
-            last_update_raw: brewData.last_update,
+            pill_name: pillInfo.name,
+            current_sg: pillInfo.gravity != null ? Math.round(pillInfo.gravity * 10000) / 10000 : null,
+            battery: pillInfo.battery,
+            pill_temp: pillInfo.temp != null ? Math.round(pillInfo.temp * 10) / 10 : null,
+            last_update: pillInfo.last_update ? new Date(pillInfo.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+            last_update_raw: pillInfo.last_update,
           }});
         }
       }
