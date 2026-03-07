@@ -827,6 +827,23 @@ serve(async (req) => {
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
     if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
 
+    // ── Dynamic sync frequency: 5 min when active, 15 min when idle ──
+    try {
+      const currentInterval = syncSettingsRow?.rapt_sync_interval ?? 300;
+      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }] = await Promise.all([
+        supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
+        supabase.from('auto_cooling_settings').select('enabled').limit(1).maybeSingle(),
+      ]);
+      const isActive = (activeSessionsCheck && activeSessionsCheck.length > 0) || autoCoolingCheck?.enabled === true;
+      const desiredInterval = isActive ? 300 : 900;
+      if (desiredInterval !== currentInterval && syncSettingsRow?.id) {
+        await supabase.from('sync_settings').update({ rapt_sync_interval: desiredInterval }).eq('id', syncSettingsRow.id);
+        console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s (${isActive ? 'active' : 'idle'})`);
+      }
+    } catch (e) {
+      console.error('Dynamic sync frequency error:', e);
+    }
+
     const raptStatus = raptFailed ? ' (RAPT FAILED — degraded mode)' : '';
     console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
 
