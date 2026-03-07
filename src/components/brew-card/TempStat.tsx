@@ -27,10 +27,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   // Fall back to brew.currentTemp from Brewfather pill if available
   const pillTemp = controller?.pill_temp ?? ((pill && !isPillStale) ? brew.currentTemp : null);
   const probeTemp = controller?.current_temp ?? null;
-  // Always show fused (average) temp when both sensors are available — matches dual-sensor logic
-  const displayTemp = (pillTemp != null && probeTemp != null)
-    ? (pillTemp + probeTemp) / 2
-    : (probeTemp ?? pillTemp ?? brew.currentTemp);
+  // SSOT: use centralized dual-sensor fusion function
+  const displayTemp = getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
   const showStaleWarning = pill && isPillStale && !isInactive;
