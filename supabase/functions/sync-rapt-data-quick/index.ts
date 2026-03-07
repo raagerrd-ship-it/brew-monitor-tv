@@ -873,6 +873,18 @@ serve(async (req) => {
         };
         if (isGlycol) details.glycol = true;
         syncDecisions.push({ step: 'SYNC_DATA', result: 'info', message: `Controller: ${cu.name}`, details });
+
+        // Add pill/brew data for this controller (so pill row always shows in UI)
+        const brewData = brew_sg_data[cu.controller_id];
+        if (brewData) {
+          syncDecisions.push({ step: 'BREW_SG_STATUS', result: 'info', message: `Controller: ${cu.name}`, details: {
+            brew_name: brewData.name,
+            current_sg: brewData.current_sg,
+            battery: brewData.battery,
+            last_update: brewData.last_update ? new Date(brewData.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+            last_update_raw: brewData.last_update,
+          }});
+        }
       }
       syncDecisions.push(
         { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
