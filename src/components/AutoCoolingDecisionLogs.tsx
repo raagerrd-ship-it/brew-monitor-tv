@@ -512,7 +512,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
           {/* Pipeline sections */}
           {log.decisions.length > 0 && (
-            <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} recentCoolerAdjs={recentCoolerAdjs} />
+            <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} recentCoolerAdjs={recentCoolerAdjs} logCreatedAt={log.created_at} />
           )}
 
           {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
@@ -908,9 +908,10 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
 
 // --- Pipeline View ---
 
-function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
+function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreatedAt }: {
   decisions: DecisionEntry[]; hideSync: boolean; hidePid: boolean;
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
+  logCreatedAt: string;
 }) {
   const syncEntriesRaw = decisions.filter(d => d.step === 'SYNC_DATA');
   // Sort: active controllers first (alphabetically), then inactive, then glycol last
@@ -1054,7 +1055,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                           {pillData && (() => {
                             const pillRaw = pillDet.last_update_raw as string | null;
                             const pillLu = pillRaw || (pillDet.last_update as string | null);
-                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || Date.now() - new Date(pillLu).getTime() > 30 * 60 * 1000) {
+                            const logTime = new Date(logCreatedAt).getTime();
+                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || logTime - new Date(pillLu).getTime() > 30 * 60 * 1000) {
                               return (
                                 <TooltipProvider delayDuration={200}><Tooltip>
                                   <TooltipTrigger asChild>
@@ -1198,7 +1200,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
                         try {
                           const pillDate = new Date(raw);
                           if (isNaN(pillDate.getTime())) return true;
-                          return Date.now() - pillDate.getTime() > 30 * 60 * 1000;
+                          const logTs = new Date(logCreatedAt).getTime();
+                          return logTs - pillDate.getTime() > 30 * 60 * 1000;
                         } catch { return false; }
                       })();
                       return (
