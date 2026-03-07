@@ -1000,6 +1000,7 @@ serve(async (req) => {
           '1a_auth_ms': tPhase1Auth,
           '1b_fetch_ms': tPhase1Fetch,
           '1c_upsert_ms': tPhase1Upsert,
+          ...(raptFailed ? { '1_failed_in': raptFailedPhase } : {}),
           '2a_brew_ms': Math.round(tPhase2b - tPhase2a),
           '2b_auto_ms': Math.round(tPhase2c - tPhase2b),
           '2c_hist_ms': Math.round(totalMs - (tPhase2c - syncStartTime)),
