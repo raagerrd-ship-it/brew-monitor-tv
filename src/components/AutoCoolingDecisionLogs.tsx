@@ -513,26 +513,27 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
                 const phaseEntry = log.decisions.find(d => d.step === 'PHASE_TIMINGS');
                 if (!phaseEntry?.details) return null;
                 const d = phaseEntry.details as Record<string, unknown>;
+                const failedIn = d['1_failed_in'] as string | undefined;
                 const has1Sub = d['1a_auth_ms'] != null;
                 const phases = has1Sub ? [
-                  { label: '1a Auth', ms: d['1a_auth_ms'] },
-                  { label: '1b Fetch', ms: d['1b_fetch_ms'] },
-                  { label: '1c Upsert', ms: d['1c_upsert_ms'] },
-                  { label: '2a Brew', ms: d['2a_brew_ms'] },
-                  { label: '2b Auto', ms: d['2b_auto_ms'] },
-                  { label: '2c Hist', ms: d['2c_hist_ms'] },
+                  { label: '1a Auth', ms: d['1a_auth_ms'], failed: failedIn === '1a auth' },
+                  { label: '1b Fetch', ms: d['1b_fetch_ms'], failed: failedIn === '1b fetch' },
+                  { label: '1c Upsert', ms: d['1c_upsert_ms'], failed: failedIn === '1c upsert' },
+                  { label: '2a Brew', ms: d['2a_brew_ms'], failed: false },
+                  { label: '2b Auto', ms: d['2b_auto_ms'], failed: false },
+                  { label: '2c Hist', ms: d['2c_hist_ms'], failed: false },
                 ] : [
-                  { label: '1 RAPT', ms: d['1_rapt_ms'] },
-                  { label: '2a Brew', ms: d['2a_brew_ms'] },
-                  { label: '2b Auto', ms: d['2b_auto_ms'] },
-                  { label: '2c Hist', ms: d['2c_hist_ms'] },
+                  { label: '1 RAPT', ms: d['1_rapt_ms'], failed: !!failedIn },
+                  { label: '2a Brew', ms: d['2a_brew_ms'], failed: false },
+                  { label: '2b Auto', ms: d['2b_auto_ms'], failed: false },
+                  { label: '2c Hist', ms: d['2c_hist_ms'], failed: false },
                 ];
                 return (
                   <div className="flex gap-3 text-[10px] text-muted-foreground/70">
                     {phases.map(p => (
-                      <span key={p.label} className="tabular-nums">
-                        <span className="opacity-60">{p.label}</span>{' '}
-                        {p.ms != null ? `${p.ms}ms` : '—'}
+                      <span key={p.label} className={`tabular-nums ${p.failed ? 'text-destructive font-medium' : ''}`}>
+                        <span className={p.failed ? '' : 'opacity-60'}>{p.label}</span>{' '}
+                        {p.failed ? '❌' : p.ms != null ? `${p.ms}ms` : '—'}
                       </span>
                     ))}
                   </div>
