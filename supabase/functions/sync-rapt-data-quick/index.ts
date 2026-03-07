@@ -242,6 +242,7 @@ serve(async (req) => {
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
+      console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${Date.now() - tFetch}ms`);
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
