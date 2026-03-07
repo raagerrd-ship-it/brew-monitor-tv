@@ -278,12 +278,22 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                      }} />
                    )}
 
-                   <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                      fontSize: isMobile ? undefined : '16px',
-                      ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                    }}>
-                     {controller.current_temp !== null ? `${controller.current_temp.toFixed(1)}°` : '--°'}
-                   </span>
+                   {(() => {
+                     const probeTemp = controller.current_temp;
+                     const pillT = controller.pill_temp;
+                     const hasBoth = probeTemp != null && pillT != null;
+                     const displayTemp = pillCompEnabled && hasBoth
+                       ? (probeTemp + pillT) / 2
+                       : probeTemp;
+                     return (
+                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                       fontSize: isMobile ? undefined : '16px',
+                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
+                     }}>
+                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                    </span>
+                     );
+                   })()}
 
                    {linkedPill && (
                      <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
