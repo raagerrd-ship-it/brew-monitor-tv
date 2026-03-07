@@ -85,9 +85,8 @@ Deno.serve(async (req) => {
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
   const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
   const coolerMaxTemp = coolerStatus?.[0]?.max_target_temp != null ? parseFloat(String(coolerStatus[0].max_target_temp)) : 25;
-  // Idle temp is min(18, coolerMaxTemp) — same logic as cooler-management.ts
-  const idleTemp = Math.min(18, coolerMaxTemp);
-  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - idleTemp) <= 0.5;
+  // Idle = cooler's max allowed temp
+  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - coolerMaxTemp) <= 0.5;
 
   // ============================================================
   // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
