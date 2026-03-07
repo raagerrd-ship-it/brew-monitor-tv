@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
   }
 
   // Check what needs to run
-  const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }] = await Promise.all([
+  const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }, { data: coolerStatus }] = await Promise.all([
     supabase.from("fermentation_sessions").select("id, controller_id").eq("status", "running").limit(100),
     supabase.from("auto_cooling_settings").select("enabled, pill_compensation_enabled").limit(1),
     supabase.from("rapt_temp_controllers")
@@ -72,12 +72,19 @@ Deno.serve(async (req) => {
       .or("cooling_enabled.eq.true,heating_enabled.eq.true")
       .not("is_glycol_cooler", "eq", true)
       .limit(1),
+    // Check if cooler is already in idle (target ~18°C) to allow skipping
+    supabase.from("rapt_temp_controllers")
+      .select("target_temp")
+      .eq("is_glycol_cooler", true)
+      .limit(1),
   ]);
 
   const settings = coolingSettings?.[0];
   const hasPillComp = (settings as any)?.pill_compensation_enabled;
   const hasCooling = settings?.enabled;
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
+  const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
+  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - 18) <= 0.5;
 
   // ============================================================
   // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
@@ -106,13 +113,15 @@ Deno.serve(async (req) => {
   const step3and4: Promise<any>[] = [];
 
   let pidAndGlycolData: any = null;
-  // Run if: cooling automation is enabled (cooler needs idle management even without active tanks)
-  // OR pill compensation is enabled AND there are active controllers
-  if (hasCooling || (hasPillComp && hasActiveControllers)) {
+  // Run if: active controllers need PID/cooling management
+  // OR cooling is enabled but cooler isn't idle yet (needs to transition to idle)
+  // Skip only when no active controllers AND cooler is already in idle
+  const needsCoolerRun = hasCooling && (!hasActiveControllers ? !coolerIsIdle : true);
+  if (needsCoolerRun || (hasPillComp && hasActiveControllers)) {
     console.log("Step 3: Running PID compensation + glycol cooler...");
     step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", { rapt_access_token: reqBody?.rapt_access_token || null, brew_sg_data: reqBody?.brew_sg_data || null }, 20000));
   } else {
-    results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasCooling ? "features disabled" : "no active controllers" });
+    results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers && coolerIsIdle ? "no active controllers, cooler idle" : "features disabled" });
     step3and4.push(Promise.resolve(null));
   }
 
