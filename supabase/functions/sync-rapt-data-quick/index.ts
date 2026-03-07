@@ -834,11 +834,15 @@ serve(async (req) => {
         supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
         supabase.from('auto_cooling_settings').select('enabled').limit(1).maybeSingle(),
       ]);
-      const isActive = (activeSessionsCheck && activeSessionsCheck.length > 0) || autoCoolingCheck?.enabled === true;
+      const hasActiveSessions = activeSessionsCheck && activeSessionsCheck.length > 0;
+      const automationEnabled = autoCoolingCheck?.enabled === true;
+      const isActive = hasActiveSessions || automationEnabled;
       const desiredInterval = isActive ? 300 : 900;
+      const reasons = [hasActiveSessions && 'sessions', automationEnabled && 'automation'].filter(Boolean).join('+') || 'none';
+      console.log(`⏱️ Sync: ${currentInterval}s interval, active=${isActive} (${reasons})`);
       if (desiredInterval !== currentInterval && syncSettingsRow?.id) {
         await supabase.from('sync_settings').update({ rapt_sync_interval: desiredInterval }).eq('id', syncSettingsRow.id);
-        console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s (${isActive ? 'active' : 'idle'})`);
+        console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
     } catch (e) {
       console.error('Dynamic sync frequency error:', e);
