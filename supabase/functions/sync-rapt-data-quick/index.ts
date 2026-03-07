@@ -22,7 +22,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
         .maybeSingle();
       if (cached?.access_token && cached?.expires_at) {
         const expiresAt = new Date(cached.expires_at).getTime();
-        if (expiresAt > Date.now() + 2 * 60 * 1000) {
+        if (expiresAt > Date.now() + 10 * 60 * 1000) {
           console.log('🔑 Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
           return cached.access_token;
         }
@@ -238,23 +238,23 @@ serve(async (req) => {
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
 
-    // Always fetch selected devices (needed for temp history even on RAPT failure)
+    // Fetch selected devices AND auth in parallel (saves ~50-100ms cache-hit, overlaps 6s on cache-miss)
     const tPhase1 = Date.now();
-    console.log('Getting RAPT auth token + selected devices...');
-    const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
+    console.log('Getting RAPT auth token + selected devices (parallel)...');
+    raptFailedPhase = '1a auth';
+    const tAuth = Date.now();
+    const [{ data: selectedPills }, { data: selectedControllers }, authToken] = await Promise.all([
       supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
       supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
+      passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
     ]);
+    tPhase1Auth = Date.now() - tAuth;
+    console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
     selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
     selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
+    access_token = authToken;
 
     try {
-      // Get auth token (use passed token if available, then cache, then fresh)
-      raptFailedPhase = '1a auth';
-      const tAuth = Date.now();
-      access_token = passedToken || await getRaptToken(supabase);
-      tPhase1Auth = Date.now() - tAuth;
-      console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
       raptFailedPhase = '1b fetch';
@@ -290,14 +290,9 @@ serve(async (req) => {
       if (selectedPillIds.length > 0) {
         const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
         if (selectedPillsData.length > 0) {
-          const { data: existingPills } = await supabase.from('rapt_pills')
-            .select('pill_id, color')
-            .in('pill_id', selectedPillsData.map((p: any) => p.id));
-          const existingColorMap = new Map((existingPills || []).map(p => [p.pill_id, p.color]));
-
+          // No extra color query — handled inline with fallback logic
           const pillUpserts = selectedPillsData.map((pill: any) => {
-            const existingColor = existingColorMap.get(pill.id);
-            const color = (existingColor && existingColor !== '#000000') ? existingColor : (pill.color && pill.color !== '#000000' ? pill.color : '#F5A623');
+            const apiColor = pill.color && pill.color !== '#000000' ? pill.color : '#F5A623';
             return {
               pill_id: pill.id,
               name: pill.name || pill.id,
