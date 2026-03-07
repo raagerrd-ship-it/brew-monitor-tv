@@ -886,9 +886,9 @@ serve(async (req) => {
             outage_start: lastSuccess, outage_end: now.toISOString(), duration_seconds: Math.round(gap)
           });
         }
-        // Notify user if RAPT has been down >15 minutes
-        const fifteenMinutes = 15 * 60;
-        if (raptFailed && gap >= fifteenMinutes) {
+        // Notify user if RAPT has been down >31 minutes (matches stale threshold)
+        const staleThreshold = 31 * 60;
+        if (raptFailed && gap >= staleThreshold) {
           const minutes = Math.round(gap / 60);
           const { insertNotification } = await import('../_shared/notifications.ts');
           await insertNotification(supabase, {
