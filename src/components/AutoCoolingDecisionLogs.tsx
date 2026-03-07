@@ -1583,6 +1583,25 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
         );
       })()}
 
+      {/* RAPT Sync summary */}
+      {raptSyncEntries.length > 0 && (
+        <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="RAPT-synk" color="muted-foreground">
+          {raptSyncEntries.map((d, i) => (
+            <div key={i} className="flex items-start gap-2 text-[11px]">
+              <div className="mt-0.5 flex-shrink-0">
+                {d.result === 'error' ? <XCircle className="h-3 w-3 text-red-500" /> :
+                 d.result === 'action' ? <Wrench className="h-3 w-3 text-amber-500" /> :
+                 <CheckCircle2 className="h-3 w-3 text-green-500" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="font-mono text-muted-foreground text-[10px]">{d.step}</span>
+                <span className="text-foreground ml-2 break-words">{d.message}</span>
+              </div>
+            </div>
+          ))}
+        </PipelineSection>
+      )}
+
       {/* 7. Remaining (errors, etc.) */}
       {otherEntries.length > 0 && (
         <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
