@@ -135,7 +135,7 @@ const PIPELINE_STEPS = new Set([
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG', 'COOLER_IDLE',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
-  'RAPT_SYNC', 'BREW_SYNC', 'SYNC_FREQ',
+  'SYNC_FREQ',
 ]);
 
 // --- Helpers ---
@@ -984,7 +984,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
   const smartRelayEntries: typeof decisions = [];
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
-  const raptSyncEntries = decisions.filter(d => d.step === 'RAPT_SYNC' || d.step === 'BREW_SYNC' || d.step === 'SYNC_FREQ');
+  
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
   );
@@ -1582,25 +1582,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs }: {
           </PipelineSection>
         );
       })()}
-
-      {/* RAPT Sync summary */}
-      {raptSyncEntries.length > 0 && (
-        <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="RAPT-synk" color="muted-foreground">
-          {raptSyncEntries.map((d, i) => (
-            <div key={i} className="flex items-start gap-2 text-[11px]">
-              <div className="mt-0.5 flex-shrink-0">
-                {(d.result as string) === 'error' ? <XCircle className="h-3 w-3 text-red-500" /> :
-                 d.result === 'action' ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                 <CheckCircle2 className="h-3 w-3 text-green-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="font-mono text-muted-foreground text-[10px]">{d.step}</span>
-                <span className="text-foreground ml-2 break-words">{d.message}</span>
-              </div>
-            </div>
-          ))}
-        </PipelineSection>
-      )}
 
       {/* 7. Remaining (errors, etc.) */}
       {otherEntries.length > 0 && (

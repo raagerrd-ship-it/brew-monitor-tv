@@ -831,15 +831,28 @@ serve(async (req) => {
     // ── Dynamic sync frequency: 5 min when active, 15 min when idle ──
     try {
       const currentInterval = syncSettingsRow?.rapt_sync_interval ?? 300;
-      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }] = await Promise.all([
+      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }, { data: coolerController }] = await Promise.all([
         supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
-        supabase.from('auto_cooling_settings').select('enabled').limit(1).maybeSingle(),
+        supabase.from('auto_cooling_settings').select('enabled, cooler_controller_id').limit(1).maybeSingle(),
+        // Check if cooler is actually active (not idling at max temp)
+        supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle()
+          .then(async ({ data }) => {
+            if (!data?.cooler_controller_id) return null;
+            const { data: ctrl } = await supabase.from('rapt_temp_controllers')
+              .select('target_temp, max_target_temp')
+              .eq('controller_id', data.cooler_controller_id).maybeSingle();
+            return ctrl;
+          }),
       ]);
       const hasActiveSessions = activeSessionsCheck && activeSessionsCheck.length > 0;
-      const automationEnabled = autoCoolingCheck?.enabled === true;
+      // Automation is "active" only if enabled AND cooler is not idling at max temp
+      const coolerIsIdle = coolerController && coolerController.max_target_temp != null
+        && coolerController.target_temp != null
+        && coolerController.target_temp >= coolerController.max_target_temp;
+      const automationEnabled = autoCoolingCheck?.enabled === true && !coolerIsIdle;
       const isActive = hasActiveSessions || automationEnabled;
       const desiredInterval = isActive ? 300 : 900;
-      const reasons = [hasActiveSessions && 'sessions', automationEnabled && 'automation'].filter(Boolean).join('+') || 'none';
+      const reasons = [hasActiveSessions && 'sessions', automationEnabled && 'automation', coolerIsIdle && 'cooler-idle'].filter(Boolean).join('+') || 'none';
       const changed = desiredInterval !== currentInterval;
       console.log(`⏱️ Sync: ${currentInterval}s interval, active=${isActive} (${reasons})`);
       if (changed && syncSettingsRow?.id) {
@@ -847,20 +860,15 @@ serve(async (req) => {
         console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
 
-      // Log sync + frequency decision to decision logs for UI visibility
-      const syncElapsed = Date.now() - syncStartTime;
+      // Compact frequency log — no separate RAPT/BREW sections (SYNK-DATA already covers that)
       const syncDecisions: any[] = [
-        { step: 'RAPT_SYNC', result: raptFailed ? 'error' : 'info', message: raptFailed ? '❌ RAPT API misslyckades' : `✅ ${pillsUpdated} pills, ${controllersUpdated} styrenheter`, details: { pillsUpdated, controllersUpdated, raptFailed } },
-        { step: 'BREW_SYNC', result: 'info', message: `${brewsUpdated} öl, ${customBrewsUpdated} egna öl`, details: { brewsUpdated, customBrewsUpdated, brewfatherEnabled } },
-        { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${currentInterval / 60} min → ${desiredInterval / 60} min`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, reasons } },
+        { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
       ];
-      const freqLabel = changed ? `${currentInterval / 60} → ${desiredInterval / 60} min` : `${desiredInterval / 60} min`;
-      const raptLabel = raptFailed ? ' ❌ RAPT' : '';
       await supabase.from('auto_cooling_decision_logs').insert({
-        duration_ms: syncElapsed,
+        duration_ms: Date.now() - syncStartTime,
         decision_count: syncDecisions.length,
         decisions: syncDecisions,
-        final_result: `Synk: ${pillsUpdated}p ${controllersUpdated}c ${brewsUpdated}b | ${freqLabel} (${reasons})${raptLabel}`,
+        final_result: `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
         adjustment_made: changed,
       } as any);
     } catch (e) {
