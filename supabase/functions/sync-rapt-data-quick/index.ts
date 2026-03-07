@@ -296,7 +296,7 @@ serve(async (req) => {
             return {
               pill_id: pill.id,
               name: pill.name || pill.id,
-              color,
+              color: apiColor,
               battery_level: Math.round(pill.battery || 0),
               gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
               temperature: pill.temperature ?? pill.telemetry?.[0]?.temperature ?? null,
