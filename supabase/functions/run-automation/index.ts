@@ -84,7 +84,9 @@ Deno.serve(async (req) => {
   const hasCooling = settings?.enabled;
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
   const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
-  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - 18) <= 0.5;
+  // Cooler is idle if the DB target matches idle temp (set by applyCoolerTarget after RAPT confirmation)
+  const IDLE_TEMP = 18;
+  const coolerIsIdle = coolerTarget != null && Math.abs(coolerTarget - IDLE_TEMP) <= 0.5;
 
   // ============================================================
   // STEP 1+2: Fermentation Profiles + Metrics (PARALLEL)
