@@ -1214,6 +1214,27 @@ export type Database = {
         }
         Relationships: []
       }
+      rapt_token_cache: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          id?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       selected_brews: {
         Row: {
           batch_id: string
