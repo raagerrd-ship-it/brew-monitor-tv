@@ -241,20 +241,20 @@ serve(async (req) => {
     // Fetch selected devices AND auth in parallel (saves ~50-100ms cache-hit, overlaps 6s on cache-miss)
     const tPhase1 = Date.now();
     console.log('Getting RAPT auth token + selected devices (parallel)...');
-    raptFailedPhase = '1a auth';
-    const tAuth = Date.now();
-    const [{ data: selectedPills }, { data: selectedControllers }, authToken] = await Promise.all([
-      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
-      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-      passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
-    ]);
-    tPhase1Auth = Date.now() - tAuth;
-    console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
-    selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
-    selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
-    access_token = authToken;
 
     try {
+      raptFailedPhase = '1a auth';
+      const tAuth = Date.now();
+      const [{ data: selectedPills }, { data: selectedControllers }, authToken] = await Promise.all([
+        supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
+        supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
+        passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
+      ]);
+      tPhase1Auth = Date.now() - tAuth;
+      console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
+      selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
+      selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
+      access_token = authToken;
 
       // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
       raptFailedPhase = '1b fetch';
