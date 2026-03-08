@@ -299,15 +299,14 @@ serve(async (req) => {
       if (selectedControllerIds.length > 0) {
         const selectedControllersData = fetchedControllers.filter((c: any) => selectedControllerIds.includes(c.id));
 
-        const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
+        const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('auto_cooling_settings').select('cooler_controller_id, enabled, pill_compensation_enabled').single(),
           supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-        const coolerControllerId = autoCoolingSettings?.enabled ? autoCoolingSettings?.cooler_controller_id : null;
-        const isPillCompEnabled = autoCoolingSettings?.enabled && autoCoolingSettings?.pill_compensation_enabled;
+        const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
+        const isPillCompEnabled = autoCoolingRow?.enabled && autoCoolingRow?.pill_compensation_enabled;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
