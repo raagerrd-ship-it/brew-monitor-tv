@@ -773,27 +773,32 @@ serve(async (req) => {
     console.log('Logging temp history + outage detection + snapshots (parallel)...');
 
     const tempHistoryTask = async () => {
-      // Reuse selectedControllerIds from Phase 1 — no need to re-query selected_rapt_temp_controllers
-      if (selectedControllerIds.length === 0) return;
+      // Use in-memory controllerUpdates from Phase 1c — no extra DB query needed.
+      // For profile_target_temp (which automation may have changed), do a lightweight
+      // read of just that column post-automation.
+      if (controllerUpdates.length === 0) return;
 
-      const { data: controllers } = await supabase
+      // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
+      const { data: postAutoValues } = await supabase
         .from('rapt_temp_controllers')
-        .select('controller_id, pill_temp, current_temp, target_temp, cooling_enabled, profile_target_temp, cooling_run_time')
-        .in('controller_id', selectedControllerIds);
-
-      if (!controllers || controllers.length === 0) return;
+        .select('controller_id, target_temp, profile_target_temp')
+        .in('controller_id', controllerUpdates.map(c => c.controller_id));
+      const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
 
       // Insert temp history + delta history in parallel
-      const historyRecords = controllers.map(c => ({
-        controller_id: c.controller_id,
-        current_temp: c.current_temp ?? c.pill_temp,
-        target_temp: c.target_temp,
-        cooling_enabled: c.cooling_enabled || false,
-        profile_target_temp: c.profile_target_temp ?? c.target_temp,
-        cooling_run_time: c.cooling_run_time ?? null,
-      }));
+      const historyRecords = controllerUpdates.map(c => {
+        const post = postAutoMap.get(c.controller_id);
+        return {
+          controller_id: c.controller_id,
+          current_temp: c.current_temp ?? c.pill_temp,
+          target_temp: post?.target_temp ?? c.target_temp,
+          cooling_enabled: c.cooling_enabled || false,
+          profile_target_temp: post?.profile_target_temp ?? c.target_temp,
+          cooling_run_time: c.cooling_run_time ?? null,
+        };
+      });
 
-      const deltaRecords = controllers
+      const deltaRecords = controllerUpdates
         .filter(c => c.pill_temp !== null && c.current_temp !== null)
         .map(c => ({
           controller_id: c.controller_id,
@@ -813,7 +818,7 @@ serve(async (req) => {
       for (const r of results) {
         if (r.status === 'rejected') console.error('History insert error:', r.reason);
       }
-      console.log(`Recorded temp history for ${controllers.length} controllers`);
+      console.log(`Recorded temp history for ${controllerUpdates.length} controllers (in-memory + post-auto patch)`);
     };
 
     const outageTask = async () => {
