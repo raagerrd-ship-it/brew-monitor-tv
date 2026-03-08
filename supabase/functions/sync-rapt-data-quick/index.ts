@@ -10,7 +10,8 @@ const corsHeaders = {
 };
 
 // ── Inlined RAPT auth with DB token cache ──
-async function getRaptToken(supabase?: any): Promise<string> {
+interface RaptTokenResult { token: string; fromCache: boolean; authDurationMs?: number; }
+async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
   // Try cached token first (valid if expires > 2 min from now)
   if (supabase) {
     try {
@@ -24,7 +25,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
         const expiresAt = new Date(cached.expires_at).getTime();
         if (expiresAt > Date.now() + 10 * 60 * 1000) {
           console.log('🔑 Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
-          return cached.access_token;
+          return { token: cached.access_token, fromCache: true };
         }
       }
     } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
@@ -41,6 +42,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
   formData.append('password', RAPT_API_SECRET);
 
   const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+  const authStart = Date.now();
 
   // Try up to 2 attempts (initial + 1 retry on timeout/error)
   let lastError: Error | null = null;
@@ -58,6 +60,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
         throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
       }
       const data = await res.json();
+      const authDurationMs = Date.now() - authStart;
 
       // Cache the new token (awaited to ensure it persists before function shuts down)
       if (supabase && data.expires_in) {
@@ -68,7 +71,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
         console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
       }
 
-      return data.access_token;
+      return { token: data.access_token, fromCache: false, authDurationMs };
     } catch (e) {
       lastError = e as Error;
       if (attempt === 0) {
@@ -246,6 +249,8 @@ serve(async (req) => {
     let raptFailed = false;
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
+    let tokenFromCache = true;
+    let tokenAuthDurationMs: number | undefined;
     let controllerUpdatesForHistory: Record<string, any>[] = [];
 
     // Phase 1a: Auth + selected device IDs in parallel
@@ -254,12 +259,14 @@ serve(async (req) => {
 
     try {
       raptFailedPhase = '1a auth';
-      const [{ data: selectedPills }, { data: selectedControllers }, token] = await Promise.all([
+      const [{ data: selectedPills }, { data: selectedControllers }, tokenResult] = await Promise.all([
         supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
         supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-        passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
+        passedToken ? Promise.resolve({ token: passedToken, fromCache: true } as RaptTokenResult) : getRaptTokenWithMeta(supabase),
       ]);
-      access_token = token;
+      access_token = tokenResult.token;
+      tokenFromCache = tokenResult.fromCache;
+      tokenAuthDurationMs = tokenResult.authDurationMs;
       selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
       selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
       tPhase1Auth = Date.now() - tAuth;
@@ -979,6 +986,12 @@ serve(async (req) => {
         { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
       );
       const totalMs = Date.now() - syncStartTime;
+      if (!tokenFromCache) {
+        syncDecisions.push({
+          step: 'TOKEN_REFRESH', result: 'action', message: `Ny RAPT-token hämtad (${tokenAuthDurationMs ? Math.round(tokenAuthDurationMs / 1000) + 's' : '?'})`,
+          details: { auth_duration_ms: tokenAuthDurationMs ?? null },
+        });
+      }
       syncDecisions.push({
         step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
         details: {
