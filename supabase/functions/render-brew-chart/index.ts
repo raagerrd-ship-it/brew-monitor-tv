@@ -443,7 +443,7 @@ serve(async (req) => {
     // ── Step 2: Generate SVG and return inline ──
     const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
 
-    console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${rawSnapshots?.length ?? 0}→${chartRows.length} pts)`);
+    console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${allSnapshots.length}→${chartRows.length} pts)`);
 
     // Return SVG directly — eliminates second round trip
     return new Response(svg, {
