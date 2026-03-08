@@ -132,9 +132,8 @@ export function SyncedDataDialog({
   }, [open, brewId, fetchSnapshots]);
 
   const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
-  const hasAutoAdjustments = hasControllerData && snapshots.some(
-    (s) => s.auto_target_temp != null && s.profile_target_temp != null &&
-      Math.abs((s.auto_target_temp ?? 0) - (s.profile_target_temp ?? 0)) > 0.05,
+  const hasAvgTemp = hasControllerData && snapshots.some(
+    (s) => s.auto_target_temp != null,
   );
 
   return (

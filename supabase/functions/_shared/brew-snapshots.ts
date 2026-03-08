@@ -117,14 +117,22 @@ export async function createBrewSnapshots(
       const pointMs = new Date(point.date).getTime();
       const closest = findClosest(pointMs);
 
+      const ctrlTemp = closest?.current_temp ?? currentControllerState?.current_temp ?? null;
+      const pillTemp = point.temp;
+      const avgTemp = (pillTemp != null && ctrlTemp != null)
+        ? (pillTemp + ctrlTemp) / 2
+        : pillTemp ?? ctrlTemp ?? null;
+
       return {
         brew_id: brewId,
         recorded_at: point.date,
         sg: point.value,
-        pill_temp: point.temp,
-        controller_temp: closest?.current_temp ?? currentControllerState?.current_temp ?? null,
-        profile_target_temp: closest?.profile_target_temp ?? currentControllerState?.profile_target_temp ?? null,
-        auto_target_temp: closest?.target_temp ?? currentControllerState?.target_temp ?? null,
+        pill_temp: pillTemp,
+        controller_temp: ctrlTemp,
+        // Mål = profilmålet, låst från kontrollerns aktuella state
+        profile_target_temp: currentControllerState?.profile_target_temp ?? closest?.profile_target_temp ?? null,
+        // Fusionerad medeltemp (pill + ctrl) / 2
+        auto_target_temp: avgTemp,
       };
     });
 
