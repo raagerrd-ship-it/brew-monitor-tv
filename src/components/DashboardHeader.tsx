@@ -179,7 +179,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
   const isStale = staleMinutes > 31;
 
-  // Check RAPT degraded mode: last_successful differs from last_quick_sync
+  // Check RAPT degraded mode: no successful sync for >31 min
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase
@@ -191,10 +191,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
       const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
       const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
       setLastSuccessfulSync(lastSuccess);
-      // Degraded if last quick sync ran but success is >10 min older
+      // Degraded if syncs are running (lastQuick exists) but last success is >31 min ago
       if (lastSuccess && lastQuick) {
-        const drift = lastQuick.getTime() - lastSuccess.getTime();
-        setRaptDegraded(drift > 31 * 60 * 1000);
+        const sinceSuccess = Date.now() - lastSuccess.getTime();
+        setRaptDegraded(sinceSuccess > 31 * 60 * 1000);
       } else {
         setRaptDegraded(false);
       }
