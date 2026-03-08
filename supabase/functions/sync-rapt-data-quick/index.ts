@@ -784,11 +784,11 @@ serve(async (req) => {
       const { data: postAutoValues } = await supabase
         .from('rapt_temp_controllers')
         .select('controller_id, target_temp, profile_target_temp')
-        .in('controller_id', controllerUpdates.map(c => c.controller_id));
+        .in('controller_id', controllerUpdatesForHistory.map(c => c.controller_id));
       const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
 
       // Insert temp history + delta history in parallel
-      const historyRecords = controllerUpdates.map(c => {
+      const historyRecords = controllerUpdatesForHistory.map(c => {
         const post = postAutoMap.get(c.controller_id);
         return {
           controller_id: c.controller_id,
@@ -800,7 +800,7 @@ serve(async (req) => {
         };
       });
 
-      const deltaRecords = controllerUpdates
+      const deltaRecords = controllerUpdatesForHistory
         .filter(c => c.pill_temp !== null && c.current_temp !== null)
         .map(c => ({
           controller_id: c.controller_id,
@@ -820,7 +820,7 @@ serve(async (req) => {
       for (const r of results) {
         if (r.status === 'rejected') console.error('History insert error:', r.reason);
       }
-      console.log(`Recorded temp history for ${controllerUpdates.length} controllers (in-memory + post-auto patch)`);
+      console.log(`Recorded temp history for ${controllerUpdatesForHistory.length} controllers (in-memory + post-auto patch)`);
     };
 
     const outageTask = async () => {
