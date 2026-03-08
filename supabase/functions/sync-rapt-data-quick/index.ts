@@ -42,6 +42,7 @@ async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
   formData.append('password', RAPT_API_SECRET);
 
   const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+  const authStart = Date.now();
 
   // Try up to 2 attempts (initial + 1 retry on timeout/error)
   let lastError: Error | null = null;
@@ -59,6 +60,7 @@ async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
         throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
       }
       const data = await res.json();
+      const authDurationMs = Date.now() - authStart;
 
       // Cache the new token (awaited to ensure it persists before function shuts down)
       if (supabase && data.expires_in) {
@@ -69,7 +71,7 @@ async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
         console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
       }
 
-      return data.access_token;
+      return { token: data.access_token, fromCache: false, authDurationMs };
     } catch (e) {
       lastError = e as Error;
       if (attempt === 0) {
