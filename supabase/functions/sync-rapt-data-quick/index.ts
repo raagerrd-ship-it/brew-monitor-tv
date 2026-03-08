@@ -336,22 +336,10 @@ serve(async (req) => {
           const targetTemp = controller.targetTemperature;
           const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
-          let pillTemp: number | null = null;
-          let linkedPillId: string | null = null;
-          const apiLinkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId || null;
-          if (apiLinkedPillId && pillTempMap.has(apiLinkedPillId)) {
-            pillTemp = pillTempMap.get(apiLinkedPillId)!;
-            linkedPillId = apiLinkedPillId;
-          } else {
-            const dbLinkedPillId = existingMap.get(controller.id)?.linked_pill_id;
-            if (dbLinkedPillId && pillTempMap.has(dbLinkedPillId)) {
-              pillTemp = pillTempMap.get(dbLinkedPillId)!;
-              linkedPillId = dbLinkedPillId;
-            } else {
-              const apiPillTemp = controller.controlDeviceTemperature;
-              if (apiPillTemp && apiPillTemp !== 0) pillTemp = apiPillTemp;
-            }
-          }
+          // Determine linked pill: API first, then DB fallback
+          const linkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId
+            || existingMap.get(controller.id)?.linked_pill_id || null;
+          const pillTemp = linkedPillId ? (pillTempMap.get(linkedPillId) ?? null) : null;
 
           const hasActiveSession = controllersWithActiveSessions.has(controller.id);
           const isCoolerController = controller.id === coolerControllerId;
@@ -959,7 +947,6 @@ serve(async (req) => {
       for (const cu of (dbControllersLog || [])) {
         const isGlycol = cu.is_glycol_cooler === true;
         const details: Record<string, unknown> = {
-          pill_temp: cu.pill_temp != null ? Math.round(cu.pill_temp * 10) / 10 : null,
           ctrl_temp: cu.current_temp != null ? Math.round(cu.current_temp * 10) / 10 : null,
           ctrl_target: cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null,
           profile_target: cu.profile_target_temp != null ? Math.round(cu.profile_target_temp * 10) / 10 : null,
