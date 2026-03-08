@@ -415,8 +415,9 @@ serve(async (req) => {
             .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
           if (upsertError) throw upsertError;
         }
+        // Save for Phase 2c tempHistoryTask (avoid extra DB read)
+        controllerUpdatesForHistory = controllerUpdates;
 
-        // Log detected manual hardware changes to adjustment history
         for (const mc of manualChangeDetections) {
           await supabase.from('auto_cooling_adjustments').insert({
             cooler_controller_id: mc.controllerId,
