@@ -347,30 +347,8 @@ function downsamplePreservingTargetSteps(data: SnapshotPoint[], maxPoints: numbe
   return indices.slice(0, maxPoints).map(i => data[i]);
 }
 
-/**
- * Fetch ALL snapshots with pagination (batches of 1000).
- */
-async function fetchAllSnapshots(supabase: any, brewId: string): Promise<SnapshotPoint[]> {
-  const all: SnapshotPoint[] = [];
-  let offset = 0;
-  const batchSize = 1000;
 
-  while (true) {
-    const { data: batch, error } = await supabase
-      .from('brew_data_snapshots')
-      .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-      .eq('brew_id', brewId)
-      .order('recorded_at', { ascending: true })
-      .range(offset, offset + batchSize - 1);
 
-    if (error || !batch || batch.length === 0) break;
-    all.push(...(batch as SnapshotPoint[]));
-    if (batch.length < batchSize) break;
-    offset += batchSize;
-  }
-
-  return all;
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -412,13 +390,17 @@ serve(async (req) => {
 
     const bc = brewCount ?? 2;
 
-    // ── Step 1: Fetch brew metadata + ALL snapshots in parallel ──
-    const [brewResult, allSnapshots] = await Promise.all([
+    // ── Step 1: Fetch brew metadata + snapshots in parallel ──
+    // Thinning policy caps snapshots at ~500 rows, so no pagination needed
+    const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
         .select('id, sg_data, original_gravity, final_gravity')
         .eq('id', brewId)
         .single(),
-      fetchAllSnapshots(supabase, brewId),
+      supabase.from('brew_data_snapshots')
+        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+        .eq('brew_id', brewId)
+        .order('recorded_at', { ascending: true }),
     ]);
 
     if (brewResult.error || !brewResult.data) {
@@ -428,6 +410,7 @@ serve(async (req) => {
       );
     }
     const brew = brewResult.data;
+    const allSnapshots = (snapshotsResult.data ?? []) as SnapshotPoint[];
 
     const snapshotRows = downsamplePreservingTargetSteps(allSnapshots, MAX_CHART_POINTS);
 
