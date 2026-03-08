@@ -986,6 +986,12 @@ serve(async (req) => {
         { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
       );
       const totalMs = Date.now() - syncStartTime;
+      if (!tokenFromCache) {
+        syncDecisions.push({
+          step: 'TOKEN_REFRESH', result: 'action', message: `Ny RAPT-token hämtad (${tokenAuthDurationMs ? Math.round(tokenAuthDurationMs / 1000) + 's' : '?'})`,
+          details: { auth_duration_ms: tokenAuthDurationMs ?? null },
+        });
+      }
       syncDecisions.push({
         step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
         details: {
