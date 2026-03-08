@@ -310,9 +310,9 @@ serve(async (req) => {
         }
       }
 
-      // Update Controllers with enriched pill_temp
+      // Upsert Controllers with enriched pill_temp
       if (selectedControllerIds.length > 0) {
-        const selectedControllersData = allControllers.filter((c: any) => selectedControllerIds.includes(c.id));
+        const selectedControllersData = fetchedControllers.filter((c: any) => selectedControllerIds.includes(c.id));
 
         const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
