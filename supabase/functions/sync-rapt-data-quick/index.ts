@@ -960,6 +960,7 @@ serve(async (req) => {
       for (const cu of (dbControllersLog || [])) {
         const isGlycol = cu.is_glycol_cooler === true;
         const details: Record<string, unknown> = {
+          pill_temp: cu.pill_temp != null ? Math.round(cu.pill_temp * 10) / 10 : null,
           ctrl_temp: cu.current_temp != null ? Math.round(cu.current_temp * 10) / 10 : null,
           ctrl_target: cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null,
           profile_target: cu.profile_target_temp != null ? Math.round(cu.profile_target_temp * 10) / 10 : null,
