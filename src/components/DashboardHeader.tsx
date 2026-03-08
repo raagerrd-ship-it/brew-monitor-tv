@@ -194,7 +194,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
       // Degraded if last quick sync ran but success is >10 min older
       if (lastSuccess && lastQuick) {
         const drift = lastQuick.getTime() - lastSuccess.getTime();
-        setRaptDegraded(drift > 10 * 60 * 1000);
+        setRaptDegraded(drift > 31 * 60 * 1000);
       } else {
         setRaptDegraded(false);
       }
