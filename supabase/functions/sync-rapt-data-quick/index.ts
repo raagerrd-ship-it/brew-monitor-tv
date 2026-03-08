@@ -41,29 +41,42 @@ async function getRaptToken(supabase?: any): Promise<string> {
   formData.append('password', RAPT_API_SECRET);
 
   const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
-  const res = await fetch(`${authBaseUrl}/connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: formData.toString(),
-    signal: AbortSignal.timeout(15000),
-  });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
+  // Try up to 2 attempts (initial + 1 retry on timeout/error)
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${authBaseUrl}/connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
+      }
+      const data = await res.json();
+
+      // Cache the new token (awaited to ensure it persists before function shuts down)
+      if (supabase && data.expires_in) {
+        const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+        const { error: cacheErr } = await supabase.from('rapt_token_cache')
+          .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' });
+        if (cacheErr) console.error('Token cache write failed:', cacheErr);
+        console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
+      }
+
+      return data.access_token;
+    } catch (e) {
+      lastError = e as Error;
+      if (attempt === 0) {
+        console.log(`🔑 RAPT auth attempt 1 failed (${(e as Error).message}), retrying...`);
+      }
+    }
   }
-  const data = await res.json();
-
-  // Cache the new token
-  if (supabase && data.expires_in) {
-    const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
-    supabase.from('rapt_token_cache')
-      .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' })
-      .then(({ error }: any) => { if (error) console.error('Token cache write failed:', error); });
-    console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
-  }
-
-  return data.access_token;
+  throw lastError!;
 }
 
 // ── Inlined RAPT API fetches (saves 2 HTTP hops) ──
