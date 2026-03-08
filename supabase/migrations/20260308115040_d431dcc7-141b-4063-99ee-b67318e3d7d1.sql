@@ -1,0 +1,1 @@
+ALTER TABLE sonos_settings ALTER COLUMN track_change_offset_seconds SET DEFAULT 2.0;

@@ -29,7 +29,7 @@ export function SonosSettings() {
   const [bgSaturation, setBgSaturation] = useState(1.0);
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
-  
+  const [trackChangeOffset, setTrackChangeOffset] = useState(2.0);
   
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -49,7 +49,7 @@ export function SonosSettings() {
         }),
         supabase
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name')
+          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -76,8 +76,7 @@ export function SonosSettings() {
         setBgSaturation(settings.bg_saturation ?? 1.0);
         setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
         setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
-        
-        
+        setTrackChangeOffset(Number(settings.track_change_offset_seconds) || 2.0);
       } else if (!isConnected) {
         setIsConnected(false);
       }
@@ -340,6 +339,25 @@ export function SonosSettings() {
                 checked={showOnDashboard}
                 onCheckedChange={handleShowOnDashboardChange}
               />
+            </div>
+
+            {/* Track Change Offset */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Synk-justering vid låtbyte</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
+              </div>
+              <Slider
+                value={[trackChangeOffset]}
+                min={0}
+                max={5}
+                step={0.5}
+                onValueChange={(v) => setTrackChangeOffset(v[0])}
+                onValueCommit={(v) => saveField({ track_change_offset_seconds: v[0] })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Byt till nästa låts metadata X sekunder innan nuvarande låt tar slut för sömlösa övergångar
+              </p>
             </div>
 
           </div>

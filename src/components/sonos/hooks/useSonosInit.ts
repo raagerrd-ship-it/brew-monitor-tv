@@ -14,6 +14,7 @@ export function useSonosInit(params: UseSonosInitParams) {
   const { setNowPlaying, localProgressRef } = params;
   const [isConnected, setIsConnected] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
+  const [trackChangeOffsetMs, setTrackChangeOffsetMs] = useState(2000);
 
   useEffect(() => {
     const init = async () => {
@@ -21,7 +22,7 @@ export function useSonosInit(params: UseSonosInitParams) {
         const [settingsResult, nowPlayingResult] = await Promise.all([
           supabase
             .from('sonos_settings')
-            .select('show_on_dashboard, selected_group_id')
+            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
             .limit(1)
             .maybeSingle(),
           supabase
@@ -40,6 +41,7 @@ export function useSonosInit(params: UseSonosInitParams) {
         setIsConnected(true);
         const show = settings?.show_on_dashboard ?? true;
         setShowWidget(show);
+        setTrackChangeOffsetMs((Number(settings?.track_change_offset_seconds) || 2.0) * 1000);
 
         const { data: npData, error: npError } = nowPlayingResult;
         if (npData && !npError && show) {
@@ -60,5 +62,5 @@ export function useSonosInit(params: UseSonosInitParams) {
     init();
   }, []);
 
-  return { isConnected, showWidget };
+  return { isConnected, showWidget, trackChangeOffsetMs };
 }
