@@ -29,7 +29,7 @@ export function SonosSettings() {
   const [bgSaturation, setBgSaturation] = useState(1.0);
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
-  const [trackChangeOffset, setTrackChangeOffset] = useState(0);
+  
   
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -49,7 +49,7 @@ export function SonosSettings() {
         }),
         supabase
           .from('sonos_settings')
-          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name, track_change_offset_seconds')
+          .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, selected_group_id, selected_group_name')
           .limit(1)
           .maybeSingle(),
       ]);
@@ -76,7 +76,7 @@ export function SonosSettings() {
         setBgSaturation(settings.bg_saturation ?? 1.0);
         setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
         setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
-        setTrackChangeOffset(settings.track_change_offset_seconds ?? 0);
+        
         
       } else if (!isConnected) {
         setIsConnected(false);
@@ -130,10 +130,6 @@ export function SonosSettings() {
     saveField({ show_on_dashboard: value });
   };
 
-  const handleTrackChangeOffsetCommit = (value: number) => {
-    setTrackChangeOffset(value);
-    saveField({ track_change_offset_seconds: value });
-  };
 
 
   const loadGroups = async () => {
@@ -346,24 +342,6 @@ export function SonosSettings() {
               />
             </div>
 
-            {/* Track Change Offset */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <Label>Synk-justering vid låtbyte</Label>
-                <span className="text-sm text-muted-foreground tabular-nums">{trackChangeOffset.toFixed(1)}s</span>
-              </div>
-              <Slider
-                value={[trackChangeOffset]}
-                min={0}
-                max={4}
-                step={0.1}
-                onValueChange={(v) => setTrackChangeOffset(Math.round(v[0] * 10) / 10)}
-                onValueCommit={(v) => handleTrackChangeOffsetCommit(Math.round(v[0] * 10) / 10)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Sekunder innan beräknat låtslut som bild och bakgrund byter till nästa låt
-              </p>
-            </div>
           </div>
 
           <Collapsible>
