@@ -23,6 +23,9 @@ interface UseSonosPlaybackTickerParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
   predictiveScheduledRef: React.MutableRefObject<boolean>;
+  bgSentRef: React.MutableRefObject<string | null>;
+  validBgBufferRef: React.MutableRefObject<string[]>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
