@@ -149,6 +149,12 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           try {
             await triggerServerSync();
             const result = await fetchNowPlayingImages();
+            const currentTrack = nowPlayingRef.current?.track_name;
+            const isStale = result?.trackName && currentTrack && result.trackName !== currentTrack;
+            if (isStale) {
+              tvDebug('sonos', `⏳ Watchdog: DB har "${result.trackName}", väntar på "${currentTrack}"`);
+              return;
+            }
             if (result?.bgImageUrl) {
               pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
               onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined);
