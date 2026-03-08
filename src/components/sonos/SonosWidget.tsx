@@ -40,7 +40,7 @@ export const SonosWidget = memo(function SonosWidget({
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
 
-  const { isConnected, showWidget } = useSonosInit({
+  const { isConnected, showWidget, trackChangeOffsetMs } = useSonosInit({
     setNowPlaying, localProgressRef,
   });
 
@@ -55,6 +55,7 @@ export const SonosWidget = memo(function SonosWidget({
     localProgressRef, trackChangedAtRef,
     lastPredictivePollRef, predictiveScheduledRef,
     progressBarRef, debugTimeRef,
+    trackChangeOffsetMs,
   });
 
   useSonosClientPolling({

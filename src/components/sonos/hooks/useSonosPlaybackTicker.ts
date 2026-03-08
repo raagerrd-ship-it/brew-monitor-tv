@@ -25,6 +25,7 @@ interface UseSonosPlaybackTickerParams {
   predictiveScheduledRef: React.MutableRefObject<boolean>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  trackChangeOffsetMs?: number;
 }
 
 /**
@@ -38,7 +39,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     nowPlaying, nowPlayingRef, handleTrackChange,
     localProgressRef, trackChangedAtRef,
     lastPredictivePollRef, predictiveScheduledRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, trackChangeOffsetMs,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
@@ -98,7 +99,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       // Single preload point: ≤10s remaining, schedule swap
       // Skip if we just did a track change (prevents re-swap after predictive swap)
       const msSinceTC = Date.now() - trackChangedAtRef.current;
-      const offsetMs = PREDICTIVE_MARGIN_MS;
+      const offsetMs = trackChangeOffsetMs ?? PREDICTIVE_MARGIN_MS;
 
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && msSinceTC > 15000) {
         predictiveScheduledRef.current = true;
