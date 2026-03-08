@@ -5,14 +5,13 @@ import { NowPlaying } from './types';
 interface UseSonosInitParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   localProgressRef: React.MutableRefObject<number | null>;
-  trackChangeOffsetRef: React.MutableRefObject<number>;
 }
 
 /**
  * Parallel fetch of settings + now playing on mount.
  */
 export function useSonosInit(params: UseSonosInitParams) {
-  const { setNowPlaying, localProgressRef, trackChangeOffsetRef } = params;
+  const { setNowPlaying, localProgressRef } = params;
   const [isConnected, setIsConnected] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
 
@@ -22,7 +21,7 @@ export function useSonosInit(params: UseSonosInitParams) {
         const [settingsResult, nowPlayingResult] = await Promise.all([
           supabase
             .from('sonos_settings')
-            .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
+            .select('show_on_dashboard, selected_group_id')
             .limit(1)
             .maybeSingle(),
           supabase
@@ -41,7 +40,6 @@ export function useSonosInit(params: UseSonosInitParams) {
         setIsConnected(true);
         const show = settings?.show_on_dashboard ?? true;
         setShowWidget(show);
-        trackChangeOffsetRef.current = Number(settings?.track_change_offset_seconds) || 0;
 
         const { data: npData, error: npError } = nowPlayingResult;
         if (npData && !npError && show) {
