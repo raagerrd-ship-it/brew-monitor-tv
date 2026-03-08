@@ -412,13 +412,17 @@ serve(async (req) => {
 
     const bc = brewCount ?? 2;
 
-    // ── Step 1: Fetch brew metadata + ALL snapshots in parallel ──
-    const [brewResult, allSnapshots] = await Promise.all([
+    // ── Step 1: Fetch brew metadata + snapshots in parallel ──
+    // Thinning policy caps snapshots at ~500 rows, so no pagination needed
+    const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
         .select('id, sg_data, original_gravity, final_gravity')
         .eq('id', brewId)
         .single(),
-      fetchAllSnapshots(supabase, brewId),
+      supabase.from('brew_data_snapshots')
+        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+        .eq('brew_id', brewId)
+        .order('recorded_at', { ascending: true }),
     ]);
 
     if (brewResult.error || !brewResult.data) {
@@ -428,6 +432,7 @@ serve(async (req) => {
       );
     }
     const brew = brewResult.data;
+    const allSnapshots = (snapshotsResult.data ?? []) as SnapshotPoint[];
 
     const snapshotRows = downsamplePreservingTargetSteps(allSnapshots, MAX_CHART_POINTS);
 
