@@ -318,6 +318,60 @@ function generateChartSvg(
 /** Max chart points – 100 is plenty for 600px wide SVG */
 const MAX_CHART_POINTS = 100;
 
+/**
+ * Downsample that preserves profile_target_temp step transitions.
+ * Keeps first/last points + any point where target changes + uniform samples.
+ */
+function downsamplePreservingTargetSteps(data: SnapshotPoint[], maxPoints: number): SnapshotPoint[] {
+  if (data.length <= maxPoints) return data;
+
+  // Find indices where target changes
+  const mustKeep = new Set<number>([0, data.length - 1]);
+  for (let i = 1; i < data.length; i++) {
+    if (data[i].profile_target_temp !== data[i - 1].profile_target_temp) {
+      mustKeep.add(i - 1); // last point before change
+      mustKeep.add(i);     // first point after change
+    }
+  }
+
+  // Fill remaining budget with uniform samples
+  const remaining = maxPoints - mustKeep.size;
+  if (remaining > 0) {
+    const step = (data.length - 1) / (remaining + 1);
+    for (let i = 1; i <= remaining; i++) {
+      mustKeep.add(Math.round(i * step));
+    }
+  }
+
+  const indices = [...mustKeep].sort((a, b) => a - b);
+  return indices.slice(0, maxPoints).map(i => data[i]);
+}
+
+/**
+ * Fetch ALL snapshots with pagination (batches of 1000).
+ */
+async function fetchAllSnapshots(supabase: any, brewId: string): Promise<SnapshotPoint[]> {
+  const all: SnapshotPoint[] = [];
+  let offset = 0;
+  const batchSize = 1000;
+
+  while (true) {
+    const { data: batch, error } = await supabase
+      .from('brew_data_snapshots')
+      .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+      .eq('brew_id', brewId)
+      .order('recorded_at', { ascending: true })
+      .range(offset, offset + batchSize - 1);
+
+    if (error || !batch || batch.length === 0) break;
+    all.push(...(batch as SnapshotPoint[]));
+    if (batch.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  return all;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -358,17 +412,13 @@ serve(async (req) => {
 
     const bc = brewCount ?? 2;
 
-    // ── Step 1: Fetch brew metadata + snapshots in parallel ──
-    const [brewResult, rawSnapshotsResult] = await Promise.all([
+    // ── Step 1: Fetch brew metadata + ALL snapshots in parallel ──
+    const [brewResult, allSnapshots] = await Promise.all([
       supabase.from('brew_readings')
         .select('id, sg_data, original_gravity, final_gravity')
         .eq('id', brewId)
         .single(),
-      supabase.from('brew_data_snapshots')
-        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-        .eq('brew_id', brewId)
-        .order('recorded_at', { ascending: true })
-        .limit(1000),
+      fetchAllSnapshots(supabase, brewId),
     ]);
 
     if (brewResult.error || !brewResult.data) {
@@ -378,9 +428,8 @@ serve(async (req) => {
       );
     }
     const brew = brewResult.data;
-    const rawSnapshots = rawSnapshotsResult.data;
 
-    const snapshotRows = downsample((rawSnapshots ?? []) as SnapshotPoint[], MAX_CHART_POINTS);
+    const snapshotRows = downsamplePreservingTargetSteps(allSnapshots, MAX_CHART_POINTS);
 
     // Fallback to SG log if snapshots are not yet available
     const chartRows = snapshotRows.length > 0 ? snapshotRows : ((brew.sg_data || []) as SgDataPoint[]).map((p) => ({
