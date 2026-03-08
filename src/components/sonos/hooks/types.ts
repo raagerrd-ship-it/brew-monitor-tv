@@ -93,12 +93,13 @@ export async function fetchPlaybackStatus(): Promise<{
  */
 export async function fetchNowPlayingImages(): Promise<{
   bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+  trackName?: string;
 } | null> {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     const { data } = await supabase
       .from('sonos_now_playing')
-      .select('bg_image_url, widget_art_url, album_art_url')
+      .select('bg_image_url, widget_art_url, album_art_url, track_name')
       .limit(1)
       .single();
     if (!data) return null;
@@ -106,6 +107,7 @@ export async function fetchNowPlayingImages(): Promise<{
       bgImageUrl: data.bg_image_url ?? undefined,
       widgetArtUrl: data.widget_art_url ?? undefined,
       albumArtUrl: data.album_art_url ?? undefined,
+      trackName: data.track_name ?? undefined,
     };
   } catch { return null; }
 }
