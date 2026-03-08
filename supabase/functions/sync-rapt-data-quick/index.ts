@@ -259,12 +259,14 @@ serve(async (req) => {
 
     try {
       raptFailedPhase = '1a auth';
-      const [{ data: selectedPills }, { data: selectedControllers }, token] = await Promise.all([
+      const [{ data: selectedPills }, { data: selectedControllers }, tokenResult] = await Promise.all([
         supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
         supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-        passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
+        passedToken ? Promise.resolve({ token: passedToken, fromCache: true } as RaptTokenResult) : getRaptTokenWithMeta(supabase),
       ]);
-      access_token = token;
+      access_token = tokenResult.token;
+      tokenFromCache = tokenResult.fromCache;
+      tokenAuthDurationMs = tokenResult.authDurationMs;
       selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
       selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
       tPhase1Auth = Date.now() - tAuth;
