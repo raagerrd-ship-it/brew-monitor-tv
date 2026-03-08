@@ -50,7 +50,7 @@ async function getRaptToken(supabase?: any): Promise<string> {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000),
       });
 
       if (!res.ok) {
