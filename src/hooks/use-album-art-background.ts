@@ -28,6 +28,11 @@ export function useAlbumArtBackground() {
     tvDebug('bg', `⏳ Laddar bakgrund för ${label}...`, flowId);
     const img = new Image();
     img.onload = () => {
+      // Guard: if cleared (null) or changed while loading, discard
+      if (preloadingUrlRef.current !== url) {
+        tvDebug('bg', `⏭️ Bakgrund laddad för ${label} men redan rensad/bytt — ignorerar`, flowId);
+        return;
+      }
       visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
