@@ -66,12 +66,17 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         } else {
           // Had widget art but no bg — retry to get bg
           (async () => {
-            for (let attempt = 0; attempt < 3; attempt++) {
+            for (let attempt = 0; attempt < 5; attempt++) {
               await new Promise(r => setTimeout(r, 3000));
               if (bgSentRef.current !== prevBg) break;
               try {
                 await triggerServerSync();
                 const result = await fetchNowPlayingImages();
+                const isStale = result?.trackName && result.trackName !== data.trackName;
+                if (isStale) {
+                  tvDebug('sonos', `⏳ Bg-retry: DB har "${result.trackName}" (${attempt + 1}/5)`);
+                  continue;
+                }
                 if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                   pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                   onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
@@ -80,7 +85,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                   break;
                 }
               } catch { /* next attempt */ }
-              tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/3 (preload saknade bg)`);
+              tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/5 (preload saknade bg)`);
             }
           })();
         }
