@@ -163,6 +163,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
   const [lastSuccessfulSync, setLastSuccessfulSync] = useState<Date | null>(null);
+  const [staleThresholdMin, setStaleThresholdMin] = useState(31);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -177,30 +178,34 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, [controllers]);
 
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
-  const isStale = staleMinutes > 31;
+  const isStale = staleMinutes > staleThresholdMin;
 
-  // Check RAPT degraded mode: no successful sync for >31 min
+  // Check RAPT degraded mode + dynamic stale threshold based on sync interval
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase
         .from('sync_settings')
-        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at')
+        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at, rapt_sync_interval')
         .limit(1)
         .maybeSingle();
       if (!data) return;
       const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
       const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
+      const syncIntervalSec = (data as any).rapt_sync_interval ?? 300;
+      // Threshold: 2x sync interval + 20 min margin (device reporting lag)
+      // 5 min interval → 30 min → clamped to 31, 15 min interval → 50 min
+      const thresholdMin = Math.max(31, Math.round((syncIntervalSec * 2) / 60) + 20);
+      setStaleThresholdMin(thresholdMin);
       setLastSuccessfulSync(lastSuccess);
-      // Degraded if syncs are running (lastQuick exists) but last success is >31 min ago
+      // Degraded if syncs are running but last success is too old
       if (lastSuccess && lastQuick) {
         const sinceSuccess = Date.now() - lastSuccess.getTime();
-        setRaptDegraded(sinceSuccess > 31 * 60 * 1000);
+        setRaptDegraded(sinceSuccess > thresholdMin * 60 * 1000);
       } else {
         setRaptDegraded(false);
       }
     };
     check();
-    // Re-check when controllers update (means a sync just ran)
     const interval = setInterval(check, 60000);
     return () => clearInterval(interval);
   }, [controllers]);
@@ -258,7 +263,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
-                   const isControllerStale = controllerStaleMin > 31;
+                   const isControllerStale = controllerStaleMin > staleThresholdMin;
                    return (
                  <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
