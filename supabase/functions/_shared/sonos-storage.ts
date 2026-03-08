@@ -102,7 +102,7 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
   }
 }
 
-// Resolve background + widget thumbnail: check cache, generate if needed
+// Resolve background + widget thumbnail: always regenerate (no caching)
 export async function resolveBackgroundAndWidget(
   supabase: any,
   artUrl: string | null,
@@ -110,60 +110,32 @@ export async function resolveBackgroundAndWidget(
   settings: BgSettings,
   targetW: number,
   targetH: number,
-  cachedWidgetUrl?: string | null,
-  forceRegenerate?: boolean,
+  _cachedWidgetUrl?: string | null,
+  _forceRegenerate?: boolean,
   trackName?: string | null,
 ): Promise<{ bgUrl: string | null; widgetUrl: string | null }> {
   if (!artUrl) return { bgUrl: null, widgetUrl: null };
 
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
-  // Sanitize track name for filename: lowercase, replace non-alphanum with dash, trim
   const namePart = trackName
     ? '-' + trackName.toLowerCase().replace(/[^a-z0-9åäöü]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
     : '';
   const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
   const widgetFileName = `${trackHash}${namePart}-widget-v1.jpg`;
 
-  // Check cache: skip if forceRegenerate for bg (always regenerate bg on demand)
-  const [existingBg, existingWidget] = await Promise.all([
-    forceRegenerate ? Promise.resolve(null) : backgroundExists(supabase, bgFileName),
-    cachedWidgetUrl ? Promise.resolve(cachedWidgetUrl) : backgroundExists(supabase, widgetFileName),
+  // Always fetch source and regenerate
+  const decoded = await fetchAndDecodeJpeg(artUrl);
+  if (!decoded) return { bgUrl: null, widgetUrl: null };
+
+  console.log(`[SonosSync] Generating BG: ${bgFileName}`);
+  const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
+  const widgetBase64 = processWidgetThumbnail(decoded.data, decoded.width, decoded.height);
+
+  const [bgUrl, widgetUrl] = await Promise.all([
+    uploadBackground(supabase, bgBase64, bgFileName),
+    uploadBackground(supabase, widgetBase64, widgetFileName),
   ]);
 
-  if (existingBg && existingWidget) {
-    console.log(`[SonosSync] Cache hit: ${bgFileName} + widget`);
-    return { bgUrl: existingBg, widgetUrl: existingWidget };
-  }
-
-  // Need source image — fetch once, process both
-  const decoded = await fetchAndDecodeJpeg(artUrl);
-  if (!decoded) return { bgUrl: existingBg, widgetUrl: existingWidget };
-
-  const results: { bgUrl: string | null; widgetUrl: string | null } = {
-    bgUrl: existingBg,
-    widgetUrl: existingWidget,
-  };
-
-  // Generate missing images in parallel
-  const uploads: Promise<void>[] = [];
-
-  if (!existingBg) {
-    console.log(`[SonosSync] Generating BG: ${bgFileName}`);
-    const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
-    uploads.push(
-      uploadBackground(supabase, bgBase64, bgFileName).then(url => { results.bgUrl = url; })
-    );
-  }
-
-  if (!existingWidget) {
-    console.log(`[SonosSync] Generating widget thumbnail: ${widgetFileName}`);
-    const widgetBase64 = processWidgetThumbnail(decoded.data, decoded.width, decoded.height);
-    uploads.push(
-      uploadBackground(supabase, widgetBase64, widgetFileName).then(url => { results.widgetUrl = url; })
-    );
-  }
-
-  await Promise.all(uploads);
-  return results;
+  return { bgUrl, widgetUrl };
 }
