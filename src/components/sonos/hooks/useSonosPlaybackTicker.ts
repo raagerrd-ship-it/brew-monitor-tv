@@ -130,6 +130,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           }
         }, delay);
       }
+
+      // Safety-net: track ended but no change detected — poll for new track
+      if (remaining <= 0 && msSinceTC > 15000 && predictiveScheduledRef.current) {
+        tvDebug('sonos', `⚠️ Låten slut utan trackbyte — pollar`);
+        predictiveScheduledRef.current = false; // allow re-scheduling
+        pollForNewTrack(PREDICTIVE_MAX_RETRIES);
+      }
     }, 1000);
 
     return () => {
