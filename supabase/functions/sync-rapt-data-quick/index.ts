@@ -197,12 +197,12 @@ serve(async (req) => {
       passedToken = body?.access_token || null;
     } catch { /* no body or invalid JSON — that's fine */ }
 
-    // Read sync_settings + auto_cooling_settings once
+    // Read sync_settings + auto_cooling_settings once (reused across phases)
     const [{ data: syncSettingsRow }, { data: autoCoolingRow }] = await Promise.all([
       supabase.from('sync_settings')
         .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single(),
       supabase.from('auto_cooling_settings')
-        .select('sg_temp_correction_enabled').limit(1).maybeSingle(),
+        .select('sg_temp_correction_enabled, cooler_controller_id, enabled, pill_compensation_enabled').limit(1).maybeSingle(),
     ]);
     const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
     const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
