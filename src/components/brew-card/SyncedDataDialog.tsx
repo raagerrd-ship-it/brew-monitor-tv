@@ -194,8 +194,8 @@ export function SyncedDataDialog({
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Mål</th>
                     )}
-                    {hasAutoAdjustments && (
-                      <th className="text-right py-2 font-medium">PID</th>
+                    {hasAvgTemp && (
+                      <th className="text-right py-2 font-medium">Snitt</th>
                     )}
                   </tr>
                 </thead>
@@ -230,7 +230,7 @@ export function SyncedDataDialog({
                             : "-"}
                         </td>
                       )}
-                      {hasAutoAdjustments && (
+                      {hasAvgTemp && (
                         <td className="py-1.5 text-right font-mono text-muted-foreground/60">
                           {point.auto_target_temp != null
                             ? `${point.auto_target_temp.toFixed(1)}°`
