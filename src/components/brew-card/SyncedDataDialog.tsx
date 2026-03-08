@@ -132,9 +132,8 @@ export function SyncedDataDialog({
   }, [open, brewId, fetchSnapshots]);
 
   const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
-  const hasAutoAdjustments = hasControllerData && snapshots.some(
-    (s) => s.auto_target_temp != null && s.profile_target_temp != null &&
-      Math.abs((s.auto_target_temp ?? 0) - (s.profile_target_temp ?? 0)) > 0.05,
+  const hasAvgTemp = hasControllerData && snapshots.some(
+    (s) => s.auto_target_temp != null,
   );
 
   return (
@@ -195,8 +194,8 @@ export function SyncedDataDialog({
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Mål</th>
                     )}
-                    {hasAutoAdjustments && (
-                      <th className="text-right py-2 font-medium">PID</th>
+                    {hasAvgTemp && (
+                      <th className="text-right py-2 font-medium">Snitt</th>
                     )}
                   </tr>
                 </thead>
@@ -231,7 +230,7 @@ export function SyncedDataDialog({
                             : "-"}
                         </td>
                       )}
-                      {hasAutoAdjustments && (
+                      {hasAvgTemp && (
                         <td className="py-1.5 text-right font-mono text-muted-foreground/60">
                           {point.auto_target_temp != null
                             ? `${point.auto_target_temp.toFixed(1)}°`
