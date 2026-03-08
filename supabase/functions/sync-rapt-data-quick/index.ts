@@ -10,7 +10,8 @@ const corsHeaders = {
 };
 
 // ── Inlined RAPT auth with DB token cache ──
-async function getRaptToken(supabase?: any): Promise<string> {
+interface RaptTokenResult { token: string; fromCache: boolean; authDurationMs?: number; }
+async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
   // Try cached token first (valid if expires > 2 min from now)
   if (supabase) {
     try {
