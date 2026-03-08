@@ -775,10 +775,10 @@ serve(async (req) => {
     console.log('Logging temp history + outage detection + snapshots (parallel)...');
 
     const tempHistoryTask = async () => {
-      // Use in-memory controllerUpdates from Phase 1c — no extra DB query needed.
+      // Use in-memory controllerUpdatesForHistory from Phase 1c — no extra DB query needed.
       // For profile_target_temp (which automation may have changed), do a lightweight
       // read of just that column post-automation.
-      if (controllerUpdates.length === 0) return;
+      if (controllerUpdatesForHistory.length === 0) return;
 
       // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
       const { data: postAutoValues } = await supabase
