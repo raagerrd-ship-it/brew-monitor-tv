@@ -883,7 +883,7 @@ serve(async (req) => {
       const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
       const { data: ctrls } = ctrlIds.length > 0
         ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, profile_target_temp')
+            .select('controller_id, current_temp, profile_target_temp, last_update')
             .in('controller_id', ctrlIds)
         : { data: [] as any[] };
       const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
@@ -895,7 +895,7 @@ serve(async (req) => {
         const latest = sgArr[sgArr.length - 1];
         const ctrl = ctrlMap.get(brew.linked_controller_id);
         await createBrewSnapshot(supabase, brew.id, {
-          recorded_at: latest.date || new Date().toISOString(),
+          recorded_at: ctrl?.last_update || latest.date || new Date().toISOString(),
           sg: latest.value ?? null,
           pill_temp: latest.temp ?? null,
           controller_temp: ctrl?.current_temp ?? null,
