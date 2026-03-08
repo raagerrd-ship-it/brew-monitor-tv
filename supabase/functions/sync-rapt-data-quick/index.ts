@@ -278,31 +278,16 @@ serve(async (req) => {
       if (selectedPillIds.length > 0) {
         const selectedPillsData = fetchedPills.filter((pill: any) => selectedPillIds.includes(pill.id));
         if (selectedPillsData.length > 0) {
-          // Fetch existing pill colors to preserve user overrides
-          const { data: existingPills } = await supabase.from('rapt_pills')
-            .select('pill_id, color')
-            .in('pill_id', selectedPillsData.map((p: any) => p.id));
-          const existingColorMap = new Map<string, string>();
-          for (const ep of (existingPills || [])) {
-            if (ep.color) existingColorMap.set(ep.pill_id, ep.color);
-          }
-
-          const pillUpserts = selectedPillsData.map((pill: any) => {
-            // Preserve user-set color; only use API color for brand-new pills
-            const existingColor = existingColorMap.get(pill.id);
-            const apiColor = pill.color && pill.color !== '#000000' ? pill.color : '#F5A623';
-            return {
-              pill_id: pill.id,
-              name: pill.name || pill.id,
-              color: existingColor || apiColor,
-              battery_level: Math.round(pill.battery || 0),
-              gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
-              temperature: pill.temperature ?? pill.telemetry?.[0]?.temperature ?? null,
-              last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
-              paired_device_id: pill.pairedDeviceId || null,
-              updated_at: new Date().toISOString()
-            };
-          });
+          const pillUpserts = selectedPillsData.map((pill: any) => ({
+            pill_id: pill.id,
+            name: pill.name || pill.id,
+            battery_level: Math.round(pill.battery || 0),
+            gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
+            temperature: pill.temperature ?? pill.telemetry?.[0]?.temperature ?? null,
+            last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
+            paired_device_id: pill.pairedDeviceId || null,
+            updated_at: new Date().toISOString()
+          }));
           const { error: pillUpsertErr } = await supabase.from('rapt_pills')
             .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
           if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);
