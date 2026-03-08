@@ -233,6 +233,7 @@ serve(async (req) => {
     let raptFailed = false;
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
+    let controllerUpdatesForHistory: Record<string, any>[] = [];
 
     // Phase 1a: Auth + selected device IDs in parallel
     const tPhase1 = Date.now();
