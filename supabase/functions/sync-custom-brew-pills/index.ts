@@ -147,7 +147,7 @@ serve(async (req) => {
       console.log('Using passed-in RAPT auth token');
     }
     let brewsUpdated = 0;
-    const pendingSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = [];
+    const pendingSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = [];
 
     for (const brew of customBrews) {
       try {
@@ -262,14 +262,14 @@ serve(async (req) => {
 
               const now = new Date().toISOString();
               // Collect controller-only snapshot for Phase 2c
+              const ctrlForSnap = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
               pendingSnapshots.push({
                 brewId: brew.id,
-                controllerId: brew.linked_controller_id,
-                sgData: [{
-                  date: now,
-                  value: brew.current_sg ?? 1.000,
-                  temp: ctrlFull.current_temp ?? 0,
-                }],
+                recorded_at: now,
+                sg: brew.current_sg ?? 1.000,
+                pill_temp: ctrlFull.current_temp ?? null,
+                controller_temp: ctrlFull.current_temp ?? null,
+                profile_target_temp: ctrlForSnap?.profile_target_temp ?? null,
               });
 
               // Execute brew update
@@ -373,10 +373,15 @@ serve(async (req) => {
 
         // Collect snapshot job for Phase 2c (after automation)
         if (uniqueNewData.length > 0) {
+          const latestPoint = mergedSgData[mergedSgData.length - 1];
+          const ctrlForSnap = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
           pendingSnapshots.push({
             brewId: brew.id,
-            controllerId: brew.linked_controller_id,
-            sgData: mergedSgData,
+            recorded_at: latestPoint.date,
+            sg: latestPoint.value,
+            pill_temp: latestPoint.temp,
+            controller_temp: ctrlForSnap?.current_temp ?? null,
+            profile_target_temp: ctrlForSnap?.profile_target_temp ?? null,
           });
         }
 

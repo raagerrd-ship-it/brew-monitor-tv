@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
-import { createBrewSnapshots } from '../_shared/brew-snapshots.ts'
+import { createBrewSnapshot } from '../_shared/brew-snapshots.ts'
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts'
 
 // ── Inlined RAPT auth (shared across sub-functions) ──
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
     }
 
     let brewUpdatesCount = 0
-    let pendingFullSyncSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = []
+    let pendingFullSyncSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = []
 
     if (brewfatherEnabled && visibleBatchIds.size > 0) {
       const brewfatherBatchIds = [...visibleBatchIds].filter(id => !id.startsWith('custom_'))
@@ -262,10 +262,27 @@ Deno.serve(async (req) => {
             if (((u as any).status === 'Jäsning' || (u as any).status === 'Fermenting') && (u as any).sg_data?.length > 0) {
               const record = brewRecordsMap.get((u as any).batch_id)
               if (record) {
+                const sgArr = (u as any).sg_data
+                const latest = sgArr[sgArr.length - 1]
+                // Look up controller state for this brew
+                let ctrlTemp: number | null = null
+                let profileTarget: number | null = null
+                if (record.linked_controller_id) {
+                  const { data: ctrl } = await supabase
+                    .from('rapt_temp_controllers')
+                    .select('current_temp, profile_target_temp')
+                    .eq('controller_id', record.linked_controller_id)
+                    .maybeSingle()
+                  ctrlTemp = ctrl?.current_temp ?? null
+                  profileTarget = ctrl?.profile_target_temp ?? null
+                }
                 pendingFullSyncSnapshots.push({
                   brewId: record.id,
-                  controllerId: record.linked_controller_id,
-                  sgData: (u as any).sg_data,
+                  recorded_at: latest.date,
+                  sg: latest.value,
+                  pill_temp: latest.temp,
+                  controller_temp: ctrlTemp,
+                  profile_target_temp: profileTarget,
                 })
               }
             }
@@ -367,7 +384,13 @@ Deno.serve(async (req) => {
     if (pendingFullSyncSnapshots.length > 0) {
       console.log(`Creating ${pendingFullSyncSnapshots.length} brew snapshot(s) (post-automation)...`)
       for (const s of pendingFullSyncSnapshots) {
-        await createBrewSnapshots(supabase, s.brewId, s.controllerId, s.sgData)
+        await createBrewSnapshot(supabase, s.brewId, {
+          recorded_at: s.recorded_at,
+          sg: s.sg,
+          pill_temp: s.pill_temp,
+          controller_temp: s.controller_temp,
+          profile_target_temp: s.profile_target_temp,
+        })
       }
     }
 

@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { createBrewSnapshots } from '../_shared/brew-snapshots.ts';
+import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 
 const corsHeaders = {
@@ -488,7 +488,7 @@ serve(async (req) => {
 
     let brewsUpdated = 0;
     // Collect pending snapshot jobs from brewfatherSync for execution in Phase 2c
-    const pendingSnapshots: { brewId: string; controllerId: string | null; sgData: any[] }[] = [];
+    const pendingSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = [];
 
     const brewfatherSync = async () => {
       if (!selectedBrews || selectedBrews.length === 0) return;
@@ -566,10 +566,16 @@ serve(async (req) => {
           if ((status === 'Jäsning' || status === 'Fermenting') && (u as any).sg_data?.length > 0) {
             const existingBrew = existingBrewsMap.get((u as any).batch_id);
             if (existingBrew?.id) {
+              const sgArr = (u as any).sg_data;
+              const latest = sgArr[sgArr.length - 1];
+              const ctrl = allControllerData.find(c => c.controller_id === existingBrew.linked_controller_id);
               pendingSnapshots.push({
                 brewId: existingBrew.id,
-                controllerId: existingBrew.linked_controller_id,
-                sgData: (u as any).sg_data,
+                recorded_at: latest.date,
+                sg: latest.value,
+                pill_temp: latest.temp,
+                controller_temp: ctrl?.current_temp ?? null,
+                profile_target_temp: ctrl?.profile_target_temp ?? null,
               });
             }
           }
@@ -691,8 +697,11 @@ serve(async (req) => {
                 }
                 pendingSnapshots.push({
                   brewId: brew.id,
-                  controllerId: brew.linked_controller_id,
-                  sgData: [{ date: new Date().toISOString(), value: brew.current_sg ?? 1.000, temp: ctrlFull.current_temp ?? 0 }],
+                  recorded_at: new Date().toISOString(),
+                  sg: brew.current_sg ?? 1.000,
+                  pill_temp: ctrlFull.current_temp ?? null,
+                  controller_temp: ctrlFull.current_temp ?? null,
+                  profile_target_temp: ctrlFull.profile_target_temp ?? null,
                 });
               }
             }
@@ -743,8 +752,17 @@ serve(async (req) => {
           if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
           console.log(`Updated custom brew ${brew.name} with ${uniqueNewData.length} new data points`);
 
-          // Always push snapshot — even with 0 new SG points, controller temp/PID/target change each cycle
-          pendingSnapshots.push({ brewId: brew.id, controllerId: brew.linked_controller_id, sgData: mergedSgData });
+          // Always push snapshot — even with 0 new SG points, controller temp/target change each cycle
+          const latestSg = mergedSgData[mergedSgData.length - 1];
+          const ctrl = allControllerData.find(c => c.controller_id === brew.linked_controller_id);
+          pendingSnapshots.push({
+            brewId: brew.id,
+            recorded_at: latestSg.date,
+            sg: latestSg.value,
+            pill_temp: latestSg.temp,
+            controller_temp: ctrl?.current_temp ?? null,
+            profile_target_temp: ctrl?.profile_target_temp ?? null,
+          });
           customBrewsUpdated++;
           
           // Run SG calibration learning only when correction is enabled
@@ -924,7 +942,13 @@ serve(async (req) => {
       if (pendingSnapshots.length === 0) return;
       console.log(`Creating ${pendingSnapshots.length} brew snapshot(s) (post-automation)...`);
       for (const s of pendingSnapshots) {
-        await createBrewSnapshots(supabase, s.brewId, s.controllerId, s.sgData);
+        await createBrewSnapshot(supabase, s.brewId, {
+          recorded_at: s.recorded_at,
+          sg: s.sg,
+          pill_temp: s.pill_temp,
+          controller_temp: s.controller_temp,
+          profile_target_temp: s.profile_target_temp,
+        });
       }
     };
 
