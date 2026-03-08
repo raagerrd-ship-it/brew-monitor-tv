@@ -265,12 +265,17 @@ serve(async (req) => {
       raptFailedPhase = '1c upsert';
       const tUpsertStart = Date.now();
 
-      // Build pill temperature map (used to enrich controllers with pill_temp)
-      const pillTempMap = new Map<string, number>();
+      // Build pill temperature map AND reverse map: controller_id → pill_id
+      // Pills have pairedDeviceId pointing to their controller, so we reverse-map
+      const pillTempMap = new Map<string, number>();       // pill_id → temp
+      const controllerToPillId = new Map<string, string>(); // controller_id → pill_id
       for (const pill of fetchedPills) {
         const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
         if (temp != null && temp !== 0) {
           pillTempMap.set(pill.id, temp);
+        }
+        if (pill.pairedDeviceId) {
+          controllerToPillId.set(pill.pairedDeviceId, pill.id);
         }
       }
 
@@ -316,8 +321,9 @@ serve(async (req) => {
           const targetTemp = controller.targetTemperature;
           const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
-          // Determine linked pill: API first, then DB fallback
+          // Determine linked pill: API controller field, reverse pill→controller map, then DB fallback
           const linkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId
+            || controllerToPillId.get(controller.id)
             || existingMap.get(controller.id)?.linked_pill_id || null;
           const pillTemp = linkedPillId ? (pillTempMap.get(linkedPillId) ?? null) : null;
 
