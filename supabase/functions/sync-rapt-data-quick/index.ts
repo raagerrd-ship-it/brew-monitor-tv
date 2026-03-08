@@ -25,7 +25,7 @@ async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
         const expiresAt = new Date(cached.expires_at).getTime();
         if (expiresAt > Date.now() + 10 * 60 * 1000) {
           console.log('🔑 Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
-          return cached.access_token;
+          return { token: cached.access_token, fromCache: true };
         }
       }
     } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
