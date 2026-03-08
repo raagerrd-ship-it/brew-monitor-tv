@@ -55,40 +55,68 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const preloadMatchesTrack = prev.next_track_name === data.trackName;
       const hasPreloaded = preloadMatchesTrack && !!(nextWidget || nextBg);
 
+      const prevBg = bgSentRef.current;
+
       if (hasPreloaded) {
         tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${extractFileName(nextBg)}`);
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
           onAlbumArtChangeRef.current?.(nextBg, data.trackName);
           bgSentRef.current = nextBg;
+        } else {
+          // Had widget art but no bg — retry to get bg
+          (async () => {
+            for (let attempt = 0; attempt < 3; attempt++) {
+              await new Promise(r => setTimeout(r, 3000));
+              if (bgSentRef.current !== prevBg) break;
+              try {
+                await triggerServerSync();
+                const result = await fetchNowPlayingImages();
+                if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
+                  pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+                  onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
+                  bgSentRef.current = result.bgImageUrl;
+                  setNowPlaying(cur => cur ? { ...cur, bg_image_url: result.bgImageUrl } : cur);
+                  break;
+                }
+              } catch { /* next attempt */ }
+              tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/3 (preload saknade bg)`);
+            }
+          })();
         }
       } else {
         tvDebug('sonos', `🎵 → "${data.trackName}" (väntar på bilder...)`);
-        // Wait 2s for RT to deliver images before expensive fallback
         (async () => {
+          // Wait 2s for RT to deliver images before expensive fallback
           await new Promise(r => setTimeout(r, 2000));
-          // Check if bg was already set by RT during the wait
-          if (bgSentRef.current && bgSentRef.current !== prev.bg_image_url) {
+          if (bgSentRef.current !== prevBg) {
             tvDebug('sonos', `✅ RT levererade bilder under väntan`);
             return;
           }
-          try {
-            await triggerServerSync();
-            const result = await fetchNowPlayingImages();
-            if (result?.bgImageUrl) {
-              pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-              onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
-              bgSentRef.current = result.bgImageUrl;
-            }
-            if (result) {
-              setNowPlaying(cur => cur ? {
-                ...cur,
-                ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
-                ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
-                ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
-              } : cur);
-            }
-          } catch { /* ignore */ }
+
+          for (let attempt = 0; attempt < 3; attempt++) {
+            if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+            if (bgSentRef.current !== prevBg) break;
+            try {
+              await triggerServerSync();
+              const result = await fetchNowPlayingImages();
+              if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
+                pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+                onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
+                bgSentRef.current = result.bgImageUrl;
+              }
+              if (result) {
+                setNowPlaying(cur => cur ? {
+                  ...cur,
+                  ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
+                  ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
+                  ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
+                } : cur);
+              }
+              if (bgSentRef.current !== prevBg) break;
+            } catch { /* next attempt */ }
+            tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/3`);
+          }
         })();
       }
 
