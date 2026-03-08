@@ -1083,7 +1083,7 @@ export type Database = {
         }
         Insert: {
           battery_level: number
-          color: string
+          color?: string
           created_at?: string
           gravity?: number | null
           id?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_pills ALTER COLUMN color SET DEFAULT '#F5A623';
