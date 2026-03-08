@@ -230,7 +230,7 @@ serve(async (req) => {
     let allPills: any[] = [];
     let allControllers: any[] = [];
     const pillTempMap = new Map<string, number>();
-    const pillDataMap = new Map<string, { name: string; gravity: number | null; battery: number; temp: number | null; last_update: string | null }>();
+    
     let pillsUpdated = 0;
     let controllersUpdated = 0;
     let controllerUpdates: Record<string, any>[] = [];
@@ -271,20 +271,12 @@ serve(async (req) => {
       allPills = fetchedPills;
       allControllers = fetchedControllers;
 
-      // Build pill temperature map + pill data map (for sync log)
-      pillDataMap.clear();
+      // Build pill temperature map (used to enrich controllers with pill_temp in Phase 1)
       for (const pill of allPills) {
         const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
         if (temp !== undefined && temp !== null && temp !== 0) {
           pillTempMap.set(pill.id, temp);
         }
-        pillDataMap.set(pill.id, {
-          name: pill.name || pill.id,
-          gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
-          battery: Math.round(pill.battery || 0),
-          temp: temp ?? null,
-          last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn || null,
-        });
       }
 
       // Update Pills — batch upsert instead of sequential updates
@@ -487,8 +479,6 @@ serve(async (req) => {
       : { data: [] as any[] };
 
     let brewsUpdated = 0;
-    // Collect pending snapshot jobs from brewfatherSync for execution in Phase 2c
-    const pendingSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = [];
 
     const brewfatherSync = async () => {
       if (!selectedBrews || selectedBrews.length === 0) return;
@@ -560,48 +550,12 @@ serve(async (req) => {
         brewsUpdated = brewUpdates.length;
         console.log(`Brewfather quick sync: ${brewsUpdated} brews updated`);
 
-        // Collect snapshot jobs for Phase 2c (after automation)
-        for (const u of brewUpdates) {
-          const status = (u as any).status || '';
-          if ((status === 'Jäsning' || status === 'Fermenting') && (u as any).sg_data?.length > 0) {
-            const existingBrew = existingBrewsMap.get((u as any).batch_id);
-            if (existingBrew?.id) {
-              const sgArr = (u as any).sg_data;
-              const latest = sgArr[sgArr.length - 1];
-              const ctrl = allControllerData.find(c => c.controller_id === existingBrew.linked_controller_id);
-              pendingSnapshots.push({
-                brewId: existingBrew.id,
-                recorded_at: latest.date,
-                sg: latest.value,
-                pill_temp: latest.temp,
-                controller_temp: ctrl?.current_temp ?? null,
-                profile_target_temp: ctrl?.profile_target_temp ?? null,
-              });
-            }
-          }
-        }
+        // Snapshots are created in snapshotTask (Phase 2c) by reading from DB
       }
     };
 
     // PHASE 2a: Sync all data sources in parallel (RAPT already done in Phase 1)
-    // Both Brewfather and custom brews run as local async functions (no HTTP hops)
-    const allPillData = (allPills || [])
-      .filter((p: any) => selectedPillIds.includes(p.id))
-      .map((p: any) => ({
-        pill_id: p.id,
-        name: p.name || p.id,
-        paired_device_id: p.pairedDeviceId || null,
-      }));
-    const allControllerData = selectedControllerIds.length > 0
-      ? (controllerUpdates || []).map((c: any) => ({
-          controller_id: c.controller_id,
-          linked_pill_id: c.linked_pill_id || null,
-          pill_temp: c.pill_temp ?? null,
-          current_temp: c.current_temp ?? null,
-          target_temp: c.target_temp ?? null,
-          profile_target_temp: c.profile_target_temp ?? null,
-        }))
-      : [];
+    // Both Brewfather and custom brews read pill/controller data from DB (written in Phase 1)
 
     let customBrewsUpdated = 0;
 
@@ -615,20 +569,26 @@ serve(async (req) => {
       if (!customBrews || customBrews.length === 0) return;
       console.log(`Found ${customBrews.length} custom brews in fermentation`);
 
+      // Read pills + controllers from DB (Phase 1 already wrote fresh data)
+      const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
+        supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
+        supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp'),
+      ]);
+      const dbCtrlMap = new Map((dbControllers || []).map((c: any) => [c.controller_id, c]));
+
       for (const brew of customBrews) {
         try {
-          // Auto-resolve pill_id via paired_device_id matching
           let pillId = brew.linked_pill_id;
           
           if (!pillId && brew.linked_controller_id) {
-            const controller = allControllerData.find(c => c.controller_id === brew.linked_controller_id);
+            const controller = dbCtrlMap.get(brew.linked_controller_id);
             if (controller?.linked_pill_id) pillId = controller.linked_pill_id;
           }
 
           if (!pillId) {
-            for (const pill of allPillData) {
+            for (const pill of (dbPills || [])) {
               if (!pill.paired_device_id) continue;
-              const controller = allControllerData.find(c => c.controller_id === pill.paired_device_id);
+              const controller = dbCtrlMap.get(pill.paired_device_id);
               if (controller?.pill_temp != null && Math.abs(controller.pill_temp - brew.current_temp) <= 3) {
                 pillId = pill.pill_id;
                 console.log(`Auto-matched pill ${pill.name} to brew ${brew.name} via paired_device_id + temp matching`);
@@ -642,7 +602,6 @@ serve(async (req) => {
             continue;
           }
 
-          // Calculate date range
           const endDate = new Date();
           let startDate: Date;
           const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
@@ -668,7 +627,6 @@ serve(async (req) => {
             startDate.setDate(startDate.getDate() - 7);
           }
 
-          // Fetch telemetry (need RAPT token)
           if (!access_token) {
             console.log(`No RAPT token available for custom brew ${brew.name}, skipping`);
             continue;
@@ -683,32 +641,19 @@ serve(async (req) => {
           }
 
           if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
-            // Fallback: use controller data
             if (brew.linked_controller_id) {
-              const ctrlFull = allControllerData.find(c => c.controller_id === brew.linked_controller_id);
-              if (ctrlFull) {
-                const fallbackTemp = ctrlFull.current_temp;
-                if (fallbackTemp != null) {
-                  await supabase.from('brew_readings')
-                    .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
-                    .eq('id', brew.id);
-                  console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`);
-                  customBrewsUpdated++;
-                }
-                pendingSnapshots.push({
-                  brewId: brew.id,
-                  recorded_at: new Date().toISOString(),
-                  sg: brew.current_sg ?? 1.000,
-                  pill_temp: ctrlFull.current_temp ?? null,
-                  controller_temp: ctrlFull.current_temp ?? null,
-                  profile_target_temp: ctrlFull.profile_target_temp ?? null,
-                });
+              const ctrlFull = dbCtrlMap.get(brew.linked_controller_id);
+              if (ctrlFull?.current_temp != null) {
+                await supabase.from('brew_readings')
+                  .update({ current_temp: ctrlFull.current_temp, updated_at: new Date().toISOString() })
+                  .eq('id', brew.id);
+                console.log(`Updated ${brew.name} with controller probe temp: ${ctrlFull.current_temp}°C`);
+                customBrewsUpdated++;
               }
             }
             continue;
           }
 
-          // Convert telemetry to sg_data — values already corrected at fetch time
           const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
           const newSgData: SgDataPoint[] = telemetryData
             .map((t: TelemetryRecord) => ({ date: new Date(t.createdOn).toISOString(), value: t.gravity / 1000, temp: t.temperature }))
@@ -751,21 +696,10 @@ serve(async (req) => {
 
           if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
           console.log(`Updated custom brew ${brew.name} with ${uniqueNewData.length} new data points`);
-
-          // Always push snapshot — even with 0 new SG points, controller temp/target change each cycle
-          const latestSg = mergedSgData[mergedSgData.length - 1];
-          const ctrl = allControllerData.find(c => c.controller_id === brew.linked_controller_id);
-          pendingSnapshots.push({
-            brewId: brew.id,
-            recorded_at: latestSg.date,
-            sg: latestSg.value,
-            pill_temp: latestSg.temp,
-            controller_temp: ctrl?.current_temp ?? null,
-            profile_target_temp: ctrl?.profile_target_temp ?? null,
-          });
           customBrewsUpdated++;
           
-          // Run SG calibration learning only when correction is enabled
+          // Snapshots are created in snapshotTask (Phase 2c) by reading from DB
+
           if (sgTempCorrectionEnabled) {
             try {
               await processSgCalibration(supabase, pillId, mergedSgData);
@@ -939,17 +873,37 @@ serve(async (req) => {
     };
 
     const snapshotTask = async () => {
-      if (pendingSnapshots.length === 0) return;
-      console.log(`Creating ${pendingSnapshots.length} brew snapshot(s) (post-automation)...`);
-      for (const s of pendingSnapshots) {
-        await createBrewSnapshot(supabase, s.brewId, {
-          recorded_at: s.recorded_at,
-          sg: s.sg,
-          pill_temp: s.pill_temp,
-          controller_temp: s.controller_temp,
-          profile_target_temp: s.profile_target_temp,
+      // Read active brews + controllers from DB (post-automation, finalized values)
+      const { data: activeBrews } = await supabase
+        .from('brew_readings')
+        .select('id, current_sg, current_temp, last_update, linked_controller_id, status, sg_data')
+        .in('status', ['Jäsning', 'Fermenting']);
+      if (!activeBrews?.length) return;
+
+      const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
+      const { data: ctrls } = ctrlIds.length > 0
+        ? await supabase.from('rapt_temp_controllers')
+            .select('controller_id, current_temp, profile_target_temp')
+            .in('controller_id', ctrlIds)
+        : { data: [] as any[] };
+      const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
+
+      let count = 0;
+      for (const brew of activeBrews) {
+        const sgArr = Array.isArray(brew.sg_data) ? brew.sg_data as any[] : [];
+        if (sgArr.length === 0) continue;
+        const latest = sgArr[sgArr.length - 1];
+        const ctrl = ctrlMap.get(brew.linked_controller_id);
+        await createBrewSnapshot(supabase, brew.id, {
+          recorded_at: latest.date || new Date().toISOString(),
+          sg: latest.value ?? null,
+          pill_temp: latest.temp ?? null,
+          controller_temp: ctrl?.current_temp ?? null,
+          profile_target_temp: ctrl?.profile_target_temp ?? null,
         });
+        count++;
       }
+      if (count > 0) console.log(`Created ${count} brew snapshot(s) (post-automation)`);
     };
 
     const tPhase2c = Date.now();
@@ -990,9 +944,19 @@ serve(async (req) => {
         console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
 
-      // Build SYNC_DATA entries from controller updates for UI visibility
+      // Read finalized controller + pill data from DB for sync log
+      const [{ data: dbControllersLog }, { data: dbPillsLog }] = await Promise.all([
+        supabase.from('rapt_temp_controllers')
+          .select('controller_id, name, pill_temp, current_temp, target_temp, profile_target_temp, cooling_enabled, is_glycol_cooler, last_update, linked_pill_id')
+          .in('controller_id', selectedControllerIds),
+        selectedPillIds.length > 0
+          ? supabase.from('rapt_pills').select('pill_id, name, gravity, battery_level, temperature, last_update').in('pill_id', selectedPillIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const pillDataForLog = new Map((dbPillsLog || []).map((p: any) => [p.pill_id, p]));
+
       const syncDecisions: any[] = [];
-      for (const cu of controllerUpdates) {
+      for (const cu of (dbControllersLog || [])) {
         const isGlycol = cu.is_glycol_cooler === true;
         const details: Record<string, unknown> = {
           pill_temp: cu.pill_temp != null ? Math.round(cu.pill_temp * 10) / 10 : null,
@@ -1005,15 +969,14 @@ serve(async (req) => {
         if (isGlycol) details.glycol = true;
         syncDecisions.push({ step: 'SYNC_DATA', result: 'info', message: `Controller: ${cu.name}`, details });
 
-        // Add pill data from RAPT API (so pill row always shows in UI)
         const linkedPillId = cu.linked_pill_id;
-        const pillInfo = linkedPillId ? pillDataMap.get(linkedPillId) : null;
+        const pillInfo = linkedPillId ? pillDataForLog.get(linkedPillId) : null;
         if (pillInfo) {
           syncDecisions.push({ step: 'BREW_SG_STATUS', result: 'info', message: `Controller: ${cu.name}`, details: {
             pill_name: pillInfo.name,
             current_sg: pillInfo.gravity != null ? Math.round((pillInfo.gravity > 100 ? pillInfo.gravity / 1000 : pillInfo.gravity) * 10000) / 10000 : null,
-            battery: pillInfo.battery,
-            pill_temp: pillInfo.temp != null ? Math.round(pillInfo.temp * 10) / 10 : null,
+            battery: pillInfo.battery_level,
+            pill_temp: pillInfo.temperature != null ? Math.round(pillInfo.temperature * 10) / 10 : null,
             last_update: pillInfo.last_update ? new Date(pillInfo.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
             last_update_raw: pillInfo.last_update,
           }});
