@@ -94,12 +94,18 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
             return;
           }
 
-          for (let attempt = 0; attempt < 3; attempt++) {
-            if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (attempt > 0) await new Promise(r => setTimeout(r, attempt < 3 ? 3000 : 5000));
             if (bgSentRef.current !== prevBg) break;
             try {
               await triggerServerSync();
               const result = await fetchNowPlayingImages();
+              // Verify the DB images actually match the current track
+              const isStale = result?.trackName && result.trackName !== data.trackName;
+              if (isStale) {
+                tvDebug('sonos', `⏳ DB har "${result.trackName}" — väntar på "${data.trackName}" (${attempt + 1}/5)`);
+                continue;
+              }
               if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                 onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
@@ -115,7 +121,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               }
               if (bgSentRef.current !== prevBg) break;
             } catch { /* next attempt */ }
-            tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/3`);
+            tvDebug('sonos', `🔄 Bg-retry ${attempt + 1}/5`);
           }
         })();
       }
