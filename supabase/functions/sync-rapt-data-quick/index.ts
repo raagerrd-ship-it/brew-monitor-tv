@@ -321,8 +321,9 @@ serve(async (req) => {
           const targetTemp = controller.targetTemperature;
           const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
-          // Determine linked pill: API first, then DB fallback
+          // Determine linked pill: API controller field, reverse pill→controller map, then DB fallback
           const linkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId
+            || controllerToPillId.get(controller.id)
             || existingMap.get(controller.id)?.linked_pill_id || null;
           const pillTemp = linkedPillId ? (pillTempMap.get(linkedPillId) ?? null) : null;
 
