@@ -363,7 +363,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
-  const hasError = log.final_result === 'Error';
+  const phaseTimings = log.decisions.find(d => d.step === 'PHASE_TIMINGS')?.details as Record<string, unknown> | undefined;
+  const hasRaptFetchError = !!phaseTimings?.['1_failed_in'];
+  const hasError = log.final_result === 'Error' || hasRaptFetchError;
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Extract RAPT_SEND outcomes from decisions
