@@ -347,30 +347,8 @@ function downsamplePreservingTargetSteps(data: SnapshotPoint[], maxPoints: numbe
   return indices.slice(0, maxPoints).map(i => data[i]);
 }
 
-/**
- * Fetch ALL snapshots with pagination (batches of 1000).
- */
-async function fetchAllSnapshots(supabase: any, brewId: string): Promise<SnapshotPoint[]> {
-  const all: SnapshotPoint[] = [];
-  let offset = 0;
-  const batchSize = 1000;
 
-  while (true) {
-    const { data: batch, error } = await supabase
-      .from('brew_data_snapshots')
-      .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
-      .eq('brew_id', brewId)
-      .order('recorded_at', { ascending: true })
-      .range(offset, offset + batchSize - 1);
 
-    if (error || !batch || batch.length === 0) break;
-    all.push(...(batch as SnapshotPoint[]));
-    if (batch.length < batchSize) break;
-    offset += batchSize;
-  }
-
-  return all;
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
