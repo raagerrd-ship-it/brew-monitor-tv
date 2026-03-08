@@ -315,26 +315,76 @@ function generateChartSvg(
   </svg>`;
 }
 
-/** Max chart points – 100 is plenty for 600px wide SVG */
-const MAX_CHART_POINTS = 100;
+/** Max chart points – enough for 600px SVG + gradual ramps */
+const MAX_CHART_POINTS = 150;
 
 /**
  * Downsample that preserves profile_target_temp step transitions.
- * Keeps first/last points + any point where target changes + uniform samples.
+ * For gradual ramps (many small increments), only keeps start/end of ramp
+ * and direction changes to avoid exceeding the point budget.
  */
 function downsamplePreservingTargetSteps(data: SnapshotPoint[], maxPoints: number): SnapshotPoint[] {
   if (data.length <= maxPoints) return data;
 
-  // Find indices where target changes
+  // Find significant target transitions:
+  // - Direction changes (ramp up → ramp down)
+  // - Large jumps (≥1°C)
+  // - First/last point
   const mustKeep = new Set<number>([0, data.length - 1]);
+  let prevTarget = data[0].profile_target_temp;
+  let prevDirection: number | null = null; // 1 = rising, -1 = falling
+
   for (let i = 1; i < data.length; i++) {
-    if (data[i].profile_target_temp !== data[i - 1].profile_target_temp) {
-      mustKeep.add(i - 1); // last point before change
-      mustKeep.add(i);     // first point after change
+    const curTarget = data[i].profile_target_temp;
+    if (curTarget === prevTarget) continue;
+    if (curTarget === null || prevTarget === null) {
+      // null↔value transition — always significant
+      mustKeep.add(i - 1);
+      mustKeep.add(i);
+      prevTarget = curTarget;
+      prevDirection = null;
+      continue;
+    }
+
+    const delta = curTarget - prevTarget;
+    const direction = delta > 0 ? 1 : -1;
+
+    // Keep if: direction change, large jump, or first transition
+    if (prevDirection !== null && direction !== prevDirection) {
+      mustKeep.add(i - 1); // peak/valley before direction change
+      mustKeep.add(i);
+    } else if (Math.abs(delta) >= 1.0) {
+      mustKeep.add(i - 1);
+      mustKeep.add(i);
+    }
+
+    prevTarget = curTarget;
+    prevDirection = direction;
+  }
+
+  // Also keep the last point before each "flat" segment starts
+  // and the start of each new ramp
+  let lastTarget = data[0].profile_target_temp;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i].profile_target_temp !== lastTarget) {
+      // If this is the very first change or the last change before a long flat,
+      // make sure we capture it
+      if (!mustKeep.has(i)) {
+        // Check if this is a "plateau start" (next several points share this value)
+        let flatCount = 0;
+        for (let j = i; j < Math.min(i + 5, data.length); j++) {
+          if (data[j].profile_target_temp === data[i].profile_target_temp) flatCount++;
+        }
+        if (flatCount >= 3) {
+          mustKeep.add(i - 1);
+          mustKeep.add(i);
+        }
+      }
+      lastTarget = data[i].profile_target_temp;
     }
   }
 
-  // Fill remaining budget with uniform samples
+  // If mustKeep exceeds budget, keep all must-keeps but skip uniform fill
   const remaining = maxPoints - mustKeep.size;
   if (remaining > 0) {
     const step = (data.length - 1) / (remaining + 1);
