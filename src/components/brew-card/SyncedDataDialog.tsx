@@ -50,29 +50,18 @@ export function SyncedDataDialog({
     if (!silent) setLoading(true);
 
     try {
-      const allSnapshots: SnapshotRow[] = [];
-      let offset = 0;
-      const batchSize = 1000;
-      let hasMore = true;
+      // Thinning policy caps snapshots at ~500 per brew, no pagination needed
+      const { data, error } = await supabase
+        .from("brew_data_snapshots")
+        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp")
+        .eq("brew_id", brewId)
+        .order("recorded_at", { ascending: false });
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("brew_data_snapshots")
-          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp")
-          .eq("brew_id", brewId)
-          .order("recorded_at", { ascending: false })
-          .range(offset, offset + batchSize - 1);
-
-        if (error || !data || data.length === 0) {
-          hasMore = false;
-        } else {
-          allSnapshots.push(...data);
-          offset += batchSize;
-          hasMore = data.length === batchSize;
-        }
+      if (error) {
+        console.error("[SyncedDataDialog] Failed to fetch snapshots:", error);
       }
 
-      setSnapshots(allSnapshots);
+      setSnapshots((data as SnapshotRow[]) ?? []);
     } finally {
       if (!silent) setLoading(false);
     }
