@@ -263,7 +263,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
-                   const isControllerStale = controllerStaleMin > 31;
+                   const isControllerStale = controllerStaleMin > staleThresholdMin;
                    return (
                  <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
