@@ -4,7 +4,7 @@ import {
   NowPlaying,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
-  updateProgressDOM,
+  updateProgressDOM, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer,
 } from './types';
 
 interface TrackChangeData {
@@ -23,6 +23,9 @@ interface UseSonosPlaybackTickerParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
   predictiveScheduledRef: React.MutableRefObject<boolean>;
+  bgSentRef: React.MutableRefObject<string | null>;
+  validBgBufferRef: React.MutableRefObject<string[]>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
@@ -39,6 +42,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     nowPlaying, nowPlayingRef, handleTrackChange,
     localProgressRef, trackChangedAtRef,
     lastPredictivePollRef, predictiveScheduledRef,
+    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackChangeOffsetMs,
   } = params;
 
@@ -136,6 +140,23 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         tvDebug('sonos', `⚠️ Låten slut utan trackbyte — pollar`);
         predictiveScheduledRef.current = false; // allow re-scheduling
         pollForNewTrack(PREDICTIVE_MAX_RETRIES);
+      }
+
+      // Watchdog: widget is active but no background has been sent — try to fetch one
+      if (isPlaying && bgSentRef.current === null && msSinceTC > 5000 && next % 10000 < 1000) {
+        tvDebug('sonos', `🔍 Ingen bakgrund — försöker hämta`);
+        (async () => {
+          try {
+            await triggerServerSync();
+            const result = await fetchNowPlayingImages();
+            if (result?.bgImageUrl) {
+              pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+              onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined);
+              bgSentRef.current = result.bgImageUrl;
+              tvDebug('sonos', `✅ Bakgrund hämtad via watchdog`);
+            }
+          } catch { /* ignore */ }
+        })();
       }
     }, 1000);
 
