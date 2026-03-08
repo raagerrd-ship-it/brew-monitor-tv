@@ -66,32 +66,18 @@ export function useBrewChartData({
       lastFetchKey.current = fetchKey;
       setIsLoading(true);
       try {
-        const allSnapshots: SnapshotRow[] = [];
-        let offset = 0;
-        const batchSize = 1000;
-        let hasMore = true;
+        // Thinning policy caps snapshots at ~500 per brew, no pagination needed
+        const { data: batch, error } = await supabase
+          .from("brew_data_snapshots")
+          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp")
+          .eq("brew_id", brewId)
+          .order("recorded_at", { ascending: true });
 
-        while (hasMore) {
-          const { data: batch, error } = await supabase
-            .from("brew_data_snapshots")
-            .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp")
-            .eq("brew_id", brewId)
-            .order("recorded_at", { ascending: true })
-            .range(offset, offset + batchSize - 1);
-
-          if (error) {
-            console.error("[useBrewChartData] Failed to fetch snapshots:", error);
-            hasMore = false;
-          } else if (!batch || batch.length === 0) {
-            hasMore = false;
-          } else {
-            allSnapshots.push(...(batch as SnapshotRow[]));
-            offset += batchSize;
-            hasMore = batch.length === batchSize;
-          }
+        if (error) {
+          console.error("[useBrewChartData] Failed to fetch snapshots:", error);
         }
 
-        setSnapshotRows(allSnapshots);
+        setSnapshotRows((batch as SnapshotRow[]) ?? []);
       } finally {
         setIsLoading(false);
       }
