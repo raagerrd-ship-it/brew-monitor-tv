@@ -227,37 +227,31 @@ serve(async (req) => {
     let access_token: string | null = null;
     let selectedPillIds: string[] = [];
     let selectedControllerIds: string[] = [];
-    let allPills: any[] = [];
-    let allControllers: any[] = [];
-    const pillTempMap = new Map<string, number>();
     
     let pillsUpdated = 0;
     let controllersUpdated = 0;
-    let controllerUpdates: Record<string, any>[] = [];
     let raptFailed = false;
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
 
-    // Fetch selected devices (always needed) AND auth in parallel
+    // Phase 1a: Auth + selected device IDs in parallel
     const tPhase1 = Date.now();
-    console.log('Getting RAPT auth token + selected devices (parallel)...');
-
-    // DB queries always succeed; auth may fail — use allSettled pattern
     const tAuth = Date.now();
-    const [{ data: selectedPills }, { data: selectedControllers }] = await Promise.all([
-      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
-      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-    ]);
-    selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
-    selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
 
     try {
       raptFailedPhase = '1a auth';
-      access_token = passedToken || await getRaptToken(supabase);
+      const [{ data: selectedPills }, { data: selectedControllers }, token] = await Promise.all([
+        supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
+        supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
+        passedToken ? Promise.resolve(passedToken) : getRaptToken(supabase),
+      ]);
+      access_token = token;
+      selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
+      selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
       tPhase1Auth = Date.now() - tAuth;
-      console.log(`  ⏱️ Phase 1a (auth): ${tPhase1Auth}ms`);
+      console.log(`  ⏱️ Phase 1a (auth + device IDs): ${tPhase1Auth}ms`);
 
-      // Fetch ALL Pills and Controllers in parallel (inlined — no HTTP hops)
+      // Phase 1b: Fetch pills + controllers from RAPT API in parallel
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
       const [fetchedPills, fetchedControllers] = await Promise.all([
@@ -266,22 +260,23 @@ serve(async (req) => {
       ]);
       tPhase1Fetch = Date.now() - tFetch;
       console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${tPhase1Fetch}ms`);
+
+      // Phase 1c: Upsert to DB
       raptFailedPhase = '1c upsert';
       const tUpsertStart = Date.now();
-      allPills = fetchedPills;
-      allControllers = fetchedControllers;
 
-      // Build pill temperature map (used to enrich controllers with pill_temp in Phase 1)
-      for (const pill of allPills) {
+      // Build pill temperature map (used to enrich controllers with pill_temp)
+      const pillTempMap = new Map<string, number>();
+      for (const pill of fetchedPills) {
         const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
-        if (temp !== undefined && temp !== null && temp !== 0) {
+        if (temp != null && temp !== 0) {
           pillTempMap.set(pill.id, temp);
         }
       }
 
-      // Update Pills — batch upsert instead of sequential updates
+      // Upsert Pills
       if (selectedPillIds.length > 0) {
-        const selectedPillsData = allPills.filter((pill: any) => selectedPillIds.includes(pill.id));
+        const selectedPillsData = fetchedPills.filter((pill: any) => selectedPillIds.includes(pill.id));
         if (selectedPillsData.length > 0) {
           // Fetch existing pill colors to preserve user overrides
           const { data: existingPills } = await supabase.from('rapt_pills')
@@ -315,9 +310,9 @@ serve(async (req) => {
         }
       }
 
-      // Update Controllers with enriched pill_temp
+      // Upsert Controllers with enriched pill_temp
       if (selectedControllerIds.length > 0) {
-        const selectedControllersData = allControllers.filter((c: any) => selectedControllerIds.includes(c.id));
+        const selectedControllersData = fetchedControllers.filter((c: any) => selectedControllerIds.includes(c.id));
 
         const [{ data: activeSessions }, { data: autoCoolingSettings }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
@@ -330,6 +325,7 @@ serve(async (req) => {
         const isPillCompEnabled = autoCoolingSettings?.enabled && autoCoolingSettings?.pill_compensation_enabled;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
+        const controllerUpdates: Record<string, any>[] = [];
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
