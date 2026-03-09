@@ -183,12 +183,9 @@ async function runPassThroughSync(
   for (const fc of followedControllersFullData) {
     // Skip controllers already handled by a processor
     if (adjustedControllerNames.has(fc.name)) continue
-    if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // Skip controllers that are owned by PID control.
-    // When PID skips a cycle (same-data guard), pass-through must NOT
-    // overwrite the PID-compensated target_temp back to profile_target_temp.
-    // PID is the sole owner of target_temp for controllers with active temp control.
+    // Skip controllers with active temp control — PID owns target_temp for these.
+    // Pass-through only applies to controllers with no heating/cooling enabled.
     if (fc.heating_enabled || fc.cooling_enabled) continue
 
     const profileTarget = (fc as any).profile_target_temp
