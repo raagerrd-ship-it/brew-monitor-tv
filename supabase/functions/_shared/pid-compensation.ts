@@ -453,6 +453,10 @@ export async function calculateCompensatedTarget(
       })
       
       console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
+    } else {
+      // No significant compensation applied — still persist PID state to avoid losing integral
+      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, decayedIntegral, dampingFactor, avgError)
+      console.log(`🔄 Near-target ${controllerName} [${mode}]: err=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, correction=${errorCorrection.toFixed(2)}°C`)
     }
   }
 
