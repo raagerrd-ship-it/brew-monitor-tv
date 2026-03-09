@@ -15,8 +15,7 @@ import { getTempBucket, getLearnedParam } from './learning-utils.ts'
 // Pipeline:
 //   1. Bootstrap — ensure profile_target_temp is set for all controllers
 //   2. Processors — each can modify the desired target (pill-comp, future...)
-//   3. Pass-through — sync target_temp = profile_target_temp for untouched controllers
-//   4. Stall detection — separate concern, acts on resolved targets
+//   3. Stall detection — separate concern, acts on resolved targets
 //
 // Removing/disabling any processor is safe:
 //   target_temp will always converge to profile_target_temp.
