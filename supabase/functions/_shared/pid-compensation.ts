@@ -1,6 +1,33 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { updateLearnedParam, getLearnedParam } from './learning-utils.ts'
 
+/** Persist PID state to controller_learned_compensation */
+async function persistPidState(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string, deltaBucket: string, mode: string, stepType: string,
+  pCorrection: number, iCorrection: number, dampingFactor: number, avgError: number,
+  extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string },
+): Promise<void> {
+  await supabase.from('controller_learned_compensation').upsert({
+    controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
+    latest_p_correction: pCorrection, latest_i_correction: iCorrection,
+    latest_d_damping: dampingFactor, latest_avg_error: avgError,
+    accumulated_integral: iCorrection,
+    updated_at: new Date().toISOString(),
+    ...extra,
+  }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+}
+
+/** Compute updated integral: decay + accumulate (or hold if stale) */
+function computeIntegral(
+  persistedIntegral: number, avgError: number, isStaleData: boolean,
+  iDecay: number, iGain: number, iClamp: number,
+): number {
+  if (isStaleData) return persistedIntegral
+  const newIntegral = persistedIntegral * iDecay + avgError * iGain
+  return Math.max(-iClamp, Math.min(iClamp, newIntegral))
+}
+
 /**
  * Retrieve the learned cooling rate for a specific temp bucket and load.
  * Returns null if insufficient data (< 3 samples).
@@ -288,13 +315,7 @@ export async function calculateCompensatedTarget(
     
     console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C (baseTarget=${baseTarget.toFixed(1)}°C)`)
 
-    await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
-      latest_p_correction: 0, latest_i_correction: decayedIntegral,
-      latest_d_damping: dampingFactor, latest_avg_error: avgError,
-      accumulated_integral: decayedIntegral,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, 0, decayedIntegral, dampingFactor, avgError)
     constraints.push('deadband')
 
     return { ctrlTargetPid: deadbandCtrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
@@ -306,8 +327,7 @@ export async function calculateCompensatedTarget(
       iCorrection = persistedIntegral
       console.log(`📊 I-term ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)} (ingen ny data)`)
     } else {
-      const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
-      iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
+      iCorrection = computeIntegral(persistedIntegral, avgError, false, mp.iDecay, mp.iGain, mp.iClamp)
       console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
     }
 
@@ -375,13 +395,7 @@ export async function calculateCompensatedTarget(
 
     console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
-    await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
-      latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-      latest_d_damping: dampingFactor, latest_avg_error: avgError,
-      accumulated_integral: iCorrection,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
   } else if (avgError < -0.3) {
     // === OVERSHOOT ===
     pCorrection = avgError * mp.pGain
@@ -390,8 +404,7 @@ export async function calculateCompensatedTarget(
       iCorrection = persistedIntegral
       console.log(`📊 I-term overshoot ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)}`)
     } else {
-      const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
-      iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
+      iCorrection = computeIntegral(persistedIntegral, avgError, false, mp.iDecay, mp.iGain, mp.iClamp)
       console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
     }
 
@@ -413,13 +426,7 @@ export async function calculateCompensatedTarget(
     
     console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
-    await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
-      latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-      latest_d_damping: dampingFactor, latest_avg_error: avgError,
-      accumulated_integral: iCorrection,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
   } else if (avgError > -0.5 && avgError <= 0.5) {
     // === CONVERGENCE ===
     const decayedIntegral = persistedIntegral * 0.8
@@ -433,21 +440,11 @@ export async function calculateCompensatedTarget(
         : Math.max(0, totalCompApplied - absSensorComp)
       const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
       
-      await supabase.from('controller_learned_compensation').upsert({
-        controller_id: controllerId,
-        delta_bucket: deltaBucket,
-        mode,
-        step_type: stepType,
+      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, decayedIntegral, dampingFactor, avgError, {
         learned_pi_correction: clampedLearned,
         convergence_count: convergenceCount + 1,
         last_converged_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        latest_p_correction: pCorrection,
-        latest_i_correction: decayedIntegral,
-        latest_d_damping: dampingFactor,
-        latest_avg_error: avgError,
-        accumulated_integral: decayedIntegral,
-      }, { onConflict: 'controller_id,delta_bucket,mode,step_type' })
+      })
       
       console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
     }

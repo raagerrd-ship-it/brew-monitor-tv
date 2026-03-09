@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
 import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
@@ -21,7 +20,7 @@ interface DecisionLogEntry {
   details?: Record<string, unknown>;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
