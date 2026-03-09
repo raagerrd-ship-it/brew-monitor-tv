@@ -417,7 +417,7 @@ export async function calculateCompensatedTarget(
     }
     
     if (isSaturated && errorCorrection < 0) {
-    const prevComp = baseTarget - ctrlTarget
+      const prevComp = baseTarget - ctrlTarget
       if (errorCorrection < prevComp && prevComp < 0) {
         errorCorrection = prevComp
         console.log(`⚡ Saturation cap (overshoot): begränsar PI till ${errorCorrection.toFixed(2)}°C`)
