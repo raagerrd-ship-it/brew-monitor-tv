@@ -236,9 +236,9 @@ export async function calculateCompensatedTarget(
   const persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
 
   // === Stale-data detection ===
-  const newestDataTime = new Date(deltaHistory[0].recorded_at).getTime()
+  const newestDataTime = deltaHistory?.[0]?.recorded_at ? new Date(deltaHistory[0].recorded_at).getTime() : 0
   const lastPidRunTime = learnedRow?.updated_at ? new Date(learnedRow.updated_at).getTime() : 0
-  const isStaleData = lastPidRunTime > 0 && newestDataTime <= lastPidRunTime
+  const isStaleData = lastPidRunTime > 0 && newestDataTime > 0 && newestDataTime <= lastPidRunTime
   if (isStaleData) {
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
   }
