@@ -327,8 +327,7 @@ export async function calculateCompensatedTarget(
       iCorrection = persistedIntegral
       console.log(`📊 I-term ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)} (ingen ny data)`)
     } else {
-      const newIntegral = persistedIntegral * mp.iDecay + avgError * mp.iGain
-      iCorrection = Math.max(-mp.iClamp, Math.min(mp.iClamp, newIntegral))
+      iCorrection = computeIntegral(persistedIntegral, avgError, false, mp.iDecay, mp.iGain, mp.iClamp)
       console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
     }
 
