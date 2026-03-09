@@ -65,16 +65,11 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
   const adjustments: AdjustmentResult[] = []
 
   // ── Step 1: Bootstrap profile_target_temp ──────────────────
-  // Ensure every controller has a valid SSOT target, regardless of
-  // which processors are enabled. This runs ONCE per controller.
   await bootstrapProfileTargets(ctx)
 
   // ── Step 2: Run processors (each is independently toggleable) ─
   const processorAdjs = await runProcessors(ctx)
   adjustments.push(...processorAdjs)
-
-  // Track which controllers were modified by any processor
-  const adjustedControllerNames = new Set(processorAdjs.map(a => a.cooler))
 
   // Sync in-memory data so downstream sees current targets
   for (const adj of processorAdjs) {
@@ -84,22 +79,7 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
     }
   }
 
-  // ── Step 3: Pass-through sync ─────────────────────────────
-  // For any controller NOT touched by a processor, ensure
-  // target_temp matches profile_target_temp. This is what makes
-  // the system work with zero processors enabled.
-  const passThroughAdjs = await runPassThroughSync(ctx, adjustedControllerNames, ctx.pillCompSettings)
-  adjustments.push(...passThroughAdjs)
-
-  // Sync in-memory for pass-through too
-  for (const adj of passThroughAdjs) {
-    const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
-    if (fc) {
-      (fc as any).target_temp = adj.newTarget
-    }
-  }
-
-  // ── Step 4: Stall Detection (separate concern) ────────────
+  // ── Step 3: Stall Detection (separate concern) ────────────
   const stallAdjs = await runStallDetection(ctx)
   adjustments.push(...stallAdjs)
 
