@@ -597,18 +597,36 @@ export async function calculateCompensatedTarget(
 // ============================================================
 // Thermal Rate Learning
 // ============================================================
+// ============================================================
+// Shared thermal-rate learning core
+// ============================================================
+
+interface RateFilter {
+  /** Only keep samples where ratePerHour passes this predicate */
+  accept: (ratePerHour: number, temp: number, target: number) => boolean
+  /** Normalise the accepted rate (e.g. Math.abs for cooling) */
+  normalise?: (rate: number) => number
+}
+
+interface LearnRateResult {
+  rate: number
+  sampleCount: number
+}
 
 /**
- * Learn and retrieve the hardware thermal rate (°C/hour) for a controller.
+ * Shared core: learn a thermal rate from temp_controller_history using
+ * pluggable filter logic. Both learnThermalRate and learnGlycolCoolerRate
+ * delegate here.
  */
-export async function learnThermalRate(
+async function learnRateCore(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
-  mode: 'heating' | 'cooling',
-  skipLearning?: boolean,
-): Promise<number | null> {
-  const paramName = `thermal_rate_${mode}`
-
+  paramName: string,
+  filter: RateFilter,
+  skipLearning: boolean,
+  logPrefix: string,
+): Promise<LearnRateResult | null> {
+  // 1. Cache check — reuse recent value
   const { data: existing } = await supabase
     .from('fermentation_learnings')
     .select('learned_value, sample_count, last_updated_at')
@@ -617,12 +635,13 @@ export async function learnThermalRate(
     .maybeSingle()
 
   if (existing && existing.last_updated_at) {
-    const hoursSinceUpdate = (Date.now() - new Date(existing.last_updated_at).getTime()) / (1000 * 60 * 60)
-    if (hoursSinceUpdate < 2 && existing.sample_count >= 3) {
-      return parseFloat(String(existing.learned_value))
+    const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / (1000 * 60 * 60)
+    if (hoursSince < 2 && existing.sample_count >= 3) {
+      return { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count }
     }
   }
 
+  // 2. Fetch recent history
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { data: history } = await supabase
     .from('temp_controller_history')
@@ -633,54 +652,81 @@ export async function learnThermalRate(
     .limit(200)
 
   if (!history || history.length < 5) {
-    return existing ? parseFloat(String(existing.learned_value)) : null
+    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
   }
 
+  // 3. Compute rates with parametric filter
+  const norm = filter.normalise ?? ((r) => r)
   const rates: number[] = []
   for (let i = 1; i < history.length; i++) {
     const prev = history[i - 1]
     const curr = history[i]
     const tempDiff = parseFloat(String(curr.current_temp)) - parseFloat(String(prev.current_temp))
-    const timeDiffMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()
-    const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+    const timeDiffHours = (new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()) / (1000 * 60 * 60)
 
     if (timeDiffHours < 0.01 || timeDiffHours > 0.5) continue
 
     const ratePerHour = tempDiff / timeDiffHours
-    const target = parseFloat(String(curr.target_temp))
     const temp = parseFloat(String(curr.current_temp))
+    const target = parseFloat(String(curr.target_temp))
 
-    if (mode === 'heating' && ratePerHour > 0.3 && temp < target) {
-      rates.push(ratePerHour)
-    } else if (mode === 'cooling' && ratePerHour < -0.3 && temp > target) {
-      rates.push(Math.abs(ratePerHour))
+    if (filter.accept(ratePerHour, temp, target)) {
+      rates.push(norm(ratePerHour))
     }
   }
 
   if (rates.length < 2) {
-    return existing ? parseFloat(String(existing.learned_value)) : null
+    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
   }
 
+  // 4. p80 percentile
   rates.sort((a, b) => a - b)
-  const p80Index = Math.floor(rates.length * 0.8)
-  const measuredRate = rates[p80Index]
+  const p80 = rates[Math.floor(rates.length * 0.8)]
 
-  // Use shared EMA learning (SSOT) — skip during idle mode
+  // 5. Persist via EMA or return cached
   if (skipLearning) {
-    console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: skip learning (idle) — using measured p80=${measuredRate.toFixed(2)}`)
-    return existing ? parseFloat(String(existing.learned_value)) : Math.round(measuredRate * 100) / 100
+    console.log(`${logPrefix} skip learning (idle) — p80=${p80.toFixed(2)}`)
+    return existing
+      ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count }
+      : { rate: Math.round(p80 * 100) / 100, sampleCount: 0 }
   }
 
-  const result = await updateLearnedParam(supabase, controllerId, paramName, measuredRate, 0.1, 20.0)
+  const result = await updateLearnedParam(supabase, controllerId, paramName, p80, 0.1, 20.0)
+  const rounded = Math.round(result.newValue * 100) / 100
 
-  console.log(`🏎️ Thermal rate ${controllerId} [${mode}]: ${result.newValue.toFixed(2)}°C/h (${rates.length} samples, p80=${measuredRate.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
+  console.log(`${logPrefix} ${rounded.toFixed(2)}°C/h (${rates.length} samples, p80=${p80.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
 
-  return Math.round(result.newValue * 100) / 100
+  return { rate: rounded, sampleCount: result.sampleCount }
 }
 
 // ============================================================
-// Glycol Cooler Learning
+// Public wrappers (preserve existing signatures)
 // ============================================================
+
+const HEATING_FILTER: RateFilter = {
+  accept: (r, temp, target) => r > 0.3 && temp < target,
+}
+const COOLING_FILTER: RateFilter = {
+  accept: (r, temp, target) => r < -0.3 && temp > target,
+  normalise: Math.abs,
+}
+
+/**
+ * Learn and retrieve the hardware thermal rate (°C/hour) for a controller.
+ */
+export async function learnThermalRate(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  mode: 'heating' | 'cooling',
+  skipLearning?: boolean,
+): Promise<number | null> {
+  const filter = mode === 'heating' ? HEATING_FILTER : COOLING_FILTER
+  const result = await learnRateCore(
+    supabase, controllerId, `thermal_rate_${mode}`, filter,
+    !!skipLearning, `🏎️ Thermal rate ${controllerId} [${mode}]:`,
+  )
+  return result ? result.rate : null
+}
 
 /**
  * Learn glycol cooler thermal rate under different load conditions.
@@ -692,73 +738,10 @@ export async function learnGlycolCoolerRate(
   skipLearning?: boolean,
 ): Promise<{ rate: number; sampleCount: number } | null> {
   const loadBucket = currentLoad >= 2 ? '2plus' : String(currentLoad)
-  const paramName = `glycol_rate:load_${loadBucket}`
-
-  const { data: existing } = await supabase
-    .from('fermentation_learnings')
-    .select('learned_value, sample_count, last_updated_at')
-    .eq('controller_id', coolerId)
-    .eq('parameter_name', paramName)
-    .maybeSingle()
-
-  if (existing && existing.last_updated_at) {
-    const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / (1000 * 60 * 60)
-    if (hoursSince < 2 && existing.sample_count >= 3) {
-      return { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count }
-    }
-  }
-
-  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-  const { data: history } = await supabase
-    .from('temp_controller_history')
-    .select('current_temp, target_temp, cooling_enabled, recorded_at')
-    .eq('controller_id', coolerId)
-    .gte('recorded_at', sixHoursAgo)
-    .order('recorded_at', { ascending: true })
-    .limit(200)
-
-  if (!history || history.length < 5) {
-    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
-  }
-
-  const rates: number[] = []
-  for (let i = 1; i < history.length; i++) {
-    const prev = history[i - 1]
-    const curr = history[i]
-    const tempDiff = parseFloat(String(curr.current_temp)) - parseFloat(String(prev.current_temp))
-    const timeDiffMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()
-    const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
-
-    if (timeDiffHours < 0.01 || timeDiffHours > 0.5) continue
-
-    const ratePerHour = tempDiff / timeDiffHours
-    const temp = parseFloat(String(curr.current_temp))
-    const target = parseFloat(String(curr.target_temp))
-
-    if (ratePerHour < -0.3 && temp > target) {
-      rates.push(Math.abs(ratePerHour))
-    }
-  }
-
-  if (rates.length < 2) {
-    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
-  }
-
-  rates.sort((a, b) => a - b)
-  const p80 = rates[Math.floor(rates.length * 0.8)]
-
-  // Use shared EMA learning (SSOT) — skip during idle mode
-  if (skipLearning) {
-    console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: skip learning (idle)`)
-    return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
-  }
-
-  const result = await updateLearnedParam(supabase, coolerId, paramName, p80, 0.1, 20.0)
-  const rounded = Math.round(result.newValue * 100) / 100
-
-  console.log(`🧊 Glycol rate ${coolerId} [load=${loadBucket}]: ${rounded.toFixed(2)}°C/h (${rates.length} samples, p80=${p80.toFixed(2)}, prev=${result.oldValue.toFixed(2)})`)
-
-  return { rate: rounded, sampleCount: result.sampleCount }
+  return learnRateCore(
+    supabase, coolerId, `glycol_rate:load_${loadBucket}`, COOLING_FILTER,
+    !!skipLearning, `🧊 Glycol rate ${coolerId} [load=${loadBucket}]:`,
+  )
 }
 
 /**
