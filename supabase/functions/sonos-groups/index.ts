@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SONOS_API_URL = 'https://api.ws.sonos.com/control/api/v1';
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
