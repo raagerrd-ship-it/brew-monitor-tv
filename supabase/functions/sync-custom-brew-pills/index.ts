@@ -1,5 +1,3 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 
@@ -56,7 +54,7 @@ interface TelemetryRecord {
 
 import type { SgDataPoint } from '../_shared/types.ts'
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getValidAccessToken } from "../_shared/sonos-token.ts";
 
@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SONOS_API_URL = 'https://api.ws.sonos.com/control/api/v1';
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -10,7 +10,7 @@ const SONOS_AUTH_URL = 'https://api.sonos.com/login/v3/oauth';
 const SONOS_TOKEN_URL = 'https://api.sonos.com/login/v3/oauth/access';
 const REDIRECT_URI = 'https://brew-monitor-tv.lovable.app/sonos-callback';
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
