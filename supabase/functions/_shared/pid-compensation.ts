@@ -427,9 +427,15 @@ export async function calculateCompensatedTarget(
     console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
     await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
-  } else if (avgError > -0.5 && avgError <= 0.5) {
-    // === CONVERGENCE ===
-    const decayedIntegral = persistedIntegral * 0.8
+  } else {
+    // === NEAR-TARGET / CONVERGENCE (0.1 < |error| < 0.35 or -0.3..0.1) ===
+    // Small errors that fall between deadband and active PI.
+    // Apply gentle P-only correction to prevent stagnation.
+    pCorrection = avgError * mp.pGain * 0.5 // Half-strength P for gentle nudge
+    iCorrection = computeIntegral(persistedIntegral, avgError, isStaleData, mp.iDecay, mp.iGain * 0.5, mp.iClamp)
+    errorCorrection = Math.max(-mp.errorCorrectionCap, Math.min(mp.errorCorrectionCap, pCorrection + iCorrection))
+    
+    const decayedIntegral = iCorrection * 0.9 // Gentle decay
     
     const totalCompApplied = Math.abs(baseTarget - ctrlTarget)
     if (totalCompApplied > 0.1) {
