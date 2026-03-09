@@ -422,6 +422,9 @@ async function handleUnBoost(
     .eq('mode', fc.cooling_enabled ? 'cooling' : 'heating')
     .limit(1).maybeSingle()
 
+  // Hoist boostOldTarget so it's accessible in both branches and logAdjustment
+  const boostOldTarget = parseFloat(String(recentBoost[0].old_target_temp))
+
   if (existingComp) {
     // PID-based un-boost: reverse the learned correction
     const newCorrection = Math.max(0, existingComp.learned_pi_correction - boostDeg)
@@ -437,7 +440,6 @@ async function handleUnBoost(
     log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, PID -${boostDeg.toFixed(1)}°C`)
   } else {
     // Direct un-boost: the boost was applied as a direct temp change, reverse it
-    const boostOldTarget = parseFloat(String(recentBoost[0].old_target_temp))
     const restoredTarget = boostOldTarget // restore to pre-boost hardware target, not virtual profile target
 
     if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
