@@ -354,8 +354,17 @@ Deno.serve(async (req) => {
 
     console.log('Running quick sync pass (data + automation)...')
     try {
+      // Write a reservation log entry so cron-triggered quick-syncs skip (concurrency guard)
+      await supabase.from('auto_cooling_decision_logs').insert({
+        duration_ms: 0,
+        decision_count: 0,
+        decisions: [{ type: 'FULL_SYNC_RESERVATION', message: 'Reserved by full-sync to prevent cron overlap' }],
+        adjustment_made: false,
+        final_result: 'full-sync reservation',
+      });
+
       await supabase.functions.invoke('sync-rapt-data-quick', { 
-        body: raptToken ? { access_token: raptToken } : {} 
+        body: raptToken ? { access_token: raptToken, from_full_sync: true } : { from_full_sync: true } 
       })
       console.log('Quick sync pass completed')
     } catch (e) {
