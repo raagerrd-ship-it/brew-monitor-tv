@@ -119,7 +119,9 @@ export async function resolveBackgroundAndWidget(
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
   const namePart = trackName
-    ? '-' + trackName.toLowerCase().replace(/[^a-z0-9åäöü]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+    ? '-' + trackName.toLowerCase()
+        .replace(/å/g, 'a').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u')
+        .replace(/[^a-z0-9]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
     : '';
   const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
   const widgetFileName = `${trackHash}${namePart}-widget-v1.jpg`;
