@@ -440,7 +440,7 @@ async function handleUnBoost(
     log('STALL_UNBOOST', 'action', `${fc.name}: Jäsning återupptagits, PID -${boostDeg.toFixed(1)}°C`)
   } else {
     // Direct un-boost: the boost was applied as a direct temp change, reverse it
-    const restoredTarget = boostOldTarget // restore to pre-boost hardware target, not virtual profile target
+    const restoredTarget = boostOldTarget
 
     if (Math.abs(currentTarget - restoredTarget) >= 0.15) {
       let success: boolean
