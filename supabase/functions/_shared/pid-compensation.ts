@@ -315,13 +315,7 @@ export async function calculateCompensatedTarget(
     
     console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C (baseTarget=${baseTarget.toFixed(1)}°C)`)
 
-    await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
-      latest_p_correction: 0, latest_i_correction: decayedIntegral,
-      latest_d_damping: dampingFactor, latest_avg_error: avgError,
-      accumulated_integral: decayedIntegral,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, 0, decayedIntegral, dampingFactor, avgError)
     constraints.push('deadband')
 
     return { ctrlTargetPid: deadbandCtrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
