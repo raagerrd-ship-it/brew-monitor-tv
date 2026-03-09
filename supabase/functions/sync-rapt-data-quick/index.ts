@@ -52,7 +52,7 @@ async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData.toString(),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!res.ok) {
