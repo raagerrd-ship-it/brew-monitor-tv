@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
 
     let raptToken: string | null = null;
     try {
-      raptToken = await getRaptToken();
+      raptToken = await getRaptTokenCached(supabase);
     } catch (e) {
       console.error('RAPT auth failed (discovery + quick sync will use their own fallback):', e);
     }
