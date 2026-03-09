@@ -426,13 +426,7 @@ export async function calculateCompensatedTarget(
     
     console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
 
-    await supabase.from('controller_learned_compensation').upsert({
-      controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
-      latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-      latest_d_damping: dampingFactor, latest_avg_error: avgError,
-      accumulated_integral: iCorrection,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
   } else if (avgError > -0.5 && avgError <= 0.5) {
     // === CONVERGENCE ===
     const decayedIntegral = persistedIntegral * 0.8
