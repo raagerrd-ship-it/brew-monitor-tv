@@ -3,8 +3,26 @@ import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts'
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts'
 
-// ── Inlined RAPT auth (shared across sub-functions) ──
-async function getRaptToken(): Promise<string> {
+// ── RAPT auth with DB token cache (same strategy as quick-sync) ──
+async function getRaptTokenCached(supabase: any): Promise<string> {
+  // Try cached token first (valid if expires > 10 min from now)
+  try {
+    const { data: cached } = await supabase
+      .from('rapt_token_cache')
+      .select('access_token, expires_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cached?.access_token && cached?.expires_at) {
+      const expiresAt = new Date(cached.expires_at).getTime();
+      if (expiresAt > Date.now() + 10 * 60 * 1000) {
+        console.log('🔑 [full-sync] Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
+        return cached.access_token;
+      }
+    }
+  } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
+
+  // Fresh auth with retry
   const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
   const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
   if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
@@ -16,16 +34,32 @@ async function getRaptToken(): Promise<string> {
   formData.append('password', RAPT_API_SECRET);
 
   const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
-  const res = await fetch(`${authBaseUrl}/connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: formData.toString(),
-    signal: AbortSignal.timeout(45000),
-  });
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${authBaseUrl}/connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!res.ok) throw new Error(`RAPT auth error: ${res.status}`);
+      const data = await res.json();
 
-  if (!res.ok) throw new Error(`RAPT auth error: ${res.status}`);
-  const data = await res.json();
-  return data.access_token;
+      // Cache the new token
+      if (data.expires_in) {
+        const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+        await supabase.from('rapt_token_cache')
+          .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' });
+        console.log('🔑 [full-sync] Fresh RAPT token cached');
+      }
+      return data.access_token;
+    } catch (e) {
+      lastError = e as Error;
+      if (attempt === 0) console.log(`🔑 [full-sync] Auth attempt 1 failed, retrying...`);
+    }
+  }
+  throw lastError!;
 }
 
 const corsHeaders = {
@@ -297,7 +331,7 @@ Deno.serve(async (req) => {
 
     let raptToken: string | null = null;
     try {
-      raptToken = await getRaptToken();
+      raptToken = await getRaptTokenCached(supabase);
     } catch (e) {
       console.error('RAPT auth failed (discovery + quick sync will use their own fallback):', e);
     }
@@ -320,8 +354,17 @@ Deno.serve(async (req) => {
 
     console.log('Running quick sync pass (data + automation)...')
     try {
+      // Write a reservation log entry so cron-triggered quick-syncs skip (concurrency guard)
+      await supabase.from('auto_cooling_decision_logs').insert({
+        duration_ms: 0,
+        decision_count: 0,
+        decisions: [{ type: 'FULL_SYNC_RESERVATION', message: 'Reserved by full-sync to prevent cron overlap' }],
+        adjustment_made: false,
+        final_result: 'full-sync reservation',
+      });
+
       await supabase.functions.invoke('sync-rapt-data-quick', { 
-        body: raptToken ? { access_token: raptToken } : {} 
+        body: raptToken ? { access_token: raptToken, from_full_sync: true } : { from_full_sync: true } 
       })
       console.log('Quick sync pass completed')
     } catch (e) {
