@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
 import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
