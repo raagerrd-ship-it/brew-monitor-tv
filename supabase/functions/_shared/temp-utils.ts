@@ -48,8 +48,8 @@ export interface TempController {
 
 /** Round to 1 decimal place, null-safe */
 export function round1(v: number | null | undefined): number | null {
-  if (v === null || v === undefined) return null
-  return parseFloat(parseFloat(String(v)).toFixed(1))
+  if (v == null) return null
+  return Math.round(Number(v) * 10) / 10
 }
 
 // ============================================================
