@@ -571,11 +571,11 @@ export async function calculateCompensatedTarget(
     const overshootReleaseFinal = probeDistToTargetFinal <= 1.0
     if (overshootReleaseFinal) {
       if (mode === 'cooling' && ctrlTargetPid > latestCtrlForComp) {
-        ctrlTargetPid = Math.min(ctrlTargetPid, latestCtrlForComp)
+        ctrlTargetPid = latestCtrlForComp
         constraints.push('overshoot-clamp')
         console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar värmaren)`)
       } else if (mode === 'heating' && ctrlTargetPid < latestCtrlForComp) {
-        ctrlTargetPid = Math.max(ctrlTargetPid, latestCtrlForComp)
+        ctrlTargetPid = latestCtrlForComp
         constraints.push('overshoot-clamp')
         console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar kylaren)`)
       }
