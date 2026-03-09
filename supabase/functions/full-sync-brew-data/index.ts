@@ -20,7 +20,7 @@ async function getRaptToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData.toString(),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(45000),
   });
 
   if (!res.ok) throw new Error(`RAPT auth error: ${res.status}`);
