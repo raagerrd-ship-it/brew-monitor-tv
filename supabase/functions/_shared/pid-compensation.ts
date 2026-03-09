@@ -1,6 +1,33 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { updateLearnedParam, getLearnedParam } from './learning-utils.ts'
 
+/** Persist PID state to controller_learned_compensation */
+async function persistPidState(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string, deltaBucket: string, mode: string, stepType: string,
+  pCorrection: number, iCorrection: number, dampingFactor: number, avgError: number,
+  extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string },
+): Promise<void> {
+  await supabase.from('controller_learned_compensation').upsert({
+    controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
+    latest_p_correction: pCorrection, latest_i_correction: iCorrection,
+    latest_d_damping: dampingFactor, latest_avg_error: avgError,
+    accumulated_integral: iCorrection,
+    updated_at: new Date().toISOString(),
+    ...extra,
+  }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
+}
+
+/** Compute updated integral: decay + accumulate (or hold if stale) */
+function computeIntegral(
+  persistedIntegral: number, avgError: number, isStaleData: boolean,
+  iDecay: number, iGain: number, iClamp: number,
+): number {
+  if (isStaleData) return persistedIntegral
+  const newIntegral = persistedIntegral * iDecay + avgError * iGain
+  return Math.max(-iClamp, Math.min(iClamp, newIntegral))
+}
+
 /**
  * Retrieve the learned cooling rate for a specific temp bucket and load.
  * Returns null if insufficient data (< 3 samples).
