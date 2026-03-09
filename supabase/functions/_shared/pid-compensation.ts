@@ -440,21 +440,11 @@ export async function calculateCompensatedTarget(
         : Math.max(0, totalCompApplied - absSensorComp)
       const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
       
-      await supabase.from('controller_learned_compensation').upsert({
-        controller_id: controllerId,
-        delta_bucket: deltaBucket,
-        mode,
-        step_type: stepType,
+      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, decayedIntegral, dampingFactor, avgError, {
         learned_pi_correction: clampedLearned,
         convergence_count: convergenceCount + 1,
         last_converged_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        latest_p_correction: pCorrection,
-        latest_i_correction: decayedIntegral,
-        latest_d_damping: dampingFactor,
-        latest_avg_error: avgError,
-        accumulated_integral: decayedIntegral,
-      }, { onConflict: 'controller_id,delta_bucket,mode,step_type' })
+      })
       
       console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
     }
