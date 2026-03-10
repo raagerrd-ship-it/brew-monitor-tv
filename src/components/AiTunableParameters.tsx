@@ -10,6 +10,24 @@ const BUCKET_LABELS: Record<string, string> = {
   hot: "Het",
 };
 
+// Bounds matching ai-automation-audit/index.ts
+const BOUNDS: Record<string, [number, number]> = {
+  pill_compensation_damping: [0.1, 0.9],
+  pill_compensation_rate_limit: [0.1, 1.0],
+  pill_compensation_max_compensation: [1.0, 8.0],
+  pill_compensation_min_scale: [0.05, 0.5],
+  pill_compensation_emergency_threshold: [1.0, 5.0],
+  overshoot_pill_threshold: [0.1, 1.0],
+  overshoot_delta_threshold: [0.5, 5.0],
+  stall_rate_threshold: [0.0005, 0.005],
+  auto_boost_degrees: [0.5, 4.0],
+  stall_min_attenuation: [5, 30],
+  stall_max_attenuation: [70, 95],
+  temp_reduction_degrees: [1.0, 10.0],
+  max_diff_from_lowest: [3.0, 15.0],
+  delta_alert_threshold: [0.5, 5.0],
+};
+
 interface PerControllerLearning {
   controller_id: string;
   controller_name: string;
@@ -36,11 +54,17 @@ interface GlobalParams {
   max_diff_from_lowest: number;
 }
 
-function ParamRow({ label, value, unit = "" }: { label: string; value: string | number; unit?: string }) {
+function ParamRow({ label, value, unit = "", boundsKey }: { label: string; value: string | number; unit?: string; boundsKey?: string }) {
+  const bounds = boundsKey ? BOUNDS[boundsKey] : undefined;
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-mono text-foreground">{value}{unit}</span>
+      <div className="flex items-center gap-1.5">
+        {bounds && (
+          <span className="text-[9px] text-muted-foreground/50 font-mono">{bounds[0]}–{bounds[1]}</span>
+        )}
+        <span className="font-mono text-foreground">{value}{unit}</span>
+      </div>
     </div>
   );
 }
@@ -115,7 +139,6 @@ export function AiTunableParameters() {
 
   if (!globals) return null;
 
-  // Group per-controller learnings
   const boostEntries = perController.filter((p) => p.parameter_name === "stall_boost_degrees");
   const marginEntries = perController.filter((p) => p.parameter_name.startsWith("cooler_margin:"));
   const holdMarginEntries = perController.filter((p) => p.parameter_name.startsWith("hold_margin:"));
@@ -123,13 +146,11 @@ export function AiTunableParameters() {
   const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("duty_cycle:"));
   const coolingRateEntries = perController.filter((p) => p.parameter_name.startsWith("cooling_rate:"));
 
-  // Group margins by controller
   const marginsByController = marginEntries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
   }, {});
 
-  // Group hold/ramp margins by controller
   const groupByController = (entries: PerControllerLearning[]) =>
     entries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
       (acc[e.controller_name] ??= []).push(e);
@@ -141,7 +162,7 @@ export function AiTunableParameters() {
   const dutyByController = groupByController(dutyCycleEntries);
   const rateByController = groupByController(coolingRateEntries);
 
-  function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°") {
+  function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°", boundsRange?: [number, number]) {
     return (
       <div className="flex flex-wrap gap-x-3">
         {items
@@ -154,16 +175,19 @@ export function AiTunableParameters() {
               </span>
             );
           })}
+        {boundsRange && (
+          <span className="text-[9px] text-muted-foreground/50 font-mono ml-auto">{boundsRange[0]}–{boundsRange[1]}</span>
+        )}
       </div>
     );
   }
 
-  function renderGroupedSection(grouped: Record<string, PerControllerLearning[]>, extractKey: (name: string) => string, unit = "°") {
+  function renderGroupedSection(grouped: Record<string, PerControllerLearning[]>, extractKey: (name: string) => string, unit = "°", boundsRange?: [number, number]) {
     if (Object.keys(grouped).length === 0) return null;
     return Object.entries(grouped).map(([name, items]) => (
       <div key={name} className="mt-0.5">
         <span className="text-muted-foreground font-medium">{name}</span>
-        {renderBucketValues(items, extractKey, unit)}
+        {renderBucketValues(items, extractKey, unit, boundsRange)}
       </div>
     ));
   }
@@ -184,11 +208,11 @@ export function AiTunableParameters() {
       <div>
         <SectionHeader>PID-kompensation</SectionHeader>
         <div className="mt-0.5">
-          <ParamRow label="Damping" value={globals.pill_compensation_damping} />
-          <ParamRow label="Rate limit" value={globals.pill_compensation_rate_limit} unit="°/cykel" />
-          <ParamRow label="Max komp" value={globals.pill_compensation_max_compensation} unit="°C" />
-          <ParamRow label="Min scale" value={globals.pill_compensation_min_scale} />
-          <ParamRow label="Nödläge" value={globals.pill_compensation_emergency_threshold} unit="°C" />
+          <ParamRow label="Damping" value={globals.pill_compensation_damping} boundsKey="pill_compensation_damping" />
+          <ParamRow label="Rate limit" value={globals.pill_compensation_rate_limit} unit="°/cykel" boundsKey="pill_compensation_rate_limit" />
+          <ParamRow label="Max komp" value={globals.pill_compensation_max_compensation} unit="°C" boundsKey="pill_compensation_max_compensation" />
+          <ParamRow label="Min scale" value={globals.pill_compensation_min_scale} boundsKey="pill_compensation_min_scale" />
+          <ParamRow label="Nödläge" value={globals.pill_compensation_emergency_threshold} unit="°C" boundsKey="pill_compensation_emergency_threshold" />
         </div>
       </div>
 
@@ -196,8 +220,8 @@ export function AiTunableParameters() {
       <div>
         <SectionHeader>Overshoot-skydd</SectionHeader>
         <div className="mt-0.5">
-          <ParamRow label="Pill-tröskel" value={globals.overshoot_pill_threshold} unit="°C" />
-          <ParamRow label="Delta-tröskel" value={globals.overshoot_delta_threshold} unit="°C" />
+          <ParamRow label="Pill-tröskel" value={globals.overshoot_pill_threshold} unit="°C" boundsKey="overshoot_pill_threshold" />
+          <ParamRow label="Delta-tröskel" value={globals.overshoot_delta_threshold} unit="°C" boundsKey="overshoot_delta_threshold" />
         </div>
       </div>
 
@@ -205,10 +229,10 @@ export function AiTunableParameters() {
       <div>
         <SectionHeader>Stall-detektering</SectionHeader>
         <div className="mt-0.5">
-          <ParamRow label="SG-tröskel" value={globals.stall_rate_threshold.toFixed(4)} unit="/h" />
-          <ParamRow label="Boost" value={globals.auto_boost_degrees} unit="°C" />
-          <ParamRow label="Min dämpning" value={globals.stall_min_attenuation} unit="%" />
-          <ParamRow label="Max dämpning" value={globals.stall_max_attenuation} unit="%" />
+          <ParamRow label="SG-tröskel" value={globals.stall_rate_threshold.toFixed(4)} unit="/h" boundsKey="stall_rate_threshold" />
+          <ParamRow label="Boost" value={globals.auto_boost_degrees} unit="°C" boundsKey="auto_boost_degrees" />
+          <ParamRow label="Min dämpning" value={globals.stall_min_attenuation} unit="%" boundsKey="stall_min_attenuation" />
+          <ParamRow label="Max dämpning" value={globals.stall_max_attenuation} unit="%" boundsKey="stall_max_attenuation" />
           {boostEntries.map((b) => (
             <ParamRow key={b.controller_id} label={`${b.controller_name} boost`} value={b.learned_value.toFixed(1)} unit="°C" />
           ))}
@@ -219,16 +243,16 @@ export function AiTunableParameters() {
       <div>
         <SectionHeader>Kylare</SectionHeader>
         <div className="mt-0.5">
-          <ParamRow label="Reduktion" value={globals.temp_reduction_degrees} unit="°C" />
-          <ParamRow label="Max diff" value={globals.max_diff_from_lowest} unit="°C" />
-          <ParamRow label="Delta-larm" value={globals.delta_alert_threshold} unit="°C" />
+          <ParamRow label="Reduktion" value={globals.temp_reduction_degrees} unit="°C" boundsKey="temp_reduction_degrees" />
+          <ParamRow label="Max diff" value={globals.max_diff_from_lowest} unit="°C" boundsKey="max_diff_from_lowest" />
+          <ParamRow label="Delta-larm" value={globals.delta_alert_threshold} unit="°C" boundsKey="delta_alert_threshold" />
         </div>
       </div>
 
       {/* Per-controller cooler margins */}
       {Object.keys(marginsByController).length > 0 && (
         <div>
-          <SectionHeader>Kylarmarginaler</SectionHeader>
+          <SectionHeader>Kylarmarginaler <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.5–8.0</span></SectionHeader>
           {Object.entries(marginsByController).map(([name, items]) => (
             <div key={name} className="mt-0.5">
               <span className="text-muted-foreground font-medium">{name}</span>
@@ -241,7 +265,7 @@ export function AiTunableParameters() {
       {/* Hold margins */}
       {Object.keys(holdByController).length > 0 && (
         <div>
-          <SectionHeader>Hold-marginaler</SectionHeader>
+          <SectionHeader>Hold-marginaler <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.5–8.0</span></SectionHeader>
           {renderGroupedSection(holdByController, (n) => n.replace("hold_margin:", "").split(":")[0])}
         </div>
       )}
@@ -249,7 +273,7 @@ export function AiTunableParameters() {
       {/* Ramp margins */}
       {Object.keys(rampByController).length > 0 && (
         <div>
-          <SectionHeader>Ramp-marginaler</SectionHeader>
+          <SectionHeader>Ramp-marginaler <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.5–8.0</span></SectionHeader>
           {renderGroupedSection(rampByController, (n) => n.replace("ramp_margin:", "").split(":")[0])}
         </div>
       )}
@@ -257,7 +281,7 @@ export function AiTunableParameters() {
       {/* Duty cycles */}
       {Object.keys(dutyByController).length > 0 && (
         <div>
-          <SectionHeader>Duty cycle</SectionHeader>
+          <SectionHeader>Duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">5–95</span></SectionHeader>
           {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
         </div>
       )}
@@ -265,7 +289,7 @@ export function AiTunableParameters() {
       {/* Cooling rates */}
       {Object.keys(rateByController).length > 0 && (
         <div>
-          <SectionHeader>Kylhastighet</SectionHeader>
+          <SectionHeader>Kylhastighet <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.01–2.0</span></SectionHeader>
           {renderGroupedSection(rateByController, (n) => n.replace("cooling_rate:", "").split(":")[0], "°/min")}
         </div>
       )}
