@@ -91,7 +91,7 @@ export function AiTunableParameters() {
       const [settingsRes, learningsRes, controllersRes] = await Promise.all([
         supabase
           .from("auto_cooling_settings")
-          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest")
+          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest, smart_relay_min_hysteresis, smart_relay_cooling_only_below, smart_relay_heating_only_above, smart_relay_tighten_after_minutes")
           .limit(1)
           .single(),
         supabase
