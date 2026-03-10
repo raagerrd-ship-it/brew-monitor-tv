@@ -531,8 +531,9 @@ Svara ENBART med JSON (inget annat).`;
             continue;
           }
 
-          const maxStep = MAX_STEP[change.parameter];
-          const bounds = BOUNDS[change.parameter];
+          const isLearning = change.table === 'fermentation_learnings';
+          const maxStep = isLearning ? getLearningMaxStep(change.parameter) : MAX_STEP[change.parameter];
+          const bounds = isLearning ? getLearningBounds(change.parameter) : BOUNDS[change.parameter];
 
           // CRITICAL: Use ACTUAL database value, not AI-provided old_value
           let actualOldValue: number | null = null;
