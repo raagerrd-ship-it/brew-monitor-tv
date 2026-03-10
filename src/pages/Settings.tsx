@@ -6,6 +6,7 @@ import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { AiAuditHistory } from "@/components/AiAuditHistory";
+import { AiTunableParameters } from "@/components/AiTunableParameters";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
@@ -568,7 +569,9 @@ export default function Settings() {
                     lastAdjustment={settings.lastAdjustment}
                     lastAutoCoolingCheck={settings.lastQuickSync}
                     autoCoolingInterval={settings.quickSyncInterval}
-                  />
+                   />
+                  <SettingsDivider />
+                  <AiTunableParameters />
                 </div>
               </SettingsSection>
             )}
