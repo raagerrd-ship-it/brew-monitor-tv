@@ -215,20 +215,40 @@ Deno.serve(async (req) => {
 - Vid högt delta under cold crash: ÖKA damping, MINSKA rate_limit. ALDRIG tvärtom.
 
 ## Parametrar du kan ändra (i auto_cooling_settings):
+
+### PID-kompensation
 - pill_compensation_damping (0.1-0.9): Hur snabbt PID reagerar. Höj vid oscillering. MAX ÄNDRING: ±0.1 per audit.
 - pill_compensation_rate_limit (0.1-1.0): Max ändring per cykel. MAX ÄNDRING: ±0.1 per audit.
 - pill_compensation_max_compensation (1.0-8.0): Max total kompensation. MAX ÄNDRING: ±0.5 per audit.
-- delta_alert_threshold (0.5-5.0): Tröskelvärde för delta-alarm. MAX ÄNDRING: ±0.5 per audit.
+- pill_compensation_min_scale (0.05-0.5): Lägsta skalningsfaktor för PID nära target. Sänk om systemet blir för passivt nära target. MAX ÄNDRING: ±0.05 per audit.
+- pill_compensation_emergency_threshold (1.0-5.0): Nödlägeströskel — om felet överstiger detta ignoreras damping. Sänk om systemet reagerar för långsamt på stora avvikelser. MAX ÄNDRING: ±0.5 per audit.
+
+### Overshoot-skydd
+- overshoot_pill_threshold (0.1-1.0): Marginal innan pill-overshoot-guard triggas. Sänk om pill skjuter över target, höj om PID bromsas i onödan. MAX ÄNDRING: ±0.1 per audit.
+- overshoot_delta_threshold (0.5-5.0): Delta-tröskel för overshoot-prevention. MAX ÄNDRING: ±0.5 per audit.
+
+### Stall-detektering
 - stall_rate_threshold (0.0005-0.005): SG-tröskelvärde för stall-detektion. MAX ÄNDRING: ±0.0005 per audit.
+- auto_boost_degrees (0.5-4.0): Standard boost-grader vid stall. Höj om boosts inte bryter stalls. MAX ÄNDRING: ±0.5 per audit.
+- stall_min_attenuation (5-30): Minsta dämpning (%) innan stall-detektion aktiveras. Sänk om stalls missas tidigt. MAX ÄNDRING: ±5 per audit.
+- stall_max_attenuation (70-95): Högsta dämpning (%) för stall-detektion. Höj om stalls missas sent. MAX ÄNDRING: ±5 per audit.
+
+### Kylare
+- delta_alert_threshold (0.5-5.0): Tröskelvärde för delta-alarm. MAX ÄNDRING: ±0.5 per audit.
 - temp_reduction_degrees (1.0-10.0): Hur mycket glykolkylaren sänks under lägsta target. MAX ÄNDRING: ±1.0 per audit.
+- max_diff_from_lowest (3.0-15.0): Max avstånd kylaren går under lägsta följda controllers target. Höj om kylaren inte hinner, sänk om den kyler för aggressivt. MAX ÄNDRING: ±1.0 per audit.
 
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
-FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
+FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
 
 ## Parametrar du kan ändra (i fermentation_learnings per controller):
 - stall_boost_degrees: Hur stor boost vid stall. MAX ÄNDRING: ±1.0 per audit. Range: 0.5-6.0.
-- cooler_margin:cold/cool/warm/hot: Marginal för glykolkylaren per temperatur-bucket.
+- cooler_margin:{bucket}: Marginal för glykolkylaren per temperatur-bucket (cold/cool/warm/hot). Range: 0.5-8.0.
+- hold_margin:{bucket}:{load}: Optimal marginal under hold-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
+- ramp_margin:{bucket}:{load}: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
+- duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
+- cooling_rate:{bucket}:{load}: Inlärd kylhastighet (°C/min). Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
 
 ## Svar-format (MÅSTE vara valid JSON):
 {
@@ -247,12 +267,19 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         pill_compensation_damping: settings.pill_compensation_damping,
         pill_compensation_rate_limit: settings.pill_compensation_rate_limit,
         pill_compensation_max_compensation: settings.pill_compensation_max_compensation,
+        pill_compensation_min_scale: settings.pill_compensation_min_scale,
+        pill_compensation_emergency_threshold: settings.pill_compensation_emergency_threshold,
         auto_boost_enabled: settings.auto_boost_enabled,
         auto_boost_degrees: settings.auto_boost_degrees,
         stall_rate_threshold: settings.stall_rate_threshold,
+        stall_min_attenuation: settings.stall_min_attenuation,
+        stall_max_attenuation: settings.stall_max_attenuation,
         delta_alert_threshold: settings.delta_alert_threshold,
         temp_reduction_degrees: settings.temp_reduction_degrees,
+        max_diff_from_lowest: settings.max_diff_from_lowest,
         overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
+        overshoot_pill_threshold: settings.overshoot_pill_threshold,
+        overshoot_delta_threshold: settings.overshoot_delta_threshold,
       } : null,
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
@@ -399,9 +426,17 @@ Svara ENBART med JSON (inget annat).`;
       pill_compensation_damping: 0.1,
       pill_compensation_rate_limit: 0.1,
       pill_compensation_max_compensation: 0.5,
+      pill_compensation_min_scale: 0.05,
+      pill_compensation_emergency_threshold: 0.5,
+      overshoot_pill_threshold: 0.1,
+      overshoot_delta_threshold: 0.5,
       delta_alert_threshold: 0.5,
       stall_rate_threshold: 0.0005,
+      auto_boost_degrees: 0.5,
+      stall_min_attenuation: 5,
+      stall_max_attenuation: 5,
       temp_reduction_degrees: 1.0,
+      max_diff_from_lowest: 1.0,
       stall_boost_degrees: 1.0,
       'cooler_margin:cold': 1.0,
       'cooler_margin:cool': 1.0,
@@ -416,9 +451,17 @@ Svara ENBART med JSON (inget annat).`;
       pill_compensation_damping: [0.1, 0.9],
       pill_compensation_rate_limit: [0.1, 1.0],
       pill_compensation_max_compensation: [1.0, 8.0],
+      pill_compensation_min_scale: [0.05, 0.5],
+      pill_compensation_emergency_threshold: [1.0, 5.0],
+      overshoot_pill_threshold: [0.1, 1.0],
+      overshoot_delta_threshold: [0.5, 5.0],
       delta_alert_threshold: [0.5, 5.0],
       stall_rate_threshold: [0.0005, 0.005],
+      auto_boost_degrees: [0.5, 4.0],
+      stall_min_attenuation: [5, 30],
+      stall_max_attenuation: [70, 95],
       temp_reduction_degrees: [1.0, 10.0],
+      max_diff_from_lowest: [3.0, 15.0],
       stall_boost_degrees: [0.5, 6.0],
       'cooler_margin:cold': [0.5, 8.0],
       'cooler_margin:cool': [0.5, 8.0],
@@ -428,22 +471,43 @@ Svara ENBART med JSON (inget annat).`;
       glycol_cooler_rate: [0.01, 5.0],
     };
 
-    // Whitelist for fermentation_learnings parameter_name
-    const VALID_LEARNING_PARAMS = new Set([
+    // Whitelist for fermentation_learnings parameter_name (exact or prefix match)
+    const VALID_LEARNING_EXACT = new Set([
       'stall_boost_degrees',
-      'cooler_margin:cold',
-      'cooler_margin:cool',
-      'cooler_margin:warm',
-      'cooler_margin:hot',
-      'thermal_rate',
-      'glycol_cooler_rate',
+      'cooler_margin:cold', 'cooler_margin:cool', 'cooler_margin:warm', 'cooler_margin:hot',
+      'thermal_rate', 'glycol_cooler_rate',
     ]);
+    const VALID_LEARNING_PREFIXES = [
+      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:',
+    ];
+    function isValidLearningParam(param: string): boolean {
+      if (VALID_LEARNING_EXACT.has(param)) return true;
+      return VALID_LEARNING_PREFIXES.some(p => param.startsWith(p));
+    }
+
+    // Dynamic bounds/step for prefix-matched learning params
+    function getLearningBounds(param: string): [number, number] | null {
+      if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return [0.5, 8.0];
+      if (param.startsWith('duty_cycle:')) return [5, 95];
+      if (param.startsWith('cooling_rate:')) return [0.01, 2.0];
+      return BOUNDS[param] ?? null;
+    }
+    function getLearningMaxStep(param: string): number | null {
+      if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return 1.0;
+      if (param.startsWith('duty_cycle:')) return 10;
+      if (param.startsWith('cooling_rate:')) return 0.1;
+      return MAX_STEP[param] ?? null;
+    }
 
     // Valid settings params (single source)
     const VALID_SETTINGS_PARAMS = [
       'pill_compensation_damping', 'pill_compensation_rate_limit',
-      'pill_compensation_max_compensation', 'delta_alert_threshold',
-      'stall_rate_threshold', 'temp_reduction_degrees',
+      'pill_compensation_max_compensation', 'pill_compensation_min_scale',
+      'pill_compensation_emergency_threshold',
+      'overshoot_pill_threshold', 'overshoot_delta_threshold',
+      'delta_alert_threshold', 'stall_rate_threshold',
+      'auto_boost_degrees', 'stall_min_attenuation', 'stall_max_attenuation',
+      'temp_reduction_degrees', 'max_diff_from_lowest',
     ];
 
     // Helper: get the REAL current value from the database, not AI's claimed old_value
@@ -467,8 +531,9 @@ Svara ENBART med JSON (inget annat).`;
             continue;
           }
 
-          const maxStep = MAX_STEP[change.parameter];
-          const bounds = BOUNDS[change.parameter];
+          const isLearning = change.table === 'fermentation_learnings';
+          const maxStep = isLearning ? getLearningMaxStep(change.parameter) : MAX_STEP[change.parameter];
+          const bounds = isLearning ? getLearningBounds(change.parameter) : BOUNDS[change.parameter];
 
           // CRITICAL: Use ACTUAL database value, not AI-provided old_value
           let actualOldValue: number | null = null;
@@ -532,7 +597,7 @@ Svara ENBART med JSON (inget annat).`;
             }
           } else if (change.table === 'fermentation_learnings' && change.controller_id) {
             // Validate parameter name against whitelist
-            if (!VALID_LEARNING_PARAMS.has(change.parameter)) {
+            if (!isValidLearningParam(change.parameter)) {
               console.log(`⚠️ Skipping invalid learning parameter: ${change.parameter}`);
               continue;
             }
