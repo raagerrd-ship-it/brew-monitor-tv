@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Sliders, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatRecency } from "@/lib/format-recency";
 
 const BUCKET_LABELS: Record<string, string> = {
   cold: "Kall",
@@ -24,9 +23,17 @@ interface GlobalParams {
   pill_compensation_damping: number;
   pill_compensation_rate_limit: number;
   pill_compensation_max_compensation: number;
+  pill_compensation_min_scale: number;
+  pill_compensation_emergency_threshold: number;
+  overshoot_pill_threshold: number;
+  overshoot_delta_threshold: number;
   stall_rate_threshold: number;
+  auto_boost_degrees: number;
+  stall_min_attenuation: number;
+  stall_max_attenuation: number;
   temp_reduction_degrees: number;
   delta_alert_threshold: number;
+  max_diff_from_lowest: number;
 }
 
 function ParamRow({ label, value, unit = "" }: { label: string; value: string | number; unit?: string }) {
@@ -36,6 +43,10 @@ function ParamRow({ label, value, unit = "" }: { label: string; value: string | 
       <span className="font-mono text-foreground">{value}{unit}</span>
     </div>
   );
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">{children}</span>;
 }
 
 export function AiTunableParameters() {
@@ -48,13 +59,13 @@ export function AiTunableParameters() {
       const [settingsRes, learningsRes, controllersRes] = await Promise.all([
         supabase
           .from("auto_cooling_settings")
-          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, stall_rate_threshold, temp_reduction_degrees, delta_alert_threshold")
+          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest")
           .limit(1)
           .single(),
         supabase
           .from("fermentation_learnings")
           .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%")
+          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.duty_cycle:%,parameter_name.like.cooling_rate:%")
           .order("last_updated_at", { ascending: false }),
         supabase
           .from("rapt_temp_controllers")
@@ -88,7 +99,6 @@ export function AiTunableParameters() {
     loadData();
   }, [loadData]);
 
-  // Realtime for global settings changes
   useEffect(() => {
     const channel = supabase
       .channel("ai-tunable-settings")
@@ -108,12 +118,55 @@ export function AiTunableParameters() {
   // Group per-controller learnings
   const boostEntries = perController.filter((p) => p.parameter_name === "stall_boost_degrees");
   const marginEntries = perController.filter((p) => p.parameter_name.startsWith("cooler_margin:"));
+  const holdMarginEntries = perController.filter((p) => p.parameter_name.startsWith("hold_margin:"));
+  const rampMarginEntries = perController.filter((p) => p.parameter_name.startsWith("ramp_margin:"));
+  const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("duty_cycle:"));
+  const coolingRateEntries = perController.filter((p) => p.parameter_name.startsWith("cooling_rate:"));
 
   // Group margins by controller
   const marginsByController = marginEntries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
     return acc;
   }, {});
+
+  // Group hold/ramp margins by controller
+  const groupByController = (entries: PerControllerLearning[]) =>
+    entries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
+      (acc[e.controller_name] ??= []).push(e);
+      return acc;
+    }, {});
+
+  const holdByController = groupByController(holdMarginEntries);
+  const rampByController = groupByController(rampMarginEntries);
+  const dutyByController = groupByController(dutyCycleEntries);
+  const rateByController = groupByController(coolingRateEntries);
+
+  function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°") {
+    return (
+      <div className="flex flex-wrap gap-x-3">
+        {items
+          .sort((a, b) => a.parameter_name.localeCompare(b.parameter_name))
+          .map((item) => {
+            const key = extractKey(item.parameter_name);
+            return (
+              <span key={item.parameter_name} className="text-muted-foreground">
+                {BUCKET_LABELS[key] ?? key}: <span className="font-mono text-foreground">{item.learned_value.toFixed(1)}{unit}</span>
+              </span>
+            );
+          })}
+      </div>
+    );
+  }
+
+  function renderGroupedSection(grouped: Record<string, PerControllerLearning[]>, extractKey: (name: string) => string, unit = "°") {
+    if (Object.keys(grouped).length === 0) return null;
+    return Object.entries(grouped).map(([name, items]) => (
+      <div key={name} className="mt-0.5">
+        <span className="text-muted-foreground font-medium">{name}</span>
+        {renderBucketValues(items, extractKey, unit)}
+      </div>
+    ));
+  }
 
   return (
     <div className="space-y-3 text-[11px]">
@@ -129,19 +182,33 @@ export function AiTunableParameters() {
 
       {/* PID */}
       <div>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">PID-kompensation</span>
+        <SectionHeader>PID-kompensation</SectionHeader>
         <div className="mt-0.5">
           <ParamRow label="Damping" value={globals.pill_compensation_damping} />
           <ParamRow label="Rate limit" value={globals.pill_compensation_rate_limit} unit="°/cykel" />
           <ParamRow label="Max komp" value={globals.pill_compensation_max_compensation} unit="°C" />
+          <ParamRow label="Min scale" value={globals.pill_compensation_min_scale} />
+          <ParamRow label="Nödläge" value={globals.pill_compensation_emergency_threshold} unit="°C" />
+        </div>
+      </div>
+
+      {/* Overshoot */}
+      <div>
+        <SectionHeader>Overshoot-skydd</SectionHeader>
+        <div className="mt-0.5">
+          <ParamRow label="Pill-tröskel" value={globals.overshoot_pill_threshold} unit="°C" />
+          <ParamRow label="Delta-tröskel" value={globals.overshoot_delta_threshold} unit="°C" />
         </div>
       </div>
 
       {/* Stall */}
       <div>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Stall-detektering</span>
+        <SectionHeader>Stall-detektering</SectionHeader>
         <div className="mt-0.5">
           <ParamRow label="SG-tröskel" value={globals.stall_rate_threshold.toFixed(4)} unit="/h" />
+          <ParamRow label="Boost" value={globals.auto_boost_degrees} unit="°C" />
+          <ParamRow label="Min dämpning" value={globals.stall_min_attenuation} unit="%" />
+          <ParamRow label="Max dämpning" value={globals.stall_max_attenuation} unit="%" />
           {boostEntries.map((b) => (
             <ParamRow key={b.controller_id} label={`${b.controller_name} boost`} value={b.learned_value.toFixed(1)} unit="°C" />
           ))}
@@ -150,34 +217,56 @@ export function AiTunableParameters() {
 
       {/* Cooler */}
       <div>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Kylare</span>
+        <SectionHeader>Kylare</SectionHeader>
         <div className="mt-0.5">
           <ParamRow label="Reduktion" value={globals.temp_reduction_degrees} unit="°C" />
+          <ParamRow label="Max diff" value={globals.max_diff_from_lowest} unit="°C" />
           <ParamRow label="Delta-larm" value={globals.delta_alert_threshold} unit="°C" />
         </div>
       </div>
 
-      {/* Per-controller margins */}
+      {/* Per-controller cooler margins */}
       {Object.keys(marginsByController).length > 0 && (
         <div>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Kylarmarginaler</span>
+          <SectionHeader>Kylarmarginaler</SectionHeader>
           {Object.entries(marginsByController).map(([name, items]) => (
             <div key={name} className="mt-0.5">
               <span className="text-muted-foreground font-medium">{name}</span>
-              <div className="flex flex-wrap gap-x-3">
-                {items
-                  .sort((a, b) => a.parameter_name.localeCompare(b.parameter_name))
-                  .map((item) => {
-                    const bucket = item.parameter_name.replace("cooler_margin:", "").split(":")[0];
-                    return (
-                      <span key={item.parameter_name} className="text-muted-foreground">
-                        {BUCKET_LABELS[bucket] ?? bucket}: <span className="font-mono text-foreground">{item.learned_value.toFixed(1)}°</span>
-                      </span>
-                    );
-                  })}
-              </div>
+              {renderBucketValues(items, (n) => n.replace("cooler_margin:", "").split(":")[0])}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Hold margins */}
+      {Object.keys(holdByController).length > 0 && (
+        <div>
+          <SectionHeader>Hold-marginaler</SectionHeader>
+          {renderGroupedSection(holdByController, (n) => n.replace("hold_margin:", "").split(":")[0])}
+        </div>
+      )}
+
+      {/* Ramp margins */}
+      {Object.keys(rampByController).length > 0 && (
+        <div>
+          <SectionHeader>Ramp-marginaler</SectionHeader>
+          {renderGroupedSection(rampByController, (n) => n.replace("ramp_margin:", "").split(":")[0])}
+        </div>
+      )}
+
+      {/* Duty cycles */}
+      {Object.keys(dutyByController).length > 0 && (
+        <div>
+          <SectionHeader>Duty cycle</SectionHeader>
+          {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
+        </div>
+      )}
+
+      {/* Cooling rates */}
+      {Object.keys(rateByController).length > 0 && (
+        <div>
+          <SectionHeader>Kylhastighet</SectionHeader>
+          {renderGroupedSection(rateByController, (n) => n.replace("cooling_rate:", "").split(":")[0], "°/min")}
         </div>
       )}
     </div>
