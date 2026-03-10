@@ -259,6 +259,17 @@ export function AiTunableParameters() {
         </div>
       </div>
 
+      {/* Smart Relay */}
+      <div>
+        <SectionHeader>Smart Relay</SectionHeader>
+        <div className="mt-0.5">
+          <ParamRow label="Min hysteres" value={globals.smart_relay_min_hysteresis} unit="°C" boundsKey="smart_relay_min_hysteresis" />
+          <ParamRow label="Kyl under" value={globals.smart_relay_cooling_only_below} unit="°C" boundsKey="smart_relay_cooling_only_below" />
+          <ParamRow label="Värm över" value={globals.smart_relay_heating_only_above} unit="°C" boundsKey="smart_relay_heating_only_above" />
+          <ParamRow label="Strama åt" value={globals.smart_relay_tighten_after_minutes} unit=" min" boundsKey="smart_relay_tighten_after_minutes" />
+        </div>
+      </div>
+
       {/* Per-controller cooler margins */}
       {Object.keys(marginsByController).length > 0 && (
         <div>
@@ -301,6 +312,14 @@ export function AiTunableParameters() {
         <div>
           <SectionHeader>Kylhastighet <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.01–2.0</span></SectionHeader>
           {renderGroupedSection(rateByController, (n) => n.replace("cooling_rate:", "").split(":")[0], "°/min")}
+        </div>
+      )}
+
+      {/* Warming rates */}
+      {Object.keys(warmingByController).length > 0 && (
+        <div>
+          <SectionHeader>Uppvärmningshastighet <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.01–10.0</span></SectionHeader>
+          {renderGroupedSection(warmingByController, (n) => n.replace("warming_rate:", ""), "°/h")}
         </div>
       )}
     </div>
