@@ -238,6 +238,12 @@ Deno.serve(async (req) => {
 - temp_reduction_degrees (1.0-10.0): Hur mycket glykolkylaren sänks under lägsta target. MAX ÄNDRING: ±1.0 per audit.
 - max_diff_from_lowest (3.0-15.0): Max avstånd kylaren går under lägsta följda controllers target. Höj om kylaren inte hinner, sänk om den kyler för aggressivt. MAX ÄNDRING: ±1.0 per audit.
 
+### Smart Relay
+- smart_relay_min_hysteresis (0.1-1.0): Minsta hysteres smart relay tillåter. Sänk för tightare kontroll, höj om reläet cyklar för ofta. MAX ÄNDRING: ±0.1 per audit.
+- smart_relay_cooling_only_below (0-10): Temperatur under target där enbart kylning aktiveras (stänger av värme). Sänk om värme stör kylningen, höj om systemet tappar värme för tidigt. MAX ÄNDRING: ±1.0 per audit.
+- smart_relay_heating_only_above (0-10): Temperatur över target där enbart värme aktiveras (stänger av kylning). Sänk om kylning stör uppvärmning, höj om systemet tappar kylning för tidigt. MAX ÄNDRING: ±1.0 per audit.
+- smart_relay_tighten_after_minutes (5-60): Minuter innan smart relay börjar strama åt hysteres. Sänk för snabbare anpassning, höj om reläet cyklar för tidigt. MAX ÄNDRING: ±5 per audit.
+
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
 FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
