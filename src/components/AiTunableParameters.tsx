@@ -153,6 +153,7 @@ export function AiTunableParameters() {
   const rampMarginEntries = perController.filter((p) => p.parameter_name.startsWith("ramp_margin:"));
   const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("duty_cycle:"));
   const coolingRateEntries = perController.filter((p) => p.parameter_name.startsWith("cooling_rate:"));
+  const warmingRateEntries = perController.filter((p) => p.parameter_name.startsWith("warming_rate:"));
 
   const marginsByController = marginEntries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
