@@ -26,6 +26,10 @@ const BOUNDS: Record<string, [number, number]> = {
   temp_reduction_degrees: [1.0, 10.0],
   max_diff_from_lowest: [3.0, 15.0],
   delta_alert_threshold: [0.5, 5.0],
+  smart_relay_min_hysteresis: [0.1, 1.0],
+  smart_relay_cooling_only_below: [0, 10],
+  smart_relay_heating_only_above: [0, 10],
+  smart_relay_tighten_after_minutes: [5, 60],
 };
 
 interface PerControllerLearning {
