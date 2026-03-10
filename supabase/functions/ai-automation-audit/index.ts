@@ -517,6 +517,7 @@ Svara ENBART med JSON (inget annat).`;
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return 1.0;
       if (param.startsWith('duty_cycle:')) return 10;
       if (param.startsWith('cooling_rate:')) return 0.1;
+      if (param.startsWith('warming_rate:')) return 0.5;
       return MAX_STEP[param] ?? null;
     }
 
