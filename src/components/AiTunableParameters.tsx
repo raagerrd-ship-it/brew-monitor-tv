@@ -56,6 +56,10 @@ interface GlobalParams {
   temp_reduction_degrees: number;
   delta_alert_threshold: number;
   max_diff_from_lowest: number;
+  smart_relay_min_hysteresis: number;
+  smart_relay_cooling_only_below: number;
+  smart_relay_heating_only_above: number;
+  smart_relay_tighten_after_minutes: number;
 }
 
 function ParamRow({ label, value, unit = "", boundsKey }: { label: string; value: string | number; unit?: string; boundsKey?: string }) {
