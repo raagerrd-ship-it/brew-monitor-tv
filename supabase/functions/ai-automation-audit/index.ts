@@ -597,7 +597,7 @@ Svara ENBART med JSON (inget annat).`;
             }
           } else if (change.table === 'fermentation_learnings' && change.controller_id) {
             // Validate parameter name against whitelist
-            if (!VALID_LEARNING_PARAMS.has(change.parameter)) {
+            if (!isValidLearningParam(change.parameter)) {
               console.log(`⚠️ Skipping invalid learning parameter: ${change.parameter}`);
               continue;
             }
