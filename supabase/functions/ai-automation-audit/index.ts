@@ -426,9 +426,17 @@ Svara ENBART med JSON (inget annat).`;
       pill_compensation_damping: 0.1,
       pill_compensation_rate_limit: 0.1,
       pill_compensation_max_compensation: 0.5,
+      pill_compensation_min_scale: 0.05,
+      pill_compensation_emergency_threshold: 0.5,
+      overshoot_pill_threshold: 0.1,
+      overshoot_delta_threshold: 0.5,
       delta_alert_threshold: 0.5,
       stall_rate_threshold: 0.0005,
+      auto_boost_degrees: 0.5,
+      stall_min_attenuation: 5,
+      stall_max_attenuation: 5,
       temp_reduction_degrees: 1.0,
+      max_diff_from_lowest: 1.0,
       stall_boost_degrees: 1.0,
       'cooler_margin:cold': 1.0,
       'cooler_margin:cool': 1.0,
@@ -443,9 +451,17 @@ Svara ENBART med JSON (inget annat).`;
       pill_compensation_damping: [0.1, 0.9],
       pill_compensation_rate_limit: [0.1, 1.0],
       pill_compensation_max_compensation: [1.0, 8.0],
+      pill_compensation_min_scale: [0.05, 0.5],
+      pill_compensation_emergency_threshold: [1.0, 5.0],
+      overshoot_pill_threshold: [0.1, 1.0],
+      overshoot_delta_threshold: [0.5, 5.0],
       delta_alert_threshold: [0.5, 5.0],
       stall_rate_threshold: [0.0005, 0.005],
+      auto_boost_degrees: [0.5, 4.0],
+      stall_min_attenuation: [5, 30],
+      stall_max_attenuation: [70, 95],
       temp_reduction_degrees: [1.0, 10.0],
+      max_diff_from_lowest: [3.0, 15.0],
       stall_boost_degrees: [0.5, 6.0],
       'cooler_margin:cold': [0.5, 8.0],
       'cooler_margin:cool': [0.5, 8.0],
@@ -455,22 +471,43 @@ Svara ENBART med JSON (inget annat).`;
       glycol_cooler_rate: [0.01, 5.0],
     };
 
-    // Whitelist for fermentation_learnings parameter_name
-    const VALID_LEARNING_PARAMS = new Set([
+    // Whitelist for fermentation_learnings parameter_name (exact or prefix match)
+    const VALID_LEARNING_EXACT = new Set([
       'stall_boost_degrees',
-      'cooler_margin:cold',
-      'cooler_margin:cool',
-      'cooler_margin:warm',
-      'cooler_margin:hot',
-      'thermal_rate',
-      'glycol_cooler_rate',
+      'cooler_margin:cold', 'cooler_margin:cool', 'cooler_margin:warm', 'cooler_margin:hot',
+      'thermal_rate', 'glycol_cooler_rate',
     ]);
+    const VALID_LEARNING_PREFIXES = [
+      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:',
+    ];
+    function isValidLearningParam(param: string): boolean {
+      if (VALID_LEARNING_EXACT.has(param)) return true;
+      return VALID_LEARNING_PREFIXES.some(p => param.startsWith(p));
+    }
+
+    // Dynamic bounds/step for prefix-matched learning params
+    function getLearningBounds(param: string): [number, number] | null {
+      if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return [0.5, 8.0];
+      if (param.startsWith('duty_cycle:')) return [5, 95];
+      if (param.startsWith('cooling_rate:')) return [0.01, 2.0];
+      return BOUNDS[param] ?? null;
+    }
+    function getLearningMaxStep(param: string): number | null {
+      if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return 1.0;
+      if (param.startsWith('duty_cycle:')) return 10;
+      if (param.startsWith('cooling_rate:')) return 0.1;
+      return MAX_STEP[param] ?? null;
+    }
 
     // Valid settings params (single source)
     const VALID_SETTINGS_PARAMS = [
       'pill_compensation_damping', 'pill_compensation_rate_limit',
-      'pill_compensation_max_compensation', 'delta_alert_threshold',
-      'stall_rate_threshold', 'temp_reduction_degrees',
+      'pill_compensation_max_compensation', 'pill_compensation_min_scale',
+      'pill_compensation_emergency_threshold',
+      'overshoot_pill_threshold', 'overshoot_delta_threshold',
+      'delta_alert_threshold', 'stall_rate_threshold',
+      'auto_boost_degrees', 'stall_min_attenuation', 'stall_max_attenuation',
+      'temp_reduction_degrees', 'max_diff_from_lowest',
     ];
 
     // Helper: get the REAL current value from the database, not AI's claimed old_value
