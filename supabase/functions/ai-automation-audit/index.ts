@@ -255,6 +255,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
 - ramp_margin:{bucket}:{load}: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
 - duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
 - cooling_rate:{bucket}:{load}: Inlärd kylhastighet (°C/min). Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
+- warming_rate:{bucket}: Passiv uppvärmningshastighet (°C/h) per temperaturzon. Justeras om prediktiv styrning gör felbedömningar. Range: 0.01-10.0. MAX ÄNDRING: ±0.5 per audit.
 
 ## Svar-format (MÅSTE vara valid JSON):
 {
