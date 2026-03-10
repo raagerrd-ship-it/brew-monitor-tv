@@ -26,6 +26,10 @@ const BOUNDS: Record<string, [number, number]> = {
   temp_reduction_degrees: [1.0, 10.0],
   max_diff_from_lowest: [3.0, 15.0],
   delta_alert_threshold: [0.5, 5.0],
+  smart_relay_min_hysteresis: [0.1, 1.0],
+  smart_relay_cooling_only_below: [0, 10],
+  smart_relay_heating_only_above: [0, 10],
+  smart_relay_tighten_after_minutes: [5, 60],
 };
 
 interface PerControllerLearning {
@@ -52,6 +56,10 @@ interface GlobalParams {
   temp_reduction_degrees: number;
   delta_alert_threshold: number;
   max_diff_from_lowest: number;
+  smart_relay_min_hysteresis: number;
+  smart_relay_cooling_only_below: number;
+  smart_relay_heating_only_above: number;
+  smart_relay_tighten_after_minutes: number;
 }
 
 function ParamRow({ label, value, unit = "", boundsKey }: { label: string; value: string | number; unit?: string; boundsKey?: string }) {
@@ -83,13 +91,13 @@ export function AiTunableParameters() {
       const [settingsRes, learningsRes, controllersRes] = await Promise.all([
         supabase
           .from("auto_cooling_settings")
-          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest")
+          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest, smart_relay_min_hysteresis, smart_relay_cooling_only_below, smart_relay_heating_only_above, smart_relay_tighten_after_minutes")
           .limit(1)
           .single(),
         supabase
           .from("fermentation_learnings")
           .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.duty_cycle:%,parameter_name.like.cooling_rate:%")
+          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.duty_cycle:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
           .order("last_updated_at", { ascending: false }),
         supabase
           .from("rapt_temp_controllers")
@@ -145,6 +153,7 @@ export function AiTunableParameters() {
   const rampMarginEntries = perController.filter((p) => p.parameter_name.startsWith("ramp_margin:"));
   const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("duty_cycle:"));
   const coolingRateEntries = perController.filter((p) => p.parameter_name.startsWith("cooling_rate:"));
+  const warmingRateEntries = perController.filter((p) => p.parameter_name.startsWith("warming_rate:"));
 
   const marginsByController = marginEntries.reduce<Record<string, PerControllerLearning[]>>((acc, e) => {
     (acc[e.controller_name] ??= []).push(e);
@@ -161,6 +170,7 @@ export function AiTunableParameters() {
   const rampByController = groupByController(rampMarginEntries);
   const dutyByController = groupByController(dutyCycleEntries);
   const rateByController = groupByController(coolingRateEntries);
+  const warmingByController = groupByController(warmingRateEntries);
 
   function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°", boundsRange?: [number, number]) {
     return (
@@ -249,6 +259,17 @@ export function AiTunableParameters() {
         </div>
       </div>
 
+      {/* Smart Relay */}
+      <div>
+        <SectionHeader>Smart Relay</SectionHeader>
+        <div className="mt-0.5">
+          <ParamRow label="Min hysteres" value={globals.smart_relay_min_hysteresis} unit="°C" boundsKey="smart_relay_min_hysteresis" />
+          <ParamRow label="Kyl under" value={globals.smart_relay_cooling_only_below} unit="°C" boundsKey="smart_relay_cooling_only_below" />
+          <ParamRow label="Värm över" value={globals.smart_relay_heating_only_above} unit="°C" boundsKey="smart_relay_heating_only_above" />
+          <ParamRow label="Strama åt" value={globals.smart_relay_tighten_after_minutes} unit=" min" boundsKey="smart_relay_tighten_after_minutes" />
+        </div>
+      </div>
+
       {/* Per-controller cooler margins */}
       {Object.keys(marginsByController).length > 0 && (
         <div>
@@ -291,6 +312,14 @@ export function AiTunableParameters() {
         <div>
           <SectionHeader>Kylhastighet <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.01–2.0</span></SectionHeader>
           {renderGroupedSection(rateByController, (n) => n.replace("cooling_rate:", "").split(":")[0], "°/min")}
+        </div>
+      )}
+
+      {/* Warming rates */}
+      {Object.keys(warmingByController).length > 0 && (
+        <div>
+          <SectionHeader>Uppvärmningshastighet <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.01–10.0</span></SectionHeader>
+          {renderGroupedSection(warmingByController, (n) => n.replace("warming_rate:", ""), "°/h")}
         </div>
       )}
     </div>

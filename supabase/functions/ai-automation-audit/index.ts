@@ -238,6 +238,12 @@ Deno.serve(async (req) => {
 - temp_reduction_degrees (1.0-10.0): Hur mycket glykolkylaren sänks under lägsta target. MAX ÄNDRING: ±1.0 per audit.
 - max_diff_from_lowest (3.0-15.0): Max avstånd kylaren går under lägsta följda controllers target. Höj om kylaren inte hinner, sänk om den kyler för aggressivt. MAX ÄNDRING: ±1.0 per audit.
 
+### Smart Relay
+- smart_relay_min_hysteresis (0.1-1.0): Minsta hysteres smart relay tillåter. Sänk för tightare kontroll, höj om reläet cyklar för ofta. MAX ÄNDRING: ±0.1 per audit.
+- smart_relay_cooling_only_below (0-10): Temperatur under target där enbart kylning aktiveras (stänger av värme). Sänk om värme stör kylningen, höj om systemet tappar värme för tidigt. MAX ÄNDRING: ±1.0 per audit.
+- smart_relay_heating_only_above (0-10): Temperatur över target där enbart värme aktiveras (stänger av kylning). Sänk om kylning stör uppvärmning, höj om systemet tappar kylning för tidigt. MAX ÄNDRING: ±1.0 per audit.
+- smart_relay_tighten_after_minutes (5-60): Minuter innan smart relay börjar strama åt hysteres. Sänk för snabbare anpassning, höj om reläet cyklar för tidigt. MAX ÄNDRING: ±5 per audit.
+
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
 FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
@@ -249,6 +255,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
 - ramp_margin:{bucket}:{load}: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
 - duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
 - cooling_rate:{bucket}:{load}: Inlärd kylhastighet (°C/min). Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
+- warming_rate:{bucket}: Passiv uppvärmningshastighet (°C/h) per temperaturzon. Justeras om prediktiv styrning gör felbedömningar. Range: 0.01-10.0. MAX ÄNDRING: ±0.5 per audit.
 
 ## Svar-format (MÅSTE vara valid JSON):
 {
@@ -280,6 +287,11 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
         overshoot_pill_threshold: settings.overshoot_pill_threshold,
         overshoot_delta_threshold: settings.overshoot_delta_threshold,
+        smart_relay_enabled: settings.smart_relay_enabled,
+        smart_relay_min_hysteresis: settings.smart_relay_min_hysteresis,
+        smart_relay_cooling_only_below: settings.smart_relay_cooling_only_below,
+        smart_relay_heating_only_above: settings.smart_relay_heating_only_above,
+        smart_relay_tighten_after_minutes: settings.smart_relay_tighten_after_minutes,
       } : null,
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
@@ -437,6 +449,10 @@ Svara ENBART med JSON (inget annat).`;
       stall_max_attenuation: 5,
       temp_reduction_degrees: 1.0,
       max_diff_from_lowest: 1.0,
+      smart_relay_min_hysteresis: 0.1,
+      smart_relay_cooling_only_below: 1.0,
+      smart_relay_heating_only_above: 1.0,
+      smart_relay_tighten_after_minutes: 5,
       stall_boost_degrees: 1.0,
       'cooler_margin:cold': 1.0,
       'cooler_margin:cool': 1.0,
@@ -462,6 +478,10 @@ Svara ENBART med JSON (inget annat).`;
       stall_max_attenuation: [70, 95],
       temp_reduction_degrees: [1.0, 10.0],
       max_diff_from_lowest: [3.0, 15.0],
+      smart_relay_min_hysteresis: [0.1, 1.0],
+      smart_relay_cooling_only_below: [0, 10],
+      smart_relay_heating_only_above: [0, 10],
+      smart_relay_tighten_after_minutes: [5, 60],
       stall_boost_degrees: [0.5, 6.0],
       'cooler_margin:cold': [0.5, 8.0],
       'cooler_margin:cool': [0.5, 8.0],
@@ -478,7 +498,7 @@ Svara ENBART med JSON (inget annat).`;
       'thermal_rate', 'glycol_cooler_rate',
     ]);
     const VALID_LEARNING_PREFIXES = [
-      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:',
+      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:', 'warming_rate:',
     ];
     function isValidLearningParam(param: string): boolean {
       if (VALID_LEARNING_EXACT.has(param)) return true;
@@ -490,12 +510,14 @@ Svara ENBART med JSON (inget annat).`;
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return [0.5, 8.0];
       if (param.startsWith('duty_cycle:')) return [5, 95];
       if (param.startsWith('cooling_rate:')) return [0.01, 2.0];
+      if (param.startsWith('warming_rate:')) return [0.01, 10.0];
       return BOUNDS[param] ?? null;
     }
     function getLearningMaxStep(param: string): number | null {
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return 1.0;
       if (param.startsWith('duty_cycle:')) return 10;
       if (param.startsWith('cooling_rate:')) return 0.1;
+      if (param.startsWith('warming_rate:')) return 0.5;
       return MAX_STEP[param] ?? null;
     }
 
@@ -508,6 +530,8 @@ Svara ENBART med JSON (inget annat).`;
       'delta_alert_threshold', 'stall_rate_threshold',
       'auto_boost_degrees', 'stall_min_attenuation', 'stall_max_attenuation',
       'temp_reduction_degrees', 'max_diff_from_lowest',
+      'smart_relay_min_hysteresis', 'smart_relay_cooling_only_below',
+      'smart_relay_heating_only_above', 'smart_relay_tighten_after_minutes',
     ];
 
     // Helper: get the REAL current value from the database, not AI's claimed old_value
