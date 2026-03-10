@@ -17,18 +17,59 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Check if AI audit is enabled
-    const { data: coolingSettings } = await supabase
-      .from('auto_cooling_settings')
-      .select('ai_audit_enabled')
-      .limit(1)
-      .maybeSingle();
+    // Check if AI audit is enabled + get cooler info for idle detection
+    const [{ data: coolingSettings }, { data: runningSessions }] = await Promise.all([
+      supabase
+        .from('auto_cooling_settings')
+        .select('ai_audit_enabled, enabled, cooler_controller_id')
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('fermentation_sessions')
+        .select('id')
+        .eq('status', 'running')
+        .limit(1),
+    ]);
     
     if (coolingSettings && coolingSettings.ai_audit_enabled === false) {
       console.log('🤖 AI automation audit is disabled, skipping.');
       return new Response(JSON.stringify({ skipped: true, reason: 'ai_audit_enabled is false' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // ========================================
+    // IDLE DETECTION: Skip if no active sessions and cooler is idle
+    // ========================================
+    const hasRunningSessions = (runningSessions?.length ?? 0) > 0;
+    if (!hasRunningSessions) {
+      let coolerAtMax = false;
+      const autoEnabled = coolingSettings?.enabled ?? false;
+      if (autoEnabled && coolingSettings?.cooler_controller_id) {
+        const { data: coolerCtrl } = await supabase
+          .from('rapt_temp_controllers')
+          .select('target_temp, max_target_temp')
+          .eq('controller_id', coolingSettings.cooler_controller_id)
+          .maybeSingle();
+        coolerAtMax = coolerCtrl?.target_temp != null && coolerCtrl?.max_target_temp != null
+          && coolerCtrl.target_temp >= coolerCtrl.max_target_temp;
+      }
+      const systemIsIdle = !autoEnabled || coolerAtMax;
+      if (systemIsIdle) {
+        console.log('🤖 AI audit skipped: system idle (no running sessions, cooler idle/disabled)');
+        await supabase.from('ai_audit_log').insert({
+          analysis: 'Skipped — system idle',
+          actions_taken: [],
+          parameters_changed: [],
+          anomalies_detected: [],
+          recommendations: [],
+          duration_ms: 0,
+          prompt_summary: 'idle',
+        });
+        return new Response(JSON.stringify({ skipped: true, reason: 'system idle' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // ========================================
