@@ -568,7 +568,9 @@ export default function Settings() {
                     lastAdjustment={settings.lastAdjustment}
                     lastAutoCoolingCheck={settings.lastQuickSync}
                     autoCoolingInterval={settings.quickSyncInterval}
-                  />
+                   />
+                  <SettingsDivider />
+                  <AiTunableParameters />
                 </div>
               </SettingsSection>
             )}
