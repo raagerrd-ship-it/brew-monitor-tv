@@ -170,6 +170,7 @@ export function AiTunableParameters() {
   const rampByController = groupByController(rampMarginEntries);
   const dutyByController = groupByController(dutyCycleEntries);
   const rateByController = groupByController(coolingRateEntries);
+  const warmingByController = groupByController(warmingRateEntries);
 
   function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°", boundsRange?: [number, number]) {
     return (
