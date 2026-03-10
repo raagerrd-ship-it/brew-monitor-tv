@@ -287,6 +287,11 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
         overshoot_pill_threshold: settings.overshoot_pill_threshold,
         overshoot_delta_threshold: settings.overshoot_delta_threshold,
+        smart_relay_enabled: settings.smart_relay_enabled,
+        smart_relay_min_hysteresis: settings.smart_relay_min_hysteresis,
+        smart_relay_cooling_only_below: settings.smart_relay_cooling_only_below,
+        smart_relay_heating_only_above: settings.smart_relay_heating_only_above,
+        smart_relay_tighten_after_minutes: settings.smart_relay_tighten_after_minutes,
       } : null,
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
