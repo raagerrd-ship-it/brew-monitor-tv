@@ -215,20 +215,40 @@ Deno.serve(async (req) => {
 - Vid högt delta under cold crash: ÖKA damping, MINSKA rate_limit. ALDRIG tvärtom.
 
 ## Parametrar du kan ändra (i auto_cooling_settings):
+
+### PID-kompensation
 - pill_compensation_damping (0.1-0.9): Hur snabbt PID reagerar. Höj vid oscillering. MAX ÄNDRING: ±0.1 per audit.
 - pill_compensation_rate_limit (0.1-1.0): Max ändring per cykel. MAX ÄNDRING: ±0.1 per audit.
 - pill_compensation_max_compensation (1.0-8.0): Max total kompensation. MAX ÄNDRING: ±0.5 per audit.
-- delta_alert_threshold (0.5-5.0): Tröskelvärde för delta-alarm. MAX ÄNDRING: ±0.5 per audit.
+- pill_compensation_min_scale (0.05-0.5): Lägsta skalningsfaktor för PID nära target. Sänk om systemet blir för passivt nära target. MAX ÄNDRING: ±0.05 per audit.
+- pill_compensation_emergency_threshold (1.0-5.0): Nödlägeströskel — om felet överstiger detta ignoreras damping. Sänk om systemet reagerar för långsamt på stora avvikelser. MAX ÄNDRING: ±0.5 per audit.
+
+### Overshoot-skydd
+- overshoot_pill_threshold (0.1-1.0): Marginal innan pill-overshoot-guard triggas. Sänk om pill skjuter över target, höj om PID bromsas i onödan. MAX ÄNDRING: ±0.1 per audit.
+- overshoot_delta_threshold (0.5-5.0): Delta-tröskel för overshoot-prevention. MAX ÄNDRING: ±0.5 per audit.
+
+### Stall-detektering
 - stall_rate_threshold (0.0005-0.005): SG-tröskelvärde för stall-detektion. MAX ÄNDRING: ±0.0005 per audit.
+- auto_boost_degrees (0.5-4.0): Standard boost-grader vid stall. Höj om boosts inte bryter stalls. MAX ÄNDRING: ±0.5 per audit.
+- stall_min_attenuation (5-30): Minsta dämpning (%) innan stall-detektion aktiveras. Sänk om stalls missas tidigt. MAX ÄNDRING: ±5 per audit.
+- stall_max_attenuation (70-95): Högsta dämpning (%) för stall-detektion. Höj om stalls missas sent. MAX ÄNDRING: ±5 per audit.
+
+### Kylare
+- delta_alert_threshold (0.5-5.0): Tröskelvärde för delta-alarm. MAX ÄNDRING: ±0.5 per audit.
 - temp_reduction_degrees (1.0-10.0): Hur mycket glykolkylaren sänks under lägsta target. MAX ÄNDRING: ±1.0 per audit.
+- max_diff_from_lowest (3.0-15.0): Max avstånd kylaren går under lägsta följda controllers target. Höj om kylaren inte hinner, sänk om den kyler för aggressivt. MAX ÄNDRING: ±1.0 per audit.
 
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
-FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
+FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, pill_compensation_enabled, overshoot_prevention_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
 
 ## Parametrar du kan ändra (i fermentation_learnings per controller):
 - stall_boost_degrees: Hur stor boost vid stall. MAX ÄNDRING: ±1.0 per audit. Range: 0.5-6.0.
-- cooler_margin:cold/cool/warm/hot: Marginal för glykolkylaren per temperatur-bucket.
+- cooler_margin:{bucket}: Marginal för glykolkylaren per temperatur-bucket (cold/cool/warm/hot). Range: 0.5-8.0.
+- hold_margin:{bucket}:{load}: Optimal marginal under hold-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
+- ramp_margin:{bucket}:{load}: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
+- duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
+- cooling_rate:{bucket}:{load}: Inlärd kylhastighet (°C/min). Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
 
 ## Svar-format (MÅSTE vara valid JSON):
 {
