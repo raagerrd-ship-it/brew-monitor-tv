@@ -216,12 +216,21 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use context-specific margin (hold vs ramp) when available, fall back to generic cooler_margin
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
-  const specificMarginKey = isRamp ? `ramp_margin:${tempBucket}:${loadBucket}` : `hold_margin:${tempBucket}:${loadBucket}`
-  const specificMargin = await getLearnedParam(supabase, coolerController.controller_id, specificMarginKey, -1)
-  const genericMargin = await getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0)
-  // Prefer specific margin if it has enough samples (≥3), otherwise use generic
-  const learnedMargin = specificMargin.sampleCount >= 3 ? specificMargin : genericMargin
-  const marginSource = specificMargin.sampleCount >= 3 ? specificMarginKey : `cooler_margin:${tempBucket}`
+  const activityBucket = await getActivityBucket(supabase, effectiveTarget.controllerId)
+  const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
+
+  // Fallback chain: activity-specific → load-specific → generic cooler_margin
+  const activityMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}:${activityBucket}`
+  const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
+  const [activityMargin, loadMargin, genericMargin] = await Promise.all([
+    getLearnedParam(supabase, coolerController.controller_id, activityMarginKey, -1),
+    getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
+    getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0),
+  ])
+  const learnedMargin = activityMargin.sampleCount >= 3 ? activityMargin
+    : loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
+  const marginSource = activityMargin.sampleCount >= 3 ? activityMarginKey
+    : loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
 
   const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
 
