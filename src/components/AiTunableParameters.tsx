@@ -10,6 +10,11 @@ const BUCKET_LABELS: Record<string, string> = {
   hot: "Het",
 };
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  activity_high: "Hög akt.",
+  activity_low: "Låg akt.",
+};
+
 // Bounds matching ai-automation-audit/index.ts
 const BOUNDS: Record<string, [number, number]> = {
   pill_compensation_damping: [0.1, 0.9],
