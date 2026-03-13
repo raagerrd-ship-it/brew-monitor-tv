@@ -1038,8 +1038,11 @@ async function learnFromCurrentState(
       }
     }
 
-    // Learn hold-specific margin
-    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+    // Learn hold-specific margin (both activity-specific and generic)
+    await Promise.all([
+      updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0),
+      updateLearnedParam(supabase, coolerController.controller_id, marginParamGeneric, currentMargin, 1.0, 15.0),
+    ])
 
     // Also learn max effective during hold if we have rate data
     if (actualRate !== null) {
