@@ -36,12 +36,10 @@ const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 
 function formatBucketLabel(bucket: string): string {
   const parts = bucket.split(":");
-  const base = BUCKET_LABELS[parts[0]] ?? parts[0];
-  if (parts.length > 1) {
-    const loadLabel = LOAD_LABELS[parts[1]] ?? parts[1];
-    return `${base} · ${loadLabel}`;
-  }
-  return base;
+  const labels = parts.map((p) => {
+    return BUCKET_LABELS[p] ?? LOAD_LABELS[p] ?? ACTIVITY_LABELS[p] ?? p;
+  });
+  return labels.join(" · ");
 }
 
 export function LearnedCoolerMarginValues() {

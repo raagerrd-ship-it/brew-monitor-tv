@@ -177,6 +177,12 @@ export function AiTunableParameters() {
   const rateByController = groupByController(coolingRateEntries);
   const warmingByController = groupByController(warmingRateEntries);
 
+  function formatBucketKey(key: string): string {
+    const parts = key.split(":");
+    const labels = parts.map(p => BUCKET_LABELS[p] ?? ACTIVITY_LABELS[p] ?? p);
+    return labels.join(" · ");
+  }
+
   function renderBucketValues(items: PerControllerLearning[], extractKey: (name: string) => string, unit = "°", boundsRange?: [number, number]) {
     return (
       <div className="flex flex-wrap gap-x-3">
@@ -186,7 +192,7 @@ export function AiTunableParameters() {
             const key = extractKey(item.parameter_name);
             return (
               <span key={item.parameter_name} className="text-muted-foreground">
-                {BUCKET_LABELS[key] ?? key}: <span className="font-mono text-foreground">{item.learned_value.toFixed(1)}{unit}</span>
+                {formatBucketKey(key)}: <span className="font-mono text-foreground">{item.learned_value.toFixed(1)}{unit}</span>
               </span>
             );
           })}
