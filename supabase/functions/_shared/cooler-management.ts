@@ -1069,8 +1069,11 @@ async function learnFromCurrentState(
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   }
 
-  // Learn hold-specific margin
-  await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
+  // Learn hold-specific margin (both activity-specific and generic)
+  await Promise.all([
+    updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0),
+    updateLearnedParam(supabase, coolerController.controller_id, marginParamGeneric, currentMargin, 1.0, 15.0),
+  ])
 
   if (actualRate !== null) {
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
