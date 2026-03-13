@@ -974,7 +974,8 @@ async function learnFromCurrentState(
   // ── Determine if current state is hold or ramp for separate margin learning ──
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
   const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
-  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
+  const marginParam = `${marginType}:${tempBucket}:${loadBucket}:${activityBucket}`
+  const marginParamGeneric = `${marginType}:${tempBucket}:${loadBucket}`
 
   // ── Rate-based learning during active ramps ──
   if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
