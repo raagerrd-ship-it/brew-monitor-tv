@@ -1143,7 +1143,37 @@ async function measureCoolingRate(
   return tempDiff / hoursDiff // positive = cooling
 }
 
-// ─── Learn min effective margin ──────────────────────────────
+// ─── Get activity bucket for a controller ────────────────────
+// Looks up the fermentation activity_score via running session → brew → metrics
+// Returns 'activity_high' (≥40%) or 'activity_low' (<40%)
+
+async function getActivityBucket(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+): Promise<'activity_high' | 'activity_low'> {
+  const { data: session } = await supabase
+    .from('fermentation_sessions')
+    .select('brew_id')
+    .eq('controller_id', controllerId)
+    .eq('status', 'running')
+    .limit(1)
+    .maybeSingle()
+
+  if (!session?.brew_id) return 'activity_low'
+
+  const { data: metrics } = await supabase
+    .from('brew_fermentation_metrics')
+    .select('activity_score')
+    .eq('brew_id', session.brew_id)
+    .limit(1)
+    .maybeSingle()
+
+  if (!metrics) return 'activity_low'
+
+  return parseFloat(String(metrics.activity_score)) >= 40 ? 'activity_high' : 'activity_low'
+}
+
+
 
 async function learnMinEffectiveMargin(
   supabase: ReturnType<typeof createClient>,
