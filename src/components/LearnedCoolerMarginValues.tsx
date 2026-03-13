@@ -27,6 +27,11 @@ const LOAD_LABELS: Record<string, string> = {
   load_2plus: "2+ tankar",
 };
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  activity_high: "Hög akt.",
+  activity_low: "Låg akt.",
+};
+
 const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 
 function formatBucketLabel(bucket: string): string {
