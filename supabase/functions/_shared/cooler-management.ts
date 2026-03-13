@@ -949,12 +949,19 @@ async function learnFromCurrentState(
   const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
   const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
 
-  // ── Learn cooling rate per bucket+load ──
+  // ── Determine activity bucket for learning ──
+  const activityBucket = await getActivityBucket(supabase, lowestController.controller_id)
+
+  // ── Learn cooling rate per bucket+load+activity ──
   if (actualRate !== null && actualRate > 0.05) {
-    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
-    const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
+    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}:${activityBucket}`
+    const rateParamGeneric = `cooling_rate:${tempBucket}:${loadBucket}`
+    const [rateResult] = await Promise.all([
+      updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0),
+      updateLearnedParam(supabase, coolerController.controller_id, rateParamGeneric, actualRate, 0.01, 20.0),
+    ])
     if (Math.abs(rateResult.oldValue - rateResult.newValue) > 0.01) {
-      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
+      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}:${activityBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
     }
   }
 
