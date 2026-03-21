@@ -326,6 +326,7 @@ function BrewCardComponent({
                 smoothLines={smoothLines}
                 onSmoothLinesChange={setSmoothLines}
                 brewStatus={brew.status}
+                pillCompensation={brew.pill_compensation !== false}
               />
             )}
           </div>
