@@ -446,14 +446,16 @@ export function CustomBrewDialog({
             status: status,
             original_gravity: og,
             final_gravity: fg,
-            current_sg: og, // Start at OG
-            current_temp: 20, // Default temp
-            attenuation: 0, // No fermentation yet
-            abv: 0, // No fermentation yet
+            current_sg: og,
+            current_temp: 20,
+            attenuation: 0,
+            abv: 0,
             sg_data: [],
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
             description: description.trim() || null,
+            linked_pill_id: linkedPillId,
+            linked_controller_id: resolvedControllerId,
           });
 
         if (insertError) throw insertError;
