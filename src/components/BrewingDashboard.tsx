@@ -149,7 +149,7 @@ export function BrewingDashboard() {
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>
 
-    <div className={`w-full relative ${isMobile ? 'flex flex-col' : 'flex flex-col overflow-hidden'}`} style={{
+    <div className={`w-full relative flex flex-col overflow-hidden`} style={{
       height: isMobile ? '100dvh' : getContainerHeight(),
       background: 'transparent',
     }}>
