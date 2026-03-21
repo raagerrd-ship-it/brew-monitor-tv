@@ -961,7 +961,9 @@ Deno.serve(async (req) => {
           pill_temp: cu.pill_temp != null ? Math.round(cu.pill_temp * 10) / 10 : null,
           ctrl_temp: cu.current_temp != null ? Math.round(cu.current_temp * 10) / 10 : null,
           ctrl_target: cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null,
-          profile_target: cu.profile_target_temp != null ? Math.round(cu.profile_target_temp * 10) / 10 : null,
+          profile_target: isGlycol
+            ? (cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null)
+            : (cu.profile_target_temp != null ? Math.round(cu.profile_target_temp * 10) / 10 : null),
           cooling_enabled: cu.cooling_enabled,
           last_update: cu.last_update ? new Date(cu.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
         };
