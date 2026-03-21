@@ -834,5 +834,6 @@ export function CustomBrewDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
