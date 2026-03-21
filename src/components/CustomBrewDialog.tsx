@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -37,6 +37,21 @@ export interface CustomBrewData {
   fermentation_start: string | null;
   label_image_url: string | null;
   description: string | null;
+  linked_pill_id: string | null;
+  linked_controller_id: string | null;
+}
+
+interface PillOption {
+  pill_id: string;
+  name: string;
+  color: string;
+  paired_device_id?: string | null;
+}
+
+interface ControllerOption {
+  controller_id: string;
+  name: string;
+  linked_pill_id: string | null;
 }
 
 interface SgDataPoint {
@@ -62,6 +77,8 @@ interface CustomBrewDialogProps {
   onBrewSaved: () => void;
   editBrew?: CustomBrewData | null;
   prefill?: CustomBrewPrefill | null;
+  pills?: PillOption[];
+  controllers?: ControllerOption[];
 }
 
 export function CustomBrewDialog({
@@ -70,13 +87,15 @@ export function CustomBrewDialog({
   onBrewSaved,
   editBrew,
   prefill,
+  pills = [],
+  controllers = [],
 }: CustomBrewDialogProps) {
   const [name, setName] = useState("");
   const [style, setStyle] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
-
+  const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
 
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
@@ -101,6 +120,24 @@ export function CustomBrewDialog({
   ];
 
   const isEditMode = !!editBrew;
+
+  // Resolve controller from selected pill via hardware pairing
+  const resolvedControllerId = useMemo(() => {
+    if (!linkedPillId) return null;
+    const pill = pills.find(p => p.pill_id === linkedPillId);
+    if (pill?.paired_device_id) {
+      const ctrl = controllers.find(c => c.controller_id === pill.paired_device_id);
+      if (ctrl) return ctrl.controller_id;
+    }
+    // Fallback: controller that has this pill linked
+    const ctrl = controllers.find(c => c.linked_pill_id === linkedPillId);
+    return ctrl?.controller_id ?? null;
+  }, [linkedPillId, pills, controllers]);
+
+  const resolvedControllerName = useMemo(() => {
+    if (!resolvedControllerId) return null;
+    return controllers.find(c => c.controller_id === resolvedControllerId)?.name ?? null;
+  }, [resolvedControllerId, controllers]);
 
   // Check if we're changing from Jäsning to another status
   const isLeavingFermentation = isEditMode && 
@@ -168,6 +205,7 @@ export function CustomBrewDialog({
         setOriginalStatus(editBrew.status || "Jäsning");
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
+        setLinkedPillId(editBrew.linked_pill_id || null);
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -198,6 +236,7 @@ export function CustomBrewDialog({
         setSelectedEndPointIndex("");
         setLabelImageUrl(prefill?.label_image_url || null);
         setDescription(prefill?.description || "");
+        setLinkedPillId(null);
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -346,6 +385,8 @@ export function CustomBrewDialog({
           fermentation_start: fermStart,
           label_image_url: labelImageUrl,
           description: description.trim() || null,
+          linked_pill_id: linkedPillId,
+          linked_controller_id: resolvedControllerId,
         };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
@@ -405,14 +446,16 @@ export function CustomBrewDialog({
             status: status,
             original_gravity: og,
             final_gravity: fg,
-            current_sg: og, // Start at OG
-            current_temp: 20, // Default temp
-            attenuation: 0, // No fermentation yet
-            abv: 0, // No fermentation yet
+            current_sg: og,
+            current_temp: 20,
+            attenuation: 0,
+            abv: 0,
             sg_data: [],
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
             description: description.trim() || null,
+            linked_pill_id: linkedPillId,
+            linked_controller_id: resolvedControllerId,
           });
 
         if (insertError) throw insertError;
@@ -549,6 +592,40 @@ export function CustomBrewDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Pill / Controller linking */}
+          {pills.length > 0 && (
+            <div className="grid gap-2">
+              <Label>Kopplad RAPT Pill</Label>
+              <Select
+                value={linkedPillId || "none"}
+                onValueChange={(v) => setLinkedPillId(v === "none" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj pill..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen koppling</SelectItem>
+                  {pills.map((pill) => (
+                    <SelectItem key={pill.pill_id} value={pill.pill_id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: pill.color || 'hsl(var(--muted-foreground))' }}
+                        />
+                        {pill.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {resolvedControllerName && (
+                <p className="text-xs text-muted-foreground">
+                  → Kopplad till controller: <span className="font-medium">{resolvedControllerName}</span>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Show endpoint selector when leaving fermentation status */}
           {isLeavingFermentation && sgDataOptions.length > 0 && (
