@@ -458,7 +458,7 @@ export function CustomBrewDialog({
             description: description.trim() || null,
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
-          });
+            pill_compensation: pillCompensation,
 
         if (insertError) throw insertError;
 
