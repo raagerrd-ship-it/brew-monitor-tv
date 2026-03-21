@@ -121,6 +121,24 @@ export function CustomBrewDialog({
 
   const isEditMode = !!editBrew;
 
+  // Resolve controller from selected pill via hardware pairing
+  const resolvedControllerId = useMemo(() => {
+    if (!linkedPillId) return null;
+    const pill = pills.find(p => p.pill_id === linkedPillId);
+    if (pill?.paired_device_id) {
+      const ctrl = controllers.find(c => c.controller_id === pill.paired_device_id);
+      if (ctrl) return ctrl.controller_id;
+    }
+    // Fallback: controller that has this pill linked
+    const ctrl = controllers.find(c => c.linked_pill_id === linkedPillId);
+    return ctrl?.controller_id ?? null;
+  }, [linkedPillId, pills, controllers]);
+
+  const resolvedControllerName = useMemo(() => {
+    if (!resolvedControllerId) return null;
+    return controllers.find(c => c.controller_id === resolvedControllerId)?.name ?? null;
+  }, [resolvedControllerId, controllers]);
+
   // Check if we're changing from Jäsning to another status
   const isLeavingFermentation = isEditMode && 
     originalStatus === "Jäsning" && 
