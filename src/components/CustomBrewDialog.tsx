@@ -568,9 +568,12 @@ export function CustomBrewDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Ta bort mätpunkter?</AlertDialogTitle>
           <AlertDialogDescription>
-            Det finns {pendingTrimConfirm?.count ?? 0} mätpunkt{(pendingTrimConfirm?.count ?? 0) !== 1 ? 'er' : ''} i SG-data
-            {(pendingTrimConfirm?.snapshotCount ?? 0) > 0 && ` och ${pendingTrimConfirm?.snapshotCount} snapshot${(pendingTrimConfirm?.snapshotCount ?? 0) !== 1 ? 's' : ''}`}
-            {' '}före den nya jäsningsstarten. Vill du ta bort dem?
+            {pendingTrimConfirm && (() => {
+              const parts: string[] = [];
+              if (pendingTrimConfirm.count > 0) parts.push(`${pendingTrimConfirm.count} SG-mätpunkt${pendingTrimConfirm.count !== 1 ? 'er' : ''}`);
+              if (pendingTrimConfirm.snapshotCount > 0) parts.push(`${pendingTrimConfirm.snapshotCount} diagram-snapshot${pendingTrimConfirm.snapshotCount !== 1 ? 's' : ''}`);
+              return `Det finns ${parts.join(' och ')} före den nya jäsningsstarten. Vill du ta bort dem?`;
+            })()}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
