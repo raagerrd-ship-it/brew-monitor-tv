@@ -593,6 +593,40 @@ export function CustomBrewDialog({
             </Select>
           </div>
 
+          {/* Pill / Controller linking */}
+          {pills.length > 0 && (
+            <div className="grid gap-2">
+              <Label>Kopplad RAPT Pill</Label>
+              <Select
+                value={linkedPillId || "none"}
+                onValueChange={(v) => setLinkedPillId(v === "none" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj pill..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen koppling</SelectItem>
+                  {pills.map((pill) => (
+                    <SelectItem key={pill.pill_id} value={pill.pill_id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: pill.color || 'hsl(var(--muted-foreground))' }}
+                        />
+                        {pill.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {resolvedControllerName && (
+                <p className="text-xs text-muted-foreground">
+                  → Kopplad till controller: <span className="font-medium">{resolvedControllerName}</span>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Show endpoint selector when leaving fermentation status */}
           {isLeavingFermentation && sgDataOptions.length > 0 && (
             <div className="grid gap-2 p-3 rounded-lg border border-primary/30 bg-primary/10">
