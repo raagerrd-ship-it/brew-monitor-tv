@@ -119,6 +119,12 @@ export function CustomBrewDialog({
   const [saving, setSaving] = useState(false);
   const [sgData, setSgData] = useState<SgDataPoint[]>([]);
   const [selectedEndPointIndex, setSelectedEndPointIndex] = useState<string>("");
+  const [pendingTrimConfirm, setPendingTrimConfirm] = useState<{
+    count: number;
+    snapshotCount: number;
+    onConfirm: () => Promise<void>;
+    onSkip: () => Promise<void>;
+  } | null>(null);
   const { toast } = useToast();
 
   // Use Swedish status values to match Brewfather sync
