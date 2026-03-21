@@ -424,15 +424,52 @@ export function CustomBrewDialog({
           }
         }
 
-        // If fermentation_start changed, remove sg_data points before that date
+        // If fermentation_start changed, check if there are points to remove
         if (fermStart && fermStart !== editBrew.fermentation_start && sgData.length > 0) {
           const fermStartTime = new Date(fermStart).getTime();
           const currentSgData = (updateData.sg_data as Array<{ date: string; [key: string]: unknown }>) ?? sgData;
-          const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
-          if (filtered.length < currentSgData.length) {
-            updateData.sg_data = filtered;
-            const removedCount = currentSgData.length - filtered.length;
-            console.log(`Removed ${removedCount} sg_data points before fermentation start`);
+          const pointsBefore = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() < fermStartTime);
+          
+          if (pointsBefore.length > 0) {
+            // Check how many brew_data_snapshots would be affected
+            const { count: snapshotCount } = await supabase
+              .from('brew_data_snapshots')
+              .select('id', { count: 'exact', head: true })
+              .eq('brew_id', editBrew.id)
+              .lt('recorded_at', fermStart);
+
+            // Show confirmation dialog and pause save
+            const result = await new Promise<'confirm' | 'skip'>((resolve) => {
+              setPendingTrimConfirm({
+                count: pointsBefore.length,
+                snapshotCount: snapshotCount ?? 0,
+                onConfirm: async () => {
+                  resolve('confirm');
+                  setPendingTrimConfirm(null);
+                },
+                onSkip: async () => {
+                  resolve('skip');
+                  setPendingTrimConfirm(null);
+                },
+              });
+            });
+
+            if (result === 'confirm') {
+              const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
+              updateData.sg_data = filtered;
+              console.log(`Removed ${pointsBefore.length} sg_data points before fermentation start`);
+
+              // Also delete brew_data_snapshots before the new start
+              if ((snapshotCount ?? 0) > 0) {
+                const { error: snapError } = await supabase
+                  .from('brew_data_snapshots')
+                  .delete()
+                  .eq('brew_id', editBrew.id)
+                  .lt('recorded_at', fermStart);
+                if (snapError) console.error('Error deleting snapshots:', snapError);
+                else console.log(`Deleted ${snapshotCount} brew_data_snapshots before fermentation start`);
+              }
+            }
           }
         }
 
