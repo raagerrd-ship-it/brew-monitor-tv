@@ -37,6 +37,21 @@ export interface CustomBrewData {
   fermentation_start: string | null;
   label_image_url: string | null;
   description: string | null;
+  linked_pill_id: string | null;
+  linked_controller_id: string | null;
+}
+
+interface PillOption {
+  pill_id: string;
+  name: string;
+  color: string;
+  paired_device_id?: string | null;
+}
+
+interface ControllerOption {
+  controller_id: string;
+  name: string;
+  linked_pill_id: string | null;
 }
 
 interface SgDataPoint {
