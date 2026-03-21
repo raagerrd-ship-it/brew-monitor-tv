@@ -41,5 +41,10 @@ export function findDevicesForBrew(
     }
   }
 
+  // If pill_compensation is explicitly disabled, hide controller from frontend
+  if (brew.pill_compensation === false) {
+    return { pill: matchingPill, controller: null };
+  }
+
   return { pill: matchingPill, controller: matchingController };
 }
