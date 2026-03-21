@@ -105,9 +105,7 @@ export function useBrewChartData({
         const avgTemp =
           useController && row.pill_temp != null
             ? (row.controller_temp! + row.pill_temp) / 2
-            : pillCompensation && row.pill_temp != null
-              ? row.pill_temp
-              : null;
+            : null;
         const tempSpan =
           useController && row.pill_temp != null
             ? Math.abs(row.pill_temp - row.controller_temp!)
