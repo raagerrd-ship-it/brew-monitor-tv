@@ -404,7 +404,7 @@ export function useBrewData(): UseBrewDataReturn {
         events: eventsByBrewId[reading.id] || [],
         linked_controller_id: reading.linked_controller_id || null,
         linked_pill_id: reading.linked_pill_id || null,
-        fermentationSession: sessionsByBrewId.get(reading.id) || null,
+        pill_compensation: reading.pill_compensation ?? true,
         label_image_url: reading.label_image_url || null,
         description: reading.description || null,
         overshootReason: reading.linked_controller_id 

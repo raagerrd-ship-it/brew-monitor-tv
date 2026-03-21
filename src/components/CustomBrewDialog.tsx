@@ -630,6 +630,19 @@ export function CustomBrewDialog({
                   → Kopplad till controller: <span className="font-medium">{resolvedControllerName}</span>
                 </p>
               )}
+              {resolvedControllerId && (
+                <div className="flex items-center justify-between pt-1">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pill-comp" className="text-sm">Pill-kompensation</Label>
+                    <p className="text-xs text-muted-foreground">Slå av för att enbart använda pill-temperatur</p>
+                  </div>
+                  <Switch
+                    id="pill-comp"
+                    checked={pillCompensation}
+                    onCheckedChange={setPillCompensation}
+                  />
+                </div>
+              )}
             </div>
           )}
 
