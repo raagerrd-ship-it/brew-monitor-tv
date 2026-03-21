@@ -425,19 +425,25 @@ export function CustomBrewDialog({
         }
 
         // If fermentation_start changed, check if there are points to remove
-        if (fermStart && fermStart !== editBrew.fermentation_start && sgData.length > 0) {
+        const fermStartChanged = fermStart && editBrew.fermentation_start 
+          ? new Date(fermStart).getTime() !== new Date(editBrew.fermentation_start).getTime()
+          : fermStart !== editBrew.fermentation_start;
+          
+        if (fermStart && fermStartChanged) {
           const fermStartTime = new Date(fermStart).getTime();
           const currentSgData = (updateData.sg_data as Array<{ date: string; [key: string]: unknown }>) ?? sgData;
           const pointsBefore = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() < fermStartTime);
           
-          if (pointsBefore.length > 0) {
-            // Check how many brew_data_snapshots would be affected
-            const { count: snapshotCount } = await supabase
-              .from('brew_data_snapshots')
-              .select('id', { count: 'exact', head: true })
-              .eq('brew_id', editBrew.id)
-              .lt('recorded_at', fermStart);
+          // Check how many brew_data_snapshots would be affected
+          const { count: snapshotCount } = await supabase
+            .from('brew_data_snapshots')
+            .select('id', { count: 'exact', head: true })
+            .eq('brew_id', editBrew.id)
+            .lt('recorded_at', fermStart);
 
+          const totalToRemove = pointsBefore.length + (snapshotCount ?? 0);
+          
+          if (totalToRemove > 0) {
             // Show confirmation dialog and pause save
             const result = await new Promise<'confirm' | 'skip'>((resolve) => {
               setPendingTrimConfirm({
@@ -455,9 +461,11 @@ export function CustomBrewDialog({
             });
 
             if (result === 'confirm') {
-              const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
-              updateData.sg_data = filtered;
-              console.log(`Removed ${pointsBefore.length} sg_data points before fermentation start`);
+              if (pointsBefore.length > 0) {
+                const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
+                updateData.sg_data = filtered;
+                console.log(`Removed ${pointsBefore.length} sg_data points before fermentation start`);
+              }
 
               // Also delete brew_data_snapshots before the new start
               if ((snapshotCount ?? 0) > 0) {
@@ -560,9 +568,12 @@ export function CustomBrewDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Ta bort mätpunkter?</AlertDialogTitle>
           <AlertDialogDescription>
-            Det finns {pendingTrimConfirm?.count ?? 0} mätpunkt{(pendingTrimConfirm?.count ?? 0) !== 1 ? 'er' : ''} i SG-data
-            {(pendingTrimConfirm?.snapshotCount ?? 0) > 0 && ` och ${pendingTrimConfirm?.snapshotCount} snapshot${(pendingTrimConfirm?.snapshotCount ?? 0) !== 1 ? 's' : ''}`}
-            {' '}före den nya jäsningsstarten. Vill du ta bort dem?
+            {pendingTrimConfirm && (() => {
+              const parts: string[] = [];
+              if (pendingTrimConfirm.count > 0) parts.push(`${pendingTrimConfirm.count} SG-mätpunkt${pendingTrimConfirm.count !== 1 ? 'er' : ''}`);
+              if (pendingTrimConfirm.snapshotCount > 0) parts.push(`${pendingTrimConfirm.snapshotCount} diagram-snapshot${pendingTrimConfirm.snapshotCount !== 1 ? 's' : ''}`);
+              return `Det finns ${parts.join(' och ')} före den nya jäsningsstarten. Vill du ta bort dem?`;
+            })()}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
