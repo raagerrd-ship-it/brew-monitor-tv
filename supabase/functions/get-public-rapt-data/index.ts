@@ -30,13 +30,35 @@ Deno.serve(async (req) => {
     if (brewId) {
       console.log('Fetching public brew data for id:', brewId);
 
-      // Single query with .or() instead of 3 sequential lookups
-      const { data: brew } = await supabase
+      // Try share_id first, then batch_id, then UUID id
+      // Cannot use .or() because id is UUID and non-UUID values cause PostgREST errors
+      let brew = null;
+      
+      const { data: byShare } = await supabase
         .from('brew_readings')
         .select('*')
-        .or(`share_id.eq.${brewId},batch_id.eq.${brewId},id.eq.${brewId}`)
-        .limit(1)
+        .eq('share_id', brewId)
         .maybeSingle();
+      brew = byShare;
+
+      if (!brew) {
+        const { data: byBatch } = await supabase
+          .from('brew_readings')
+          .select('*')
+          .eq('batch_id', brewId)
+          .maybeSingle();
+        brew = byBatch;
+      }
+
+      // Only try UUID lookup if it looks like a UUID
+      if (!brew && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(brewId)) {
+        const { data: byId } = await supabase
+          .from('brew_readings')
+          .select('*')
+          .eq('id', brewId)
+          .maybeSingle();
+        brew = byId;
+      }
 
       if (!brew) {
         return new Response(
