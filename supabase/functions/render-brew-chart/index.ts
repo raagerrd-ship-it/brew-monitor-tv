@@ -479,7 +479,8 @@ Deno.serve(async (req) => {
     }));
 
     // ── Step 2: Generate SVG and return inline ──
-    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
+    const usePillComp = pillCompensation !== undefined ? !!pillCompensation : brew.pill_compensation !== false;
+    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc, usePillComp);
 
     console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${allSnapshots.length}→${chartRows.length} pts)`);
 
