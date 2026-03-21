@@ -254,18 +254,43 @@ function generateChartSvg(
   const sgPoints = parsed.map((p) => ({ x: scaleX(p.t, tMin, tMax), y: scaleY(p.sg, sgMin, sgMax) }));
   const sgLineSvg = `<path d="${buildSmoothPath(sgPoints)}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-  const controllerPoints = parsed
-    .filter((p) => p.controller !== null)
-    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
-  const controllerSvg = controllerPoints.length > 0
-    ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
-    : '';
+  let controllerSvg = '';
+  let tempSpanSvg = '';
+  let avgTempSvg = '';
+
+  if (pillCompensation) {
+    const controllerPoints = parsed
+      .filter((p) => p.controller !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
+    controllerSvg = controllerPoints.length > 0
+      ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
+      : '';
+
+    const spanPoints = parsed
+      .filter((p) => p.pill !== null && p.controller !== null)
+      .map((p) => ({
+        x: scaleX(p.t, tMin, tMax),
+        pillY: tempScaleY(p.pill as number),
+        ctrlY: tempScaleY(p.controller as number),
+        avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
+      }));
+
+    if (spanPoints.length > 1) {
+      const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
+      const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
+      const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
+      tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
+
+      const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
+      avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
+    }
+  }
 
   const pillPoints = parsed
     .filter((p) => p.pill !== null)
     .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }));
   const pillSvg = pillPoints.length > 0
-    ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`
+    ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${pillCompensation ? COLORS.pillTempLine : COLORS.avgTempLine}" stroke-width="${pillCompensation ? 1 : 1.5}"/>`
     : '';
 
   const targetPoints = parsed
@@ -274,27 +299,6 @@ function generateChartSvg(
   const targetSvg = targetPoints.length > 0
     ? `<path d="${buildPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`
     : '';
-
-  const spanPoints = parsed
-    .filter((p) => p.pill !== null && p.controller !== null)
-    .map((p) => ({
-      x: scaleX(p.t, tMin, tMax),
-      pillY: tempScaleY(p.pill as number),
-      ctrlY: tempScaleY(p.controller as number),
-      avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
-    }));
-
-  let tempSpanSvg = '';
-  let avgTempSvg = '';
-  if (spanPoints.length > 1) {
-    const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
-    const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
-    const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
-    tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
-
-    const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
-    avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
-  }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
     <defs>
