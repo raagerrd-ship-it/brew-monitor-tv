@@ -143,6 +143,7 @@ function generateChartSvg(
   fg: number,
   compact: boolean = false,
   brewCount: number = 2,
+  pillCompensation: boolean = true,
 ): string {
   const WIDTH = WIDTHS[brewCount] ?? 600;
   const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
