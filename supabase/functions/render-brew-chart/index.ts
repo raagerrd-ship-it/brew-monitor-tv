@@ -420,7 +420,7 @@ Deno.serve(async (req) => {
       // Client disconnected before body was read
       return new Response(null, { status: 499, headers: corsHeaders });
     }
-    const { brewId, compact, brewCount, action } = body;
+    const { brewId, compact, brewCount, action, pillCompensation } = body;
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
