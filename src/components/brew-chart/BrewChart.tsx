@@ -283,34 +283,20 @@ function BrewChartComponent({
             tooltipType="none"
           />
 
-          {/* Pill temp - Area with gradient when pill_comp off (main line), faint Line when on */}
-          {pillCompensation ? (
-            <Line
-              yAxisId="temp"
-              type={areaType}
-              dataKey="pillTemp"
-              stroke={COLORS.tempFaint}
-              strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
-              dot={false}
-              activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
-              name="pillTemp"
-              isAnimationActive={isAnimationActive}
-            />
-          ) : (
-            <Area
-              yAxisId="temp"
-              type={areaType}
-              dataKey="pillTemp"
-              stroke={COLORS.temp}
-              strokeWidth={DATA_SERIES_CONFIG.avgTemp.strokeWidth}
-              fill={`url(#avgTempGrad-${chartIndex})`}
-              dot={false}
-              activeDot={{ r: DATA_SERIES_CONFIG.avgTemp.dotRadius, fill: COLORS.temp }}
-              name="pillTemp"
-              isAnimationActive={isAnimationActive}
-              connectNulls={false}
-            />
-          )}
+          {/* Pill temp - Area with gradient when pill_comp off, faint Line when on */}
+          <Area
+            yAxisId="temp"
+            type={areaType}
+            dataKey="pillTemp"
+            stroke={pillCompensation ? COLORS.tempFaint : COLORS.temp}
+            strokeWidth={pillCompensation ? DATA_SERIES_CONFIG.pillTemp.strokeWidth : DATA_SERIES_CONFIG.avgTemp.strokeWidth}
+            fill={pillCompensation ? "transparent" : `url(#avgTempGrad-${chartIndex})`}
+            dot={false}
+            activeDot={{ r: (pillCompensation ? DATA_SERIES_CONFIG.pillTemp.dotRadius : DATA_SERIES_CONFIG.avgTemp.dotRadius), fill: pillCompensation ? "hsl(var(--temp-blue) / 0.5)" : COLORS.temp }}
+            name="pillTemp"
+            isAnimationActive={isAnimationActive}
+            connectNulls={false}
+          />
 
           {/* Target temp - dashed line showing setpoint */}
           <Line
