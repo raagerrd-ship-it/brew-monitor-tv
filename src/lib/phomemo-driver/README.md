@@ -45,6 +45,18 @@ disconnectPrinter(conn);
 | `printBitmapBypassProcessing(conn, canvas, copies?, settings?, onProgress?)` | Bypass: no scaling/dithering, requires 384px canvas, threshold packing only |
 | `sendRasterJob(conn, rasterData, widthBytes, height, settings?, onProgress?)` | Low-level: sends pre-built 1-bit raster data directly |
 
+## Label Dimensions
+
+| Property | Value |
+|---|---|
+| Print width | 384 px (48 bytes) |
+| Label height (70×50 mm) | 555 px |
+| Physical label size | 70 × 50 mm |
+| Resolution | 203 DPI |
+| Content margins | 8 px sides, 10 px top, 25 px bottom |
+
+The driver auto-scales any canvas to 384 px width. Height is determined by the input canvas aspect ratio. For standard 70×50 mm labels at 203 DPI, use a 384×555 px canvas.
+
 ### Debug
 
 | Function | Description |
