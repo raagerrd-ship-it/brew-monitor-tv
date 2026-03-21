@@ -295,7 +295,8 @@ Deno.serve(async (req) => {
       const controllerProfileTarget = (controller as any).profile_target_temp != null
         ? round1(parseFloat(String((controller as any).profile_target_temp)))
         : null;
-      const originalTarget = profileTarget ?? controllerProfileTarget ?? targetTemp;
+      const isGlycolCtrl = !!(controller as any).is_glycol_cooler;
+      const originalTarget = isGlycolCtrl ? targetTemp : (profileTarget ?? controllerProfileTarget ?? targetTemp);
 
       // Check if target_temp was preserved (profile or PID controls target, not hardware)
       const isPreserved = profileOwnedControllerIds.has(controller.controller_id);
