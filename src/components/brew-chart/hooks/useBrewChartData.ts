@@ -21,6 +21,7 @@ interface UseBrewChartDataProps {
   controllerId?: string;
   brewId?: string;
   smoothLines: boolean;
+  pillCompensation?: boolean;
 }
 
 interface UseBrewChartDataReturn {
@@ -43,6 +44,7 @@ export function useBrewChartData({
   controllerId: _controllerId,
   brewId,
   smoothLines,
+  pillCompensation = true,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,20 +101,21 @@ export function useBrewChartData({
 
     if (snapshotRows.length > 0) {
       basePoints = snapshotRows.map((row) => {
+        const useController = pillCompensation && row.controller_temp != null;
         const avgTemp =
-          row.controller_temp != null && row.pill_temp != null
-            ? (row.controller_temp + row.pill_temp) / 2
+          useController && row.pill_temp != null
+            ? (row.controller_temp! + row.pill_temp) / 2
             : null;
         const tempSpan =
-          row.controller_temp != null && row.pill_temp != null
-            ? Math.abs(row.pill_temp - row.controller_temp)
+          useController && row.pill_temp != null
+            ? Math.abs(row.pill_temp - row.controller_temp!)
             : null;
         return {
           date: row.recorded_at,
           value: row.sg,
           temp: row.pill_temp,
           pillTemp: row.pill_temp,
-          controllerTemp: row.controller_temp,
+          controllerTemp: useController ? row.controller_temp : null,
           targetTemp: row.profile_target_temp,
           avgTemp,
           tempSpan,
@@ -135,7 +138,7 @@ export function useBrewChartData({
     const windowSize = getOptimalWindowSize(basePoints.length);
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
     return addTimestamps(smoothed);
-  }, [data, snapshotRows, smoothLines]);
+  }, [data, snapshotRows, smoothLines, pillCompensation]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
