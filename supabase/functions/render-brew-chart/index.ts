@@ -143,6 +143,7 @@ function generateChartSvg(
   fg: number,
   compact: boolean = false,
   brewCount: number = 2,
+  pillCompensation: boolean = true,
 ): string {
   const WIDTH = WIDTHS[brewCount] ?? 600;
   const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
@@ -253,18 +254,43 @@ function generateChartSvg(
   const sgPoints = parsed.map((p) => ({ x: scaleX(p.t, tMin, tMax), y: scaleY(p.sg, sgMin, sgMax) }));
   const sgLineSvg = `<path d="${buildSmoothPath(sgPoints)}" fill="none" stroke="${COLORS.sgLine}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-  const controllerPoints = parsed
-    .filter((p) => p.controller !== null)
-    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
-  const controllerSvg = controllerPoints.length > 0
-    ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
-    : '';
+  let controllerSvg = '';
+  let tempSpanSvg = '';
+  let avgTempSvg = '';
+
+  if (pillCompensation) {
+    const controllerPoints = parsed
+      .filter((p) => p.controller !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
+    controllerSvg = controllerPoints.length > 0
+      ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
+      : '';
+
+    const spanPoints = parsed
+      .filter((p) => p.pill !== null && p.controller !== null)
+      .map((p) => ({
+        x: scaleX(p.t, tMin, tMax),
+        pillY: tempScaleY(p.pill as number),
+        ctrlY: tempScaleY(p.controller as number),
+        avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
+      }));
+
+    if (spanPoints.length > 1) {
+      const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
+      const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
+      const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
+      tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
+
+      const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
+      avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
+    }
+  }
 
   const pillPoints = parsed
     .filter((p) => p.pill !== null)
     .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }));
   const pillSvg = pillPoints.length > 0
-    ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${COLORS.pillTempLine}" stroke-width="1"/>`
+    ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${pillCompensation ? COLORS.pillTempLine : COLORS.avgTempLine}" stroke-width="${pillCompensation ? 1 : 1.5}"/>`
     : '';
 
   const targetPoints = parsed
@@ -273,27 +299,6 @@ function generateChartSvg(
   const targetSvg = targetPoints.length > 0
     ? `<path d="${buildPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`
     : '';
-
-  const spanPoints = parsed
-    .filter((p) => p.pill !== null && p.controller !== null)
-    .map((p) => ({
-      x: scaleX(p.t, tMin, tMax),
-      pillY: tempScaleY(p.pill as number),
-      ctrlY: tempScaleY(p.controller as number),
-      avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
-    }));
-
-  let tempSpanSvg = '';
-  let avgTempSvg = '';
-  if (spanPoints.length > 1) {
-    const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
-    const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
-    const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
-    tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
-
-    const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
-    avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
-  }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
     <defs>
@@ -415,7 +420,7 @@ Deno.serve(async (req) => {
       // Client disconnected before body was read
       return new Response(null, { status: 499, headers: corsHeaders });
     }
-    const { brewId, compact, brewCount, action } = body;
+    const { brewId, compact, brewCount, action, pillCompensation } = body;
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -444,7 +449,7 @@ Deno.serve(async (req) => {
     // Thinning policy caps snapshots at ~500 rows, so no pagination needed
     const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
-        .select('id, sg_data, original_gravity, final_gravity')
+        .select('id, sg_data, original_gravity, final_gravity, pill_compensation')
         .eq('id', brewId)
         .single(),
       supabase.from('brew_data_snapshots')
@@ -474,7 +479,8 @@ Deno.serve(async (req) => {
     }));
 
     // ── Step 2: Generate SVG and return inline ──
-    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc);
+    const usePillComp = pillCompensation !== undefined ? !!pillCompensation : brew.pill_compensation !== false;
+    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc, usePillComp);
 
     console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${allSnapshots.length}→${chartRows.length} pts)`);
 
