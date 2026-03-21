@@ -449,7 +449,7 @@ Deno.serve(async (req) => {
     // Thinning policy caps snapshots at ~500 rows, so no pagination needed
     const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
-        .select('id, sg_data, original_gravity, final_gravity')
+        .select('id, sg_data, original_gravity, final_gravity, pill_compensation')
         .eq('id', brewId)
         .single(),
       supabase.from('brew_data_snapshots')
