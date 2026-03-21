@@ -98,7 +98,7 @@ export function CustomBrewDialog({
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
   const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
-
+  const [pillCompensation, setPillCompensation] = useState(true);
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
