@@ -554,6 +554,23 @@ export function CustomBrewDialog({
   };
 
   return (
+    <>
+    <AlertDialog open={!!pendingTrimConfirm} onOpenChange={(open) => { if (!open) pendingTrimConfirm?.onSkip(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Ta bort mätpunkter?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Det finns {pendingTrimConfirm?.count ?? 0} mätpunkt{(pendingTrimConfirm?.count ?? 0) !== 1 ? 'er' : ''} i SG-data
+            {(pendingTrimConfirm?.snapshotCount ?? 0) > 0 && ` och ${pendingTrimConfirm?.snapshotCount} snapshot${(pendingTrimConfirm?.snapshotCount ?? 0) !== 1 ? 's' : ''}`}
+            {' '}före den nya jäsningsstarten. Vill du ta bort dem?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => pendingTrimConfirm?.onSkip()}>Behåll</AlertDialogCancel>
+          <AlertDialogAction onClick={() => pendingTrimConfirm?.onConfirm()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Ta bort</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
