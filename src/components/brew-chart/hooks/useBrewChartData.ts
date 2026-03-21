@@ -44,6 +44,7 @@ export function useBrewChartData({
   controllerId: _controllerId,
   brewId,
   smoothLines,
+  pillCompensation = true,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
