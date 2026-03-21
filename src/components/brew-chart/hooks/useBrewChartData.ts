@@ -138,7 +138,7 @@ export function useBrewChartData({
     const windowSize = getOptimalWindowSize(basePoints.length);
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
     return addTimestamps(smoothed);
-  }, [data, snapshotRows, smoothLines]);
+  }, [data, snapshotRows, smoothLines, pillCompensation]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
