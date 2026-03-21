@@ -77,6 +77,8 @@ interface CustomBrewDialogProps {
   onBrewSaved: () => void;
   editBrew?: CustomBrewData | null;
   prefill?: CustomBrewPrefill | null;
+  pills?: PillOption[];
+  controllers?: ControllerOption[];
 }
 
 export function CustomBrewDialog({
@@ -85,13 +87,15 @@ export function CustomBrewDialog({
   onBrewSaved,
   editBrew,
   prefill,
+  pills = [],
+  controllers = [],
 }: CustomBrewDialogProps) {
   const [name, setName] = useState("");
   const [style, setStyle] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
-
+  const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
 
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
