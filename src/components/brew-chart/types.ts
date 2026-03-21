@@ -60,6 +60,8 @@ export interface BrewChartProps {
   smoothLines?: boolean;
   /** Callback when smooth lines state changes */
   onSmoothLinesChange?: (value: boolean) => void;
+  /** When false, suppress controller data and show only pill temp */
+  pillCompensation?: boolean;
   /** Brew status — used in TV mode to skip regeneration for inactive brews */
   brewStatus?: string;
 }

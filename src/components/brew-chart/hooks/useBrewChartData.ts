@@ -21,6 +21,7 @@ interface UseBrewChartDataProps {
   controllerId?: string;
   brewId?: string;
   smoothLines: boolean;
+  pillCompensation?: boolean;
 }
 
 interface UseBrewChartDataReturn {
