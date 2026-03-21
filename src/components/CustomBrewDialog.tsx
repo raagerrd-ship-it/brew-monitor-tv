@@ -385,6 +385,8 @@ export function CustomBrewDialog({
           fermentation_start: fermStart,
           label_image_url: labelImageUrl,
           description: description.trim() || null,
+          linked_pill_id: linkedPillId,
+          linked_controller_id: resolvedControllerId,
         };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
