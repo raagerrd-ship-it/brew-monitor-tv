@@ -236,6 +236,7 @@ export function CustomBrewDialog({
         setSelectedEndPointIndex("");
         setLabelImageUrl(prefill?.label_image_url || null);
         setDescription(prefill?.description || "");
+        setLinkedPillId(null);
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
