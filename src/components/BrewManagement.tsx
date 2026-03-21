@@ -194,6 +194,8 @@ export function BrewManagement() {
         onBrewSaved={loadData}
         editBrew={editingBrew}
         prefill={prefillData}
+        pills={pills}
+        controllers={controllers}
       />
     </div>
   );
