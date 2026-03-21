@@ -39,6 +39,7 @@ export interface CustomBrewData {
   description: string | null;
   linked_pill_id: string | null;
   linked_controller_id: string | null;
+  pill_compensation: boolean;
 }
 
 interface PillOption {
