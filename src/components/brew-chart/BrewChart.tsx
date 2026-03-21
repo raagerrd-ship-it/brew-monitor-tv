@@ -37,6 +37,7 @@ function BrewChartComponent({
   brewId,
   smoothLines: externalSmoothLines,
   onSmoothLinesChange,
+  pillCompensation = true,
 }: BrewChartProps) {
   const [internalSmoothLines, setInternalSmoothLines] = useState(true);
   const smoothLines = externalSmoothLines ?? internalSmoothLines;
