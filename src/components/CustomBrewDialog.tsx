@@ -390,6 +390,7 @@ export function CustomBrewDialog({
           linked_pill_id: linkedPillId,
           linked_controller_id: resolvedControllerId,
           pill_compensation: pillCompensation,
+        };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
         if (isLeavingFermentation && selectedEndPointIndex !== "") {
