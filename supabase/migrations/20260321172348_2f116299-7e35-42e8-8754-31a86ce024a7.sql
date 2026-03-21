@@ -1,0 +1,1 @@
+ALTER TABLE brew_readings ADD COLUMN pill_compensation boolean NOT NULL DEFAULT true;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -39,6 +40,7 @@ export interface CustomBrewData {
   description: string | null;
   linked_pill_id: string | null;
   linked_controller_id: string | null;
+  pill_compensation: boolean;
 }
 
 interface PillOption {
@@ -96,7 +98,7 @@ export function CustomBrewDialog({
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
   const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
-
+  const [pillCompensation, setPillCompensation] = useState(true);
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");
@@ -206,6 +208,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
+        setPillCompensation(editBrew.pill_compensation ?? true);
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
@@ -237,6 +240,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(prefill?.label_image_url || null);
         setDescription(prefill?.description || "");
         setLinkedPillId(null);
+        setPillCompensation(true);
         // Default to now for new brews
         const now = new Date();
         const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -387,6 +391,7 @@ export function CustomBrewDialog({
           description: description.trim() || null,
           linked_pill_id: linkedPillId,
           linked_controller_id: resolvedControllerId,
+          pill_compensation: pillCompensation,
         };
 
         // If leaving fermentation and user selected an endpoint, trim sg_data
@@ -456,6 +461,7 @@ export function CustomBrewDialog({
             description: description.trim() || null,
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
+            pill_compensation: pillCompensation,
           });
 
         if (insertError) throw insertError;
@@ -623,6 +629,19 @@ export function CustomBrewDialog({
                 <p className="text-xs text-muted-foreground">
                   → Kopplad till controller: <span className="font-medium">{resolvedControllerName}</span>
                 </p>
+              )}
+              {resolvedControllerId && (
+                <div className="flex items-center justify-between pt-1">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pill-comp" className="text-sm">Pill-kompensation</Label>
+                    <p className="text-xs text-muted-foreground">Slå av för att enbart använda pill-temperatur</p>
+                  </div>
+                  <Switch
+                    id="pill-comp"
+                    checked={pillCompensation}
+                    onCheckedChange={setPillCompensation}
+                  />
+                </div>
               )}
             </div>
           )}
