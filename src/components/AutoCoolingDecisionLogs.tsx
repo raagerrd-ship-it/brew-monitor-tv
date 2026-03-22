@@ -135,7 +135,7 @@ const PIPELINE_STEPS = new Set([
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG', 'COOLER_IDLE',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
-  'SYNC_FREQ',
+  'SYNC_FREQ', 'TOKEN_REFRESH',
   // Steps rendered inline by header/pipeline (prevent "Övrigt" duplication)
   'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'RETRY', 'PWM_OFF',
 ]);
@@ -983,6 +983,52 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
   );
 }
 
+// --- Phase Section wrapper ---
+
+function PhaseSection({ code, name, ms, failed, children }: {
+  code: string; name: string; ms?: unknown; failed?: boolean; children?: React.ReactNode;
+}) {
+  const msVal = typeof ms === 'number' ? ms : null;
+  const hasContent = React.Children.toArray(children).filter(Boolean).length > 0;
+  return (
+    <div className={hasContent ? 'p-2 rounded border border-border/30 bg-muted/10 space-y-2' : ''}>
+      <div className={`flex items-center gap-2 ${hasContent ? 'mb-1' : 'py-0.5'}`}>
+        <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${failed ? 'bg-destructive/20 text-destructive' : 'bg-primary/10 text-primary'}`}>
+          {code}
+        </span>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider ${failed ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {name}
+        </span>
+        {failed ? (
+          <span className="text-[10px] text-destructive">❌</span>
+        ) : msVal != null ? (
+          <span className="text-[10px] text-muted-foreground/50 tabular-nums">{msVal}ms</span>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// --- Pipeline Section wrapper (sub-section within a phase) ---
+
+function PipelineSection({ icon, title, color, borderColor, bgColor, children }: {
+  icon: React.ReactNode; title: string; color: string; borderColor?: string; bgColor?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="p-2 rounded border overflow-x-auto" style={{
+      borderColor: borderColor || 'hsl(var(--border) / 0.5)',
+      background: bgColor || 'hsl(var(--muted) / 0.2)',
+    }}>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span style={{ color }}>{icon}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // --- Pipeline View ---
 
 function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreatedAt }: {
@@ -990,8 +1036,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
   logCreatedAt: string;
 }) {
+  // --- Data processing ---
   const syncEntriesRaw = decisions.filter(d => d.step === 'SYNC_DATA');
-  // Sort: active controllers first (alphabetically), then inactive, then glycol last
   const syncEntries = [...syncEntriesRaw].sort((a, b) => {
     const aD = a.details || {};
     const bD = b.details || {};
@@ -1007,13 +1053,11 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   });
   const brewSgEntries = decisions.filter(d => d.step === 'BREW_SG_STATUS');
   const utilEntries = decisions.filter(d => d.step === 'COOLING_UTIL');
-  // Build a map of pill/brew data per controller name for merging into SYNC_DATA
   const brewSgByName = new Map<string, DecisionEntry>();
   brewSgEntries.forEach(d => {
     const name = d.message.replace('Controller: ', '');
     brewSgByName.set(name, d);
   });
-  // Build a map of utilization per controller name
   const utilByName = new Map<string, { pct: number | null; active: boolean; recentPct: number | null; midPct: number | null; oldestPct: number | null; ancientPct: number | null; lastUpdate: string | null; prevAt: string | null; p2At: string | null; anchorAt: string | null; p4At: string | null }>();
   utilEntries.forEach(d => {
     const name = d.message.split(':')[0].trim();
@@ -1034,7 +1078,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
       p4At: det.p4_at as string | null,
     });
   });
-  // Build a map of DUTY_PWM_BURST status per controller name
   const dutyPwmByName = new Map<string, { duty: number; burstSeconds: number }>();
   decisions.filter(d => d.step === 'DUTY_PWM_BURST').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
@@ -1059,15 +1102,15 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     d.step === 'ADJUSTMENT' || d.step === 'MAX_MARGIN' || d.step === 'MIN_MARGIN' ||
     d.step === 'HYSTERESIS_KICK' || d.step === 'HYSTERESIS_KICK_NOOP' || d.step === 'HYSTERESIS_DEADBAND' || d.step === 'HYSTERESIS_REVERT' || d.step === 'KICK_FLAG' || d.step === 'COOLER_IDLE'
   );
-  const smartRelayEntries: typeof decisions = [];
   const raptSendEntries = decisions.filter(d => d.step === 'RAPT_SEND' || d.step === 'BATCH_FLUSH');
   const passThroughEntries = decisions.filter(d => d.step === 'PASS_THROUGH');
-  
+  const tokenRefreshEntries = decisions.filter(d => d.step === 'TOKEN_REFRESH');
+  const syncFreqEntries = decisions.filter(d => d.step === 'SYNC_FREQ');
+
   const otherEntries = decisions.filter(d =>
     !HIDDEN_STEPS.has(d.step) && !PIPELINE_STEPS.has(d.step) && d.step !== 'PILL_COMP_ACTION'
   );
 
-  // Build a map of PILL_COMP_ACTION per controller name for PID table integration
   const actionByName = new Map<string, { newTarget: number | null; noChange: boolean; brakes: string[] }>();
   pidActionEntries.forEach(d => {
     const parsed = parsePillCompActionTarget(d.message);
@@ -1075,632 +1118,668 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     actionByName.set(parsed.name, { newTarget: parsed.newTarget, noChange: parsed.noChange, brakes });
   });
 
-  return (
-    <div className="space-y-2">
-      {/* 1. SYNC_DATA (merged with pill/brew data) */}
-      {!hideSync && syncEntries.length > 0 && (
-        <PipelineSection icon={<Database className="h-3 w-3" />} title="Synk-data" color="muted-foreground">
-          <div className="overflow-x-auto -mx-2 px-2">
-          <table className="w-full text-[10px] min-w-[520px]">
-            <thead>
-              <tr className="text-muted-foreground/80 border-b border-border/40 bg-muted/30">
-                <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Pill</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
-                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
-                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Behov</th>
-                <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {syncEntries.map((d, i) => {
-                const det = d.details || {};
-                const name = d.message.replace('Controller: ', '');
-                const pillData = brewSgByName.get(name);
-                const pillDet = pillData?.details || {};
-                const util = utilByName.get(name);
-                const lastUpdate = det.last_update as string | null;
-                const isStale = !!det.stale;
-                const isGlycol = !!det.glycol;
-                const isInactive = !!det.inactive;
-                const rowDimmed = isInactive && !isStale;
-                return (
-                  <React.Fragment key={i}>
-                    <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''} ${rowDimmed ? 'opacity-50' : ''}`}>
-                      <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
-                        <span className="flex items-center gap-1">
-                          {name}
-                          {isStale && (
-                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-destructive/20 text-destructive cursor-help">offline</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Ingen sensordata — controllern exkluderas från automation</TooltipContent></Tooltip></TooltipProvider>
-                          )}
-                          {isGlycol && (
-                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">glykol</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Glykolkylare — styrs av automationens kylarmodul</TooltipContent></Tooltip></TooltipProvider>
-                          )}
-                          {isInactive && !isStale && (
-                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground cursor-help">av</span></TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Varken kyla eller värme är aktiverad — inte inkluderad i automation</TooltipContent></Tooltip></TooltipProvider>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>
-                        <span className="inline-flex items-center gap-0.5 justify-end">
-                          {pillData && (() => {
-                            const pillRaw = pillDet.last_update_raw as string | null;
-                            const pillLu = pillRaw || (pillDet.last_update as string | null);
-                            const logTime = new Date(logCreatedAt).getTime();
-                            if (!pillLu || isNaN(new Date(pillLu).getTime()) || logTime - new Date(pillLu).getTime() > 30 * 60 * 1000) {
-                              return (
-                                <TooltipProvider delayDuration={200}><Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              );
-                            }
-                            return null;
-                          })()}
-                          {r1(det.pill_temp as number)}
-                        </span>
-                      </td>
-                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r2(det.ctrl_temp as number)}</td>
-                      <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
-                      <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
-                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                        {util ? (() => {
-                          const utilTip = buildUtilTooltip({
-                            lastUpdate: util.lastUpdate,
-                            recentPct: util.recentPct,
-                            midPct: util.midPct,
-                            oldestPct: util.oldestPct,
-                            ancientPct: util.ancientPct,
-                            pct: util.pct,
-                            prevAt: util.prevAt,
-                            p2At: util.p2At,
-                            anchorAt: util.anchorAt,
-                            p4At: util.p4At,
-                          });
-                          return (
-                            <TooltipProvider delayDuration={200}><Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                  {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
-                            </Tooltip></TooltipProvider>
-                          );
-                        })() : (
+  // --- Phase timings ---
+  const phaseEntry = decisions.find(d => d.step === 'PHASE_TIMINGS');
+  const pt = phaseEntry?.details as Record<string, unknown> | undefined;
+  const failedIn = pt?.['1_failed_in'] as string | undefined;
+  const has1Sub = pt?.['1a_auth_ms'] != null;
+
+  // --- Shared content renderers ---
+
+  const syncTableContent = !hideSync && syncEntries.length > 0 ? (
+    <div className="overflow-x-auto -mx-2 px-2">
+    <table className="w-full text-[10px] min-w-[520px]">
+      <thead>
+        <tr className="text-muted-foreground/80 border-b border-border/40 bg-muted/30">
+          <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
+          <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Pill</th>
+          <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
+          <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
+          <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
+          <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
+          <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Behov</th>
+          <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
+          <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
+        </tr>
+      </thead>
+      <tbody>
+        {syncEntries.map((d, i) => {
+          const det = d.details || {};
+          const name = d.message.replace('Controller: ', '');
+          const pillData = brewSgByName.get(name);
+          const pillDet = pillData?.details || {};
+          const util = utilByName.get(name);
+          const lastUpdate = det.last_update as string | null;
+          const isStale = !!det.stale;
+          const isGlycol = !!det.glycol;
+          const isInactive = !!det.inactive;
+          const rowDimmed = isInactive && !isStale;
+          return (
+            <React.Fragment key={i}>
+              <tr className={`border-b ${pillData ? 'border-border/5' : 'border-border/10'} ${i % 2 === 0 ? 'bg-muted/10' : ''} ${rowDimmed ? 'opacity-50' : ''}`}>
+                <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
+                  <span className="flex items-center gap-1">
+                    {name}
+                    {isStale && (
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-destructive/20 text-destructive cursor-help">offline</span></TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">Ingen sensordata — controllern exkluderas från automation</TooltipContent></Tooltip></TooltipProvider>
+                    )}
+                    {isGlycol && (
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">glykol</span></TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">Glykolkylare — styrs av automationens kylarmodul</TooltipContent></Tooltip></TooltipProvider>
+                    )}
+                    {isInactive && !isStale && (
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground cursor-help">av</span></TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">Varken kyla eller värme är aktiverad — inte inkluderad i automation</TooltipContent></Tooltip></TooltipProvider>
+                    )}
+                  </span>
+                </td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: 'hsl(38 92% 50%)' }}>
+                  <span className="inline-flex items-center gap-0.5 justify-end">
+                    {pillData && (() => {
+                      const pillRaw = pillDet.last_update_raw as string | null;
+                      const pillLu = pillRaw || (pillDet.last_update as string | null);
+                      const logTime = new Date(logCreatedAt).getTime();
+                      if (!pillLu || isNaN(new Date(pillLu).getTime()) || logTime - new Date(pillLu).getTime() > 30 * 60 * 1000) {
+                        return (
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
+                              <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
+                            <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
                           </Tooltip></TooltipProvider>
-                        )}
-                      </td>
-                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                        {(() => {
-                          const dutyPct = det.duty_pct as number | undefined;
-                          if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
-                          const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
-                          return (
-                            <TooltipProvider delayDuration={200}><Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`font-mono cursor-help ${dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                  {String(dutyPct)}%
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                Inlärt kylbehov: {String(dutyPct)}% = {burstSecs}s burst per 5-min cykel
-                                {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
-                              </TooltipContent>
-                            </Tooltip></TooltipProvider>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                        <span className="flex items-center justify-center gap-1">
-                          {(() => {
-                            const pwm = dutyPwmByName.get(name);
-                            const dutyPctSync = det.duty_pct as number | undefined;
-                            if (pwm) {
-                              return (
-                                <TooltipProvider delayDuration={200}><Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                      PWM {pwm.burstSeconds}s
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs max-w-[220px]">
-                                    {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(30, Math.min(240, Math.round(pwm.duty / 100 * 300)))}s burst per cykel`}
-                                  </TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              );
-                            }
-                            // Fallback: if SYNC_DATA has duty_pct, PWM is active even without DUTY_PWM_BURST step
-                            if (dutyPctSync != null && dutyPctSync > 0) {
-                              const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPctSync / 100 * 300)));
-                              return (
-                                <TooltipProvider delayDuration={200}><Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                      PWM {burstSecs}s
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs max-w-[220px]">
-                                    {`PWM burst-läge — duty ${dutyPctSync}%, ${burstSecs}s burst per cykel (PID hoppad denna cykel)`}
-                                  </TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              );
-                            }
-                            // Show PID badge when not in PWM mode (controller is active)
-                            if (!isInactive && !isGlycol) {
-                              return (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/70 font-medium">PID</span>
-                              );
-                            }
-                            return null;
-                          })()}
-                          {det.preserved ? (
-                            <TooltipProvider delayDuration={200}><Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
-                            </Tooltip></TooltipProvider>
-                          ) : (
-                            <TooltipProvider delayDuration={200}><Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
-                            </Tooltip></TooltipProvider>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
-                        {lastUpdate || '—'}
-                      </td>
-                    </tr>
-                    {pillData && (() => {
-                      const pillLastUpdate = pillDet.last_update as string | null;
-                      const pillLastUpdateRaw = pillDet.last_update_raw as string | null;
-                      const pillIsStale = (() => {
-                        const raw = pillLastUpdateRaw || pillLastUpdate;
-                        if (!raw) return true;
-                        try {
-                          const pillDate = new Date(raw);
-                          if (isNaN(pillDate.getTime())) return true;
-                          const logTs = new Date(logCreatedAt).getTime();
-                          return logTs - pillDate.getTime() > 30 * 60 * 1000;
-                        } catch { return false; }
-                      })();
-                      return (
-                      <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
-                        <td colSpan={8} className="py-1 px-1.5 pl-4">
-                          <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
-                            <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
-                              <Pill className="h-2.5 w-2.5" />
-                              <span className="text-[9px] font-medium">Pill</span>
-                            </span>
-                            {pillDet.current_sg != null && (
-                              <span className="whitespace-nowrap">SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
-                            )}
-                            {pillDet.battery != null && (
-                              <span className="whitespace-nowrap">🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
-                          <span className="flex items-center justify-end gap-1">
-                            {pillIsStale && (
-                              <TooltipProvider delayDuration={200}><Tooltip>
-                                <TooltipTrigger asChild>
-                                  <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
-                              </Tooltip></TooltipProvider>
-                            )}
-                            {pillLastUpdate || '—'}
-                          </span>
-                        </td>
-                      </tr>
-                      );
+                        );
+                      }
+                      return null;
                     })()}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
-        </PipelineSection>
-      )}
-
-      {/* 2. PID-reglering */}
-      {!hidePid && pidStatusEntries.length > 0 && (
-        <PipelineSection
-          icon={<Gauge className="h-3 w-3" />}
-          title="PID-reglering"
-          color="hsl(220 70% 55%)"
-          borderColor="hsl(220 70% 55% / 0.3)"
-          bgColor="hsl(220 70% 55% / 0.05)"
-        >
-          <div className="overflow-x-auto -mx-2 px-2">
-          <table className="w-full text-[10px] min-w-[520px]">
-            <thead>
-              <tr className="text-muted-foreground/80 border-b border-border/40 bg-[hsl(220_70%_55%/0.08)]">
-                {/* Info columns */}
-                <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
-                <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-                {/* Calculation columns: Profil − Δ + PI = Nytt mål */}
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Δ</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">PI</th>
-                <th className="text-center py-1 px-0 font-medium text-muted-foreground/30">=</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
-                <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-                {/* Result columns */}
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl mål</th>
-                <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pidStatusEntries.map((d, i) => {
-                const det = d.details || {};
-                const name = d.message.replace('Controller: ', '');
-                const delta = det.delta as number;
-                const rawDelta = (det.raw_delta as number) ?? delta;
-                const loggedComp = (det.compensation as number) ?? rawDelta ?? 0;
-                // Use raw_delta (= avgDelta = sensor delta / 2) for display,
-                // NOT the back-calculated effectiveDelta which includes clamps/limits
-                const comp = rawDelta ?? loggedComp;
-                const errCorr = (det.error_correction as number) ?? 0;
-                const pCorr = det.p_correction as number;
-                const iCorr = det.i_correction as number;
-                const learnedBaseline = det.learned_baseline as number;
-                const rawComp = det.raw_compensation as number;
-                const damping = det.damping as number;
-                const mode = det.mode as string;
-                const action = actionByName.get(name);
-                const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
-                const dualSensors = det.dual_sensors as boolean;
-                const actualTargetVal = det.actual_target as number ?? det.base_target as number;
-                const ctrlTarget = det.ctrl_target as number;
-                const ctrlTargetPid = det.ctrl_target_pid as number;
-                const rawCtrlTargetPid = det.raw_ctrl_target_pid as number;
-                const statusLimits = (det.limits as string[]) ?? [];
-
-                // "Nytt mål" = formula result: Profil − Δ + PI (using displayed values)
-                // This matches what the user sees in the formula columns.
-                // ctrlTargetPid (from backend) may differ due to rate limits, clamps etc.
-                const formulaResult = actualTargetVal != null && comp != null
-                  ? actualTargetVal - comp + (errCorr ?? 0)
-                  : null;
-
-                // Show diff between formula result and current hardware target
-                const diff = formulaResult != null && ctrlTarget != null
-                  ? formulaResult - ctrlTarget
-                  : null;
-
-                return (
-                  <React.Fragment key={i}>
-                  <tr className={`border-b border-border/10 ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
-                    {/* Info: Controller + Begränsningar */}
-                    <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        {name}
-                        {mode && (
-                          <span className={`text-[8px] ${mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>
-                            {mode === 'cooling' ? '❄️' : '🔥'}
+                    {r1(det.pill_temp as number)}
+                  </span>
+                </td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap">{r2(det.ctrl_temp as number)}</td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
+                <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
+                <td className="py-1 px-1.5 text-center whitespace-nowrap">
+                  {util ? (() => {
+                    const utilTip = buildUtilTooltip({
+                      lastUpdate: util.lastUpdate,
+                      recentPct: util.recentPct,
+                      midPct: util.midPct,
+                      oldestPct: util.oldestPct,
+                      ancientPct: util.ancientPct,
+                      pct: util.pct,
+                      prevAt: util.prevAt,
+                      p2At: util.p2At,
+                      anchorAt: util.anchorAt,
+                      p4At: util.p4At,
+                    });
+                    return (
+                      <TooltipProvider delayDuration={200}><Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
                           </span>
-                        )}
-                      </div>
-                      {(() => {
-                        // Use limits from STATUS data directly, fall back to ACTION brakes
-                        const brakes: { label: string; tip: string }[] = [];
-                         const rawVal = formulaResult;
-                         const clampedVal = ctrlTargetPid;
-                         const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
-                         const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
-                        if (statusLimits.length > 0) {
-                          if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
-                          if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
-                          if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: `Håller target under ramp — låter profilen komma ikapp. ${clampDiffStr}` });
-                          if (statusLimits.includes('approach-release')) {
-                            const dist = actualTempVal != null && actualTargetVal != null ? Math.abs(actualTempVal - actualTargetVal) : null;
-                            const approachC2 = statusLimits.find(c => c.startsWith('approach='));
-                            const scale = approachC2 ? approachC2.split('=')[1] : null;
-                            const distStr = dist != null ? ` Avstånd: ${r1(dist)}° från mål.` : '';
-                            const scaleStr = scale ? ` Δ-skalning: ×${scale}.` : '';
-                            const releaseStr = ' Släpper vid <1° från mål.';
-                            brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål.${distStr}${scaleStr}${releaseStr} ${clampDiffStr}` });
-                          }
-                          if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: `Kan inte överskrida profilmål under ramp. ${clampDiffStr}` });
-                          const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
-                          if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel. ${clampDiffStr}` }); }
-                          const hwMin = statusLimits.find(c => c.startsWith('hw-min='));
-                          if (hwMin) brakes.push({ label: `⬇ Min ${hwMin.split('=')[1]}°`, tip: `Hårdvarugräns min ${hwMin.split('=')[1]}°C. ${clampDiffStr}` });
-                          const hwMax = statusLimits.find(c => c.startsWith('hw-max='));
-                          if (hwMax) brakes.push({ label: `⬆ Max ${hwMax.split('=')[1]}°`, tip: `Hårdvarugräns max ${hwMax.split('=')[1]}°C. ${clampDiffStr}` });
-                          const approachC = statusLimits.find(c => c.startsWith('approach='));
-                          if (approachC) brakes.push({ label: `🎯 ${approachC.split('=')[1]}`, tip: `Approach-skalning: delta-komp × ${approachC.split('=')[1]} (nära mål)` });
-                          const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
-                          if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
-                          const utilSat = statusLimits.find(c => c.startsWith('util-sat='));
-                          if (utilSat) brakes.push({ label: `⚡ Util ${utilSat.split('=')[1]}`, tip: `Kylkretsen körs ${utilSat.split('=')[1]} av tiden — hårdvaran maxad, PID begränsas` });
-                          const heatGuard = statusLimits.find(c => c.startsWith('heat-guard='));
-                          if (heatGuard) brakes.push({ label: `🔥 Heat-guard`, tip: `PID begränsad för att inte aktivera värmaren (hysteres ${heatGuard.split('=')[1]}°C). Temperaturen tillåts stiga naturligt.` });
-                        } else if (action?.brakes && action.brakes.length > 0) {
-                          action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
-                        }
-                        return brakes.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 mt-0.5">
-                            <div className="flex flex-wrap gap-0.5">
-                              {brakes.map((b, bi) => (
-                                <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b.label}</span>
-                              ))}
-                            </div>
-                            {brakes.filter(b => b.tip).map((b, bi) => (
-                              <span key={bi} className="text-[8px] text-muted-foreground/70 leading-tight">{b.tip}</span>
-                            ))}
-                          </div>
-                        ) : damping != null && damping < 1.0 ? (
-                          <div className="mt-0.5">
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">damp={r1(damping)}</span>
-                                </TooltipTrigger>
-                                 <TooltipContent side="top" className="text-[10px]">
-                                   D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        ) : null;
-                      })()}
-                    </td>
-                    {/* Info: Är-temp */}
-                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
-                      {r1(actualTempVal)}°
-                      {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5"></span>}
-                    </td>
-                    {/* Separator */}
-                    <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
-                    {/* Calc: Profil (actual_target) */}
-                    <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>
-                      {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
-                    </td>
-                    {/* Calc: Δ (delta/2 = compensation) */}
-                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                      color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
-                    }}>
-                    {comp != null ? (
-                        Math.abs(comp) > 0.01 ? (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
+                      </Tooltip></TooltipProvider>
+                    );
+                  })() : (
+                    <TooltipProvider delayDuration={200}><Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
+                    </Tooltip></TooltipProvider>
+                  )}
+                </td>
+                <td className="py-1 px-1.5 text-center whitespace-nowrap">
+                  {(() => {
+                    const dutyPct = det.duty_pct as number | undefined;
+                    if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
+                    const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
+                    return (
+                      <TooltipProvider delayDuration={200}><Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={`font-mono cursor-help ${dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {String(dutyPct)}%
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          Inlärt kylbehov: {String(dutyPct)}% = {burstSecs}s burst per 5-min cykel
+                          {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
+                        </TooltipContent>
+                      </Tooltip></TooltipProvider>
+                    );
+                  })()}
+                </td>
+                <td className="py-1 px-1.5 text-center whitespace-nowrap">
+                  <span className="flex items-center justify-center gap-1">
+                    {(() => {
+                      const pwm = dutyPwmByName.get(name);
+                      const dutyPctSync = det.duty_pct as number | undefined;
+                      if (pwm) {
+                        return (
+                          <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-current/30">{r1(comp)}°</span>
-                            </TooltipTrigger>
-                             <TooltipContent side="top" className="text-[10px] max-w-[200px]">
-                               <div className="space-y-0.5">
-                                 <div>Rå Δ = avg − probe = {(det.raw_delta as number) != null ? `${(det.raw_delta as number) >= 0 ? '+' : ''}${r1(det.raw_delta as number)}°` : delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
-                                {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
-                                <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° effektiv kompensation</div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        ) : <span className="text-muted-foreground/40">0</span>
-                      ) : <span className="text-muted-foreground/40">—</span>}
-                    </td>
-                    {/* Calc: + PI (with tooltip) */}
-                    <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                      color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
-                    }}>
-                      {errCorr != null ? (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`cursor-help border-b border-dotted border-current/30 ${Math.abs(errCorr) <= 0.01 ? 'text-muted-foreground/40' : ''}`}>
-                                {Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '0'}
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
+                                PWM {pwm.burstSeconds}s
                               </span>
                             </TooltipTrigger>
-                             <TooltipContent side="top" className="text-[10px] max-w-[200px]">
-                               <div className="space-y-0.5">
-                                 <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
-                                <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
-                                {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && errCorr >= 0 && (
-                                   <div>Inlärd = {r1(learnedBaseline)}°</div>
-                                 )}
-                                <div className="border-t border-border/30 pt-0.5 font-medium">= {errCorr >= 0 ? '+' : ''}{r1(errCorr)}° totalt</div>
-                              </div>
+                            <TooltipContent side="top" className="text-xs max-w-[220px]">
+                              {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(30, Math.min(240, Math.round(pwm.duty / 100 * 300)))}s burst per cykel`}
                             </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : <span className="text-muted-foreground/40">—</span>}
-                    </td>
-                    {/* = */}
-                    <td className="py-1 px-0 text-center text-muted-foreground/25">=</td>
-                     {/* Nytt mål = Profil − Δ + PI (formula result) */}
-                     <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
-                       {formulaResult != null ? (
-                         ctrlTargetPid != null && Math.abs(formulaResult - ctrlTargetPid) >= 0.05 ? (
-                           <TooltipProvider delayDuration={200}>
-                             <Tooltip>
-                               <TooltipTrigger asChild>
-                                 <span className="cursor-help border-b border-dotted border-current/30">{r1(formulaResult)}°</span>
-                               </TooltipTrigger>
-                                <TooltipContent side="top" className="text-[10px]">
-                                  <div>Formel: {r1(formulaResult)}° → Hårdvara: {r1(ctrlTargetPid)}°</div>
-                                 {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
-                               </TooltipContent>
-                             </Tooltip>
-                           </TooltipProvider>
-                         ) : `${r1(formulaResult)}°`
-                       ) : ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : '—'}
-                     </td>
-                    {/* Separator */}
-                    <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
-                    {/* Ctrl mål (before) */}
-                    <td className="py-1 px-1.5 text-right text-muted-foreground/50 whitespace-nowrap">
-                      {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
-                    </td>
-                    {/* Diff */}
-                    <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{
-                      color: diff != null && Math.abs(diff) > 0.05
-                        ? (diff < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)')
-                        : undefined
-                    }}>
-                      {diff != null && Math.abs(diff) > 0.05 ? `${diff >= 0 ? '+' : ''}${r1(diff)}°` : '—'}
-                    </td>
-                  </tr>
-                  </React.Fragment>
+                          </Tooltip></TooltipProvider>
+                        );
+                      }
+                      if (dutyPctSync != null && dutyPctSync > 0) {
+                        const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPctSync / 100 * 300)));
+                        return (
+                          <TooltipProvider delayDuration={200}><Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
+                                PWM {burstSecs}s
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs max-w-[220px]">
+                              {`PWM burst-läge — duty ${dutyPctSync}%, ${burstSecs}s burst per cykel (PID hoppad denna cykel)`}
+                            </TooltipContent>
+                          </Tooltip></TooltipProvider>
+                        );
+                      }
+                      if (!isInactive && !isGlycol) {
+                        return (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/70 font-medium">PID</span>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {det.preserved ? (
+                      <TooltipProvider delayDuration={200}><Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 cursor-help">bevarad</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs max-w-[200px]">Databasens måltemp bevaras (aktiv profil, PID eller kylare) istället för RAPT-hårdvarans värde</TooltipContent>
+                      </Tooltip></TooltipProvider>
+                    ) : (
+                      <TooltipProvider delayDuration={200}><Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground cursor-help">hw</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs max-w-[200px]">Måltemperaturen kommer direkt från RAPT-hårdvaran utan överskrivning</TooltipContent>
+                      </Tooltip></TooltipProvider>
+                    )}
+                  </span>
+                </td>
+                <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
+                  {lastUpdate || '—'}
+                </td>
+              </tr>
+              {pillData && (() => {
+                const pillLastUpdate = pillDet.last_update as string | null;
+                const pillLastUpdateRaw = pillDet.last_update_raw as string | null;
+                const pillIsStale = (() => {
+                  const raw = pillLastUpdateRaw || pillLastUpdate;
+                  if (!raw) return true;
+                  try {
+                    const pillDate = new Date(raw);
+                    if (isNaN(pillDate.getTime())) return true;
+                    const logTs = new Date(logCreatedAt).getTime();
+                    return logTs - pillDate.getTime() > 30 * 60 * 1000;
+                  } catch { return false; }
+                })();
+                return (
+                <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
+                  <td colSpan={8} className="py-1 px-1.5 pl-4">
+                    <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
+                      <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
+                        <Pill className="h-2.5 w-2.5" />
+                        <span className="text-[9px] font-medium">Pill</span>
+                      </span>
+                      {pillDet.current_sg != null && (
+                        <span className="whitespace-nowrap">SG: <span className="font-mono" style={{ color: 'hsl(160 60% 50%)' }}>{(pillDet.current_sg as number).toFixed(3)}</span></span>
+                      )}
+                      {pillDet.battery != null && (
+                        <span className="whitespace-nowrap">🔋 {parseFloat((pillDet.battery as number).toFixed(1))}%</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
+                    <span className="flex items-center justify-end gap-1">
+                      {pillIsStale && (
+                        <TooltipProvider delayDuration={200}><Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">Pill har inte rapporterat på över 30 minuter</TooltipContent>
+                        </Tooltip></TooltipProvider>
+                      )}
+                      {pillLastUpdate || '—'}
+                    </span>
+                  </td>
+                </tr>
                 );
-              })}
-            </tbody>
-          </table>
-          </div>
-        </PipelineSection>
-      )}
+              })()}
+            </React.Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+    </div>
+  ) : null;
 
-      {/* Smart Relay removed — not supported by RAPT API */}
+  const pidTableContent = !hidePid && pidStatusEntries.length > 0 ? (
+    <PipelineSection
+      icon={<Gauge className="h-3 w-3" />}
+      title="PID-reglering"
+      color="hsl(220 70% 55%)"
+      borderColor="hsl(220 70% 55% / 0.3)"
+      bgColor="hsl(220 70% 55% / 0.05)"
+    >
+      <div className="overflow-x-auto -mx-2 px-2">
+      <table className="w-full text-[10px] min-w-[520px]">
+        <thead>
+          <tr className="text-muted-foreground/80 border-b border-border/40 bg-[hsl(220_70%_55%/0.08)]">
+            <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
+            <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Δ</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">PI</th>
+            <th className="text-center py-1 px-0 font-medium text-muted-foreground/30">=</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
+            <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl mål</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pidStatusEntries.map((d, i) => {
+            const det = d.details || {};
+            const name = d.message.replace('Controller: ', '');
+            const delta = det.delta as number;
+            const rawDelta = (det.raw_delta as number) ?? delta;
+            const loggedComp = (det.compensation as number) ?? rawDelta ?? 0;
+            const comp = rawDelta ?? loggedComp;
+            const errCorr = (det.error_correction as number) ?? 0;
+            const pCorr = det.p_correction as number;
+            const iCorr = det.i_correction as number;
+            const learnedBaseline = det.learned_baseline as number;
+            const rawComp = det.raw_compensation as number;
+            const damping = det.damping as number;
+            const mode = det.mode as string;
+            const action = actionByName.get(name);
+            const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
+            const dualSensors = det.dual_sensors as boolean;
+            const actualTargetVal = det.actual_target as number ?? det.base_target as number;
+            const ctrlTarget = det.ctrl_target as number;
+            const ctrlTargetPid = det.ctrl_target_pid as number;
+            const rawCtrlTargetPid = det.raw_ctrl_target_pid as number;
+            const statusLimits = (det.limits as string[]) ?? [];
 
-      {/* 4. Pass-through */}
-      {passThroughEntries.length > 0 && (
-        <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="Pass-through" color="hsl(170 60% 45%)" borderColor="hsl(170 60% 45% / 0.3)" bgColor="hsl(170 60% 45% / 0.05)">
-          {passThroughEntries.map((d, i) => (
-            <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
-              <RefreshCw className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(170 60% 45%)' }} />
-              <span>{d.message}</span>
-            </div>
-          ))}
-        </PipelineSection>
-      )}
+            const formulaResult = actualTargetVal != null && comp != null
+              ? actualTargetVal - comp + (errCorr ?? 0)
+              : null;
 
-      {/* 3. Stall-detektering — only show actionable decisions */}
-      {stallEntries.length > 0 && (() => {
-        // Filter: only show STALL_ANALYSIS (with result), STALL_BOOST, STALL_LEARN, STALL_UNBOOST, STALL_COOLDOWN, STALL_ERROR
-        const actionableStall = stallEntries.filter(d =>
-          d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
-          d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
-          d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR' ||
-          d.step === 'STALL_SKIP'
-        );
-        if (actionableStall.length === 0) return null;
-        return (
-          <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
-            {actionableStall.map((d, i) => {
-              const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
-              const isError = d.step === 'STALL_ERROR';
-              const isAnalysis = d.step === 'STALL_ANALYSIS';
-              const isSkip = d.step === 'STALL_SKIP';
-              const stallDetected = isAnalysis && d.result === 'action';
-              return (
-                <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-                  <div className="mt-0.5 flex-shrink-0">
-                    {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                     isError ? <XCircle className="h-3 w-3 text-red-400" /> :
-                     stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
-                     isSkip ? <Info className="h-3 w-3 text-muted-foreground" /> :
-                     <CheckCircle2 className="h-3 w-3 text-green-500" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className={`font-medium ${isError ? 'text-red-400' : isSkip ? 'text-muted-foreground' : ''}`}>{d.message}</span>
-                    {isAnalysis && d.details && (
-                      <span className="text-muted-foreground ml-2">
-                        SG: {r1(d.details.sg_rate_per_day as number)}/dag
-                        {d.details.activity != null && ` · Akt: ${r1(d.details.activity as number)}`}
+            const diff = formulaResult != null && ctrlTarget != null
+              ? formulaResult - ctrlTarget
+              : null;
+
+            return (
+              <React.Fragment key={i}>
+              <tr className={`border-b border-border/10 ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>
+                <td className="py-1 pr-2 pl-1.5 font-medium whitespace-nowrap">
+                  <div className="flex items-center gap-1">
+                    {name}
+                    {mode && (
+                      <span className={`text-[8px] ${mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>
+                        {mode === 'cooling' ? '❄️' : '🔥'}
                       </span>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </PipelineSection>
-        );
-      })()}
+                  {(() => {
+                    const brakes: { label: string; tip: string }[] = [];
+                     const rawVal = formulaResult;
+                     const clampedVal = ctrlTargetPid;
+                     const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
+                     const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
+                    if (statusLimits.length > 0) {
+                      if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
+                      if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
+                      if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: `Håller target under ramp — låter profilen komma ikapp. ${clampDiffStr}` });
+                      if (statusLimits.includes('approach-release')) {
+                        const dist = actualTempVal != null && actualTargetVal != null ? Math.abs(actualTempVal - actualTargetVal) : null;
+                        const approachC2 = statusLimits.find(c => c.startsWith('approach='));
+                        const scale = approachC2 ? approachC2.split('=')[1] : null;
+                        const distStr = dist != null ? ` Avstånd: ${r1(dist)}° från mål.` : '';
+                        const scaleStr = scale ? ` Δ-skalning: ×${scale}.` : '';
+                        const releaseStr = ' Släpper vid <1° från mål.';
+                        brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål.${distStr}${scaleStr}${releaseStr} ${clampDiffStr}` });
+                      }
+                      if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: `Kan inte överskrida profilmål under ramp. ${clampDiffStr}` });
+                      const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
+                      if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel. ${clampDiffStr}` }); }
+                      const hwMin = statusLimits.find(c => c.startsWith('hw-min='));
+                      if (hwMin) brakes.push({ label: `⬇ Min ${hwMin.split('=')[1]}°`, tip: `Hårdvarugräns min ${hwMin.split('=')[1]}°C. ${clampDiffStr}` });
+                      const hwMax = statusLimits.find(c => c.startsWith('hw-max='));
+                      if (hwMax) brakes.push({ label: `⬆ Max ${hwMax.split('=')[1]}°`, tip: `Hårdvarugräns max ${hwMax.split('=')[1]}°C. ${clampDiffStr}` });
+                      const approachC = statusLimits.find(c => c.startsWith('approach='));
+                      if (approachC) brakes.push({ label: `🎯 ${approachC.split('=')[1]}`, tip: `Approach-skalning: delta-komp × ${approachC.split('=')[1]} (nära mål)` });
+                      const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
+                      if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
+                      const utilSat = statusLimits.find(c => c.startsWith('util-sat='));
+                      if (utilSat) brakes.push({ label: `⚡ Util ${utilSat.split('=')[1]}`, tip: `Kylkretsen körs ${utilSat.split('=')[1]} av tiden — hårdvaran maxad, PID begränsas` });
+                      const heatGuard = statusLimits.find(c => c.startsWith('heat-guard='));
+                      if (heatGuard) brakes.push({ label: `🔥 Heat-guard`, tip: `PID begränsad för att inte aktivera värmaren (hysteres ${heatGuard.split('=')[1]}°C). Temperaturen tillåts stiga naturligt.` });
+                    } else if (action?.brakes && action.brakes.length > 0) {
+                      action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
+                    }
+                    return brakes.length > 0 ? (
+                      <div className="flex flex-col gap-0.5 mt-0.5">
+                        <div className="flex flex-wrap gap-0.5">
+                          {brakes.map((b, bi) => (
+                            <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b.label}</span>
+                          ))}
+                        </div>
+                        {brakes.filter(b => b.tip).map((b, bi) => (
+                          <span key={bi} className="text-[8px] text-muted-foreground/70 leading-tight">{b.tip}</span>
+                        ))}
+                      </div>
+                    ) : damping != null && damping < 1.0 ? (
+                      <div className="mt-0.5">
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">damp={r1(damping)}</span>
+                            </TooltipTrigger>
+                             <TooltipContent side="top" className="text-[10px]">
+                               D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    ) : null;
+                  })()}
+                </td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
+                  {r1(actualTempVal)}°
+                  {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5"></span>}
+                </td>
+                <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
+                <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>
+                  {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
+                </td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
+                  color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
+                }}>
+                {comp != null ? (
+                    Math.abs(comp) > 0.01 ? (
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-current/30">{r1(comp)}°</span>
+                        </TooltipTrigger>
+                         <TooltipContent side="top" className="text-[10px] max-w-[200px]">
+                           <div className="space-y-0.5">
+                             <div>Rå Δ = avg − probe = {(det.raw_delta as number) != null ? `${(det.raw_delta as number) >= 0 ? '+' : ''}${r1(det.raw_delta as number)}°` : delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
+                            {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
+                            <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° effektiv kompensation</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    ) : <span className="text-muted-foreground/40">0</span>
+                  ) : <span className="text-muted-foreground/40">—</span>}
+                </td>
+                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
+                  color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
+                }}>
+                  {errCorr != null ? (
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={`cursor-help border-b border-dotted border-current/30 ${Math.abs(errCorr) <= 0.01 ? 'text-muted-foreground/40' : ''}`}>
+                            {Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '0'}
+                          </span>
+                        </TooltipTrigger>
+                         <TooltipContent side="top" className="text-[10px] max-w-[200px]">
+                           <div className="space-y-0.5">
+                             <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
+                            <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
+                            {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && errCorr >= 0 && (
+                               <div>Inlärd = {r1(learnedBaseline)}°</div>
+                             )}
+                            <div className="border-t border-border/30 pt-0.5 font-medium">= {errCorr >= 0 ? '+' : ''}{r1(errCorr)}° totalt</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : <span className="text-muted-foreground/40">—</span>}
+                </td>
+                <td className="py-1 px-0 text-center text-muted-foreground/25">=</td>
+                 <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
+                   {formulaResult != null ? (
+                     ctrlTargetPid != null && Math.abs(formulaResult - ctrlTargetPid) >= 0.05 ? (
+                       <TooltipProvider delayDuration={200}>
+                         <Tooltip>
+                           <TooltipTrigger asChild>
+                             <span className="cursor-help border-b border-dotted border-current/30">{r1(formulaResult)}°</span>
+                           </TooltipTrigger>
+                            <TooltipContent side="top" className="text-[10px]">
+                              <div>Formel: {r1(formulaResult)}° → Hårdvara: {r1(ctrlTargetPid)}°</div>
+                             {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
+                           </TooltipContent>
+                         </Tooltip>
+                       </TooltipProvider>
+                     ) : `${r1(formulaResult)}°`
+                   ) : ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : '—'}
+                 </td>
+                <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
+                <td className="py-1 px-1.5 text-right text-muted-foreground/50 whitespace-nowrap">
+                  {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
+                </td>
+                <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{
+                  color: diff != null && Math.abs(diff) > 0.05
+                    ? (diff < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)')
+                    : undefined
+                }}>
+                  {diff != null && Math.abs(diff) > 0.05 ? `${diff >= 0 ? '+' : ''}${r1(diff)}°` : '—'}
+                </td>
+              </tr>
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+    </PipelineSection>
+  ) : null;
 
-      {/* 5. Glykol-kylare — structured decision view */}
-      {coolerEntries.length > 0 && (
-        <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
-          <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} />
-        </PipelineSection>
-      )}
+  const passThroughContent = passThroughEntries.length > 0 ? (
+    <PipelineSection icon={<RefreshCw className="h-3 w-3" />} title="Pass-through" color="hsl(170 60% 45%)" borderColor="hsl(170 60% 45% / 0.3)" bgColor="hsl(170 60% 45% / 0.05)">
+      {passThroughEntries.map((d, i) => (
+        <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+          <RefreshCw className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(170 60% 45%)' }} />
+          <span>{d.message}</span>
+        </div>
+      ))}
+    </PipelineSection>
+  ) : null;
 
-      {/* Section 6 removed — merged into section 3 "PID-reglering" above */}
-
-      {/* 7. RAPT_SEND + BATCH_FLUSH */}
-      {(() => {
-        if (raptSendEntries.length === 0) return null;
-        const hasFailure = raptSendEntries.some(d => d.result === 'fail');
-        const sectionColor = hasFailure ? 'hsl(0 84% 60%)' : 'hsl(25 95% 53%)';
-        const sectionBorder = hasFailure ? 'hsl(0 84% 60% / 0.3)' : 'hsl(25 95% 53% / 0.3)';
-        const sectionBg = hasFailure ? 'hsl(0 84% 60% / 0.05)' : 'hsl(25 95% 53% / 0.05)';
-        const title = hasFailure ? 'Skickat till RAPT — Timeout' : 'Skickat till RAPT';
-        return (
-          <PipelineSection icon={<Send className="h-3 w-3" />} title={title} color={sectionColor} borderColor={sectionBorder} bgColor={sectionBg}>
-            {raptSendEntries.map((d, i) => {
-              const isFail = d.result === 'fail';
-              return (
-                <div key={`rapt-${i}`} className="flex items-center gap-2 text-[11px] py-0.5">
-                  {isFail
-                    ? <XCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
-                    : <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
-                  }
-                  <span className="font-medium" style={{ color: isFail ? 'hsl(0 84% 60%)' : 'hsl(25 80% 60%)' }}>{d.message}</span>
-                </div>
-              );
-            })}
-          </PipelineSection>
-        );
-      })()}
-
-      {/* 7. Remaining (errors, etc.) */}
-      {otherEntries.length > 0 && (
-        <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
-          {otherEntries.map((d, i) => (
-            <div key={i} className="flex items-start gap-2 text-[11px]">
+  const stallContent = stallEntries.length > 0 ? (() => {
+    const actionableStall = stallEntries.filter(d =>
+      d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
+      d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
+      d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR' ||
+      d.step === 'STALL_SKIP'
+    );
+    if (actionableStall.length === 0) return null;
+    return (
+      <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
+        {actionableStall.map((d, i) => {
+          const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
+          const isError = d.step === 'STALL_ERROR';
+          const isAnalysis = d.step === 'STALL_ANALYSIS';
+          const isSkip = d.step === 'STALL_SKIP';
+          const stallDetected = isAnalysis && d.result === 'action';
+          return (
+            <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
               <div className="mt-0.5 flex-shrink-0">
-                {d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
-                 d.result === 'fail' ? <XCircle className="h-3 w-3 text-red-500" /> :
-                 d.result === 'action' ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                 <Info className="h-3 w-3 text-blue-500" />}
+                {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
+                 isError ? <XCircle className="h-3 w-3 text-red-400" /> :
+                 stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
+                 isSkip ? <Info className="h-3 w-3 text-muted-foreground" /> :
+                 <CheckCircle2 className="h-3 w-3 text-green-500" />}
               </div>
               <div className="flex-1 min-w-0">
-                <span className="font-mono text-muted-foreground text-[10px]">{d.step}</span>
-                <span className="text-foreground ml-2 break-words">{d.message}</span>
+                <span className={`font-medium ${isError ? 'text-red-400' : isSkip ? 'text-muted-foreground' : ''}`}>{d.message}</span>
+                {isAnalysis && d.details && (
+                  <span className="text-muted-foreground ml-2">
+                    SG: {r1(d.details.sg_rate_per_day as number)}/dag
+                    {d.details.activity != null && ` · Akt: ${r1(d.details.activity as number)}`}
+                  </span>
+                )}
               </div>
             </div>
-          ))}
+          );
+        })}
+      </PipelineSection>
+    );
+  })() : null;
+
+  const coolerContent = coolerEntries.length > 0 ? (
+    <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
+      <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} />
+    </PipelineSection>
+  ) : null;
+
+  const raptSendContent = (() => {
+    if (raptSendEntries.length === 0) return null;
+    const hasFailure = raptSendEntries.some(d => d.result === 'fail');
+    const sectionColor = hasFailure ? 'hsl(0 84% 60%)' : 'hsl(25 95% 53%)';
+    const sectionBorder = hasFailure ? 'hsl(0 84% 60% / 0.3)' : 'hsl(25 95% 53% / 0.3)';
+    const sectionBg = hasFailure ? 'hsl(0 84% 60% / 0.05)' : 'hsl(25 95% 53% / 0.05)';
+    const title = hasFailure ? 'Skickat till RAPT — Timeout' : 'Skickat till RAPT';
+    return (
+      <PipelineSection icon={<Send className="h-3 w-3" />} title={title} color={sectionColor} borderColor={sectionBorder} bgColor={sectionBg}>
+        {raptSendEntries.map((d, i) => {
+          const isFail = d.result === 'fail';
+          return (
+            <div key={`rapt-${i}`} className="flex items-center gap-2 text-[11px] py-0.5">
+              {isFail
+                ? <XCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
+                : <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: 'hsl(25 95% 53%)' }} />
+              }
+              <span className="font-medium" style={{ color: isFail ? 'hsl(0 84% 60%)' : 'hsl(25 80% 60%)' }}>{d.message}</span>
+            </div>
+          );
+        })}
+      </PipelineSection>
+    );
+  })();
+
+  const syncFreqContent = syncFreqEntries.length > 0 ? (
+    <div className="text-[10px] text-muted-foreground">
+      {syncFreqEntries.map((d, i) => (
+        <span key={i}>{d.message}</span>
+      ))}
+    </div>
+  ) : null;
+
+  const otherContent = otherEntries.length > 0 ? (
+    <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
+      {otherEntries.map((d, i) => (
+        <div key={i} className="flex items-start gap-2 text-[11px]">
+          <div className="mt-0.5 flex-shrink-0">
+            {d.result === 'pass' ? <CheckCircle2 className="h-3 w-3 text-green-500" /> :
+             d.result === 'fail' ? <XCircle className="h-3 w-3 text-red-500" /> :
+             d.result === 'action' ? <Wrench className="h-3 w-3 text-amber-500" /> :
+             <Info className="h-3 w-3 text-blue-500" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="font-mono text-muted-foreground text-[10px]">{d.step}</span>
+            <span className="text-foreground ml-2 break-words">{d.message}</span>
+          </div>
+        </div>
+      ))}
+    </PipelineSection>
+  ) : null;
+
+  // --- Phase-based layout (when PHASE_TIMINGS available) ---
+  if (pt) {
+    const phases = has1Sub ? [
+      { code: '1a', name: 'Auth', ms: pt['1a_auth_ms'], failed: failedIn === '1a auth' },
+      { code: '1b', name: 'Hämtning', ms: pt['1b_fetch_ms'], failed: failedIn === '1b fetch' },
+      { code: '1c', name: 'Synk-data', ms: pt['1c_upsert_ms'], failed: failedIn === '1c upsert' },
+    ] : [
+      { code: '1', name: 'RAPT', ms: pt['1_rapt_ms'], failed: !!failedIn },
+    ];
+
+    return (
+      <div className="space-y-2">
+        {/* Phase 1: RAPT sync (auth + fetch + upsert) */}
+        {phases.map(p => {
+          if (p.code === '1a') {
+            return (
+              <PhaseSection key={p.code} code={p.code} name={p.name} ms={p.ms} failed={p.failed}>
+                {tokenRefreshEntries.length > 0 ? tokenRefreshEntries.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
+                    <RefreshCw className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                    <span className="text-muted-foreground">{d.message}</span>
+                  </div>
+                )) : null}
+              </PhaseSection>
+            );
+          }
+          if (p.code === '1b') {
+            return <PhaseSection key={p.code} code={p.code} name={p.name} ms={p.ms} failed={p.failed} />;
+          }
+          if (p.code === '1c' || p.code === '1') {
+            return (
+              <PhaseSection key={p.code} code={p.code} name={p.name} ms={p.ms} failed={p.failed}>
+                {syncTableContent}
+              </PhaseSection>
+            );
+          }
+          return null;
+        })}
+
+        {/* Phase 2a: Brew data */}
+        <PhaseSection code="2a" name="Bryggdata" ms={pt['2a_brew_ms']}>
+          {syncFreqContent}
+        </PhaseSection>
+
+        {/* Phase 2b: Automation (PID + Stall + Glykol + Pass-through) */}
+        <PhaseSection code="2b" name="Automation" ms={pt['2b_auto_ms']}>
+          {pidTableContent}
+          {passThroughContent}
+          {stallContent}
+          {coolerContent}
+        </PhaseSection>
+
+        {/* Phase 2c: History (RAPT send + cleanup) */}
+        <PhaseSection code="2c" name="Historik" ms={pt['2c_hist_ms']}>
+          {raptSendContent}
+        </PhaseSection>
+
+        {/* Övrigt (uncategorized) */}
+        {otherContent}
+      </div>
+    );
+  }
+
+  // --- Legacy flat layout (no PHASE_TIMINGS) ---
+  return (
+    <div className="space-y-2">
+      {syncTableContent && (
+        <PipelineSection icon={<Database className="h-3 w-3" />} title="Synk-data" color="muted-foreground">
+          {syncTableContent}
         </PipelineSection>
       )}
-    </div>
-  );
-}
-
-// --- Pipeline Section wrapper ---
-
-function PipelineSection({ icon, title, color, borderColor, bgColor, children }: {
-  icon: React.ReactNode; title: string; color: string; borderColor?: string; bgColor?: string; children: React.ReactNode;
-}) {
-  return (
-    <div className="p-2 rounded border overflow-x-auto" style={{
-      borderColor: borderColor || 'hsl(var(--border) / 0.5)',
-      background: bgColor || 'hsl(var(--muted) / 0.2)',
-    }}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span style={{ color }}>{icon}</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>{title}</span>
-      </div>
-      {children}
+      {pidTableContent}
+      {passThroughContent}
+      {stallContent}
+      {coolerContent}
+      {raptSendContent}
+      {otherContent}
     </div>
   );
 }
