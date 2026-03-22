@@ -1,54 +1,30 @@
 
 
-## Kvarvarande ineffektivitet i Phase 2b
+## Problem: Fler fält från automation-loggen skrivs över
 
-Koden är **bra** — arkitekturen med inlinad logik + data-injection är sund. Men det finns fortfarande **2 redundanta DB-queries** som slank igenom:
+Samma bugg som `duty_pct` — synk-orchestratorn (rad 1413-1414) filtrerar bort **alla** `SYNC_DATA`-rader från automationen och genererar egna, enklare versioner. Förutom `duty_pct`/`duty_samples` (redan fixat) tappas dessa fält som UI:t faktiskt använder:
 
-### Problem 1: `brew_readings` querias dubbelt
-- **Orchestratorn** hämtar `allFermentingBrews` (rad 871) med alla fält inklusive `id, sg_data, original_gravity, final_gravity`
-- **processAllSessions** hämtar SAMMA data igen (rad 145-147): `brew_readings.select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)`
-- Lösning: Lägg till `brewReadings?: any[]` i `ProcessSessionsOpts`, injicera `allFermentingBrews`
+| Fält | Var i UI | Effekt av att det saknas |
+|------|----------|--------------------------|
+| `stale` | Röd "offline"-badge, sorting, dimming | Offline-controllrar visas som aktiva |
+| `inactive` | Grå "av"-badge, sorting, dimming | Avstängda controllrar ser aktiva ut |
+| `preserved` | "bevarad"/"hw"-badge på måltemp | Alltid "hw" istället för "bevarad" |
 
-### Problem 2: `brew_fermentation_metrics` querias dubbelt
-- **Orchestratorn** hämtar `sharedBrewMetrics` (rad 894) med `peak_delta, peak_sg_rate_per_hour`
-- **computeAllMetrics** hämtar SAMMA tabell igen (rad 128-131) för peak-värden
-- Lösning: Lägg till `existingMetrics?: any[]` i `ComputeMetricsOpts`, injicera `sharedBrewMetrics`
+Fält som **inte** används av UI (ingen effekt idag):
+- `is_actively_cooling`, `ramp_target`, `step_index`, `step_type`, `cooloff`
 
-### Steg
+### Lösning
 
-**1. `_shared/process-profiles-logic.ts`**
-- Utöka `ProcessSessionsOpts` med `brewReadings?: any[]`
-- Om injicerat: skippa `brew_readings`-query (rad 145-147), bygg `brewDataMap` från injicerad data istället
+**Fil: `supabase/functions/sync-rapt-data-quick/index.ts`**
 
-**2. `_shared/fermentation-metrics-logic.ts`**
-- Utöka `ComputeMetricsOpts` med `existingMetrics?: any[]`
-- Om injicerat: skippa `brew_fermentation_metrics`-query (rad 128-131), bygg `existingPeakMap` från injicerad data
+Utöka den befintliga `automationDutyByControllerName`-mappen (rad 1334) till att bli en generell "automation metadata per controller"-map som även fångar `stale`, `inactive` och `preserved` från automationens SYNC_DATA-beslut. Sedan injicera dessa tre fält i synk-versionen av SYNC_DATA (rad 1352-1370), precis som `duty_pct` redan görs.
 
-**3. `sync-rapt-data-quick/index.ts`**
-- Skicka `brewReadings: allFermentingBrews` till `processAllSessions`
-- Skicka `existingMetrics: sharedBrewMetrics` till `computeAllMetrics`
+Konkret:
+1. Byt namn på `automationDutyByControllerName` till `automationMetaByControllerName`
+2. Utöka typen med `stale?: boolean`, `inactive?: boolean`, `preserved?: boolean`
+3. Extrahera dessa fält i for-loopen (rad 1335-1349)
+4. Injicera dem i details-objektet (rad 1354-1368) med `if (meta.stale) details.stale = true` etc.
 
 ### Resultat
-
-```text
-Redundanta queries i Phase 2b:  2 → 0
-Unika queries som kvarstår (korrekta):
-  - fermentation_profile_steps (processAllSessions — unik)
-  - temp_delta_history (computeAllMetrics — unik)
-  - pending_notifications (health — unik)
-  - pending_rapt_retries (auto-adjust-cooling — unik)
-  - auto_cooling_adjustments (auto-adjust-cooling — unik)
-  - fermentation_step_log (auto-adjust-cooling cooloff — unik)
-  - fermentation_profile_steps (auto-adjust-cooling — DUBLETT med profiles, men i separat HTTP-process)
-```
-
-Den sista dubbletten (`fermentation_profile_steps` i auto-adjust-cooling) kan inte elimineras utan att inlina auto-adjust-cooling helt — inte värt risken.
-
-### Filer
-
-| Fil | Ändring |
-|-----|---------|
-| `_shared/process-profiles-logic.ts` | Lägg till `brewReadings?` i opts, skippa query |
-| `_shared/fermentation-metrics-logic.ts` | Lägg till `existingMetrics?` i opts, skippa query |
-| `sync-rapt-data-quick/index.ts` | Injicera `brewReadings` + `existingMetrics` |
+Alla UI-synliga fält som automationen beräknar bevaras genom synk-orchestratorns logg-konsolidering.
 
