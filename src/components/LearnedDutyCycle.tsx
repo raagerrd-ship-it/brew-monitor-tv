@@ -146,14 +146,27 @@ export function LearnedDutyCycle() {
             </thead>
             <tbody className="divide-y divide-border/30">
               {items.map((item) => {
-                const dutyPct = Math.round(item.duty * 100);
-                const color = dutyPct > 70 ? "text-red-400" : dutyPct > 40 ? "text-yellow-400" : "text-emerald-400";
+                const rawPct = Math.round(item.duty * 100);
+                const quantized = Math.round(item.duty * 5) * 20;
+                const steps = quantized / 20; // 0–5
+                const burstMin = steps > 0 ? steps : 0;
+                const color = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : "text-emerald-400";
                 return (
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
                     <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
-                    <td className={`py-1.5 text-right font-mono ${color}`}>{dutyPct}%</td>
-                    <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
-                      {dutyPct > 0 ? `${Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)))}s/5m` : "—"}
+                    <td className={`py-1.5 text-right font-mono ${color}`}>{quantized}%</td>
+                    <td className="py-1.5 text-right">
+                      <div className="flex items-center justify-end gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <div
+                            key={s}
+                            className={`h-2.5 w-1.5 rounded-[1px] ${s <= steps ? (quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : "bg-emerald-400") : "bg-muted-foreground/20"}`}
+                          />
+                        ))}
+                        <span className="ml-1 font-mono text-muted-foreground text-[10px]">
+                          {burstMin > 0 ? `${burstMin}m` : "—"}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
                       {item.warming_rate > 0 ? item.warming_rate.toFixed(2) : "—"}/{item.cooling_rate > 0 ? item.cooling_rate.toFixed(2) : "—"}
