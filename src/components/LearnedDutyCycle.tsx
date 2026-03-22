@@ -181,7 +181,7 @@ export function LearnedDutyCycle() {
       ))}
 
       <p className="text-[10px] text-muted-foreground/60 italic">
-        Duty cycle = warming / cooling hastighet. Styr PWM-burst: vid varje 5-min cykel kyls i duty% av 300s (min 30s, max 240s).
+        PWM kvantiseras i 1-minuts steg (pg_cron): 0%, 20%, 40%, 60%, 80%, 100%. Burst = duty-steg × 1 min per 5-min cykel.
       </p>
     </div>
   );
