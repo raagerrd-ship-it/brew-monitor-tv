@@ -1,0 +1,1 @@
+UPDATE auto_cooling_settings SET pill_compensation_rate_limit = 0.5, updated_at = now();
