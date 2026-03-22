@@ -192,23 +192,7 @@ Deno.serve(async (req) => {
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "ok", duration_ms: burstDuration, details: { duty_seconds: burst.duty_seconds, off_target: burst.off_target } });
           console.log(`PWM OFF sent for ${burst.controller_name}: → ${burst.off_target}°C after ${burst.duty_seconds}s`);
 
-          // Log PWM OFF adjustment (for matching to decision log)
-          try {
-            await supabase.from('auto_cooling_adjustments').insert({
-              cooler_controller_id: burst.controller_id,
-              cooler_controller_name: burst.controller_name,
-              old_target_temp: 0,
-              new_target_temp: burst.off_target,
-              lowest_followed_temp: burst.off_target,
-              reason: `⚡ PWM OFF: 0° → ${burst.off_target}°`,
-              original_target_temp: burst.off_target,
-              followed_controller_name: burst.controller_name,
-            });
-          } catch (logErr) {
-            console.error(`Failed to log PWM OFF adjustment: ${logErr}`);
-          }
-
-          // Create dedicated decision log for PWM OFF
+          // Create dedicated decision log for PWM OFF (no separate adjustment — it would match wrong log via 15s window)
           const shortName = burst.controller_name.replace('Temp Controller ', '');
           try {
             await supabase.from('auto_cooling_decision_logs').insert({
