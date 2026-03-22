@@ -96,16 +96,28 @@ function calculateActivityScore(
 
 // ─── Main exported function ───────────────────────────────────────────
 
+export interface ComputeMetricsOpts {
+  /** Pre-fetched fermenting brews — skips DB query if provided */
+  brews?: any[]
+}
+
 export async function computeAllMetrics(
   supabase: ReturnType<typeof createClient>,
+  opts?: ComputeMetricsOpts,
 ): Promise<MetricsResult> {
-  // Get all actively fermenting brews
-  const { data: brews } = await supabase
-    .from('brew_readings')
-    .select('id, name, sg_data, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation, style')
-    .in('status', ['Fermenting', 'Jäsning'])
+  // Get all actively fermenting brews (skip if injected)
+  let brews: any[]
+  if (opts?.brews) {
+    brews = opts.brews
+  } else {
+    const { data } = await supabase
+      .from('brew_readings')
+      .select('id, name, sg_data, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation, style')
+      .in('status', ['Fermenting', 'Jäsning'])
+    brews = data || []
+  }
 
-  if (!brews || brews.length === 0) {
+  if (brews.length === 0) {
     return { ok: true, updated: 0, metrics: [] }
   }
 

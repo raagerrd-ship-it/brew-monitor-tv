@@ -65,24 +65,38 @@ export interface ProfilesResult {
   message?: string
 }
 
+export interface ProcessSessionsOpts {
+  /** Pre-fetched running sessions — skips DB query if provided */
+  sessions?: FermentationSession[]
+  /** Pre-fetched controllers — skips DB query if provided */
+  controllers?: any[]
+}
+
 export async function processAllSessions(
   supabase: ReturnType<typeof createClient>,
+  opts?: ProcessSessionsOpts,
 ): Promise<ProfilesResult> {
-  // Get all running sessions
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('fermentation_sessions')
-    .select('*')
-    .eq('status', 'running')
-
-  if (sessionsError) {
-    throw new Error(`Failed to fetch sessions: ${sessionsError.message}`)
+  // Get all running sessions (skip if injected)
+  let typedSessions: FermentationSession[]
+  if (opts?.sessions) {
+    typedSessions = opts.sessions
+  } else {
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('fermentation_sessions')
+      .select('*')
+      .eq('status', 'running')
+    if (sessionsError) {
+      throw new Error(`Failed to fetch sessions: ${sessionsError.message}`)
+    }
+    if (!sessions || sessions.length === 0) {
+      return { message: 'No active sessions', results: [] }
+    }
+    typedSessions = sessions as FermentationSession[]
   }
 
-  if (!sessions || sessions.length === 0) {
+  if (typedSessions.length === 0) {
     return { message: 'No active sessions', results: [] }
   }
-
-  const typedSessions = sessions as FermentationSession[]
   const results: { sessionId: string; action: string; details: any }[] = []
 
   // SAFETY: Detect duplicate controllers
@@ -109,6 +123,11 @@ export async function processAllSessions(
   const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
   const brewIds = typedSessions.map(s => s.brew_id).filter((id): id is string => id !== null)
 
+  // Use injected controllers or fetch from DB
+  const controllersPromise = opts?.controllers
+    ? Promise.resolve({ data: opts.controllers.filter(c => uniqueControllerIds.includes(c.controller_id)) })
+    : supabase.from('rapt_temp_controllers').select('*').in('controller_id', uniqueControllerIds)
+
   const [
     { data: allSteps },
     { data: allControllers },
@@ -120,10 +139,7 @@ export async function processAllSessions(
       .select('*')
       .in('profile_id', uniqueProfileIds)
       .order('step_order', { ascending: true }),
-    supabase
-      .from('rapt_temp_controllers')
-      .select('*')
-      .in('controller_id', uniqueControllerIds),
+    controllersPromise,
     brewIds.length > 0
       ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
       : Promise.resolve({ data: null } as { data: null }),
