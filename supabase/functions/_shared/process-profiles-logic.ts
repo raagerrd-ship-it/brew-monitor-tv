@@ -123,6 +123,11 @@ export async function processAllSessions(
   const uniqueControllerIds = [...new Set(typedSessions.map(s => s.controller_id))]
   const brewIds = typedSessions.map(s => s.brew_id).filter((id): id is string => id !== null)
 
+  // Use injected controllers or fetch from DB
+  const controllersPromise = opts?.controllers
+    ? Promise.resolve({ data: opts.controllers.filter(c => uniqueControllerIds.includes(c.controller_id)) })
+    : supabase.from('rapt_temp_controllers').select('*').in('controller_id', uniqueControllerIds)
+
   const [
     { data: allSteps },
     { data: allControllers },
@@ -134,10 +139,7 @@ export async function processAllSessions(
       .select('*')
       .in('profile_id', uniqueProfileIds)
       .order('step_order', { ascending: true }),
-    supabase
-      .from('rapt_temp_controllers')
-      .select('*')
-      .in('controller_id', uniqueControllerIds),
+    controllersPromise,
     brewIds.length > 0
       ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
       : Promise.resolve({ data: null } as { data: null }),

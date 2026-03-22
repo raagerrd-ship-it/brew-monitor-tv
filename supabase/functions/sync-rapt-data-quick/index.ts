@@ -826,9 +826,9 @@ Deno.serve(async (req) => {
     const hasCoolingEnabled = autoCoolingRow?.enabled === true;
     const hasPillComp = autoCoolingRow?.pill_compensation_enabled === true;
 
-    // Check active sessions (lightweight query — needed for skip logic + profiles)
+    // Check active sessions — full select for injection into processAllSessions
     const { data: activeSessCheck } = await supabase
-      .from('fermentation_sessions').select('id, controller_id').eq('status', 'running').limit(100);
+      .from('fermentation_sessions').select('*').eq('status', 'running').limit(100);
     const hasActiveSessions2 = activeSessCheck && activeSessCheck.length > 0;
 
     // Check active (non-glycol) controllers with cooling/heating from Phase 1c data
@@ -867,37 +867,39 @@ Deno.serve(async (req) => {
     } else {
       console.log('All data synced — running automation (inlined, no HTTP hops for profiles/metrics/health)...');
 
-      // Build brew_sg_data map from already-synced brew data
-      const brew_sg_data: Record<string, any> = {};
-      {
-        const { data: allBrews } = await supabase
-          .from('brew_readings')
-          .select('id, name, current_sg, original_gravity, final_gravity, attenuation, current_temp, battery, status, last_update, linked_controller_id')
-          .in('status', ['Jäsning', 'Fermenting']);
+      // Consolidated brew_readings query — used for brew_sg_data AND injected into computeAllMetrics
+      const { data: allFermentingBrews } = await supabase
+        .from('brew_readings')
+        .select('id, name, sg_data, original_gravity, final_gravity, current_sg, current_temp, battery, status, last_update, linked_controller_id, fermentation_start, attenuation, style')
+        .in('status', ['Jäsning', 'Fermenting']);
 
-        if (allBrews) {
-          for (const brew of allBrews) {
-            if (brew.linked_controller_id) {
-              brew_sg_data[brew.linked_controller_id] = {
-                brew_id: brew.id, name: brew.name, current_sg: brew.current_sg,
-                og: brew.original_gravity, fg: brew.final_gravity, attenuation: brew.attenuation,
-                pill_temp: brew.current_temp, battery: brew.battery, status: brew.status,
-                last_update: brew.last_update,
-              };
-            }
+      // Build brew_sg_data map from consolidated query
+      const brew_sg_data: Record<string, any> = {};
+      if (allFermentingBrews) {
+        for (const brew of allFermentingBrews) {
+          if (brew.linked_controller_id) {
+            brew_sg_data[brew.linked_controller_id] = {
+              brew_id: brew.id, name: brew.name, current_sg: brew.current_sg,
+              og: brew.original_gravity, fg: brew.final_gravity, attenuation: brew.attenuation,
+              pill_temp: brew.current_temp, battery: brew.battery, status: brew.status,
+              last_update: brew.last_update,
+            };
           }
         }
-        console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
       }
+      console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
 
       // ── Round 1 (parallel, inlined): profiles + metrics + health-check ──
       const round1Start = Date.now();
       const round1: Promise<any>[] = [];
 
-      // Profiles — direct import call
+      // Profiles — direct import call with injected sessions + controllers
       if (hasActiveSessions2) {
         round1.push(
-          processAllSessions(supabase)
+          processAllSessions(supabase, {
+            sessions: activeSessCheck!,
+            controllers: controllerUpdatesForHistory,
+          })
             .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
             .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
         );
@@ -905,31 +907,25 @@ Deno.serve(async (req) => {
         round1.push(Promise.resolve({ __skipped: true }));
       }
 
-      // Metrics — direct import call
+      // Metrics — direct import call with injected brews
       round1.push(
-        computeAllMetrics(supabase)
+        computeAllMetrics(supabase, {
+          brews: allFermentingBrews ?? [],
+        })
           .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
           .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })
       );
 
-      // Health check — direct import call (needs one DB query for notifications)
+      // Health check — use in-memory controllers + sessions, only query notifications
       round1.push(
         (async () => {
-          const { data: controllers } = await supabase
-            .from('rapt_temp_controllers')
-            .select('controller_id, name, current_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, is_glycol_cooler, last_update, linked_pill_id')
-            .order('name');
-          const { data: sessions } = await supabase
-            .from('fermentation_sessions')
-            .select('id, controller_id, profile_id, brew_id, status, current_step_index, step_started_at, started_at')
-            .eq('status', 'running');
           const { data: recentNotifs } = await supabase
             .from('pending_notifications')
             .select('type, created_at')
             .in('type', ['automation_failure', 'controller_conflict', 'step_timeout', 'sensor_offline', 'unknown_step_type'])
             .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
             .is('read_at', null);
-          const health = computeSystemHealth(controllers ?? [], sessions ?? [], recentNotifs ?? []);
+          const health = computeSystemHealth(controllerUpdatesForHistory ?? [], activeSessCheck ?? [], recentNotifs ?? []);
           console.log(`  ✅ health (inlined): ${Date.now() - round1Start}ms`);
           return health;
         })().catch(err => { console.error(`  ❌ health error: ${err}`); return { __error: true, __step: 'health' }; })
