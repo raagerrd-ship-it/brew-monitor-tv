@@ -1008,8 +1008,10 @@ Deno.serve(async (req) => {
         }
       });
       // Merge automation decisions (from auto-adjust-cooling via run-automation) with sync decisions
+      // Filter out SYNC_DATA and BREW_SG_STATUS from automation — sync generates more complete versions
       // Order: automation decisions first, then sync/frequency data — single log entry per cycle
-      const automationDecisions: any[] = automationResult?.automationDecisions ?? [];
+      const automationDecisions: any[] = (automationResult?.automationDecisions ?? [])
+        .filter((d: any) => d.step !== 'SYNC_DATA' && d.step !== 'BREW_SG_STATUS');
       const allDecisions = [...automationDecisions, ...syncDecisions];
       const automationMadeAdjustment = automationResult?.automationAdjustmentMade === true;
       const automationFinal = automationResult?.automationFinalResult;
