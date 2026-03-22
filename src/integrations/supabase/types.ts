@@ -943,6 +943,7 @@ export type Database = {
           attempts: number
           controller_id: string
           created_at: string
+          execute_at: string | null
           id: string
           reason: string
           target_temp: number
@@ -951,6 +952,7 @@ export type Database = {
           attempts?: number
           controller_id: string
           created_at?: string
+          execute_at?: string | null
           id?: string
           reason: string
           target_temp: number
@@ -959,6 +961,7 @@ export type Database = {
           attempts?: number
           controller_id?: string
           created_at?: string
+          execute_at?: string | null
           id?: string
           reason?: string
           target_temp?: number

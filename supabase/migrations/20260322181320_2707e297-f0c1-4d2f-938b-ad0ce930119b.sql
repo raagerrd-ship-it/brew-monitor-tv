@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_rapt_retries ADD COLUMN execute_at timestamptz DEFAULT null;
