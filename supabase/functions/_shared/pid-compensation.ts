@@ -487,7 +487,17 @@ export async function calculateCompensatedTarget(
   const isIncreasing = diff > 0
 
   {
-    const scaleFactor = Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
+    // Compute isTowardTarget early so scaleFactor can use it
+    const earlyNewDistToBase = Math.abs(ctrlTargetPid - baseTarget)
+    const earlyCurrentDistToBase = Math.abs(ctrlTarget - baseTarget)
+    const earlyIsTowardTarget = earlyNewDistToBase < earlyCurrentDistToBase
+
+    // Proximity dampening: slow down when approaching target to prevent overshoot.
+    // BUT: only apply when moving AWAY from target. When recovering toward target,
+    // use full rate — dampening recovery is counterproductive (causes unnecessary cooling).
+    const scaleFactor = earlyIsTowardTarget
+      ? 1.0
+      : Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
     const latestPill = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? baseTarget)
     const latestCtrl = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? baseTarget)
     const currentAvg = actualTemp ?? (latestPill + latestCtrl) / 2
