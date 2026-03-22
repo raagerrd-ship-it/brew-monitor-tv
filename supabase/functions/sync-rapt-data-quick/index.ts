@@ -990,7 +990,7 @@ Deno.serve(async (req) => {
           injected_controllers: controllerUpdatesForHistory,
           injected_settings: autoCoolingRow,
           injected_sessions: activeSessCheck ?? [],
-          hw_target_map: hwTargetMap,
+        }, 30000);
         }, 30000);
       }
 
