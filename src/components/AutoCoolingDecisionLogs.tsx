@@ -135,7 +135,7 @@ const PIPELINE_STEPS = new Set([
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG', 'COOLER_IDLE',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
-  'SYNC_FREQ',
+  'SYNC_FREQ', 'TOKEN_REFRESH',
   // Steps rendered inline by header/pipeline (prevent "Övrigt" duplication)
   'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'RETRY', 'PWM_OFF',
 ]);
