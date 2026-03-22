@@ -508,10 +508,15 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
           {/* Meta header */}
           {log.decision_count > 0 && (
             <div className="flex flex-col gap-1 pb-2 border-b border-border">
-              <div className="flex gap-4 text-[10px] text-muted-foreground">
+              <div className="flex gap-4 text-[10px] text-muted-foreground flex-wrap">
                 <span>Steg: {log.decision_count}</span>
                 <span>Tid: {log.duration_ms}ms</span>
-                <span>Resultat: {log.final_result}</span>
+                {/* Split combined final_result (e.g. "Made 1 adjustments | Synkfrekvens: 5 min") */}
+                {(() => {
+                  const parts = log.final_result.split(' | ');
+                  if (parts.length <= 1) return <span>Resultat: {log.final_result}</span>;
+                  return <span>Resultat: {parts[0]} | {parts.slice(1).join(' | ')}</span>;
+                })()}
               </div>
               {(() => {
                 const phaseEntry = log.decisions.find(d => d.step === 'PHASE_TIMINGS');
