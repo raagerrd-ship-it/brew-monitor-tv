@@ -72,6 +72,8 @@ export interface ProcessSessionsOpts {
   controllers?: any[]
   /** Pre-fetched brew_fermentation_metrics — skips DB query if provided */
   brewMetrics?: any[]
+  /** Pre-fetched brew_readings rows — skips DB query if provided */
+  brewReadings?: any[]
 }
 
 export async function processAllSessions(
