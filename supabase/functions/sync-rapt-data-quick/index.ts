@@ -370,6 +370,9 @@ Deno.serve(async (req) => {
             heating_starts: controller.heatingStarts || 0,
             last_update: lastUpdate,
             is_glycol_cooler: existingMap.get(controller.id)?.is_glycol_cooler ?? false,
+            profile_target_temp: existingMap.get(controller.id)?.profile_target_temp ?? null,
+            min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
+            max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
             updated_at: new Date().toISOString()
           };
 
