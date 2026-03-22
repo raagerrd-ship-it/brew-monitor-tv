@@ -101,6 +101,8 @@ export interface ComputeMetricsOpts {
   brews?: any[]
   /** Pre-fetched running sessions — skips DB query if provided */
   sessions?: any[]
+  /** Pre-fetched brew_fermentation_metrics — skips peak query if provided */
+  existingMetrics?: any[]
 }
 
 export async function computeAllMetrics(
