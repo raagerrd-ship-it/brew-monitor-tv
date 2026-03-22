@@ -978,6 +978,9 @@ Deno.serve(async (req) => {
           rapt_access_token: access_token,
           brew_sg_data,
           dryRun: true,
+          injected_controllers: controllerUpdatesForHistory,
+          injected_settings: autoCoolingRow,
+          injected_sessions: activeSessCheck ?? [],
         }, 30000);
       }
 
