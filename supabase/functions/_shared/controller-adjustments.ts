@@ -373,7 +373,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // The PWM OFF revert sends the PID-compensated target back to hardware.
     // Since DB target_temp was never changed, no DB update is needed on revert either.
     if (isPwmMode) {
-      const offTarget = round1(ctrlTargetPid)
+      // Use ctrlTarget (DB-stored pre-PWM target) as revert, NOT ctrlTargetPid.
+      // ctrlTargetPid is calculated with isPwmActiveSegment=true which can produce
+      // aggressive values that get clamped to hardware min (e.g. 4°C).
+      // ctrlTarget is stable because PWM ON is hardware-only and doesn't update DB.
+      const offTarget = round1(ctrlTarget)
       const onTarget = 0
 
       const dutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
