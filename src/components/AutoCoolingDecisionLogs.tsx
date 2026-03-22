@@ -371,7 +371,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Extract RAPT_SEND outcomes from decisions
-  const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND');
+  const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND' && !d.message?.includes('PWM revert'));
   const batchFlushFail = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.result === 'fail');
   const batchFlushTimeout = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.message?.includes('Timeout'));
   const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
