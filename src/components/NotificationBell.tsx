@@ -33,6 +33,9 @@ const TYPE_ICONS: Record<string, string> = {
   stale_sensor: "📴",
   unknown_step_type: "❓",
   cooler_high_utilization: "🧊",
+  automation_failure: "🚨",
+  controller_conflict: "💥",
+  step_timeout: "⏰",
 };
 
 function NotificationBellComponent() {
