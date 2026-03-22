@@ -262,11 +262,6 @@ export class RaptUpdateBatch {
     return this.hwOnlyIds.has(controllerId)
   }
 
-  /** Check if a controller update is DB-only (hardware already at target, skip RAPT API call) */
-  isDbOnly(controllerId: string): boolean {
-    return this.hwOnlySkipIds.has(controllerId)
-  }
-
   /** Look up the original target temp before any updates were queued (survives flush) */
   getOldTarget(controllerId: string): number | undefined {
     return this.oldTargets.get(controllerId) ?? this.pending.find(p => p.controllerId === controllerId)?.oldTarget

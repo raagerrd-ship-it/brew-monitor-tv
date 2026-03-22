@@ -54,9 +54,6 @@ export interface ControllerAdjustmentContext {
   baseTargetMap: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
-  /** Maps controller_id → RAPT hardware-reported target temp (from Phase 1).
-   *  Used to skip redundant API calls when hardware already matches PID output. */
-  hwTargetMap?: Map<string, number>
 }
 
 /**
