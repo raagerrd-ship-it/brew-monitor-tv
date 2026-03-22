@@ -192,9 +192,7 @@ Deno.serve(async (req) => {
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "ok", duration_ms: burstDuration, details: { duty_seconds: burst.duty_seconds, off_target: burst.off_target } });
           console.log(`PWM OFF sent for ${burst.controller_name}: → ${burst.off_target}°C after ${burst.duty_seconds}s`);
 
-          // Log PWM OFF to adjustment history (rapt-update-controller skips this
-          // because addHardwareOnly kept DB target_temp at the real value, so
-          // oldTarget === value and the log guard filters it out)
+          // Log PWM OFF adjustment (for matching to decision log)
           try {
             await supabase.from('auto_cooling_adjustments').insert({
               cooler_controller_id: burst.controller_id,
@@ -208,6 +206,22 @@ Deno.serve(async (req) => {
             });
           } catch (logErr) {
             console.error(`Failed to log PWM OFF adjustment: ${logErr}`);
+          }
+
+          // Create dedicated decision log for PWM OFF
+          const shortName = burst.controller_name.replace('Temp Controller ', '');
+          try {
+            await supabase.from('auto_cooling_decision_logs').insert({
+              final_result: `⚡ PWM OFF: ${shortName} 0° → ${burst.off_target}° (${burst.duty_seconds}s)`,
+              decisions: [
+                { step: 'PWM_OFF', result: 'action', message: `${burst.controller_name}: burst ${burst.duty_seconds}s (${burst.duty_pct}% duty) → revert till ${burst.off_target}°C`, details: { controller_id: burst.controller_id, controller_name: burst.controller_name, duty_seconds: burst.duty_seconds, duty_pct: burst.duty_pct, off_target: burst.off_target } },
+              ],
+              decision_count: 1,
+              duration_ms: burstDuration,
+              adjustment_made: true,
+            });
+          } catch (logErr) {
+            console.error(`Failed to log PWM OFF decision: ${logErr}`);
           }
         } else {
           results.push({ step: `pwm-off:${burst.controller_name}`, status: "error", duration_ms: burstDuration, error: "All 3 attempts failed" });
