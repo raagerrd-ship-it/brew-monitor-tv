@@ -814,7 +814,11 @@ Deno.serve(async (req) => {
     if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
 
+    // ──────────────────────────────────────────────────────────
     // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
+    // Automation runs in dryRun mode — returns pendingUpdates
+    // instead of flushing to RAPT API. Flush happens in Phase 3.
+    // ──────────────────────────────────────────────────────────
     // Skip entirely when system is idle (no active sessions, no active cooling, cooler at max)
     const [{ data: activeSessCheck }, { data: autoCoolingCheck2 }] = await Promise.all([
       supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
@@ -840,13 +844,13 @@ Deno.serve(async (req) => {
     // PID only matters if there are active sessions — no sessions = nothing to compensate
     const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2);
 
-    let automationResult = null;
+    let automationResult: any = null;
     const tPhase2b = Date.now();
 
     if (systemIsIdle) {
       console.log('⏱️ Phase 2b (automation): SKIPPED — system idle');
     } else {
-      console.log('All data synced — running automation...');
+      console.log('All data synced — running automation (dryRun)...');
 
       // Build brew_sg_data map from already-synced brew data (avoids redundant DB queries in automation)
       const brew_sg_data: Record<string, any> = {};
@@ -873,25 +877,149 @@ Deno.serve(async (req) => {
 
       try {
         const autoResponse = await supabase.functions.invoke('run-automation', {
-          body: { rapt_access_token: access_token, brew_sg_data }
+          body: { rapt_access_token: access_token, brew_sg_data, dryRun: true }
         });
         if (autoResponse.error) console.error('Automation error:', autoResponse.error);
         else automationResult = autoResponse.data;
       } catch (autoErr) {
         console.error('Automation error:', autoErr);
       }
-      console.log(`⏱️ Phase 2b (automation): ${Date.now() - tPhase2b}ms`);
+      console.log(`⏱️ Phase 2b (automation dryRun): ${Date.now() - tPhase2b}ms`);
     }
 
-    // PHASE 2c: Log temp history + outage detection + snapshots in PARALLEL after automation
-    // All are independent. Temp history needs PID-adjusted values (hence after automation).
-    // Snapshots use finalized controller state (after PID), ensuring correct Ctrl/Mål/PID values.
-    console.log('Logging temp history + outage detection + snapshots (parallel)...');
+    // ──────────────────────────────────────────────────────────
+    // PHASE 3: EXECUTE — Flush RAPT updates + history + snapshots
+    // Single outbound RAPT interaction per cycle.
+    // ──────────────────────────────────────────────────────────
+    console.log('Phase 3: Execute (RAPT flush + history + snapshots + logging)...');
+    const tPhase3 = Date.now();
+
+    // 3a: Flush pending RAPT updates from automation dryRun
+    const pendingUpdates: { controllerId: string; targetTemp: number; oldTarget?: number }[] = automationResult?.pendingUpdates ?? [];
+    const hwOnlyIds: string[] = automationResult?.hwOnlyIds ?? [];
+    const retriesToProcess: { id: string; controller_id: string; target_temp: number; reason: string; attempts: number }[] = automationResult?.retriesToProcess ?? [];
+    const pendingKickControllerId: string | null = automationResult?.pendingKickControllerId ?? null;
+    const automationDecisionLog: any[] = automationResult?.automationDecisions ?? [];
+
+    let flushResults = new Map<string, boolean>();
+    const tPhase3a = Date.now();
+
+    if (pendingUpdates.length > 0 && access_token) {
+      const { RaptUpdateBatch } = await import('../_shared/temp-utils.ts');
+      const batch = new RaptUpdateBatch(access_token);
+
+      for (const pu of pendingUpdates) {
+        if (hwOnlyIds.includes(pu.controllerId)) {
+          batch.addHardwareOnly(pu.controllerId, pu.targetTemp, pu.oldTarget);
+        } else {
+          batch.add(pu.controllerId, pu.targetTemp, pu.oldTarget);
+        }
+      }
+
+      console.log(`🔄 Phase 3a: Flushing ${batch.size} RAPT update(s)...`);
+      flushResults = await batch.flush();
+      const failed = [...flushResults.entries()].filter(([, ok]) => !ok);
+
+      if (failed.length > 0) {
+        console.error(`Phase 3a: ${failed.length} update(s) failed`);
+
+        // Remove adjustment log entries for failed controllers
+        const cycleStart = new Date(syncStartTime).toISOString();
+        for (const [controllerId] of failed) {
+          await supabase.from('auto_cooling_adjustments')
+            .delete()
+            .eq('cooler_controller_id', controllerId)
+            .gte('created_at', cycleStart);
+        }
+
+        // Save failed updates for retry next cycle
+        for (const [controllerId] of failed) {
+          const pu = pendingUpdates.find(p => p.controllerId === controllerId);
+          if (!pu) continue;
+          const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+          const attempts = (existingRetry?.attempts ?? 0) + 1;
+
+          if (attempts >= 5) {
+            if (existingRetry) {
+              await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+            }
+          } else if (existingRetry) {
+            await supabase.from('pending_rapt_retries')
+              .update({ target_temp: pu.targetTemp, attempts })
+              .eq('id', existingRetry.id);
+          } else {
+            await supabase.from('pending_rapt_retries').insert({
+              controller_id: controllerId,
+              target_temp: pu.targetTemp,
+              reason: `Flush failed in Phase 3`,
+              attempts: 1,
+            } as any);
+          }
+        }
+      } else {
+        console.log(`✅ Phase 3a: All ${flushResults.size} update(s) sent successfully`);
+      }
+
+      // Clean up retries that succeeded
+      const succeeded = [...flushResults.entries()].filter(([, ok]) => ok);
+      for (const [controllerId] of succeeded) {
+        const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
+        if (existingRetry) {
+          await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
+        }
+      }
+
+      // Persist successful target_temp changes to DB (skip hardware-only)
+      if (succeeded.length > 0) {
+        const dbUpdates = succeeded
+          .filter(([controllerId]) => !hwOnlyIds.includes(controllerId))
+          .map(([controllerId]) => {
+            const pu = pendingUpdates.find(p => p.controllerId === controllerId);
+            return supabase
+              .from('rapt_temp_controllers')
+              .update({ target_temp: pu?.targetTemp, updated_at: new Date().toISOString() })
+              .eq('controller_id', controllerId);
+          });
+        if (dbUpdates.length > 0) {
+          await Promise.allSettled(dbUpdates);
+        }
+      }
+
+      // Set hysteresis_kick_active flag after confirmed flush
+      if (pendingKickControllerId) {
+        const kickSucceeded = flushResults.get(pendingKickControllerId) === true;
+        if (kickSucceeded) {
+          await supabase.from('rapt_temp_controllers')
+            .update({ hysteresis_kick_active: true })
+            .eq('controller_id', pendingKickControllerId);
+        }
+      }
+
+      // Log RAPT_SEND entries for succeeded updates (into the automation decision log)
+      for (const [controllerId] of succeeded) {
+        const pu = pendingUpdates.find(p => p.controllerId === controllerId);
+        if (!pu) continue;
+        const oldTarget = pu.oldTarget;
+        const newTarget = pu.targetTemp;
+        // Skip logging when rounded values are identical
+        if (oldTarget != null && Math.abs(Math.round(oldTarget * 10) - Math.round(newTarget * 10)) < 1) continue;
+        const isPwmSend = hwOnlyIds.includes(controllerId) && newTarget === 0;
+        automationDecisionLog.push({
+          step: 'RAPT_SEND', result: 'action',
+          message: `${controllerId}: ${oldTarget ?? '?'}°C → ${newTarget}°C`,
+          details: { controller_id: controllerId, old_target: oldTarget, new_target: newTarget, ...(isPwmSend && { is_pwm: true }) },
+        });
+      }
+    } else if (pendingUpdates.length > 0 && !access_token) {
+      console.log('⚠️ Phase 3a: RAPT updates pending but no access token — skipping flush');
+    }
+    const tPhase3aEnd = Date.now();
+
+    // 3b: Log temp history + outage detection + snapshots in PARALLEL
+    console.log('Phase 3b: History + outage + snapshots (parallel)...');
 
     const tempHistoryTask = async () => {
       // Use in-memory controllerUpdatesForHistory from Phase 1c — no extra DB query needed.
-      // For profile_target_temp (which automation may have changed), do a lightweight
-      // read of just that column post-automation.
       if (controllerUpdatesForHistory.length === 0) return;
 
       // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
@@ -934,11 +1062,10 @@ Deno.serve(async (req) => {
       for (const r of results) {
         if (r.status === 'rejected') console.error('History insert error:', r.reason);
       }
-      console.log(`Recorded temp history for ${controllerUpdatesForHistory.length} controllers (in-memory + post-auto patch)`);
+      console.log(`Recorded temp history for ${controllerUpdatesForHistory.length} controllers`);
     };
 
     const outageTask = async () => {
-      // Reuse syncSettingsRow read from start of function (no extra DB query)
       const lastSuccess = syncSettingsRow?.last_successful_rapt_sync_at;
       const now = new Date();
       if (lastSuccess) {
@@ -949,7 +1076,6 @@ Deno.serve(async (req) => {
             outage_start: lastSuccess, outage_end: now.toISOString(), duration_seconds: Math.round(gap)
           });
         }
-        // Notify user if RAPT has been down >31 minutes (matches stale threshold)
         const staleThreshold = 31 * 60;
         if (raptFailed && gap >= staleThreshold) {
           const minutes = Math.round(gap / 60);
@@ -961,14 +1087,12 @@ Deno.serve(async (req) => {
           });
         }
       }
-      // Only mark successful if RAPT actually synced
       if (syncSettingsRow?.id && !raptFailed) {
         await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettingsRow.id);
       }
     };
 
     const snapshotTask = async () => {
-      // Read active brews + controllers from DB (post-automation, finalized values)
       const { data: activeBrews } = await supabase
         .from('brew_readings')
         .select('id, current_sg, current_temp, last_update, linked_controller_id, status, sg_data')
@@ -1001,21 +1125,18 @@ Deno.serve(async (req) => {
       if (count > 0) console.log(`Created ${count} brew snapshot(s) (post-automation)`);
     };
 
-    const tPhase2c = Date.now();
     const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
-    console.log(`⏱️ Phase 2c (history+outage+snapshots): ${Date.now() - tPhase2c}ms`);
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
     if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
 
-    // ── Dynamic sync frequency: 5 min when active, 15 min when idle ──
+    // 3c: Dynamic sync frequency + consolidated decision log
     try {
       const currentInterval = syncSettingsRow?.rapt_sync_interval ?? 300;
       const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }] = await Promise.all([
         supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
         supabase.from('auto_cooling_settings').select('enabled, cooler_controller_id').limit(1).maybeSingle(),
       ]);
-      // Check if cooler is idling at max temp (uses cooler_controller_id from settings query above)
       let coolerController: { target_temp: number | null; max_target_temp: number | null } | null = null;
       if (autoCoolingCheck?.cooler_controller_id) {
         const { data: ctrl } = await supabase.from('rapt_temp_controllers')
@@ -1024,7 +1145,6 @@ Deno.serve(async (req) => {
         coolerController = ctrl;
       }
       const hasActiveSessions = activeSessionsCheck && activeSessionsCheck.length > 0;
-      // Automation is "active" only if enabled AND cooler is not idling at max temp
       const coolerIsIdle = coolerController && coolerController.max_target_temp != null
         && coolerController.target_temp != null
         && coolerController.target_temp >= coolerController.max_target_temp;
@@ -1092,23 +1212,26 @@ Deno.serve(async (req) => {
       syncDecisions.push({
         step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
         details: {
-          '1_rapt_ms': Math.round(tPhase2a - tPhase1),
+          '1_fetch_ms': Math.round(tPhase2a - tPhase1),
           '1a_auth_ms': tPhase1Auth,
           '1b_fetch_ms': tPhase1Fetch,
           '1c_upsert_ms': tPhase1Upsert,
           ...(raptFailed ? { '1_failed_in': raptFailedPhase } : {}),
+          '2_process_ms': Math.round(tPhase3 - tPhase2a),
           '2a_brew_ms': Math.round(tPhase2b - tPhase2a),
-          '2b_auto_ms': Math.round(tPhase2c - tPhase2b),
-          '2c_hist_ms': Math.round(totalMs - (tPhase2c - syncStartTime)),
+          '2b_auto_ms': Math.round(tPhase3 - tPhase2b),
+          '3_execute_ms': Math.round(totalMs - (tPhase3 - syncStartTime)),
+          '3a_flush_ms': Math.round(tPhase3aEnd - tPhase3a),
           total_ms: totalMs,
         }
       });
-      // Merge automation decisions (from auto-adjust-cooling via run-automation) with sync decisions
+      // Merge automation decisions with sync decisions
       // Filter out SYNC_DATA and BREW_SG_STATUS from automation — sync generates more complete versions
-      // Order: automation decisions first, then sync/frequency data — single log entry per cycle
-      const automationDecisions: any[] = (automationResult?.automationDecisions ?? [])
+      const filteredAutomationDecisions: any[] = (automationResult?.automationDecisions ?? [])
         .filter((d: any) => d.step !== 'SYNC_DATA' && d.step !== 'BREW_SG_STATUS');
-      const allDecisions = [...automationDecisions, ...syncDecisions];
+      // Add RAPT_SEND decisions generated during Phase 3a flush
+      const raptSendDecisions = automationDecisionLog.filter((d: any) => d.step === 'RAPT_SEND');
+      const allDecisions = [...filteredAutomationDecisions, ...raptSendDecisions, ...syncDecisions];
       const automationMadeAdjustment = automationResult?.automationAdjustmentMade === true;
       const automationFinal = automationResult?.automationFinalResult;
       const combinedFinalResult = automationFinal
@@ -1122,8 +1245,10 @@ Deno.serve(async (req) => {
         adjustment_made: changed || automationMadeAdjustment,
       } as any);
     } catch (e) {
-      console.error('Dynamic sync frequency error:', e);
+      console.error('Phase 3c (sync freq + logging) error:', e);
     }
+
+    console.log(`⏱️ Phase 3 (execute): ${Date.now() - tPhase3}ms`);
 
     const raptStatus = raptFailed ? ' (RAPT FAILED — degraded mode)' : '';
     console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
