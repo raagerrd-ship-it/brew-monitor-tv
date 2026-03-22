@@ -344,6 +344,7 @@ Deno.serve(async (req) => {
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
           const targetTemp = controller.targetTemperature;
+          if (targetTemp != null) hwTargetMap[controller.id] = targetTemp;
           const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
           // Determine linked pill: API controller field, reverse pill→controller map, then DB fallback
