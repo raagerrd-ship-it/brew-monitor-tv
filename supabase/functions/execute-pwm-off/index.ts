@@ -108,8 +108,18 @@ Deno.serve(async (req) => {
                 off_target: retry.target_temp,
               },
             },
+            {
+              step: "RAPT_SEND",
+              result: "action",
+              message: `✅ ${displayName}: mål → ${retry.target_temp}°C (PWM revert)`,
+              details: {
+                controller_id: retry.controller_id,
+                target_temp: retry.target_temp,
+                duration_ms: burstDuration,
+              },
+            },
           ],
-          decision_count: 1,
+          decision_count: 2,
           duration_ms: burstDuration,
           adjustment_made: true,
         });
