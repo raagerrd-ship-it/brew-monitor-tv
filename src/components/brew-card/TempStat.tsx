@@ -34,8 +34,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   const showStaleWarning = pill && isPillStale && !isInactive;
 
   // Calculate delta: pill (surface) - controller (core)
-  const hasBothSensors = pill && controller?.current_temp !== null && controller?.current_temp !== undefined;
-  const delta = hasBothSensors ? brew.currentTemp - controller.current_temp! : null;
+  const hasBothSensors = pillTemp !== null && probeTemp !== null;
+  const delta = hasBothSensors ? pillTemp - probeTemp : null;
 
   // Overshoot detection: pill >= target AND controller < target (heater is pushing, pill overshooting)
   const targetTemp = controller?.target_temp;
@@ -92,8 +92,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
 
   // Temperature span bar: visual range showing pill↔controller with target marker
   const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
-    const pTemp = brew.currentTemp;       // pill (surface)
-    const cTemp = controller.current_temp!; // controller (core)
+    const pTemp = pillTemp!;       // pill (surface)
+    const cTemp = probeTemp!; // controller (core)
     const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
     const compensatedT = targetTemp; // Pill-kompenserat controllermål
     
