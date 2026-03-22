@@ -474,12 +474,17 @@ Deno.serve(async (req) => {
     // ── Idle detection: skip learning when system is idle ──
     // Idle = no running fermentation sessions (any controller) AND
     // cooler already at max or cooling disabled
-    const { data: anyRunningSessions } = await supabase
-      .from('fermentation_sessions')
-      .select('id')
-      .eq('status', 'running')
-      .limit(1);
-    const hasAnySessions = (anyRunningSessions?.length ?? 0) > 0;
+    let hasAnySessions: boolean;
+    if (reqBody?.injected_sessions) {
+      hasAnySessions = reqBody.injected_sessions.some((s: any) => s.status === 'running');
+    } else {
+      const { data: anyRunningSessions } = await supabase
+        .from('fermentation_sessions')
+        .select('id')
+        .eq('status', 'running')
+        .limit(1);
+      hasAnySessions = (anyRunningSessions?.length ?? 0) > 0;
+    }
     const coolerControllerData = allControllers.find(c => (c as any).is_glycol_cooler);
     const coolerAtMaxTemp = coolerControllerData
       ? parseFloat(String(coolerControllerData.target_temp ?? '0')) >= parseFloat(String(coolerControllerData.max_target_temp ?? '25'))
