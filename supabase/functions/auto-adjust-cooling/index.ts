@@ -180,13 +180,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Load profile data ────────────────────────────────────────
+    // ── Load profile data (use injected sessions if available) ──
     {
-      const { data: runningSessions } = await supabase
-        .from('fermentation_sessions')
-        .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp, brew_id')
-        .eq('status', 'running')
-        .in('controller_id', followedControllerIds);
+      let runningSessions: any[] | null;
+      if (reqBody?.injected_sessions) {
+        // Filter to only sessions for followed controllers
+        runningSessions = reqBody.injected_sessions.filter((s: any) =>
+          s.status === 'running' && followedControllerIds.includes(s.controller_id)
+        );
+        log('SESSIONS', 'info', `Using ${runningSessions!.length} injected session(s) from orchestrator`);
+      } else {
+        const { data } = await supabase
+          .from('fermentation_sessions')
+          .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp, brew_id')
+          .eq('status', 'running')
+          .in('controller_id', followedControllerIds);
+        runningSessions = data;
+      }
 
       if (runningSessions && runningSessions.length > 0) {
         // Cooloff check — only trigger for large temp changes (≥ 1°C)
