@@ -573,6 +573,7 @@ export async function calculateCompensatedTarget(
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
 
+    } // end large-error else
     } // end else (non-PWM)
     
     // Safety clamp: never set target above probe during cooling (would start heater)
