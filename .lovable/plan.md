@@ -1,34 +1,47 @@
 
 
-## Kvantisera PWM duty cycle till 1-minuts-steg
+## Omstrukturera loggen efter synk-faser (1a–2c)
 
 ### Bakgrund
-`pg_cron` kör varje minut. En 5-minuters cykel (300s) ger exakt 5 möjliga ON-tider: 60s, 120s, 180s, 240s, 300s — dvs **20%, 40%, 60%, 80%, 100%**. Plus 0% (ingen burst). Systemet måste veta detta för att beräkna korrekt burst-tid.
+Idag grupperas loggvyn efter **typ** (Synk-data, PID-reglering, Stall, Glykol-kylare, Skickat till RAPT, Övrigt). Användaren vill att expanderat läge istället följer den faktiska synk-pipelinen med faserna som rubriker.
 
-### Ändringar
+### Fas-mappning
+Baserat på `sync-rapt-data-quick/index.ts`:
 
-#### 1. Backend: Kvantisera i `controller-adjustments.ts`
-Rad 276-278 — snäpp `pwmDutyPct` till närmaste 20%-steg och beräkna `pwmDutySeconds` som multipel av 60s:
-
-```typescript
-// Snap to 1-minute resolution: 0, 20, 40, 60, 80, 100
-pwmDutyPct = Math.round(dutyParam.value * 5) * 20
-pwmDutySeconds = (pwmDutyPct / 100) * 300  // 60, 120, 180, 240, 300
+```text
+1a Auth        → RAPT-autentisering (token-hämtning)
+1b Fetch       → Hämta data från RAPT API (controllers + pills)
+1c Upsert      → Spara till databas (upsert controllers/pills)
+2a Brew        → Brewfather-synk, SG-data, snapshots
+2b Auto        → Automation (PID, Stall, Glykol, PWM, RAPT-send)
+2c Hist        → Temp-historik, cleanup
 ```
 
-Uppdatera gränsvillkoret (rad 273) — `value > 0.05` blir `value >= 0.1` (under 20% = 0%), och `value < 0.60` kan höjas till `< 0.90` (max 80% steg, eller behåll 100% som möjligt).
+### Ändringar i `AutoCoolingDecisionLogs.tsx`
 
-#### 2. UI: `LearnedDutyCycle.tsx` — visa kvantiserade steg
-- Visa duty som kvantiserat 20%-steg istället för rå procent
-- Visa burst-tid som exakta minuter (1m, 2m, 3m, 4m, 5m) istället för sekunder
-- Lägg till en 5-segment visuell bar (tom/fylld) som visar aktivt steg
-- Uppdatera fotnoten: *"PWM kvantiseras i 1-minuts steg (pg_cron): 0%, 20%, 40%, 60%, 80%, 100%"*
+#### 1. Ersätt PipelineView-sektionerna med fas-rubriker
+Istället för nuvarande sektioner (Synk-data → PID → Stall → Glykol → RAPT) blir strukturen:
 
-#### 3. UI: `AiTunableParameters.tsx` — uppdatera bounds-text
-Ändra duty cycle bounds-texten från `5–95` till `0–100 (steg 20%)` så det är tydligt att bara dessa steg är möjliga.
+- **1a · Auth** — Visa timing från PHASE_TIMINGS (`1a_auth_ms`). Kort — bara tid + ev. TOKEN_REFRESH-steg
+- **1b · Hämtning** — Timing (`1b_fetch_ms`). Kort rad
+- **1c · Synk-data** — Timing (`1c_upsert_ms`). Här placeras den befintliga SYNC_DATA-tabellen (controllers + pill-data)
+- **2a · Bryggdata** — Timing (`2a_brew_ms`). BREW_SG_STATUS-rader om de inte redan visas i sync-tabellen
+- **2b · Automation** — Timing (`2b_auto_ms`). Här samlas PID-reglering, Stall-detektering, Glykol-kylare, Pass-through, PWM — alla befintliga sektioner som sub-sektioner
+- **2c · Historik** — Timing (`2c_hist_ms`). RAPT_SEND + BATCH_FLUSH (skicka till RAPT) + snapshot-info
+
+#### 2. Fas-rubrik-komponent
+Ny liten komponent `PhaseHeader` som visar:
+- Fas-kod i monospace (t.ex. `1a`)
+- Fas-namn
+- Timing i ms (från PHASE_TIMINGS)
+- Röd ❌ om fasen felade
+
+#### 3. Behåll befintligt innehåll
+Alla tabeller, badges, tooltips etc. behålls som de är — de flyttas bara under rätt fas-rubrik. Inga funktionella ändringar.
+
+#### 4. Fallback
+Om PHASE_TIMINGS saknas (t.ex. äldre loggar), visa befintlig flat layout som idag.
 
 ### Filer
-- `supabase/functions/_shared/controller-adjustments.ts` — kvantisera duty + burst-tid
-- `src/components/LearnedDutyCycle.tsx` — visuell steg-bar + minuter
-- `src/components/AiTunableParameters.tsx` — bounds-text
+- `src/components/AutoCoolingDecisionLogs.tsx` — omstrukturera `PipelineView`
 
