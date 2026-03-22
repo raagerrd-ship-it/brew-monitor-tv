@@ -157,14 +157,20 @@ export async function computeAllMetrics(
     })
   }
 
-  // Check running fermentation sessions
-  const { data: sessions } = await supabase
-    .from('fermentation_sessions')
-    .select('id, brew_id, status')
-    .eq('status', 'running')
-    .in('brew_id', brewIds)
+  // Check running fermentation sessions (skip if injected)
+  let sessionsData: any[]
+  if (opts?.sessions) {
+    sessionsData = opts.sessions.filter((s: any) => s.status === 'running' && brewIds.includes(s.brew_id))
+  } else {
+    const { data } = await supabase
+      .from('fermentation_sessions')
+      .select('id, brew_id, status')
+      .eq('status', 'running')
+      .in('brew_id', brewIds)
+    sessionsData = data || []
+  }
 
-  const sessionBrewIds = new Set((sessions || []).map((s: any) => s.brew_id))
+  const sessionBrewIds = new Set(sessionsData.map((s: any) => s.brew_id))
 
   const upserts: any[] = []
 

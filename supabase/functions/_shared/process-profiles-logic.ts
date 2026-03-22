@@ -145,9 +145,11 @@ export async function processAllSessions(
     brewIds.length > 0
       ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
       : Promise.resolve({ data: null } as { data: null }),
-    brewIds.length > 0
-      ? supabase.from('brew_fermentation_metrics').select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash').in('brew_id', brewIds)
-      : Promise.resolve({ data: null } as { data: null }),
+    opts?.brewMetrics
+      ? Promise.resolve({ data: opts.brewMetrics.filter((m: any) => brewIds.includes(m.brew_id)) })
+      : (brewIds.length > 0
+        ? supabase.from('brew_fermentation_metrics').select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash').in('brew_id', brewIds)
+        : Promise.resolve({ data: null } as { data: null })),
   ])
 
   const stepsMap = buildStepsMap(allSteps)
