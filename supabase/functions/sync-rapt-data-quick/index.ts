@@ -908,6 +908,7 @@ Deno.serve(async (req) => {
             sessions: activeSessCheck!,
             controllers: controllerUpdatesForHistory,
             brewMetrics: sharedBrewMetrics ?? [],
+            brewReadings: allFermentingBrews ?? [],
           })
             .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
             .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
