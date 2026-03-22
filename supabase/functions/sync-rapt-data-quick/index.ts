@@ -1,6 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
+import { processAllSessions } from '../_shared/process-profiles-logic.ts';
+import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
+import { computeSystemHealth } from '../_shared/system-health-logic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -843,7 +846,6 @@ Deno.serve(async (req) => {
         const cm = parseFloat(String(coolerCtrl.max_target_temp ?? 25));
         coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
       } else {
-        // Fallback: Phase 1 failed or cooler not in selected controllers
         const { data: coolerCtrlDb } = await supabase.from('rapt_temp_controllers')
           .select('target_temp, max_target_temp')
           .eq('controller_id', autoCoolingRow.cooler_controller_id).maybeSingle();
@@ -863,7 +865,7 @@ Deno.serve(async (req) => {
     if (systemIsIdle) {
       console.log('⏱️ Phase 2b (automation): SKIPPED — system idle');
     } else {
-      console.log('All data synced — running automation (direct calls, no middleman)...');
+      console.log('All data synced — running automation (inlined, no HTTP hops for profiles/metrics/health)...');
 
       // Build brew_sg_data map from already-synced brew data
       const brew_sg_data: Record<string, any> = {};
@@ -888,7 +890,54 @@ Deno.serve(async (req) => {
         console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
       }
 
-      // Direct sub-function caller (eliminates run-automation HTTP hop)
+      // ── Round 1 (parallel, inlined): profiles + metrics + health-check ──
+      const round1Start = Date.now();
+      const round1: Promise<any>[] = [];
+
+      // Profiles — direct import call
+      if (hasActiveSessions2) {
+        round1.push(
+          processAllSessions(supabase)
+            .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
+            .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
+        );
+      } else {
+        round1.push(Promise.resolve({ __skipped: true }));
+      }
+
+      // Metrics — direct import call
+      round1.push(
+        computeAllMetrics(supabase)
+          .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
+          .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })
+      );
+
+      // Health check — direct import call (needs one DB query for notifications)
+      round1.push(
+        (async () => {
+          const { data: controllers } = await supabase
+            .from('rapt_temp_controllers')
+            .select('controller_id, name, current_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, is_glycol_cooler, last_update, linked_pill_id')
+            .order('name');
+          const { data: sessions } = await supabase
+            .from('fermentation_sessions')
+            .select('id, controller_id, profile_id, brew_id, status, current_step_index, step_started_at, started_at')
+            .eq('status', 'running');
+          const { data: recentNotifs } = await supabase
+            .from('pending_notifications')
+            .select('type, created_at')
+            .in('type', ['automation_failure', 'controller_conflict', 'step_timeout', 'sensor_offline', 'unknown_step_type'])
+            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .is('read_at', null);
+          const health = computeSystemHealth(controllers ?? [], sessions ?? [], recentNotifs ?? []);
+          console.log(`  ✅ health (inlined): ${Date.now() - round1Start}ms`);
+          return health;
+        })().catch(err => { console.error(`  ❌ health error: ${err}`); return { __error: true, __step: 'health' }; })
+      );
+
+      const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
+
+      // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
       const callFn = async (name: string, body: any, timeoutMs: number) => {
         const fnStart = Date.now();
         try {
@@ -915,21 +964,6 @@ Deno.serve(async (req) => {
         }
       };
 
-      // ── Round 1 (parallel): profiles + metrics + health-check ──
-      const round1: Promise<any>[] = [];
-
-      if (hasActiveSessions2) {
-        round1.push(callFn('process-fermentation-profiles', {}, 15000));
-      } else {
-        round1.push(Promise.resolve({ __skipped: true }));
-      }
-
-      round1.push(callFn('compute-fermentation-metrics', {}, 15000));
-      round1.push(callFn('system-health-check', {}, 10000));
-
-      const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
-
-      // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
       const needsCoolerRun = hasCoolingEnabled && (!hasActiveControllers ? !coolerIsIdle2 : true);
       let pidResult: any = null;
 
@@ -954,7 +988,7 @@ Deno.serve(async (req) => {
         pendingKickControllerId: pidResult?.pendingKickControllerId ?? null,
       };
 
-      // Health critical notification (migrated from run-automation)
+      // Health critical notification
       if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical') {
         const issuesSummary = (healthResult.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -968,7 +1002,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Failure alerting (migrated from run-automation)
+      // Failure alerting
       const failedSteps = [
         profilesResult?.__error && 'profiles',
         metricsResult?.__error && 'metrics',
@@ -989,7 +1023,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`⏱️ Phase 2b (automation direct): ${Date.now() - tPhase2b}ms`);
+      console.log(`⏱️ Phase 2b (automation inlined): ${Date.now() - tPhase2b}ms`);
     }
 
     // ──────────────────────────────────────────────────────────
