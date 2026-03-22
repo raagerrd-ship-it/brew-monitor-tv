@@ -64,17 +64,21 @@ Deno.serve(async (req) => {
       timestamp: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     });
 
-    // ── Load settings ────────────────────────────────────────────
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('auto_cooling_settings').select('*').limit(1).single();
-
-    if (settingsError || !settingsData) {
-      log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError?.message });
-      await printSummary(supabase, 'Settings error', false);
-      return new Response(JSON.stringify({ message: 'Settings error', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // ── Load settings (use injected data from orchestrator if available) ──
+    let settings: any;
+    if (reqBody?.injected_settings) {
+      settings = reqBody.injected_settings;
+      log('SETTINGS', 'info', 'Using injected settings from orchestrator');
+    } else {
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('auto_cooling_settings').select('*').limit(1).single();
+      if (settingsError || !settingsData) {
+        log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError?.message });
+        await printSummary(supabase, 'Settings error', false);
+        return new Response(JSON.stringify({ message: 'Settings error', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      settings = settingsData;
     }
-
-    const settings = settingsData as any;
     const pillCompSettings = await loadPillCompSettings(supabase);
     const coolingEnabled = settings.enabled;
     const pillCompEnabled = pillCompSettings.enabled;
