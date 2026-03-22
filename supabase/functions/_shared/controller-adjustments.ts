@@ -469,8 +469,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Queue update in batch (or send immediately if no batch)
     let success: boolean
     if (ctx.updateBatch) {
-      const hwTarget = ctx.hwTargetMap?.get(fc.controller_id)
-      ctx.updateBatch.add(fc.controller_id, ctrlTargetPid, ctrlTarget, hwTarget)
+      ctx.updateBatch.add(fc.controller_id, ctrlTargetPid, ctrlTarget)
       success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
     } else {
       success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, ctrlTargetPid)
