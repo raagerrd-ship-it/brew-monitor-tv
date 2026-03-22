@@ -271,6 +271,16 @@ export class RaptUpdateBatch {
     return this.pending.length
   }
 
+  /** Extract all pending updates for external flush (used by dryRun mode) */
+  getPendingUpdates(): { controllerId: string; targetTemp: number; oldTarget?: number }[] {
+    return this.pending.map(p => ({ controllerId: p.controllerId, targetTemp: p.targetTemp, oldTarget: p.oldTarget }))
+  }
+
+  /** Extract hardware-only controller IDs (used by dryRun mode) */
+  getHwOnlyIds(): string[] {
+    return [...this.hwOnlyIds]
+  }
+
   /** Look up the target temp that was queued (and applied) for a controller */
   getAppliedTarget(controllerId: string): number | undefined {
     return this.applied.get(controllerId)

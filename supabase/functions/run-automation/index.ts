@@ -121,7 +121,11 @@ Deno.serve(async (req) => {
   const needsCoolerRun = hasCooling && (!hasActiveControllers ? !coolerIsIdle : true);
   if (needsCoolerRun || (hasPillComp && hasActiveControllers)) {
     console.log("Step 3: Running PID compensation + glycol cooler...");
-    step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", { rapt_access_token: reqBody?.rapt_access_token || null, brew_sg_data: reqBody?.brew_sg_data || null }, 30000));
+    step3and4.push(runStep("pid-and-glycol", "auto-adjust-cooling", {
+      rapt_access_token: reqBody?.rapt_access_token || null,
+      brew_sg_data: reqBody?.brew_sg_data || null,
+      dryRun: reqBody?.dryRun ?? false,
+    }, 30000));
   } else {
     results.push({ step: "pid-and-glycol", status: "skipped", duration_ms: 0, details: !hasActiveControllers && coolerIsIdle ? "no active controllers, cooler idle" : "features disabled" });
     step3and4.push(Promise.resolve(null));
@@ -195,8 +199,18 @@ Deno.serve(async (req) => {
   const automationFinalResult = pidAndGlycolData?.message ?? null;
   const automationAdjustmentMade = (pidAndGlycolData?.adjustments?.length ?? 0) > 0;
 
+  // Forward dryRun data from auto-adjust-cooling
+  const pendingUpdates = pidAndGlycolData?.pendingUpdates ?? [];
+  const hwOnlyIds = pidAndGlycolData?.hwOnlyIds ?? [];
+  const retriesToProcess = pidAndGlycolData?.retriesToProcess ?? [];
+  const pendingKickControllerId = pidAndGlycolData?.pendingKickControllerId ?? null;
+
   return new Response(
-    JSON.stringify({ ok: true, total_duration_ms: totalDuration, steps: results, automationDecisions, automationFinalResult, automationAdjustmentMade }),
+    JSON.stringify({
+      ok: true, total_duration_ms: totalDuration, steps: results,
+      automationDecisions, automationFinalResult, automationAdjustmentMade,
+      pendingUpdates, hwOnlyIds, retriesToProcess, pendingKickControllerId,
+    }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });

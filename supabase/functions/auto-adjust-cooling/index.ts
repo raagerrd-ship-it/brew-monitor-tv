@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
 
   let reqBody: any = {};
   try { reqBody = await req.json(); } catch { /* no body */ }
+  const dryRun = reqBody?.dryRun === true;
 
   const log = (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => {
     decisionLog.push({ step, result, message, details });
@@ -517,7 +518,34 @@ Deno.serve(async (req) => {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // DRY-RUN: Return pending updates without flushing to RAPT API
+    // Used by orchestrator (sync-rapt-data-quick) for Phase 3 flush
+    // ══════════════════════════════════════════════════════════════
+    if (dryRun) {
+      const pendingUpdates = updateBatch.getPendingUpdates();
+      const hwOnlyIds = updateBatch.getHwOnlyIds();
+      log('COMPLETE', 'info', `Completed (dryRun)`, { adjustments_made: allAdjustments.length, pending_updates: pendingUpdates.length });
+      await printSummary(supabase, allAdjustments.length > 0 ? 'Adjustment made (dryRun)' : 'No adjustment needed', allAdjustments.length > 0);
+
+      return new Response(JSON.stringify({
+        success: true,
+        dryRun: true,
+        adjustments: allAdjustments,
+        message: `Made ${allAdjustments.length} adjustments (dryRun)`,
+        decisionLog,
+        pendingUpdates,
+        hwOnlyIds,
+        retriesToProcess: retriesToProcess.map(r => ({ id: r.id, controller_id: r.controller_id, target_temp: r.target_temp, reason: r.reason, attempts: r.attempts })),
+        pendingKickControllerId: coolerCtx?.pendingKickControllerId ?? null,
+        pwmBursts: pwmBursts.length > 0 ? pwmBursts : undefined,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // FLUSH: Send all queued RAPT updates in parallel (1 auth, N parallel API calls)
+    // (Only when NOT in dryRun mode — standalone invocations)
     // ══════════════════════════════════════════════════════════════
     if (updateBatch.size > 0) {
       log('BATCH_FLUSH', 'info', `Flushing ${updateBatch.size} RAPT update(s) in parallel...`);

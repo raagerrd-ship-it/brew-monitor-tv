@@ -566,12 +566,12 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
                   { label: '1c Upsert', ms: d['1c_upsert_ms'], failed: failedIn === '1c upsert' },
                   { label: '2a Brew', ms: d['2a_brew_ms'], failed: false },
                   { label: '2b Auto', ms: d['2b_auto_ms'], failed: false },
-                  { label: '2c Hist', ms: d['2c_hist_ms'], failed: false },
+                  { label: '3 Exec', ms: d['3_execute_ms'], failed: false },
+                  ...(d['3a_flush_ms'] != null ? [{ label: '3a Flush', ms: d['3a_flush_ms'], failed: false }] : []),
                 ] : [
-                  { label: '1 RAPT', ms: d['1_rapt_ms'], failed: !!failedIn },
-                  { label: '2a Brew', ms: d['2a_brew_ms'], failed: false },
-                  { label: '2b Auto', ms: d['2b_auto_ms'], failed: false },
-                  { label: '2c Hist', ms: d['2c_hist_ms'], failed: false },
+                  { label: '1 Fetch', ms: d['1_fetch_ms'], failed: !!failedIn },
+                  { label: '2 Process', ms: d['2_process_ms'], failed: false },
+                  { label: '3 Exec', ms: d['3_execute_ms'], failed: false },
                 ];
                 return (
                   <div className="flex gap-3 text-[10px] text-muted-foreground/70">
