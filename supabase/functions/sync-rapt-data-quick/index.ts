@@ -250,6 +250,7 @@ Deno.serve(async (req) => {
     let tokenFromCache = true;
     let tokenAuthDurationMs: number | undefined;
     let controllerUpdatesForHistory: Record<string, any>[] = [];
+    let fetchedPills: any[] = [];
 
     // Phase 1a: Auth + selected device IDs in parallel
     const tPhase1 = Date.now();
