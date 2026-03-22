@@ -373,6 +373,7 @@ Deno.serve(async (req) => {
             profile_target_temp: existingMap.get(controller.id)?.profile_target_temp ?? null,
             min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
             max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
+            pwm_stable_count: existingMap.get(controller.id)?.pwm_stable_count ?? 0,
             updated_at: new Date().toISOString()
           };
 
