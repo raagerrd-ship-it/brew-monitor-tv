@@ -908,6 +908,7 @@ Deno.serve(async (req) => {
             sessions: activeSessCheck!,
             controllers: controllerUpdatesForHistory,
             brewMetrics: sharedBrewMetrics ?? [],
+            brewReadings: allFermentingBrews ?? [],
           })
             .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
             .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
@@ -921,6 +922,7 @@ Deno.serve(async (req) => {
         computeAllMetrics(supabase, {
           brews: allFermentingBrews ?? [],
           sessions: activeSessCheck ?? [],
+          existingMetrics: sharedBrewMetrics ?? [],
         })
           .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
           .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })

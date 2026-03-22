@@ -72,6 +72,8 @@ export interface ProcessSessionsOpts {
   controllers?: any[]
   /** Pre-fetched brew_fermentation_metrics — skips DB query if provided */
   brewMetrics?: any[]
+  /** Pre-fetched brew_readings rows — skips DB query if provided */
+  brewReadings?: any[]
 }
 
 export async function processAllSessions(
@@ -142,9 +144,11 @@ export async function processAllSessions(
       .in('profile_id', uniqueProfileIds)
       .order('step_order', { ascending: true }),
     controllersPromise,
-    brewIds.length > 0
-      ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
-      : Promise.resolve({ data: null } as { data: null }),
+    opts?.brewReadings
+      ? Promise.resolve({ data: opts.brewReadings.filter((b: any) => brewIds.includes(b.id)) })
+      : (brewIds.length > 0
+        ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
+        : Promise.resolve({ data: null } as { data: null })),
     opts?.brewMetrics
       ? Promise.resolve({ data: opts.brewMetrics.filter((m: any) => brewIds.includes(m.brew_id)) })
       : (brewIds.length > 0

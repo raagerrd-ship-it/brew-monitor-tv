@@ -101,6 +101,8 @@ export interface ComputeMetricsOpts {
   brews?: any[]
   /** Pre-fetched running sessions — skips DB query if provided */
   sessions?: any[]
+  /** Pre-fetched brew_fermentation_metrics — skips peak query if provided */
+  existingMetrics?: any[]
 }
 
 export async function computeAllMetrics(
@@ -123,15 +125,21 @@ export async function computeAllMetrics(
     return { ok: true, updated: 0, metrics: [] }
   }
 
-  // Get existing metrics for peak values
+  // Get existing metrics for peak values (skip if injected)
   const brewIds = brews.map(b => b.id)
-  const { data: existingMetrics } = await supabase
-    .from('brew_fermentation_metrics')
-    .select('brew_id, peak_delta, peak_sg_rate_per_hour')
-    .in('brew_id', brewIds)
+  let existingMetricsData: any[]
+  if (opts?.existingMetrics) {
+    existingMetricsData = opts.existingMetrics.filter((m: any) => brewIds.includes(m.brew_id))
+  } else {
+    const { data } = await supabase
+      .from('brew_fermentation_metrics')
+      .select('brew_id, peak_delta, peak_sg_rate_per_hour')
+      .in('brew_id', brewIds)
+    existingMetricsData = data || []
+  }
 
   const existingPeakMap = new Map<string, { peakDelta: number; peakSgRate: number }>()
-  ;(existingMetrics || []).forEach((m: any) => {
+  ;(existingMetricsData).forEach((m: any) => {
     existingPeakMap.set(m.brew_id, {
       peakDelta: parseFloat(String(m.peak_delta)),
       peakSgRate: parseFloat(String(m.peak_sg_rate_per_hour || 0)),
