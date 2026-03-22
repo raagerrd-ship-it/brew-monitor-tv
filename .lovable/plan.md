@@ -1,95 +1,92 @@
 
 
-## Phase 2b: Eliminera redundanta DB-queries via data-injection
+## Analys: Är Phase 2b optimal nu?
 
-### Nuvarande problem
-Trots att vi inlinade 3 funktioner gör de fortfarande **egna DB-queries** för data som redan finns i minnet från Phase 1/2a:
+### Nuvarande arkitektur (efter refaktor)
 
 ```text
-Phase 2b idag (~1.5-2s):
-  ┌─ processAllSessions(supabase)
-  │    → SELECT fermentation_sessions      (redan hämtad rad 830)
-  │    → SELECT rapt_temp_controllers      (redan i controllerUpdatesForHistory)
-  │    → SELECT brew_readings              (redan synkad i Phase 2a)
-  │    → SELECT brew_fermentation_metrics  (unik — behövs)
+Phase 2b (~1.5-2s):
+  ┌─ fermentation_sessions query (line 830)         ~30ms
+  ├─ brew_readings consolidated query (line 871)     ~50ms
   │
-  ├─ computeAllMetrics(supabase)
-  │    → SELECT brew_readings              (DUBLETT — samma som ovan)
-  │    → SELECT brew_fermentation_metrics  (DUBLETT — samma som ovan)
-  │    → SELECT temp_delta_history         (unik — behövs)
-  │    → SELECT fermentation_sessions      (DUBLETT)
+  ├─ [PARALLEL, inlined]
+  │   ├─ processAllSessions(supabase, {sessions, controllers})
+  │   │     → fermentation_profile_steps             ~30ms (unik, behövs)
+  │   │     → brew_readings (by brew_id)             ~30ms ← DUBLETT
+  │   │     → brew_fermentation_metrics              ~30ms ← DUBLETT
+  │   │
+  │   ├─ computeAllMetrics(supabase, {brews})
+  │   │     → brew_fermentation_metrics              ~30ms ← DUBLETT (samma som ovan)
+  │   │     → temp_delta_history                     ~30ms (unik, behövs)
+  │   │     → fermentation_sessions                  ~30ms ← DUBLETT (redan hämtad line 830)
+  │   │
+  │   └─ computeSystemHealth (in-memory)
+  │         → pending_notifications                  ~20ms (unik, behövs)
   │
-  ├─ computeSystemHealth(...)
-  │    → SELECT rapt_temp_controllers      (DUBLETT)
-  │    → SELECT fermentation_sessions      (DUBLETT)
-  │    → SELECT pending_notifications      (unik — behövs)
-  │
-  └─ brew_sg_data query (rad 873)
-       → SELECT brew_readings              (DUBLETT)
-
-Totalt: ~12 DB-queries varav ~8 är dubbletter
+  └─ [SEQUENTIAL, HTTP hop]
+      └─ auto-adjust-cooling (~1-1.5s)
+            → auto_cooling_settings                  ← DUBLETT (har i autoCoolingRow)
+            → rapt_temp_controllers                  ← DUBLETT (har i controllerUpdatesForHistory)
+            → pending_rapt_retries                   ~20ms (unik)
+            → auto_cooling_adjustments               ~30ms (unik)
+            → fermentation_sessions                  ← DUBLETT (har från line 830)
+            → fermentation_step_log                  ~20ms (unik, cooloff)
+            → fermentation_profile_steps             ← DUBLETT (redan i profiles)
+            → fermentation_sessions (idle check)     ← DUBLETT
+            → brew_fermentation_metrics              ← DUBLETT
+            ────────────────────────────────────────
+            ~500ms boot + ~200ms redundanta queries
 ```
 
-### Lösning: Injicera redan hämtad data
+**Kvarstående problem:**
+1. **4 redundanta queries** i profiles+metrics (brew_fermentation_metrics ×2, brew_readings, fermentation_sessions)
+2. **~5 redundanta queries** i auto-adjust-cooling (controllers, settings, sessions, profile_steps, metrics)
+3. **1 HTTP-hopp** till auto-adjust-cooling (~500ms boot overhead)
 
-Utöka funktionssignaturerna med optionala parametrar för pre-fetched data. När data skickas in — skippa motsvarande DB-query.
+### Vad som kan göras bättre
+
+**Nivå 1 — Lågt hängande frukt (−200ms, låg risk):**
+- Skicka `brew_fermentation_metrics` och `fermentation_sessions` som opts till processAllSessions + computeAllMetrics
+- Query dessa en gång i sync, injicera till båda
+
+**Nivå 2 — Inlina auto-adjust-cooling (−1s, medel risk):**
+Core-logiken ligger redan i `_shared/controller-adjustments.ts` (533 rader) och `_shared/cooler-management.ts` (1245 rader). Edge-funktionen (686 rader) är mest kontext-uppbyggnad och loggning.
+
+Extrahera kontext-bygget till `_shared/auto-cooling-logic.ts` → eliminerar sista HTTP-hoppet + ~5 redundanta queries.
+
+**Men**: auto-adjust-cooling har komplex retry-logik, stale-sensor-hantering, och eget standalone-bruk. Att inlina allt ökar risk för regressions.
+
+### Rekommendation: Nivå 1 + partiell Nivå 2
+
+Injicera mer data till auto-adjust-cooling via request body istället för att inlina. Funktionen tar redan emot `brew_sg_data` och `rapt_access_token` — utöka med:
+- `controllers` (eliminerar SELECT rapt_temp_controllers)
+- `settings` (eliminerar SELECT auto_cooling_settings)  
+- `sessions` (eliminerar 2× SELECT fermentation_sessions)
+
+Samtidigt: fixa de 4 redundanta queries i profiles+metrics.
 
 ### Steg
 
-**1. Konsolidera brew_readings-query till en enda**
-Phase 2b gör idag 3 separata queries mot `brew_readings`. Hämta en gång i början av Phase 2b och skicka in till både `processAllSessions` och `computeAllMetrics`.
+**1. Dela brew_fermentation_metrics + sessions mellan profiles/metrics**
+Query `brew_fermentation_metrics` en gång i sync, injicera till både `processAllSessions` och `computeAllMetrics` via utökade opts.
 
-**2. Utöka `processAllSessions` signatur**
-```typescript
-export async function processAllSessions(
-  supabase, 
-  opts?: { 
-    sessions?: FermentationSession[];
-    controllers?: any[];
-  }
-)
-```
-- Om `opts.sessions` finns → skippa `SELECT fermentation_sessions`
-- Om `opts.controllers` finns → skippa `SELECT rapt_temp_controllers`
-- `brew_readings` och `brew_fermentation_metrics` hämtas fortfarande (behöver specifika fält/joins)
-
-**3. Utöka `computeAllMetrics` signatur**
-```typescript
-export async function computeAllMetrics(
-  supabase, 
-  opts?: { 
-    brews?: any[];  // pre-fetched fermenting brews
-  }
-)
-```
-- Om `opts.brews` finns → skippa `SELECT brew_readings`
-- `brew_fermentation_metrics`, `temp_delta_history`, `fermentation_sessions` hämtas fortfarande internt (unika behov)
-
-**4. Eliminera health-check DB-queries**
-`computeSystemHealth` är redan ren (ingen DB). Men anropet i sync gör 3 queries (rad 918-931). Ersätt med in-memory data:
-- Controllers → `controllerUpdatesForHistory` (mappa till `ControllerRow`-format)
-- Sessions → `activeSessCheck` (redan hämtad rad 830)
-- Notifications → enda kvarvarande query (behövs)
-
-**5. Eliminera separat `brew_sg_data`-query (rad 873)**
-Bygg `brew_sg_data` från samma brew_readings som skickas till metrics. En query istället för två.
+**2. Injicera data till auto-adjust-cooling via request body**
+Skicka controllers, settings och sessions i request body. auto-adjust-cooling skippar sina egna queries om data finns i body.
 
 ### Resultat
+
 ```text
-DB-queries i Phase 2b:  12 → 4-5
-  - brew_fermentation_metrics (unik)
-  - temp_delta_history (unik)
-  - pending_notifications (unik)
-  - fermentation_profile_steps (unik, i profiles)
-  - fermentation_sessions for metrics ready_to_crash (liten)
-Besparing: ~200-400ms (färre DB roundtrips)
+Nuvarande:  ~1.5-2s (1 HTTP-hopp, ~9 redundanta queries)
+Optimerat:  ~0.8-1.2s (1 HTTP-hopp kvar men −500ms via eliminerade queries)
+Kvarvarande HTTP-hopp: auto-adjust-cooling (~500ms boot — kan inlinas i framtida iteration)
 ```
 
 ### Filer
 
 | Fil | Ändring |
 |-----|---------|
-| `_shared/process-profiles-logic.ts` | Lägg till optional `opts` param, skippa queries om data injiceras |
-| `_shared/fermentation-metrics-logic.ts` | Lägg till optional `opts` param för pre-fetched brews |
-| `sync-rapt-data-quick/index.ts` | Konsolidera brew_readings query, skicka in-memory data till alla 3 funktioner, ta bort separat brew_sg_data query |
+| `_shared/process-profiles-logic.ts` | Utöka opts med `brewMetrics?` — skippa query |
+| `_shared/fermentation-metrics-logic.ts` | Utöka opts med `sessions?` — skippa query |
+| `auto-adjust-cooling/index.ts` | Acceptera `controllers`, `settings`, `sessions` i request body — skippa egna queries |
+| `sync-rapt-data-quick/index.ts` | Query brew_fermentation_metrics en gång, injicera till alla. Skicka controllers+settings+sessions till auto-adjust-cooling |
 
