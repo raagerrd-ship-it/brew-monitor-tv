@@ -538,6 +538,13 @@ export async function calculateCompensatedTarget(
     const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
     const isTowardTarget = newDistToBase < currentDistToBase
     
+    // Large-error recovery: if ctrlTarget is wildly wrong (e.g. after failed PWM revert
+    // or sync race condition), skip rate-limit entirely and jump to correct value.
+    if (distanceFromIdeal > LARGE_ERROR_THRESHOLD && isTowardTarget) {
+      constraints.push('large-error-bypass')
+      console.log(`🚀 Large-error bypass ${controllerName}: gap=${distanceFromIdeal.toFixed(1)}°C > ${LARGE_ERROR_THRESHOLD}°C, jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C`)
+    } else {
+    
     // When in approach zone AND moving toward baseTarget, allow faster release
     // BUT: during ramp steps, don't release AGAINST the ramp direction.
     // Overshoot-release: disable ramp hold when probe is within 1°C of baseTarget
