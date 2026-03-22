@@ -222,6 +222,8 @@ export class RaptUpdateBatch {
   private preAuthToken: string | null = null
   /** Controllers where target should be sent to hardware but NOT persisted to DB */
   private hwOnlyIds: Set<string> = new Set()
+  /** Controllers where DB should be updated but hardware API call should be skipped (hardware already at target) */
+  private hwOnlySkipIds: Set<string> = new Set()
 
   /**
    * Optionally provide a pre-fetched RAPT access token to avoid
